@@ -112,4 +112,72 @@ impl<'a> WalletApi<'a> {
         let path = format!("/wallets/{}/chains", address);
         self.client.get(&path).await
     }
+
+    /// Get token approvals for an address
+    pub async fn get_approvals(
+        &self,
+        address: &str,
+        query: Option<&WalletQuery>,
+    ) -> Result<PaginatedResponse<TokenApproval>> {
+        let path = format!("/wallets/{}/approvals", address);
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get wallet history (decoded transactions)
+    pub async fn get_history(
+        &self,
+        address: &str,
+        query: Option<&WalletQuery>,
+    ) -> Result<PaginatedResponse<WalletHistoryEntry>> {
+        let path = format!("/wallets/{}/history", address);
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get wallet tokens with prices
+    pub async fn get_tokens(
+        &self,
+        address: &str,
+        query: Option<&WalletQuery>,
+    ) -> Result<PaginatedResponse<TokenBalance>> {
+        let path = format!("/wallets/{}/tokens", address);
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get wallet stats
+    pub async fn get_stats(&self, address: &str) -> Result<WalletStats> {
+        let path = format!("/wallets/{}/stats", address);
+        self.client.get(&path).await
+    }
+
+    /// Get wallet profitability summary
+    pub async fn get_profitability_summary(&self, address: &str) -> Result<WalletProfitability> {
+        let path = format!("/wallets/{}/profitability/summary", address);
+        self.client.get(&path).await
+    }
+
+    /// Get wallet profitability by token
+    pub async fn get_profitability(
+        &self,
+        address: &str,
+        query: Option<&WalletQuery>,
+    ) -> Result<PaginatedResponse<TokenProfitability>> {
+        let path = format!("/wallets/{}/profitability", address);
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
 }

@@ -1,7 +1,15 @@
 //! Moralis API client
 
+use crate::block::BlockApi;
+use crate::defi::DefiApi;
+use crate::discovery::DiscoveryApi;
+use crate::entities::EntitiesApi;
 use crate::error::{Error, Result};
+use crate::market::MarketApi;
+use crate::nft::NftApi;
+use crate::resolve::ResolveApi;
 use crate::token::TokenApi;
+use crate::transaction::TransactionApi;
 use crate::wallet::WalletApi;
 use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
@@ -134,5 +142,45 @@ impl Client {
     /// Access the Token API
     pub fn token(&self) -> TokenApi<'_> {
         TokenApi::new(self)
+    }
+
+    /// Access the NFT API
+    pub fn nft(&self) -> NftApi<'_> {
+        NftApi::new(self)
+    }
+
+    /// Access the Block API
+    pub fn block(&self) -> BlockApi<'_> {
+        BlockApi::new(self)
+    }
+
+    /// Access the Transaction API
+    pub fn transaction(&self) -> TransactionApi<'_> {
+        TransactionApi::new(self)
+    }
+
+    /// Access the DeFi API
+    pub fn defi(&self) -> DefiApi<'_> {
+        DefiApi::new(self)
+    }
+
+    /// Access the Resolve API (ENS, domains)
+    pub fn resolve(&self) -> ResolveApi<'_> {
+        ResolveApi::new(self)
+    }
+
+    /// Access the Market Data API
+    pub fn market(&self) -> MarketApi<'_> {
+        MarketApi::new(self)
+    }
+
+    /// Access the Discovery API
+    pub fn discovery(&self) -> DiscoveryApi<'_> {
+        DiscoveryApi::new(self)
+    }
+
+    /// Access the Entities API
+    pub fn entities(&self) -> EntitiesApi<'_> {
+        EntitiesApi::new(self)
     }
 }
