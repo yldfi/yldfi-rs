@@ -1,0 +1,7 @@
+/target
+Cargo.lock
+.env
+*.log
+.DS_Store
+.claude/
+tend.json

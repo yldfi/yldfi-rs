@@ -1,0 +1,9 @@
+/target
+Cargo.lock
+*.swp
+*.swo
+.DS_Store
+.env
+*.db
+*.checkpoint.json
+.claude/settings.local.json

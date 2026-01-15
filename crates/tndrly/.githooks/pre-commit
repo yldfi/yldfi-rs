@@ -1,0 +1,35 @@
+#!/bin/sh
+# Pre-commit hook for tndrly
+# Runs formatting and linting checks before commit
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check formatting
+echo "Checking formatting..."
+if ! cargo fmt --all -- --check; then
+    echo ""
+    echo "ERROR: Formatting check failed!"
+    echo "Run 'cargo fmt' to fix formatting issues."
+    exit 1
+fi
+
+# Run clippy
+echo "Running clippy..."
+if ! cargo clippy --all-targets --all-features -- -D warnings 2>/dev/null; then
+    echo ""
+    echo "ERROR: Clippy found issues!"
+    echo "Fix the warnings above before committing."
+    exit 1
+fi
+
+# Run tests (quick check)
+echo "Running tests..."
+if ! cargo test --lib 2>/dev/null; then
+    echo ""
+    echo "ERROR: Tests failed!"
+    exit 1
+fi
+
+echo "All pre-commit checks passed!"
