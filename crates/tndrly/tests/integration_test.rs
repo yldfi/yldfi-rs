@@ -53,10 +53,16 @@ async fn test_delivery_channels_api() {
     let client = Client::from_env().expect("Failed to create client");
 
     let project = client.delivery_channels().list_project().await.unwrap();
-    println!("list_project() - {} channels", project.delivery_channels.len());
+    println!(
+        "list_project() - {} channels",
+        project.delivery_channels.len()
+    );
 
     let account = client.delivery_channels().list_account().await.unwrap();
-    println!("list_account() - {} channels", account.delivery_channels.len());
+    println!(
+        "list_account() - {} channels",
+        account.delivery_channels.len()
+    );
 }
 
 #[tokio::test]

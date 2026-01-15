@@ -62,9 +62,7 @@ impl Client {
 
     /// Create a new client with custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
-        let http = HttpClient::builder()
-            .timeout(config.timeout)
-            .build()?;
+        let http = HttpClient::builder().timeout(config.timeout).build()?;
 
         Ok(Self {
             http,

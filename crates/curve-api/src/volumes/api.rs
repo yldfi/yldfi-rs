@@ -1,8 +1,8 @@
 //! Volumes and APYs API client
 
+use super::types::*;
 use crate::client::Client;
 use crate::error::Result;
-use super::types::*;
 
 /// API for Curve volumes and APYs
 pub struct VolumesApi<'a> {

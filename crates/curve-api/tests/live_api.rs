@@ -22,7 +22,10 @@ async fn test_lending_api() {
     let vaults = client.lending().get_all().await.unwrap();
     assert!(vaults.success);
     assert!(!vaults.data.lending_vault_data.is_empty());
-    println!("Found {} lending vaults", vaults.data.lending_vault_data.len());
+    println!(
+        "Found {} lending vaults",
+        vaults.data.lending_vault_data.len()
+    );
 }
 
 #[tokio::test]

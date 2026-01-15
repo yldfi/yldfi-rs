@@ -80,7 +80,9 @@ impl Pool {
 
     /// Get amplification coefficient
     pub fn amplification_coefficient(&self) -> Option<&str> {
-        self.0.get("amplificationCoefficient").and_then(|v| v.as_str())
+        self.0
+            .get("amplificationCoefficient")
+            .and_then(|v| v.as_str())
     }
 
     /// Get symbol

@@ -21,9 +21,7 @@ pub struct PricesClient {
 impl PricesClient {
     /// Create a new Prices API client
     pub fn new() -> Result<Self> {
-        let http = HttpClient::builder()
-            .timeout(DEFAULT_TIMEOUT)
-            .build()?;
+        let http = HttpClient::builder().timeout(DEFAULT_TIMEOUT).build()?;
 
         Ok(Self {
             http,
@@ -33,9 +31,7 @@ impl PricesClient {
 
     /// Create with custom base URL
     pub fn with_base_url(url: impl Into<String>) -> Result<Self> {
-        let http = HttpClient::builder()
-            .timeout(DEFAULT_TIMEOUT)
-            .build()?;
+        let http = HttpClient::builder().timeout(DEFAULT_TIMEOUT).build()?;
 
         Ok(Self {
             http,

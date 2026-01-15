@@ -42,22 +42,22 @@
 //! ```
 
 pub mod client;
-pub mod error;
-pub mod pools;
-pub mod volumes;
 pub mod crvusd;
+pub mod error;
 pub mod lending;
-pub mod tokens;
+pub mod pools;
 pub mod prices;
+pub mod tokens;
+pub mod volumes;
 
 pub use client::{Client, Config};
 pub use error::{Error, Result};
 
 // Re-export common types
-pub use pools::{Pool, PoolsResponse};
-pub use volumes::{VolumesResponse, GaugesResponse};
 pub use lending::{LendingVault, LendingVaultsResponse};
+pub use pools::{Pool, PoolsResponse};
 pub use tokens::{TokenInfo, TokensResponse};
+pub use volumes::{GaugesResponse, VolumesResponse};
 
 // API accessors on Client
 impl Client {
