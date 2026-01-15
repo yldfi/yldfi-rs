@@ -24,89 +24,84 @@ pub struct PoolsData {
 }
 
 /// A Curve pool
+///
+/// The Curve API has inconsistent types (some fields are sometimes strings,
+/// sometimes integers), so we use serde_json::Value internally and provide
+/// typed accessor methods.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Pool {
-    /// Pool ID (e.g., "factory-v2-0")
-    pub id: String,
-    /// Pool name
-    pub name: String,
-    /// Pool address
-    pub address: String,
-    /// LP token address
-    pub lp_token_address: Option<String>,
-    /// Gauge address
-    pub gauge_address: Option<String>,
-    /// Pool implementation
-    pub implementation: Option<String>,
-    /// Pool type (e.g., "stable", "crypto")
-    #[serde(rename = "assetTypeName")]
-    pub asset_type_name: Option<String>,
-    /// Coins in the pool
-    pub coins: Vec<Coin>,
-    /// Underlying coins (for lending pools)
-    pub underlying_coins: Option<Vec<Coin>>,
-    /// USD total in the pool
-    pub usd_total: Option<f64>,
-    /// Total supply of LP token
-    pub total_supply: Option<String>,
-    /// Amplification coefficient
-    pub amplification_coefficient: Option<String>,
-    /// Virtual price
-    pub virtual_price: Option<String>,
-    /// Whether the pool is a metapool
-    pub is_meta: Option<bool>,
-    /// Whether the pool uses a crypto swap
-    pub is_crypto: Option<bool>,
-    /// Pool parameters
-    pub parameters: Option<PoolParameters>,
-    /// Gauge rewards
-    pub gauge_rewards: Option<Vec<GaugeReward>>,
-}
+#[serde(transparent)]
+pub struct Pool(pub serde_json::Value);
 
-/// A coin in a pool
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Coin {
-    /// Coin address
-    pub address: String,
-    /// USD price
-    pub usd_price: Option<f64>,
-    /// Decimals
-    pub decimals: Option<String>,
-    /// Symbol
-    pub symbol: Option<String>,
-    /// Pool balance
-    pub pool_balance: Option<String>,
-    /// Is base pool LP token
-    pub is_base_pool_lp_token: Option<bool>,
-}
+impl Pool {
+    /// Get pool ID
+    pub fn id(&self) -> Option<&str> {
+        self.0.get("id").and_then(|v| v.as_str())
+    }
 
-/// Pool parameters
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PoolParameters {
-    /// A parameter (for crypto pools)
-    #[serde(rename = "A")]
-    pub a: Option<String>,
-    /// Fee (as percentage string)
-    pub fee: Option<String>,
-    /// Admin fee
-    pub admin_fee: Option<String>,
-    /// Gamma (for crypto pools)
-    pub gamma: Option<String>,
-}
+    /// Get pool name
+    pub fn name(&self) -> Option<&str> {
+        self.0.get("name").and_then(|v| v.as_str())
+    }
 
-/// Gauge reward info
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GaugeReward {
-    /// Reward token address
-    pub token_address: String,
-    /// Reward token symbol
-    pub symbol: Option<String>,
-    /// APY from this reward
-    pub apy: Option<f64>,
+    /// Get pool address
+    pub fn address(&self) -> Option<&str> {
+        self.0.get("address").and_then(|v| v.as_str())
+    }
+
+    /// Get LP token address
+    pub fn lp_token_address(&self) -> Option<&str> {
+        self.0.get("lpTokenAddress").and_then(|v| v.as_str())
+    }
+
+    /// Get gauge address
+    pub fn gauge_address(&self) -> Option<&str> {
+        self.0.get("gaugeAddress").and_then(|v| v.as_str())
+    }
+
+    /// Get asset type name (e.g., "usd", "eth", "crypto")
+    pub fn asset_type_name(&self) -> Option<&str> {
+        self.0.get("assetTypeName").and_then(|v| v.as_str())
+    }
+
+    /// Get USD total
+    pub fn usd_total(&self) -> Option<f64> {
+        self.0.get("usdTotal").and_then(|v| v.as_f64())
+    }
+
+    /// Get total supply
+    pub fn total_supply(&self) -> Option<&str> {
+        self.0.get("totalSupply").and_then(|v| v.as_str())
+    }
+
+    /// Get virtual price
+    pub fn virtual_price(&self) -> Option<&str> {
+        self.0.get("virtualPrice").and_then(|v| v.as_str())
+    }
+
+    /// Get amplification coefficient
+    pub fn amplification_coefficient(&self) -> Option<&str> {
+        self.0.get("amplificationCoefficient").and_then(|v| v.as_str())
+    }
+
+    /// Get symbol
+    pub fn symbol(&self) -> Option<&str> {
+        self.0.get("symbol").and_then(|v| v.as_str())
+    }
+
+    /// Get coins as raw JSON array
+    pub fn coins(&self) -> Option<&Vec<serde_json::Value>> {
+        self.0.get("coins").and_then(|v| v.as_array())
+    }
+
+    /// Check if pool is a metapool
+    pub fn is_meta_pool(&self) -> Option<bool> {
+        self.0.get("isMetaPool").and_then(|v| v.as_bool())
+    }
+
+    /// Get the underlying raw JSON value
+    pub fn raw(&self) -> &serde_json::Value {
+        &self.0
+    }
 }
 
 /// Response for pool list
