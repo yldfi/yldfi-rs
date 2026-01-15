@@ -1,9 +1,9 @@
 //! Integration tests against live Curve APIs
 //!
 //! These tests hit the real APIs and may be skipped in CI.
-//! Run with: cargo test -p curve-api --test live_api
+//! Run with: cargo test -p crv --test live_api
 
-use curve_api::{Client, PricesClient};
+use crv::{Client, PricesClient};
 
 #[tokio::test]
 async fn test_pools_api() {
