@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/ethcli",
     "crates/tndrly",
+    "crates/curve-api",
 ]
 
 [workspace.package]
