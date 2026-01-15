@@ -1146,7 +1146,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
 
 fn generate_config_template() -> String {
     r#"# ethcli configuration file
-# Documentation: https://github.com/yldfi/ethcli
+# Documentation: https://github.com/yldfi/yldfi-rs/tree/main/crates/ethcli
 
 # =============================================================================
 # General Settings

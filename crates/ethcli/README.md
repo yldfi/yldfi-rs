@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://crates.io/crates/ethcli"><img src="https://img.shields.io/crates/v/ethcli.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/ethcli/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/ethcli/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Features
@@ -35,19 +35,19 @@
 
 ```bash
 # macOS (Apple Silicon)
-curl -sL https://github.com/yldfi/ethcli/releases/latest/download/ethcli-macos-aarch64.tar.gz | tar xz
+curl -sL https://github.com/yldfi/yldfi-rs/releases/latest/download/ethcli-macos-aarch64.tar.gz | tar xz
 sudo mv ethcli /usr/local/bin/
 
 # macOS (Intel)
-curl -sL https://github.com/yldfi/ethcli/releases/latest/download/ethcli-macos-x86_64.tar.gz | tar xz
+curl -sL https://github.com/yldfi/yldfi-rs/releases/latest/download/ethcli-macos-x86_64.tar.gz | tar xz
 sudo mv ethcli /usr/local/bin/
 
 # Linux (x86_64)
-curl -sL https://github.com/yldfi/ethcli/releases/latest/download/ethcli-linux-x86_64.tar.gz | tar xz
+curl -sL https://github.com/yldfi/yldfi-rs/releases/latest/download/ethcli-linux-x86_64.tar.gz | tar xz
 sudo mv ethcli /usr/local/bin/
 
 # Linux (ARM64)
-curl -sL https://github.com/yldfi/ethcli/releases/latest/download/ethcli-linux-aarch64.tar.gz | tar xz
+curl -sL https://github.com/yldfi/yldfi-rs/releases/latest/download/ethcli-linux-aarch64.tar.gz | tar xz
 sudo mv ethcli /usr/local/bin/
 ```
 
@@ -59,7 +59,7 @@ cargo install ethcli
 
 Or from source:
 ```bash
-cargo install --git https://github.com/yldfi/ethcli.git
+cargo install --git https://github.com/yldfi/yldfi-rs.git ethcli
 ```
 
 ## Quick Start

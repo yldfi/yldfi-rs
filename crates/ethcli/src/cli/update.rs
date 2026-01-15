@@ -15,7 +15,7 @@ struct GitHubAsset {
     browser_download_url: String,
 }
 
-const REPO: &str = "yldfi/ethcli";
+const REPO: &str = "yldfi/yldfi-rs";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Check for updates and optionally install them
