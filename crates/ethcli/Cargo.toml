@@ -87,7 +87,7 @@ dsim = { path = "../dsim" }
 dune = { path = "../dune" }
 crv = { path = "../crv" }
 tndrly = { path = "../tndrly" }
-yldfi-common = { path = "../yldfi-common" }
+yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 # DEX aggregator clients
 openoc = { path = "../openoc" }

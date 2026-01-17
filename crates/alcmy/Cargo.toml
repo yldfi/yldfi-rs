@@ -16,7 +16,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 secrecy = { workspace = true }
-yldfi-common = { path = "../yldfi-common" }
+yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

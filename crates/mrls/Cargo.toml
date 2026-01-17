@@ -21,7 +21,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 secrecy = { workspace = true }
-yldfi-common = { path = "../yldfi-common" }
+yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 # Optional: tracing support
 tracing = { version = "0.1", optional = true }

@@ -31,7 +31,7 @@ thiserror = "2"
 url = "2"
 secrecy = "0.10"
 percent-encoding = "2"
-yldfi-common = { path = "../yldfi-common" }
+yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 [dev-dependencies]
 tokio-test = "0.4"
