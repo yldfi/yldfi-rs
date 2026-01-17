@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.21.2"
+version = "0.21.3"
 edition = "2021"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
 license = "MIT"
@@ -79,25 +79,25 @@ regex = "1.11"
 num-traits = "0.2"
 
 # API clients
-alcmy = { path = "../alcmy" }
-cgko = { path = "../cgko" }
-dllma = { path = "../dllma" }
-mrls = { path = "../mrls" }
-dnsim = { path = "../dnsim" }
-dnapi = { path = "../dnapi" }
-crv = { path = "../crv" }
-tndrly = { path = "../tndrly" }
+alcmy = { version = "0.1", path = "../alcmy" }
+cgko = { version = "0.1", path = "../cgko" }
+dllma = { version = "0.1", path = "../dllma" }
+mrls = { version = "0.1", path = "../mrls" }
+dnsim = { version = "0.1", path = "../dnsim" }
+dnapi = { version = "0.1", path = "../dnapi" }
+crv = { version = "0.1", path = "../crv" }
+tndrly = { version = "0.3", path = "../tndrly" }
 yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 # DEX aggregator clients
-openoc = { path = "../openoc" }
-cowp = { path = "../cowp" }
-kybr = { path = "../kybr" }
-zrxswap = { path = "../zrxswap" }
-oinch = { path = "../oinch" }
-lfi = { path = "../lfi" }
-vlra = { path = "../vlra" }
-ensof = { path = "../ensof" }
+openoc = { version = "0.1", path = "../openoc" }
+cowp = { version = "0.1", path = "../cowp" }
+kybr = { version = "0.1", path = "../kybr" }
+zrxswap = { version = "0.1", path = "../zrxswap" }
+oinch = { version = "0.1", path = "../oinch" }
+lfi = { version = "0.1", path = "../lfi" }
+vlra = { version = "0.1", path = "../vlra" }
+ensof = { version = "0.1", path = "../ensof" }
 
 # Chainlink Data Streams
 chainlink-data-streams-sdk = { version = "1.2", features = ["full"] }
