@@ -5,7 +5,7 @@ edition = "2021"
 description = "Unofficial Rust client for the Moralis Web3 API - tokens, NFTs, wallets, DeFi, and market data"
 license = "MIT"
 repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/mrls"
-keywords = ["moralis", "web3", "ethereum", "nft", "defi", "api"]
+keywords = ["moralis", "web3", "ethereum", "nft", "defi"]
 categories = ["api-bindings", "web-programming"]
 readme = "README.md"
 
