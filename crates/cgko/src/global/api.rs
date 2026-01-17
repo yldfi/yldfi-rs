@@ -23,8 +23,8 @@ impl<'a> GlobalApi<'a> {
     ///
     /// # Example
     /// ```no_run
-    /// # async fn example() -> gecko::error::Result<()> {
-    /// let client = gecko::Client::new()?;
+    /// # async fn example() -> cgko::error::Result<()> {
+    /// let client = cgko::Client::new()?;
     /// let global = client.global().data().await?;
     /// println!("Active cryptocurrencies: {:?}", global.data.active_cryptocurrencies);
     /// # Ok(())

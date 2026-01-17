@@ -18,8 +18,8 @@ impl<'a> SimpleApi<'a> {
     ///
     /// # Example
     /// ```no_run
-    /// # async fn example() -> gecko::error::Result<()> {
-    /// let client = gecko::Client::new()?;
+    /// # async fn example() -> cgko::error::Result<()> {
+    /// let client = cgko::Client::new()?;
     /// let prices = client.simple().price(&["bitcoin", "ethereum"], &["usd", "eur"]).await?;
     /// # Ok(())
     /// # }

@@ -28,8 +28,8 @@ impl<'a> CoinsApi<'a> {
     ///
     /// # Example
     /// ```no_run
-    /// # async fn example() -> gecko::error::Result<()> {
-    /// let client = gecko::Client::new()?;
+    /// # async fn example() -> cgko::error::Result<()> {
+    /// let client = cgko::Client::new()?;
     /// let markets = client.coins().markets("usd").await?;
     /// for coin in markets.iter().take(5) {
     ///     println!("{}: ${:.2}", coin.name, coin.current_price.unwrap_or(0.0));
