@@ -302,8 +302,8 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let usage = client.usage().await?;
     /// if let Some(left) = usage.credits_left {
     ///     println!("Credits remaining: {}", left);

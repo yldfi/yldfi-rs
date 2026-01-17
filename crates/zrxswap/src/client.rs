@@ -112,10 +112,10 @@ impl Config {
 /// # Example
 ///
 /// ```no_run
-/// use zerox::{Client, Chain, QuoteRequest};
+/// use zrxswap::{Client, Chain, QuoteRequest};
 ///
 /// #[tokio::main]
-/// async fn main() -> Result<(), zerox::Error> {
+/// async fn main() -> Result<(), zrxswap::Error> {
 ///     let client = Client::with_api_key("your-api-key")?;
 ///
 ///     // Get an indicative price
@@ -151,10 +151,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use zerox::Client;
+    /// use zrxswap::Client;
     ///
     /// let client = Client::with_api_key("your-api-key")?;
-    /// # Ok::<(), zerox::Error>(())
+    /// # Ok::<(), zrxswap::Error>(())
     /// ```
     pub fn with_api_key(api_key: impl Into<String>) -> Result<Self> {
         Self::with_config(Config::with_api_key(api_key))
@@ -165,7 +165,7 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use zerox::{Client, Config};
+    /// use zrxswap::{Client, Config};
     /// use std::time::Duration;
     ///
     /// let config = Config::new()
@@ -173,7 +173,7 @@ impl Client {
     ///     .timeout(Duration::from_secs(60));
     ///
     /// let client = Client::with_config(config)?;
-    /// # Ok::<(), zerox::Error>(())
+    /// # Ok::<(), zrxswap::Error>(())
     /// ```
     pub fn with_config(config: Config) -> Result<Self> {
         let http = yldfi_common::build_client(&config.http)?;
@@ -275,10 +275,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use zerox::{Client, Chain, QuoteRequest};
+    /// use zrxswap::{Client, Chain, QuoteRequest};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), zerox::Error> {
+    /// async fn main() -> Result<(), zrxswap::Error> {
     ///     let client = Client::with_api_key("your-api-key")?;
     ///
     ///     let request = QuoteRequest::sell(
@@ -321,10 +321,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use zerox::{Client, Chain, QuoteRequest};
+    /// use zrxswap::{Client, Chain, QuoteRequest};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), zerox::Error> {
+    /// async fn main() -> Result<(), zrxswap::Error> {
     ///     let client = Client::with_api_key("your-api-key")?;
     ///
     ///     let request = QuoteRequest::sell(
@@ -365,10 +365,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use zerox::{Client, Chain};
+    /// use zrxswap::{Client, Chain};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), zerox::Error> {
+    /// async fn main() -> Result<(), zrxswap::Error> {
     ///     let client = Client::with_api_key("your-api-key")?;
     ///
     ///     let sources = client.get_sources(Chain::Ethereum).await?;

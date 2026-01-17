@@ -25,10 +25,10 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::coins::Token;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::coins::Token;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let tokens = vec![
     ///     Token::coingecko("ethereum"),
     ///     Token::ethereum("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC
@@ -60,10 +60,10 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::coins::Token;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::coins::Token;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let tokens = vec![Token::coingecko("ethereum")];
     /// let prices = client.coins().current_with_search_width(&tokens, "4h").await?;
     /// # Ok(())
@@ -96,10 +96,10 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::coins::Token;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::coins::Token;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let tokens = vec![Token::coingecko("ethereum")];
     /// let timestamp = 1609459200; // 2021-01-01
     /// let prices = client.coins().historical(timestamp, &tokens).await?;
@@ -127,10 +127,10 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::coins::Token;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::coins::Token;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let tokens = vec![Token::coingecko("ethereum")];
     /// let timestamp = 1609459200; // 2021-01-01
     /// let prices = client.coins().historical_with_search_width(timestamp, &tokens, "4h").await?;
@@ -164,11 +164,11 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
+    /// # async fn example() -> dllma::error::Result<()> {
     /// use std::collections::HashMap;
-    /// use llama::coins::Token;
+    /// use dllma::coins::Token;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let mut queries = HashMap::new();
     /// queries.insert(
     ///     Token::coingecko("ethereum").format(),
@@ -200,10 +200,10 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::coins::Token;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::coins::Token;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let tokens = vec![Token::coingecko("ethereum")];
     /// // Get last 30 days with daily data points
     /// let chart = client.coins().chart(&tokens, Some(30 * 86400), Some("1d"), None).await?;
@@ -253,10 +253,10 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::coins::Token;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::coins::Token;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let tokens = vec![Token::coingecko("ethereum"), Token::coingecko("bitcoin")];
     /// let changes = client.coins().percentage(&tokens).await?;
     /// # Ok(())
@@ -281,10 +281,10 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::coins::Token;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::coins::Token;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let tokens = vec![Token::coingecko("ethereum")];
     /// let first = client.coins().first_price(&tokens).await?;
     /// # Ok(())
@@ -310,8 +310,8 @@ impl<'a> CoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let block = client.coins().block("ethereum", 1609459200).await?;
     /// println!("Block at timestamp: {}", block.height);
     /// # Ok(())

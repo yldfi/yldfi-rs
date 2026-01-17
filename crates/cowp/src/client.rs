@@ -152,10 +152,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use cowswap::{Client, Chain, QuoteRequest};
+    /// use cowp::{Client, Chain, QuoteRequest};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), cowswap::Error> {
+    /// async fn main() -> Result<(), cowp::Error> {
     ///     let client = Client::new()?;
     ///
     ///     let request = QuoteRequest::sell(
@@ -197,10 +197,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use cowswap::{Client, Chain};
+    /// use cowp::{Client, Chain};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), cowswap::Error> {
+    /// async fn main() -> Result<(), cowp::Error> {
     ///     let client = Client::new()?;
     ///
     ///     let order = client.get_order(None, "0x...order_uid...").await?;

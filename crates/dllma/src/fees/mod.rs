@@ -5,8 +5,8 @@
 //! # Example
 //!
 //! ```no_run
-//! # async fn example() -> llama::error::Result<()> {
-//! let client = llama::Client::new()?;
+//! # async fn example() -> dllma::error::Result<()> {
+//! let client = dllma::Client::new()?;
 //!
 //! // Get fees overview
 //! let fees = client.fees().overview().await?;

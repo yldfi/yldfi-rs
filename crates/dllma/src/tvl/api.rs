@@ -24,8 +24,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let protocols = client.tvl().protocols().await?;
     /// for protocol in protocols.iter().take(5) {
     ///     println!("{}: ${:.0}M TVL", protocol.name, protocol.tvl.unwrap_or(0.0) / 1_000_000.0);
@@ -46,8 +46,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let aave = client.tvl().protocol("aave").await?;
     /// println!("{}: ${:.0}M TVL", aave.name, aave.tvl.unwrap_or(0.0) / 1_000_000.0);
     /// # Ok(())
@@ -67,8 +67,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let tvl = client.tvl().protocol_tvl("aave").await?;
     /// println!("Aave TVL: ${:.0}M", tvl / 1_000_000.0);
     /// # Ok(())
@@ -84,8 +84,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let chains = client.tvl().chains().await?;
     /// for chain in chains.0.iter().take(5) {
     ///     let name = chain.name.as_deref().or(chain.gecko_id.as_deref()).unwrap_or("Unknown");
@@ -103,8 +103,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let history = client.tvl().historical_tvl().await?;
     /// if let Some(latest) = history.0.last() {
     ///     println!("Latest total TVL: ${:.0}B", latest.tvl / 1_000_000_000.0);
@@ -125,8 +125,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let history = client.tvl().chain_historical_tvl("Ethereum").await?;
     /// if let Some(latest) = history.0.last() {
     ///     println!("Ethereum TVL: ${:.0}B", latest.tvl / 1_000_000_000.0);
@@ -152,8 +152,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let protocols = client.tvl().token_protocols("usdt").await?;
     /// for p in protocols.iter().take(5) {
     ///     println!("{}: {:?}", p.name, p.category);
@@ -180,8 +180,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let flows = client.tvl().inflows("compound-v3", 1700000000).await?;
     /// if let Some(outflows) = flows.outflows {
     ///     println!("Net flows: ${:.2}M", outflows / 1_000_000.0);
@@ -203,8 +203,8 @@ impl<'a> TvlApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let assets = client.tvl().chain_assets().await?;
     /// for (chain, breakdown) in assets.0.iter().take(3) {
     ///     if let Some(canonical) = &breakdown.canonical {

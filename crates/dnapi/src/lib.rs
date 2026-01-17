@@ -5,8 +5,8 @@
 //! # Example
 //!
 //! ```no_run
-//! # async fn example() -> dune::error::Result<()> {
-//! let client = dune::Client::new("your-api-key")?;
+//! # async fn example() -> dnapi::error::Result<()> {
+//! let client = dnapi::Client::new("your-api-key")?;
 //!
 //! // Execute a query and wait for results
 //! let result = client.executions().run_query(1234, None).await?;

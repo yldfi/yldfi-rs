@@ -25,8 +25,8 @@ impl<'a> EtfApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let overview = client.etf().overview().await?;
     /// println!("Total BTC ETF AUM: ${:.0}B", overview.total_aum.unwrap_or(0.0) / 1_000_000_000.0);
     /// # Ok(())
@@ -45,8 +45,8 @@ impl<'a> EtfApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let overview = client.etf().overview_eth().await?;
     /// println!("Total ETH ETF AUM: ${:.0}B", overview.total_aum.unwrap_or(0.0) / 1_000_000_000.0);
     /// # Ok(())
@@ -65,8 +65,8 @@ impl<'a> EtfApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let history = client.etf().history().await?;
     /// for point in history.iter().take(5) {
     ///     println!("{}: ${:.0}B AUM",
@@ -89,8 +89,8 @@ impl<'a> EtfApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let history = client.etf().history_eth().await?;
     /// for point in history.iter().take(5) {
     ///     println!("{}: ${:.0}B AUM",
@@ -117,8 +117,8 @@ impl<'a> EtfApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let perf = client.etf().fdv_performance("7d").await?;
     /// for p in perf.iter().take(5) {
     ///     println!("{}: {:.2}%",
@@ -142,8 +142,8 @@ impl<'a> EtfApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let flows = client.etf().flows().await?;
     /// for flow in flows.iter().take(5) {
     ///     println!("{}: ${:.0}M flow",
@@ -166,8 +166,8 @@ impl<'a> EtfApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let snapshot = client.etf().snapshot().await?;
     /// for etf in snapshot.iter().take(5) {
     ///     println!("{}: ${:.0}M AUM",

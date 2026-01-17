@@ -43,10 +43,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use kyberswap::{Client, Chain, RouteRequest};
+    /// use kybr::{Client, Chain, RouteRequest};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), kyberswap::Error> {
+    /// async fn main() -> Result<(), kybr::Error> {
     ///     let client = Client::new()?;
     ///
     ///     let request = RouteRequest::new(
@@ -129,10 +129,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use kyberswap::{Client, Chain, RouteRequest, BuildRouteRequest};
+    /// use kybr::{Client, Chain, RouteRequest, BuildRouteRequest};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), kyberswap::Error> {
+    /// async fn main() -> Result<(), kybr::Error> {
     ///     let client = Client::new()?;
     ///
     ///     // First get routes

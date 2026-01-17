@@ -25,8 +25,8 @@ impl<'a> YieldsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let pools = client.yields().pools().await?;
     /// for pool in pools.iter().take(5) {
     ///     println!("{} on {}: {:.2}% APY",
@@ -51,8 +51,8 @@ impl<'a> YieldsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let chart = client.yields().chart("747c1d2a-c668-4682-b9f9-296708a3dd90").await?;
     /// # Ok(())
     /// # }
@@ -70,8 +70,8 @@ impl<'a> YieldsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let pools = client.yields().pools_old().await?;
     /// # Ok(())
     /// # }
@@ -88,8 +88,8 @@ impl<'a> YieldsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let borrow_pools = client.yields().pools_borrow().await?;
     /// for pool in borrow_pools.iter().take(5) {
     ///     println!("{}: lend {:.2}%, borrow {:.2}%",
@@ -117,8 +117,8 @@ impl<'a> YieldsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let chart = client.yields().chart_lend_borrow("pool-id").await?;
     /// # Ok(())
     /// # }
@@ -136,8 +136,8 @@ impl<'a> YieldsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let perps = client.yields().perps().await?;
     /// for perp in perps.iter().take(5) {
     ///     println!("{} on {}: {:.4}% funding rate",
@@ -158,8 +158,8 @@ impl<'a> YieldsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let lsd = client.yields().lsd_rates().await?;
     /// for rate in lsd.iter().take(5) {
     ///     println!("{}: {:.2}% APY", rate.name, rate.apy.unwrap_or(0.0));

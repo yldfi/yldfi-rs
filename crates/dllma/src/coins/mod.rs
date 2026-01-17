@@ -5,10 +5,10 @@
 //! # Example
 //!
 //! ```no_run
-//! # async fn example() -> llama::error::Result<()> {
-//! use llama::coins::Token;
+//! # async fn example() -> dllma::error::Result<()> {
+//! use dllma::coins::Token;
 //!
-//! let client = llama::Client::new()?;
+//! let client = dllma::Client::new()?;
 //!
 //! // Get current ETH price
 //! let tokens = vec![Token::coingecko("ethereum")];

@@ -21,8 +21,8 @@ impl<'a> FeesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let fees = client.fees().overview().await?;
     /// println!("24h fees: ${:.0}M", fees.total24h.unwrap_or(0.0) / 1_000_000.0);
     /// # Ok(())
@@ -41,10 +41,10 @@ impl<'a> FeesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::fees::FeesOverviewOptions;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::fees::FeesOverviewOptions;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let options = FeesOverviewOptions::new().exclude_charts();
     /// let fees = client.fees().overview_with_options(&options).await?;
     /// # Ok(())
@@ -67,8 +67,8 @@ impl<'a> FeesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let fees = client.fees().chain("Ethereum").await?;
     /// # Ok(())
     /// # }
@@ -87,8 +87,8 @@ impl<'a> FeesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let uniswap = client.fees().protocol("uniswap").await?;
     /// println!("Uniswap 24h fees: ${:.0}M", uniswap.total24h.unwrap_or(0.0) / 1_000_000.0);
     /// # Ok(())

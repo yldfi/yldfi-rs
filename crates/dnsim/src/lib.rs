@@ -5,8 +5,8 @@
 //! # Example
 //!
 //! ```no_run
-//! # async fn example() -> dsim::error::Result<()> {
-//! let client = dsim::Client::new("your-api-key")?;
+//! # async fn example() -> dnsim::error::Result<()> {
+//! let client = dnsim::Client::new("your-api-key")?;
 //!
 //! // Get supported chains
 //! let chains = client.chains().list().await?;

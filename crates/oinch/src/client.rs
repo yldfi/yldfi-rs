@@ -95,10 +95,10 @@ impl Config {
 /// # Example
 ///
 /// ```no_run
-/// use oneinch::{Client, Chain, QuoteRequest};
+/// use oinch::{Client, Chain, QuoteRequest};
 ///
 /// #[tokio::main]
-/// async fn main() -> Result<(), oneinch::Error> {
+/// async fn main() -> Result<(), oinch::Error> {
 ///     let client = Client::new("your-api-key")?;
 ///
 ///     let request = QuoteRequest::new(
@@ -223,10 +223,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use oneinch::{Client, Chain, QuoteRequest};
+    /// use oinch::{Client, Chain, QuoteRequest};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), oneinch::Error> {
+    /// async fn main() -> Result<(), oinch::Error> {
     ///     let client = Client::new("your-api-key")?;
     ///
     ///     let request = QuoteRequest::new(
@@ -262,10 +262,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use oneinch::{Client, Chain, SwapRequest};
+    /// use oinch::{Client, Chain, SwapRequest};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), oneinch::Error> {
+    /// async fn main() -> Result<(), oinch::Error> {
     ///     let client = Client::new("your-api-key")?;
     ///
     ///     let request = SwapRequest::new(
@@ -300,10 +300,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use oneinch::{Client, Chain};
+    /// use oinch::{Client, Chain};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), oneinch::Error> {
+    /// async fn main() -> Result<(), oinch::Error> {
     ///     let client = Client::new("your-api-key")?;
     ///     let tokens = client.get_tokens(Chain::Ethereum).await?;
     ///
@@ -330,10 +330,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use oneinch::{Client, Chain};
+    /// use oinch::{Client, Chain};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), oneinch::Error> {
+    /// async fn main() -> Result<(), oinch::Error> {
     ///     let client = Client::new("your-api-key")?;
     ///     let sources = client.get_liquidity_sources(Chain::Ethereum).await?;
     ///
@@ -358,10 +358,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use oneinch::{Client, Chain};
+    /// use oinch::{Client, Chain};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), oneinch::Error> {
+    /// async fn main() -> Result<(), oinch::Error> {
     ///     let client = Client::new("your-api-key")?;
     ///     let spender = client.get_approve_spender(Chain::Ethereum).await?;
     ///
@@ -390,10 +390,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use oneinch::{Client, Chain};
+    /// use oinch::{Client, Chain};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), oneinch::Error> {
+    /// async fn main() -> Result<(), oinch::Error> {
     ///     let client = Client::new("your-api-key")?;
     ///
     ///     let allowance = client.get_approve_allowance(
@@ -437,10 +437,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use oneinch::{Client, Chain};
+    /// use oinch::{Client, Chain};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), oneinch::Error> {
+    /// async fn main() -> Result<(), oinch::Error> {
     ///     let client = Client::new("your-api-key")?;
     ///
     ///     // Get unlimited approval transaction

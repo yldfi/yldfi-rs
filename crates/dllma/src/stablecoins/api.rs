@@ -21,8 +21,8 @@ impl<'a> StablecoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let stables = client.stablecoins().list().await?;
     /// for stable in stables.pegged_assets.iter().take(5) {
     ///     println!("{}: {}", stable.name, stable.symbol);
@@ -43,8 +43,8 @@ impl<'a> StablecoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let usdt = client.stablecoins().get("1").await?;
     /// println!("{}: {:?}", usdt.name, usdt.circulating);
     /// # Ok(())
@@ -60,8 +60,8 @@ impl<'a> StablecoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let history = client.stablecoins().charts_all().await?;
     /// # Ok(())
     /// # }
@@ -79,8 +79,8 @@ impl<'a> StablecoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let history = client.stablecoins().charts_chain("Ethereum").await?;
     /// # Ok(())
     /// # }
@@ -100,8 +100,8 @@ impl<'a> StablecoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// // Get only USDT history on Ethereum
     /// let history = client.stablecoins().charts_chain_filtered("Ethereum", "1").await?;
     /// # Ok(())
@@ -127,8 +127,8 @@ impl<'a> StablecoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let dominance = client.stablecoins().dominance("Ethereum").await?;
     /// # Ok(())
     /// # }
@@ -143,8 +143,8 @@ impl<'a> StablecoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let chains = client.stablecoins().chains().await?;
     /// for chain in chains.iter().take(5) {
     ///     let name = chain.name.as_deref().or(chain.gecko_id.as_deref()).unwrap_or("Unknown");
@@ -162,8 +162,8 @@ impl<'a> StablecoinsApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let prices = client.stablecoins().prices().await?;
     /// # Ok(())
     /// # }

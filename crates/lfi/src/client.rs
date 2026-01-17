@@ -208,10 +208,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use lifi::{Client, QuoteRequest, chains};
+    /// use lfi::{Client, QuoteRequest, chains};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), lifi::Error> {
+    /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::with_integrator("my-app")?;
     ///
     ///     // Get quote for swapping 1 ETH on Ethereum to USDC on Arbitrum
@@ -258,10 +258,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use lifi::{Client, RoutesRequest, RoutesOptions, RouteOrder, chains};
+    /// use lfi::{Client, RoutesRequest, RoutesOptions, RouteOrder, chains};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), lifi::Error> {
+    /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::with_integrator("my-app")?;
     ///
     ///     let options = RoutesOptions::new()
@@ -330,10 +330,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use lifi::{Client, StatusRequest, TransactionStatus};
+    /// use lfi::{Client, StatusRequest, TransactionStatus};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), lifi::Error> {
+    /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::new()?;
     ///
     ///     let request = StatusRequest::new("0xYourTxHash")
@@ -364,10 +364,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use lifi::Client;
+    /// use lfi::Client;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), lifi::Error> {
+    /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::new()?;
     ///     let chains = client.get_chains().await?;
     ///
@@ -401,10 +401,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use lifi::{Client, TokensRequest, chains};
+    /// use lfi::{Client, TokensRequest, chains};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), lifi::Error> {
+    /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::new()?;
     ///
     ///     // Get tokens for Ethereum and Arbitrum
@@ -452,10 +452,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use lifi::{Client, ConnectionsRequest, chains};
+    /// use lfi::{Client, ConnectionsRequest, chains};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), lifi::Error> {
+    /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::new()?;
     ///
     ///     // Get connections from Ethereum to Arbitrum
@@ -488,10 +488,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use lifi::Client;
+    /// use lfi::Client;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), lifi::Error> {
+    /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::new()?;
     ///     let tools = client.get_tools().await?;
     ///
@@ -533,10 +533,10 @@ impl Client {
     /// # Example
     ///
     /// ```no_run
-    /// use lifi::{Client, chains};
+    /// use lfi::{Client, chains};
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<(), lifi::Error> {
+    /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::new()?;
     ///     let gas = client.get_gas_prices(chains::ETHEREUM).await?;
     ///

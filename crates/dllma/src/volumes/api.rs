@@ -23,8 +23,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let dex = client.volumes().dex_overview().await?;
     /// println!("24h DEX volume: ${:.0}M", dex.total24h.unwrap_or(0.0) / 1_000_000.0);
     /// # Ok(())
@@ -43,10 +43,10 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// use llama::volumes::VolumeOverviewOptions;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::volumes::VolumeOverviewOptions;
     ///
-    /// let client = llama::Client::new()?;
+    /// let client = dllma::Client::new()?;
     /// let options = VolumeOverviewOptions::new().exclude_charts();
     /// let dex = client.volumes().dex_overview_with_options(&options).await?;
     /// # Ok(())
@@ -69,8 +69,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let dex = client.volumes().dex_chain("Ethereum").await?;
     /// # Ok(())
     /// # }
@@ -89,8 +89,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let uniswap = client.volumes().dex_protocol("uniswap").await?;
     /// println!("Uniswap 24h: ${:.0}M", uniswap.total24h.unwrap_or(0.0) / 1_000_000.0);
     /// # Ok(())
@@ -108,8 +108,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let options = client.volumes().options_overview().await?;
     /// println!("24h Options volume: ${:.0}M", options.total24h.unwrap_or(0.0) / 1_000_000.0);
     /// # Ok(())
@@ -128,8 +128,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let options = client.volumes().options_chain("Ethereum").await?;
     /// # Ok(())
     /// # }
@@ -148,8 +148,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let lyra = client.volumes().options_protocol("lyra").await?;
     /// # Ok(())
     /// # }
@@ -168,8 +168,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let derivs = client.volumes().derivatives_overview().await?;
     /// println!("24h Derivatives volume: ${:.0}M", derivs.total24h.unwrap_or(0.0) / 1_000_000.0);
     /// # Ok(())
@@ -190,8 +190,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let gmx = client.volumes().derivatives_protocol("gmx").await?;
     /// # Ok(())
     /// # }
@@ -210,8 +210,8 @@ impl<'a> VolumesApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::new()?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::new()?;
     /// let oi = client.volumes().open_interest().await?;
     /// for protocol in oi.protocols.iter().take(5) {
     ///     println!("{}: ${:.0}B OI",

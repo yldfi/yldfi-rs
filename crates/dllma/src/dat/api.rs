@@ -26,8 +26,8 @@ impl<'a> DatApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let data = client.dat().institutions().await?;
     /// println!("Tracking {} companies", data.total_companies.unwrap_or(0));
     /// for (ticker, meta) in data.institution_metadata.iter().take(5) {
@@ -53,8 +53,8 @@ impl<'a> DatApi<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// # async fn example() -> llama::error::Result<()> {
-    /// let client = llama::Client::with_api_key("your-api-key")?;
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let mstr = client.dat().institution("MSTR").await?;
     /// println!("{}: ${:.0}M in crypto holdings",
     ///     mstr.name.as_deref().unwrap_or("Unknown"),
