@@ -6,7 +6,7 @@
 //! - API key from https://portal.1inch.dev
 //! - Set ONEINCH_API_KEY environment variable
 
-use oinch::{Client, Chain, QuoteRequest};
+use oinch::{Chain, Client, QuoteRequest};
 use std::env;
 
 // Token addresses on Ethereum mainnet
@@ -15,8 +15,8 @@ const USDC: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let api_key = env::var("ONEINCH_API_KEY")
-        .expect("ONEINCH_API_KEY environment variable must be set");
+    let api_key =
+        env::var("ONEINCH_API_KEY").expect("ONEINCH_API_KEY environment variable must be set");
 
     let client = Client::new(&api_key)?;
 

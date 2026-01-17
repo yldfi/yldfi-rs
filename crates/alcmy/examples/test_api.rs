@@ -14,8 +14,8 @@ const WALLET: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let api_key = env::var("ALCHEMY_API_KEY")
-        .expect("ALCHEMY_API_KEY environment variable must be set");
+    let api_key =
+        env::var("ALCHEMY_API_KEY").expect("ALCHEMY_API_KEY environment variable must be set");
 
     let client = Client::new(&api_key, Network::EthMainnet)?;
 
@@ -23,7 +23,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== NFTs for {} ===", WALLET);
     match client.nft().get_nfts_for_owner(WALLET).await {
         Ok(response) => {
-            println!("Found {} NFTs (total: {})", response.owned_nfts.len(), response.total_count);
+            println!(
+                "Found {} NFTs (total: {})",
+                response.owned_nfts.len(),
+                response.total_count
+            );
             for nft in response.owned_nfts.iter().take(3) {
                 println!("  - {:?}", nft.name);
             }

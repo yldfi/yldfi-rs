@@ -18,7 +18,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test 1: Get native balance
     println!("=== Native Balance ===");
-    match client.wallet().get_native_balance(WALLET, Some("eth")).await {
+    match client
+        .wallet()
+        .get_native_balance(WALLET, Some("eth"))
+        .await
+    {
         Ok(balance) => println!("Balance: {} wei", balance.balance),
         Err(e) => println!("Error: {}", e),
     }

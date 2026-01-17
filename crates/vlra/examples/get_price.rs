@@ -3,7 +3,7 @@
 //! This example demonstrates getting optimal swap prices.
 //! No API key required for basic usage.
 
-use vlra::{Client, Chain, PriceRequest};
+use vlra::{Chain, Client, PriceRequest};
 
 // Token addresses on Ethereum mainnet
 const NATIVE_ETH: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -25,8 +25,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match client.get_price(Chain::Ethereum, &request).await {
         Ok(response) => {
             println!("Source amount: {} ETH", response.price_route.src_amount);
-            println!("Dest amount: {} USDC (minimal units)", response.price_route.dest_amount);
-            println!("Gas cost: {} USD", response.price_route.gas_cost_usd.unwrap_or_default());
+            println!(
+                "Dest amount: {} USDC (minimal units)",
+                response.price_route.dest_amount
+            );
+            println!(
+                "Gas cost: {} USD",
+                response.price_route.gas_cost_usd.unwrap_or_default()
+            );
         }
         Err(e) => println!("Error: {}", e),
     }

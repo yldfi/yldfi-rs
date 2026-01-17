@@ -3,7 +3,7 @@
 //! This example demonstrates getting quotes for token swaps.
 //! No API key required.
 
-use openoc::{Client, Chain, QuoteRequest};
+use openoc::{Chain, Client, QuoteRequest};
 
 // Token addresses on Ethereum mainnet
 const NATIVE_ETH: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -20,7 +20,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         NATIVE_ETH,
         USDC,
         "1000000000000000000", // 1 ETH in wei
-    ).with_slippage(1.0); // 1% slippage
+    )
+    .with_slippage(1.0); // 1% slippage
 
     match client.get_quote(Chain::Eth, &request).await {
         Ok(quote) => {

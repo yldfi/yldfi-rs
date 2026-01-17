@@ -441,18 +441,17 @@ pub async fn fetch_oneinch_quote(
     // Get proxy from config
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("1inch"));
 
-    let client = match oinch::Client::with_config(
-        oinch::Config::new(&api_key).with_optional_proxy(proxy),
-    ) {
-        Ok(c) => c,
-        Err(e) => {
-            return SourceResult::error(
-                "1inch",
-                format!("Client error: {}", e),
-                measure.elapsed_ms(),
-            )
-        }
-    };
+    let client =
+        match oinch::Client::with_config(oinch::Config::new(&api_key).with_optional_proxy(proxy)) {
+            Ok(c) => c,
+            Err(e) => {
+                return SourceResult::error(
+                    "1inch",
+                    format!("Client error: {}", e),
+                    measure.elapsed_ms(),
+                )
+            }
+        };
 
     // Include token info and protocols for more complete quote
     let request = oinch::QuoteRequest::new(token_in, token_out, amount_in)
@@ -587,17 +586,16 @@ pub async fn fetch_cowswap_quote(
     let config = ConfigFile::load_default().ok().flatten();
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("cowswap"));
 
-    let client =
-        match cowp::Client::with_config(cowp::Config::new().with_optional_proxy(proxy)) {
-            Ok(c) => c,
-            Err(e) => {
-                return SourceResult::error(
-                    "cowswap",
-                    format!("Client error: {}", e),
-                    measure.elapsed_ms(),
-                )
-            }
-        };
+    let client = match cowp::Client::with_config(cowp::Config::new().with_optional_proxy(proxy)) {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error(
+                "cowswap",
+                format!("Client error: {}", e),
+                measure.elapsed_ms(),
+            )
+        }
+    };
 
     let request = cowp::QuoteRequest::sell(actual_token_in, actual_token_out, amount_in, from);
 

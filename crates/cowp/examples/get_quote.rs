@@ -3,7 +3,7 @@
 //! This example demonstrates getting a quote for swapping WETH to USDC.
 //! No API key required.
 
-use cowp::{Client, Chain, QuoteRequest};
+use cowp::{Chain, Client, QuoteRequest};
 
 // Example wallet address (Vitalik's public address)
 const EXAMPLE_WALLET: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
@@ -27,7 +27,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match client.get_quote(Some(Chain::Mainnet), &request).await {
         Ok(quote) => {
-            println!("You will receive: {} USDC (minimal units)", quote.quote.buy_amount);
+            println!(
+                "You will receive: {} USDC (minimal units)",
+                quote.quote.buy_amount
+            );
             println!("Fee amount: {} WETH", quote.quote.fee_amount);
         }
         Err(e) => println!("Error getting quote: {}", e),
@@ -44,7 +47,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match client.get_quote(Some(Chain::Mainnet), &request).await {
         Ok(quote) => {
-            println!("You will pay: {} WETH (minimal units)", quote.quote.sell_amount);
+            println!(
+                "You will pay: {} WETH (minimal units)",
+                quote.quote.sell_amount
+            );
         }
         Err(e) => println!("Error getting quote: {}", e),
     }

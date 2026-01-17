@@ -6,7 +6,7 @@
 //! - API key from https://www.enso.finance/
 //! - Set ENSO_API_KEY environment variable
 
-use ensof::{Client, Chain, RouteRequest};
+use ensof::{Chain, Client, RouteRequest};
 use std::env;
 
 // Token addresses on Ethereum mainnet
@@ -18,8 +18,7 @@ const WALLET: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let api_key = env::var("ENSO_API_KEY")
-        .expect("ENSO_API_KEY environment variable must be set");
+    let api_key = env::var("ENSO_API_KEY").expect("ENSO_API_KEY environment variable must be set");
 
     let client = Client::with_api_key(&api_key)?;
 
@@ -31,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         NATIVE_ETH,
         USDC,
         "1000000000000000000", // 1 ETH in wei
-        100, // 1% slippage in basis points
+        100,                   // 1% slippage in basis points
     );
 
     match client.get_route(&request).await {

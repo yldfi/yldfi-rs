@@ -6,8 +6,8 @@
 //! - API key from https://0x.org/docs/introduction/getting-started
 //! - Set ZEROX_API_KEY environment variable
 
-use zrxswap::{Client, Chain, QuoteRequest};
 use std::env;
+use zrxswap::{Chain, Client, QuoteRequest};
 
 // Token addresses on Ethereum mainnet
 const NATIVE_ETH: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -16,8 +16,8 @@ const WETH: &str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let api_key = env::var("ZEROX_API_KEY")
-        .expect("ZEROX_API_KEY environment variable must be set");
+    let api_key =
+        env::var("ZEROX_API_KEY").expect("ZEROX_API_KEY environment variable must be set");
 
     let client = Client::with_api_key(&api_key)?;
 

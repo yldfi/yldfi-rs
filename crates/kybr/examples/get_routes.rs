@@ -3,7 +3,7 @@
 //! This example demonstrates getting a swap route for WETH to USDC.
 //! No API key required.
 
-use kybr::{Client, Chain, RouteRequest};
+use kybr::{Chain, Client, RouteRequest};
 
 // Token addresses on Ethereum mainnet
 const WETH: &str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
@@ -19,7 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         WETH,
         USDC,
         "1000000000000000000", // 1 WETH
-    ).with_slippage_bps(50); // 0.5% slippage
+    )
+    .with_slippage_bps(50); // 0.5% slippage
 
     match client.get_routes(Chain::Ethereum, &request).await {
         Ok(route) => {

@@ -3,7 +3,7 @@
 //! This example demonstrates getting quotes for cross-chain swaps.
 //! An integrator ID is recommended but not strictly required.
 
-use lfi::{Client, QuoteRequest, chains};
+use lfi::{chains, Client, QuoteRequest};
 
 // Token addresses
 const NATIVE_ETH: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -21,23 +21,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         chains::ARBITRUM,
         NATIVE_ETH,
         USDC_ARB,
-        "100000000000000000", // 0.1 ETH
+        "100000000000000000",                         // 0.1 ETH
         "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", // Example wallet
-    ).with_slippage(0.5); // 0.5% slippage
+    )
+    .with_slippage(0.5); // 0.5% slippage
 
     match client.get_quote(&request).await {
         Ok(quote) => {
-            println!("From: {} {} on chain {}",
+            println!(
+                "From: {} {} on chain {}",
                 quote.action.from_amount,
                 quote.action.from_token.symbol,
                 quote.action.from_chain_id
             );
-            println!("To: {} {} on chain {}",
-                quote.estimate.to_amount,
-                quote.action.to_token.symbol,
-                quote.action.to_chain_id
+            println!(
+                "To: {} {} on chain {}",
+                quote.estimate.to_amount, quote.action.to_token.symbol, quote.action.to_chain_id
             );
-            println!("Estimated time: {} seconds",
+            println!(
+                "Estimated time: {} seconds",
                 quote.estimate.execution_duration.unwrap_or(0)
             );
         }

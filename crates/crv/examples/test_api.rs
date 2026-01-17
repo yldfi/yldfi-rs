@@ -27,7 +27,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Curve Lending Vaults ===");
     match client.lending().get_all().await {
         Ok(response) => {
-            println!("Found {} lending vaults", response.data.lending_vault_data.len());
+            println!(
+                "Found {} lending vaults",
+                response.data.lending_vault_data.len()
+            );
         }
         Err(e) => println!("Error: {}", e),
     }
