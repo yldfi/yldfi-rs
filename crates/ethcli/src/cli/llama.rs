@@ -3,6 +3,7 @@
 //! Provides 1:1 access to DefiLlama API endpoints.
 
 use crate::cli::OutputFormat;
+use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
 
 #[derive(Args)]
@@ -217,9 +218,17 @@ pub enum StablecoinsCommands {
 
 /// Handle DefiLlama commands
 pub async fn handle(command: &LlamaCommands, quiet: bool) -> anyhow::Result<()> {
-    // Free tier by default, Pro key from environment
-    let client = if let Ok(api_key) = std::env::var("DEFILLAMA_API_KEY") {
-        dllma::Client::with_api_key(&api_key)?
+    // Try config first, then fall back to env var
+    // Free tier by default, Pro key optional
+    let config = ConfigFile::load_default().ok().flatten();
+    let api_key = config
+        .as_ref()
+        .and_then(|c| c.defillama.as_ref())
+        .and_then(|l| l.api_key.clone())
+        .or_else(|| std::env::var("DEFILLAMA_API_KEY").ok());
+
+    let client = if let Some(key) = api_key {
+        dllma::Client::with_api_key(&key)?
     } else {
         dllma::Client::new()?
     };

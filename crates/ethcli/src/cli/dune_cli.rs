@@ -3,6 +3,7 @@
 //! Provides 1:1 access to Dune Analytics API endpoints.
 
 use crate::cli::OutputFormat;
+use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
 
 #[derive(Args)]
@@ -122,8 +123,18 @@ pub enum ExecutionCommands {
 
 /// Handle Dune Analytics commands
 pub async fn handle(command: &DuneCommands, quiet: bool) -> anyhow::Result<()> {
-    let api_key = std::env::var("DUNE_API_KEY")
-        .map_err(|_| anyhow::anyhow!("DUNE_API_KEY environment variable not set"))?;
+    // Try config first, then fall back to env var
+    let api_key = if let Ok(Some(config)) = ConfigFile::load_default() {
+        if let Some(ref dune_config) = config.dune {
+            dune_config.api_key.clone()
+        } else {
+            std::env::var("DUNE_API_KEY")
+                .map_err(|_| anyhow::anyhow!("DUNE_API_KEY not set in config or environment"))?
+        }
+    } else {
+        std::env::var("DUNE_API_KEY")
+            .map_err(|_| anyhow::anyhow!("DUNE_API_KEY not set in config or environment"))?
+    };
 
     let client = dnapi::Client::new(&api_key)?;
 

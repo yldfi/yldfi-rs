@@ -4,6 +4,7 @@
 //! DeFi yield information with cross-source comparison.
 
 use super::{AggregatedResult, LatencyMeasure, SourceResult};
+use crate::config::ConfigFile;
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 
@@ -158,11 +159,27 @@ async fn fetch_llama_yields(
 ) -> SourceResult<Vec<NormalizedYield>> {
     let measure = LatencyMeasure::start();
 
-    let client = match dllma::Client::new() {
-        Ok(c) => c,
-        Err(e) => {
-            return SourceResult::error("llama", e.to_string(), measure.elapsed_ms());
-        }
+    // Try config first for Pro API key
+    let config = ConfigFile::load_default().ok().flatten();
+    let api_key = config
+        .as_ref()
+        .and_then(|c| c.defillama.as_ref())
+        .and_then(|l| l.api_key.clone())
+        .or_else(|| std::env::var("DEFILLAMA_API_KEY").ok());
+
+    let client = match api_key {
+        Some(key) => match dllma::Client::with_api_key(&key) {
+            Ok(c) => c,
+            Err(e) => {
+                return SourceResult::error("llama", e.to_string(), measure.elapsed_ms());
+            }
+        },
+        None => match dllma::Client::new() {
+            Ok(c) => c,
+            Err(e) => {
+                return SourceResult::error("llama", e.to_string(), measure.elapsed_ms());
+            }
+        },
     };
 
     match client.yields().pools().await {

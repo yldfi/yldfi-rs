@@ -6,6 +6,7 @@
 //! Users must accept Chainlink's Terms of Service: <https://chainlinklabs.com/terms>
 
 use crate::cli::OutputFormat;
+use crate::config::ConfigFile;
 use chainlink_data_streams_report::feed_id::ID;
 use chainlink_data_streams_sdk::{client::Client, config::Config};
 use clap::{Args, Subcommand};
@@ -96,20 +97,30 @@ struct ReportOutput {
 
 /// Handle Chainlink commands
 pub async fn handle(command: &ChainlinkCommands, quiet: bool) -> anyhow::Result<()> {
-    // Get credentials from environment
-    let api_key = std::env::var("CHAINLINK_API_KEY")
-        .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
-        .map_err(|_| anyhow::anyhow!("CHAINLINK_API_KEY or CHAINLINK_CLIENT_ID not set"))?;
-
-    let user_secret = std::env::var("CHAINLINK_USER_SECRET")
-        .or_else(|_| std::env::var("CHAINLINK_CLIENT_SECRET"))
-        .map_err(|_| anyhow::anyhow!("CHAINLINK_USER_SECRET or CHAINLINK_CLIENT_SECRET not set"))?;
-
-    let rest_url = std::env::var("CHAINLINK_REST_URL")
-        .unwrap_or_else(|_| "https://api.testnet-dataengine.chain.link".to_string());
-
-    let ws_url = std::env::var("CHAINLINK_WS_URL")
-        .unwrap_or_else(|_| "wss://ws.testnet-dataengine.chain.link".to_string());
+    // Try config first, then fall back to env vars
+    let (api_key, user_secret, rest_url, ws_url) =
+        if let Ok(Some(config)) = ConfigFile::load_default() {
+            if let Some(ref chainlink_config) = config.chainlink {
+                let rest = chainlink_config
+                    .rest_url
+                    .clone()
+                    .unwrap_or_else(|| "https://api.testnet-dataengine.chain.link".to_string());
+                let ws = chainlink_config
+                    .ws_url
+                    .clone()
+                    .unwrap_or_else(|| "wss://ws.testnet-dataengine.chain.link".to_string());
+                (
+                    chainlink_config.api_key.clone(),
+                    chainlink_config.user_secret.clone(),
+                    rest,
+                    ws,
+                )
+            } else {
+                get_chainlink_from_env()?
+            }
+        } else {
+            get_chainlink_from_env()?
+        };
 
     let config = Config::new(api_key, user_secret, rest_url, ws_url)
         .build()
@@ -262,6 +273,24 @@ pub async fn handle(command: &ChainlinkCommands, quiet: bool) -> anyhow::Result<
 
 fn parse_feed_id(s: &str) -> anyhow::Result<ID> {
     ID::from_hex_str(s).map_err(|e| anyhow::anyhow!("Invalid feed ID '{}': {:?}", s, e))
+}
+
+fn get_chainlink_from_env() -> anyhow::Result<(String, String, String, String)> {
+    let api_key = std::env::var("CHAINLINK_API_KEY")
+        .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
+        .map_err(|_| anyhow::anyhow!("CHAINLINK_API_KEY not set in config or environment"))?;
+
+    let user_secret = std::env::var("CHAINLINK_USER_SECRET")
+        .or_else(|_| std::env::var("CHAINLINK_CLIENT_SECRET"))
+        .map_err(|_| anyhow::anyhow!("CHAINLINK_USER_SECRET not set in config or environment"))?;
+
+    let rest_url = std::env::var("CHAINLINK_REST_URL")
+        .unwrap_or_else(|_| "https://api.testnet-dataengine.chain.link".to_string());
+
+    let ws_url = std::env::var("CHAINLINK_WS_URL")
+        .unwrap_or_else(|_| "wss://ws.testnet-dataengine.chain.link".to_string());
+
+    Ok((api_key, user_secret, rest_url, ws_url))
 }
 
 fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::Result<()> {

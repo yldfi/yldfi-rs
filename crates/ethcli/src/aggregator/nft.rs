@@ -4,6 +4,7 @@
 //! and merges results.
 
 use super::{normalize_chain_for_source, AggregatedResult, SourceResult};
+use crate::config::ConfigFile;
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -448,8 +449,14 @@ fn chain_to_alchemy_network(chain: &str) -> Option<alcmy::Network> {
 
 /// Fetch NFTs from Alchemy
 async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
-    let api_key =
-        std::env::var("ALCHEMY_API_KEY").map_err(|_| anyhow::anyhow!("ALCHEMY_API_KEY not set"))?;
+    // Get API key from config first, then fall back to env var
+    let config = ConfigFile::load_default().ok().flatten();
+    let api_key = config
+        .as_ref()
+        .and_then(|c| c.alchemy.as_ref())
+        .map(|a| a.api_key.clone())
+        .or_else(|| std::env::var("ALCHEMY_API_KEY").ok())
+        .ok_or_else(|| anyhow::anyhow!("ALCHEMY_API_KEY not set in config or environment"))?;
 
     let mut all_nfts = Vec::new();
 
@@ -544,8 +551,14 @@ async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Ve
 
 /// Fetch NFTs from Moralis
 async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
-    let api_key =
-        std::env::var("MORALIS_API_KEY").map_err(|_| anyhow::anyhow!("MORALIS_API_KEY not set"))?;
+    // Get API key from config first, then fall back to env var
+    let config = ConfigFile::load_default().ok().flatten();
+    let api_key = config
+        .as_ref()
+        .and_then(|c| c.moralis.as_ref())
+        .map(|m| m.api_key.clone())
+        .or_else(|| std::env::var("MORALIS_API_KEY").ok())
+        .ok_or_else(|| anyhow::anyhow!("MORALIS_API_KEY not set in config or environment"))?;
 
     let client = mrls::Client::new(&api_key)?;
     let mut all_nfts = Vec::new();
@@ -597,9 +610,22 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
 
 /// Fetch NFTs from Dune SIM (Collectibles API)
 async fn fetch_nfts_dsim(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
-    let api_key = std::env::var("DUNE_SIM_API_KEY")
-        .or_else(|_| std::env::var("DUNE_API_KEY"))
-        .map_err(|_| anyhow::anyhow!("DUNE_SIM_API_KEY or DUNE_API_KEY not set"))?;
+    // Get API key from config first, then fall back to env var
+    let config = ConfigFile::load_default().ok().flatten();
+    let api_key = config
+        .as_ref()
+        .and_then(|c| {
+            c.dune_sim
+                .as_ref()
+                .map(|d| d.api_key.clone())
+                .or_else(|| c.dune.as_ref().map(|d| d.api_key.clone()))
+        })
+        .or_else(|| {
+            std::env::var("DUNE_SIM_API_KEY")
+                .or_else(|_| std::env::var("DUNE_API_KEY"))
+                .ok()
+        })
+        .ok_or_else(|| anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment"))?;
 
     let client = dnsim::Client::new(&api_key)?;
     let mut all_nfts = Vec::new();

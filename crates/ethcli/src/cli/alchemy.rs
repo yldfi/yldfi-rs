@@ -3,6 +3,7 @@
 //! Provides 1:1 access to Alchemy API endpoints.
 
 use crate::cli::OutputFormat;
+use crate::config::ConfigFile;
 use clap::{Args, Subcommand, ValueEnum};
 
 /// Network selection for Alchemy API
@@ -254,8 +255,18 @@ pub enum DebugCommands {
 
 /// Handle Alchemy commands
 pub async fn handle(command: &AlchemyCommands, quiet: bool) -> anyhow::Result<()> {
-    let api_key = std::env::var("ALCHEMY_API_KEY")
-        .map_err(|_| anyhow::anyhow!("ALCHEMY_API_KEY environment variable not set"))?;
+    // Try config first, then fall back to env var
+    let api_key = if let Ok(Some(config)) = ConfigFile::load_default() {
+        if let Some(ref alchemy_config) = config.alchemy {
+            alchemy_config.api_key.clone()
+        } else {
+            std::env::var("ALCHEMY_API_KEY")
+                .map_err(|_| anyhow::anyhow!("ALCHEMY_API_KEY not set in config or environment"))?
+        }
+    } else {
+        std::env::var("ALCHEMY_API_KEY")
+            .map_err(|_| anyhow::anyhow!("ALCHEMY_API_KEY not set in config or environment"))?
+    };
 
     match command {
         AlchemyCommands::Nft { action, args } => handle_nft(action, args, &api_key, quiet).await,

@@ -3,6 +3,7 @@
 //! Provides 1:1 access to Dune SIM API endpoints.
 
 use crate::cli::OutputFormat;
+use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
 
 #[derive(Args)]
@@ -137,11 +138,25 @@ pub enum DefiCommands {
 
 /// Handle Dune SIM commands
 pub async fn handle(command: &DsimCommands, quiet: bool) -> anyhow::Result<()> {
-    let api_key = std::env::var("DUNE_SIM_API_KEY")
-        .or_else(|_| std::env::var("DUNE_API_KEY"))
-        .map_err(|_| {
-            anyhow::anyhow!("DUNE_SIM_API_KEY or DUNE_API_KEY environment variable not set")
-        })?;
+    // Try config first, then fall back to env var
+    let api_key = if let Ok(Some(config)) = ConfigFile::load_default() {
+        if let Some(ref dune_sim_config) = config.dune_sim {
+            dune_sim_config.api_key.clone()
+        } else if let Some(ref dune_config) = config.dune {
+            // Fall back to Dune Analytics key if no SIM-specific key
+            dune_config.api_key.clone()
+        } else {
+            std::env::var("DUNE_SIM_API_KEY")
+                .or_else(|_| std::env::var("DUNE_API_KEY"))
+                .map_err(|_| {
+                    anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment")
+                })?
+        }
+    } else {
+        std::env::var("DUNE_SIM_API_KEY")
+            .or_else(|_| std::env::var("DUNE_API_KEY"))
+            .map_err(|_| anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment"))?
+    };
 
     let client = dnsim::Client::new(&api_key)?;
 

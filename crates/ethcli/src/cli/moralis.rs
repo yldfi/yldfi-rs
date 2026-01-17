@@ -3,6 +3,7 @@
 //! Provides 1:1 access to Moralis Web3 API endpoints.
 
 use crate::cli::OutputFormat;
+use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
 
 #[derive(Args)]
@@ -269,8 +270,18 @@ pub enum MarketCommands {
 
 /// Handle Moralis commands
 pub async fn handle(command: &MoralisCommands, quiet: bool) -> anyhow::Result<()> {
-    let client = mrls::Client::from_env()
-        .map_err(|_| anyhow::anyhow!("MORALIS_API_KEY environment variable not set"))?;
+    // Try config first, then fall back to env var
+    let client = if let Ok(Some(config)) = ConfigFile::load_default() {
+        if let Some(ref moralis_config) = config.moralis {
+            mrls::Client::new(&moralis_config.api_key)?
+        } else {
+            mrls::Client::from_env()
+                .map_err(|_| anyhow::anyhow!("MORALIS_API_KEY not set in config or environment"))?
+        }
+    } else {
+        mrls::Client::from_env()
+            .map_err(|_| anyhow::anyhow!("MORALIS_API_KEY not set in config or environment"))?
+    };
 
     match command {
         MoralisCommands::Wallet { action, args } => {

@@ -3,6 +3,7 @@
 //! Provides 1:1 access to CoinGecko API endpoints.
 
 use crate::cli::OutputFormat;
+use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
 
 #[derive(Args)]
@@ -305,10 +306,38 @@ pub enum OnchainCommands {
 
 /// Handle CoinGecko commands
 pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> {
-    // CoinGecko free API doesn't require an API key
-    // Pro API key is optional via COINGECKO_API_KEY
-    let client = if let Ok(api_key) = std::env::var("COINGECKO_API_KEY") {
-        cgko::Client::pro(&api_key)?
+    // Try config first, then fall back to env var
+    // CoinGecko has 3 tiers:
+    // - Free public API (no key)
+    // - Demo API (x-cg-demo-api-key header)
+    // - Pro API (x-cg-pro-api-key header, different base URL)
+    let config = ConfigFile::load_default().ok().flatten();
+    let gecko_config = config.as_ref().and_then(|c| c.coingecko.as_ref());
+
+    let client = if let Some(cfg) = gecko_config {
+        if cfg.use_pro {
+            // Pro API - requires API key
+            if let Some(ref api_key) = cfg.api_key {
+                cgko::Client::pro(api_key)?
+            } else if let Ok(api_key) = std::env::var("COINGECKO_API_KEY") {
+                cgko::Client::pro(&api_key)?
+            } else {
+                anyhow::bail!("CoinGecko Pro enabled but no API key in config or COINGECKO_API_KEY environment")
+            }
+        } else if let Some(ref api_key) = cfg.api_key {
+            // Demo API with key (higher rate limits than free)
+            cgko::Client::demo(Some(api_key.clone()))?
+        } else {
+            // Free public API
+            cgko::Client::new()?
+        }
+    } else if let Ok(api_key) = std::env::var("COINGECKO_API_KEY") {
+        // Env var present - check if pro mode
+        if std::env::var("COINGECKO_PRO").map(|v| v == "true" || v == "1").unwrap_or(false) {
+            cgko::Client::pro(&api_key)?
+        } else {
+            cgko::Client::demo(Some(api_key))?
+        }
     } else {
         cgko::Client::new()?
     };
