@@ -333,7 +333,10 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
         }
     } else if let Ok(api_key) = std::env::var("COINGECKO_API_KEY") {
         // Env var present - check if pro mode
-        if std::env::var("COINGECKO_PRO").map(|v| v == "true" || v == "1").unwrap_or(false) {
+        if std::env::var("COINGECKO_PRO")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false)
+        {
             cgko::Client::pro(&api_key)?
         } else {
             cgko::Client::demo(Some(api_key))?

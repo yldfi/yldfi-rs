@@ -148,9 +148,7 @@ pub async fn handle(command: &DsimCommands, quiet: bool) -> anyhow::Result<()> {
         } else {
             std::env::var("DUNE_SIM_API_KEY")
                 .or_else(|_| std::env::var("DUNE_API_KEY"))
-                .map_err(|_| {
-                    anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment")
-                })?
+                .map_err(|_| anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment"))?
         }
     } else {
         std::env::var("DUNE_SIM_API_KEY")
