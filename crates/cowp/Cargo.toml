@@ -1,6 +1,6 @@
 [package]
 name = "cowp"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Unofficial Rust client for the CoW Protocol API (cowp)"
 license = "MIT"
