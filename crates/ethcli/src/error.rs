@@ -66,7 +66,11 @@ pub enum Error {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
-    /// Generic error with context
+    /// Generic error for cases that don't fit other categories.
+    ///
+    /// When using this variant, prefer including context about the operation
+    /// that failed, e.g., `Error::Other(format!("Failed to parse address: {}", input))`
+    /// rather than just passing through a raw error message.
     #[error("{0}")]
     Other(String),
 }

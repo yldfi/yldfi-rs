@@ -164,6 +164,38 @@ impl std::str::FromStr for Chain {
     }
 }
 
+impl From<yldfi_common::Chain> for Chain {
+    fn from(chain: yldfi_common::Chain) -> Self {
+        match chain {
+            yldfi_common::Chain::Ethereum => Self::Ethereum,
+            yldfi_common::Chain::Polygon => Self::Polygon,
+            yldfi_common::Chain::Arbitrum => Self::Arbitrum,
+            yldfi_common::Chain::Optimism => Self::Optimism,
+            yldfi_common::Chain::Base => Self::Base,
+            yldfi_common::Chain::Bsc => Self::Bsc,
+            yldfi_common::Chain::Avalanche => Self::Avalanche,
+            yldfi_common::Chain::Other(id) => Self::Custom(id),
+            // All other chains become Custom with their chain ID
+            other => Self::Custom(other.id()),
+        }
+    }
+}
+
+impl From<Chain> for yldfi_common::Chain {
+    fn from(chain: Chain) -> Self {
+        match chain {
+            Chain::Ethereum => Self::Ethereum,
+            Chain::Polygon => Self::Polygon,
+            Chain::Arbitrum => Self::Arbitrum,
+            Chain::Optimism => Self::Optimism,
+            Chain::Base => Self::Base,
+            Chain::Bsc => Self::Bsc,
+            Chain::Avalanche => Self::Avalanche,
+            Chain::Custom(id) => Self::from_id(id),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,5 +220,39 @@ mod tests {
         assert_eq!("1".parse::<Chain>().unwrap(), Chain::Ethereum);
         assert_eq!("polygon".parse::<Chain>().unwrap(), Chain::Polygon);
         assert_eq!("137".parse::<Chain>().unwrap(), Chain::Polygon);
+    }
+
+    #[test]
+    fn test_from_common_chain() {
+        assert_eq!(Chain::from(yldfi_common::Chain::Ethereum), Chain::Ethereum);
+        assert_eq!(Chain::from(yldfi_common::Chain::Polygon), Chain::Polygon);
+        assert_eq!(Chain::from(yldfi_common::Chain::Arbitrum), Chain::Arbitrum);
+        assert_eq!(Chain::from(yldfi_common::Chain::Base), Chain::Base);
+        // Chains not in ethcli become Custom with their chain ID
+        assert_eq!(Chain::from(yldfi_common::Chain::Fantom), Chain::Custom(250));
+        assert_eq!(
+            Chain::from(yldfi_common::Chain::Other(99999)),
+            Chain::Custom(99999)
+        );
+    }
+
+    #[test]
+    fn test_to_common_chain() {
+        assert_eq!(
+            yldfi_common::Chain::from(Chain::Ethereum),
+            yldfi_common::Chain::Ethereum
+        );
+        assert_eq!(
+            yldfi_common::Chain::from(Chain::Polygon),
+            yldfi_common::Chain::Polygon
+        );
+        assert_eq!(
+            yldfi_common::Chain::from(Chain::Custom(250)),
+            yldfi_common::Chain::Fantom
+        );
+        assert_eq!(
+            yldfi_common::Chain::from(Chain::Custom(99999)),
+            yldfi_common::Chain::Other(99999)
+        );
     }
 }

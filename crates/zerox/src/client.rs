@@ -70,6 +70,12 @@ impl Config {
         self
     }
 
+    /// Set a custom timeout (alias for `timeout` for consistency)
+    #[must_use]
+    pub fn with_timeout(self, timeout: Duration) -> Self {
+        self.timeout(timeout)
+    }
+
     /// Set the API key
     #[must_use]
     pub fn api_key(mut self, key: impl Into<String>) -> Self {

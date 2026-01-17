@@ -57,6 +57,12 @@ impl Config {
         self
     }
 
+    /// Set the request timeout (alias for `timeout` for consistency)
+    #[must_use]
+    pub fn with_timeout(self, timeout: Duration) -> Self {
+        self.timeout(timeout)
+    }
+
     /// Set a proxy URL
     #[must_use]
     pub fn proxy(mut self, proxy: impl Into<String>) -> Self {
