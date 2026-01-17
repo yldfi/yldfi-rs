@@ -1,11 +1,12 @@
 //! Integration tests against live Curve APIs
 //!
-//! These tests hit the real APIs and may be skipped in CI.
-//! Run with: cargo test -p crv --test live_api
+//! These tests hit the real APIs and are skipped in CI.
+//! Run with: cargo test -p crv --test live_api -- --ignored
 
 use crv::{Client, PricesClient, RouterApi};
 
 #[tokio::test]
+#[ignore]
 async fn test_pools_api() {
     let client = Client::new().expect("Failed to create client");
 
@@ -16,6 +17,7 @@ async fn test_pools_api() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_lending_api() {
     let client = Client::new().expect("Failed to create client");
 
@@ -29,6 +31,7 @@ async fn test_lending_api() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_prices_api_ping() {
     let client = PricesClient::new().expect("Failed to create client");
 
@@ -37,6 +40,7 @@ async fn test_prices_api_ping() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_prices_api_usd_price() {
     let client = PricesClient::new().expect("Failed to create client");
 
@@ -48,6 +52,7 @@ async fn test_prices_api_usd_price() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_prices_api_chains() {
     let client = PricesClient::new().expect("Failed to create client");
 
@@ -56,6 +61,7 @@ async fn test_prices_api_chains() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_router_api() {
     let client = Client::new().expect("Failed to create client");
 
@@ -98,6 +104,7 @@ async fn test_router_api() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_router_via_client() {
     let client = Client::new().expect("Failed to create client");
 
