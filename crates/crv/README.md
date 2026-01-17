@@ -1,10 +1,19 @@
-# crv
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+</p>
 
-Rust client for Curve Finance - REST API bindings and local swap router.
+<h1 align="center">crv</h1>
 
-## Overview
+<p align="center">
+  Unofficial Rust client for <a href="https://curve.fi">Curve Finance</a> - REST API bindings and local swap router
+</p>
 
-This crate provides two categories of functionality:
+<p align="center">
+  <a href="https://crates.io/crates/crv"><img src="https://img.shields.io/crates/v/crv.svg" alt="crates.io"></a>
+  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/crv/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
+
+## Features
 
 ### REST API Clients
 Bindings to the Curve Finance REST APIs at `api.curve.finance` and `prices.curve.finance`:
@@ -146,27 +155,6 @@ async fn main() -> Result<(), crv::Error> {
 
     Ok(())
 }
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                      crv crate                          │
-├─────────────────────────────────────────────────────────┤
-│  REST API Clients          │  Local Router              │
-│  ─────────────────         │  ────────────              │
-│  • pools                   │  • graph building          │
-│  • volumes                 │  • DFS pathfinding         │
-│  • lending                 │  • calldata encoding       │
-│  • tokens                  │                            │
-│  • crvusd                  │                            │
-│  • prices                  │                            │
-├─────────────────────────────────────────────────────────┤
-│           ↓                            ↓                │
-│  api.curve.finance          curve-router-ng contract    │
-│  prices.curve.finance       (on-chain)                  │
-└─────────────────────────────────────────────────────────┘
 ```
 
 ## License

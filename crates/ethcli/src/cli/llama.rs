@@ -219,9 +219,9 @@ pub enum StablecoinsCommands {
 pub async fn handle(command: &LlamaCommands, quiet: bool) -> anyhow::Result<()> {
     // Free tier by default, Pro key from environment
     let client = if let Ok(api_key) = std::env::var("DEFILLAMA_API_KEY") {
-        llama::Client::with_api_key(&api_key)?
+        dllma::Client::with_api_key(&api_key)?
     } else {
-        llama::Client::new()?
+        dllma::Client::new()?
     };
 
     match command {
@@ -239,7 +239,7 @@ pub async fn handle(command: &LlamaCommands, quiet: bool) -> anyhow::Result<()> 
 }
 
 async fn handle_tvl(
-    client: &llama::Client,
+    client: &dllma::Client,
     action: &TvlCommands,
     args: &LlamaArgs,
     quiet: bool,
@@ -292,7 +292,7 @@ async fn handle_tvl(
 }
 
 async fn handle_coins(
-    client: &llama::Client,
+    client: &dllma::Client,
     action: &CoinsCommands,
     args: &LlamaArgs,
     quiet: bool,
@@ -357,7 +357,7 @@ async fn handle_coins(
 }
 
 async fn handle_yields(
-    client: &llama::Client,
+    client: &dllma::Client,
     action: &YieldsCommands,
     args: &LlamaArgs,
     quiet: bool,
@@ -382,7 +382,7 @@ async fn handle_yields(
 }
 
 async fn handle_volumes(
-    client: &llama::Client,
+    client: &dllma::Client,
     action: &VolumesCommands,
     args: &LlamaArgs,
     quiet: bool,
@@ -435,7 +435,7 @@ async fn handle_volumes(
 }
 
 async fn handle_fees(
-    client: &llama::Client,
+    client: &dllma::Client,
     action: &FeesCommands,
     args: &LlamaArgs,
     quiet: bool,
@@ -467,7 +467,7 @@ async fn handle_fees(
 }
 
 async fn handle_stablecoins(
-    client: &llama::Client,
+    client: &dllma::Client,
     action: &StablecoinsCommands,
     args: &LlamaArgs,
     quiet: bool,
@@ -485,8 +485,8 @@ async fn handle_stablecoins(
 }
 
 /// Parse token strings into Token objects
-fn parse_tokens(tokens: &str) -> anyhow::Result<Vec<llama::coins::Token>> {
-    let result: Vec<llama::coins::Token> = tokens
+fn parse_tokens(tokens: &str) -> anyhow::Result<Vec<dllma::coins::Token>> {
+    let result: Vec<dllma::coins::Token> = tokens
         .split(',')
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
@@ -494,21 +494,21 @@ fn parse_tokens(tokens: &str) -> anyhow::Result<Vec<llama::coins::Token>> {
             // Format is chain:address (e.g., "coingecko:ethereum" or "ethereum:0xA0b...")
             if let Some((chain, addr)) = s.split_once(':') {
                 match chain.to_lowercase().as_str() {
-                    "coingecko" => llama::coins::Token::coingecko(addr),
-                    "ethereum" => llama::coins::Token::ethereum(addr),
-                    "bsc" => llama::coins::Token::bsc(addr),
-                    "polygon" => llama::coins::Token::polygon(addr),
-                    "arbitrum" => llama::coins::Token::arbitrum(addr),
+                    "coingecko" => dllma::coins::Token::coingecko(addr),
+                    "ethereum" => dllma::coins::Token::ethereum(addr),
+                    "bsc" => dllma::coins::Token::bsc(addr),
+                    "polygon" => dllma::coins::Token::polygon(addr),
+                    "arbitrum" => dllma::coins::Token::arbitrum(addr),
                     // Use Token::new() for chains without dedicated constructors
-                    "optimism" => llama::coins::Token::new("optimism", addr),
-                    "avalanche" => llama::coins::Token::new("avax", addr),
-                    "fantom" => llama::coins::Token::new("fantom", addr),
-                    "base" => llama::coins::Token::new("base", addr),
-                    _ => llama::coins::Token::new(chain, addr),
+                    "optimism" => dllma::coins::Token::new("optimism", addr),
+                    "avalanche" => dllma::coins::Token::new("avax", addr),
+                    "fantom" => dllma::coins::Token::new("fantom", addr),
+                    "base" => dllma::coins::Token::new("base", addr),
+                    _ => dllma::coins::Token::new(chain, addr),
                 }
             } else {
                 // Assume coingecko ID if no chain specified
-                llama::coins::Token::coingecko(s)
+                dllma::coins::Token::coingecko(s)
             }
         })
         .collect();

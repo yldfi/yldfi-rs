@@ -158,7 +158,7 @@ async fn fetch_llama_yields(
 ) -> SourceResult<Vec<NormalizedYield>> {
     let measure = LatencyMeasure::start();
 
-    let client = match llama::Client::new() {
+    let client = match dllma::Client::new() {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error("llama", e.to_string(), measure.elapsed_ms());

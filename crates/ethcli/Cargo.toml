@@ -80,24 +80,24 @@ num-traits = "0.2"
 
 # API clients
 alcmy = { path = "../alcmy" }
-gecko = { path = "../gecko" }
-llama = { path = "../llama" }
+cgko = { path = "../cgko" }
+dllma = { path = "../dllma" }
 mrls = { path = "../mrls" }
-dsim = { path = "../dsim" }
-dune = { path = "../dune" }
+dnsim = { path = "../dnsim" }
+dnapi = { path = "../dnapi" }
 crv = { path = "../crv" }
 tndrly = { path = "../tndrly" }
 yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 # DEX aggregator clients
 openoc = { path = "../openoc" }
-cowswap = { path = "../cowswap" }
-kyber = { path = "../kyber" }
-zerox = { path = "../zerox" }
-oneinch = { path = "../oneinch" }
-lifi = { path = "../lifi" }
-velora = { path = "../velora" }
-enso = { path = "../enso" }
+cowp = { path = "../cowp" }
+kybr = { path = "../kybr" }
+zrxswap = { path = "../zrxswap" }
+oinch = { path = "../oinch" }
+lfi = { path = "../lfi" }
+vlra = { path = "../vlra" }
+ensof = { path = "../ensof" }
 
 # Chainlink Data Streams
 chainlink-data-streams-sdk = { version = "1.2", features = ["full"] }

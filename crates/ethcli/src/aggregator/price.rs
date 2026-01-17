@@ -104,7 +104,7 @@ async fn fetch_gecko_price(
     let client = if let Some(cfg) = gecko_config {
         if cfg.use_pro {
             if let Some(ref key) = cfg.api_key {
-                match gecko::Client::pro(key) {
+                match cgko::Client::pro(key) {
                     Ok(c) => c,
                     Err(e) => {
                         return SourceResult::error(
@@ -122,7 +122,7 @@ async fn fetch_gecko_price(
                 );
             }
         } else {
-            match gecko::Client::demo(cfg.api_key.clone()) {
+            match cgko::Client::demo(cfg.api_key.clone()) {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(
@@ -140,7 +140,7 @@ async fn fetch_gecko_price(
             .map(|v| v == "true" || v == "1")
             .unwrap_or(false);
         if is_pro {
-            match gecko::Client::pro(api_key.unwrap_or_default()) {
+            match cgko::Client::pro(api_key.unwrap_or_default()) {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(
@@ -151,7 +151,7 @@ async fn fetch_gecko_price(
                 }
             }
         } else {
-            match gecko::Client::demo(api_key) {
+            match cgko::Client::demo(api_key) {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(
@@ -242,13 +242,13 @@ async fn fetch_llama_price(
 
     // Build the token identifier for DefiLlama
     let llama_token = if is_address {
-        llama::coins::Token::new(normalize_chain_for_source("llama", chain), token)
+        dllma::coins::Token::new(normalize_chain_for_source("llama", chain), token)
     } else {
         // For symbols, try common mappings via coingecko
         match token.to_lowercase().as_str() {
-            "eth" | "ethereum" => llama::coins::Token::coingecko("ethereum"),
-            "btc" | "bitcoin" => llama::coins::Token::coingecko("bitcoin"),
-            _ => llama::coins::Token::coingecko(token.to_lowercase()),
+            "eth" | "ethereum" => dllma::coins::Token::coingecko("ethereum"),
+            "btc" | "bitcoin" => dllma::coins::Token::coingecko("bitcoin"),
+            _ => dllma::coins::Token::coingecko(token.to_lowercase()),
         }
     };
 
@@ -259,7 +259,7 @@ async fn fetch_llama_price(
     // Create llama client with API key if available
     let client = if let Some(cfg) = llama_config {
         if let Some(ref key) = cfg.api_key {
-            match llama::Client::with_api_key(key) {
+            match dllma::Client::with_api_key(key) {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(
@@ -270,7 +270,7 @@ async fn fetch_llama_price(
                 }
             }
         } else {
-            match llama::Client::new() {
+            match dllma::Client::new() {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(
@@ -284,7 +284,7 @@ async fn fetch_llama_price(
     } else {
         // Try env var fallback
         match std::env::var("DEFILLAMA_API_KEY") {
-            Ok(key) if !key.is_empty() => match llama::Client::with_api_key(key) {
+            Ok(key) if !key.is_empty() => match dllma::Client::with_api_key(key) {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(
@@ -294,7 +294,7 @@ async fn fetch_llama_price(
                     )
                 }
             },
-            _ => match llama::Client::new() {
+            _ => match dllma::Client::new() {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(

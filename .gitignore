@@ -4,3 +4,7 @@ Cargo.lock
 *.pdb
 .env
 .DS_Store
+
+# Ignore nested target directories
+**/target/
+**/.claude/

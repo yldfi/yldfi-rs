@@ -1,10 +1,17 @@
-# mrls
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+</p>
 
-Rust client for the Moralis Web3 API.
+<h1 align="center">mrls</h1>
 
-## Overview
+<p align="center">
+  Unofficial Rust client for the <a href="https://docs.moralis.io/">Moralis Web3</a> API
+</p>
 
-A comprehensive Rust client for the [Moralis Web3 API](https://docs.moralis.io/), providing access to wallet, token, NFT, DeFi, and market data across multiple chains.
+<p align="center">
+  <a href="https://crates.io/crates/mrls"><img src="https://img.shields.io/crates/v/mrls.svg" alt="crates.io"></a>
+  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/mrls/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
 
 ## Features
 
@@ -18,6 +25,14 @@ A comprehensive Rust client for the [Moralis Web3 API](https://docs.moralis.io/)
 - **Market Data API** - Top tokens, movers, NFT collections, global stats
 - **Discovery API** - Token discovery, trending, analytics, scores
 - **Entities API** - Wallet/protocol/exchange labels and categories
+
+## Installation
+
+```toml
+[dependencies]
+mrls = "0.1"
+tokio = { version = "1", features = ["full"] }
+```
 
 ## Quick Start
 
@@ -45,14 +60,6 @@ async fn main() -> Result<(), mrls::Error> {
 
     Ok(())
 }
-```
-
-## Installation
-
-```toml
-[dependencies]
-mrls = "0.1"
-tokio = { version = "1", features = ["full"] }
 ```
 
 ## Environment Variables

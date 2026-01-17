@@ -125,7 +125,7 @@ pub async fn handle(command: &DuneCommands, quiet: bool) -> anyhow::Result<()> {
     let api_key = std::env::var("DUNE_API_KEY")
         .map_err(|_| anyhow::anyhow!("DUNE_API_KEY environment variable not set"))?;
 
-    let client = dune::Client::new(&api_key)?;
+    let client = dnapi::Client::new(&api_key)?;
 
     match command {
         DuneCommands::Query { action, args } => handle_query(&client, action, args, quiet).await,
@@ -137,7 +137,7 @@ pub async fn handle(command: &DuneCommands, quiet: bool) -> anyhow::Result<()> {
 }
 
 async fn handle_query(
-    client: &dune::Client,
+    client: &dnapi::Client,
     action: &QueryCommands,
     args: &DuneArgs,
     quiet: bool,
@@ -161,7 +161,7 @@ async fn handle_query(
             if !quiet {
                 eprintln!("Fetching results for query {}...", query_id);
             }
-            let mut opts = dune::executions::GetResultsOptions::default();
+            let mut opts = dnapi::executions::GetResultsOptions::default();
             if let Some(l) = limit {
                 opts.limit = Some(*l);
             }
@@ -178,7 +178,7 @@ async fn handle_query(
             if !quiet {
                 eprintln!("Fetching CSV results for query {}...", query_id);
             }
-            let mut opts = dune::executions::GetResultsOptions::default();
+            let mut opts = dnapi::executions::GetResultsOptions::default();
             if let Some(l) = limit {
                 opts.limit = Some(*l);
             }
@@ -193,7 +193,7 @@ async fn handle_query(
 }
 
 async fn handle_sql(
-    client: &dune::Client,
+    client: &dnapi::Client,
     action: &SqlCommands,
     args: &DuneArgs,
     quiet: bool,
@@ -211,7 +211,7 @@ async fn handle_sql(
 }
 
 async fn handle_execution(
-    client: &dune::Client,
+    client: &dnapi::Client,
     action: &ExecutionCommands,
     args: &DuneArgs,
     quiet: bool,
@@ -232,7 +232,7 @@ async fn handle_execution(
             if !quiet {
                 eprintln!("Fetching results for execution {}...", execution_id);
             }
-            let mut opts = dune::executions::GetResultsOptions::default();
+            let mut opts = dnapi::executions::GetResultsOptions::default();
             if let Some(l) = limit {
                 opts.limit = Some(*l);
             }

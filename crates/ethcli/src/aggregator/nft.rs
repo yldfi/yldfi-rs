@@ -601,7 +601,7 @@ async fn fetch_nfts_dsim(address: &str, chains: &[&str]) -> anyhow::Result<Vec<N
         .or_else(|_| std::env::var("DUNE_API_KEY"))
         .map_err(|_| anyhow::anyhow!("DUNE_SIM_API_KEY or DUNE_API_KEY not set"))?;
 
-    let client = dsim::Client::new(&api_key)?;
+    let client = dnsim::Client::new(&api_key)?;
     let mut all_nfts = Vec::new();
 
     // Dune SIM doesn't support chain filter in the same way, it returns all chains

@@ -143,7 +143,7 @@ pub async fn handle(command: &DsimCommands, quiet: bool) -> anyhow::Result<()> {
             anyhow::anyhow!("DUNE_SIM_API_KEY or DUNE_API_KEY environment variable not set")
         })?;
 
-    let client = dsim::Client::new(&api_key)?;
+    let client = dnsim::Client::new(&api_key)?;
 
     match command {
         DsimCommands::Chains { args } => {
@@ -173,7 +173,7 @@ pub async fn handle(command: &DsimCommands, quiet: bool) -> anyhow::Result<()> {
 }
 
 async fn handle_balances(
-    client: &dsim::Client,
+    client: &dnsim::Client,
     action: &BalancesCommands,
     args: &DsimArgs,
     quiet: bool,
@@ -191,7 +191,7 @@ async fn handle_balances(
 }
 
 async fn handle_collectibles(
-    client: &dsim::Client,
+    client: &dnsim::Client,
     action: &CollectiblesCommands,
     args: &DsimArgs,
     quiet: bool,
@@ -209,7 +209,7 @@ async fn handle_collectibles(
 }
 
 async fn handle_activity(
-    client: &dsim::Client,
+    client: &dnsim::Client,
     action: &ActivityCommands,
     args: &DsimArgs,
     quiet: bool,
@@ -227,7 +227,7 @@ async fn handle_activity(
 }
 
 async fn handle_token(
-    client: &dsim::Client,
+    client: &dnsim::Client,
     action: &TokenCommands,
     args: &DsimArgs,
     quiet: bool,
@@ -238,7 +238,7 @@ async fn handle_token(
                 eprintln!("Fetching token info for {}...", address);
             }
             let chain_id_str = chain_id.to_string();
-            let options = dsim::tokens::TokenInfoOptions::new(&chain_id_str);
+            let options = dnsim::tokens::TokenInfoOptions::new(&chain_id_str);
             let response = client.tokens().get(address, &options).await?;
             print_output(&response, args.format)?;
         }
@@ -247,7 +247,7 @@ async fn handle_token(
 }
 
 async fn handle_holders(
-    client: &dsim::Client,
+    client: &dnsim::Client,
     action: &HoldersCommands,
     args: &DsimArgs,
     quiet: bool,
@@ -265,7 +265,7 @@ async fn handle_holders(
 }
 
 async fn handle_defi(
-    client: &dsim::Client,
+    client: &dnsim::Client,
     action: &DefiCommands,
     args: &DsimArgs,
     quiet: bool,

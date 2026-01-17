@@ -1,10 +1,17 @@
-# openocean
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+</p>
 
-Rust client for the OpenOcean DEX Aggregator API.
+<h1 align="center">openoc</h1>
 
-## Overview
+<p align="center">
+  Unofficial Rust client for the <a href="https://openocean.finance/">OpenOcean</a> DEX Aggregator API
+</p>
 
-OpenOcean is a multi-chain DEX aggregator that provides optimal swap routes across 40+ chains and hundreds of DEXs.
+<p align="center">
+  <a href="https://crates.io/crates/openoc"><img src="https://img.shields.io/crates/v/openoc.svg" alt="crates.io"></a>
+  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/openoc/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
 
 ## Features
 
@@ -14,21 +21,29 @@ OpenOcean is a multi-chain DEX aggregator that provides optimal swap routes acro
 - **DEX List** - Query available DEXs on each chain
 - **Reverse Quote** - Calculate input amount for desired output
 
+## Installation
+
+```toml
+[dependencies]
+openoc = "0.1"
+tokio = { version = "1", features = ["full"] }
+```
+
 ## Quick Start
 
 ```rust
-use openocean::{Client, Chain, QuoteRequest};
+use openoc::{Client, Chain, QuoteRequest};
 
 #[tokio::main]
-async fn main() -> Result<(), openocean::Error> {
+async fn main() -> Result<(), openoc::Error> {
     let client = Client::new()?;
 
     // Get a quote for swapping 1 ETH to USDC
     let request = QuoteRequest::new(
         "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // Native ETH
         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
-        "1000000000000000000", // 1 ETH in wei
-    ).with_slippage(1.0);
+        "1", // 1 ETH (human readable)
+    ).with_gas_price("30000000000");
 
     let quote = client.get_quote(Chain::Eth, &request).await?;
     println!("Output: {} USDC", quote.out_amount);
@@ -40,16 +55,16 @@ async fn main() -> Result<(), openocean::Error> {
 ## Getting Transaction Data
 
 ```rust
-use openocean::{Client, Chain, SwapRequest};
+use openoc::{Client, Chain, SwapRequest};
 
 #[tokio::main]
-async fn main() -> Result<(), openocean::Error> {
+async fn main() -> Result<(), openoc::Error> {
     let client = Client::new()?;
 
     let request = SwapRequest::new(
         "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "1000000000000000000",
+        "1", // Human readable amount
         "0xYourWalletAddress",
     ).with_slippage(1.0);
 
@@ -66,28 +81,7 @@ async fn main() -> Result<(), openocean::Error> {
 
 ## Supported Chains
 
-| Chain | ID |
-|-------|-----|
-| Ethereum | `eth` |
-| BSC | `bsc` |
-| Polygon | `polygon` |
-| Arbitrum | `arbitrum` |
-| Optimism | `optimism` |
-| Base | `base` |
-| Avalanche | `avax` |
-| Fantom | `fantom` |
-| Gnosis | `gnosis` |
-| zkSync Era | `zksync` |
-| Linea | `linea` |
-| Scroll | `scroll` |
-| Mantle | `mantle` |
-| Blast | `blast` |
-| Solana | `solana` |
-| Sui | `sui` |
-
-## API Reference
-
-- [OpenOcean API V4 Docs](https://apis.openocean.finance/developer/apis/swap-api/api-v4)
+Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Fantom, Gnosis, zkSync Era, Linea, Scroll, Mantle, Blast, Solana, Sui
 
 ## License
 

@@ -389,7 +389,7 @@ async fn fetch_dsim_portfolio(
         },
     };
 
-    let client = match dsim::Client::new(&api_key) {
+    let client = match dnsim::Client::new(&api_key) {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -404,9 +404,9 @@ async fn fetch_dsim_portfolio(
     let chain_ids: Vec<&str> = chains.iter().filter_map(|c| chain_to_id(c)).collect();
 
     let options = if chain_ids.is_empty() {
-        dsim::balances::BalancesOptions::new()
+        dnsim::balances::BalancesOptions::new()
     } else {
-        let mut opts = dsim::balances::BalancesOptions::new();
+        let mut opts = dnsim::balances::BalancesOptions::new();
         opts.chain_ids = Some(chain_ids.join(","));
         opts
     };

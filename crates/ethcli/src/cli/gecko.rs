@@ -308,9 +308,9 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
     // CoinGecko free API doesn't require an API key
     // Pro API key is optional via COINGECKO_API_KEY
     let client = if let Ok(api_key) = std::env::var("COINGECKO_API_KEY") {
-        gecko::Client::pro(&api_key)?
+        cgko::Client::pro(&api_key)?
     } else {
-        gecko::Client::new()?
+        cgko::Client::new()?
     };
 
     match command {
@@ -325,7 +325,7 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
 }
 
 async fn handle_simple(
-    client: &gecko::Client,
+    client: &cgko::Client,
     action: &SimpleCommands,
     args: &GeckoArgs,
     quiet: bool,
@@ -368,7 +368,7 @@ async fn handle_simple(
 }
 
 async fn handle_coins(
-    client: &gecko::Client,
+    client: &cgko::Client,
     action: &CoinsCommands,
     args: &GeckoArgs,
     quiet: bool,
@@ -453,7 +453,7 @@ async fn handle_coins(
 }
 
 async fn handle_global(
-    client: &gecko::Client,
+    client: &cgko::Client,
     action: &GlobalCommands,
     args: &GeckoArgs,
     quiet: bool,
@@ -513,7 +513,7 @@ async fn handle_global(
 }
 
 async fn handle_nfts(
-    client: &gecko::Client,
+    client: &cgko::Client,
     action: &NftCommands,
     args: &GeckoArgs,
     quiet: bool,
@@ -559,7 +559,7 @@ async fn handle_nfts(
 }
 
 async fn handle_onchain(
-    client: &gecko::Client,
+    client: &cgko::Client,
     action: &OnchainCommands,
     args: &GeckoArgs,
     quiet: bool,

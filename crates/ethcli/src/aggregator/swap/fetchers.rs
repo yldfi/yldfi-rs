@@ -194,7 +194,7 @@ pub async fn fetch_kyber_quote(
     amount_in: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
-    let chain = match kyber::Chain::from_chain_id(chain_id) {
+    let chain = match kybr::Chain::from_chain_id(chain_id) {
         Some(c) => c,
         None => {
             return SourceResult::error(
@@ -211,7 +211,7 @@ pub async fn fetch_kyber_quote(
         .as_ref()
         .and_then(|c| c.proxy_for_source("kyberswap"));
 
-    let client = match kyber::Client::with_config(kyber::default_config().optional_proxy(proxy)) {
+    let client = match kybr::Client::with_config(kybr::default_config().optional_proxy(proxy)) {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -222,7 +222,7 @@ pub async fn fetch_kyber_quote(
         }
     };
 
-    let request = kyber::RouteRequest::new(token_in, token_out, amount_in);
+    let request = kybr::RouteRequest::new(token_in, token_out, amount_in);
 
     match client.get_routes(chain, &request).await {
         Ok(route_summary) => {
@@ -300,7 +300,7 @@ pub async fn fetch_zerox_quote(
         }
     };
 
-    let chain = match zerox::Chain::from_chain_id(chain_id) {
+    let chain = match zrxswap::Chain::from_chain_id(chain_id) {
         Some(c) => c,
         None => {
             return SourceResult::error(
@@ -314,8 +314,8 @@ pub async fn fetch_zerox_quote(
     // Get proxy from config
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("0x"));
 
-    let client = match zerox::Client::with_config(
-        zerox::Config::with_api_key(&api_key).optional_proxy(proxy),
+    let client = match zrxswap::Client::with_config(
+        zrxswap::Config::with_api_key(&api_key).optional_proxy(proxy),
     ) {
         Ok(c) => c,
         Err(e) => {
@@ -323,7 +323,7 @@ pub async fn fetch_zerox_quote(
         }
     };
 
-    let request = zerox::QuoteRequest::sell(token_in, token_out, amount_in);
+    let request = zrxswap::QuoteRequest::sell(token_in, token_out, amount_in);
 
     // 0x Permit2 /quote endpoint requires taker address
     // Use /price for indicative pricing when no sender provided
@@ -427,7 +427,7 @@ pub async fn fetch_oneinch_quote(
         }
     };
 
-    let chain = match oneinch::Chain::from_chain_id(chain_id) {
+    let chain = match oinch::Chain::from_chain_id(chain_id) {
         Some(c) => c,
         None => {
             return SourceResult::error(
@@ -441,8 +441,8 @@ pub async fn fetch_oneinch_quote(
     // Get proxy from config
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("1inch"));
 
-    let client = match oneinch::Client::with_config(
-        oneinch::Config::new(&api_key).with_optional_proxy(proxy),
+    let client = match oinch::Client::with_config(
+        oinch::Config::new(&api_key).with_optional_proxy(proxy),
     ) {
         Ok(c) => c,
         Err(e) => {
@@ -455,7 +455,7 @@ pub async fn fetch_oneinch_quote(
     };
 
     // Include token info and protocols for more complete quote
-    let request = oneinch::QuoteRequest::new(token_in, token_out, amount_in)
+    let request = oinch::QuoteRequest::new(token_in, token_out, amount_in)
         .with_tokens_info()
         .with_protocols_info()
         .with_gas_info();
@@ -524,7 +524,7 @@ pub async fn fetch_cowswap_quote(
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
     // CowSwap only supports certain chains
-    let chain = match cowswap::Chain::from_chain_id(chain_id) {
+    let chain = match cowp::Chain::from_chain_id(chain_id) {
         Some(c) => c,
         None => {
             return SourceResult::error(
@@ -588,7 +588,7 @@ pub async fn fetch_cowswap_quote(
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("cowswap"));
 
     let client =
-        match cowswap::Client::with_config(cowswap::Config::new().with_optional_proxy(proxy)) {
+        match cowp::Client::with_config(cowp::Config::new().with_optional_proxy(proxy)) {
             Ok(c) => c,
             Err(e) => {
                 return SourceResult::error(
@@ -599,7 +599,7 @@ pub async fn fetch_cowswap_quote(
             }
         };
 
-    let request = cowswap::QuoteRequest::sell(actual_token_in, actual_token_out, amount_in, from);
+    let request = cowp::QuoteRequest::sell(actual_token_in, actual_token_out, amount_in, from);
 
     match client.get_quote(Some(chain), &request).await {
         Ok(response) => {
@@ -670,7 +670,7 @@ pub async fn fetch_lifi_quote(
     let config = ConfigFile::load_default().ok().flatten();
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("lifi"));
 
-    let client = match lifi::Client::with_config(lifi::Config::new().with_optional_proxy(proxy)) {
+    let client = match lfi::Client::with_config(lfi::Config::new().with_optional_proxy(proxy)) {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -683,7 +683,7 @@ pub async fn fetch_lifi_quote(
 
     // LI.FI uses same-chain swaps when from_chain == to_chain
 
-    let request = lifi::QuoteRequest::new(
+    let request = lfi::QuoteRequest::new(
         chain_id,
         chain_id, // Same chain for regular swaps
         token_in,
@@ -755,7 +755,7 @@ pub async fn fetch_velora_quote(
     sender: Option<&str>,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
-    let chain = match velora::Chain::from_chain_id(chain_id) {
+    let chain = match vlra::Chain::from_chain_id(chain_id) {
         Some(c) => c,
         None => {
             return SourceResult::error(
@@ -770,7 +770,7 @@ pub async fn fetch_velora_quote(
     let config = ConfigFile::load_default().ok().flatten();
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("velora"));
 
-    let client = match velora::Client::with_config(velora::default_config().optional_proxy(proxy)) {
+    let client = match vlra::Client::with_config(vlra::default_config().optional_proxy(proxy)) {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -781,7 +781,7 @@ pub async fn fetch_velora_quote(
         }
     };
 
-    let mut request = velora::PriceRequest::sell(token_in, token_out, amount_in);
+    let mut request = vlra::PriceRequest::sell(token_in, token_out, amount_in);
     if let Some(addr) = sender {
         request = request.with_user_address(addr);
     }
@@ -870,8 +870,8 @@ pub async fn fetch_enso_quote(
     // Get proxy from config
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("enso"));
 
-    let client = match enso::Client::with_config(
-        enso::config_with_api_key(&api_key).optional_proxy(proxy),
+    let client = match ensof::Client::with_config(
+        ensof::config_with_api_key(&api_key).optional_proxy(proxy),
     ) {
         Ok(c) => c,
         Err(e) => {
@@ -883,7 +883,7 @@ pub async fn fetch_enso_quote(
         }
     };
 
-    let request = enso::RouteRequest::new(
+    let request = ensof::RouteRequest::new(
         chain_id,
         from_address,
         token_in,
