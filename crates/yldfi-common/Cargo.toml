@@ -6,6 +6,8 @@ description = "Shared utilities for yldfi-rs API clients"
 license = "MIT"
 repository = "https://github.com/yldfi/yldfi-rs"
 keywords = ["yldfi", "web3", "utilities"]
+categories = ["api-bindings", "web-programming"]
+readme = "README.md"
 
 [dependencies]
 tokio = { version = "1", features = ["time"] }

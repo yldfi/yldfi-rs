@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo-128.png" alt="alcmy" width="128" height="128">
+  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
 </p>
 <h1 align="center">alcmy</h1>
 <p align="center">

@@ -1,9 +1,13 @@
 [package]
 name = "alcmy"
 version = "0.1.0"
-edition.workspace = true
-license.workspace = true
+edition = "2021"
 description = "Unofficial Rust client for the Alchemy API"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/alcmy"
+keywords = ["alchemy", "ethereum", "web3", "nft", "api"]
+categories = ["api-bindings", "web-programming"]
+readme = "README.md"
 
 [dependencies]
 reqwest = { workspace = true }
