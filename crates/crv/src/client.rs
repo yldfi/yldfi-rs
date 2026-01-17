@@ -4,24 +4,24 @@ use crate::error::{Error, Result};
 use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
 use std::time::Duration;
+use yldfi_common::http::HttpClientConfig;
 
 const DEFAULT_BASE_URL: &str = "https://api.curve.finance/v1";
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Configuration for the Curve API client
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Base URL for the API
     pub base_url: String,
-    /// Request timeout
-    pub timeout: Duration,
+    /// HTTP client configuration (timeout, proxy, user-agent)
+    pub http: HttpClientConfig,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             base_url: DEFAULT_BASE_URL.to_string(),
-            timeout: DEFAULT_TIMEOUT,
+            http: HttpClientConfig::default(),
         }
     }
 }
@@ -42,7 +42,21 @@ impl Config {
     /// Set a custom timeout
     #[must_use]
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
+        self.http.timeout = timeout;
+        self
+    }
+
+    /// Set a proxy URL
+    #[must_use]
+    pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
+        self.http.proxy = Some(proxy.into());
+        self
+    }
+
+    /// Set optional proxy URL
+    #[must_use]
+    pub fn with_optional_proxy(mut self, proxy: Option<String>) -> Self {
+        self.http.proxy = proxy;
         self
     }
 }
@@ -62,7 +76,7 @@ impl Client {
 
     /// Create a new client with custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
-        let http = HttpClient::builder().timeout(config.timeout).build()?;
+        let http = yldfi_common::build_client(&config.http)?;
 
         Ok(Self {
             http,
@@ -75,19 +89,24 @@ impl Client {
         let url = format!("{}{}", self.base_url, path);
         let response = self.http.get(&url).send().await?;
 
+        let status = response.status().as_u16();
+
+        // Handle rate limiting (429)
+        if status == 429 {
+            let retry_after = response
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse().ok());
+            return Err(Error::rate_limited(retry_after));
+        }
+
         if !response.status().is_success() {
-            let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
             return Err(Error::api(status, message));
         }
 
         let data = response.json().await?;
         Ok(data)
-    }
-}
-
-impl Default for Client {
-    fn default() -> Self {
-        Self::new().expect("Failed to create default client")
     }
 }

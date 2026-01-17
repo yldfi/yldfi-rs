@@ -1,12 +1,13 @@
 //! Core Tenderly API client
 
-use crate::error::{Error, Result};
+use crate::error::{self, Error, Result};
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use secrecy::{ExposeSecret, SecretString};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 use std::time::Duration;
+use yldfi_common::http::HttpClientConfig;
 
 /// URL-encode a path segment to prevent injection
 pub fn encode_path_segment(segment: &str) -> String {
@@ -37,6 +38,8 @@ pub struct Config {
     pub timeout: Duration,
     /// Connect timeout
     pub connect_timeout: Duration,
+    /// Optional proxy URL
+    pub proxy: Option<String>,
 }
 
 impl Config {
@@ -53,6 +56,7 @@ impl Config {
             base_url: None,
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
             connect_timeout: Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS),
+            proxy: None,
         }
     }
 
@@ -64,11 +68,11 @@ impl Config {
     /// - `TENDERLY_PROJECT` (required)
     pub fn from_env() -> Result<Self> {
         let access_key = std::env::var("TENDERLY_ACCESS_KEY")
-            .map_err(|_| Error::auth("TENDERLY_ACCESS_KEY environment variable not set"))?;
+            .map_err(|_| error::auth("TENDERLY_ACCESS_KEY environment variable not set"))?;
         let account = std::env::var("TENDERLY_ACCOUNT")
-            .map_err(|_| Error::auth("TENDERLY_ACCOUNT environment variable not set"))?;
+            .map_err(|_| error::auth("TENDERLY_ACCOUNT environment variable not set"))?;
         let project = std::env::var("TENDERLY_PROJECT")
-            .map_err(|_| Error::auth("TENDERLY_PROJECT environment variable not set"))?;
+            .map_err(|_| error::auth("TENDERLY_PROJECT environment variable not set"))?;
 
         Ok(Self::new(access_key, account, project))
     }
@@ -104,6 +108,20 @@ impl Config {
         self
     }
 
+    /// Set a proxy URL
+    #[must_use]
+    pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
+        self.proxy = Some(proxy.into());
+        self
+    }
+
+    /// Set optional proxy URL
+    #[must_use]
+    pub fn with_optional_proxy(mut self, proxy: Option<String>) -> Self {
+        self.proxy = proxy;
+        self
+    }
+
     /// Get the base URL
     pub fn base_url(&self) -> &str {
         self.base_url.as_deref().unwrap_or(API_BASE_URL)
@@ -119,6 +137,7 @@ impl std::fmt::Debug for Config {
             .field("base_url", &self.base_url)
             .field("timeout", &self.timeout)
             .field("connect_timeout", &self.connect_timeout)
+            .field("proxy", &self.proxy.as_ref().map(|_| "[REDACTED]"))
             .finish()
     }
 }
@@ -133,11 +152,18 @@ pub struct Client {
 impl Client {
     /// Create a new Tenderly client with the given configuration
     pub fn new(config: Config) -> Result<Self> {
-        let http = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .timeout(config.timeout)
             .connect_timeout(config.connect_timeout)
-            .build()
-            .map_err(Error::Http)?;
+            .user_agent(&HttpClientConfig::default().user_agent);
+
+        if let Some(ref proxy_url) = config.proxy {
+            let proxy = reqwest::Proxy::all(proxy_url)
+                .map_err(|e| error::config(format!("Invalid proxy URL: {}", e)))?;
+            builder = builder.proxy(proxy);
+        }
+
+        let http = builder.build().map_err(Error::Http)?;
 
         Ok(Self {
             config: Arc::new(config),
@@ -180,7 +206,7 @@ impl Client {
     fn headers(&self) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         let access_key = HeaderValue::from_str(self.config.access_key.expose_secret())
-            .map_err(|_| Error::auth("API access key contains invalid header characters"))?;
+            .map_err(|_| error::auth("API access key contains invalid header characters"))?;
         headers.insert("X-Access-Key", access_key);
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         Ok(headers)
@@ -334,9 +360,9 @@ impl Client {
             .unwrap_or_else(|_| "Unknown error".to_string());
 
         match status {
-            404 => Err(Error::not_found(message)),
-            401 | 403 => Err(Error::auth(message)),
-            400 | 422 => Err(Error::invalid_param(message)),
+            404 => Err(error::not_found(message)),
+            401 | 403 => Err(error::auth(message)),
+            400 | 422 => Err(error::invalid_param(message)),
             402 => Err(Error::api(status, format!("Request failed: {}", message))),
             _ => Err(Error::api(status, message)),
         }

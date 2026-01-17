@@ -1,0 +1,21 @@
+[package]
+name = "dsim"
+version = "0.1.0"
+edition = "2021"
+description = "Unofficial Rust client for the Dune SIM API"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs"
+keywords = ["crypto", "dune", "evm", "blockchain", "api"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+secrecy = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+url = "2"
+yldfi-common = { path = "../yldfi-common" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

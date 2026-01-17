@@ -299,6 +299,20 @@ impl<'a> NftApi<'a> {
         }
     }
 
+    /// Get collection traits with pagination
+    pub async fn get_collection_traits_paginated(
+        &self,
+        contract: &str,
+        query: Option<&NftQuery>,
+    ) -> Result<NftResponse<NftTrait>> {
+        let path = format!("/nft/{}/traits/paginate", contract);
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
     /// Get unique owners count
     pub async fn get_unique_owners(
         &self,
@@ -325,6 +339,142 @@ impl<'a> NftApi<'a> {
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get multiple NFTs by token addresses and IDs (batch)
+    pub async fn get_multiple_nfts(
+        &self,
+        request: &GetMultipleNftsRequest,
+        chain: Option<&str>,
+    ) -> Result<Vec<Nft>> {
+        if let Some(chain) = chain {
+            let query = NftQuery::new().chain(chain);
+            self.client
+                .post_with_query("/nft/getMultipleNFTs", request, &query)
+                .await
+        } else {
+            self.client.post("/nft/getMultipleNFTs", request).await
+        }
+    }
+
+    /// Get NFTs by traits
+    pub async fn get_nfts_by_traits(
+        &self,
+        contract: &str,
+        request: &NftsByTraitsRequest,
+        chain: Option<&str>,
+    ) -> Result<NftResponse<Nft>> {
+        let path = format!("/nft/{}/nfts-by-traits", contract);
+        if let Some(chain) = chain {
+            let query = NftQuery::new().chain(chain);
+            self.client.post_with_query(&path, request, &query).await
+        } else {
+            self.client.post(&path, request).await
+        }
+    }
+
+    /// Get historical floor price for a collection
+    pub async fn get_floor_price_historical(
+        &self,
+        contract: &str,
+        chain: Option<&str>,
+    ) -> Result<Vec<HistoricalFloorPrice>> {
+        let path = format!("/nft/{}/floor-price/historical", contract);
+        if let Some(chain) = chain {
+            let query = NftQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Sync NFT collection metadata
+    pub async fn sync_collection(
+        &self,
+        contract: &str,
+        chain: Option<&str>,
+    ) -> Result<NftSyncStatus> {
+        let body = serde_json::json!({});
+        let path = if let Some(c) = chain {
+            format!("/nft/{}/sync?chain={}", contract, c)
+        } else {
+            format!("/nft/{}/sync", contract)
+        };
+        self.client.put(&path, &body).await
+    }
+
+    /// Get NFTs by contract address
+    pub async fn get_contract_nfts(
+        &self,
+        contract: &str,
+        query: Option<&NftQuery>,
+    ) -> Result<NftResponse<Nft>> {
+        let path = format!("/nft/{}", contract);
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get metadata for multiple NFT contracts (batch)
+    pub async fn get_multiple_collections(
+        &self,
+        request: &GetMultipleCollectionsRequest,
+        chain: Option<&str>,
+    ) -> Result<Vec<NftCollection>> {
+        if let Some(chain) = chain {
+            let query = NftQuery::new().chain(chain);
+            self.client
+                .post_with_query("/nft/metadata", request, &query)
+                .await
+        } else {
+            self.client.post("/nft/metadata", request).await
+        }
+    }
+
+    /// Resync NFT collection traits
+    pub async fn resync_traits(
+        &self,
+        contract: &str,
+        chain: Option<&str>,
+    ) -> Result<TraitResyncStatus> {
+        let path = format!("/nft/{}/traits/resync", contract);
+        if let Some(chain) = chain {
+            let query = NftQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get NFT sale prices by collection
+    pub async fn get_collection_prices(
+        &self,
+        contract: &str,
+        query: Option<&NftQuery>,
+    ) -> Result<NftResponse<NftSalePrice>> {
+        let path = format!("/nft/{}/price", contract);
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get NFT sale prices by token
+    pub async fn get_token_prices(
+        &self,
+        contract: &str,
+        token_id: &str,
+        query: Option<&NftQuery>,
+    ) -> Result<NftResponse<NftSalePrice>> {
+        let path = format!("/nft/{}/{}/price", contract, token_id);
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
         } else {
             self.client.get(&path).await
         }

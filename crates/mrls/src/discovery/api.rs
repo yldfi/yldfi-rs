@@ -190,4 +190,24 @@ impl<'a> DiscoveryApi<'a> {
             self.client.get(&path).await
         }
     }
+
+    /// Filter tokens with custom criteria
+    pub async fn filter_tokens(&self, filter: &DiscoveryFilter) -> Result<DiscoveryResponse> {
+        self.client.post("/discovery/tokens", filter).await
+    }
+
+    /// Get single token details from discovery
+    pub async fn get_token(&self, address: &str, chain: Option<&str>) -> Result<DiscoveredToken> {
+        #[derive(Serialize)]
+        struct TokenQuery {
+            address: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            chain: Option<String>,
+        }
+        let query = TokenQuery {
+            address: address.to_string(),
+            chain: chain.map(|s| s.to_string()),
+        };
+        self.client.get_with_query("/discovery/token", &query).await
+    }
 }

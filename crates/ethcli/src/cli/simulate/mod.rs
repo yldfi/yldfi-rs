@@ -1,3 +1,4 @@
+pub mod alchemy;
 pub mod anvil;
 pub mod cast;
 pub mod rpc;
@@ -5,6 +6,7 @@ pub mod tenderly;
 pub mod types;
 pub mod utils;
 
+pub use alchemy::*;
 pub use anvil::*;
 pub use cast::*;
 pub use rpc::*;
@@ -154,6 +156,10 @@ pub enum SimulateCommands {
         #[command(flatten)]
         tenderly: TenderlyArgs,
 
+        /// Alchemy credentials
+        #[command(flatten)]
+        alchemy: AlchemyArgs,
+
         /// Save simulation to Tenderly (returns simulation ID)
         #[arg(long)]
         save: bool,
@@ -183,6 +189,10 @@ pub enum SimulateCommands {
         /// Tenderly credentials
         #[command(flatten)]
         tenderly: TenderlyArgs,
+
+        /// Alchemy credentials
+        #[command(flatten)]
+        alchemy: AlchemyArgs,
 
         /// Show full opcode trace
         #[arg(long, short)]
@@ -302,6 +312,7 @@ pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> any
             rpc_url,
             trace,
             tenderly,
+            alchemy,
             save,
             dry_run,
             show_secrets,
@@ -489,6 +500,17 @@ pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> any
                     )
                     .await
                 }
+                SimulateVia::Alchemy => {
+                    if dry_run.is_some() {
+                        return Err(anyhow::anyhow!(
+                            "--dry-run not supported for alchemy backend"
+                        ));
+                    }
+                    simulate_via_alchemy(
+                        to, sig, data, args, from, value, *gas, *gas_price, alchemy, quiet,
+                    )
+                    .await
+                }
             }
         }
 
@@ -497,6 +519,7 @@ pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> any
             via,
             rpc_url,
             tenderly,
+            alchemy,
             trace,
             debug,
         } => match via {
@@ -506,6 +529,7 @@ pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> any
             SimulateVia::Tenderly => trace_tx_via_tenderly(hash, tenderly, quiet).await,
             SimulateVia::Debug => trace_tx_via_debug_rpc(hash, rpc_url, chain, quiet).await,
             SimulateVia::Trace => trace_tx_via_trace_rpc(hash, rpc_url, chain, quiet).await,
+            SimulateVia::Alchemy => trace_tx_via_alchemy(hash, alchemy, quiet).await,
         },
 
         SimulateCommands::Bundle {

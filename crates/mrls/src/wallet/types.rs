@@ -249,3 +249,25 @@ pub struct TokenProfitability {
     /// Count of trades
     pub count_of_trades: Option<i64>,
 }
+
+/// Request for multi-wallet balances
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetWalletBalancesRequest {
+    /// Wallet addresses to fetch balances for
+    pub wallet_addresses: Vec<String>,
+}
+
+/// Multi-wallet balance response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WalletBalances {
+    /// Address
+    pub address: Option<String>,
+    /// Native balance
+    pub native_balance: Option<String>,
+    /// Native balance formatted
+    pub native_balance_formatted: Option<String>,
+    /// Native balance USD
+    pub native_balance_usd: Option<f64>,
+    /// Token balances
+    pub token_balances: Option<Vec<TokenBalance>>,
+}

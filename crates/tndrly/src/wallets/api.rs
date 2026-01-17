@@ -65,9 +65,7 @@ impl<'a> WalletsApi<'a> {
     /// ```
     pub async fn add(&self, request: &AddWalletRequest) -> Result<AddWalletResponse> {
         // Validate that at least one network is specified
-        request
-            .validate()
-            .map_err(crate::error::Error::invalid_param)?;
+        request.validate().map_err(crate::error::invalid_param)?;
 
         self.client.post("/wallet", request).await
     }

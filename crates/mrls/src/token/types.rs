@@ -345,3 +345,123 @@ pub struct TokenResponse<T> {
     /// Results
     pub result: Vec<T>,
 }
+
+/// Request for batch token prices
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetMultiplePricesRequest {
+    /// Token addresses to fetch prices for
+    pub tokens: Vec<TokenAddressInput>,
+}
+
+/// Token address input for batch requests
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenAddressInput {
+    /// Token address
+    pub token_address: String,
+    /// Exchange (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exchange: Option<String>,
+}
+
+/// Request for tokens by symbols
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetTokensBySymbolsRequest {
+    /// Token symbols to fetch
+    pub symbols: Vec<String>,
+}
+
+/// Token holders summary
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenHoldersSummary {
+    /// Total holders
+    pub total_holders: Option<i64>,
+    /// Holders change 24h
+    pub holders_change_24h: Option<i64>,
+    /// Holders change percentage 24h
+    pub holders_change_percent_24h: Option<f64>,
+}
+
+/// Historical holders data point
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoricalHolders {
+    /// Timestamp
+    pub timestamp: Option<String>,
+    /// Total holders
+    pub total_holders: Option<i64>,
+}
+
+/// Aggregated token pair stats
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregatedPairStats {
+    /// Total pairs
+    pub total_pairs: Option<i32>,
+    /// Total liquidity USD
+    pub total_liquidity_usd: Option<f64>,
+    /// Total volume 24h USD
+    pub total_volume_24h_usd: Option<f64>,
+    /// Top pairs
+    pub top_pairs: Option<Vec<PairStats>>,
+}
+
+/// Top trader for a token
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopTrader {
+    /// Wallet address
+    pub wallet_address: Option<String>,
+    /// Realized profit USD
+    pub realized_profit_usd: Option<f64>,
+    /// Unrealized profit USD
+    pub unrealized_profit_usd: Option<f64>,
+    /// Total profit USD
+    pub total_profit_usd: Option<f64>,
+    /// Total tokens bought
+    pub total_tokens_bought: Option<String>,
+    /// Total tokens sold
+    pub total_tokens_sold: Option<String>,
+    /// Average buy price USD
+    pub avg_buy_price_usd: Option<f64>,
+    /// Average sell price USD
+    pub avg_sell_price_usd: Option<f64>,
+    /// Trade count
+    pub trade_count: Option<i64>,
+}
+
+/// Pair sniper
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairSniper {
+    /// Wallet address
+    pub wallet_address: Option<String>,
+    /// Block number
+    pub block_number: Option<String>,
+    /// Transaction hash
+    pub transaction_hash: Option<String>,
+    /// Amount bought
+    pub amount_bought: Option<String>,
+    /// USD value
+    pub usd_value: Option<f64>,
+    /// Profit USD
+    pub profit_usd: Option<f64>,
+}
+
+/// Token bonding status (for pump.fun, etc)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenBondingStatus {
+    /// Token address
+    pub token_address: Option<String>,
+    /// Is bonding
+    pub is_bonding: Option<bool>,
+    /// Has graduated
+    pub graduated: Option<bool>,
+    /// Bonding progress percentage
+    pub bonding_progress: Option<f64>,
+    /// Bonding curve address
+    pub bonding_curve_address: Option<String>,
+    /// Market cap USD
+    pub market_cap_usd: Option<f64>,
+}

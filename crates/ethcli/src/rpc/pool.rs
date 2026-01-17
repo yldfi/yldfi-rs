@@ -426,9 +426,7 @@ impl RpcPool {
                 .find(|(u, _)| u == b.url())
                 .map(|(_, s)| *s)
                 .unwrap_or(0.0);
-            b_score
-                .partial_cmp(&a_score)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            b_score.total_cmp(&a_score)
         });
 
         // Add some randomization among similar scores

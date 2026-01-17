@@ -39,25 +39,84 @@
 //!     ).await?;
 //!     println!("WETH Price: ${:?}", price.usd_price);
 //!
-//!     // Get NFT collection floor price
-//!     let floor = client.nft().get_floor_price(
-//!         "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D", // BAYC
-//!         Some("eth"),
-//!     ).await?;
-//!     println!("BAYC Floor: ${:?}", floor.floor_price_usd);
-//!
-//!     // Resolve ENS domain
-//!     let resolved = client.resolve().resolve_domain("vitalik.eth").await?;
-//!     println!("vitalik.eth = {:?}", resolved.address);
-//!
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## Error Handling
+//!
+//! The client provides specific error types for common API errors:
+//!
+//! ```no_run
+//! use mrls::{Client, Error};
+//! use mrls::error::DomainError;
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     let client = Client::from_env().unwrap();
+//!
+//!     // Premium endpoints require Starter or Pro plan
+//!     match client.discovery().get_token_score("0x...", Some("eth")).await {
+//!         Ok(score) => println!("Token score: {:?}", score),
+//!         Err(Error::Domain(DomainError::PlanRequired { required_plan, message })) => {
+//!             println!("Upgrade to {} plan: {}", required_plan, message);
+//!         }
+//!         Err(Error::RateLimited { retry_after, .. }) => {
+//!             println!("Rate limited, retry after {:?}", retry_after);
+//!         }
+//!         Err(Error::Domain(DomainError::Unauthorized)) => {
+//!             println!("Invalid API key");
+//!         }
+//!         Err(e) => println!("Other error: {}", e),
+//!     }
+//! }
+//! ```
+//!
+//! ### Plan Tiers
+//!
+//! Some endpoints require specific plan tiers:
+//!
+//! | Tier | Endpoints |
+//! |------|-----------|
+//! | **Free** | Most basic endpoints |
+//! | **Starter** | `get_token_score` |
+//! | **Pro** | Volume stats, token discovery, analytics, search |
+//!
+//! ## Automatic Retries
+//!
+//! Use the retry utilities for resilient API calls:
+//!
+//! ```no_run
+//! use mrls::{Client, with_retry, RetryConfig};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let client = Client::from_env()?;
+//!     let config = RetryConfig::default(); // 3 retries with exponential backoff
+//!
+//!     let result = with_retry(&config, || async {
+//!         client.wallet().get_native_balance(
+//!             "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+//!             Some("eth"),
+//!         ).await
+//!     }).await?;
+//!
+//!     println!("Balance: {}", result.balance);
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Preset configurations:
+//! - `RetryConfig::default()` - 3 retries, 100ms initial delay
+//! - `RetryConfig::quick()` - 2 retries, 50ms initial delay (interactive)
+//! - `RetryConfig::batch()` - 5 retries, 200ms initial delay (batch jobs)
+//! - `RetryConfig::none()` - No retries
 
 mod client;
 pub mod error;
 
 // API modules
+pub mod analytics;
 pub mod block;
 pub mod defi;
 pub mod discovery;
@@ -67,13 +126,27 @@ pub mod nft;
 pub mod resolve;
 pub mod token;
 pub mod transaction;
+pub mod utils;
+pub mod volume;
 pub mod wallet;
 
 // Re-exports
-pub use client::Client;
-pub use error::Error;
+pub use client::{Client, Config};
+pub use error::{Error, PlanTier};
+pub use yldfi_common::http::HttpClientConfig;
+pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
+
+/// Default base URL for the Moralis API
+pub const DEFAULT_BASE_URL: &str = "https://deep-index.moralis.io/api/v2.2";
+
+/// Create a config with an API key
+#[must_use]
+pub fn config_with_api_key(api_key: impl Into<String>) -> Config {
+    Config::new(api_key)
+}
 
 // API re-exports
+pub use analytics::{AnalyticsApi, AnalyticsQuery};
 pub use block::{BlockApi, BlockQuery};
 pub use defi::{DefiApi, DefiQuery};
 pub use discovery::{DiscoveryApi, DiscoveryQuery};
@@ -83,6 +156,8 @@ pub use nft::{NftApi, NftQuery};
 pub use resolve::ResolveApi;
 pub use token::TokenApi;
 pub use transaction::{TransactionApi, TransactionQuery};
+pub use utils::{UtilsApi, UtilsQuery};
+pub use volume::{VolumeApi, VolumeQuery};
 pub use wallet::{WalletApi, WalletQuery};
 
 /// Result type alias for this crate

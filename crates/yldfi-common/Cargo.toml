@@ -1,0 +1,17 @@
+[package]
+name = "yldfi-common"
+version = "0.1.0"
+edition = "2021"
+description = "Shared utilities for yldfi-rs API clients"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs"
+keywords = ["yldfi", "web3", "utilities"]
+
+[dependencies]
+tokio = { version = "1", features = ["time"] }
+fastrand = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }

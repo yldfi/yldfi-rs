@@ -28,6 +28,7 @@
 //! ```
 
 pub mod abi;
+pub mod aggregator;
 pub mod checkpoint;
 pub mod cli;
 pub mod config;

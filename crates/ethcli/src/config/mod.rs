@@ -11,7 +11,10 @@ pub use endpoint::{
     EndpointConfig, NodeType, DEFAULT_MAX_BLOCK_RANGE, DEFAULT_MAX_LOGS, DEFAULT_PRIORITY,
     MIN_TX_FETCH_CONCURRENCY,
 };
-pub use file::{ConfigFile, TenderlyConfig};
+pub use file::{
+    AlchemyConfig, ChainlinkConfig, ConfigFile, DuneConfig, DuneSimConfig, GeckoConfig,
+    LlamaConfig, MoralisConfig, OneInchConfig, TenderlyConfig, ZeroxConfig,
+};
 
 use crate::error::{ConfigError, Result};
 use std::path::PathBuf;
@@ -159,12 +162,53 @@ impl Default for RpcConfig {
 /// Proxy configuration
 #[derive(Debug, Clone)]
 pub struct ProxyConfig {
+    /// Whether proxy is enabled
+    pub enabled: bool,
     /// Default proxy URL
     pub url: Option<String>,
     /// Proxy file for rotation
     pub file: Option<PathBuf>,
     /// Rotate proxy per request
     pub rotate_per_request: bool,
+    /// Only proxy these sources (if empty, proxy all)
+    pub sources: Vec<String>,
+    /// Exclude these sources from proxying
+    pub exclude_sources: Vec<String>,
+}
+
+impl ProxyConfig {
+    /// Check if a specific source should be proxied
+    pub fn should_proxy(&self, source: &str) -> bool {
+        if !self.enabled {
+            return false;
+        }
+
+        // Check exclude list first (takes precedence)
+        if self
+            .exclude_sources
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case(source))
+        {
+            return false;
+        }
+
+        // If sources list is empty, proxy all (except excluded)
+        if self.sources.is_empty() {
+            return true;
+        }
+
+        // Otherwise only proxy if in the sources list
+        self.sources.iter().any(|s| s.eq_ignore_ascii_case(source))
+    }
+
+    /// Get proxy URL for a source (None if source shouldn't be proxied)
+    pub fn proxy_for(&self, source: &str) -> Option<String> {
+        if self.should_proxy(source) {
+            self.url.clone()
+        } else {
+            None
+        }
+    }
 }
 
 /// Builder for Config

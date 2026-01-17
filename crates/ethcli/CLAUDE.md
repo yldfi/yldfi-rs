@@ -32,6 +32,7 @@ cargo clippy
 
 ## Available Commands
 
+### Core Ethereum Commands
 ```
 ethcli logs       # Fetch historical logs from contracts
 ethcli tx         # Analyze transaction(s)
@@ -42,7 +43,6 @@ ethcli token      # Token operations (info, holders, balance)
 ethcli gas        # Gas price oracle and estimates
 ethcli sig        # Signature lookup (function selectors, event topics)
 ethcli simulate   # Transaction simulation and tracing
-ethcli tenderly   # Tenderly API (vnets, wallets, contracts, alerts, actions)
 ethcli cast       # Type conversions, hashing, encoding
 ethcli rpc        # Direct RPC calls
 ethcli ens        # ENS name resolution
@@ -50,6 +50,28 @@ ethcli endpoints  # Manage RPC endpoints
 ethcli config     # Manage configuration
 ethcli update     # Check for updates and self-update
 ethcli doctor     # Diagnose configuration and connectivity
+```
+
+### Aggregation Commands (parallel queries to multiple APIs)
+```
+ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Curve
+ethcli portfolio  # Portfolio balances from Alchemy, Dune SIM, Moralis
+ethcli nfts       # NFT holdings from Alchemy, CoinGecko, Moralis, Dune SIM
+ethcli yields     # DeFi yields from DefiLlama and Curve
+```
+
+### Direct API Access Commands
+```
+ethcli tenderly   # Tenderly API (vnets, wallets, contracts, alerts, actions)
+ethcli alchemy    # Alchemy API (NFTs, prices, portfolio, transfers, debug)
+ethcli gecko      # CoinGecko API (coins, prices, NFTs, exchanges)
+ethcli llama      # DefiLlama API (TVL, prices, yields, stablecoins)
+ethcli moralis    # Moralis API (wallet, token, NFT, DeFi, transactions)
+ethcli dsim       # Dune SIM API (balances, activity, collectibles, DeFi)
+ethcli dune       # Dune Analytics API (queries, executions, tables)
+ethcli curve      # Curve Finance API (pools, volumes, lending, tokens, router)
+ethcli chainlink  # Chainlink Data Streams (real-time market data)
+ethcli ccxt       # Exchange data (Binance, Bitget, OKX, Hyperliquid)
 ```
 
 ## Simulation Commands
@@ -146,6 +168,29 @@ ethcli tenderly channels project --project <slug> --account <slug>
 ethcli tenderly simulate call <contract> --sig "balanceOf(address)" <args>
 ```
 
+## Curve Router Commands
+
+The Curve router finds optimal swap routes across Curve pools (local implementation, not REST API).
+
+```bash
+# Find swap routes between two tokens
+ethcli curve router route <from_token> <to_token> --chain ethereum --limit 5
+
+# Example: DAI to USDC
+ethcli curve router route 0x6B175474E89094C44Da98b954EedeAC495271d0F 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+
+# Get calldata for a swap (to send to router contract)
+ethcli curve router encode <from> <to> <amount> <min_out> --chain ethereum
+
+# Show router graph statistics
+ethcli curve router stats --chain ethereum
+
+# Get router contract address
+ethcli curve router address ethereum
+ethcli curve router address polygon
+ethcli curve router address arbitrum
+```
+
 ## Project Structure
 
 ```
@@ -195,6 +240,14 @@ src/
 │   ├── mod.rs        # Shared utility functions
 │   ├── format.rs     # Number/token formatting
 │   └── address.rs    # Address resolution utilities
+├── aggregator/       # Multi-source data aggregation
+│   ├── mod.rs        # Core types (SourceResult, AggregatedResult)
+│   ├── normalize.rs  # Data normalization across APIs
+│   ├── chain_map.rs  # Chain name normalization
+│   ├── price.rs      # Price fetching and aggregation
+│   ├── portfolio.rs  # Portfolio aggregation
+│   ├── nft.rs        # NFT aggregation
+│   └── yields.rs     # DeFi yield aggregation
 └── cli/
     ├── mod.rs        # CLI command structure
     ├── logs.rs       # Log fetching arguments
@@ -210,10 +263,23 @@ src/
     ├── gas.rs        # Gas oracle commands
     ├── rpc.rs        # Direct RPC calls
     ├── sig.rs        # Signature lookup commands
-    ├── simulate.rs   # Transaction simulation
+    ├── simulate/     # Transaction simulation (multiple backends)
     ├── tenderly.rs   # Tenderly API commands
     ├── token.rs      # Token commands
-    └── update.rs     # Self-update from GitHub
+    ├── update.rs     # Self-update from GitHub
+    ├── price.rs      # Aggregated price command
+    ├── portfolio.rs  # Aggregated portfolio command
+    ├── nfts.rs       # Aggregated NFT command
+    ├── yields.rs     # Aggregated yields command
+    ├── alchemy.rs    # Direct Alchemy API
+    ├── gecko.rs      # Direct CoinGecko API
+    ├── llama.rs      # Direct DefiLlama API
+    ├── moralis.rs    # Direct Moralis API
+    ├── dsim.rs       # Direct Dune SIM API
+    ├── dune_cli.rs   # Direct Dune Analytics API
+    ├── curve.rs      # Direct Curve Finance API
+    ├── chainlink.rs  # Chainlink Data Streams
+    └── ccxt.rs       # Exchange data via CCXT
 ```
 
 ## Key Dependencies
@@ -221,6 +287,13 @@ src/
 - **alloy 1.0**: Ethereum provider, types, ABI decoding
 - **foundry-block-explorers**: Etherscan API client
 - **tndrly**: Tenderly API client
+- **alcmy**: Alchemy API client
+- **gecko**: CoinGecko API client
+- **llama**: DefiLlama API client
+- **mrls**: Moralis API client
+- **dsim**: Dune SIM API client
+- **dune**: Dune Analytics API client
+- **crv**: Curve Finance API client
 - **tokio**: Async runtime
 - **clap**: CLI parsing
 - **serde/serde_json**: Serialization
@@ -264,12 +337,33 @@ ethcli endpoints list
 
 # Test a specific RPC endpoint
 ethcli endpoints test https://eth.llamarpc.com
+
+# Aggregated price from all sources
+ethcli price ETH
+ethcli price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain ethereum
+
+# Aggregated portfolio
+ethcli portfolio 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+
+# Aggregated NFTs
+ethcli nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+
+# DeFi yields
+ethcli yields --protocol aave
 ```
 
 ## Environment Variables
 
 - `ETHERSCAN_API_KEY`: Etherscan API key (optional, increases rate limit)
 - `TENDERLY_ACCESS_KEY`: Tenderly API access key (required for `ethcli tenderly` commands)
+- `ALCHEMY_API_KEY`: Alchemy API key (required for `ethcli alchemy` and `--via alcmy` simulation)
+- `COINGECKO_API_KEY`: CoinGecko API key (optional, increases rate limit)
+- `DEFILLAMA_API_KEY`: DefiLlama Pro API key (optional, for Pro endpoints)
+- `MORALIS_API_KEY`: Moralis API key (required for `ethcli moralis` commands)
+- `DUNE_SIM_API_KEY`: Dune SIM API key (required for `ethcli dsim` commands)
+- `DUNE_API_KEY`: Dune Analytics API key (required for `ethcli dune` commands)
+- `CHAINLINK_CLIENT_ID`: Chainlink Data Streams client ID
+- `CHAINLINK_CLIENT_SECRET`: Chainlink Data Streams client secret
 
 ## Release Process
 

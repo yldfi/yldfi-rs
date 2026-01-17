@@ -18,11 +18,7 @@ path = "src/lib.rs"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 # HTTP client
-reqwest = { version = "0.13", default-features = false, features = [
-    "rustls",
-    "json",
-    "query",
-] }
+reqwest = { workspace = true }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -35,15 +31,9 @@ thiserror = "2"
 url = "2"
 secrecy = "0.10"
 percent-encoding = "2"
+yldfi-common = { path = "../yldfi-common" }
 
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
 tempfile = "3"
-
-[profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
-opt-level = "z"

@@ -13,5 +13,5 @@ pub use health::{EndpointHealth, HealthTracker};
 pub use multicall::{MulticallBuilder, MulticallResult, MULTICALL3_ADDRESS};
 pub use optimizer::{optimize_endpoint, test_connectivity, OptimizationResult};
 pub use pool::RpcPool;
-pub use retry::{with_retry, with_simple_retry, RetryConfig, RetryableError};
+pub use retry::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 pub use selector::{get_rpc_endpoint, get_rpc_url};

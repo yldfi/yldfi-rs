@@ -2,7 +2,7 @@
 name = "crv"
 version = "0.1.0"
 edition = "2021"
-description = "Rust client for the Curve Finance API - pools, volumes, gauges, and lending"
+description = "Unofficial Rust client for the Curve Finance API - pools, volumes, gauges, and lending"
 license = "MIT"
 repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/crv"
 keywords = ["curve", "defi", "ethereum", "blockchain", "api"]
@@ -15,6 +15,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+yldfi-common = { path = "../yldfi-common" }
 
 [dev-dependencies]
 tokio-test = "0.4"

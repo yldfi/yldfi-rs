@@ -119,4 +119,12 @@ pub struct ProxyArgs {
     /// Rotate proxy per request
     #[arg(long)]
     pub proxy_rotate: bool,
+
+    /// Force use proxy from config (overrides enabled=false)
+    #[arg(long, conflicts_with = "no_proxy")]
+    pub use_proxy: bool,
+
+    /// Disable proxy for this request (overrides enabled=true)
+    #[arg(long, conflicts_with = "use_proxy")]
+    pub no_proxy: bool,
 }

@@ -4,14 +4,27 @@
 
 pub mod account;
 pub mod address;
+pub mod alchemy;
 pub mod cast;
+pub mod ccxt;
+pub mod chainlink;
 pub mod config;
 pub mod contract;
+pub mod curve;
 pub mod doctor;
+pub mod dsim;
+pub mod dune_cli;
 pub mod endpoints;
 pub mod ens;
 pub mod gas;
+pub mod gecko;
+pub mod llama;
 pub mod logs;
+pub mod moralis;
+pub mod nfts;
+pub mod portfolio;
+pub mod price;
+pub mod quote;
 pub mod rpc;
 pub mod sig;
 pub mod simulate;
@@ -19,6 +32,7 @@ pub mod tenderly;
 pub mod token;
 pub mod tx;
 pub mod update;
+pub mod yields;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use std::fmt;
@@ -222,6 +236,18 @@ pub enum Commands {
         action: Box<tenderly::TenderlyCommands>,
     },
 
+    /// Get aggregated token price from multiple sources
+    #[command(visible_alias = "p")]
+    Price(price::PriceArgs),
+
+    /// Get aggregated portfolio/balances from multiple sources
+    #[command(visible_alias = "pf")]
+    Portfolio(portfolio::PortfolioArgs),
+
+    /// Get aggregated NFT holdings from multiple sources
+    #[command(visible_alias = "nft")]
+    Nfts(nfts::NftsArgs),
+
     /// Check for updates and optionally install latest version
     Update {
         /// Automatically download and install the update
@@ -231,4 +257,73 @@ pub enum Commands {
 
     /// Check configuration and endpoint health
     Doctor,
+
+    /// Direct Alchemy API access
+    Alchemy {
+        #[command(subcommand)]
+        action: alchemy::AlchemyCommands,
+    },
+
+    /// Direct CoinGecko API access
+    Gecko {
+        #[command(subcommand)]
+        action: gecko::GeckoCommands,
+    },
+
+    /// Direct DefiLlama API access
+    Llama {
+        #[command(subcommand)]
+        action: llama::LlamaCommands,
+    },
+
+    /// Direct Moralis API access
+    Moralis {
+        #[command(subcommand)]
+        action: moralis::MoralisCommands,
+    },
+
+    /// Direct Dune SIM API access
+    Dsim {
+        #[command(subcommand)]
+        action: dsim::DsimCommands,
+    },
+
+    /// Direct Dune Analytics API access
+    Dune {
+        #[command(subcommand)]
+        action: dune_cli::DuneCommands,
+    },
+
+    /// Direct Curve Finance API access
+    Curve {
+        #[command(subcommand)]
+        action: curve::CurveCommands,
+    },
+
+    /// Get aggregated DeFi yields from Curve and DefiLlama
+    #[command(visible_alias = "y")]
+    Yields(yields::YieldsArgs),
+
+    /// Get aggregated swap quotes from multiple DEX aggregators
+    #[command(visible_alias = "q")]
+    Quote {
+        #[command(subcommand)]
+        action: quote::QuoteCommands,
+    },
+
+    /// Chainlink Data Streams (low-latency, cryptographically verifiable market data)
+    ///
+    /// Requires API credentials from https://chain.link/data-streams
+    /// Users must accept Chainlink's Terms of Service: https://chainlinklabs.com/terms
+    Chainlink {
+        #[command(subcommand)]
+        action: chainlink::ChainlinkCommands,
+    },
+
+    /// Cryptocurrency exchange data via CCXT (Binance, Bitget, OKX, Hyperliquid)
+    #[command(visible_alias = "cex")]
+    Ccxt {
+        #[command(subcommand)]
+        action: ccxt::CcxtCommands,
+    },
 }

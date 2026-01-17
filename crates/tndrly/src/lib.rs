@@ -78,6 +78,7 @@ pub mod wallets;
 
 pub use client::{Client, Config, API_BASE_URL};
 pub use error::{Error, Result};
+pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
 // Re-export commonly used types at the crate root
 pub use actions::{ActionTrigger, CreateActionRequest};

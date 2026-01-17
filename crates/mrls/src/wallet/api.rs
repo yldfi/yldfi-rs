@@ -180,4 +180,27 @@ impl<'a> WalletApi<'a> {
             self.client.get(&path).await
         }
     }
+
+    /// Get balances for multiple wallets (batch)
+    pub async fn get_multiple_balances(
+        &self,
+        wallet_addresses: &[&str],
+        chain: Option<&str>,
+    ) -> Result<Vec<WalletBalances>> {
+        #[derive(Serialize)]
+        struct BalancesQuery {
+            wallet_addresses: Vec<String>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            chain: Option<String>,
+        }
+
+        let query = BalancesQuery {
+            wallet_addresses: wallet_addresses.iter().map(|s| s.to_string()).collect(),
+            chain: chain.map(|c| c.to_string()),
+        };
+
+        self.client
+            .get_with_query("/wallets/balances", &query)
+            .await
+    }
 }

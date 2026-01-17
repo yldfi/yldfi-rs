@@ -232,3 +232,112 @@ pub struct NftResponse<T> {
     /// Results
     pub result: Vec<T>,
 }
+
+/// Request for fetching multiple NFTs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetMultipleNftsRequest {
+    /// List of tokens to fetch
+    pub tokens: Vec<NftTokenInput>,
+    /// Whether to normalize metadata
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalise_metadata: Option<bool>,
+    /// Whether to include media items
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_items: Option<bool>,
+}
+
+/// Input for a single NFT token
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftTokenInput {
+    /// Token address
+    pub token_address: String,
+    /// Token ID
+    pub token_id: String,
+}
+
+/// Request for fetching NFTs by traits
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftsByTraitsRequest {
+    /// Traits to filter by
+    pub traits: Vec<TraitFilter>,
+    /// Cursor for pagination
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    /// Limit
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i32>,
+}
+
+/// Trait filter for NFT queries
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TraitFilter {
+    /// Trait type
+    pub trait_type: String,
+    /// Trait value
+    pub value: serde_json::Value,
+}
+
+/// Historical floor price data point
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoricalFloorPrice {
+    /// Timestamp
+    pub timestamp: Option<String>,
+    /// Floor price
+    pub floor_price: Option<f64>,
+    /// Floor price USD
+    pub floor_price_usd: Option<f64>,
+    /// Floor price currency
+    pub floor_price_currency: Option<String>,
+}
+
+/// NFT sync status response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftSyncStatus {
+    /// Status
+    pub status: Option<String>,
+}
+
+/// Request for fetching metadata for multiple NFT contracts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetMultipleCollectionsRequest {
+    /// List of contract addresses
+    pub addresses: Vec<String>,
+}
+
+/// NFT sale price
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftSalePrice {
+    /// Token address
+    pub token_address: Option<String>,
+    /// Token ID
+    pub token_id: Option<String>,
+    /// Transaction hash
+    pub transaction_hash: Option<String>,
+    /// Price
+    pub price: Option<String>,
+    /// Price formatted
+    pub price_formatted: Option<String>,
+    /// USD price
+    pub usd_price: Option<f64>,
+    /// Payment token
+    pub payment_token: Option<String>,
+    /// Block timestamp
+    pub block_timestamp: Option<String>,
+    /// Block number
+    pub block_number: Option<String>,
+    /// Marketplace
+    pub marketplace: Option<String>,
+    /// Buyer address
+    pub buyer_address: Option<String>,
+    /// Seller address
+    pub seller_address: Option<String>,
+}
+
+/// Trait resync status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TraitResyncStatus {
+    /// Status
+    pub status: Option<String>,
+    /// Message
+    pub message: Option<String>,
+}

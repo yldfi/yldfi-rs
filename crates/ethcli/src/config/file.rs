@@ -35,6 +35,46 @@ pub struct ConfigFile {
     #[serde(default)]
     pub tenderly: Option<TenderlyConfig>,
 
+    /// Alchemy configuration
+    #[serde(default)]
+    pub alchemy: Option<AlchemyConfig>,
+
+    /// CoinGecko configuration
+    #[serde(default)]
+    pub coingecko: Option<GeckoConfig>,
+
+    /// DefiLlama configuration
+    #[serde(default)]
+    pub defillama: Option<LlamaConfig>,
+
+    /// Moralis configuration
+    #[serde(default)]
+    pub moralis: Option<MoralisConfig>,
+
+    /// Dune configuration
+    #[serde(default)]
+    pub dune: Option<DuneConfig>,
+
+    /// Dune SIM configuration (separate from Dune Analytics)
+    #[serde(default)]
+    pub dune_sim: Option<DuneSimConfig>,
+
+    /// Chainlink Data Streams configuration
+    #[serde(default)]
+    pub chainlink: Option<ChainlinkConfig>,
+
+    /// 0x API configuration
+    #[serde(default)]
+    pub zerox: Option<ZeroxConfig>,
+
+    /// 1inch API configuration
+    #[serde(default)]
+    pub oneinch: Option<OneInchConfig>,
+
+    /// Enso Finance API configuration
+    #[serde(default)]
+    pub enso: Option<EnsoConfig>,
+
     /// Debug-capable RPC endpoints (for debug_traceCall, etc.)
     #[serde(default)]
     pub debug_rpc_urls: Vec<String>,
@@ -49,6 +89,90 @@ pub struct TenderlyConfig {
     pub account: String,
     /// Tenderly project slug
     pub project: String,
+}
+
+/// Alchemy API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlchemyConfig {
+    /// Alchemy API key
+    pub api_key: String,
+    /// Default network (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default)]
+    pub default_network: Option<String>,
+}
+
+/// CoinGecko API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeckoConfig {
+    /// CoinGecko API key (for Pro tier)
+    pub api_key: Option<String>,
+    /// Use Pro API endpoint
+    #[serde(default)]
+    pub use_pro: bool,
+}
+
+/// DefiLlama API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlamaConfig {
+    /// DefiLlama API key (for Pro endpoints)
+    pub api_key: Option<String>,
+}
+
+/// Moralis API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoralisConfig {
+    /// Moralis API key
+    pub api_key: String,
+}
+
+/// Dune Analytics API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuneConfig {
+    /// Dune API key
+    pub api_key: String,
+}
+
+/// Dune SIM API configuration (separate from Dune Analytics)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuneSimConfig {
+    /// Dune SIM API key
+    pub api_key: String,
+}
+
+/// Chainlink Data Streams API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChainlinkConfig {
+    /// Chainlink API key (client ID)
+    pub api_key: String,
+    /// Chainlink user secret (client secret)
+    pub user_secret: String,
+    /// REST API URL (defaults to mainnet)
+    #[serde(default)]
+    pub rest_url: Option<String>,
+    /// WebSocket URL (defaults to mainnet)
+    #[serde(default)]
+    pub ws_url: Option<String>,
+}
+
+/// 0x API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZeroxConfig {
+    /// 0x API key
+    pub api_key: String,
+}
+
+/// 1inch API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OneInchConfig {
+    /// 1inch API key
+    pub api_key: String,
+}
+
+/// Enso Finance API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnsoConfig {
+    /// Enso API key (Bearer token)
+    pub api_key: String,
 }
 
 /// Global settings
@@ -109,6 +233,10 @@ pub struct DisabledEndpoints {
 /// Proxy configuration from file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyFileConfig {
+    /// Whether proxy is enabled (defaults to true if proxy URL is set)
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+
     /// Default proxy URL
     #[serde(default)]
     pub default: Option<String>,
@@ -120,6 +248,20 @@ pub struct ProxyFileConfig {
     /// File containing proxy URLs
     #[serde(default)]
     pub file: Option<PathBuf>,
+
+    /// Proxy only for specific sources (if empty, proxy all)
+    /// e.g., ["openocean", "kyberswap", "gecko"]
+    #[serde(default)]
+    pub sources: Vec<String>,
+
+    /// Sources to exclude from proxying (takes precedence over sources)
+    /// e.g., ["alchemy", "llama"]
+    #[serde(default)]
+    pub exclude_sources: Vec<String>,
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 impl ConfigFile {
@@ -196,10 +338,18 @@ impl ConfigFile {
     /// Convert proxy config to runtime ProxyConfig
     pub fn proxy_config(&self) -> Option<ProxyConfig> {
         self.proxy.as_ref().map(|p| ProxyConfig {
+            enabled: p.enabled,
             url: p.default.clone(),
             file: p.file.clone(),
             rotate_per_request: p.rotate,
+            sources: p.sources.clone(),
+            exclude_sources: p.exclude_sources.clone(),
         })
+    }
+
+    /// Get proxy URL for a specific source (respects enabled, sources, exclude_sources)
+    pub fn proxy_for_source(&self, source: &str) -> Option<String> {
+        self.proxy_config().and_then(|p| p.proxy_for(source))
     }
 
     /// Set the Etherscan API key and save

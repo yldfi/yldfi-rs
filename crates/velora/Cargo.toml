@@ -1,0 +1,21 @@
+[package]
+name = "velora"
+version = "0.1.0"
+edition = "2021"
+description = "Unofficial Rust client for the Velora (ParaSwap) DEX aggregator API"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/velora"
+keywords = ["velora", "paraswap", "dex", "aggregator", "defi"]
+categories = ["api-bindings", "web-programming"]
+readme = "README.md"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+yldfi-common = { path = "../yldfi-common" }
+
+[dev-dependencies]
+tokio-test = "0.4"

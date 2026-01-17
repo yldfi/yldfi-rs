@@ -140,7 +140,7 @@ impl<'a> VNetsApi<'a> {
     pub async fn rpc_urls(&self, vnet_id: &str) -> Result<VNetRpcs> {
         let vnet = self.get(vnet_id).await?;
         vnet.rpcs
-            .ok_or_else(|| crate::error::Error::not_found("RPC URLs not available for this VNet"))
+            .ok_or_else(|| crate::error::not_found("RPC URLs not available for this VNet"))
     }
 
     /// Get an Admin RPC client for a Virtual TestNet
@@ -169,9 +169,9 @@ impl<'a> VNetsApi<'a> {
     /// ```
     pub async fn admin_rpc(&self, vnet_id: &str) -> Result<AdminRpc> {
         let rpcs = self.rpc_urls(vnet_id).await?;
-        let admin_url = rpcs.admin().ok_or_else(|| {
-            crate::error::Error::not_found("Admin RPC URL not available for this VNet")
-        })?;
+        let admin_url = rpcs
+            .admin()
+            .ok_or_else(|| crate::error::not_found("Admin RPC URL not available for this VNet"))?;
         AdminRpc::new(admin_url)
     }
 
@@ -187,12 +187,13 @@ impl<'a> VNetsApi<'a> {
     /// admin.set_balance("0x1234...", "1000000000000000000").await?;
     /// ```
     pub fn admin_rpc_from_vnet(&self, vnet: &VNet) -> Result<AdminRpc> {
-        let rpcs = vnet.rpcs.as_ref().ok_or_else(|| {
-            crate::error::Error::not_found("RPC URLs not available for this VNet")
-        })?;
-        let admin_url = rpcs.admin().ok_or_else(|| {
-            crate::error::Error::not_found("Admin RPC URL not available for this VNet")
-        })?;
+        let rpcs = vnet
+            .rpcs
+            .as_ref()
+            .ok_or_else(|| crate::error::not_found("RPC URLs not available for this VNet"))?;
+        let admin_url = rpcs
+            .admin()
+            .ok_or_else(|| crate::error::not_found("Admin RPC URL not available for this VNet"))?;
         AdminRpc::new(admin_url)
     }
 

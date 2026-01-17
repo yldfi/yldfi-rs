@@ -23,7 +23,7 @@
 //! admin.revert(&snapshot_id).await?;
 //! ```
 
-use crate::error::{Error, Result};
+use crate::error::{self, Error, Result};
 use reqwest::Client as HttpClient;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -549,7 +549,7 @@ pub struct LatestBlock {
 fn parse_hex_u64(s: &str) -> Result<u64> {
     let s = s.strip_prefix("0x").unwrap_or(s);
     u64::from_str_radix(s, 16)
-        .map_err(|e| Error::invalid_param(format!("Invalid hex number: {}", e)))
+        .map_err(|e| error::invalid_param(format!("Invalid hex number: {}", e)))
 }
 
 /// Convert a decimal or hex string to hex wei format

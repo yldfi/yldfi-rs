@@ -154,12 +154,68 @@ async fn main() -> anyhow::Result<()> {
             return ethcli::cli::tenderly::handle(action, chain, cli.quiet).await;
         }
 
+        Commands::Price(args) => {
+            return ethcli::cli::price::execute(args, cli.quiet).await;
+        }
+
+        Commands::Portfolio(args) => {
+            return ethcli::cli::portfolio::execute(args, cli.quiet).await;
+        }
+
+        Commands::Nfts(args) => {
+            return ethcli::cli::nfts::execute(args, cli.quiet).await;
+        }
+
         Commands::Update { install } => {
             return ethcli::cli::update::handle(*install, cli.quiet).await;
         }
 
         Commands::Doctor => {
             return ethcli::cli::doctor::handle(cli.quiet).await;
+        }
+
+        Commands::Alchemy { action } => {
+            return ethcli::cli::alchemy::handle(action, cli.quiet).await;
+        }
+
+        Commands::Gecko { action } => {
+            return ethcli::cli::gecko::handle(action, cli.quiet).await;
+        }
+
+        Commands::Llama { action } => {
+            return ethcli::cli::llama::handle(action, cli.quiet).await;
+        }
+
+        Commands::Moralis { action } => {
+            return ethcli::cli::moralis::handle(action, cli.quiet).await;
+        }
+
+        Commands::Dsim { action } => {
+            return ethcli::cli::dsim::handle(action, cli.quiet).await;
+        }
+
+        Commands::Dune { action } => {
+            return ethcli::cli::dune_cli::handle(action, cli.quiet).await;
+        }
+
+        Commands::Curve { action } => {
+            return ethcli::cli::curve::handle(action, cli.quiet).await;
+        }
+
+        Commands::Yields(args) => {
+            return ethcli::cli::yields::handle(args, cli.quiet).await;
+        }
+
+        Commands::Quote { action } => {
+            return ethcli::cli::quote::execute(action, cli.quiet).await;
+        }
+
+        Commands::Chainlink { action } => {
+            return ethcli::cli::chainlink::handle(action, cli.quiet).await;
+        }
+
+        Commands::Ccxt { action } => {
+            return ethcli::cli::ccxt::handle(action, cli.quiet).await;
         }
     }
 }
@@ -642,14 +698,29 @@ fn build_rpc_config_from_logs_args(
     rpc_config.concurrency = concurrency;
 
     // Proxy config
-    if proxy.proxy.is_some() || proxy.proxy_file.is_some() {
+    // --no-proxy: disable proxy entirely for this request
+    if proxy.no_proxy {
+        rpc_config.proxy = None;
+    } else if proxy.proxy.is_some() || proxy.proxy_file.is_some() {
+        // Explicit proxy URL/file on CLI
         rpc_config.proxy = Some(ProxyConfig {
+            enabled: true, // CLI-provided proxy is always enabled
             url: proxy.proxy.clone(),
             file: proxy.proxy_file.clone(),
             rotate_per_request: proxy.proxy_rotate,
+            sources: vec![],         // Proxy all sources
+            exclude_sources: vec![], // No exclusions
         });
     } else if let Some(cf) = config_file {
-        rpc_config.proxy = cf.proxy_config();
+        // Load from config file
+        let mut proxy_config = cf.proxy_config();
+        // --use-proxy: force enable proxy from config (even if enabled=false)
+        if proxy.use_proxy {
+            if let Some(ref mut pc) = proxy_config {
+                pc.enabled = true;
+            }
+        }
+        rpc_config.proxy = proxy_config;
     }
 
     Ok(rpc_config)
@@ -1096,6 +1167,8 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.set_etherscan_key(key.clone())?;
             println!("Etherscan API key saved to config file.");
+            println!("\nBy using Etherscan, you agree to their Terms of Service.");
+            println!("See: https://etherscan.io/terms");
         }
 
         ConfigCommands::SetTenderly {
@@ -1108,6 +1181,82 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("Tenderly credentials saved to config file.");
             println!("  Account: {}", account);
             println!("  Project: {}", project);
+            println!("\nBy using Tenderly, you agree to their Terms of Service.");
+            println!("See: https://tenderly.co/terms-of-service");
+        }
+
+        ConfigCommands::SetAlchemy { key, network } => {
+            use ethcli::config::AlchemyConfig;
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.alchemy = Some(AlchemyConfig {
+                api_key: key.clone(),
+                default_network: network.clone(),
+            });
+            cfg.save_default()?;
+            println!("Alchemy API key saved to config file.");
+            if let Some(net) = network {
+                println!("  Network: {}", net);
+            }
+            println!("\nBy using Alchemy, you agree to their Terms of Service.");
+            println!("See: https://www.alchemy.com/terms-conditions");
+        }
+
+        ConfigCommands::SetMoralis { key } => {
+            use ethcli::config::MoralisConfig;
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.moralis = Some(MoralisConfig {
+                api_key: key.clone(),
+            });
+            cfg.save_default()?;
+            println!("Moralis API key saved to config file.");
+            println!("\nBy using Moralis, you agree to their Terms of Service.");
+            println!("See: https://moralis.io/terms/");
+        }
+
+        ConfigCommands::SetChainlink {
+            key,
+            secret,
+            rest_url,
+            ws_url,
+        } => {
+            use ethcli::config::ChainlinkConfig;
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.chainlink = Some(ChainlinkConfig {
+                api_key: key.clone(),
+                user_secret: secret.clone(),
+                rest_url: rest_url.clone(),
+                ws_url: ws_url.clone(),
+            });
+            cfg.save_default()?;
+            println!("Chainlink Data Streams credentials saved to config file.");
+            println!(
+                "\nNote: By using Chainlink Data Streams, you agree to their Terms of Service."
+            );
+            println!("See: https://chainlinklabs.com/terms");
+        }
+
+        ConfigCommands::SetDune { key } => {
+            use ethcli::config::DuneConfig;
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.dune = Some(DuneConfig {
+                api_key: key.clone(),
+            });
+            cfg.save_default()?;
+            println!("Dune Analytics API key saved to config file.");
+            println!("\nBy using Dune Analytics, you agree to their Terms of Service.");
+            println!("See: https://dune.com/terms");
+        }
+
+        ConfigCommands::SetDuneSim { key } => {
+            use ethcli::config::DuneSimConfig;
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.dune_sim = Some(DuneSimConfig {
+                api_key: key.clone(),
+            });
+            cfg.save_default()?;
+            println!("Dune SIM API key saved to config file.");
+            println!("\nBy using Dune SIM, you agree to their Terms of Service.");
+            println!("See: https://sim.dune.com/terms");
         }
 
         ConfigCommands::AddDebugRpc { url } => {

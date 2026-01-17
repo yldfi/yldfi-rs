@@ -76,17 +76,38 @@ rand = "0.8"
 hex = "0.4"
 dirs = "5"
 regex = "1.11"
+num-traits = "0.2"
+
+# API clients
+alcmy = { path = "../alcmy" }
+gecko = { path = "../gecko" }
+llama = { path = "../llama" }
+mrls = { path = "../mrls" }
+dsim = { path = "../dsim" }
+dune = { path = "../dune" }
+crv = { path = "../crv" }
 tndrly = { path = "../tndrly" }
+yldfi-common = { path = "../yldfi-common" }
+
+# DEX aggregator clients
+openoc = { path = "../openoc" }
+cowswap = { path = "../cowswap" }
+kyber = { path = "../kyber" }
+zerox = { path = "../zerox" }
+oneinch = { path = "../oneinch" }
+lifi = { path = "../lifi" }
+velora = { path = "../velora" }
+enso = { path = "../enso" }
+
+# Chainlink Data Streams
+chainlink-data-streams-sdk = { version = "1.2", features = ["full"] }
+chainlink-data-streams-report = "1.2"
+
+# Cryptocurrency exchanges
+ccxt-rust = { version = "0.1", features = ["rest", "websocket"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3"
 assert_cmd = "2"
 predicates = "3"
-
-[profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
-opt-level = "z"

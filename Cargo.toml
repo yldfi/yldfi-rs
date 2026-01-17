@@ -1,10 +1,25 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/yldfi-common",
     "crates/ethcli",
     "crates/tndrly",
     "crates/crv",
     "crates/mrls",
+    "crates/llama",
+    "crates/gecko",
+    "crates/dsim",
+    "crates/dune",
+    "crates/alcmy",
+    # DEX aggregator crates
+    "crates/openoc",
+    "crates/cowswap",
+    "crates/kyber",
+    "crates/zerox",
+    "crates/oneinch",
+    "crates/velora",
+    "crates/enso",
+    "crates/lifi",
 ]
 
 [workspace.package]
@@ -30,3 +45,20 @@ anyhow = "1"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Security
+secrecy = "0.10"
+
+# Random number generation
+fastrand = "2"
+
+# URL parsing
+url = "2"
+
+# Workspace-wide release profile settings
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = "z"

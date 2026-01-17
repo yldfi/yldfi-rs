@@ -31,6 +31,7 @@ impl TokenQuery {
 
     /// Include spam tokens
     #[must_use]
+    #[allow(dead_code)]
     pub fn include_spam(mut self, include: bool) -> Self {
         self.include_spam = Some(include);
         self
@@ -50,7 +51,7 @@ impl<'a> TokenApi<'a> {
 
     /// Get token metadata
     pub async fn get_metadata(&self, address: &str, chain: Option<&str>) -> Result<TokenMetadata> {
-        let path = format!("/erc20/metadata");
+        let path = "/erc20/metadata";
         let query = TokenQuery::new();
         let query = if let Some(c) = chain {
             query.chain(c)
@@ -70,7 +71,7 @@ impl<'a> TokenApi<'a> {
             chain: query.chain,
         };
 
-        let results: Vec<TokenMetadata> = self.client.get_with_query(&path, &q).await?;
+        let results: Vec<TokenMetadata> = self.client.get_with_query(path, &q).await?;
         results
             .into_iter()
             .next()
@@ -291,6 +292,150 @@ impl<'a> TokenApi<'a> {
         chain: Option<&str>,
     ) -> Result<TokenResponse<NewToken>> {
         let path = format!("/erc20/exchange/{}/graduated", exchange_name);
+        if let Some(chain) = chain {
+            let query = TokenQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get multiple token prices (batch)
+    pub async fn get_multiple_prices(
+        &self,
+        request: &GetMultiplePricesRequest,
+        chain: Option<&str>,
+    ) -> Result<Vec<TokenPrice>> {
+        if let Some(chain) = chain {
+            let query = TokenQuery::new().chain(chain);
+            self.client
+                .post_with_query("/erc20/prices", request, &query)
+                .await
+        } else {
+            self.client.post("/erc20/prices", request).await
+        }
+    }
+
+    /// Get tokens by symbols
+    pub async fn get_by_symbols(
+        &self,
+        symbols: &[&str],
+        chain: Option<&str>,
+    ) -> Result<Vec<TokenMetadata>> {
+        #[derive(Serialize)]
+        struct SymbolsQuery {
+            symbols: Vec<String>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            chain: Option<String>,
+        }
+
+        let query = SymbolsQuery {
+            symbols: symbols.iter().map(|s| s.to_string()).collect(),
+            chain: chain.map(|c| c.to_string()),
+        };
+
+        self.client
+            .get_with_query("/erc20/metadata/symbols", &query)
+            .await
+    }
+
+    /// Get contract transfers for a token (not wallet transfers)
+    pub async fn get_contract_transfers(
+        &self,
+        address: &str,
+        chain: Option<&str>,
+    ) -> Result<TokenResponse<TokenTransfer>> {
+        let path = format!("/erc20/{}/transfers", address);
+        if let Some(chain) = chain {
+            let query = TokenQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get holders summary for a token
+    pub async fn get_holders_summary(
+        &self,
+        address: &str,
+        chain: Option<&str>,
+    ) -> Result<TokenHoldersSummary> {
+        let path = format!("/erc20/{}/holders", address);
+        if let Some(chain) = chain {
+            let query = TokenQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get historical holders data for a token
+    pub async fn get_holders_historical(
+        &self,
+        address: &str,
+        chain: Option<&str>,
+    ) -> Result<Vec<HistoricalHolders>> {
+        let path = format!("/erc20/{}/holders/historical", address);
+        if let Some(chain) = chain {
+            let query = TokenQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get aggregated token pair stats
+    pub async fn get_pairs_stats(
+        &self,
+        address: &str,
+        chain: Option<&str>,
+    ) -> Result<AggregatedPairStats> {
+        let path = format!("/erc20/{}/pairs/stats", address);
+        if let Some(chain) = chain {
+            let query = TokenQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get top traders/gainers for a token
+    pub async fn get_top_gainers(
+        &self,
+        address: &str,
+        chain: Option<&str>,
+    ) -> Result<Vec<TopTrader>> {
+        let path = format!("/erc20/{}/top-gainers", address);
+        if let Some(chain) = chain {
+            let query = TokenQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get pair snipers
+    pub async fn get_pair_snipers(
+        &self,
+        pair_address: &str,
+        chain: Option<&str>,
+    ) -> Result<Vec<PairSniper>> {
+        let path = format!("/pairs/{}/snipers", pair_address);
+        if let Some(chain) = chain {
+            let query = TokenQuery::new().chain(chain);
+            self.client.get_with_query(&path, &query).await
+        } else {
+            self.client.get(&path).await
+        }
+    }
+
+    /// Get token bonding status (for pump.fun, etc)
+    pub async fn get_bonding_status(
+        &self,
+        address: &str,
+        chain: Option<&str>,
+    ) -> Result<TokenBondingStatus> {
+        let path = format!("/erc20/{}/bondingStatus", address);
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
