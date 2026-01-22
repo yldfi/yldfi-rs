@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3](https://github.com/yldfi/yldfi-rs/compare/tndrly-v0.3.2...tndrly-v0.3.3) (2026-01-17)
+
+
+### Features
+
+* add curve-api crate and workspace-level CI ([c8c9e91](https://github.com/yldfi/yldfi-rs/commit/c8c9e9199e976ce20e399882364e54b7ef8e652f))
+* comprehensive codebase improvements and new API crates ([d0c2831](https://github.com/yldfi/yldfi-rs/commit/d0c2831dfe6242bfd8cff8f983fe6bf7c62e8af9))
+
 ## [0.3.2](https://github.com/yldfi/tndrly/compare/v0.3.1...v0.3.2) (2026-01-12)
 
 

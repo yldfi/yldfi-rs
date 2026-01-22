@@ -1,0 +1,15 @@
+# Changelog
+
+## [0.1.1](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.0...mrls-v0.1.1) (2026-01-17)
+
+
+### Features
+
+* comprehensive codebase improvements and new API crates ([d0c2831](https://github.com/yldfi/yldfi-rs/commit/d0c2831dfe6242bfd8cff8f983fe6bf7c62e8af9))
+* **mrls:** implement complete Moralis Web3 API coverage ([63d8328](https://github.com/yldfi/yldfi-rs/commit/63d8328e5bb384aa5c7e9f6d0438b5df1bda61c7))
+* rename curve-api to crv, add mrls (Moralis) crate ([804e86c](https://github.com/yldfi/yldfi-rs/commit/804e86cfd381e131a1d9706ddabaf5a473905e4c))
+
+
+### Bug Fixes
+
+* **mrls:** reduce keywords to 5 (crates.io limit) ([bb17504](https://github.com/yldfi/yldfi-rs/commit/bb175041795086dae8b45af97db2c2b60ec7c7eb))
