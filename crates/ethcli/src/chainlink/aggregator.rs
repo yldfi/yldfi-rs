@@ -84,10 +84,8 @@ impl<P: Provider + Clone> Aggregator<P> {
         // Get decimals and round data in parallel
         let decimals_call = contract.decimals();
         let round_data_call = contract.latestRoundData();
-        let (decimals_result, round_data_result) = tokio::join!(
-            decimals_call.call(),
-            round_data_call.call()
-        );
+        let (decimals_result, round_data_result) =
+            tokio::join!(decimals_call.call(), round_data_call.call());
 
         let decimals = decimals_result?;
         let round_data = round_data_result?;
@@ -109,10 +107,8 @@ impl<P: Provider + Clone> Aggregator<P> {
         // Get decimals and round data at that block in parallel
         let decimals_call = contract.decimals().block(block);
         let round_data_call = contract.latestRoundData().block(block);
-        let (decimals_result, round_data_result) = tokio::join!(
-            decimals_call.call(),
-            round_data_call.call()
-        );
+        let (decimals_result, round_data_result) =
+            tokio::join!(decimals_call.call(), round_data_call.call());
 
         // Check for archive node requirement (from decimals call)
         let decimals = match decimals_result {
@@ -148,10 +144,8 @@ impl<P: Provider + Clone> Aggregator<P> {
         // Get decimals and round data in parallel
         let decimals_call = contract.decimals();
         let round_data_call = contract.getRoundData(round_id_uint);
-        let (decimals_result, round_data_result) = tokio::join!(
-            decimals_call.call(),
-            round_data_call.call()
-        );
+        let (decimals_result, round_data_result) =
+            tokio::join!(decimals_call.call(), round_data_call.call());
 
         let decimals = decimals_result?;
         let round_data = round_data_result?;

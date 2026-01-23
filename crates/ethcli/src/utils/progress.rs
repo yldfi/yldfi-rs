@@ -57,7 +57,8 @@ pub struct Spinner {
 
 impl Spinner {
     /// Default spinner frames
-    const DEFAULT_FRAMES: &'static [&'static str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    const DEFAULT_FRAMES: &'static [&'static str] =
+        &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
     /// ASCII-only spinner frames (for non-unicode terminals)
     const ASCII_FRAMES: &'static [&'static str] = &["|", "/", "-", "\\"];
@@ -114,7 +115,11 @@ impl Spinner {
     pub fn success(self, message: &str) {
         self.stopped.store(true, Ordering::Relaxed);
         if self.is_tty {
-            eprintln!("\r\x1b[K✓ {} ({:.1}s)", message, self.start.elapsed().as_secs_f64());
+            eprintln!(
+                "\r\x1b[K✓ {} ({:.1}s)",
+                message,
+                self.start.elapsed().as_secs_f64()
+            );
         }
     }
 

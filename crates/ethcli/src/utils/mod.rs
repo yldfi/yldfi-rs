@@ -341,28 +341,50 @@ mod tests {
     #[test]
     fn test_is_valid_eth_address() {
         // Valid addresses
-        assert!(is_valid_eth_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"));
-        assert!(is_valid_eth_address("0x0000000000000000000000000000000000000000"));
-        assert!(is_valid_eth_address("0xffffffffffffffffffffffffffffffffffffffff"));
+        assert!(is_valid_eth_address(
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        ));
+        assert!(is_valid_eth_address(
+            "0x0000000000000000000000000000000000000000"
+        ));
+        assert!(is_valid_eth_address(
+            "0xffffffffffffffffffffffffffffffffffffffff"
+        ));
 
         // Invalid addresses
-        assert!(!is_valid_eth_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4")); // Too short
-        assert!(!is_valid_eth_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48a")); // Too long
-        assert!(!is_valid_eth_address("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")); // No 0x
-        assert!(!is_valid_eth_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4G")); // Invalid hex
+        assert!(!is_valid_eth_address(
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4"
+        )); // Too short
+        assert!(!is_valid_eth_address(
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48a"
+        )); // Too long
+        assert!(!is_valid_eth_address(
+            "A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        )); // No 0x
+        assert!(!is_valid_eth_address(
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4G"
+        )); // Invalid hex
         assert!(!is_valid_eth_address("")); // Empty
     }
 
     #[test]
     fn test_is_valid_tx_hash() {
         // Valid hashes
-        assert!(is_valid_tx_hash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"));
-        assert!(is_valid_tx_hash("0x0000000000000000000000000000000000000000000000000000000000000000"));
+        assert!(is_valid_tx_hash(
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        ));
+        assert!(is_valid_tx_hash(
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ));
 
         // Invalid hashes
         assert!(!is_valid_tx_hash("0x1234567890abcdef")); // Too short
-        assert!(!is_valid_tx_hash("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")); // No 0x
-        assert!(!is_valid_tx_hash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdeg")); // Invalid hex
+        assert!(!is_valid_tx_hash(
+            "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        )); // No 0x
+        assert!(!is_valid_tx_hash(
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdeg"
+        )); // Invalid hex
         assert!(!is_valid_tx_hash("")); // Empty
     }
 

@@ -1,4 +1,6 @@
-use crate::utils::{address::resolve_label, is_safe_cli_value, is_valid_eth_address, is_valid_tx_hash};
+use crate::utils::{
+    address::resolve_label, is_safe_cli_value, is_valid_eth_address, is_valid_tx_hash,
+};
 use std::process::Command;
 
 /// Validate that a command-line argument doesn't contain injection attempts

@@ -928,9 +928,7 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
     let pair_clone3 = trading_pair.clone();
 
     // Helper to fetch from a specific exchange
-    async fn fetch_from_binance(
-        trading_pair: String,
-    ) -> Option<(f64, f64, &'static str)> {
+    async fn fetch_from_binance(trading_pair: String) -> Option<(f64, f64, &'static str)> {
         let exchange = Binance::builder().build().ok()?;
         exchange.load_markets(false).await.ok()?;
         let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)
@@ -941,9 +939,7 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
         Some((price, change, "ccxt-binance"))
     }
 
-    async fn fetch_from_bitget(
-        trading_pair: String,
-    ) -> Option<(f64, f64, &'static str)> {
+    async fn fetch_from_bitget(trading_pair: String) -> Option<(f64, f64, &'static str)> {
         let exchange = Bitget::builder().build().ok()?;
         exchange.load_markets(false).await.ok()?;
         let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)
@@ -954,9 +950,7 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
         Some((price, change, "ccxt-bitget"))
     }
 
-    async fn fetch_from_okx(
-        trading_pair: String,
-    ) -> Option<(f64, f64, &'static str)> {
+    async fn fetch_from_okx(trading_pair: String) -> Option<(f64, f64, &'static str)> {
         let exchange = Okx::builder().build().ok()?;
         exchange.load_markets(false).await.ok()?;
         let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)

@@ -13,7 +13,10 @@ pub fn read_from_stdin() -> io::Result<String> {
             return Ok(trimmed.to_string());
         }
     }
-    Err(io::Error::new(io::ErrorKind::UnexpectedEof, "No input provided on stdin"))
+    Err(io::Error::new(
+        io::ErrorKind::UnexpectedEof,
+        "No input provided on stdin",
+    ))
 }
 
 #[derive(Subcommand)]
@@ -29,7 +32,9 @@ pub enum ConfigCommands {
     Path,
 
     /// Set Etherscan API key
-    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-etherscan-key --stdin")]
+    #[command(
+        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-etherscan-key --stdin"
+    )]
     SetEtherscanKey {
         /// API key (omit if using --stdin)
         key: Option<String>,
@@ -40,7 +45,9 @@ pub enum ConfigCommands {
     },
 
     /// Set Tenderly API credentials
-    #[command(after_help = "To avoid exposing credentials in shell history:\n  echo $KEY | ethcli config set-tenderly --stdin --account <acc> --project <proj>")]
+    #[command(
+        after_help = "To avoid exposing credentials in shell history:\n  echo $KEY | ethcli config set-tenderly --stdin --account <acc> --project <proj>"
+    )]
     SetTenderly {
         /// Tenderly access key (omit if using --stdin)
         #[arg(long)]
@@ -60,7 +67,9 @@ pub enum ConfigCommands {
     },
 
     /// Set Alchemy API key
-    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-alchemy --stdin")]
+    #[command(
+        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-alchemy --stdin"
+    )]
     SetAlchemy {
         /// Alchemy API key (omit if using --stdin)
         key: Option<String>,
@@ -75,7 +84,9 @@ pub enum ConfigCommands {
     },
 
     /// Set Moralis API key
-    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-moralis --stdin")]
+    #[command(
+        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-moralis --stdin"
+    )]
     SetMoralis {
         /// Moralis API key (omit if using --stdin)
         key: Option<String>,
@@ -86,7 +97,9 @@ pub enum ConfigCommands {
     },
 
     /// Set Chainlink Data Streams credentials
-    #[command(after_help = "To avoid exposing credentials in shell history:\n  echo \"$KEY:$SECRET\" | ethcli config set-chainlink --stdin")]
+    #[command(
+        after_help = "To avoid exposing credentials in shell history:\n  echo \"$KEY:$SECRET\" | ethcli config set-chainlink --stdin"
+    )]
     SetChainlink {
         /// Chainlink API key (client ID) - omit if using --stdin
         #[arg(long)]
@@ -110,7 +123,9 @@ pub enum ConfigCommands {
     },
 
     /// Set Dune Analytics API key
-    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-dune --stdin")]
+    #[command(
+        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-dune --stdin"
+    )]
     SetDune {
         /// Dune API key (omit if using --stdin)
         key: Option<String>,
@@ -121,7 +136,9 @@ pub enum ConfigCommands {
     },
 
     /// Set Dune SIM API key (separate from Dune Analytics)
-    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-dune-sim --stdin")]
+    #[command(
+        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-dune-sim --stdin"
+    )]
     SetDuneSim {
         /// Dune SIM API key (omit if using --stdin)
         key: Option<String>,

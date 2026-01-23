@@ -1182,9 +1182,12 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
         ConfigCommands::SetEtherscanKey { key, stdin } => {
             use ethcli::cli::config::read_from_stdin;
             let api_key = if *stdin {
-                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                read_from_stdin()
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
             } else {
-                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
             };
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.set_etherscan_key(api_key)?;
@@ -1201,9 +1204,12 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
         } => {
             use ethcli::cli::config::read_from_stdin;
             let access_key = if *stdin {
-                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                read_from_stdin()
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
             } else {
-                key.clone().ok_or_else(|| anyhow::anyhow!("Access key required (provide --key or use --stdin)"))?
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("Access key required (provide --key or use --stdin)")
+                })?
             };
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.set_tenderly(access_key, account.clone(), project.clone())?;
@@ -1214,14 +1220,21 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://tenderly.co/terms-of-service");
         }
 
-        ConfigCommands::SetAlchemy { key, stdin, network } => {
+        ConfigCommands::SetAlchemy {
+            key,
+            stdin,
+            network,
+        } => {
             use ethcli::cli::config::read_from_stdin;
             use ethcli::config::AlchemyConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                read_from_stdin()
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
             } else {
-                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.alchemy = Some(AlchemyConfig {
@@ -1242,9 +1255,12 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::MoralisConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                read_from_stdin()
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
             } else {
-                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.moralis = Some(MoralisConfig {
@@ -1267,15 +1283,22 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::ChainlinkConfig;
             use secrecy::SecretString;
             let (api_key, user_secret) = if *stdin {
-                let input = read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?;
+                let input = read_from_stdin()
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?;
                 let parts: Vec<&str> = input.splitn(2, ':').collect();
                 if parts.len() != 2 {
-                    return Err(anyhow::anyhow!("Expected format: KEY:SECRET (separated by colon)"));
+                    return Err(anyhow::anyhow!(
+                        "Expected format: KEY:SECRET (separated by colon)"
+                    ));
                 }
                 (parts[0].to_string(), parts[1].to_string())
             } else {
-                let k = key.clone().ok_or_else(|| anyhow::anyhow!("--key required (or use --stdin with KEY:SECRET format)"))?;
-                let s = secret.clone().ok_or_else(|| anyhow::anyhow!("--secret required (or use --stdin with KEY:SECRET format)"))?;
+                let k = key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("--key required (or use --stdin with KEY:SECRET format)")
+                })?;
+                let s = secret.clone().ok_or_else(|| {
+                    anyhow::anyhow!("--secret required (or use --stdin with KEY:SECRET format)")
+                })?;
                 (k, s)
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
@@ -1298,9 +1321,12 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::DuneConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                read_from_stdin()
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
             } else {
-                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.dune = Some(DuneConfig {
@@ -1317,9 +1343,12 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::DuneSimConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                read_from_stdin()
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
             } else {
-                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.dune_sim = Some(DuneSimConfig {
@@ -1384,19 +1413,27 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                         errors.push("settings.concurrency cannot be 0".to_string());
                     }
                     if config.settings.concurrency > 100 {
-                        warnings.push("settings.concurrency > 100 may cause rate limiting".to_string());
+                        warnings
+                            .push("settings.concurrency > 100 may cause rate limiting".to_string());
                     }
 
                     // Check RPC endpoints
                     if config.endpoints.is_empty() {
-                        warnings.push("No RPC endpoints configured - will use public defaults".to_string());
+                        warnings.push(
+                            "No RPC endpoints configured - will use public defaults".to_string(),
+                        );
                     } else {
                         for ep in &config.endpoints {
-                            if !ep.url.starts_with("http://") && !ep.url.starts_with("https://") && !ep.url.starts_with("wss://") && !ep.url.starts_with("ws://") {
+                            if !ep.url.starts_with("http://")
+                                && !ep.url.starts_with("https://")
+                                && !ep.url.starts_with("wss://")
+                                && !ep.url.starts_with("ws://")
+                            {
                                 errors.push(format!("Invalid RPC URL scheme: {}", ep.url));
                             }
                             if ep.priority == 0 {
-                                warnings.push(format!("Endpoint {} has priority 0 (lowest)", ep.url));
+                                warnings
+                                    .push(format!("Endpoint {} has priority 0 (lowest)", ep.url));
                             }
                         }
                         println!("RPC endpoints: {} configured", config.endpoints.len());
@@ -1433,7 +1470,10 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                         println!("Dune SIM API key: configured");
                     }
                     if api_keys_present == 0 {
-                        warnings.push("No API keys configured - some features will be unavailable".to_string());
+                        warnings.push(
+                            "No API keys configured - some features will be unavailable"
+                                .to_string(),
+                        );
                     }
                     println!();
                 }

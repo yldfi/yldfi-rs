@@ -51,8 +51,7 @@ impl Table {
     pub fn with_alignments(mut self, alignments: impl IntoIterator<Item = Alignment>) -> Self {
         self.alignments = alignments.into_iter().collect();
         // Ensure alignments vec matches headers length
-        self.alignments
-            .resize(self.headers.len(), Alignment::Left);
+        self.alignments.resize(self.headers.len(), Alignment::Left);
         self
     }
 

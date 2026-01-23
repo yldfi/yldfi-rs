@@ -355,13 +355,22 @@ async fn test_feed_id_normalization() {
 #[tokio::test]
 async fn test_symbol_to_feed_id() {
     // Test symbol lookup
-    assert_eq!(pyth::symbol_to_feed_id("ETH"), Some(pyth::feed_ids::ETH_USD));
-    assert_eq!(pyth::symbol_to_feed_id("eth"), Some(pyth::feed_ids::ETH_USD));
+    assert_eq!(
+        pyth::symbol_to_feed_id("ETH"),
+        Some(pyth::feed_ids::ETH_USD)
+    );
+    assert_eq!(
+        pyth::symbol_to_feed_id("eth"),
+        Some(pyth::feed_ids::ETH_USD)
+    );
     assert_eq!(
         pyth::symbol_to_feed_id("ETHEREUM"),
         Some(pyth::feed_ids::ETH_USD)
     );
-    assert_eq!(pyth::symbol_to_feed_id("BTC"), Some(pyth::feed_ids::BTC_USD));
+    assert_eq!(
+        pyth::symbol_to_feed_id("BTC"),
+        Some(pyth::feed_ids::BTC_USD)
+    );
     assert_eq!(
         pyth::symbol_to_feed_id("BITCOIN"),
         Some(pyth::feed_ids::BTC_USD)
