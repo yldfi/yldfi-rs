@@ -89,7 +89,7 @@ mrls = { version = "0.1", path = "../mrls" }
 dnsim = { version = "0.1", path = "../dnsim" }
 dnapi = { version = "0.1", path = "../dnapi" }
 crv = { version = "0.1", path = "../crv" }
-pyth = { version = "0.1", path = "../pyth" }
+pyth = { version = "0.1", path = "../pythc", package = "pythc" }
 tndrly = { version = "0.3", path = "../tndrly" }
 yldfi-common = { version = "0.1", path = "../yldfi-common" }
 

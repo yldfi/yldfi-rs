@@ -22,7 +22,7 @@ on:
       - 'mrls-v*'
       - 'oinch-v*'
       - 'openoc-v*'
-      - 'pyth-v*'
+      - 'pythc-v*'
       - 'tndrly-v*'
       - 'vlra-v*'
       - 'yldfi-common-v*'

@@ -13,7 +13,7 @@
   "crates/mrls": "0.1.1",
   "crates/oinch": "0.1.1",
   "crates/openoc": "0.1.1",
-  "crates/pyth": "0.1.1",
+  "crates/pythc": "0.1.0",
   "crates/tndrly": "0.3.3",
   "crates/vlra": "0.1.0",
   "crates/yldfi-common": "0.1.2",

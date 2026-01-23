@@ -20,7 +20,7 @@ members = [
     "crates/vlra",
     "crates/ensof",
     "crates/lfi",
-    "crates/pyth",
+    "crates/pythc",
 ]
 
 [workspace.package]

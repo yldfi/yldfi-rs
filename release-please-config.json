@@ -155,9 +155,9 @@
       "draft": false,
       "prerelease": false
     },
-    "crates/pyth": {
+    "crates/pythc": {
       "release-type": "rust",
-      "component": "pyth",
+      "component": "pythc",
       "tag-separator": "-",
       "include-component-in-tag": true,
       "changelog-path": "CHANGELOG.md",
