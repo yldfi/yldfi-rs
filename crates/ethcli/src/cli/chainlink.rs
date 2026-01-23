@@ -259,6 +259,7 @@ pub async fn handle(command: &ChainlinkCommands, quiet: bool) -> anyhow::Result<
 }
 
 /// Handle price command
+#[allow(clippy::too_many_arguments)]
 async fn handle_price(
     token: &str,
     quote: &str,
@@ -432,10 +433,7 @@ async fn handle_oracles(
             }
         }
         OutputFormat::Table => {
-            println!(
-                "{:<10} {:<12} {:<44} {}",
-                "Symbol", "Pair", "Address", "Chain"
-            );
+            println!("{:<10} {:<12} {:<44} Chain", "Symbol", "Pair", "Address");
             println!("{}", "-".repeat(80));
             for oracle in &oracles {
                 println!(
