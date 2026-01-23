@@ -16,6 +16,7 @@ on:
       - 'mrls-v*'
       - 'oinch-v*'
       - 'openoc-v*'
+      - 'pyth-v*'
       - 'tndrly-v*'
       - 'vlra-v*'
       - 'yldfi-common-v*'
