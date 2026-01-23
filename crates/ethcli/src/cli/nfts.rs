@@ -35,10 +35,11 @@ impl From<NftSourceArg> for NftSource {
 #[derive(Args)]
 pub struct NftsArgs {
     /// Wallet address to query
+    #[arg(value_name = "ADDRESS")]
     pub address: String,
 
     /// Chain(s) to query (can be specified multiple times)
-    #[arg(long, short, default_value = "ethereum")]
+    #[arg(long, short, default_value = "ethereum", value_name = "CHAIN")]
     pub chain: Vec<String>,
 
     /// Source(s) to query (default: all in parallel)
@@ -58,7 +59,7 @@ pub struct NftsArgs {
     pub verified_only: bool,
 
     /// Limit number of NFTs shown
-    #[arg(long)]
+    #[arg(long, value_name = "N")]
     pub limit: Option<usize>,
 
     /// Output format

@@ -10,6 +10,22 @@ use clap::Subcommand;
 use std::str::FromStr;
 
 #[derive(Subcommand)]
+#[command(after_help = r#"Examples:
+  # Call a contract with function signature
+  ethcli rpc call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 -s "totalSupply()" -d uint256
+
+  # Call with arguments and decode output
+  ethcli rpc call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 -s "balanceOf(address)" -a 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 -d uint256
+
+  # Get block info
+  ethcli rpc block latest
+  ethcli rpc block 21000000 --full --json
+
+  # Read storage slot
+  ethcli rpc storage 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 0
+
+  # Get transaction receipt
+  ethcli rpc receipt 0x123abc..."#)]
 pub enum RpcCommands {
     /// Call a contract (eth_call) - read-only, no transaction
     ///
@@ -19,31 +35,34 @@ pub enum RpcCommands {
     ///   ethcli rpc call 0x... -s "totalSupply()" -d uint256        # With decode
     Call {
         /// Contract address
+        #[arg(value_name = "ADDRESS")]
         to: String,
 
         /// Calldata (hex encoded) - use this OR --sig
+        #[arg(value_name = "DATA")]
         data: Option<String>,
 
         /// Function signature (e.g., "balanceOf(address)")
-        #[arg(long, short, conflicts_with = "data")]
+        #[arg(long, short, conflicts_with = "data", value_name = "SIG")]
         sig: Option<String>,
 
         /// Function arguments (use with --sig)
-        #[arg(long, short = 'a', num_args = 1.., value_delimiter = ' ')]
+        #[arg(long, short = 'a', num_args = 1.., value_delimiter = ' ', value_name = "ARG")]
         args: Option<Vec<String>>,
 
         /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest")]
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
 
         /// Decode output as type (e.g., "uint256", "(address,uint256)")
-        #[arg(long, short)]
+        #[arg(long, short, value_name = "TYPE")]
         decode: Option<String>,
     },
 
     /// Get block information
     Block {
         /// Block number, hash, or "latest"
+        #[arg(value_name = "BLOCK")]
         block: String,
 
         /// Show full transactions
@@ -58,39 +77,44 @@ pub enum RpcCommands {
     /// Read storage slot
     Storage {
         /// Contract address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Storage slot (hex or decimal)
+        #[arg(value_name = "SLOT")]
         slot: String,
 
         /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest")]
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
     },
 
     /// Get contract bytecode
     Code {
         /// Contract address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest")]
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
     },
 
     /// Get account nonce
     Nonce {
         /// Account address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest")]
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
     },
 
     /// Get transaction receipt
     Receipt {
         /// Transaction hash
+        #[arg(value_name = "TX_HASH")]
         hash: String,
 
         /// Output as JSON

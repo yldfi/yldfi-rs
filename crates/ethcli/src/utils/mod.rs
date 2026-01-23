@@ -4,8 +4,76 @@
 
 pub mod address;
 pub mod format;
+pub mod progress;
+pub mod table;
 
 use std::borrow::Cow;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+// Re-export commonly used items
+pub use progress::{is_tty, ProgressBar, Spinner};
+pub use table::{format_address, format_number, format_usd, Alignment, Table};
+
+/// Get the current Unix timestamp in seconds
+///
+/// Returns 0 if the system time is before Unix epoch (shouldn't happen)
+#[inline]
+pub fn unix_timestamp_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+/// Get the current Unix timestamp in milliseconds
+///
+/// Returns 0 if the system time is before Unix epoch (shouldn't happen)
+#[inline]
+pub fn unix_timestamp_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+}
+
+/// Validate that a string looks like an Ethereum address
+///
+/// Returns true if the string starts with "0x" and is 42 characters long
+/// with only hex characters (case-insensitive).
+pub fn is_valid_eth_address(s: &str) -> bool {
+    if !s.starts_with("0x") || s.len() != 42 {
+        return false;
+    }
+    s[2..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Validate that a string looks like a transaction hash
+///
+/// Returns true if the string starts with "0x" and is 66 characters long
+/// with only hex characters (case-insensitive).
+pub fn is_valid_tx_hash(s: &str) -> bool {
+    if !s.starts_with("0x") || s.len() != 66 {
+        return false;
+    }
+    s[2..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Validate that a string doesn't contain CLI flag injection characters
+///
+/// Returns true if the string doesn't start with a dash and doesn't contain
+/// shell metacharacters that could be dangerous.
+pub fn is_safe_cli_value(s: &str) -> bool {
+    // Empty strings are safe but useless
+    if s.is_empty() {
+        return true;
+    }
+    // Reject strings that look like CLI flags
+    if s.starts_with('-') {
+        return false;
+    }
+    // Reject strings with shell metacharacters
+    !s.contains(['|', ';', '&', '$', '`', '\\', '\n', '\r'])
+}
 
 /// Token metadata (ERC20/ERC721/ERC1155)
 #[derive(Debug, Clone)]
@@ -255,5 +323,71 @@ mod tests {
     #[test]
     fn test_urlencoding_encode_empty() {
         assert_eq!(urlencoding_encode(""), Cow::Borrowed(""));
+    }
+
+    #[test]
+    fn test_unix_timestamp() {
+        let ts = unix_timestamp_secs();
+        // Should be after 2024-01-01 and before 2100-01-01
+        assert!(ts > 1704067200); // 2024-01-01
+        assert!(ts < 4102444800); // 2100-01-01
+
+        let ms = unix_timestamp_ms();
+        // Milliseconds should be roughly 1000x the seconds
+        assert!(ms > (ts as u128) * 1000 - 1000);
+        assert!(ms < (ts as u128) * 1000 + 1000);
+    }
+
+    #[test]
+    fn test_is_valid_eth_address() {
+        // Valid addresses
+        assert!(is_valid_eth_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"));
+        assert!(is_valid_eth_address("0x0000000000000000000000000000000000000000"));
+        assert!(is_valid_eth_address("0xffffffffffffffffffffffffffffffffffffffff"));
+
+        // Invalid addresses
+        assert!(!is_valid_eth_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4")); // Too short
+        assert!(!is_valid_eth_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48a")); // Too long
+        assert!(!is_valid_eth_address("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")); // No 0x
+        assert!(!is_valid_eth_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4G")); // Invalid hex
+        assert!(!is_valid_eth_address("")); // Empty
+    }
+
+    #[test]
+    fn test_is_valid_tx_hash() {
+        // Valid hashes
+        assert!(is_valid_tx_hash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"));
+        assert!(is_valid_tx_hash("0x0000000000000000000000000000000000000000000000000000000000000000"));
+
+        // Invalid hashes
+        assert!(!is_valid_tx_hash("0x1234567890abcdef")); // Too short
+        assert!(!is_valid_tx_hash("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")); // No 0x
+        assert!(!is_valid_tx_hash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdeg")); // Invalid hex
+        assert!(!is_valid_tx_hash("")); // Empty
+    }
+
+    #[test]
+    fn test_is_safe_cli_value() {
+        // Safe values
+        assert!(is_safe_cli_value("hello"));
+        assert!(is_safe_cli_value("0x1234"));
+        assert!(is_safe_cli_value("https://eth.llamarpc.com"));
+        assert!(is_safe_cli_value("100000000000"));
+        assert!(is_safe_cli_value("transfer(address,uint256)"));
+        assert!(is_safe_cli_value("")); // Empty is safe
+
+        // Unsafe values (flag injection)
+        assert!(!is_safe_cli_value("--help"));
+        assert!(!is_safe_cli_value("-h"));
+        assert!(!is_safe_cli_value("-"));
+
+        // Unsafe values (shell metacharacters)
+        assert!(!is_safe_cli_value("foo|bar"));
+        assert!(!is_safe_cli_value("foo;bar"));
+        assert!(!is_safe_cli_value("foo&bar"));
+        assert!(!is_safe_cli_value("$PATH"));
+        assert!(!is_safe_cli_value("`whoami`"));
+        assert!(!is_safe_cli_value("foo\\nbar"));
+        assert!(!is_safe_cli_value("foo\nbar"));
     }
 }

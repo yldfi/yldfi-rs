@@ -3,8 +3,7 @@
 //! Combines yield data from multiple sources to provide comprehensive
 //! DeFi yield information with cross-source comparison.
 
-use super::{AggregatedResult, LatencyMeasure, SourceResult};
-use crate::config::ConfigFile;
+use super::{get_cached_config, AggregatedResult, LatencyMeasure, SourceResult};
 use futures::future::join_all;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -161,7 +160,7 @@ async fn fetch_llama_yields(
     let measure = LatencyMeasure::start();
 
     // Try config first for Pro API key
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = config
         .as_ref()
         .and_then(|c| c.defillama.as_ref())

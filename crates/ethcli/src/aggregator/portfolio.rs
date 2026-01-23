@@ -4,9 +4,9 @@
 //! and merges them into a unified view.
 
 use super::{
-    chain_map::normalize_chain_for_source, AggregatedResult, LatencyMeasure, SourceResult,
+    chain_map::normalize_chain_for_source, get_cached_config, AggregatedResult, LatencyMeasure,
+    SourceResult,
 };
-use crate::config::ConfigFile;
 use futures::future::join_all;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -213,7 +213,7 @@ async fn fetch_alchemy_portfolio(
     measure: LatencyMeasure,
 ) -> SourceResult<Vec<PortfolioBalance>> {
     // Get API key from config
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = match config
         .as_ref()
         .and_then(|c| c.alchemy.as_ref())
@@ -291,7 +291,7 @@ async fn fetch_moralis_portfolio(
     measure: LatencyMeasure,
 ) -> SourceResult<Vec<PortfolioBalance>> {
     // Get API key from config
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = match config
         .as_ref()
         .and_then(|c| c.moralis.as_ref())
@@ -371,7 +371,7 @@ async fn fetch_dsim_portfolio(
     measure: LatencyMeasure,
 ) -> SourceResult<Vec<PortfolioBalance>> {
     // Get API key from config
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = match config
         .as_ref()
         .and_then(|c| c.dune_sim.as_ref())

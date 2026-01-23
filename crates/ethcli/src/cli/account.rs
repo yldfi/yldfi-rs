@@ -54,7 +54,8 @@ async fn resolve_address(
 pub enum AccountCommands {
     /// Get comprehensive account information (balance, recent txs, tokens)
     Info {
-        /// Address to query
+        /// Address to query (hex, ENS name, or address book label)
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Output format (json, table/pretty)
@@ -65,7 +66,8 @@ pub enum AccountCommands {
     /// Get native token balance for address(es)
     #[command(visible_alias = "bal")]
     Balance {
-        /// Address(es) to query
+        /// Address(es) to query (hex, ENS name, or address book label)
+        #[arg(value_name = "ADDRESS")]
         addresses: Vec<String>,
 
         /// Output format (json, table/pretty)
@@ -75,7 +77,8 @@ pub enum AccountCommands {
 
     /// Get transaction history for an address
     Txs {
-        /// Address to query
+        /// Address to query (hex, ENS name, or address book label)
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Page number (1-indexed)

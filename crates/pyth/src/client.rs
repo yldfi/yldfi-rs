@@ -126,15 +126,16 @@ impl Client {
             }
         }
 
-        // Build query string with multiple ids[] (URL-encode the brackets)
-        let ids_query: String = feed_ids
-            .iter()
-            .map(|id| format!("ids%5B%5D={}", normalize_feed_id(id)))
-            .collect::<Vec<_>>()
-            .join("&");
+        // Build URL with proper encoding
+        let mut url = Url::parse(&format!("{}/v2/updates/price/latest", self.base_url))?;
+        {
+            let mut pairs = url.query_pairs_mut();
+            for id in feed_ids {
+                pairs.append_pair("ids[]", &normalize_feed_id(id));
+            }
+        }
 
-        let path = format!("/v2/updates/price/latest?{}", ids_query);
-        let response: LatestPriceResponse = self.get(&path).await?;
+        let response: LatestPriceResponse = self.get_url(&url).await?;
 
         Ok(response.parsed)
     }
@@ -152,40 +153,47 @@ impl Client {
 
     /// Search for price feeds by query (symbol, base, quote, etc.)
     pub async fn search_feeds(&self, query: &str) -> Result<Vec<PriceFeedId>> {
-        let path = format!(
-            "/v2/price_feeds?query={}&asset_type=crypto",
-            urlencoding::encode(query)
-        );
-        self.get(&path).await
+        let mut url = Url::parse(&format!("{}/v2/price_feeds", self.base_url))?;
+        url.query_pairs_mut()
+            .append_pair("query", query)
+            .append_pair("asset_type", "crypto");
+        self.get_url(&url).await
     }
 
     /// Get price feeds filtered by asset type
     pub async fn get_feeds_by_asset_type(&self, asset_type: &str) -> Result<Vec<PriceFeedId>> {
-        let path = format!("/v2/price_feeds?asset_type={}", asset_type);
-        self.get(&path).await
+        let mut url = Url::parse(&format!("{}/v2/price_feeds", self.base_url))?;
+        url.query_pairs_mut().append_pair("asset_type", asset_type);
+        self.get_url(&url).await
     }
 
     async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
-        self.get_with_retry(path, 3).await
+        let url = Url::parse(&format!("{}{}", self.base_url, path))?;
+        self.get_url(&url).await
+    }
+
+    async fn get_url<T: serde::de::DeserializeOwned>(&self, url: &Url) -> Result<T> {
+        self.get_url_with_retry(url, 3).await
     }
 
     /// GET request with retry logic for rate limiting
-    async fn get_with_retry<T: serde::de::DeserializeOwned>(
+    async fn get_url_with_retry<T: serde::de::DeserializeOwned>(
         &self,
-        path: &str,
+        url: &Url,
         max_retries: u32,
     ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
+        let url_str = url.as_str();
         let mut last_error: Option<Error> = None;
 
         for attempt in 0..=max_retries {
-            let response = self.http.get(&url).send().await?;
+            let response = self.http.get(url_str).send().await?;
             let status = response.status().as_u16();
 
-            // Handle rate limiting with exponential backoff
+            // Handle rate limiting with Retry-After header support
             if status == 429 {
                 if attempt < max_retries {
-                    let backoff = Duration::from_millis(100 * 2u64.pow(attempt));
+                    let backoff = parse_retry_after(&response)
+                        .unwrap_or_else(|| Duration::from_millis(100 * 2u64.pow(attempt)));
                     tokio::time::sleep(backoff).await;
                     continue;
                 }
@@ -259,6 +267,20 @@ fn validate_feed_id(id: &str) -> bool {
     let id = id.trim();
     let hex_part = id.strip_prefix("0x").unwrap_or(id);
     hex_part.len() == 64 && hex_part.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Parse the Retry-After header from a response
+///
+/// Supports delay-seconds format (e.g., "5"). HTTP-date format is not
+/// supported and will fall back to default backoff.
+/// Returns None if header is missing or unparseable.
+fn parse_retry_after(response: &reqwest::Response) -> Option<Duration> {
+    let header_value = response.headers().get("retry-after")?.to_str().ok()?;
+
+    // Parse as seconds (most common for APIs)
+    let seconds: u64 = header_value.trim().parse().ok()?;
+    // Cap at 60 seconds to prevent unreasonably long waits
+    Some(Duration::from_secs(seconds.min(60)))
 }
 
 /// Well-known Pyth price feed IDs for common assets

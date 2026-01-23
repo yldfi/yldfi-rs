@@ -39,3 +39,33 @@ pub fn feed_not_found(feed_id: impl Into<String>) -> Error {
 pub fn invalid_feed_id(feed_id: impl Into<String>) -> Error {
     ApiError::domain(DomainError::InvalidFeedId(feed_id.into()))
 }
+
+/// Create a stale price error
+pub fn stale_price() -> Error {
+    ApiError::domain(DomainError::StalePrice)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_feed_not_found() {
+        let err = feed_not_found("test-feed");
+        assert!(err.to_string().contains("Price feed not found"));
+        assert!(err.to_string().contains("test-feed"));
+    }
+
+    #[test]
+    fn test_invalid_feed_id() {
+        let err = invalid_feed_id("bad-id");
+        assert!(err.to_string().contains("Invalid feed ID"));
+        assert!(err.to_string().contains("bad-id"));
+    }
+
+    #[test]
+    fn test_stale_price() {
+        let err = stale_price();
+        assert!(err.to_string().contains("Stale price data"));
+    }
+}

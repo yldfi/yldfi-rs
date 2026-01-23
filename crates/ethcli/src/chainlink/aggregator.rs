@@ -81,9 +81,16 @@ impl<P: Provider + Clone> Aggregator<P> {
     pub async fn latest_price(&self) -> Result<PriceData, ChainlinkError> {
         let contract = IAggregatorV3::new(self.address, &self.provider);
 
-        // Get decimals and round data
-        let decimals = contract.decimals().call().await?;
-        let round_data = contract.latestRoundData().call().await?;
+        // Get decimals and round data in parallel
+        let decimals_call = contract.decimals();
+        let round_data_call = contract.latestRoundData();
+        let (decimals_result, round_data_result) = tokio::join!(
+            decimals_call.call(),
+            round_data_call.call()
+        );
+
+        let decimals = decimals_result?;
+        let round_data = round_data_result?;
 
         PriceData::from_round_data(
             round_data.answer,
@@ -99,9 +106,15 @@ impl<P: Provider + Clone> Aggregator<P> {
     pub async fn price_at_block(&self, block: BlockId) -> Result<PriceData, ChainlinkError> {
         let contract = IAggregatorV3::new(self.address, &self.provider);
 
-        // Get decimals at that block
-        let decimals_result = contract.decimals().block(block).call().await;
+        // Get decimals and round data at that block in parallel
+        let decimals_call = contract.decimals().block(block);
+        let round_data_call = contract.latestRoundData().block(block);
+        let (decimals_result, round_data_result) = tokio::join!(
+            decimals_call.call(),
+            round_data_call.call()
+        );
 
+        // Check for archive node requirement (from decimals call)
         let decimals = match decimals_result {
             Ok(result) => result,
             Err(e) => {
@@ -113,8 +126,7 @@ impl<P: Provider + Clone> Aggregator<P> {
             }
         };
 
-        // Get round data at that block
-        let round_data = contract.latestRoundData().block(block).call().await?;
+        let round_data = round_data_result?;
 
         PriceData::from_round_data(
             round_data.answer,
@@ -130,12 +142,19 @@ impl<P: Provider + Clone> Aggregator<P> {
     pub async fn price_at_round(&self, round_id: u64) -> Result<PriceData, ChainlinkError> {
         let contract = IAggregatorV3::new(self.address, &self.provider);
 
-        // Get decimals
-        let decimals = contract.decimals().call().await?;
-
         // Get round data - convert to Uint<80, 2> (u80)
         let round_id_uint: Uint<80, 2> = Uint::from(round_id);
-        let round_data = contract.getRoundData(round_id_uint).call().await?;
+
+        // Get decimals and round data in parallel
+        let decimals_call = contract.decimals();
+        let round_data_call = contract.getRoundData(round_id_uint);
+        let (decimals_result, round_data_result) = tokio::join!(
+            decimals_call.call(),
+            round_data_call.call()
+        );
+
+        let decimals = decimals_result?;
+        let round_data = round_data_result?;
 
         PriceData::from_round_data(
             round_data.answer,

@@ -1,4 +1,4 @@
-//! Shared formatting utilities for numbers, tokens, and ETH values.
+//! Shared formatting utilities for numbers, tokens, ETH values, and tables.
 
 /// Add thousands separators to a numeric string.
 ///
@@ -127,6 +127,124 @@ pub fn format_u256_with_decimals(value: &alloy::primitives::U256, decimals: u8) 
     format_token_amount(&value.to_string(), decimals)
 }
 
+/// Truncate a string to a maximum length, adding "..." if truncated.
+pub fn truncate_str(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else if max_len <= 3 {
+        s[..max_len].to_string()
+    } else {
+        format!("{}...", &s[..max_len - 3])
+    }
+}
+
+/// Column alignment for table formatting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Right,
+}
+
+/// A column definition for table formatting.
+#[derive(Debug, Clone)]
+pub struct Column {
+    pub width: usize,
+    pub align: Align,
+}
+
+impl Column {
+    /// Create a left-aligned column with the given width.
+    pub fn left(width: usize) -> Self {
+        Self {
+            width,
+            align: Align::Left,
+        }
+    }
+
+    /// Create a right-aligned column with the given width.
+    pub fn right(width: usize) -> Self {
+        Self {
+            width,
+            align: Align::Right,
+        }
+    }
+
+    /// Format a value according to this column's alignment and width.
+    pub fn format(&self, value: &str) -> String {
+        let truncated = if value.len() > self.width {
+            truncate_str(value, self.width)
+        } else {
+            value.to_string()
+        };
+
+        match self.align {
+            Align::Left => format!("{:<width$}", truncated, width = self.width),
+            Align::Right => format!("{:>width$}", truncated, width = self.width),
+        }
+    }
+}
+
+/// A simple table formatter for CLI output.
+///
+/// # Example
+/// ```
+/// use ethcli::utils::format::{Table, Column};
+///
+/// let table = Table::new(vec![
+///     Column::left(12),
+///     Column::right(14),
+///     Column::right(10),
+/// ]);
+///
+/// table.print_separator();
+/// table.print_row(&["Source", "Price USD", "Status"]);
+/// table.print_separator();
+/// table.print_row(&["CoinGecko", "$1234.56", "OK"]);
+/// table.print_separator();
+/// ```
+pub struct Table {
+    columns: Vec<Column>,
+    total_width: usize,
+}
+
+impl Table {
+    /// Create a new table with the given column definitions.
+    pub fn new(columns: Vec<Column>) -> Self {
+        let total_width = columns.iter().map(|c| c.width).sum::<usize>() + columns.len() - 1;
+        Self {
+            columns,
+            total_width,
+        }
+    }
+
+    /// Print a row of values, one per column.
+    pub fn print_row(&self, values: &[&str]) {
+        let formatted: Vec<String> = self
+            .columns
+            .iter()
+            .zip(values.iter())
+            .map(|(col, val)| col.format(val))
+            .collect();
+        println!("{}", formatted.join(" "));
+    }
+
+    /// Print a separator line spanning the table width.
+    pub fn print_separator(&self) {
+        println!("{}", "-".repeat(self.total_width));
+    }
+
+    /// Print a title followed by a separator.
+    pub fn print_title(&self, title: &str) {
+        println!("{}", title);
+        self.print_separator();
+    }
+
+    /// Get the total width of the table (for custom separators).
+    pub fn width(&self) -> usize {
+        self.total_width
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,5 +285,33 @@ mod tests {
         assert_eq!(format_wei_to_eth("1500000000000000000"), "1.5");
         assert_eq!(format_wei_to_eth("500000000000000000"), "0.5");
         assert_eq!(format_wei_to_eth("0"), "0.0");
+    }
+
+    #[test]
+    fn test_truncate_str() {
+        assert_eq!(truncate_str("hello", 10), "hello");
+        assert_eq!(truncate_str("hello world", 8), "hello...");
+        assert_eq!(truncate_str("hi", 2), "hi");
+        assert_eq!(truncate_str("hello", 3), "hel");
+    }
+
+    #[test]
+    fn test_column_format() {
+        let left = Column::left(10);
+        assert_eq!(left.format("test"), "test      ");
+
+        let right = Column::right(10);
+        assert_eq!(right.format("test"), "      test");
+
+        // Truncation
+        let narrow = Column::left(5);
+        assert_eq!(narrow.format("hello world"), "he...");
+    }
+
+    #[test]
+    fn test_table_width() {
+        let table = Table::new(vec![Column::left(10), Column::right(15), Column::right(8)]);
+        // 10 + 15 + 8 + 2 spaces between = 35
+        assert_eq!(table.width(), 35);
     }
 }

@@ -18,6 +18,7 @@ pub enum GasCommands {
     /// Estimate confirmation time for a given gas price
     Estimate {
         /// Gas price in gwei
+        #[arg(value_name = "GWEI")]
         gwei: u64,
     },
 }

@@ -74,9 +74,17 @@ impl PriceData {
         self.answered_in_round < self.round_id
     }
 
-    /// Check if the answer is valid (positive and not stale)
+    /// Check if the feed is uninitialized (round_id == 0)
+    ///
+    /// A round_id of 0 indicates the feed has never been updated,
+    /// which can occur with newly deployed or inactive feeds.
+    pub fn is_uninitialized(&self) -> bool {
+        self.round_id == 0
+    }
+
+    /// Check if the answer is valid (positive, not stale, and initialized)
     pub fn is_valid(&self) -> bool {
-        self.answer > I256::ZERO && !self.is_stale()
+        self.answer > I256::ZERO && !self.is_stale() && !self.is_uninitialized()
     }
 
     /// Check if the price is fresh (not older than max_age_seconds)
@@ -151,6 +159,9 @@ pub enum ChainlinkError {
 
     #[error("Stale price data (answeredInRound < roundId)")]
     StalePrice,
+
+    #[error("Feed not initialized (round_id = 0)")]
+    UninitializedFeed,
 
     #[error("Invalid price (zero or negative)")]
     InvalidPrice,
@@ -322,5 +333,21 @@ mod tests {
         assert_eq!(price.age_seconds(1000), 0);
         // Saturating sub: if current < updated, return 0
         assert_eq!(price.age_seconds(500), 0);
+    }
+
+    #[test]
+    fn test_uninitialized_feed() {
+        // round_id = 0 indicates an uninitialized feed
+        let uninitialized = PriceData {
+            answer: I256::try_from(100_000_000i64).unwrap(),
+            decimals: 8,
+            round_id: 0,
+            updated_at: 0,
+            answered_in_round: 0,
+            feed_address: None,
+        };
+        assert!(uninitialized.is_uninitialized());
+        assert!(!uninitialized.is_valid());
+        assert_eq!(uninitialized.to_f64(), None);
     }
 }

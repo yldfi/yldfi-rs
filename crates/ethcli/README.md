@@ -91,14 +91,14 @@ ethcli gas oracle
 # Fetch specific events
 ethcli logs -c 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 \
   -e "Transfer(address,address,uint256)" \
-  -f 18000000 -t 18100000 -o transfers.json
+  -f 18000000 -t 18100000 -O transfers.json
 
-# Fetch all events (auto-fetches ABI from Etherscan)
+# Fetch all events (auto-fetches ABI from Etherscan), output as CSV
 ethcli logs -c 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 \
-  -f 18000000 -t latest --format csv -o events.csv
+  -f 18000000 -t latest -o csv -O events.csv
 
 # Output to SQLite
-ethcli logs -c 0x... -f 18000000 -t 18100000 --format sqlite -o events.db
+ethcli logs -c 0x... -f 18000000 -t 18100000 -o sqlite -O events.db
 
 # High concurrency with resume
 ethcli logs -c 0x... -f 0 -t latest -n 20 --resume

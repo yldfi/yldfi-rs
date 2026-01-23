@@ -17,7 +17,9 @@ use ethcli::{
 use indicatif::{ProgressBar, ProgressStyle};
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
+use std::io::IsTerminal;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -75,6 +77,12 @@ fn load_config_with_warning() -> Option<ConfigFile> {
 }
 
 use ethcli::utils::format::format_thousands;
+
+/// Check if we should show interactive progress indicators.
+/// Returns true only if stderr is a TTY (not piped/redirected).
+fn should_show_progress() -> bool {
+    std::io::stderr().is_terminal()
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -218,6 +226,11 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Ccxt { action } => {
             return ethcli::cli::ccxt::handle(action, cli.quiet).await;
+        }
+
+        Commands::Completions { shell } => {
+            Cli::generate_completions(*shell);
+            return Ok(());
         }
     }
 }
@@ -413,8 +426,8 @@ async fn run_batch_fetch_logs(
         eprintln!("Using {} RPC endpoints", fetcher.endpoint_count());
     }
 
-    // Set up progress bar
-    let pb = if !cli.quiet {
+    // Set up progress bar (only if stderr is a TTY)
+    let pb = if !cli.quiet && should_show_progress() {
         let pb = ProgressBar::new(100);
         pb.set_style(
             ProgressStyle::default_bar()
@@ -469,7 +482,7 @@ async fn run_batch_fetch_logs(
 /// Fetch block timestamps and add them to logs (parallel fetching)
 async fn add_timestamps_to_logs(
     logs: &mut [DecodedLog],
-    endpoints: &[Endpoint],
+    endpoints: &[Arc<Endpoint>],
 ) -> anyhow::Result<()> {
     // Collect unique block numbers
     let mut block_numbers: Vec<u64> = logs.iter().map(|l| l.block_number).collect();
@@ -581,8 +594,8 @@ async fn run_streaming_fetch(
         }
     }
 
-    // Set up progress (simplified for streaming)
-    let pb = if !cli.quiet {
+    // Set up progress (simplified for streaming, only if TTY)
+    let pb = if !cli.quiet && should_show_progress() {
         let pb = ProgressBar::new_spinner();
         pb.set_style(
             ProgressStyle::default_spinner()
@@ -1166,9 +1179,15 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("{}", ConfigFile::default_path().display());
         }
 
-        ConfigCommands::SetEtherscanKey { key } => {
+        ConfigCommands::SetEtherscanKey { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            let api_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+            } else {
+                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+            };
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
-            config.set_etherscan_key(key.clone())?;
+            config.set_etherscan_key(api_key)?;
             println!("Etherscan API key saved to config file.");
             println!("\nBy using Etherscan, you agree to their Terms of Service.");
             println!("See: https://etherscan.io/terms");
@@ -1176,11 +1195,18 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
 
         ConfigCommands::SetTenderly {
             key,
+            stdin,
             account,
             project,
         } => {
+            use ethcli::cli::config::read_from_stdin;
+            let access_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+            } else {
+                key.clone().ok_or_else(|| anyhow::anyhow!("Access key required (provide --key or use --stdin)"))?
+            };
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
-            config.set_tenderly(key.clone(), account.clone(), project.clone())?;
+            config.set_tenderly(access_key, account.clone(), project.clone())?;
             println!("Tenderly credentials saved to config file.");
             println!("  Account: {}", account);
             println!("  Project: {}", project);
@@ -1188,12 +1214,18 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://tenderly.co/terms-of-service");
         }
 
-        ConfigCommands::SetAlchemy { key, network } => {
+        ConfigCommands::SetAlchemy { key, stdin, network } => {
+            use ethcli::cli::config::read_from_stdin;
             use ethcli::config::AlchemyConfig;
             use secrecy::SecretString;
+            let api_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+            } else {
+                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+            };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.alchemy = Some(AlchemyConfig {
-                api_key: SecretString::new(key.clone().into()),
+                api_key: SecretString::new(api_key.into()),
                 default_network: network.clone(),
             });
             cfg.save_default()?;
@@ -1205,12 +1237,18 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://www.alchemy.com/terms-conditions");
         }
 
-        ConfigCommands::SetMoralis { key } => {
+        ConfigCommands::SetMoralis { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
             use ethcli::config::MoralisConfig;
             use secrecy::SecretString;
+            let api_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+            } else {
+                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+            };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.moralis = Some(MoralisConfig {
-                api_key: SecretString::new(key.clone().into()),
+                api_key: SecretString::new(api_key.into()),
             });
             cfg.save_default()?;
             println!("Moralis API key saved to config file.");
@@ -1221,15 +1259,29 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
         ConfigCommands::SetChainlink {
             key,
             secret,
+            stdin,
             rest_url,
             ws_url,
         } => {
+            use ethcli::cli::config::read_from_stdin;
             use ethcli::config::ChainlinkConfig;
             use secrecy::SecretString;
+            let (api_key, user_secret) = if *stdin {
+                let input = read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?;
+                let parts: Vec<&str> = input.splitn(2, ':').collect();
+                if parts.len() != 2 {
+                    return Err(anyhow::anyhow!("Expected format: KEY:SECRET (separated by colon)"));
+                }
+                (parts[0].to_string(), parts[1].to_string())
+            } else {
+                let k = key.clone().ok_or_else(|| anyhow::anyhow!("--key required (or use --stdin with KEY:SECRET format)"))?;
+                let s = secret.clone().ok_or_else(|| anyhow::anyhow!("--secret required (or use --stdin with KEY:SECRET format)"))?;
+                (k, s)
+            };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.chainlink = Some(ChainlinkConfig {
-                api_key: SecretString::new(key.clone().into()),
-                user_secret: SecretString::new(secret.clone().into()),
+                api_key: SecretString::new(api_key.into()),
+                user_secret: SecretString::new(user_secret.into()),
                 rest_url: rest_url.clone(),
                 ws_url: ws_url.clone(),
             });
@@ -1241,12 +1293,18 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://chainlinklabs.com/terms");
         }
 
-        ConfigCommands::SetDune { key } => {
+        ConfigCommands::SetDune { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
             use ethcli::config::DuneConfig;
             use secrecy::SecretString;
+            let api_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+            } else {
+                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+            };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.dune = Some(DuneConfig {
-                api_key: SecretString::new(key.clone().into()),
+                api_key: SecretString::new(api_key.into()),
             });
             cfg.save_default()?;
             println!("Dune Analytics API key saved to config file.");
@@ -1254,12 +1312,18 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://dune.com/terms");
         }
 
-        ConfigCommands::SetDuneSim { key } => {
+        ConfigCommands::SetDuneSim { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
             use ethcli::config::DuneSimConfig;
             use secrecy::SecretString;
+            let api_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+            } else {
+                key.clone().ok_or_else(|| anyhow::anyhow!("API key required (provide key or use --stdin)"))?
+            };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.dune_sim = Some(DuneSimConfig {
-                api_key: SecretString::new(key.clone().into()),
+                api_key: SecretString::new(api_key.into()),
             });
             cfg.save_default()?;
             println!("Dune SIM API key saved to config file.");
@@ -1294,6 +1358,108 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                     "  ethcli config set-tenderly --key KEY --account ACCOUNT --project PROJECT"
                 );
                 println!("  ethcli config add-debug-rpc URL");
+            }
+        }
+
+        ConfigCommands::Validate => {
+            let path = ConfigFile::default_path();
+            if !path.exists() {
+                println!("No config file found at: {}", path.display());
+                println!("Run 'ethcli config init' to create one.");
+                return Ok(());
+            }
+
+            let content = std::fs::read_to_string(&path)?;
+            let mut errors: Vec<String> = Vec::new();
+            let mut warnings: Vec<String> = Vec::new();
+
+            // Try to parse the TOML
+            match toml::from_str::<ConfigFile>(&content) {
+                Ok(config) => {
+                    println!("Config file: {}", path.display());
+                    println!();
+
+                    // Check settings
+                    if config.settings.concurrency == 0 {
+                        errors.push("settings.concurrency cannot be 0".to_string());
+                    }
+                    if config.settings.concurrency > 100 {
+                        warnings.push("settings.concurrency > 100 may cause rate limiting".to_string());
+                    }
+
+                    // Check RPC endpoints
+                    if config.endpoints.is_empty() {
+                        warnings.push("No RPC endpoints configured - will use public defaults".to_string());
+                    } else {
+                        for ep in &config.endpoints {
+                            if !ep.url.starts_with("http://") && !ep.url.starts_with("https://") && !ep.url.starts_with("wss://") && !ep.url.starts_with("ws://") {
+                                errors.push(format!("Invalid RPC URL scheme: {}", ep.url));
+                            }
+                            if ep.priority == 0 {
+                                warnings.push(format!("Endpoint {} has priority 0 (lowest)", ep.url));
+                            }
+                        }
+                        println!("RPC endpoints: {} configured", config.endpoints.len());
+                    }
+
+                    // Check API keys (just presence, not validity)
+                    let mut api_keys_present = 0;
+                    if config.etherscan_api_key.is_some() {
+                        api_keys_present += 1;
+                        println!("Etherscan API key: configured");
+                    }
+                    if config.tenderly.is_some() {
+                        api_keys_present += 1;
+                        println!("Tenderly credentials: configured");
+                    }
+                    if config.alchemy.is_some() {
+                        api_keys_present += 1;
+                        println!("Alchemy API key: configured");
+                    }
+                    if config.moralis.is_some() {
+                        api_keys_present += 1;
+                        println!("Moralis API key: configured");
+                    }
+                    if config.chainlink.is_some() {
+                        api_keys_present += 1;
+                        println!("Chainlink credentials: configured");
+                    }
+                    if config.dune.is_some() {
+                        api_keys_present += 1;
+                        println!("Dune API key: configured");
+                    }
+                    if config.dune_sim.is_some() {
+                        api_keys_present += 1;
+                        println!("Dune SIM API key: configured");
+                    }
+                    if api_keys_present == 0 {
+                        warnings.push("No API keys configured - some features will be unavailable".to_string());
+                    }
+                    println!();
+                }
+                Err(e) => {
+                    errors.push(format!("TOML parse error: {}", e));
+                }
+            }
+
+            // Print results
+            if !warnings.is_empty() {
+                println!("Warnings:");
+                for w in &warnings {
+                    println!("  - {}", w);
+                }
+                println!();
+            }
+
+            if !errors.is_empty() {
+                println!("Errors:");
+                for e in &errors {
+                    println!("  - {}", e);
+                }
+                println!();
+                anyhow::bail!("Config validation failed with {} error(s)", errors.len());
+            } else {
+                println!("Config validation passed.");
             }
         }
     }

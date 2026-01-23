@@ -53,10 +53,11 @@ impl From<PriceSourceArg> for PriceSource {
 #[derive(Args)]
 pub struct PriceArgs {
     /// Token symbol (ETH, BTC) or contract address (0x...)
+    #[arg(value_name = "TOKEN")]
     pub token: String,
 
     /// Chain for contract addresses (ethereum, polygon, arbitrum, etc.)
-    #[arg(long, short, default_value = "ethereum")]
+    #[arg(long, short, default_value = "ethereum", value_name = "CHAIN")]
     pub chain: String,
 
     /// Source(s) to query (default: all in parallel)

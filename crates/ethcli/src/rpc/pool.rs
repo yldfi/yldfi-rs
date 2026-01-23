@@ -11,7 +11,7 @@ use alloy::rpc::types::{Filter, Log, Transaction, TransactionReceipt};
 use futures::future::join_all;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -75,8 +75,8 @@ fn persist_max_logs_limit(url: &str, limit: usize) {
 
 /// Pool of RPC endpoints with load balancing and health tracking
 pub struct RpcPool {
-    /// Available endpoints
-    endpoints: Vec<Endpoint>,
+    /// Available endpoints (wrapped in Arc to avoid cloning config strings)
+    endpoints: Vec<Arc<Endpoint>>,
     /// Health tracker
     health: Arc<HealthTracker>,
     /// Max concurrent requests
@@ -118,11 +118,11 @@ impl RpcPool {
         // Get global proxy
         let proxy = config.proxy.as_ref().and_then(|p| p.url.clone());
 
-        // Create endpoint instances
+        // Create endpoint instances (wrapped in Arc to avoid cloning config strings)
         let mut endpoints = Vec::new();
         for cfg in endpoint_configs {
             match Endpoint::new(cfg.clone(), config.timeout_secs, proxy.as_deref()) {
-                Ok(ep) => endpoints.push(ep),
+                Ok(ep) => endpoints.push(Arc::new(ep)),
                 Err(e) => {
                     tracing::warn!(
                         "Failed to create endpoint {}: {}",
@@ -151,7 +151,7 @@ impl RpcPool {
         let endpoint = Endpoint::new(config, timeout_secs, None)?;
 
         Ok(Self {
-            endpoints: vec![endpoint],
+            endpoints: vec![Arc::new(endpoint)],
             health: Arc::new(HealthTracker::new()),
             concurrency: 1,
             chunk_size_override: None,
@@ -392,12 +392,17 @@ impl RpcPool {
     }
 
     /// Select endpoints for a request based on health and priority
-    fn select_endpoints(&self, count: usize) -> Vec<Endpoint> {
+    ///
+    /// Returns Arc<Endpoint> to avoid cloning EndpointConfig strings.
+    fn select_endpoints(&self, count: usize) -> Vec<Arc<Endpoint>> {
         // Get URLs sorted by health score
         let urls: Vec<_> = self.endpoints.iter().map(|e| e.url().to_string()).collect();
         let ranked = self.health.rank_endpoints(&urls);
 
-        // Get available endpoints
+        // Build HashMap for O(1) score lookup instead of O(n) linear search
+        let scores: HashMap<&str, f64> = ranked.iter().map(|(u, s)| (u.as_str(), *s)).collect();
+
+        // Get available endpoints (Arc clone is cheap - just reference count increment)
         let mut available: Vec<_> = self
             .endpoints
             .iter()
@@ -414,18 +419,10 @@ impl RpcPool {
             );
         }
 
-        // Sort by ranking
+        // Sort by ranking with O(1) score lookup
         available.sort_by(|a, b| {
-            let a_score = ranked
-                .iter()
-                .find(|(u, _)| u == a.url())
-                .map(|(_, s)| *s)
-                .unwrap_or(0.0);
-            let b_score = ranked
-                .iter()
-                .find(|(u, _)| u == b.url())
-                .map(|(_, s)| *s)
-                .unwrap_or(0.0);
+            let a_score = scores.get(a.url()).copied().unwrap_or(0.0);
+            let b_score = scores.get(b.url()).copied().unwrap_or(0.0);
             b_score.total_cmp(&a_score)
         });
 
@@ -516,7 +513,7 @@ impl RpcPool {
 
     /// Select endpoints that are known archives (for historical data queries)
     /// Falls back to all available endpoints if no archives are known
-    pub fn select_archive_endpoints(&self, count: usize) -> Vec<Endpoint> {
+    pub fn select_archive_endpoints(&self, count: usize) -> Vec<Arc<Endpoint>> {
         let archive_eps: Vec<_> = self
             .endpoints
             .iter()

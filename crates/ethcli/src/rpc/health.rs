@@ -273,11 +273,11 @@ impl HealthTracker {
         let mut ranked: Vec<_> = urls
             .iter()
             .filter_map(|url| {
-                let h = health.get(url).cloned().unwrap_or_default();
-                if h.is_available() {
-                    Some((url.clone(), h.health_score()))
-                } else {
-                    None
+                // Access methods directly on reference to avoid cloning EndpointHealth
+                match health.get(url) {
+                    Some(h) if h.is_available() => Some((url.clone(), h.health_score())),
+                    Some(_) => None, // Not available (circuit open)
+                    None => Some((url.clone(), 100.0)), // New endpoint, assume healthy
                 }
             })
             .collect();

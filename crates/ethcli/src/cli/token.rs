@@ -27,6 +27,7 @@ pub enum TokenCommands {
     /// Get token info (name, symbol, decimals, supply)
     Info {
         /// Token contract address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Output format (json, table/pretty)
@@ -37,10 +38,11 @@ pub enum TokenCommands {
     /// Get top token holders (requires Etherscan Pro plan)
     Holders {
         /// Token contract address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Number of holders to return
-        #[arg(long, default_value = "100")]
+        #[arg(long, default_value = "100", value_name = "N")]
         limit: u32,
 
         /// Output format (json, table/pretty)
@@ -51,15 +53,15 @@ pub enum TokenCommands {
     /// Get token balance for holder(s)
     Balance {
         /// Token contract address(es) or labels. Use "eth" for native ETH balance.
-        #[arg(required = true)]
+        #[arg(required = true, value_name = "TOKEN")]
         tokens: Vec<String>,
 
         /// Holder address(es) - can specify multiple
-        #[arg(long, num_args = 1..)]
+        #[arg(long, num_args = 1.., value_name = "ADDRESS")]
         holder: Vec<String>,
 
         /// Get balances for all addresses with this tag (can combine with --holder)
-        #[arg(long)]
+        #[arg(long, value_name = "TAG")]
         tag: Option<String>,
 
         /// Show zero balances (hidden by default when multiple holders)

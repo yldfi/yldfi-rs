@@ -106,10 +106,11 @@ pub enum ContractCommands {
     #[command(visible_alias = "abi")]
     Abi {
         /// Contract address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Save to file instead of stdout
-        #[arg(long, short)]
+        #[arg(long, short, value_name = "FILE")]
         output: Option<PathBuf>,
     },
 
@@ -117,10 +118,11 @@ pub enum ContractCommands {
     #[command(visible_alias = "src")]
     Source {
         /// Contract address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Save to directory instead of stdout
-        #[arg(long, short)]
+        #[arg(long, short, value_name = "DIR")]
         output: Option<PathBuf>,
     },
 
@@ -128,10 +130,11 @@ pub enum ContractCommands {
     #[command(visible_alias = "info")]
     Creation {
         /// Contract address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short = 'f', value_enum, default_value = "table")]
+        #[arg(long, short = 'o', value_enum, default_value = "table")]
         format: OutputFormat,
     },
 
@@ -143,21 +146,23 @@ pub enum ContractCommands {
     ///   ethcli contract call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 totalSupply --human
     Call {
         /// Contract address
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Function name (e.g., "totalSupply", "balanceOf")
+        #[arg(value_name = "FUNCTION")]
         function: String,
 
         /// Function arguments
-        #[arg(trailing_var_arg = true)]
+        #[arg(trailing_var_arg = true, value_name = "ARG")]
         args: Vec<String>,
 
         /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest")]
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
 
         /// Custom RPC URL (overrides config)
-        #[arg(long)]
+        #[arg(long, value_name = "URL")]
         rpc_url: Option<String>,
 
         /// Format output for human readability (commas in numbers, token decimals)

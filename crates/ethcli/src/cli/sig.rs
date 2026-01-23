@@ -13,12 +13,14 @@ pub enum SigCommands {
     #[command(name = "fn")]
     Function {
         /// 4-byte selector (e.g., 0xa9059cbb)
+        #[arg(value_name = "SELECTOR")]
         selector: String,
     },
 
     /// Lookup event signature by topic0 hash
     Event {
         /// Topic0 hash (e.g., 0xddf252ad...)
+        #[arg(value_name = "TOPIC")]
         topic: String,
     },
 

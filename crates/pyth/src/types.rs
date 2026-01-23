@@ -2,28 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Price feed metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PriceFeedMetadata {
-    /// Unique identifier for this price feed
-    pub id: String,
-    /// Asset type (Crypto, Equity, FX, Metal, etc.)
-    #[serde(default)]
-    pub asset_type: Option<String>,
-    /// Base asset symbol (e.g., "BTC")
-    #[serde(default)]
-    pub base: Option<String>,
-    /// Quote asset symbol (e.g., "USD")
-    #[serde(default)]
-    pub quote: Option<String>,
-    /// Human-readable description
-    #[serde(default)]
-    pub description: Option<String>,
-    /// Generic symbol
-    #[serde(default)]
-    pub symbol: Option<String>,
-}
-
 /// Price data from Pyth
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceData {

@@ -34,7 +34,8 @@ pub mod tx;
 pub mod update;
 pub mod yields;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 use std::fmt;
 
 /// Output format for command results
@@ -108,6 +109,11 @@ impl OutputFormat {
 
     # ENS resolution
     ethcli ens resolve vitalik.eth
+
+EXIT CODES:
+    0    Success
+    1    General error (network, API, invalid input)
+    2    Invalid arguments (bad CLI usage)
 
 ENVIRONMENT VARIABLES:
     ETHERSCAN_API_KEY    Etherscan API key (optional, increases rate limit)
@@ -326,4 +332,28 @@ pub enum Commands {
         #[command(subcommand)]
         action: ccxt::CcxtCommands,
     },
+
+    /// Generate shell completions
+    #[command(after_help = r#"EXAMPLES:
+    # Generate Bash completions
+    ethcli completions bash > ~/.local/share/bash-completion/completions/ethcli
+
+    # Generate Zsh completions
+    ethcli completions zsh > ~/.zfunc/_ethcli
+
+    # Generate Fish completions
+    ethcli completions fish > ~/.config/fish/completions/ethcli.fish
+"#)]
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+}
+
+impl Cli {
+    /// Generate shell completions to stdout
+    pub fn generate_completions(shell: Shell) {
+        clap_complete::generate(shell, &mut Cli::command(), "ethcli", &mut std::io::stdout());
+    }
 }

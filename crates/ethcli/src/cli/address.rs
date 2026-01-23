@@ -11,34 +11,37 @@ pub enum AddressCommands {
     /// Add an address to the address book
     Add {
         /// Label for the address (e.g., "vitalik", "usdc")
+        #[arg(value_name = "LABEL")]
         label: String,
 
         /// Ethereum address (0x...)
+        #[arg(value_name = "ADDRESS")]
         address: String,
 
         /// Description or notes
-        #[arg(long, short)]
+        #[arg(long, short, value_name = "DESC")]
         description: Option<String>,
 
         /// Tags for categorization (can be repeated)
-        #[arg(long, short)]
+        #[arg(long, short, value_name = "TAG")]
         tag: Vec<String>,
 
         /// Mark address as chain-specific (e.g., "polygon", "arbitrum")
-        #[arg(long = "for-chain")]
+        #[arg(long = "for-chain", value_name = "CHAIN")]
         for_chain: Option<String>,
     },
 
     /// Remove an address from the address book
     Remove {
         /// Label to remove
+        #[arg(value_name = "LABEL")]
         label: String,
     },
 
     /// List all addresses in the address book
     List {
         /// Filter by tag
-        #[arg(long, short)]
+        #[arg(long, short, value_name = "TAG")]
         tag: Option<String>,
 
         /// Output format (json, table/pretty)
@@ -49,6 +52,7 @@ pub enum AddressCommands {
     /// Get address by label
     Get {
         /// Label to look up
+        #[arg(value_name = "LABEL")]
         label: String,
 
         /// Output format (json, table/pretty)
@@ -59,6 +63,7 @@ pub enum AddressCommands {
     /// Search addresses by partial match
     Search {
         /// Search query (matches label, address, description, or tags)
+        #[arg(value_name = "QUERY")]
         query: String,
 
         /// Output format (json, table/pretty)
@@ -69,6 +74,7 @@ pub enum AddressCommands {
     /// Import addresses from a JSON file
     Import {
         /// Path to JSON file
+        #[arg(value_name = "FILE")]
         file: String,
 
         /// Overwrite existing entries with same label
@@ -79,7 +85,7 @@ pub enum AddressCommands {
     /// Export addresses to JSON
     Export {
         /// Output file (stdout if not specified)
-        #[arg(long, short)]
+        #[arg(long, short, value_name = "FILE")]
         output: Option<String>,
     },
 }

@@ -66,4 +66,5 @@ pub use rpc::{
     OptimizationResult, RpcPool,
 };
 pub use tx::{format_analysis, TransactionAnalysis, TxAnalyzer};
+pub use utils::format::{Align, Column, Table};
 pub use utils::TokenMetadata;

@@ -3,8 +3,7 @@
 //! Fetches NFT holdings from Alchemy, Moralis, and Dune SIM in parallel
 //! and merges results.
 
-use super::{normalize_chain_for_source, AggregatedResult, SourceResult};
-use crate::config::ConfigFile;
+use super::{get_cached_config, normalize_chain_for_source, AggregatedResult, SourceResult};
 use futures::future::join_all;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -451,7 +450,7 @@ fn chain_to_alchemy_network(chain: &str) -> Option<alcmy::Network> {
 /// Fetch NFTs from Alchemy
 async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
     // Get API key from config first, then fall back to env var
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = config
         .as_ref()
         .and_then(|c| c.alchemy.as_ref())
@@ -553,7 +552,7 @@ async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Ve
 /// Fetch NFTs from Moralis
 async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
     // Get API key from config first, then fall back to env var
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = config
         .as_ref()
         .and_then(|c| c.moralis.as_ref())
@@ -612,7 +611,7 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
 /// Fetch NFTs from Dune SIM (Collectibles API)
 async fn fetch_nfts_dsim(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
     // Get API key from config first, then fall back to env var
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = config
         .as_ref()
         .and_then(|c| {

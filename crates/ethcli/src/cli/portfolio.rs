@@ -38,10 +38,11 @@ impl From<PortfolioSourceArg> for PortfolioSource {
 #[derive(Args)]
 pub struct PortfolioArgs {
     /// Wallet address to query
+    #[arg(value_name = "ADDRESS")]
     pub address: String,
 
     /// Chain(s) to query (can be specified multiple times)
-    #[arg(long, short, default_value = "ethereum")]
+    #[arg(long, short, default_value = "ethereum", value_name = "CHAIN")]
     pub chain: Vec<String>,
 
     /// Source(s) to query (default: all in parallel)
@@ -57,7 +58,7 @@ pub struct PortfolioArgs {
     pub exclude_spam: bool,
 
     /// Minimum USD value to show (filter small balances)
-    #[arg(long)]
+    #[arg(long, value_name = "USD")]
     pub min_value: Option<f64>,
 
     /// Output format

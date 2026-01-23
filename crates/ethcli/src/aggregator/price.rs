@@ -5,21 +5,12 @@
 
 use super::{
     chain_map::normalize_chain_for_source,
+    get_cached_config,
     normalize::{NormalizedPrice, PriceAggregation},
     AggregatedResult, LatencyMeasure, PriceSource, SourceResult,
 };
-use crate::config::ConfigFile;
 use futures::future::join_all;
 use secrecy::ExposeSecret;
-use std::sync::OnceLock;
-
-/// Cached config file to avoid repeated disk I/O during parallel price fetches
-static CACHED_CONFIG: OnceLock<Option<ConfigFile>> = OnceLock::new();
-
-/// Get the cached config file, loading it once if needed
-fn get_cached_config() -> &'static Option<ConfigFile> {
-    CACHED_CONFIG.get_or_init(|| ConfigFile::load_default().ok().flatten())
-}
 
 /// Fetch prices from all available sources in parallel
 pub async fn fetch_prices_all(
@@ -906,9 +897,12 @@ pub fn symbol_to_coingecko_id(symbol: &str) -> String {
 ///
 /// CCXT uses trading pair format like "BTC/USDT", so we need to convert
 /// token symbols to trading pairs against USDT.
+///
+/// Uses tokio::select! to race exchanges in parallel, returning the first successful result.
 async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<NormalizedPrice> {
     use ccxt_rust::prelude::{Binance, Bitget, Exchange as ExchangeTrait, Okx};
     use num_traits::ToPrimitive;
+    use tokio::select;
 
     // CCXT requires trading pairs, not contract addresses
     // If we receive an address, try to reverse-map it to a symbol
@@ -929,53 +923,88 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
 
     // Convert symbol to trading pair (assume USDT quote)
     let trading_pair = format!("{}/USDT", symbol);
+    let pair_clone1 = trading_pair.clone();
+    let pair_clone2 = trading_pair.clone();
+    let pair_clone3 = trading_pair.clone();
 
-    // Try to fetch from multiple exchanges, take the first successful one
-    // We could average them but for speed, first success is usually good enough
-
-    // Try Binance first (most liquid)
-    if let Ok(exchange) = Binance::builder().build() {
-        if exchange.load_markets(false).await.is_ok() {
-            if let Ok(ticker) = ExchangeTrait::fetch_ticker(&exchange, &trading_pair).await {
-                if let Some(last_price) = ticker.last {
-                    // Price wraps a Decimal, access inner value with .0
-                    if let Some(price_f64) = last_price.0.to_f64() {
-                        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
-                        let price = NormalizedPrice::new(price_f64).with_change_24h(change);
-                        return SourceResult::success("ccxt-binance", price, measure.elapsed_ms());
-                    }
-                }
-            }
-        }
+    // Helper to fetch from a specific exchange
+    async fn fetch_from_binance(
+        trading_pair: String,
+    ) -> Option<(f64, f64, &'static str)> {
+        let exchange = Binance::builder().build().ok()?;
+        exchange.load_markets(false).await.ok()?;
+        let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)
+            .await
+            .ok()?;
+        let price = ticker.last?.0.to_f64()?;
+        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
+        Some((price, change, "ccxt-binance"))
     }
 
-    // Try Bitget
-    if let Ok(exchange) = Bitget::builder().build() {
-        if exchange.load_markets(false).await.is_ok() {
-            if let Ok(ticker) = ExchangeTrait::fetch_ticker(&exchange, &trading_pair).await {
-                if let Some(last_price) = ticker.last {
-                    if let Some(price_f64) = last_price.0.to_f64() {
-                        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
-                        let price = NormalizedPrice::new(price_f64).with_change_24h(change);
-                        return SourceResult::success("ccxt-bitget", price, measure.elapsed_ms());
-                    }
-                }
-            }
-        }
+    async fn fetch_from_bitget(
+        trading_pair: String,
+    ) -> Option<(f64, f64, &'static str)> {
+        let exchange = Bitget::builder().build().ok()?;
+        exchange.load_markets(false).await.ok()?;
+        let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)
+            .await
+            .ok()?;
+        let price = ticker.last?.0.to_f64()?;
+        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
+        Some((price, change, "ccxt-bitget"))
     }
 
-    // Try OKX
-    if let Ok(exchange) = Okx::builder().build() {
-        if exchange.load_markets(false).await.is_ok() {
-            if let Ok(ticker) = ExchangeTrait::fetch_ticker(&exchange, &trading_pair).await {
-                if let Some(last_price) = ticker.last {
-                    if let Some(price_f64) = last_price.0.to_f64() {
-                        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
-                        let price = NormalizedPrice::new(price_f64).with_change_24h(change);
-                        return SourceResult::success("ccxt-okx", price, measure.elapsed_ms());
-                    }
+    async fn fetch_from_okx(
+        trading_pair: String,
+    ) -> Option<(f64, f64, &'static str)> {
+        let exchange = Okx::builder().build().ok()?;
+        exchange.load_markets(false).await.ok()?;
+        let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)
+            .await
+            .ok()?;
+        let price = ticker.last?.0.to_f64()?;
+        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
+        Some((price, change, "ccxt-okx"))
+    }
+
+    // Race all exchanges in parallel, return first successful result
+    let binance_fut = fetch_from_binance(pair_clone1);
+    let bitget_fut = fetch_from_bitget(pair_clone2);
+    let okx_fut = fetch_from_okx(pair_clone3);
+
+    tokio::pin!(binance_fut);
+    tokio::pin!(bitget_fut);
+    tokio::pin!(okx_fut);
+
+    // Track which futures have completed
+    let mut binance_done = false;
+    let mut bitget_done = false;
+    let mut okx_done = false;
+
+    loop {
+        select! {
+            result = &mut binance_fut, if !binance_done => {
+                binance_done = true;
+                if let Some((price_f64, change, source)) = result {
+                    let price = NormalizedPrice::new(price_f64).with_change_24h(change);
+                    return SourceResult::success(source, price, measure.elapsed_ms());
                 }
             }
+            result = &mut bitget_fut, if !bitget_done => {
+                bitget_done = true;
+                if let Some((price_f64, change, source)) = result {
+                    let price = NormalizedPrice::new(price_f64).with_change_24h(change);
+                    return SourceResult::success(source, price, measure.elapsed_ms());
+                }
+            }
+            result = &mut okx_fut, if !okx_done => {
+                okx_done = true;
+                if let Some((price_f64, change, source)) = result {
+                    let price = NormalizedPrice::new(price_f64).with_change_24h(change);
+                    return SourceResult::success(source, price, measure.elapsed_ms());
+                }
+            }
+            else => break,
         }
     }
 

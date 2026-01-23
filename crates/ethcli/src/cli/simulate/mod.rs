@@ -19,6 +19,21 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 #[allow(clippy::large_enum_variant)]
+#[command(after_help = r#"Examples:
+  # Simulate a balanceOf call using cast
+  ethcli simulate call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --sig "balanceOf(address)" 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+
+  # Simulate with trace using debug-capable node
+  ethcli simulate call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --sig "transfer(address,uint256)" 0x123... 1000000 --trace
+
+  # Simulate via Tenderly with state overrides
+  ethcli simulate call 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D --sig "swapExactETHForTokens(uint256,address[],address,uint256)" 0 '[...]' 0x... 9999999999 --via tenderly --balance-override 0x123=1000000000000000000
+
+  # Trace an existing transaction
+  ethcli simulate tx 0x123abc... --via tenderly
+
+  # Simulate using Anvil fork
+  ethcli simulate call 0x... --sig "foo()" --via anvil"#)]
 pub enum SimulateCommands {
     /// Simulate a transaction call (without sending)
     Call {

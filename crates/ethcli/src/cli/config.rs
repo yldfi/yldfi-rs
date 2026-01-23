@@ -1,6 +1,20 @@
 //! Configuration management commands
 
 use clap::Subcommand;
+use std::io::{self, BufRead};
+
+/// Read a value from stdin (first non-empty line, trimmed)
+pub fn read_from_stdin() -> io::Result<String> {
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
+        }
+    }
+    Err(io::Error::new(io::ErrorKind::UnexpectedEof, "No input provided on stdin"))
+}
 
 #[derive(Subcommand)]
 pub enum ConfigCommands {
@@ -15,16 +29,26 @@ pub enum ConfigCommands {
     Path,
 
     /// Set Etherscan API key
+    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-etherscan-key --stdin")]
     SetEtherscanKey {
-        /// API key
-        key: String,
+        /// API key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read API key from stdin (avoids shell history exposure)
+        #[arg(long)]
+        stdin: bool,
     },
 
     /// Set Tenderly API credentials
+    #[command(after_help = "To avoid exposing credentials in shell history:\n  echo $KEY | ethcli config set-tenderly --stdin --account <acc> --project <proj>")]
     SetTenderly {
-        /// Tenderly access key
+        /// Tenderly access key (omit if using --stdin)
         #[arg(long)]
-        key: String,
+        key: Option<String>,
+
+        /// Read access key from stdin
+        #[arg(long)]
+        stdin: bool,
 
         /// Tenderly account slug
         #[arg(long)]
@@ -36,9 +60,14 @@ pub enum ConfigCommands {
     },
 
     /// Set Alchemy API key
+    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-alchemy --stdin")]
     SetAlchemy {
-        /// Alchemy API key
-        key: String,
+        /// Alchemy API key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read API key from stdin
+        #[arg(long)]
+        stdin: bool,
 
         /// Default network (e.g., eth-mainnet, polygon-mainnet)
         #[arg(long)]
@@ -46,20 +75,30 @@ pub enum ConfigCommands {
     },
 
     /// Set Moralis API key
+    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-moralis --stdin")]
     SetMoralis {
-        /// Moralis API key
-        key: String,
+        /// Moralis API key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read API key from stdin
+        #[arg(long)]
+        stdin: bool,
     },
 
     /// Set Chainlink Data Streams credentials
+    #[command(after_help = "To avoid exposing credentials in shell history:\n  echo \"$KEY:$SECRET\" | ethcli config set-chainlink --stdin")]
     SetChainlink {
-        /// Chainlink API key (client ID)
+        /// Chainlink API key (client ID) - omit if using --stdin
         #[arg(long)]
-        key: String,
+        key: Option<String>,
 
-        /// Chainlink user secret (client secret)
+        /// Chainlink user secret (client secret) - omit if using --stdin
         #[arg(long)]
-        secret: String,
+        secret: Option<String>,
+
+        /// Read key:secret from stdin (format: KEY:SECRET on one line)
+        #[arg(long)]
+        stdin: bool,
 
         /// REST API URL (defaults to mainnet)
         #[arg(long)]
@@ -71,15 +110,25 @@ pub enum ConfigCommands {
     },
 
     /// Set Dune Analytics API key
+    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-dune --stdin")]
     SetDune {
-        /// Dune API key
-        key: String,
+        /// Dune API key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read API key from stdin
+        #[arg(long)]
+        stdin: bool,
     },
 
     /// Set Dune SIM API key (separate from Dune Analytics)
+    #[command(after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-dune-sim --stdin")]
     SetDuneSim {
-        /// Dune SIM API key
-        key: String,
+        /// Dune SIM API key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read API key from stdin
+        #[arg(long)]
+        stdin: bool,
     },
 
     /// Add a debug-capable RPC URL (for debug_traceCall, etc.)
@@ -96,4 +145,7 @@ pub enum ConfigCommands {
 
     /// Show current config
     Show,
+
+    /// Validate config file syntax and structure
+    Validate,
 }

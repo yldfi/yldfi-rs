@@ -37,6 +37,7 @@ pub fn sanitize_error_message(msg: &str) -> String {
 
 /// Main error type for the library
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// RPC-related errors
     #[error("RPC error: {0}")]
@@ -77,6 +78,7 @@ pub enum Error {
 
 /// RPC-specific errors
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum RpcError {
     #[error("All endpoints failed for request")]
     AllEndpointsFailed,
@@ -114,6 +116,7 @@ pub enum RpcError {
 
 /// ABI-related errors
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum AbiError {
     #[error("Failed to fetch ABI from Etherscan: {0}")]
     EtherscanFetch(String),
@@ -142,6 +145,7 @@ pub enum AbiError {
 
 /// Configuration errors
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum ConfigError {
     #[error("Invalid config file: {0}")]
     InvalidFile(String),
@@ -164,6 +168,7 @@ pub enum ConfigError {
 
 /// Output-related errors
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum OutputError {
     #[error("Failed to write JSON: {0}")]
     JsonWrite(String),
@@ -183,6 +188,7 @@ pub enum OutputError {
 
 /// Checkpoint-related errors
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum CheckpointError {
     #[error("Failed to read checkpoint: {0}")]
     ReadError(String),
@@ -199,6 +205,58 @@ pub enum CheckpointError {
 
 /// Result type alias for the library
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Newtype wrapper for "other" errors that don't fit specific categories.
+///
+/// This wrapper provides better type safety than a raw `String` and allows
+/// for future additions (like source error chaining) without breaking changes.
+///
+/// # Example
+/// ```
+/// use ethcli::error::{Error, OtherError};
+///
+/// let err: Error = OtherError::new("something went wrong").into();
+/// let err2: Error = OtherError::with_context("parsing", "invalid format").into();
+/// ```
+#[derive(Debug, Clone)]
+pub struct OtherError {
+    message: String,
+}
+
+impl OtherError {
+    /// Create a new OtherError with a message
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+
+    /// Create an OtherError with context about the operation that failed
+    pub fn with_context(operation: &str, detail: impl std::fmt::Display) -> Self {
+        Self {
+            message: format!("{}: {}", operation, detail),
+        }
+    }
+
+    /// Get the error message
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl std::fmt::Display for OtherError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for OtherError {}
+
+impl From<OtherError> for Error {
+    fn from(e: OtherError) -> Self {
+        Error::Other(e.message)
+    }
+}
 
 /// Implement RetryableError for RpcError to determine which errors should be retried
 impl crate::rpc::retry::RetryableError for RpcError {

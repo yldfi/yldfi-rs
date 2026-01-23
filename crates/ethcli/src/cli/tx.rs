@@ -7,10 +7,11 @@ use std::path::PathBuf;
 #[derive(Args)]
 pub struct TxArgs {
     /// Transaction hash(es) (with or without 0x prefix)
+    #[arg(value_name = "TX_HASH")]
     pub hashes: Vec<String>,
 
     /// Read transaction hashes from file (one per line)
-    #[arg(long, short = 'f')]
+    #[arg(long, short = 'f', value_name = "FILE")]
     pub file: Option<PathBuf>,
 
     /// Read transaction hashes from stdin (one per line)

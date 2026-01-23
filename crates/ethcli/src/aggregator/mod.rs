@@ -22,8 +22,21 @@ pub use price::*;
 pub use swap::*;
 pub use yields::*;
 
+use crate::config::ConfigFile;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 use std::time::Instant;
+
+/// Cached config file to avoid repeated disk I/O during parallel fetches.
+/// This is shared across all aggregator modules.
+static CACHED_CONFIG: OnceLock<Option<ConfigFile>> = OnceLock::new();
+
+/// Get the cached config file, loading it once if needed.
+///
+/// This is used by all aggregator modules to avoid repeated disk reads.
+pub fn get_cached_config() -> &'static Option<ConfigFile> {
+    CACHED_CONFIG.get_or_init(|| ConfigFile::load_default().ok().flatten())
+}
 
 /// Result from a single API source
 #[derive(Debug, Clone, Serialize, Deserialize)]

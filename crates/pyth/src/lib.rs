@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 //! # pyth
 //!
 //! Rust client for the Pyth Network Hermes API.
@@ -70,6 +72,6 @@ pub mod error;
 pub mod types;
 
 pub use client::{base_urls, feed_ids, symbol_to_feed_id, Client, Config};
-pub use error::{Error, Result};
+pub use error::{feed_not_found, invalid_feed_id, stale_price, Error, Result};
 pub use types::{LatestPriceResponse, ParsedPriceFeed, PriceData, PriceFeedId};
 pub use yldfi_common::http::HttpClientConfig;

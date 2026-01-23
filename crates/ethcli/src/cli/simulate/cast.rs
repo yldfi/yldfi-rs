@@ -1,5 +1,17 @@
-use crate::utils::address::resolve_label;
+use crate::utils::{address::resolve_label, is_safe_cli_value, is_valid_eth_address, is_valid_tx_hash};
 use std::process::Command;
+
+/// Validate that a command-line argument doesn't contain injection attempts
+fn validate_cli_arg(arg: &str, name: &str) -> anyhow::Result<()> {
+    if !is_safe_cli_value(arg) {
+        anyhow::bail!(
+            "Invalid {}: '{}' contains potentially unsafe characters",
+            name,
+            arg
+        );
+    }
+    Ok(())
+}
 
 /// Simulate using cast call --trace
 #[allow(clippy::too_many_arguments)]
@@ -15,11 +27,34 @@ pub async fn simulate_via_cast(
     trace: bool,
     quiet: bool,
 ) -> anyhow::Result<()> {
+    // Validate inputs to prevent flag injection
+    validate_cli_arg(value, "value")?;
+    validate_cli_arg(block, "block")?;
+    if let Some(ref sig_str) = sig {
+        validate_cli_arg(sig_str, "signature")?;
+    }
+    if let Some(ref data_str) = data {
+        validate_cli_arg(data_str, "data")?;
+    }
+    if let Some(ref rpc) = rpc_url {
+        validate_cli_arg(rpc, "rpc-url")?;
+    }
+    for arg in args {
+        validate_cli_arg(arg, "argument")?;
+    }
+
     let mut cmd = Command::new("cast");
     cmd.arg("call");
 
     // Resolve target address
     let resolved_to = resolve_label(to);
+
+    // Validate resolved address looks like an address (unless it's a label)
+    if !is_valid_eth_address(&resolved_to) && !to.contains('.') {
+        // Allow ENS names (contain dots) and address book labels
+        validate_cli_arg(&resolved_to, "to address")?;
+    }
+
     cmd.arg(&resolved_to);
 
     // Add signature or data
@@ -81,6 +116,19 @@ pub async fn trace_tx_via_cast(
     rpc_url: &Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
+    // Validate transaction hash format
+    if !is_valid_tx_hash(hash) {
+        anyhow::bail!(
+            "Invalid transaction hash: '{}'. Expected 0x followed by 64 hex characters.",
+            hash
+        );
+    }
+
+    // Validate RPC URL if provided
+    if let Some(ref rpc) = rpc_url {
+        validate_cli_arg(rpc, "rpc-url")?;
+    }
+
     let mut cmd = Command::new("cast");
     cmd.arg("run");
     cmd.arg(hash);

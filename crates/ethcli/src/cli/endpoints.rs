@@ -15,7 +15,7 @@ pub enum EndpointCommands {
         debug: bool,
 
         /// Filter by chain (ethereum, polygon, arbitrum, etc.)
-        #[arg(long)]
+        #[arg(long, value_name = "CHAIN")]
         chain: Option<String>,
 
         /// Show detailed information
@@ -26,10 +26,11 @@ pub enum EndpointCommands {
     /// Add a new RPC endpoint (auto-optimizes)
     Add {
         /// RPC URL to add
+        #[arg(value_name = "URL")]
         url: String,
 
         /// Chain this endpoint serves (auto-detected if not specified)
-        #[arg(long)]
+        #[arg(long, value_name = "CHAIN")]
         chain: Option<String>,
 
         /// Skip optimization (just add with defaults)
@@ -40,12 +41,14 @@ pub enum EndpointCommands {
     /// Remove an RPC endpoint
     Remove {
         /// RPC URL to remove
+        #[arg(value_name = "URL")]
         url: String,
     },
 
     /// Optimize endpoint(s) by testing capabilities
     Optimize {
         /// RPC URL to optimize (if not specified, optimizes all)
+        #[arg(value_name = "URL")]
         url: Option<String>,
 
         /// Optimize all endpoints
@@ -53,29 +56,32 @@ pub enum EndpointCommands {
         all: bool,
 
         /// Filter by chain when using --all
-        #[arg(long)]
+        #[arg(long, value_name = "CHAIN")]
         chain: Option<String>,
 
         /// Timeout for each test in seconds
-        #[arg(long, default_value = "10")]
+        #[arg(long, default_value = "10", value_name = "SECONDS")]
         timeout: u64,
     },
 
     /// Test an endpoint for archive support (quick test)
     Test {
         /// RPC URL to test
+        #[arg(value_name = "URL")]
         url: String,
     },
 
     /// Enable a disabled endpoint
     Enable {
         /// RPC URL to enable
+        #[arg(value_name = "URL")]
         url: String,
     },
 
     /// Disable an endpoint (keeps config but excludes from pool)
     Disable {
         /// RPC URL to disable
+        #[arg(value_name = "URL")]
         url: String,
     },
 }

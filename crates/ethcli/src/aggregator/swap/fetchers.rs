@@ -1,8 +1,7 @@
 //! Fetchers for each DEX aggregator source
 
 use super::types::NormalizedQuote;
-use crate::aggregator::{LatencyMeasure, SourceResult};
-use crate::config::ConfigFile;
+use crate::aggregator::{get_cached_config, LatencyMeasure, SourceResult};
 use secrecy::ExposeSecret;
 
 /// Native token address placeholder used by various aggregators
@@ -102,7 +101,7 @@ pub async fn fetch_openocean_quote(
     };
 
     // Get proxy from config (respects enabled, sources, exclude_sources)
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let proxy = config
         .as_ref()
         .and_then(|c| c.proxy_for_source("openocean"));
@@ -207,7 +206,7 @@ pub async fn fetch_kyber_quote(
     };
 
     // Get proxy from config
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let proxy = config
         .as_ref()
         .and_then(|c| c.proxy_for_source("kyberswap"));
@@ -287,7 +286,7 @@ pub async fn fetch_zerox_quote(
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
     // Get API key from config or env
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = config
         .as_ref()
         .and_then(|c| c.zerox.as_ref())
@@ -410,7 +409,7 @@ pub async fn fetch_oneinch_quote(
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
     // Get API key from config or env
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = config
         .as_ref()
         .and_then(|c| c.oneinch.as_ref())
@@ -584,7 +583,7 @@ pub async fn fetch_cowswap_quote(
     };
 
     // Get proxy from config
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("cowswap"));
 
     let client = match cowp::Client::with_config(cowp::Config::new().with_optional_proxy(proxy)) {
@@ -666,7 +665,7 @@ pub async fn fetch_lifi_quote(
     };
 
     // Get proxy from config
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("lifi"));
 
     let client = match lfi::Client::with_config(lfi::Config::new().with_optional_proxy(proxy)) {
@@ -766,7 +765,7 @@ pub async fn fetch_velora_quote(
     };
 
     // Get proxy from config
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("velora"));
 
     let client = match vlra::Client::with_config(vlra::default_config().optional_proxy(proxy)) {
@@ -852,7 +851,7 @@ pub async fn fetch_enso_quote(
     };
 
     // Get API key from config or env
-    let config = ConfigFile::load_default().ok().flatten();
+    let config = get_cached_config();
     let api_key = config
         .as_ref()
         .and_then(|c| c.enso.as_ref())

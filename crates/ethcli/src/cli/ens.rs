@@ -23,24 +23,28 @@ pub enum EnsCommands {
     /// Resolve ENS name to address
     Resolve {
         /// ENS name (e.g., "vitalik.eth")
+        #[arg(value_name = "NAME")]
         name: String,
     },
 
     /// Reverse lookup - address to ENS name
     Lookup {
         /// Ethereum address
+        #[arg(value_name = "ADDRESS")]
         address: String,
     },
 
     /// Get the resolver for an ENS name
     Resolver {
         /// ENS name
+        #[arg(value_name = "NAME")]
         name: String,
     },
 
     /// Compute namehash for an ENS name
     Namehash {
         /// ENS name
+        #[arg(value_name = "NAME")]
         name: String,
     },
 }
