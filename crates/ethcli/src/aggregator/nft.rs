@@ -619,7 +619,11 @@ async fn fetch_nfts_dsim(address: &str, chains: &[&str]) -> anyhow::Result<Vec<N
             c.dune_sim
                 .as_ref()
                 .map(|d| d.api_key.expose_secret().to_string())
-                .or_else(|| c.dune.as_ref().map(|d| d.api_key.expose_secret().to_string()))
+                .or_else(|| {
+                    c.dune
+                        .as_ref()
+                        .map(|d| d.api_key.expose_secret().to_string())
+                })
         })
         .or_else(|| {
             std::env::var("DUNE_SIM_API_KEY")

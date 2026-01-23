@@ -228,7 +228,19 @@ pub async fn handle(command: &ChainlinkCommands, quiet: bool) -> anyhow::Result<
             oracle,
             rpc_url,
             args,
-        } => handle_price(token, quote, chain, block.as_deref(), oracle.as_deref(), rpc_url.as_deref(), args, quiet).await,
+        } => {
+            handle_price(
+                token,
+                quote,
+                chain,
+                block.as_deref(),
+                oracle.as_deref(),
+                rpc_url.as_deref(),
+                args,
+                quiet,
+            )
+            .await
+        }
 
         ChainlinkCommands::Feed {
             token,
@@ -238,7 +250,9 @@ pub async fn handle(command: &ChainlinkCommands, quiet: bool) -> anyhow::Result<
             args,
         } => handle_feed(token, quote, chain, rpc_url.as_deref(), args, quiet).await,
 
-        ChainlinkCommands::Oracles { chain, args } => handle_oracles(chain.as_deref(), args, quiet).await,
+        ChainlinkCommands::Oracles { chain, args } => {
+            handle_oracles(chain.as_deref(), args, quiet).await
+        }
 
         ChainlinkCommands::Streams(streams_cmd) => handle_streams(streams_cmd, quiet).await,
     }
@@ -418,7 +432,10 @@ async fn handle_oracles(
             }
         }
         OutputFormat::Table => {
-            println!("{:<10} {:<12} {:<44} {}", "Symbol", "Pair", "Address", "Chain");
+            println!(
+                "{:<10} {:<12} {:<44} {}",
+                "Symbol", "Pair", "Address", "Chain"
+            );
             println!("{}", "-".repeat(80));
             for oracle in &oracles {
                 println!(
@@ -491,7 +508,10 @@ async fn handle_streams(command: &StreamsCommands, quiet: bool) -> anyhow::Resul
             let id = parse_feed_id(feed_id)?;
 
             if !quiet {
-                eprintln!("Fetching report for {} at timestamp {}...", feed_id, timestamp);
+                eprintln!(
+                    "Fetching report for {} at timestamp {}...",
+                    feed_id, timestamp
+                );
             }
 
             let response = client
@@ -520,7 +540,11 @@ async fn handle_streams(command: &StreamsCommands, quiet: bool) -> anyhow::Resul
                 .collect::<Result<Vec<_>, _>>()?;
 
             if !quiet {
-                eprintln!("Fetching {} reports at timestamp {}...", feed_ids.len(), timestamp);
+                eprintln!(
+                    "Fetching {} reports at timestamp {}...",
+                    feed_ids.len(),
+                    timestamp
+                );
             }
 
             let reports = client
@@ -550,7 +574,10 @@ async fn handle_streams(command: &StreamsCommands, quiet: bool) -> anyhow::Resul
             let id = parse_feed_id(feed_id)?;
 
             if !quiet {
-                eprintln!("Fetching {} reports for {} starting at {}...", limit, feed_id, timestamp);
+                eprintln!(
+                    "Fetching {} reports for {} starting at {}...",
+                    limit, feed_id, timestamp
+                );
             }
 
             let reports = client
@@ -585,10 +612,7 @@ struct StreamsReportOutput {
 }
 
 /// Get RPC provider for a chain
-fn get_provider(
-    chain: &str,
-    rpc_url: Option<&str>,
-) -> anyhow::Result<impl Provider + Clone> {
+fn get_provider(chain: &str, rpc_url: Option<&str>) -> anyhow::Result<impl Provider + Clone> {
     let chain_enum = Chain::from_str(chain).unwrap_or(Chain::Ethereum);
 
     let endpoint = if let Some(url) = rpc_url {
@@ -627,7 +651,9 @@ fn get_streams_credentials() -> anyhow::Result<(String, String, String, String)>
         Some(key) => key,
         None => std::env::var("CHAINLINK_API_KEY")
             .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
-            .map_err(|_| anyhow::anyhow!("CHAINLINK_API_KEY not set. Data Streams requires API credentials."))?,
+            .map_err(|_| {
+                anyhow::anyhow!("CHAINLINK_API_KEY not set. Data Streams requires API credentials.")
+            })?,
     };
 
     let user_secret = match chainlink_config.map(|c| c.user_secret.expose_secret().to_string()) {

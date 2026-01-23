@@ -14,8 +14,8 @@ use ethcli::{
     FetchProgress, FetchStats, LogFetcher, OutputFormat, OutputWriter, ProxyConfig, RpcConfig,
     RpcPool, StreamingFetcher, TxAnalyzer,
 };
-use secrecy::ExposeSecret;
 use indicatif::{ProgressBar, ProgressStyle};
+use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;

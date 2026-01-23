@@ -133,7 +133,10 @@ pub struct ConfigFile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TenderlyConfig {
     /// Tenderly access key
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub access_key: SecretString,
     /// Tenderly account slug
     pub account: String,
@@ -145,7 +148,10 @@ pub struct TenderlyConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlchemyConfig {
     /// Alchemy API key
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub api_key: SecretString,
     /// Default network (e.g., eth-mainnet, polygon-mainnet)
     #[serde(default)]
@@ -183,7 +189,10 @@ pub struct LlamaConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoralisConfig {
     /// Moralis API key
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub api_key: SecretString,
 }
 
@@ -191,7 +200,10 @@ pub struct MoralisConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuneConfig {
     /// Dune API key
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub api_key: SecretString,
 }
 
@@ -199,7 +211,10 @@ pub struct DuneConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuneSimConfig {
     /// Dune SIM API key
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub api_key: SecretString,
 }
 
@@ -207,10 +222,16 @@ pub struct DuneSimConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChainlinkConfig {
     /// Chainlink API key (client ID)
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub api_key: SecretString,
     /// Chainlink user secret (client secret)
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub user_secret: SecretString,
     /// REST API URL (defaults to mainnet)
     #[serde(default)]
@@ -224,7 +245,10 @@ pub struct ChainlinkConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZeroxConfig {
     /// 0x API key
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub api_key: SecretString,
 }
 
@@ -232,7 +256,10 @@ pub struct ZeroxConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OneInchConfig {
     /// 1inch API key
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub api_key: SecretString,
 }
 
@@ -240,7 +267,10 @@ pub struct OneInchConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnsoConfig {
     /// Enso API key (Bearer token)
-    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
     pub api_key: SecretString,
 }
 

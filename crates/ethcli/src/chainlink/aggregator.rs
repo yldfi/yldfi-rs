@@ -5,7 +5,7 @@
 
 use super::types::{ChainlinkError, PriceData};
 use alloy::eips::BlockId;
-use alloy::primitives::{Address, I256, Uint};
+use alloy::primitives::{Address, Uint, I256};
 use alloy::providers::Provider;
 use alloy::sol;
 

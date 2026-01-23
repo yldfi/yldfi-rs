@@ -36,7 +36,11 @@ async fn test_get_latest_price_eth() {
     let client = Client::new().expect("Failed to create client");
 
     let result = client.get_latest_price(feed_ids::ETH_USD).await;
-    assert!(result.is_ok(), "Failed to fetch ETH price: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to fetch ETH price: {:?}",
+        result.err()
+    );
 
     let feed = result.unwrap();
     assert!(feed.is_some(), "No ETH price data returned");
@@ -53,7 +57,11 @@ async fn test_get_latest_price_eth() {
 
     let price = price.unwrap();
     assert!(price > 0.0, "ETH price should be positive: {}", price);
-    assert!(price < 100_000.0, "ETH price seems unreasonably high: {}", price);
+    assert!(
+        price < 100_000.0,
+        "ETH price seems unreasonably high: {}",
+        price
+    );
 
     println!("ETH/USD: ${:.2}", price);
 }
@@ -64,7 +72,11 @@ async fn test_get_latest_price_btc() {
     let client = Client::new().expect("Failed to create client");
 
     let result = client.get_latest_price(feed_ids::BTC_USD).await;
-    assert!(result.is_ok(), "Failed to fetch BTC price: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to fetch BTC price: {:?}",
+        result.err()
+    );
 
     let feed = result.unwrap().expect("No BTC price data");
 
@@ -81,7 +93,11 @@ async fn test_get_latest_price_sol() {
     let client = Client::new().expect("Failed to create client");
 
     let result = client.get_latest_price(feed_ids::SOL_USD).await;
-    assert!(result.is_ok(), "Failed to fetch SOL price: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to fetch SOL price: {:?}",
+        result.err()
+    );
 
     let feed = result.unwrap().expect("No SOL price data");
 
@@ -106,7 +122,12 @@ async fn test_get_latest_prices_multiple() {
     );
 
     let feeds = result.unwrap();
-    assert_eq!(feeds.len(), 3, "Expected 3 price feeds, got {}", feeds.len());
+    assert_eq!(
+        feeds.len(),
+        3,
+        "Expected 3 price feeds, got {}",
+        feeds.len()
+    );
 
     for feed in &feeds {
         let price = feed.price_f64().expect("Failed to convert price");
@@ -191,7 +212,11 @@ async fn test_get_price_feed_ids() {
 
     let feeds = result.unwrap();
     assert!(!feeds.is_empty(), "Should have at least some feeds");
-    assert!(feeds.len() > 100, "Should have many feeds, got {}", feeds.len());
+    assert!(
+        feeds.len() > 100,
+        "Should have many feeds, got {}",
+        feeds.len()
+    );
 
     // Check that feeds have IDs
     for feed in feeds.iter().take(5) {
@@ -208,11 +233,7 @@ async fn test_search_feeds() {
     let client = Client::new().expect("Failed to create client");
 
     let result = client.search_feeds("BTC").await;
-    assert!(
-        result.is_ok(),
-        "Failed to search feeds: {:?}",
-        result.err()
-    );
+    assert!(result.is_ok(), "Failed to search feeds: {:?}", result.err());
 
     let feeds = result.unwrap();
     assert!(!feeds.is_empty(), "Should find at least one BTC feed");
@@ -321,16 +342,8 @@ async fn test_feed_id_normalization() {
     assert!(result1.is_ok(), "With prefix should work");
     assert!(result2.is_ok(), "Without prefix should work");
 
-    let price1 = result1
-        .unwrap()
-        .unwrap()
-        .price_f64()
-        .expect("Price 1");
-    let price2 = result2
-        .unwrap()
-        .unwrap()
-        .price_f64()
-        .expect("Price 2");
+    let price1 = result1.unwrap().unwrap().price_f64().expect("Price 1");
+    let price2 = result2.unwrap().unwrap().price_f64().expect("Price 2");
 
     // Prices should be very close (might differ slightly due to timing)
     let diff_pct = ((price1 - price2) / price1).abs() * 100.0;
@@ -391,11 +404,7 @@ async fn test_all_known_feed_ids() {
         }
     }
 
-    println!(
-        "\nResults: {}/{} succeeded",
-        successes,
-        known_feeds.len()
-    );
+    println!("\nResults: {}/{} succeeded", successes, known_feeds.len());
 
     if !failures.is_empty() {
         println!("Failures:");
@@ -446,10 +455,7 @@ async fn test_publish_time_recent() {
 
     let age_secs = now - feed.price.publish_time;
 
-    assert!(
-        age_secs >= 0,
-        "Publish time should not be in the future"
-    );
+    assert!(age_secs >= 0, "Publish time should not be in the future");
     assert!(
         age_secs < 300,
         "Price data should be less than 5 minutes old, got {} seconds",
@@ -470,10 +476,7 @@ async fn test_ema_price_available() {
         .expect("Failed to fetch price")
         .expect("No price data");
 
-    assert!(
-        feed.ema_price.is_some(),
-        "EMA price should be available"
-    );
+    assert!(feed.ema_price.is_some(), "EMA price should be available");
 
     let ema = feed.ema_price.as_ref().unwrap();
     let ema_price: f64 = ema.price.parse().expect("Failed to parse EMA price");

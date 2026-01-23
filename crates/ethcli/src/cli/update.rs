@@ -97,7 +97,11 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
 
     // Try to verify checksum if a .sha256 file is available
     let checksum_asset_name = format!("{}.sha256", asset.name);
-    if let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_asset_name) {
+    if let Some(checksum_asset) = release
+        .assets
+        .iter()
+        .find(|a| a.name == checksum_asset_name)
+    {
         if !quiet {
             eprintln!("Verifying checksum...");
         }

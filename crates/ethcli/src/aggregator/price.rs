@@ -1042,7 +1042,11 @@ async fn fetch_chainlink_rpc(
         Ok(price_data) => {
             if let Some(price_f64) = price_data.to_f64() {
                 let price = NormalizedPrice::new(price_f64);
-                Some(SourceResult::success("chainlink-rpc", price, measure.elapsed_ms()))
+                Some(SourceResult::success(
+                    "chainlink-rpc",
+                    price,
+                    measure.elapsed_ms(),
+                ))
             } else {
                 // Price is stale or invalid
                 Some(SourceResult::error(
@@ -1260,7 +1264,10 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
                 None => {
                     return SourceResult::error(
                         "pyth",
-                        format!("No Pyth feed for symbol '{}' (from address {})", symbol, token),
+                        format!(
+                            "No Pyth feed for symbol '{}' (from address {})",
+                            symbol, token
+                        ),
                         measure.elapsed_ms(),
                     );
                 }
@@ -1280,7 +1287,10 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
             None => {
                 return SourceResult::error(
                     "pyth",
-                    format!("No Pyth feed ID mapping for '{}'. Use feed ID directly (0x...)", token),
+                    format!(
+                        "No Pyth feed ID mapping for '{}'. Use feed ID directly (0x...)",
+                        token
+                    ),
                     measure.elapsed_ms(),
                 );
             }
@@ -1326,11 +1336,7 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
                 SourceResult::error("pyth", "Failed to parse price data", measure.elapsed_ms())
             }
         }
-        Ok(None) => {
-            SourceResult::error("pyth", "No price data returned", measure.elapsed_ms())
-        }
-        Err(e) => {
-            SourceResult::error("pyth", format!("API error: {}", e), measure.elapsed_ms())
-        }
+        Ok(None) => SourceResult::error("pyth", "No price data returned", measure.elapsed_ms()),
+        Err(e) => SourceResult::error("pyth", format!("API error: {}", e), measure.elapsed_ms()),
     }
 }

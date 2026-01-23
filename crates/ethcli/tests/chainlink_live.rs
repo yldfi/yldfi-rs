@@ -17,23 +17,17 @@ use std::str::FromStr;
 /// Get an Ethereum mainnet provider
 fn mainnet_provider() -> impl alloy::providers::Provider + Clone {
     // Use PublicNode public RPC - no auth required
-    ProviderBuilder::new().connect_http(
-        "https://ethereum-rpc.publicnode.com".parse().unwrap(),
-    )
+    ProviderBuilder::new().connect_http("https://ethereum-rpc.publicnode.com".parse().unwrap())
 }
 
 /// Get an Arbitrum provider
 fn arbitrum_provider() -> impl alloy::providers::Provider + Clone {
-    ProviderBuilder::new().connect_http(
-        "https://arbitrum-one-rpc.publicnode.com".parse().unwrap(),
-    )
+    ProviderBuilder::new().connect_http("https://arbitrum-one-rpc.publicnode.com".parse().unwrap())
 }
 
 /// Get a Polygon provider
 fn polygon_provider() -> impl alloy::providers::Provider + Clone {
-    ProviderBuilder::new().connect_http(
-        "https://polygon-bor-rpc.publicnode.com".parse().unwrap(),
-    )
+    ProviderBuilder::new().connect_http("https://polygon-bor-rpc.publicnode.com".parse().unwrap())
 }
 
 // ==================== Feed Registry Tests (Mainnet) ====================
@@ -179,11 +173,7 @@ async fn test_feed_registry_description() {
     let desc = registry
         .description(denominations::ETH, denominations::USD)
         .await;
-    assert!(
-        desc.is_ok(),
-        "Failed to get description: {:?}",
-        desc.err()
-    );
+    assert!(desc.is_ok(), "Failed to get description: {:?}", desc.err());
 
     let description = desc.unwrap();
     assert!(
@@ -214,10 +204,7 @@ async fn test_aggregator_eth_usd_mainnet() {
     assert!(!price.is_stale(), "Price should not be stale");
 
     let price_f64 = price.to_f64().expect("Should convert to f64");
-    println!(
-        "ETH/USD (direct aggregator): ${:.2}",
-        price_f64
-    );
+    println!("ETH/USD (direct aggregator): ${:.2}", price_f64);
 }
 
 /// Test aggregator description
@@ -614,7 +601,10 @@ async fn test_price_data_validation() {
     );
 
     // The answer should be valid (positive)
-    assert!(price.is_valid() || price.round_id == 0, "Price should be valid or have round_id issue");
+    assert!(
+        price.is_valid() || price.round_id == 0,
+        "Price should be valid or have round_id issue"
+    );
 
     // Check age
     let now = std::time::SystemTime::now()
@@ -623,7 +613,11 @@ async fn test_price_data_validation() {
         .as_secs();
 
     let age = price.age_seconds(now);
-    assert!(age < 3600, "Price should be less than 1 hour old: {} secs", age);
+    assert!(
+        age < 3600,
+        "Price should be less than 1 hour old: {} secs",
+        age
+    );
 
     println!("Round ID: {}", price.round_id);
     println!("Updated at: {}", price.updated_at);
@@ -678,7 +672,10 @@ async fn test_price_to_u256() {
     assert!(u256_price.is_some(), "Should convert to U256");
 
     let u256_val = u256_price.unwrap();
-    assert!(u256_val > alloy::primitives::U256::ZERO, "U256 price should be positive");
+    assert!(
+        u256_val > alloy::primitives::U256::ZERO,
+        "U256 price should be positive"
+    );
 
     println!("Price as U256: {}", u256_val);
 }

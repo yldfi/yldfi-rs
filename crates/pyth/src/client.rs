@@ -189,7 +189,10 @@ impl Client {
                     tokio::time::sleep(backoff).await;
                     continue;
                 }
-                return Err(Error::api(429, "Rate limited - too many requests".to_string()));
+                return Err(Error::api(
+                    429,
+                    "Rate limited - too many requests".to_string(),
+                ));
             }
 
             if !response.status().is_success() {
@@ -200,7 +203,10 @@ impl Client {
                 } else {
                     body
                 };
-                last_error = Some(Error::api(status, format!("{} - {}", status, body_truncated)));
+                last_error = Some(Error::api(
+                    status,
+                    format!("{} - {}", status, body_truncated),
+                ));
 
                 // Retry on 5xx errors
                 if status >= 500 && attempt < max_retries {
@@ -230,7 +236,12 @@ fn normalize_feed_id(id: &str) -> Cow<'_, str> {
     let id = id.trim();
 
     // Check if already normalized (lowercase with 0x prefix)
-    if id.starts_with("0x") && id.chars().skip(2).all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
+    if id.starts_with("0x")
+        && id
+            .chars()
+            .skip(2)
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    {
         return Cow::Borrowed(id);
     }
 

@@ -83,11 +83,7 @@ impl<P: Provider + Clone> FeedRegistry<P> {
     }
 
     /// Get the aggregator address for a pair
-    pub async fn get_feed(
-        &self,
-        base: Address,
-        quote: Address,
-    ) -> Result<Address, ChainlinkError> {
+    pub async fn get_feed(&self, base: Address, quote: Address) -> Result<Address, ChainlinkError> {
         let contract = IFeedRegistry::new(FEED_REGISTRY, &self.provider);
 
         let result = contract.getFeed(base, quote).call().await?;
@@ -167,11 +163,7 @@ impl<P: Provider + Clone> FeedRegistry<P> {
         };
 
         // Get decimals at that block
-        let decimals = contract
-            .decimals(base, quote)
-            .block(block)
-            .call()
-            .await?;
+        let decimals = contract.decimals(base, quote).block(block).call().await?;
 
         // Get round data at that block
         let round_data = contract
