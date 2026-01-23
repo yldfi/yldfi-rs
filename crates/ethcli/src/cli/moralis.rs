@@ -270,10 +270,12 @@ pub enum MarketCommands {
 
 /// Handle Moralis commands
 pub async fn handle(command: &MoralisCommands, quiet: bool) -> anyhow::Result<()> {
+    use secrecy::ExposeSecret;
+
     // Try config first, then fall back to env var
     let client = if let Ok(Some(config)) = ConfigFile::load_default() {
         if let Some(ref moralis_config) = config.moralis {
-            mrls::Client::new(&moralis_config.api_key)?
+            mrls::Client::new(moralis_config.api_key.expose_secret())?
         } else {
             mrls::Client::from_env()
                 .map_err(|_| anyhow::anyhow!("MORALIS_API_KEY not set in config or environment"))?

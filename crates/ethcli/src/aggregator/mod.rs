@@ -182,6 +182,8 @@ pub enum PriceSource {
     Ccxt,
     /// Chainlink Data Streams
     Chainlink,
+    /// Pyth Network Hermes API
+    Pyth,
 }
 
 impl std::str::FromStr for PriceSource {
@@ -197,6 +199,7 @@ impl std::str::FromStr for PriceSource {
             "curve" | "crv" => Ok(PriceSource::Curve),
             "ccxt" | "cex" | "exchange" => Ok(PriceSource::Ccxt),
             "chainlink" | "cl" => Ok(PriceSource::Chainlink),
+            "pyth" => Ok(PriceSource::Pyth),
             _ => Err(format!("Unknown price source: {}", s)),
         }
     }
@@ -213,6 +216,7 @@ impl std::fmt::Display for PriceSource {
             PriceSource::Curve => write!(f, "curve"),
             PriceSource::Ccxt => write!(f, "ccxt"),
             PriceSource::Chainlink => write!(f, "chainlink"),
+            PriceSource::Pyth => write!(f, "pyth"),
         }
     }
 }
@@ -338,6 +342,7 @@ mod tests {
             "chainlink".parse::<PriceSource>().unwrap(),
             PriceSource::Chainlink
         );
+        assert_eq!("pyth".parse::<PriceSource>().unwrap(), PriceSource::Pyth);
         assert!("invalid".parse::<PriceSource>().is_err());
     }
 

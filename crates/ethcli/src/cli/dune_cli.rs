@@ -123,10 +123,12 @@ pub enum ExecutionCommands {
 
 /// Handle Dune Analytics commands
 pub async fn handle(command: &DuneCommands, quiet: bool) -> anyhow::Result<()> {
+    use secrecy::ExposeSecret;
+
     // Try config first, then fall back to env var
     let api_key = if let Ok(Some(config)) = ConfigFile::load_default() {
         if let Some(ref dune_config) = config.dune {
-            dune_config.api_key.clone()
+            dune_config.api_key.expose_secret().to_string()
         } else {
             std::env::var("DUNE_API_KEY")
                 .map_err(|_| anyhow::anyhow!("DUNE_API_KEY not set in config or environment"))?

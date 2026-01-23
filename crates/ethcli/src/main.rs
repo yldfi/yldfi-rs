@@ -14,6 +14,7 @@ use ethcli::{
     FetchProgress, FetchStats, LogFetcher, OutputFormat, OutputWriter, ProxyConfig, RpcConfig,
     RpcPool, StreamingFetcher, TxAnalyzer,
 };
+use secrecy::ExposeSecret;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -100,7 +101,8 @@ async fn main() -> anyhow::Result<()> {
     let etherscan_key = cli.etherscan_key.clone().or_else(|| {
         config_file
             .as_ref()
-            .and_then(|c| c.etherscan_api_key.clone())
+            .and_then(|c| c.etherscan_api_key.as_ref())
+            .map(|s| s.expose_secret().to_string())
     });
 
     // Handle subcommands
@@ -244,7 +246,8 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
     let etherscan_key = cli.etherscan_key.clone().or_else(|| {
         config_file
             .as_ref()
-            .and_then(|c| c.etherscan_api_key.clone())
+            .and_then(|c| c.etherscan_api_key.as_ref())
+            .map(|s| s.expose_secret().to_string())
     });
 
     // Apply defaults: CLI > config file > hardcoded defaults
@@ -1187,9 +1190,10 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
 
         ConfigCommands::SetAlchemy { key, network } => {
             use ethcli::config::AlchemyConfig;
+            use secrecy::SecretString;
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.alchemy = Some(AlchemyConfig {
-                api_key: key.clone(),
+                api_key: SecretString::new(key.clone().into()),
                 default_network: network.clone(),
             });
             cfg.save_default()?;
@@ -1203,9 +1207,10 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
 
         ConfigCommands::SetMoralis { key } => {
             use ethcli::config::MoralisConfig;
+            use secrecy::SecretString;
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.moralis = Some(MoralisConfig {
-                api_key: key.clone(),
+                api_key: SecretString::new(key.clone().into()),
             });
             cfg.save_default()?;
             println!("Moralis API key saved to config file.");
@@ -1220,10 +1225,11 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             ws_url,
         } => {
             use ethcli::config::ChainlinkConfig;
+            use secrecy::SecretString;
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.chainlink = Some(ChainlinkConfig {
-                api_key: key.clone(),
-                user_secret: secret.clone(),
+                api_key: SecretString::new(key.clone().into()),
+                user_secret: SecretString::new(secret.clone().into()),
                 rest_url: rest_url.clone(),
                 ws_url: ws_url.clone(),
             });
@@ -1237,9 +1243,10 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
 
         ConfigCommands::SetDune { key } => {
             use ethcli::config::DuneConfig;
+            use secrecy::SecretString;
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.dune = Some(DuneConfig {
-                api_key: key.clone(),
+                api_key: SecretString::new(key.clone().into()),
             });
             cfg.save_default()?;
             println!("Dune Analytics API key saved to config file.");
@@ -1249,9 +1256,10 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
 
         ConfigCommands::SetDuneSim { key } => {
             use ethcli::config::DuneSimConfig;
+            use secrecy::SecretString;
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
             cfg.dune_sim = Some(DuneSimConfig {
-                api_key: key.clone(),
+                api_key: SecretString::new(key.clone().into()),
             });
             cfg.save_default()?;
             println!("Dune SIM API key saved to config file.");

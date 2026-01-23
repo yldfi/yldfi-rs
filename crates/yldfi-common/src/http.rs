@@ -41,6 +41,12 @@ impl From<reqwest::Error> for HttpError {
     }
 }
 
+/// Default connection pool idle timeout
+pub const DEFAULT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+
+/// Default maximum idle connections per host
+pub const DEFAULT_POOL_MAX_IDLE_PER_HOST: usize = 10;
+
 /// HTTP client configuration
 #[derive(Debug, Clone)]
 pub struct HttpClientConfig {
@@ -50,6 +56,10 @@ pub struct HttpClientConfig {
     pub user_agent: String,
     /// Optional proxy URL (e.g., "http://user:pass@proxy:port")
     pub proxy: Option<String>,
+    /// Connection pool idle timeout
+    pub pool_idle_timeout: Duration,
+    /// Maximum idle connections per host
+    pub pool_max_idle_per_host: usize,
 }
 
 impl Default for HttpClientConfig {
@@ -58,6 +68,8 @@ impl Default for HttpClientConfig {
             timeout: DEFAULT_TIMEOUT,
             user_agent: DEFAULT_USER_AGENT.to_string(),
             proxy: None,
+            pool_idle_timeout: DEFAULT_POOL_IDLE_TIMEOUT,
+            pool_max_idle_per_host: DEFAULT_POOL_MAX_IDLE_PER_HOST,
         }
     }
 }
@@ -102,13 +114,29 @@ impl HttpClientConfig {
         self.proxy = proxy;
         self
     }
+
+    /// Set connection pool idle timeout
+    #[must_use]
+    pub fn with_pool_idle_timeout(mut self, timeout: Duration) -> Self {
+        self.pool_idle_timeout = timeout;
+        self
+    }
+
+    /// Set maximum idle connections per host
+    #[must_use]
+    pub fn with_pool_max_idle_per_host(mut self, max: usize) -> Self {
+        self.pool_max_idle_per_host = max;
+        self
+    }
 }
 
 /// Build a reqwest Client with the given configuration
 pub fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
     let mut builder = Client::builder()
         .timeout(config.timeout)
-        .user_agent(&config.user_agent);
+        .user_agent(&config.user_agent)
+        .pool_idle_timeout(config.pool_idle_timeout)
+        .pool_max_idle_per_host(config.pool_max_idle_per_host);
 
     if let Some(ref proxy_url) = config.proxy {
         let proxy = reqwest::Proxy::all(proxy_url)

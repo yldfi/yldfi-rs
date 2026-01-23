@@ -10,6 +10,16 @@ use super::{
 };
 use crate::config::ConfigFile;
 use futures::future::join_all;
+use secrecy::ExposeSecret;
+use std::sync::OnceLock;
+
+/// Cached config file to avoid repeated disk I/O during parallel price fetches
+static CACHED_CONFIG: OnceLock<Option<ConfigFile>> = OnceLock::new();
+
+/// Get the cached config file, loading it once if needed
+fn get_cached_config() -> &'static Option<ConfigFile> {
+    CACHED_CONFIG.get_or_init(|| ConfigFile::load_default().ok().flatten())
+}
 
 /// Fetch prices from all available sources in parallel
 pub async fn fetch_prices_all(
@@ -23,6 +33,7 @@ pub async fn fetch_prices_all(
         PriceSource::Moralis,
         PriceSource::Ccxt,
         PriceSource::Chainlink,
+        PriceSource::Pyth,
     ];
 
     fetch_prices_parallel(token, chain, &sources).await
@@ -85,7 +96,8 @@ pub async fn fetch_price_from_source(
         PriceSource::Moralis => fetch_moralis_price(token, chain, measure).await,
         PriceSource::Curve => fetch_curve_price(token, chain, measure).await,
         PriceSource::Ccxt => fetch_ccxt_price(token, measure).await,
-        PriceSource::Chainlink => fetch_chainlink_price(token, measure).await,
+        PriceSource::Chainlink => fetch_chainlink_price(token, chain, measure).await,
+        PriceSource::Pyth => fetch_pyth_price(token, measure).await,
         PriceSource::All => SourceResult::error("all", "Use fetch_prices_all instead", 0),
     }
 }
@@ -96,15 +108,15 @@ async fn fetch_gecko_price(
     chain: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
-    // Get API key from config or env
-    let config = ConfigFile::load_default().ok().flatten();
+    // Get API key from cached config or env
+    let config = get_cached_config();
     let gecko_config = config.as_ref().and_then(|c| c.coingecko.as_ref());
 
     // Create gecko client with API key if available
     let client = if let Some(cfg) = gecko_config {
         if cfg.use_pro {
             if let Some(ref key) = cfg.api_key {
-                match cgko::Client::pro(key) {
+                match cgko::Client::pro(key.expose_secret()) {
                     Ok(c) => c,
                     Err(e) => {
                         return SourceResult::error(
@@ -122,7 +134,7 @@ async fn fetch_gecko_price(
                 );
             }
         } else {
-            match cgko::Client::demo(cfg.api_key.clone()) {
+            match cgko::Client::demo(cfg.api_key.as_ref().map(|s| s.expose_secret().to_string())) {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(
@@ -252,14 +264,14 @@ async fn fetch_llama_price(
         }
     };
 
-    // Get API key from config or env
-    let config = ConfigFile::load_default().ok().flatten();
+    // Get API key from cached config or env
+    let config = get_cached_config();
     let llama_config = config.as_ref().and_then(|c| c.defillama.as_ref());
 
     // Create llama client with API key if available
     let client = if let Some(cfg) = llama_config {
         if let Some(ref key) = cfg.api_key {
-            match dllma::Client::with_api_key(key) {
+            match dllma::Client::with_api_key(key.expose_secret()) {
                 Ok(c) => c,
                 Err(e) => {
                     return SourceResult::error(
@@ -332,12 +344,12 @@ async fn fetch_alchemy_price(
     chain: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
-    // Get API key from config
-    let config = ConfigFile::load_default().ok().flatten();
+    // Get API key from cached config
+    let config = get_cached_config();
     let api_key = match config
         .as_ref()
         .and_then(|c| c.alchemy.as_ref())
-        .map(|a| a.api_key.clone())
+        .map(|a| a.api_key.expose_secret().to_string())
     {
         Some(key) => key,
         None => match std::env::var("ALCHEMY_API_KEY") {
@@ -432,12 +444,12 @@ async fn fetch_moralis_price(
     chain: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
-    // Get API key from config
-    let config = ConfigFile::load_default().ok().flatten();
+    // Get API key from cached config
+    let config = get_cached_config();
     let api_key = match config
         .as_ref()
         .and_then(|c| c.moralis.as_ref())
-        .map(|m| m.api_key.clone())
+        .map(|m| m.api_key.expose_secret().to_string())
     {
         Some(key) => key,
         None => match std::env::var("MORALIS_API_KEY") {
@@ -974,22 +986,101 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
     )
 }
 
-/// Fetch price from Chainlink Data Streams
+/// Fetch price from Chainlink
 ///
-/// Chainlink Data Streams uses feed IDs, not token symbols. We maintain
-/// a mapping of common tokens to their Chainlink feed IDs.
+/// Tries RPC-based query first (free, no API key), then falls back to
+/// Data Streams if credentials are configured.
 async fn fetch_chainlink_price(
+    token: &str,
+    chain: &str,
+    measure: LatencyMeasure,
+) -> SourceResult<NormalizedPrice> {
+    // Try RPC-based query first (free, no API key needed)
+    if let Some(result) = fetch_chainlink_rpc(token, chain, &measure).await {
+        return result;
+    }
+
+    // Fall back to Data Streams if credentials are configured
+    fetch_chainlink_streams(token, measure).await
+}
+
+/// Fetch price via RPC (Feed Registry or direct oracle)
+async fn fetch_chainlink_rpc(
+    token: &str,
+    chain: &str,
+    measure: &LatencyMeasure,
+) -> Option<SourceResult<NormalizedPrice>> {
+    use crate::chainlink;
+    use crate::config::Chain;
+    use crate::rpc::Endpoint;
+
+    // Parse the chain parameter
+    let target_chain = Chain::from_str_or_default(chain);
+
+    // Get RPC endpoint for the target chain from cached config
+    let config = get_cached_config().as_ref()?;
+    let chain_endpoints: Vec<_> = config
+        .endpoints
+        .iter()
+        .filter(|e| e.enabled && e.chain == target_chain)
+        .cloned()
+        .collect();
+
+    if chain_endpoints.is_empty() {
+        return None; // No RPC configured, skip to Data Streams
+    }
+
+    let endpoint = match Endpoint::new(chain_endpoints[0].clone(), 30, None) {
+        Ok(e) => e,
+        Err(_) => return None,
+    };
+
+    let provider = endpoint.provider().clone();
+
+    // Try to fetch price via RPC
+    match chainlink::fetch_price(provider, token, chain).await {
+        Ok(price_data) => {
+            if let Some(price_f64) = price_data.to_f64() {
+                let price = NormalizedPrice::new(price_f64);
+                Some(SourceResult::success("chainlink-rpc", price, measure.elapsed_ms()))
+            } else {
+                // Price is stale or invalid
+                Some(SourceResult::error(
+                    "chainlink-rpc",
+                    "Stale or invalid price data",
+                    measure.elapsed_ms(),
+                ))
+            }
+        }
+        Err(chainlink::ChainlinkError::NoFeed) => {
+            // Token not supported by Chainlink, don't report as error
+            // Just return None to try Data Streams
+            None
+        }
+        Err(e) => {
+            // RPC error, try Data Streams
+            Some(SourceResult::error(
+                "chainlink-rpc",
+                format!("RPC error: {}", e),
+                measure.elapsed_ms(),
+            ))
+        }
+    }
+}
+
+/// Fetch price from Chainlink Data Streams (requires API key)
+async fn fetch_chainlink_streams(
     token: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
     use chainlink_data_streams_report::feed_id::ID;
     use chainlink_data_streams_sdk::{client::Client, config::Config};
 
-    // Get credentials from config file first, then fall back to environment variables
-    let file_config = ConfigFile::load_default().ok().flatten();
+    // Get credentials from cached config first, then fall back to environment variables
+    let file_config = get_cached_config();
     let chainlink_config = file_config.as_ref().and_then(|c| c.chainlink.as_ref());
 
-    let api_key = match chainlink_config.map(|c| c.api_key.clone()) {
+    let api_key = match chainlink_config.map(|c| c.api_key.expose_secret().to_string()) {
         Some(key) => key,
         None => match std::env::var("CHAINLINK_API_KEY")
             .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
@@ -998,14 +1089,14 @@ async fn fetch_chainlink_price(
             Err(_) => {
                 return SourceResult::error(
                     "chainlink",
-                    "CHAINLINK_API_KEY not configured",
+                    "No RPC feed, no Data Streams credentials",
                     measure.elapsed_ms(),
                 )
             }
         },
     };
 
-    let user_secret = match chainlink_config.map(|c| c.user_secret.clone()) {
+    let user_secret = match chainlink_config.map(|c| c.user_secret.expose_secret().to_string()) {
         Some(secret) => secret,
         None => match std::env::var("CHAINLINK_USER_SECRET")
             .or_else(|_| std::env::var("CHAINLINK_CLIENT_SECRET"))
@@ -1036,7 +1127,7 @@ async fn fetch_chainlink_price(
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
-                "chainlink",
+                "chainlink-streams",
                 format!("Config error: {:?}", e),
                 measure.elapsed_ms(),
             )
@@ -1047,7 +1138,7 @@ async fn fetch_chainlink_price(
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
-                "chainlink",
+                "chainlink-streams",
                 format!("Client error: {:?}", e),
                 measure.elapsed_ms(),
             )
@@ -1069,7 +1160,7 @@ async fn fetch_chainlink_price(
                 token
             } else {
                 return SourceResult::error(
-                    "chainlink",
+                    "chainlink-streams",
                     format!(
                         "No Chainlink feed ID mapping for '{}'. Use feed ID directly (0x...)",
                         token
@@ -1085,7 +1176,7 @@ async fn fetch_chainlink_price(
         Ok(id) => id,
         Err(e) => {
             return SourceResult::error(
-                "chainlink",
+                "chainlink-streams",
                 format!("Invalid feed ID: {:?}", e),
                 measure.elapsed_ms(),
             )
@@ -1108,7 +1199,7 @@ async fn fetch_chainlink_price(
                 Ok(bytes) => bytes,
                 Err(e) => {
                     return SourceResult::error(
-                        "chainlink",
+                        "chainlink-streams",
                         format!("Failed to decode report hex: {}", e),
                         measure.elapsed_ms(),
                     );
@@ -1131,26 +1222,115 @@ async fn fetch_chainlink_price(
 
                     if price_f64 > 0.0 {
                         let price = NormalizedPrice::new(price_f64);
-                        SourceResult::success("chainlink", price, measure.elapsed_ms())
+                        SourceResult::success("chainlink-streams", price, measure.elapsed_ms())
                     } else {
                         SourceResult::error(
-                            "chainlink",
+                            "chainlink-streams",
                             "Invalid price value from report",
                             measure.elapsed_ms(),
                         )
                     }
                 }
                 Err(e) => SourceResult::error(
-                    "chainlink",
+                    "chainlink-streams",
                     format!("Failed to decode V3 report: {:?}", e),
                     measure.elapsed_ms(),
                 ),
             }
         }
         Err(e) => SourceResult::error(
-            "chainlink",
+            "chainlink-streams",
             format!("API error: {:?}", e),
             measure.elapsed_ms(),
         ),
+    }
+}
+
+/// Fetch price from Pyth Network Hermes API
+async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<NormalizedPrice> {
+    // Try to map the token to a Pyth feed ID
+    let feed_id = if token.starts_with("0x") && token.len() == 66 {
+        // Already a Pyth feed ID
+        token
+    } else if token.starts_with("0x") && token.len() == 42 {
+        // Ethereum address - try to reverse-map to symbol first
+        match eth_address_to_symbol(token) {
+            Some(symbol) => match pyth::symbol_to_feed_id(symbol) {
+                Some(id) => id,
+                None => {
+                    return SourceResult::error(
+                        "pyth",
+                        format!("No Pyth feed for symbol '{}' (from address {})", symbol, token),
+                        measure.elapsed_ms(),
+                    );
+                }
+            },
+            None => {
+                return SourceResult::error(
+                    "pyth",
+                    format!("Cannot map address {} to Pyth feed ID", token),
+                    measure.elapsed_ms(),
+                );
+            }
+        }
+    } else {
+        // Try to map symbol to feed ID
+        match pyth::symbol_to_feed_id(token) {
+            Some(id) => id,
+            None => {
+                return SourceResult::error(
+                    "pyth",
+                    format!("No Pyth feed ID mapping for '{}'. Use feed ID directly (0x...)", token),
+                    measure.elapsed_ms(),
+                );
+            }
+        }
+    };
+
+    // Create Pyth client
+    let client = match pyth::Client::new() {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error(
+                "pyth",
+                format!("Client error: {}", e),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    // Fetch latest price
+    match client.get_latest_price(feed_id).await {
+        Ok(Some(feed)) => {
+            if let Some(price_f64) = feed.price_f64() {
+                // Check for stale data (older than 60 seconds)
+                if feed.is_stale(60) {
+                    return SourceResult::error(
+                        "pyth",
+                        "Price data is stale (>60s old)",
+                        measure.elapsed_ms(),
+                    );
+                }
+
+                let mut price = NormalizedPrice::new(price_f64);
+
+                // Add confidence interval as metadata if available
+                if let Some(confidence) = feed.confidence_f64() {
+                    // Confidence as a percentage of price
+                    let confidence_pct = (confidence / price_f64) * 100.0;
+                    price = price.with_confidence(1.0 - confidence_pct.min(1.0));
+                }
+
+                SourceResult::success("pyth", price, measure.elapsed_ms())
+            } else {
+                SourceResult::error("pyth", "Failed to parse price data", measure.elapsed_ms())
+            }
+        }
+        Ok(None) => {
+            SourceResult::error("pyth", "No price data returned", measure.elapsed_ms())
+        }
+        Err(e) => {
+            SourceResult::error("pyth", format!("API error: {}", e), measure.elapsed_ms())
+        }
     }
 }

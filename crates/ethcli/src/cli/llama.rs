@@ -218,13 +218,15 @@ pub enum StablecoinsCommands {
 
 /// Handle DefiLlama commands
 pub async fn handle(command: &LlamaCommands, quiet: bool) -> anyhow::Result<()> {
+    use secrecy::ExposeSecret;
+
     // Try config first, then fall back to env var
     // Free tier by default, Pro key optional
     let config = ConfigFile::load_default().ok().flatten();
     let api_key = config
         .as_ref()
         .and_then(|c| c.defillama.as_ref())
-        .and_then(|l| l.api_key.clone())
+        .and_then(|l| l.api_key.as_ref().map(|s| s.expose_secret().to_string()))
         .or_else(|| std::env::var("DEFILLAMA_API_KEY").ok());
 
     let client = if let Some(key) = api_key {

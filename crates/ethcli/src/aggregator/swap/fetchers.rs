@@ -3,6 +3,7 @@
 use super::types::NormalizedQuote;
 use crate::aggregator::{LatencyMeasure, SourceResult};
 use crate::config::ConfigFile;
+use secrecy::ExposeSecret;
 
 /// Native token address placeholder used by various aggregators
 pub const NATIVE_TOKEN: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -290,7 +291,7 @@ pub async fn fetch_zerox_quote(
     let api_key = config
         .as_ref()
         .and_then(|c| c.zerox.as_ref())
-        .map(|z| z.api_key.clone())
+        .map(|z| z.api_key.expose_secret().to_string())
         .or_else(|| std::env::var("ZEROX_API_KEY").ok());
 
     let api_key = match api_key {
@@ -413,7 +414,7 @@ pub async fn fetch_oneinch_quote(
     let api_key = config
         .as_ref()
         .and_then(|c| c.oneinch.as_ref())
-        .map(|o| o.api_key.clone())
+        .map(|o| o.api_key.expose_secret().to_string())
         .or_else(|| std::env::var("ONEINCH_API_KEY").ok());
 
     let api_key = match api_key {
@@ -855,7 +856,7 @@ pub async fn fetch_enso_quote(
     let api_key = config
         .as_ref()
         .and_then(|c| c.enso.as_ref())
-        .map(|e| e.api_key.clone())
+        .map(|e| e.api_key.expose_secret().to_string())
         .or_else(|| std::env::var("ENSO_API_KEY").ok());
 
     let api_key = match api_key {

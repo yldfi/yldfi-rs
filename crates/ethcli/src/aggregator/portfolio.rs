@@ -8,6 +8,7 @@ use super::{
 };
 use crate::config::ConfigFile;
 use futures::future::join_all;
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -216,7 +217,7 @@ async fn fetch_alchemy_portfolio(
     let api_key = match config
         .as_ref()
         .and_then(|c| c.alchemy.as_ref())
-        .map(|a| a.api_key.clone())
+        .map(|a| a.api_key.expose_secret().to_string())
     {
         Some(key) => key,
         None => match std::env::var("ALCHEMY_API_KEY") {
@@ -294,7 +295,7 @@ async fn fetch_moralis_portfolio(
     let api_key = match config
         .as_ref()
         .and_then(|c| c.moralis.as_ref())
-        .map(|m| m.api_key.clone())
+        .map(|m| m.api_key.expose_secret().to_string())
     {
         Some(key) => key,
         None => match std::env::var("MORALIS_API_KEY") {
@@ -374,7 +375,7 @@ async fn fetch_dsim_portfolio(
     let api_key = match config
         .as_ref()
         .and_then(|c| c.dune_sim.as_ref())
-        .map(|d| d.api_key.clone())
+        .map(|d| d.api_key.expose_secret().to_string())
     {
         Some(key) => key,
         None => match std::env::var("DUNE_SIM_API_KEY") {

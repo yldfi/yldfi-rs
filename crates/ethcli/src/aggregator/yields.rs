@@ -6,6 +6,7 @@
 use super::{AggregatedResult, LatencyMeasure, SourceResult};
 use crate::config::ConfigFile;
 use futures::future::join_all;
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
 /// Yield source enum for CLI selection
@@ -164,7 +165,7 @@ async fn fetch_llama_yields(
     let api_key = config
         .as_ref()
         .and_then(|c| c.defillama.as_ref())
-        .and_then(|l| l.api_key.clone())
+        .and_then(|l| l.api_key.as_ref().map(|s| s.expose_secret().to_string()))
         .or_else(|| std::env::var("DEFILLAMA_API_KEY").ok());
 
     let client = match api_key {

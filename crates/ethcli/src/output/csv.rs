@@ -5,7 +5,7 @@ use crate::error::{OutputError, Result};
 use crate::fetcher::{FetchLogs, FetchResult};
 use crate::output::OutputWriter;
 use alloy::rpc::types::Log;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
@@ -14,8 +14,10 @@ use std::path::Path;
 pub struct CsvWriter {
     /// CSV writer
     writer: csv::Writer<Box<dyn Write + Send>>,
-    /// Known column names (sorted for consistent output)
+    /// Known column names (maintains order for consistent output)
     columns: Vec<String>,
+    /// Set of column names for O(1) lookup
+    column_set: HashSet<String>,
     /// Whether header has been written
     header_written: bool,
     /// Buffered rows (before header is determined)
@@ -42,6 +44,7 @@ impl CsvWriter {
         Ok(Self {
             writer,
             columns: Vec::new(),
+            column_set: HashSet::new(),
             header_written: false,
             buffer: Vec::new(),
             max_buffer: 1000, // Buffer more rows to determine schema
@@ -52,7 +55,8 @@ impl CsvWriter {
     /// Collect all unique column names from a log
     fn collect_columns(&mut self, log: &DecodedLog) {
         for key in log.params.keys() {
-            if !self.columns.contains(key) {
+            if !self.column_set.contains(key) {
+                self.column_set.insert(key.clone());
                 self.columns.push(key.clone());
             }
         }
@@ -162,13 +166,12 @@ impl CsvWriter {
 
         // Collect columns from all buffered rows
         for log in &self.buffer {
-            let mut new_cols: Vec<String> = log
-                .params
-                .keys()
-                .filter(|k| !self.columns.contains(*k))
-                .cloned()
-                .collect();
-            self.columns.append(&mut new_cols);
+            for key in log.params.keys() {
+                if !self.column_set.contains(key) {
+                    self.column_set.insert(key.clone());
+                    self.columns.push(key.clone());
+                }
+            }
         }
 
         // Write header
@@ -232,7 +235,7 @@ impl OutputWriter for CsvWriter {
                     } else {
                         // Track new columns that appeared after header was written
                         for key in log.params.keys() {
-                            if !self.columns.contains(key) {
+                            if !self.column_set.contains(key) {
                                 let count = self.dropped_columns.entry(key.clone()).or_insert(0);
                                 *count += 1;
                                 // Warn immediately on first occurrence of a new column

@@ -77,6 +77,8 @@ hex = "0.4"
 dirs = "5"
 regex = "1.11"
 num-traits = "0.2"
+sha2 = "0.10"
+secrecy = { workspace = true }
 
 # API clients
 alcmy = { version = "0.1", path = "../alcmy" }
@@ -86,6 +88,7 @@ mrls = { version = "0.1", path = "../mrls" }
 dnsim = { version = "0.1", path = "../dnsim" }
 dnapi = { version = "0.1", path = "../dnapi" }
 crv = { version = "0.1", path = "../crv" }
+pyth = { version = "0.1", path = "../pyth" }
 tndrly = { version = "0.3", path = "../tndrly" }
 yldfi-common = { version = "0.1", path = "../yldfi-common" }
 

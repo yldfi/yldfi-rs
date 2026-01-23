@@ -148,6 +148,11 @@ impl Chain {
             _ => Err(ConfigError::InvalidChain(s.to_string())),
         }
     }
+
+    /// Parse from string, defaulting to Ethereum if parsing fails
+    pub fn from_str_or_default(s: &str) -> Self {
+        Self::from_str_or_id(s).unwrap_or_default()
+    }
 }
 
 impl fmt::Display for Chain {

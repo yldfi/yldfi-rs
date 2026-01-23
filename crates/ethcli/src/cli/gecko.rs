@@ -5,6 +5,7 @@
 use crate::cli::OutputFormat;
 use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
+use secrecy::ExposeSecret;
 
 #[derive(Args)]
 pub struct GeckoArgs {
@@ -318,7 +319,7 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
         if cfg.use_pro {
             // Pro API - requires API key
             if let Some(ref api_key) = cfg.api_key {
-                cgko::Client::pro(api_key)?
+                cgko::Client::pro(api_key.expose_secret())?
             } else if let Ok(api_key) = std::env::var("COINGECKO_API_KEY") {
                 cgko::Client::pro(&api_key)?
             } else {
@@ -326,7 +327,7 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
             }
         } else if let Some(ref api_key) = cfg.api_key {
             // Demo API with key (higher rate limits than free)
-            cgko::Client::demo(Some(api_key.clone()))?
+            cgko::Client::demo(Some(api_key.expose_secret().to_string()))?
         } else {
             // Free public API
             cgko::Client::new()?

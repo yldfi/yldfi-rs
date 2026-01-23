@@ -1,6 +1,7 @@
 //! Update command - check for and install updates from GitHub releases
 
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 #[derive(Deserialize)]
 struct GitHubRelease {
@@ -93,6 +94,50 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
     }
 
     let bytes = response.bytes().await?;
+
+    // Try to verify checksum if a .sha256 file is available
+    let checksum_asset_name = format!("{}.sha256", asset.name);
+    if let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_asset_name) {
+        if !quiet {
+            eprintln!("Verifying checksum...");
+        }
+
+        let checksum_response = client
+            .get(&checksum_asset.browser_download_url)
+            .header("User-Agent", "ethcli")
+            .send()
+            .await?;
+
+        if checksum_response.status().is_success() {
+            let checksum_text = checksum_response.text().await?;
+            // Checksum file format: "<hash>  <filename>" or just "<hash>"
+            let expected_hash = checksum_text
+                .split_whitespace()
+                .next()
+                .unwrap_or(&checksum_text)
+                .trim()
+                .to_lowercase();
+
+            // Compute actual hash
+            let mut hasher = Sha256::new();
+            hasher.update(&bytes);
+            let actual_hash = format!("{:x}", hasher.finalize());
+
+            if actual_hash != expected_hash {
+                anyhow::bail!(
+                    "Checksum verification failed!\nExpected: {}\nActual:   {}\n\nThe downloaded file may be corrupted or tampered with.",
+                    expected_hash,
+                    actual_hash
+                );
+            }
+
+            if !quiet {
+                eprintln!("Checksum verified.");
+            }
+        }
+    } else if !quiet {
+        eprintln!("Warning: No checksum file available for verification.");
+    }
 
     // Extract and install using unique temp directory to prevent race conditions
     let random_suffix: u64 = rand::random();

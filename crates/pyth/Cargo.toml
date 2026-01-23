@@ -1,0 +1,19 @@
+[package]
+name = "pyth"
+version = "0.1.0"
+edition = "2021"
+description = "Rust client for the Pyth Network Hermes API"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/pyth"
+keywords = ["crypto", "pyth", "oracle", "prices", "defi"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[dependencies]
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+urlencoding = "2"
+yldfi-common = { version = "0.1", path = "../yldfi-common" }

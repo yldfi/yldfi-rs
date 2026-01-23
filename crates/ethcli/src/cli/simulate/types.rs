@@ -17,12 +17,14 @@ pub struct AlchemyArgs {
 impl AlchemyArgs {
     /// Get resolved Alchemy API key from args/env/config
     pub fn get_api_key(&self) -> anyhow::Result<String> {
+        use secrecy::ExposeSecret;
+
         let config = ConfigFile::load_default().ok().flatten();
         let alchemy_config = config.as_ref().and_then(|c| c.alchemy.as_ref());
 
         self.alchemy_key
             .clone()
-            .or_else(|| alchemy_config.map(|a| a.api_key.clone()))
+            .or_else(|| alchemy_config.map(|a| a.api_key.expose_secret().to_string()))
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "Alchemy API key required. Set via --alchemy-key, ALCHEMY_API_KEY env, or config file"
@@ -101,13 +103,15 @@ pub struct TenderlyArgs {
 impl TenderlyArgs {
     /// Get resolved Tenderly credentials (api_key, account, project) from args/env/config
     pub fn get_credentials(&self) -> anyhow::Result<(String, String, String)> {
+        use secrecy::ExposeSecret;
+
         let config = ConfigFile::load_default().ok().flatten();
         let tenderly_config = config.as_ref().and_then(|c| c.tenderly.as_ref());
 
         let api_key = self
             .tenderly_key
             .clone()
-            .or_else(|| tenderly_config.map(|t| t.access_key.clone()))
+            .or_else(|| tenderly_config.map(|t| t.access_key.expose_secret().to_string()))
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "Tenderly API key required. Set via --tenderly-key, TENDERLY_ACCESS_KEY env, or config file"

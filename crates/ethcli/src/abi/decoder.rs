@@ -114,7 +114,8 @@ impl LogDecoder {
 
     /// Create a new decoder from an ABI
     pub fn from_abi(abi: &JsonAbi) -> Result<Self> {
-        let mut events = HashMap::new();
+        let event_count = abi.events().count();
+        let mut events = HashMap::with_capacity(event_count);
 
         for event in abi.events() {
             let info = Self::event_to_info(event)?;
@@ -126,7 +127,7 @@ impl LogDecoder {
 
     /// Create a decoder from event signatures
     pub fn from_signatures(signatures: &[EventSignature]) -> Result<Self> {
-        let mut events = HashMap::new();
+        let mut events = HashMap::with_capacity(signatures.len());
 
         for sig in signatures {
             let info = Self::signature_to_info(sig)?;
@@ -403,7 +404,8 @@ impl LogDecoder {
             )
         };
 
-        let mut params = HashMap::new();
+        let total_params = indexed_types.len() + data_types.len();
+        let mut params = HashMap::with_capacity(total_params);
 
         // Decode indexed parameters (topics[1..])
         for (i, (ty, name)) in indexed_types.iter().zip(indexed_names.iter()).enumerate() {

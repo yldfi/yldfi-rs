@@ -2,11 +2,56 @@
 
 use super::{EndpointConfig, ProxyConfig};
 use crate::error::{ConfigError, Result};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+
+// Re-export SecretString for use by other modules
+pub use secrecy::{ExposeSecret, SecretString};
+
+/// Custom serializer for SecretString - explicitly exposes the secret for config file saving
+fn serialize_secret<S>(secret: &SecretString, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(secret.expose_secret())
+}
+
+/// Custom deserializer for SecretString
+fn deserialize_secret<'de, D>(deserializer: D) -> std::result::Result<SecretString, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    Ok(SecretString::new(s.into()))
+}
+
+/// Custom serializer for Option<SecretString>
+fn serialize_secret_option<S>(
+    secret: &Option<SecretString>,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match secret {
+        Some(s) => serializer.serialize_some(s.expose_secret()),
+        None => serializer.serialize_none(),
+    }
+}
+
+/// Custom deserializer for Option<SecretString>
+fn deserialize_secret_option<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<SecretString>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    Ok(opt.map(|s| SecretString::new(s.into())))
+}
 
 /// Configuration file structure
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -28,8 +73,12 @@ pub struct ConfigFile {
     pub proxy: Option<ProxyFileConfig>,
 
     /// Etherscan API key
-    #[serde(default)]
-    pub etherscan_api_key: Option<String>,
+    #[serde(
+        default,
+        serialize_with = "serialize_secret_option",
+        deserialize_with = "deserialize_secret_option"
+    )]
+    pub etherscan_api_key: Option<SecretString>,
 
     /// Tenderly configuration
     #[serde(default)]
@@ -84,7 +133,8 @@ pub struct ConfigFile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TenderlyConfig {
     /// Tenderly access key
-    pub access_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub access_key: SecretString,
     /// Tenderly account slug
     pub account: String,
     /// Tenderly project slug
@@ -95,7 +145,8 @@ pub struct TenderlyConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlchemyConfig {
     /// Alchemy API key
-    pub api_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub api_key: SecretString,
     /// Default network (e.g., eth-mainnet, polygon-mainnet)
     #[serde(default)]
     pub default_network: Option<String>,
@@ -105,7 +156,12 @@ pub struct AlchemyConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeckoConfig {
     /// CoinGecko API key (for Pro tier)
-    pub api_key: Option<String>,
+    #[serde(
+        default,
+        serialize_with = "serialize_secret_option",
+        deserialize_with = "deserialize_secret_option"
+    )]
+    pub api_key: Option<SecretString>,
     /// Use Pro API endpoint
     #[serde(default)]
     pub use_pro: bool,
@@ -115,37 +171,47 @@ pub struct GeckoConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlamaConfig {
     /// DefiLlama API key (for Pro endpoints)
-    pub api_key: Option<String>,
+    #[serde(
+        default,
+        serialize_with = "serialize_secret_option",
+        deserialize_with = "deserialize_secret_option"
+    )]
+    pub api_key: Option<SecretString>,
 }
 
 /// Moralis API configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoralisConfig {
     /// Moralis API key
-    pub api_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub api_key: SecretString,
 }
 
 /// Dune Analytics API configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuneConfig {
     /// Dune API key
-    pub api_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub api_key: SecretString,
 }
 
 /// Dune SIM API configuration (separate from Dune Analytics)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuneSimConfig {
     /// Dune SIM API key
-    pub api_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub api_key: SecretString,
 }
 
 /// Chainlink Data Streams API configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChainlinkConfig {
     /// Chainlink API key (client ID)
-    pub api_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub api_key: SecretString,
     /// Chainlink user secret (client secret)
-    pub user_secret: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub user_secret: SecretString,
     /// REST API URL (defaults to mainnet)
     #[serde(default)]
     pub rest_url: Option<String>,
@@ -158,21 +224,24 @@ pub struct ChainlinkConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZeroxConfig {
     /// 0x API key
-    pub api_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub api_key: SecretString,
 }
 
 /// 1inch API configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OneInchConfig {
     /// 1inch API key
-    pub api_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub api_key: SecretString,
 }
 
 /// Enso Finance API configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnsoConfig {
     /// Enso API key (Bearer token)
-    pub api_key: String,
+    #[serde(serialize_with = "serialize_secret", deserialize_with = "deserialize_secret")]
+    pub api_key: SecretString,
 }
 
 /// Global settings
@@ -354,7 +423,7 @@ impl ConfigFile {
 
     /// Set the Etherscan API key and save
     pub fn set_etherscan_key(&mut self, key: String) -> Result<()> {
-        self.etherscan_api_key = Some(key);
+        self.etherscan_api_key = Some(SecretString::new(key.into()));
         self.save_default()
     }
 
@@ -366,7 +435,7 @@ impl ConfigFile {
         project: String,
     ) -> Result<()> {
         self.tenderly = Some(TenderlyConfig {
-            access_key,
+            access_key: SecretString::new(access_key.into()),
             account,
             project,
         });
@@ -493,7 +562,10 @@ urls = ["https://disabled.com/rpc"]
         assert_eq!(config.endpoints.len(), 1);
         assert_eq!(config.endpoints[0].url, "https://example.com/rpc");
         assert!(config.is_endpoint_disabled("https://disabled.com/rpc"));
-        assert_eq!(config.etherscan_api_key, Some("test_key".to_string()));
+        assert_eq!(
+            config.etherscan_api_key.as_ref().map(|s| s.expose_secret()),
+            Some("test_key")
+        );
     }
 
     #[test]
@@ -704,7 +776,7 @@ concurrency = 20
         let config_path = temp_dir.path().join("config.toml");
 
         let mut config = ConfigFile::default();
-        config.etherscan_api_key = Some("test_key_123".to_string());
+        config.etherscan_api_key = Some(SecretString::new("test_key_123".into()));
         config.settings.concurrency = 15;
         config
             .endpoints
@@ -715,7 +787,10 @@ concurrency = 20
 
         // Load and verify
         let loaded = ConfigFile::load(&config_path).unwrap();
-        assert_eq!(loaded.etherscan_api_key, Some("test_key_123".to_string()));
+        assert_eq!(
+            loaded.etherscan_api_key.as_ref().map(|s| s.expose_secret()),
+            Some("test_key_123")
+        );
         assert_eq!(loaded.settings.concurrency, 15);
         assert_eq!(loaded.endpoints.len(), 1);
         assert_eq!(loaded.endpoints[0].url, "https://test.example.com/rpc");

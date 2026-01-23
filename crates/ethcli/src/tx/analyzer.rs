@@ -534,3 +534,58 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
 
     output
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy::primitives::{address, b256, U256};
+
+    fn make_test_analysis() -> TransactionAnalysis {
+        TransactionAnalysis {
+            hash: b256!("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"),
+            block_number: 18_500_000,
+            from: address!("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
+            to: Some(address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")),
+            value: U256::from(1_000_000_000_000_000_000u128), // 1 ETH
+            gas_used: 21000,
+            status: true,
+            contracts: vec![ContractInfo {
+                address: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                label: Some("WETH".to_string()),
+                category: ContractCategory::Token,
+            }],
+            events: vec![],
+            token_flows: vec![],
+            function_call: None,
+        }
+    }
+
+    #[test]
+    fn test_format_analysis_basic() {
+        let analysis = make_test_analysis();
+        let output = format_analysis(&analysis);
+
+        assert!(output.contains("Transaction: 0x1234"));
+        assert!(output.contains("Block: 18500000"));
+        assert!(output.contains("Status: Success"));
+        assert!(output.contains("WETH"));
+    }
+
+    #[test]
+    fn test_format_analysis_failed_tx() {
+        let mut analysis = make_test_analysis();
+        analysis.status = false;
+        let output = format_analysis(&analysis);
+
+        assert!(output.contains("Status: Failed"));
+    }
+
+    #[test]
+    fn test_format_analysis_contract_creation() {
+        let mut analysis = make_test_analysis();
+        analysis.to = None;
+        let output = format_analysis(&analysis);
+
+        assert!(output.contains("Contract Creation"));
+    }
+}

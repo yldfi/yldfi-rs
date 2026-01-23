@@ -255,10 +255,12 @@ pub enum DebugCommands {
 
 /// Handle Alchemy commands
 pub async fn handle(command: &AlchemyCommands, quiet: bool) -> anyhow::Result<()> {
+    use secrecy::ExposeSecret;
+
     // Try config first, then fall back to env var
     let api_key = if let Ok(Some(config)) = ConfigFile::load_default() {
         if let Some(ref alchemy_config) = config.alchemy {
-            alchemy_config.api_key.clone()
+            alchemy_config.api_key.expose_secret().to_string()
         } else {
             std::env::var("ALCHEMY_API_KEY")
                 .map_err(|_| anyhow::anyhow!("ALCHEMY_API_KEY not set in config or environment"))?

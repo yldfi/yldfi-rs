@@ -37,7 +37,7 @@ pub struct LogsArgs {
     pub output: Option<PathBuf>,
 
     /// Output format (json, ndjson, csv, sqlite)
-    #[arg(long, default_value = "json")]
+    #[arg(long, short = 'o', default_value = "json")]
     pub format: String,
 
     /// Fetch raw logs without decoding

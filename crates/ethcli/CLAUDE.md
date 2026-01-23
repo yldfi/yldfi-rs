@@ -54,7 +54,7 @@ ethcli doctor     # Diagnose configuration and connectivity
 
 ### Aggregation Commands (parallel queries to multiple APIs)
 ```
-ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Curve
+ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, CCXT
 ethcli portfolio  # Portfolio balances from Alchemy, Dune SIM, Moralis
 ethcli nfts       # NFT holdings from Alchemy, CoinGecko, Moralis, Dune SIM
 ethcli yields     # DeFi yields from DefiLlama and Curve
@@ -70,7 +70,7 @@ ethcli moralis    # Moralis API (wallet, token, NFT, DeFi, transactions)
 ethcli dsim       # Dune SIM API (balances, activity, collectibles, DeFi)
 ethcli dune       # Dune Analytics API (queries, executions, tables)
 ethcli curve      # Curve Finance API (pools, volumes, lending, tokens, router)
-ethcli chainlink  # Chainlink Data Streams (real-time market data)
+ethcli chainlink  # Chainlink price feeds (RPC-based, no API key needed)
 ethcli ccxt       # Exchange data (Binance, Bitget, OKX, Hyperliquid)
 ```
 
@@ -191,6 +191,47 @@ ethcli curve router address polygon
 ethcli curve router address arbitrum
 ```
 
+## Chainlink Commands
+
+Query Chainlink price feeds via RPC (no API key required). Supports Feed Registry (mainnet) and direct oracle queries (all chains).
+
+```bash
+# Get current price (uses Feed Registry on mainnet, direct oracles on L2s)
+ethcli chainlink price ETH
+ethcli chainlink price CVX
+ethcli chainlink price BTC --chain arbitrum
+
+# Historical price at a specific block (requires archive node)
+ethcli chainlink price ETH --block 18000000
+ethcli chainlink price CVX --block 19500000
+
+# Query a specific oracle address directly
+ethcli chainlink price ETH --oracle 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419
+
+# Get feed/oracle address for a token
+ethcli chainlink feed CVX
+ethcli chainlink feed ETH --quote usd
+
+# List known oracle addresses
+ethcli chainlink oracles
+ethcli chainlink oracles --chain ethereum
+ethcli chainlink oracles --chain arbitrum
+
+# Data Streams (requires API credentials)
+ethcli chainlink streams feeds
+ethcli chainlink streams latest <feed_id>
+ethcli chainlink streams report <feed_id> <timestamp>
+ethcli chainlink streams bulk <feed_id1>,<feed_id2> <timestamp>
+ethcli chainlink streams history <feed_id> <timestamp> --limit 10
+```
+
+### Notes
+
+- **Ethereum mainnet**: Uses Feed Registry - supports any token Chainlink has a feed for. Pass token address or symbol.
+- **L2 chains**: Uses hardcoded oracle mappings. Run `ethcli chainlink oracles --chain <chain>` to see available feeds.
+- **Historical queries**: Require an archive node. Feed address is resolved at the target block for accuracy.
+- **Stale detection**: Warns if `answeredInRound < roundId` (oracle hasn't updated recently).
+
 ## Project Structure
 
 ```
@@ -232,6 +273,12 @@ src/
 │   ├── json.rs       # JSON/NDJSON output
 │   ├── csv.rs        # CSV output
 │   └── sqlite.rs     # SQLite output
+├── chainlink/        # Chainlink price feed queries
+│   ├── mod.rs        # Public exports, fetch_price(), fetch_price_at_block()
+│   ├── types.rs      # PriceData, ChainlinkError
+│   ├── constants.rs  # Feed Registry, denominations, oracle addresses
+│   ├── registry.rs   # Feed Registry queries (mainnet only)
+│   └── aggregator.rs # Direct AggregatorV3 queries (all chains)
 ├── etherscan/
 │   ├── mod.rs        # Etherscan client wrapper
 │   ├── client.rs     # Extended Etherscan API client
@@ -278,7 +325,7 @@ src/
     ├── dsim.rs       # Direct Dune SIM API
     ├── dune_cli.rs   # Direct Dune Analytics API
     ├── curve.rs      # Direct Curve Finance API
-    ├── chainlink.rs  # Chainlink Data Streams
+    ├── chainlink.rs  # Chainlink price feeds (RPC + Data Streams)
     └── ccxt.rs       # Exchange data via CCXT
 ```
 
@@ -286,6 +333,8 @@ src/
 
 - **alloy 1.0**: Ethereum provider, types, ABI decoding
 - **foundry-block-explorers**: Etherscan API client
+- **chainlink-data-streams-sdk**: Chainlink Data Streams API (optional, requires API key)
+- **pyth**: Pyth Network Hermes API client (no API key needed)
 - **tndrly**: Tenderly API client
 - **alcmy**: Alchemy API client
 - **gecko**: CoinGecko API client
@@ -350,6 +399,11 @@ ethcli nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 
 # DeFi yields
 ethcli yields --protocol aave
+
+# Chainlink price feeds (RPC-based, no API key)
+ethcli chainlink price ETH
+ethcli chainlink price CVX --chain ethereum
+ethcli chainlink oracles --chain arbitrum
 ```
 
 ## Environment Variables
@@ -362,8 +416,8 @@ ethcli yields --protocol aave
 - `MORALIS_API_KEY`: Moralis API key (required for `ethcli moralis` commands)
 - `DUNE_SIM_API_KEY`: Dune SIM API key (required for `ethcli dsim` commands)
 - `DUNE_API_KEY`: Dune Analytics API key (required for `ethcli dune` commands)
-- `CHAINLINK_CLIENT_ID`: Chainlink Data Streams client ID
-- `CHAINLINK_CLIENT_SECRET`: Chainlink Data Streams client secret
+- `CHAINLINK_API_KEY`: Chainlink Data Streams API key (only for `streams` subcommand)
+- `CHAINLINK_USER_SECRET`: Chainlink Data Streams user secret (only for `streams` subcommand)
 
 ## Release Process
 

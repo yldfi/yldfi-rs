@@ -30,6 +30,8 @@ pub enum PriceSourceArg {
     Ccxt,
     /// Chainlink Data Streams
     Chainlink,
+    /// Pyth Network Hermes API
+    Pyth,
 }
 
 impl From<PriceSourceArg> for PriceSource {
@@ -43,6 +45,7 @@ impl From<PriceSourceArg> for PriceSource {
             PriceSourceArg::Curve => PriceSource::Curve,
             PriceSourceArg::Ccxt => PriceSource::Ccxt,
             PriceSourceArg::Chainlink => PriceSource::Chainlink,
+            PriceSourceArg::Pyth => PriceSource::Pyth,
         }
     }
 }
