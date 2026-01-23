@@ -12,12 +12,12 @@ pub struct PriceData {
     pub answer: I256,
     /// Decimals for this feed (call decimals() on aggregator)
     pub decimals: u8,
-    /// Round ID
-    pub round_id: u64,
+    /// Round ID (uint80 composite: phaseId << 64 | aggregatorRoundId)
+    pub round_id: u128,
     /// Timestamp when the answer was computed
     pub updated_at: u64,
-    /// Round ID in which the answer was computed
-    pub answered_in_round: u64,
+    /// Round ID in which the answer was computed (uint80)
+    pub answered_in_round: u128,
     /// Oracle/feed address that provided this price
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_address: Option<alloy::primitives::Address>,
@@ -33,18 +33,18 @@ where
 impl PriceData {
     /// Create PriceData from Chainlink round data response
     ///
-    /// Handles the u80 -> u64 conversion for round IDs and timestamps.
-    /// Note: roundId uses a composite format (phaseId << 64 | aggregatorRoundId),
-    /// so values above u64::MAX are technically possible but extremely rare.
+    /// Handles the uint80 round IDs and uint256 timestamps from Chainlink.
+    /// Round IDs use composite format: (phaseId << 64 | aggregatorRoundId),
+    /// requiring u128 storage for the full 80-bit value.
     ///
     /// # Errors
-    /// Returns `ChainlinkError::ContractError` if any field fails u64 conversion.
+    /// Returns `ChainlinkError::ContractError` if timestamp fails u64 conversion.
     pub fn from_round_data(
         answer: I256,
         decimals: u8,
-        round_id: impl TryInto<u64>,
+        round_id: impl TryInto<u128>,
         updated_at: impl TryInto<u64>,
-        answered_in_round: impl TryInto<u64>,
+        answered_in_round: impl TryInto<u128>,
         feed_address: Option<alloy::primitives::Address>,
     ) -> Result<Self, ChainlinkError> {
         let round_id = round_id
@@ -249,9 +249,9 @@ mod tests {
         let price = PriceData::from_round_data(
             I256::try_from(100_000_000i64).unwrap(),
             8,
-            100u64,
+            100u128,
             1000u64,
-            100u64,
+            100u128,
             None,
         )
         .unwrap();
@@ -264,13 +264,33 @@ mod tests {
     }
 
     #[test]
+    fn test_from_round_data_large_round_id() {
+        // Test with a round ID that would overflow u64
+        // Simulating phaseId=1, aggregatorRoundId=12345
+        // roundId = (1 << 64) | 12345 = 18446744073709551616 + 12345
+        let large_round_id: u128 = (1u128 << 64) | 12345;
+        let price = PriceData::from_round_data(
+            I256::try_from(100_000_000i64).unwrap(),
+            8,
+            large_round_id,
+            1000u64,
+            large_round_id,
+            None,
+        )
+        .unwrap();
+        assert_eq!(price.round_id, large_round_id);
+        assert_eq!(price.answered_in_round, large_round_id);
+        assert!(price.is_valid());
+    }
+
+    #[test]
     fn test_is_fresh() {
         let price = PriceData::from_round_data(
             I256::try_from(100_000_000i64).unwrap(),
             8,
-            100u64,
+            100u128,
             1000u64, // updated_at = 1000
-            100u64,
+            100u128,
             None,
         )
         .unwrap();
@@ -291,9 +311,9 @@ mod tests {
         let price = PriceData::from_round_data(
             I256::try_from(100_000_000i64).unwrap(),
             8,
-            100u64,
+            100u128,
             1000u64,
-            100u64,
+            100u128,
             None,
         )
         .unwrap();

@@ -180,7 +180,8 @@ pub struct PriceOutput {
     pub price_usd: Option<f64>,
     pub raw_answer: String,
     pub decimals: u8,
-    pub round_id: u64,
+    /// Round ID (uint80 composite: phaseId << 64 | aggregatorRoundId)
+    pub round_id: u128,
     pub updated_at: u64,
     pub feed_address: Option<String>,
     pub is_stale: bool,
