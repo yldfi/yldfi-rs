@@ -7,15 +7,15 @@
   "crates/dnapi": "0.1.1",
   "crates/dnsim": "0.1.1",
   "crates/ensof": "0.1.0",
-  "crates/ethcli": "0.21.6",
+  "crates/ethcli": "0.21.7",
   "crates/kybr": "0.1.1",
   "crates/lfi": "0.1.1",
   "crates/mrls": "0.1.1",
   "crates/oinch": "0.1.1",
   "crates/openoc": "0.1.1",
-  "crates/pyth": "0.1.0",
+  "crates/pyth": "0.1.1",
   "crates/tndrly": "0.3.3",
   "crates/vlra": "0.1.0",
-  "crates/yldfi-common": "0.1.1",
+  "crates/yldfi-common": "0.1.2",
   "crates/zrxswap": "0.1.1"
 }
