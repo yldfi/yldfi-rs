@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.21.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.6...ethcli-v0.21.7) (2026-01-23)
+
+
+### Features
+
+* **ethcli:** add SecretString for API key protection and chainlink/pyth modules ([58ee636](https://github.com/yldfi/yldfi-rs/commit/58ee63625b76a83d55a8f27611f2f62c2e00e241))
+* implement review agent recommendations ([f8c9f42](https://github.com/yldfi/yldfi-rs/commit/f8c9f42813785c96a8bd5f694bbcf56fb6c16b49))
+
+
+### Bug Fixes
+
+* handle uint80 round IDs in Chainlink price feeds ([28c391e](https://github.com/yldfi/yldfi-rs/commit/28c391e7466c78a6f303b6d64fca8b55c84085aa))
+* resolve clippy warnings in chainlink.rs ([3be41f5](https://github.com/yldfi/yldfi-rs/commit/3be41f54f3f4aed154c73e980c568e10a8051baf))
+
 ## [0.21.2](https://github.com/yldfi/ethcli/compare/v0.21.1...v0.21.2) (2026-01-13)
 
 
