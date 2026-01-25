@@ -128,13 +128,18 @@ pub fn format_u256_with_decimals(value: &alloy::primitives::U256, decimals: u8) 
 }
 
 /// Truncate a string to a maximum length, adding "..." if truncated.
+///
+/// This function is UTF-8 safe and will not panic on multi-byte characters.
+/// The returned string will have at most `max_len` characters (not bytes).
 pub fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    let char_count = s.chars().count();
+    if char_count <= max_len {
         s.to_string()
     } else if max_len <= 3 {
-        s[..max_len].to_string()
+        s.chars().take(max_len).collect()
     } else {
-        format!("{}...", &s[..max_len - 3])
+        let truncated: String = s.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
     }
 }
 

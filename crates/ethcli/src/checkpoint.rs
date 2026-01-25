@@ -4,7 +4,6 @@ use crate::error::{CheckpointError, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Current checkpoint format version
 const CHECKPOINT_VERSION: u32 = 1;
@@ -345,12 +344,9 @@ impl CheckpointManager {
     }
 }
 
-/// Get current timestamp
+/// Get current timestamp (delegated to utils for consistency)
 fn current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    crate::utils::unix_timestamp_secs()
 }
 
 #[cfg(test)]

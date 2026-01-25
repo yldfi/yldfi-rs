@@ -254,9 +254,33 @@ pub fn build_calldata(
     data: &Option<String>,
     args: &[String],
 ) -> anyhow::Result<String> {
+    use crate::utils::is_safe_cli_value;
+
     if let Some(d) = data {
+        // Validate data doesn't contain dangerous characters
+        if !is_safe_cli_value(d) {
+            return Err(anyhow::anyhow!(
+                "Invalid data: contains potentially dangerous characters"
+            ));
+        }
         Ok(d.clone())
     } else if let Some(s) = sig {
+        // Validate signature doesn't contain dangerous characters
+        if !is_safe_cli_value(s) {
+            return Err(anyhow::anyhow!(
+                "Invalid signature: contains potentially dangerous characters"
+            ));
+        }
+        // Validate each argument
+        for (i, arg) in args.iter().enumerate() {
+            if !is_safe_cli_value(arg) {
+                return Err(anyhow::anyhow!(
+                    "Invalid argument {}: contains potentially dangerous characters",
+                    i
+                ));
+            }
+        }
+
         let mut cmd = Command::new("cast");
         cmd.arg("calldata").arg(s);
         for arg in args {

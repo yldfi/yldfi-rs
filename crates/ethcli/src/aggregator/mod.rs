@@ -24,6 +24,7 @@ pub use yields::*;
 
 use crate::config::ConfigFile;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::sync::OnceLock;
 use std::time::Instant;
 
@@ -42,7 +43,8 @@ pub fn get_cached_config() -> &'static Option<ConfigFile> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceResult<T> {
     /// Source identifier (e.g., "gecko", "llama", "alchemy")
-    pub source: String,
+    /// Uses Cow for zero-copy when source is a static string literal
+    pub source: Cow<'static, str>,
     /// Normalized data (None if error occurred)
     pub data: Option<T>,
     /// Raw response for debugging
@@ -58,53 +60,44 @@ pub struct SourceResult<T> {
 }
 
 impl<T> SourceResult<T> {
-    /// Create a successful result
-    pub fn success(source: impl Into<String>, data: T, latency_ms: u64) -> Self {
+    /// Create a successful result with a static source name (zero allocation)
+    pub fn success(source: &'static str, data: T, latency_ms: u64) -> Self {
         Self {
-            source: source.into(),
+            source: Cow::Borrowed(source),
             data: Some(data),
             raw: None,
             error: None,
             latency_ms,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: crate::utils::unix_timestamp_secs(),
         }
     }
 
     /// Create a successful result with raw data
     pub fn success_with_raw(
-        source: impl Into<String>,
+        source: &'static str,
         data: T,
         raw: serde_json::Value,
         latency_ms: u64,
     ) -> Self {
         Self {
-            source: source.into(),
+            source: Cow::Borrowed(source),
             data: Some(data),
             raw: Some(raw),
             error: None,
             latency_ms,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: crate::utils::unix_timestamp_secs(),
         }
     }
 
     /// Create a failed result
-    pub fn error(source: impl Into<String>, error: impl Into<String>, latency_ms: u64) -> Self {
+    pub fn error(source: &'static str, error: impl Into<String>, latency_ms: u64) -> Self {
         Self {
-            source: source.into(),
+            source: Cow::Borrowed(source),
             data: None,
             raw: None,
             error: Some(error.into()),
             latency_ms,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: crate::utils::unix_timestamp_secs(),
         }
     }
 
@@ -184,6 +177,7 @@ impl LatencyMeasure {
 
 /// Price source enum for CLI selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PriceSource {
     All,
     Gecko,

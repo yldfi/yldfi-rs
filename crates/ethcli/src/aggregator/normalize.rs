@@ -109,13 +109,23 @@ pub struct PriceAggregation {
 
 impl PriceAggregation {
     /// Calculate aggregation from a list of prices
+    ///
+    /// Filters out NaN and infinite values before calculating statistics.
+    /// Returns None if no valid prices remain after filtering.
     pub fn from_prices(prices: &[f64]) -> Option<Self> {
-        if prices.is_empty() {
+        // Filter out NaN and infinite values
+        let mut sorted: Vec<f64> = prices
+            .iter()
+            .copied()
+            .filter(|p| p.is_finite())
+            .collect();
+
+        if sorted.is_empty() {
             return None;
         }
 
-        let mut sorted = prices.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        // Sort is now safe since we filtered out NaN values
+        sorted.sort_by(|a, b| a.partial_cmp(b).expect("filtered values are finite"));
 
         let len = sorted.len();
         let median_usd = if len.is_multiple_of(2) {
@@ -125,8 +135,10 @@ impl PriceAggregation {
         };
 
         let mean_usd = sorted.iter().sum::<f64>() / len as f64;
-        let min_usd = *sorted.first().unwrap();
-        let max_usd = *sorted.last().unwrap();
+        // Use safer access pattern - unwrap_or provides fallback even though
+        // we know the vec is non-empty, this protects against future refactoring
+        let min_usd = sorted.first().copied().unwrap_or(0.0);
+        let max_usd = sorted.last().copied().unwrap_or(0.0);
 
         let spread_pct = if median_usd > 0.0 {
             ((max_usd - min_usd) / median_usd) * 100.0
@@ -224,15 +236,32 @@ impl NormalizedBalance {
 }
 
 /// Parse a raw balance string (decimal or hex) into a formatted f64
+///
+/// Returns 0.0 for invalid inputs (empty strings, malformed hex/decimal).
+/// Note: This intentionally conflates invalid input with zero balance for simplicity.
 fn parse_balance_formatted(raw: &str, decimals: u8) -> f64 {
     let raw = raw.trim();
 
+    // Handle empty or "0x"/"0X" only strings
+    if raw.is_empty() {
+        return 0.0;
+    }
+
     // Parse as integer
-    let raw_int: u128 = if raw.starts_with("0x") || raw.starts_with("0X") {
-        u128::from_str_radix(&raw[2..], 16).unwrap_or(0)
+    let raw_int: u128 = if let Some(hex_part) = raw.strip_prefix("0x").or_else(|| raw.strip_prefix("0X")) {
+        if hex_part.is_empty() {
+            return 0.0;
+        }
+        u128::from_str_radix(hex_part, 16).unwrap_or(0)
     } else {
         raw.parse().unwrap_or(0)
     };
+
+    // Prevent overflow: 10^39 exceeds u128::MAX, so cap decimals at 38
+    // For decimals > 38, the divisor would overflow, so return 0.0
+    if decimals > 38 {
+        return 0.0;
+    }
 
     // Convert to f64 with decimals
     let divisor = 10u128.pow(decimals as u32) as f64;

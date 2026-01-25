@@ -11,7 +11,7 @@ use crate::error::Result;
 use alloy::primitives::{address, Address};
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy::rpc::types::Filter;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 /// Type alias for the HTTP provider (same as endpoint.rs)
 type HttpProvider = alloy::providers::fillers::FillProvider<
@@ -62,14 +62,9 @@ const FIRST_CONTRACT_BLOCK: u64 = 46147;
 const ARCHIVE_TEST_ADDRESS: Address = address!("5e97870f263700f46aa00d967821199b9bc5a120");
 
 /// Get current timestamp as Unix epoch seconds string.
-/// Using Unix timestamp for simplicity and reliability - avoids complex
-/// manual date calculations that could have edge case bugs.
+/// Delegates to utils for consistency across the codebase.
 fn current_timestamp() -> String {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        .to_string()
+    crate::utils::unix_timestamp_secs().to_string()
 }
 
 /// Optimize an endpoint by detecting its capabilities
@@ -299,7 +294,14 @@ async fn detect_debug_support(url: &str, timeout: Duration) -> Result<bool> {
     .await
     {
         Ok(Ok(response)) => {
-            let result: serde_json::Value = response.json().await.unwrap_or_default();
+            // Parse JSON response, treating parse failures as unsupported
+            let result: serde_json::Value = match response.json().await {
+                Ok(json) => json,
+                Err(_) => {
+                    // JSON parse failure - assume debug not supported (malformed response)
+                    return Ok(false);
+                }
+            };
 
             // Check if there's an error indicating method not found
             if let Some(error) = result.get("error") {
@@ -350,7 +352,14 @@ async fn detect_trace_support(url: &str, timeout: Duration) -> Result<bool> {
     .await
     {
         Ok(Ok(response)) => {
-            let result: serde_json::Value = response.json().await.unwrap_or_default();
+            // Parse JSON response, treating parse failures as unsupported
+            let result: serde_json::Value = match response.json().await {
+                Ok(json) => json,
+                Err(_) => {
+                    // JSON parse failure - assume trace not supported (malformed response)
+                    return Ok(false);
+                }
+            };
 
             // Check if there's an error indicating method not found
             if let Some(error) = result.get("error") {

@@ -2,6 +2,7 @@
 
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use semver::Version;
 
 #[derive(Deserialize)]
 struct GitHubRelease {
@@ -26,7 +27,11 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
     }
 
     // Fetch latest release from GitHub
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .pool_max_idle_per_host(2)
+        .pool_idle_timeout(std::time::Duration::from_secs(60))
+        .build()?;
     let url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
     let response = client
         .get(&url)
@@ -46,12 +51,18 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
     }
 
     let release: GitHubRelease = response.json().await?;
-    let latest_version = release.tag_name.trim_start_matches('v');
+    let latest_version_str = release.tag_name.trim_start_matches('v');
 
     println!("Current version: v{}", CURRENT_VERSION);
     println!("Latest version:  {}", release.tag_name);
 
-    if latest_version == CURRENT_VERSION {
+    // Use semver for proper version comparison
+    let current = Version::parse(CURRENT_VERSION)
+        .map_err(|e| anyhow::anyhow!("Failed to parse current version: {}", e))?;
+    let latest = Version::parse(latest_version_str)
+        .map_err(|e| anyhow::anyhow!("Failed to parse latest version: {}", e))?;
+
+    if current >= latest {
         println!("\n✓ You're on the latest version!");
         return Ok(());
     }

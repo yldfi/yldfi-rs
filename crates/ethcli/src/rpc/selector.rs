@@ -5,9 +5,58 @@
 //! - Random distribution among same-priority endpoints (load balancing)
 //! - Chain filtering
 
-use crate::config::{Chain, ConfigFile};
+use crate::config::{Chain, ConfigFile, EndpointConfig};
 use crate::rpc::Endpoint;
 use rand::seq::SliceRandom;
+
+/// Select the best endpoint config from a pre-loaded config
+///
+/// Selection strategy:
+/// 1. Filter endpoints by chain and enabled status
+/// 2. Sort by priority (higher first)
+/// 3. Among endpoints with the highest priority, randomly select one
+///    (distributes load across equivalent endpoints)
+fn select_endpoint_config(config: &ConfigFile, chain: Chain) -> anyhow::Result<EndpointConfig> {
+    let mut chain_endpoints: Vec<_> = config
+        .endpoints
+        .iter()
+        .filter(|e| e.enabled && e.chain == chain)
+        .cloned()
+        .collect();
+
+    if chain_endpoints.is_empty() {
+        return Err(anyhow::anyhow!(
+            "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
+            chain.display_name()
+        ));
+    }
+
+    // Sort by priority (higher priority first)
+    chain_endpoints.sort_by(|a, b| b.priority.cmp(&a.priority));
+
+    // Get all endpoints with the highest priority
+    let top_priority = chain_endpoints[0].priority;
+    let top_endpoints: Vec<_> = chain_endpoints
+        .into_iter()
+        .filter(|e| e.priority == top_priority)
+        .collect();
+
+    // Randomly select one to distribute load
+    let selected = if top_endpoints.len() > 1 {
+        let mut rng = rand::thread_rng();
+        top_endpoints
+            .choose(&mut rng)
+            .cloned()
+            .expect("top_endpoints is not empty")
+    } else {
+        top_endpoints
+            .into_iter()
+            .next()
+            .expect("top_endpoints is not empty")
+    };
+
+    Ok(selected)
+}
 
 /// Get an RPC endpoint with smart selection
 ///
@@ -33,44 +82,7 @@ pub fn get_rpc_endpoint(chain: Chain) -> anyhow::Result<Endpoint> {
 
 /// Get an RPC endpoint from a pre-loaded config
 pub fn get_rpc_endpoint_from_config(config: &ConfigFile, chain: Chain) -> anyhow::Result<Endpoint> {
-    let mut chain_endpoints: Vec<_> = config
-        .endpoints
-        .iter()
-        .filter(|e| e.enabled && e.chain == chain)
-        .cloned()
-        .collect();
-
-    if chain_endpoints.is_empty() {
-        return Err(anyhow::anyhow!(
-            "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-            chain.display_name()
-        ));
-    }
-
-    // Sort by priority (higher priority first)
-    chain_endpoints.sort_by(|a, b| b.priority.cmp(&a.priority));
-
-    // Get all endpoints with the highest priority
-    let top_priority = chain_endpoints[0].priority;
-    let top_endpoints: Vec<_> = chain_endpoints
-        .into_iter()
-        .filter(|e| e.priority == top_priority)
-        .collect();
-
-    // Randomly select one to distribute load
-    let selected = if top_endpoints.len() > 1 {
-        let mut rng = rand::thread_rng();
-        top_endpoints
-            .choose(&mut rng)
-            .cloned()
-            .expect("top_endpoints is not empty")
-    } else {
-        top_endpoints
-            .into_iter()
-            .next()
-            .expect("top_endpoints is not empty")
-    };
-
+    let selected = select_endpoint_config(config, chain)?;
     Endpoint::new(selected, 30, None)
         .map_err(|e| anyhow::anyhow!("Failed to create endpoint: {}", e))
 }
@@ -88,44 +100,7 @@ pub fn get_rpc_url(chain: Chain) -> anyhow::Result<String> {
 
 /// Get an RPC URL from a pre-loaded config
 pub fn get_rpc_url_from_config(config: &ConfigFile, chain: Chain) -> anyhow::Result<String> {
-    let mut chain_endpoints: Vec<_> = config
-        .endpoints
-        .iter()
-        .filter(|e| e.enabled && e.chain == chain)
-        .cloned()
-        .collect();
-
-    if chain_endpoints.is_empty() {
-        return Err(anyhow::anyhow!(
-            "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-            chain.display_name()
-        ));
-    }
-
-    // Sort by priority (higher priority first)
-    chain_endpoints.sort_by(|a, b| b.priority.cmp(&a.priority));
-
-    // Get all endpoints with the highest priority
-    let top_priority = chain_endpoints[0].priority;
-    let top_endpoints: Vec<_> = chain_endpoints
-        .into_iter()
-        .filter(|e| e.priority == top_priority)
-        .collect();
-
-    // Randomly select one to distribute load
-    let selected = if top_endpoints.len() > 1 {
-        let mut rng = rand::thread_rng();
-        top_endpoints
-            .choose(&mut rng)
-            .cloned()
-            .expect("top_endpoints is not empty")
-    } else {
-        top_endpoints
-            .into_iter()
-            .next()
-            .expect("top_endpoints is not empty")
-    };
-
+    let selected = select_endpoint_config(config, chain)?;
     Ok(selected.url)
 }
 

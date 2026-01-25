@@ -10,6 +10,7 @@ pub type ChainId = u64;
 /// Supported blockchain networks
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Chain {
     #[default]
     Ethereum,
@@ -111,8 +112,23 @@ impl Chain {
     }
 
     /// Calculate approximate blocks for a given duration in seconds
+    ///
+    /// Returns 0 for non-positive durations. This handles negative inputs
+    /// safely without panicking.
     pub fn blocks_for_duration(&self, duration_secs: f64) -> u64 {
-        (duration_secs / self.avg_block_time_secs()).ceil() as u64
+        // Guard against non-positive durations (including NaN)
+        if duration_secs <= 0.0 || !duration_secs.is_finite() {
+            return 0;
+        }
+
+        let block_time = self.avg_block_time_secs();
+        // Guard against zero/invalid block time (shouldn't happen with current impl)
+        debug_assert!(block_time > 0.0, "avg_block_time_secs must be positive");
+        if block_time <= 0.0 {
+            return 0;
+        }
+
+        (duration_secs / block_time).ceil() as u64
     }
 
     /// Create from chain ID

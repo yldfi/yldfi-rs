@@ -753,9 +753,15 @@ async fn fetch_curve_lp_price(lp_token: &str, chain: &str) -> SourceResult<Norma
     }
 }
 
-/// Check if a token identifier is an address
+/// Check if a token identifier is a valid Ethereum address
+///
+/// Returns true if the string is a valid 40-character hex string prefixed with "0x".
 pub fn is_token_address(token: &str) -> bool {
-    token.starts_with("0x") && token.len() == 42
+    if !token.starts_with("0x") || token.len() != 42 {
+        return false;
+    }
+    // Validate that all characters after "0x" are valid hex digits
+    token[2..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// Map common token symbols to addresses on Ethereum

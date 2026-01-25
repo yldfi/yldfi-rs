@@ -1,8 +1,20 @@
 use crate::config::Chain;
 use crate::rpc::get_rpc_url;
 use crate::utils::address::resolve_label;
+use crate::utils::is_safe_cli_value;
 use std::process::{Command, Stdio};
 use tokio::time::{sleep, Duration};
+
+/// Validate a CLI argument to prevent injection attacks
+fn validate_cli_arg(arg: &str, arg_name: &str) -> anyhow::Result<()> {
+    if !is_safe_cli_value(arg) {
+        return Err(anyhow::anyhow!(
+            "Invalid {}: contains potentially dangerous characters",
+            arg_name
+        ));
+    }
+    Ok(())
+}
 
 /// Simulate using Anvil fork
 #[allow(clippy::too_many_arguments)]
@@ -16,6 +28,25 @@ pub async fn simulate_via_anvil(
     rpc_url: &Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
+    // Validate inputs before passing to external commands
+    validate_cli_arg(to, "target address")?;
+    validate_cli_arg(value, "value")?;
+    if let Some(s) = sig {
+        validate_cli_arg(s, "signature")?;
+    }
+    if let Some(d) = data {
+        validate_cli_arg(d, "data")?;
+    }
+    if let Some(f) = from {
+        validate_cli_arg(f, "from address")?;
+    }
+    for (i, arg) in args.iter().enumerate() {
+        validate_cli_arg(arg, &format!("argument {}", i))?;
+    }
+    if let Some(url) = rpc_url {
+        validate_cli_arg(url, "RPC URL")?;
+    }
+
     let fork_url = rpc_url
         .clone()
         .or_else(|| {
