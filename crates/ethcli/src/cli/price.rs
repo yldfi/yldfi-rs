@@ -125,7 +125,7 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
                     .sources
                     .iter()
                     .map(|s| SourcePrice {
-                        source: s.source.clone(),
+                        source: s.source.to_string(),
                         price_usd: s.data.as_ref().map(|p| p.usd),
                         error: s.error.clone(),
                         latency_ms: s.latency_ms,
@@ -203,7 +203,7 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
                 .sources
                 .iter()
                 .map(|s| SourcePrice {
-                    source: s.source.clone(),
+                    source: s.source.to_string(),
                     price_usd: s.data.as_ref().map(|p| p.usd),
                     error: s.error.clone(),
                     latency_ms: s.latency_ms,

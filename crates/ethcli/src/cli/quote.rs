@@ -414,7 +414,7 @@ fn build_output(
                 .sources
                 .iter()
                 .map(|s| QuoteSummary {
-                    source: s.source.clone(),
+                    source: s.source.to_string(),
                     amount_out: s.data.as_ref().map(|q| q.amount_out.clone()),
                     gas_usd: s.data.as_ref().and_then(|q| q.gas_usd),
                     price_impact: s.data.as_ref().and_then(|q| q.price_impact),

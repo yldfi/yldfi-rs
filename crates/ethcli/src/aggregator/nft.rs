@@ -7,6 +7,7 @@ use super::{get_cached_config, normalize_chain_for_source, AggregatedResult, Sou
 use futures::future::join_all;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -275,7 +276,7 @@ pub async fn fetch_nfts_parallel(
                     }
                 };
                 (
-                    source.name().to_string(),
+                    source.name(),
                     result,
                     source_start.elapsed().as_millis() as u64,
                 )
@@ -295,7 +296,7 @@ pub async fn fetch_nfts_parallel(
             Ok(nfts) => {
                 all_nfts.extend(nfts.clone());
                 source_results.push(SourceResult {
-                    source: source_name,
+                    source: Cow::Borrowed(source_name),
                     data: Some(nfts),
                     raw: None,
                     error: None,
@@ -308,7 +309,7 @@ pub async fn fetch_nfts_parallel(
             }
             Err(e) => {
                 source_results.push(SourceResult {
-                    source: source_name,
+                    source: Cow::Borrowed(source_name),
                     data: None,
                     raw: None,
                     error: Some(e.to_string()),

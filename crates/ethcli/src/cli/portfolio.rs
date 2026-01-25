@@ -121,7 +121,7 @@ pub async fn execute(args: &PortfolioArgs, quiet: bool) -> anyhow::Result<()> {
                 .sources
                 .iter()
                 .map(|s| SourcePortfolio {
-                    source: s.source.clone(),
+                    source: s.source.to_string(),
                     token_count: s.data.as_ref().map(|d| d.len()),
                     error: s.error.clone(),
                     latency_ms: s.latency_ms,

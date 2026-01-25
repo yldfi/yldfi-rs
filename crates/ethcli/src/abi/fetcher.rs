@@ -65,6 +65,8 @@ impl AbiFetcher {
     pub fn new(api_key: Option<String>) -> Result<Self> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(Duration::from_secs(90))
             .build()
             .map_err(|e| AbiError::HttpClientInit(e.to_string()))?;
 
@@ -79,6 +81,8 @@ impl AbiFetcher {
     pub fn with_cache(api_key: Option<String>, cache: Arc<SignatureCache>) -> Result<Self> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(Duration::from_secs(90))
             .build()
             .map_err(|e| AbiError::HttpClientInit(e.to_string()))?;
 

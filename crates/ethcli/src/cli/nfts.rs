@@ -143,7 +143,7 @@ pub async fn execute(args: &NftsArgs, quiet: bool) -> anyhow::Result<()> {
                 .sources
                 .iter()
                 .map(|s| SourceNfts {
-                    source: s.source.clone(),
+                    source: s.source.to_string(),
                     nft_count: s.data.as_ref().map(|d| d.len()),
                     error: s.error.clone(),
                     latency_ms: s.latency_ms,

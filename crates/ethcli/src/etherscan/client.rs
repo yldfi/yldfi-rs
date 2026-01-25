@@ -170,6 +170,8 @@ impl Client {
 
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(Duration::from_secs(90))
             .build()
             .map_err(|e| AbiError::HttpClientInit(e.to_string()))?;
 

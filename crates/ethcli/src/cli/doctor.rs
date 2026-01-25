@@ -56,6 +56,8 @@ pub async fn handle(quiet: bool) -> anyhow::Result<()> {
                         println!("\nTesting endpoints...");
                         let client = reqwest::Client::builder()
                             .timeout(Duration::from_secs(5))
+                            .pool_max_idle_per_host(5)
+                            .pool_idle_timeout(Duration::from_secs(30))
                             .build()?;
 
                         // Test first endpoint of each chain
