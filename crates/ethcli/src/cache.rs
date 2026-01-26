@@ -17,6 +17,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const MAX_CACHE_ENTRIES: usize = 10_000;
 /// Cleanup interval in number of writes
 const CLEANUP_INTERVAL: u64 = 100;
+/// Write-behind flush interval (PERF-014 fix: batch disk writes)
+/// Only flush to disk every N modifications to avoid I/O overhead
+const FLUSH_INTERVAL: u64 = 10;
 
 /// Cache entry with timestamp
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +40,12 @@ pub struct CacheData {
 }
 
 /// Signature cache manager
+///
+/// Uses write-behind caching (PERF-014) to avoid disk I/O on every signature set.
+/// Changes are accumulated in memory and flushed to disk:
+/// - Every `FLUSH_INTERVAL` modifications (default: 10)
+/// - When `flush()` is called explicitly
+/// - When the cache is dropped
 pub struct SignatureCache {
     /// Cache file path
     path: PathBuf,
@@ -46,6 +55,10 @@ pub struct SignatureCache {
     ttl: Duration,
     /// Write counter for periodic cleanup
     write_count: AtomicU64,
+    /// Pending modifications since last flush (for write-behind caching)
+    pending_writes: AtomicU64,
+    /// Whether there are unflushed changes
+    dirty: std::sync::atomic::AtomicBool,
 }
 
 impl SignatureCache {
@@ -63,6 +76,8 @@ impl SignatureCache {
             data: RwLock::new(data),
             ttl: Duration::from_secs(30 * 24 * 60 * 60), // 30 days default
             write_count: AtomicU64::new(0),
+            pending_writes: AtomicU64::new(0),
+            dirty: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -140,6 +155,83 @@ impl SignatureCache {
         age > self.ttl.as_secs()
     }
 
+    /// Mark cache as dirty and maybe flush to disk (write-behind caching)
+    ///
+    /// This implements the PERF-014 fix: instead of writing to disk on every
+    /// set operation, we accumulate changes and only flush periodically.
+    fn mark_dirty_and_maybe_flush(&self) {
+        use std::sync::atomic::Ordering;
+
+        self.dirty.store(true, Ordering::Relaxed);
+        let pending = self.pending_writes.fetch_add(1, Ordering::Relaxed) + 1;
+
+        // Flush to disk every FLUSH_INTERVAL modifications
+        if pending >= FLUSH_INTERVAL {
+            self.pending_writes.store(0, Ordering::Relaxed);
+            // Best effort save - don't block on I/O errors
+            let _ = self.save_to_file();
+            self.dirty.store(false, Ordering::Relaxed);
+        }
+    }
+
+    /// Flush pending changes to disk (blocking)
+    ///
+    /// Call this explicitly to ensure all cached signatures are persisted.
+    /// This is also called automatically when the cache is dropped.
+    ///
+    /// For async contexts, prefer `flush_async` to avoid blocking the runtime.
+    pub fn flush(&self) {
+        use std::sync::atomic::Ordering;
+
+        if self.dirty.load(Ordering::Relaxed) {
+            let _ = self.save_to_file();
+            self.dirty.store(false, Ordering::Relaxed);
+            self.pending_writes.store(0, Ordering::Relaxed);
+        }
+    }
+
+    /// Flush pending changes to disk asynchronously (PERF-018 fix)
+    ///
+    /// Uses tokio::fs for non-blocking I/O. Preferred in async contexts.
+    pub async fn flush_async(&self) -> Result<(), std::io::Error> {
+        use std::sync::atomic::Ordering;
+
+        if !self.dirty.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
+        // Create parent directories if needed
+        if let Some(parent) = self.path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+
+        // Increment write counter and check if cleanup is needed
+        let count = self.write_count.fetch_add(1, Ordering::Relaxed);
+
+        // Check if cleanup is needed
+        let needs_cleanup = {
+            let data = self.data.read();
+            count.is_multiple_of(CLEANUP_INTERVAL)
+                || data.events.len() + data.functions.len() > MAX_CACHE_ENTRIES
+        };
+
+        if needs_cleanup {
+            self.cleanup_internal();
+        }
+
+        // Serialize and write asynchronously
+        let content = {
+            let data = self.data.read();
+            serde_json::to_string_pretty(&*data)?
+        };
+        tokio::fs::write(&self.path, content).await?;
+
+        self.dirty.store(false, Ordering::Relaxed);
+        self.pending_writes.store(0, Ordering::Relaxed);
+
+        Ok(())
+    }
+
     /// Get event signature by topic0 hash
     pub fn get_event(&self, topic0: &str) -> Option<String> {
         let data = self.data.read();
@@ -154,6 +246,8 @@ impl SignatureCache {
     }
 
     /// Set event signature
+    ///
+    /// Uses write-behind caching - changes are accumulated and flushed periodically.
     pub fn set_event(&self, topic0: &str, signature: &str) {
         {
             let mut data = self.data.write();
@@ -166,8 +260,7 @@ impl SignatureCache {
                 },
             );
         }
-        // Best effort save - don't block on I/O errors
-        let _ = self.save_to_file();
+        self.mark_dirty_and_maybe_flush();
     }
 
     /// Get function signature by 4-byte selector
@@ -184,6 +277,8 @@ impl SignatureCache {
     }
 
     /// Set function signature
+    ///
+    /// Uses write-behind caching - changes are accumulated and flushed periodically.
     pub fn set_function(&self, selector: &str, signature: &str) {
         {
             let mut data = self.data.write();
@@ -196,8 +291,7 @@ impl SignatureCache {
                 },
             );
         }
-        // Best effort save - don't block on I/O errors
-        let _ = self.save_to_file();
+        self.mark_dirty_and_maybe_flush();
     }
 
     /// Batch set multiple event signatures
@@ -313,6 +407,18 @@ impl std::fmt::Display for CacheStats {
             self.valid_functions,
             self.cache_path.display()
         )
+    }
+}
+
+/// Flush pending changes to disk when the cache is dropped
+impl Drop for SignatureCache {
+    fn drop(&mut self) {
+        // Flush any pending changes to disk
+        // Note: we can't use &self.flush() here because Drop takes &mut self,
+        // so we inline the logic
+        if self.dirty.load(std::sync::atomic::Ordering::Relaxed) {
+            let _ = self.save_to_file();
+        }
     }
 }
 

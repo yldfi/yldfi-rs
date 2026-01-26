@@ -84,4 +84,19 @@ pub enum EndpointCommands {
         #[arg(value_name = "URL")]
         url: String,
     },
+
+    /// Show endpoint health status (probes all endpoints)
+    Health {
+        /// Filter by chain (ethereum, polygon, arbitrum, etc.)
+        #[arg(long, value_name = "CHAIN")]
+        chain: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Number of probe requests per endpoint
+        #[arg(long, default_value = "3", value_name = "COUNT")]
+        probes: u32,
+    },
 }

@@ -2,7 +2,7 @@
 //!
 //! These tests verify client behavior without hitting the real Pyth API.
 
-use pyth::{Client, Config};
+use pythc::{Client, Config};
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -49,7 +49,7 @@ async fn test_get_latest_price_success() {
         .await;
 
     let client = mock_client(&mock_server);
-    let result = client.get_latest_price(pyth::feed_ids::ETH_USD).await;
+    let result = client.get_latest_price(pythc::feed_ids::ETH_USD).await;
 
     assert!(result.is_ok());
     let feed = result.unwrap();
@@ -121,7 +121,7 @@ async fn test_get_latest_prices_multiple() {
 
     let client = mock_client(&mock_server);
     let result = client
-        .get_latest_prices(&[pyth::feed_ids::BTC_USD, pyth::feed_ids::ETH_USD])
+        .get_latest_prices(&[pythc::feed_ids::BTC_USD, pythc::feed_ids::ETH_USD])
         .await;
 
     assert!(result.is_ok());
@@ -195,7 +195,7 @@ async fn test_rate_limiting_with_retry() {
         .await;
 
     let client = mock_client(&mock_server);
-    let result = client.get_latest_price(pyth::feed_ids::ETH_USD).await;
+    let result = client.get_latest_price(pythc::feed_ids::ETH_USD).await;
 
     // Should succeed after retries
     assert!(result.is_ok());
@@ -229,7 +229,7 @@ async fn test_server_error_retry() {
         .await;
 
     let client = mock_client(&mock_server);
-    let result = client.get_latest_price(pyth::feed_ids::ETH_USD).await;
+    let result = client.get_latest_price(pythc::feed_ids::ETH_USD).await;
 
     assert!(result.is_ok());
 }
@@ -311,7 +311,7 @@ async fn test_404_error() {
         .await;
 
     let client = mock_client(&mock_server);
-    let result = client.get_latest_price(pyth::feed_ids::ETH_USD).await;
+    let result = client.get_latest_price(pythc::feed_ids::ETH_USD).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -356,34 +356,34 @@ async fn test_feed_id_normalization() {
 async fn test_symbol_to_feed_id() {
     // Test symbol lookup
     assert_eq!(
-        pyth::symbol_to_feed_id("ETH"),
-        Some(pyth::feed_ids::ETH_USD)
+        pythc::symbol_to_feed_id("ETH"),
+        Some(pythc::feed_ids::ETH_USD)
     );
     assert_eq!(
-        pyth::symbol_to_feed_id("eth"),
-        Some(pyth::feed_ids::ETH_USD)
+        pythc::symbol_to_feed_id("eth"),
+        Some(pythc::feed_ids::ETH_USD)
     );
     assert_eq!(
-        pyth::symbol_to_feed_id("ETHEREUM"),
-        Some(pyth::feed_ids::ETH_USD)
+        pythc::symbol_to_feed_id("ETHEREUM"),
+        Some(pythc::feed_ids::ETH_USD)
     );
     assert_eq!(
-        pyth::symbol_to_feed_id("BTC"),
-        Some(pyth::feed_ids::BTC_USD)
+        pythc::symbol_to_feed_id("BTC"),
+        Some(pythc::feed_ids::BTC_USD)
     );
     assert_eq!(
-        pyth::symbol_to_feed_id("BITCOIN"),
-        Some(pyth::feed_ids::BTC_USD)
+        pythc::symbol_to_feed_id("BITCOIN"),
+        Some(pythc::feed_ids::BTC_USD)
     );
     assert_eq!(
-        pyth::symbol_to_feed_id("USDC"),
-        Some(pyth::feed_ids::USDC_USD)
+        pythc::symbol_to_feed_id("USDC"),
+        Some(pythc::feed_ids::USDC_USD)
     );
     assert_eq!(
-        pyth::symbol_to_feed_id("LINK"),
-        Some(pyth::feed_ids::LINK_USD)
+        pythc::symbol_to_feed_id("LINK"),
+        Some(pythc::feed_ids::LINK_USD)
     );
 
     // Unknown symbol
-    assert_eq!(pyth::symbol_to_feed_id("UNKNOWN_TOKEN_XYZ"), None);
+    assert_eq!(pythc::symbol_to_feed_id("UNKNOWN_TOKEN_XYZ"), None);
 }

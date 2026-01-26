@@ -1,7 +1,22 @@
 //! Types for the CoW Protocol API responses
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::str::FromStr;
+
+/// Error returned when parsing a chain from a string fails
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseChainError {
+    input: String,
+}
+
+impl fmt::Display for ParseChainError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unknown chain: {}", self.input)
+    }
+}
+
+impl std::error::Error for ParseChainError {}
 
 /// Supported chains for CoW Protocol
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -72,7 +87,7 @@ impl std::fmt::Display for Chain {
 }
 
 impl FromStr for Chain {
-    type Err = String;
+    type Err = ParseChainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -80,7 +95,7 @@ impl FromStr for Chain {
             "gnosis" | "xdai" | "100" => Ok(Chain::Gnosis),
             "arbitrum" | "arb" | "42161" => Ok(Chain::Arbitrum),
             "sepolia" | "11155111" => Ok(Chain::Sepolia),
-            _ => Err(format!("Unknown chain: {}", s)),
+            _ => Err(ParseChainError { input: s.to_string() }),
         }
     }
 }
@@ -225,6 +240,61 @@ impl QuoteRequest {
         self.app_data = Some(app_data.into());
         self
     }
+
+    /// Validate the quote request parameters
+    ///
+    /// Checks that addresses and amounts are properly formatted.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token addresses are not valid Ethereum addresses (0x + 40 hex chars)
+    /// - From address is not a valid Ethereum address
+    /// - Amounts contain non-numeric characters
+    pub fn validate(&self) -> Result<(), &'static str> {
+        // Validate addresses
+        if !is_valid_address(&self.sell_token) {
+            return Err("invalid sell_token address");
+        }
+        if !is_valid_address(&self.buy_token) {
+            return Err("invalid buy_token address");
+        }
+        if !is_valid_address(&self.from) {
+            return Err("invalid from address");
+        }
+        if let Some(ref receiver) = self.receiver {
+            if !is_valid_address(receiver) {
+                return Err("invalid receiver address");
+            }
+        }
+
+        // Validate amounts (should be numeric strings)
+        if let Some(ref amount) = self.sell_amount_before_fee {
+            if !is_valid_amount(amount) {
+                return Err("invalid sell_amount_before_fee");
+            }
+        }
+        if let Some(ref amount) = self.buy_amount_after_fee {
+            if !is_valid_amount(amount) {
+                return Err("invalid buy_amount_after_fee");
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Check if a string is a valid Ethereum address (0x + 40 hex chars)
+fn is_valid_address(s: &str) -> bool {
+    if !s.starts_with("0x") || s.len() != 42 {
+        return false;
+    }
+    s[2..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Check if a string is a valid amount (numeric string, no decimals)
+fn is_valid_amount(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
 }
 
 /// Signing scheme for orders

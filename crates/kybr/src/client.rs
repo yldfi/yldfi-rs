@@ -62,27 +62,32 @@ impl Client {
     /// }
     /// ```
     pub async fn get_routes(&self, chain: Chain, request: &RouteRequest) -> Result<RouteSummary> {
-        let mut query_params: Vec<(&str, String)> = vec![
-            ("tokenIn", request.token_in.clone()),
-            ("tokenOut", request.token_out.clone()),
-            ("amountIn", request.amount_in.clone()),
+        // RUST-001 fix: Build query params without cloning strings where possible
+        // Use Cow-like pattern: store references for required fields, owned for optional conversions
+        let save_gas_str;
+        let slippage_str;
+
+        let mut query_params: Vec<(&str, &str)> = vec![
+            ("tokenIn", &request.token_in),
+            ("tokenOut", &request.token_out),
+            ("amountIn", &request.amount_in),
         ];
 
         if let Some(ref to) = request.to {
-            query_params.push(("to", to.clone()));
+            query_params.push(("to", to));
         }
         if let Some(save_gas) = request.save_gas {
-            query_params.push(("saveGas", save_gas.to_string()));
+            save_gas_str = save_gas.to_string();
+            query_params.push(("saveGas", &save_gas_str));
         }
         if let Some(bps) = request.slippage_tolerance_bps {
-            query_params.push(("slippageTolerance", bps.to_string()));
+            slippage_str = bps.to_string();
+            query_params.push(("slippageTolerance", &slippage_str));
         }
 
         let path = format!("/{}/api/v1/routes", chain.as_str());
-        let query_refs: Vec<(&str, &str)> =
-            query_params.iter().map(|(k, v)| (*k, v.as_str())).collect();
 
-        let response: RoutesResponse = self.base.get(&path, &query_refs).await?;
+        let response: RoutesResponse = self.base.get(&path, &query_params).await?;
 
         if response.code != 0 {
             return Err(Error::api(response.code as u16, response.message));
@@ -96,24 +101,26 @@ impl Client {
 
     /// Get full route data including router address
     pub async fn get_route_data(&self, chain: Chain, request: &RouteRequest) -> Result<RouteData> {
-        let mut query_params: Vec<(&str, String)> = vec![
-            ("tokenIn", request.token_in.clone()),
-            ("tokenOut", request.token_out.clone()),
-            ("amountIn", request.amount_in.clone()),
+        // RUST-001 fix: Avoid cloning strings
+        let slippage_str;
+
+        let mut query_params: Vec<(&str, &str)> = vec![
+            ("tokenIn", &request.token_in),
+            ("tokenOut", &request.token_out),
+            ("amountIn", &request.amount_in),
         ];
 
         if let Some(ref to) = request.to {
-            query_params.push(("to", to.clone()));
+            query_params.push(("to", to));
         }
         if let Some(bps) = request.slippage_tolerance_bps {
-            query_params.push(("slippageTolerance", bps.to_string()));
+            slippage_str = bps.to_string();
+            query_params.push(("slippageTolerance", &slippage_str));
         }
 
         let path = format!("/{}/api/v1/routes", chain.as_str());
-        let query_refs: Vec<(&str, &str)> =
-            query_params.iter().map(|(k, v)| (*k, v.as_str())).collect();
 
-        let response: RoutesResponse = self.base.get(&path, &query_refs).await?;
+        let response: RoutesResponse = self.base.get(&path, &query_params).await?;
 
         if response.code != 0 {
             return Err(Error::api(response.code as u16, response.message));

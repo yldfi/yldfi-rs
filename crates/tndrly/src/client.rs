@@ -39,6 +39,13 @@ pub struct Config {
     /// Connect timeout
     pub connect_timeout: Duration,
     /// Optional proxy URL
+    ///
+    /// Supports HTTP/HTTPS proxies with optional authentication:
+    /// - `http://proxy.example.com:8080`
+    /// - `http://user:password@proxy.example.com:8080`
+    ///
+    /// **Security Note**: Embedded credentials in the URL are supported but
+    /// will be redacted in Debug output. Avoid logging proxy URLs directly.
     pub proxy: Option<String>,
 }
 
@@ -147,6 +154,8 @@ impl std::fmt::Debug for Config {
 pub struct Client {
     config: Arc<Config>,
     http: reqwest::Client,
+    /// Pre-computed URL prefix for API calls (PERF-011 fix)
+    url_prefix: String,
 }
 
 impl Client {
@@ -165,9 +174,18 @@ impl Client {
 
         let http = builder.build().map_err(Error::Http)?;
 
+        // PERF-011 fix: Pre-compute URL prefix to avoid allocation on every API call
+        let url_prefix = format!(
+            "{}/account/{}/project/{}",
+            config.base_url(),
+            encode_path_segment(&config.account),
+            encode_path_segment(&config.project),
+        );
+
         Ok(Self {
             config: Arc::new(config),
             http,
+            url_prefix,
         })
     }
 
@@ -192,14 +210,10 @@ impl Client {
     }
 
     /// Build the full URL for an API endpoint
+    ///
+    /// Uses pre-computed URL prefix for efficiency (PERF-011 fix).
     pub fn url(&self, path: &str) -> String {
-        format!(
-            "{}/account/{}/project/{}{}",
-            self.config.base_url(),
-            encode_path_segment(&self.config.account),
-            encode_path_segment(&self.config.project),
-            path
-        )
+        format!("{}{}", self.url_prefix, path)
     }
 
     /// Build headers for API requests

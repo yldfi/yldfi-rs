@@ -1,7 +1,22 @@
 //! Types for the KyberSwap API responses
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::str::FromStr;
+
+/// Error returned when parsing a chain from a string fails
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseChainError {
+    input: String,
+}
+
+impl fmt::Display for ParseChainError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unknown chain: {}", self.input)
+    }
+}
+
+impl std::error::Error for ParseChainError {}
 
 /// Supported chains for KyberSwap
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -71,7 +86,7 @@ impl Chain {
 }
 
 impl FromStr for Chain {
-    type Err = String;
+    type Err = ParseChainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -89,7 +104,7 @@ impl FromStr for Chain {
             "blast" => Ok(Chain::Blast),
             "mantle" | "mnt" => Ok(Chain::Mantle),
             "polygon-zkevm" | "zkevm" => Ok(Chain::PolygonZkEvm),
-            _ => Err(format!("Unknown chain: {}", s)),
+            _ => Err(ParseChainError { input: s.to_string() }),
         }
     }
 }
@@ -211,6 +226,60 @@ impl RouteRequest {
         self.save_gas = Some(save_gas);
         self
     }
+
+    /// Validate the route request parameters
+    ///
+    /// Checks that addresses, amounts, and slippage are properly formatted.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token addresses are not valid Ethereum addresses (0x + 40 hex chars)
+    /// - Amounts contain non-numeric characters
+    /// - Slippage tolerance is unreasonably high (> 5000 bps = 50%)
+    pub fn validate(&self) -> Result<(), &'static str> {
+        // Validate token addresses
+        if !is_valid_address(&self.token_in) {
+            return Err("invalid token_in address");
+        }
+        if !is_valid_address(&self.token_out) {
+            return Err("invalid token_out address");
+        }
+
+        // Validate recipient address if provided
+        if let Some(ref to) = self.to {
+            if !is_valid_address(to) {
+                return Err("invalid recipient address");
+            }
+        }
+
+        // Validate amount (should be numeric string)
+        if !is_valid_amount(&self.amount_in) {
+            return Err("invalid amount_in");
+        }
+
+        // Validate slippage tolerance (max 50% = 5000 bps is already extreme)
+        if let Some(bps) = self.slippage_tolerance_bps {
+            if bps > 5000 {
+                return Err("slippage_tolerance_bps too high (max 5000 = 50%)");
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Check if a string is a valid Ethereum address (0x + 40 hex chars)
+fn is_valid_address(s: &str) -> bool {
+    if !s.starts_with("0x") || s.len() != 42 {
+        return false;
+    }
+    s[2..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Check if a string is a valid amount (numeric string, no decimals)
+fn is_valid_amount(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
 }
 
 /// Routes response from KyberSwap API

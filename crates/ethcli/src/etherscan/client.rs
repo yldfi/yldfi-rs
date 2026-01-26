@@ -130,16 +130,34 @@ fn prioritize_known_signatures(
     }
     signatures
 }
+
+/// Normalize a hex selector to lowercase with 0x prefix
+/// Uses Cow to avoid allocation when selector is already normalized
+fn normalize_hex_selector(selector: &str) -> Cow<'_, str> {
+    let without_prefix = selector.strip_prefix("0x").unwrap_or(selector);
+
+    // Check if already lowercase
+    let is_lowercase = without_prefix.bytes().all(|b| !b.is_ascii_uppercase());
+
+    if selector.starts_with("0x") && is_lowercase {
+        // Already normalized, return borrowed
+        Cow::Borrowed(selector)
+    } else {
+        // Need to normalize
+        Cow::Owned(format!("0x{}", without_prefix.to_lowercase()))
+    }
+}
+
 use crate::error::{AbiError, Result};
 use crate::etherscan::SignatureCache;
 use crate::utils::{
-    decode_string_from_hex, decode_uint8_from_hex, urlencoding_encode, TokenMetadata,
+    decode_string_from_hex, decode_uint8_from_hex, get_shared_http_client, urlencoding_encode,
+    TokenMetadata,
 };
 use alloy_chains::Chain as AlloyChain;
 use foundry_block_explorers::Client as EtherscanClient;
 use std::borrow::Cow;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Extended Etherscan client with signature caching and 4byte lookups
 pub struct Client {
@@ -157,6 +175,8 @@ pub struct Client {
 
 impl Client {
     /// Create a new client for the given chain
+    ///
+    /// Uses a shared HTTP client (PERF-003 fix) to avoid duplicate connection pools.
     pub fn new(chain: Chain, api_key: Option<String>) -> Result<Self> {
         // Convert our Chain enum to alloy_chains::Chain for foundry-block-explorers
         let alloy_chain = AlloyChain::from_id(chain.chain_id());
@@ -168,12 +188,10 @@ impl Client {
             .build()
             .map_err(|e| AbiError::EtherscanFetch(format!("Failed to build client: {}", e)))?;
 
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .pool_max_idle_per_host(10)
-            .pool_idle_timeout(Duration::from_secs(90))
-            .build()
-            .map_err(|e| AbiError::HttpClientInit(e.to_string()))?;
+        // Use shared HTTP client to avoid duplicate connection pools
+        let http = get_shared_http_client()
+            .map_err(AbiError::HttpClientInit)?
+            .clone();
 
         Ok(Self {
             inner,
@@ -235,13 +253,8 @@ impl Client {
     /// The first result is typically the most common/correct one.
     /// If 4byte.directory has no results, falls back to searching cached ABIs.
     pub async fn lookup_selector_all(&self, selector: &str) -> Option<Vec<String>> {
-        let normalized = format!(
-            "0x{}",
-            selector
-                .strip_prefix("0x")
-                .unwrap_or(selector)
-                .to_lowercase()
-        );
+        // PERF-009 fix: avoid allocation if already normalized
+        let normalized = normalize_hex_selector(selector);
 
         // Check negative cache first - skip lookup if we recently found nothing
         if self.cache.is_not_found(&normalized) {
@@ -316,10 +329,8 @@ impl Client {
     /// Returns all matching signatures from 4byte.directory, sorted by popularity.
     /// If 4byte.directory has no results, falls back to searching cached ABIs.
     pub async fn lookup_event_all(&self, topic0: &str) -> Option<Vec<String>> {
-        let normalized = format!(
-            "0x{}",
-            topic0.strip_prefix("0x").unwrap_or(topic0).to_lowercase()
-        );
+        // PERF-009 fix: avoid allocation if already normalized
+        let normalized = normalize_hex_selector(topic0);
 
         // Check negative cache first - skip lookup if we recently found nothing
         if self.cache.is_not_found(&normalized) {

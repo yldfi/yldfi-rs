@@ -175,7 +175,12 @@ impl HealthTracker {
     /// Record a successful request
     pub fn record_success(&self, url: &str, latency: Duration) {
         let mut health = self.health.write();
-        let entry = health.entry(url.to_string()).or_default();
+        // RUST-009 fix: avoid allocation if key already exists
+        let entry = if health.contains_key(url) {
+            health.get_mut(url).unwrap()
+        } else {
+            health.entry(url.to_string()).or_default()
+        };
 
         entry.total_requests += 1;
         entry.successful_requests += 1;
@@ -200,7 +205,12 @@ impl HealthTracker {
     /// Record a failed request
     pub fn record_failure(&self, url: &str, is_rate_limit: bool, is_timeout: bool) {
         let mut health = self.health.write();
-        let entry = health.entry(url.to_string()).or_default();
+        // RUST-009 fix: avoid allocation if key already exists
+        let entry = if health.contains_key(url) {
+            health.get_mut(url).unwrap()
+        } else {
+            health.entry(url.to_string()).or_default()
+        };
 
         entry.total_requests += 1;
         entry.failed_requests += 1;
@@ -225,7 +235,12 @@ impl HealthTracker {
     /// Record learned block range limit
     pub fn record_block_range_limit(&self, url: &str, limit: u64) {
         let mut health = self.health.write();
-        let entry = health.entry(url.to_string()).or_default();
+        // RUST-009 fix: avoid allocation if key already exists
+        let entry = if health.contains_key(url) {
+            health.get_mut(url).unwrap()
+        } else {
+            health.entry(url.to_string()).or_default()
+        };
 
         // Only update if lower than current learned limit
         match entry.learned_max_block_range {
@@ -238,7 +253,12 @@ impl HealthTracker {
     /// Record learned max logs limit
     pub fn record_logs_limit(&self, url: &str, limit: usize) {
         let mut health = self.health.write();
-        let entry = health.entry(url.to_string()).or_default();
+        // RUST-009 fix: avoid allocation if key already exists
+        let entry = if health.contains_key(url) {
+            health.get_mut(url).unwrap()
+        } else {
+            health.entry(url.to_string()).or_default()
+        };
 
         // Only update if lower than current learned limit
         match entry.learned_max_logs {
@@ -259,7 +279,12 @@ impl HealthTracker {
     /// multiple concurrent probe requests (fixes race condition).
     pub fn try_probe(&self, url: &str) -> bool {
         let mut health = self.health.write();
-        let entry = health.entry(url.to_string()).or_default();
+        // RUST-009 fix: avoid allocation if key already exists
+        let entry = if health.contains_key(url) {
+            health.get_mut(url).unwrap()
+        } else {
+            health.entry(url.to_string()).or_default()
+        };
 
         if !entry.circuit_open {
             return true;
@@ -280,6 +305,18 @@ impl HealthTracker {
     /// Get health for an endpoint
     pub fn get_health(&self, url: &str) -> Option<EndpointHealth> {
         self.health.read().get(url).cloned()
+    }
+
+    /// Get health score for an endpoint (PERF-004 fix: avoid String allocation)
+    ///
+    /// Returns the health score directly without cloning EndpointHealth.
+    /// Returns 100.0 for unknown endpoints (assume healthy).
+    pub fn get_health_score(&self, url: &str) -> f64 {
+        self.health
+            .read()
+            .get(url)
+            .map(|h| h.health_score())
+            .unwrap_or(100.0)
     }
 
     /// Get all health data

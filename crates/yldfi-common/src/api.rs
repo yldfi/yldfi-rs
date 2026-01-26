@@ -54,6 +54,65 @@ impl fmt::Display for NoDomainError {
 
 impl std::error::Error for NoDomainError {}
 
+/// Maximum length for error message bodies (SEC-005 fix)
+const MAX_ERROR_BODY_LENGTH: usize = 500;
+
+/// Sanitize an API error body to remove potential secrets and truncate if too long.
+///
+/// This function:
+/// 1. Truncates bodies longer than 500 characters
+/// 2. Redacts common API key patterns (query params, bearer tokens)
+///
+/// This is a security measure to prevent accidental exposure of sensitive data
+/// in error messages and logs.
+fn sanitize_error_body(body: &str) -> String {
+    // Truncate if too long
+    let truncated = if body.len() > MAX_ERROR_BODY_LENGTH {
+        format!("{}... (truncated)", &body[..MAX_ERROR_BODY_LENGTH])
+    } else {
+        body.to_string()
+    };
+
+    // Simple regex-free sanitization for common patterns
+    // Redact query params that look like keys/tokens
+    let mut result = truncated;
+
+    // Redact patterns like ?key=xxx or &api_key=xxx
+    for pattern in ["key=", "apikey=", "api_key=", "token=", "secret=", "auth=", "password="] {
+        if let Some(start) = result.to_lowercase().find(pattern) {
+            // Find the end of the value (next & or end of string/whitespace)
+            let value_start = start + pattern.len();
+            let value_end = result[value_start..]
+                .find(|c: char| c == '&' || c.is_whitespace())
+                .map(|i| value_start + i)
+                .unwrap_or(result.len());
+
+            if value_end > value_start {
+                result = format!(
+                    "{}{}[REDACTED]{}",
+                    &result[..start],
+                    pattern,
+                    &result[value_end..]
+                );
+            }
+        }
+    }
+
+    // Redact Bearer tokens
+    if let Some(start) = result.to_lowercase().find("bearer ") {
+        let token_start = start + 7;
+        let token_end = result[token_start..]
+            .find(|c: char| c.is_whitespace())
+            .map(|i| token_start + i)
+            .unwrap_or(result.len());
+        if token_end > token_start {
+            result = format!("{}Bearer [REDACTED]{}", &result[..start], &result[token_end..]);
+        }
+    }
+
+    result
+}
+
 /// Generic API error type with support for domain-specific errors
 ///
 /// This error type covers the common error cases across all API clients:
@@ -155,16 +214,20 @@ impl<E: std::error::Error> ApiError<E> {
     /// - 429 -> RateLimited
     /// - 500-599 -> ServerError
     /// - Other -> Api
+    ///
+    /// Note: The body is sanitized to remove potential secrets and truncated
+    /// if too long (SEC-005 fix).
     pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Self {
+        let sanitized = sanitize_error_body(body);
         match status {
             429 => Self::RateLimited { retry_after },
             500..=599 => Self::ServerError {
                 status,
-                message: body.to_string(),
+                message: sanitized,
             },
             _ => Self::Api {
                 status,
-                message: body.to_string(),
+                message: sanitized,
             },
         }
     }
@@ -495,12 +558,44 @@ pub struct BaseClient {
 impl BaseClient {
     /// Create a new base client from configuration.
     ///
+    /// This constructor validates the configuration, enforcing HTTPS for security
+    /// (SEC-003 fix). HTTP is only allowed for localhost development URLs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The URL uses HTTP (except localhost)
+    /// - The HTTP client cannot be built
+    pub fn new(config: ApiConfig) -> Result<Self, HttpError> {
+        // Validate HTTPS requirement (SEC-003 fix)
+        if let Err(e) = config.validate() {
+            return Err(HttpError::BuildError(format!(
+                "Configuration validation failed: {}. Use HTTPS URLs to protect API keys.",
+                e
+            )));
+        }
+
+        let http = config.build_client()?;
+        // Cache normalized base URL to avoid repeated allocation in url()
+        let normalized_base_url = config.base_url.trim_end_matches('/').to_string();
+        Ok(Self {
+            http,
+            config,
+            normalized_base_url,
+        })
+    }
+
+    /// Create a new base client without HTTPS validation.
+    ///
+    /// **Warning:** This bypasses HTTPS enforcement. Only use this for development
+    /// with local HTTP servers. Never use this with production API endpoints that
+    /// require API keys, as credentials will be transmitted in plain text.
+    ///
     /// # Errors
     ///
     /// Returns an error if the HTTP client cannot be built.
-    pub fn new(config: ApiConfig) -> Result<Self, HttpError> {
+    pub fn new_unchecked(config: ApiConfig) -> Result<Self, HttpError> {
         let http = config.build_client()?;
-        // Cache normalized base URL to avoid repeated allocation in url()
         let normalized_base_url = config.base_url.trim_end_matches('/').to_string();
         Ok(Self {
             http,
@@ -566,6 +661,13 @@ impl BaseClient {
     ///
     /// * `path` - The API path (will be joined with base_url)
     /// * `params` - Query parameters as key-value pairs
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Network request fails
+    /// - Response status indicates an error (4xx/5xx)
+    /// - Response body cannot be deserialized to type `T`
     pub async fn get<T, E>(
         &self,
         path: &str,
@@ -614,6 +716,13 @@ impl BaseClient {
     /// * `T` - The response type
     /// * `B` - The request body type (must implement `Serialize`)
     /// * `E` - Domain-specific error type
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Network request fails
+    /// - Response status indicates an error (4xx/5xx)
+    /// - Response body cannot be deserialized to type `T`
     pub async fn post_json<T, B, E>(&self, path: &str, body: &B) -> Result<T, ApiError<E>>
     where
         T: serde::de::DeserializeOwned,
@@ -966,5 +1075,36 @@ mod tests {
 
         assert_eq!(client.base_url(), "https://api.example.com");
         assert_eq!(client.config().get_api_key(), Some("my-key"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_truncation() {
+        let long_body = "a".repeat(1000);
+        let sanitized = super::sanitize_error_body(&long_body);
+        assert!(sanitized.len() < 600); // Should be truncated with "... (truncated)"
+        assert!(sanitized.ends_with("... (truncated)"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_key_redaction() {
+        let body = "Error: ?api_key=secret123&foo=bar";
+        let sanitized = super::sanitize_error_body(body);
+        assert!(sanitized.contains("[REDACTED]"));
+        assert!(!sanitized.contains("secret123"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_bearer_redaction() {
+        let body = "Authorization: Bearer mysecrettoken123";
+        let sanitized = super::sanitize_error_body(body);
+        assert!(sanitized.contains("[REDACTED]"));
+        assert!(!sanitized.contains("mysecrettoken123"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_no_redaction_needed() {
+        let body = "Simple error message";
+        let sanitized = super::sanitize_error_body(body);
+        assert_eq!(sanitized, body);
     }
 }

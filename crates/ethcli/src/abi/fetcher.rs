@@ -6,14 +6,14 @@ use crate::config::Chain;
 use crate::error::{AbiError, Result};
 use crate::etherscan::SignatureCache;
 use crate::utils::{
-    decode_string_from_hex, decode_uint8_from_hex, urlencoding_encode, TokenMetadata,
+    decode_string_from_hex, decode_uint8_from_hex, get_shared_http_client, urlencoding_encode,
+    TokenMetadata,
 };
 use alloy::json_abi::JsonAbi;
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Etherscan API response
 #[derive(Debug, Deserialize)]
@@ -60,15 +60,14 @@ pub struct AbiFetcher {
 impl AbiFetcher {
     /// Create a new ABI fetcher
     ///
+    /// Uses a shared HTTP client (PERF-003 fix) to avoid duplicate connection pools.
     /// Returns an error if the HTTP client cannot be initialized (rare, usually
     /// indicates TLS backend issues).
     pub fn new(api_key: Option<String>) -> Result<Self> {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .pool_max_idle_per_host(10)
-            .pool_idle_timeout(Duration::from_secs(90))
-            .build()
-            .map_err(|e| AbiError::HttpClientInit(e.to_string()))?;
+        // Use shared HTTP client to avoid duplicate connection pools
+        let client = get_shared_http_client()
+            .map_err(AbiError::HttpClientInit)?
+            .clone();
 
         Ok(Self {
             client,
@@ -78,13 +77,13 @@ impl AbiFetcher {
     }
 
     /// Create a new ABI fetcher with a custom cache
+    ///
+    /// Uses a shared HTTP client (PERF-003 fix) to avoid duplicate connection pools.
     pub fn with_cache(api_key: Option<String>, cache: Arc<SignatureCache>) -> Result<Self> {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .pool_max_idle_per_host(10)
-            .pool_idle_timeout(Duration::from_secs(90))
-            .build()
-            .map_err(|e| AbiError::HttpClientInit(e.to_string()))?;
+        // Use shared HTTP client to avoid duplicate connection pools
+        let client = get_shared_http_client()
+            .map_err(AbiError::HttpClientInit)?
+            .clone();
 
         Ok(Self {
             client,

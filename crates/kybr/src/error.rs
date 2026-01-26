@@ -8,6 +8,7 @@ pub use yldfi_common::api::ApiError;
 
 /// Domain-specific errors for KyberSwap
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DomainError {
     /// Invalid parameter
     #[error("Invalid parameter: {0}")]
@@ -42,4 +43,46 @@ pub fn unsupported_chain(chain: impl Into<String>) -> Error {
 /// Create a no route found error
 pub fn no_route_found() -> Error {
     ApiError::domain(DomainError::NoRouteFound)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_invalid_param_error() {
+        let err = invalid_param("missing token address");
+        let display = format!("{err}");
+        assert!(display.contains("Invalid parameter"));
+        assert!(display.contains("missing token address"));
+    }
+
+    #[test]
+    fn test_unsupported_chain_error() {
+        let err = unsupported_chain("solana");
+        let display = format!("{err}");
+        assert!(display.contains("Unsupported chain"));
+        assert!(display.contains("solana"));
+    }
+
+    #[test]
+    fn test_no_route_found_error() {
+        let err = no_route_found();
+        let display = format!("{err}");
+        assert!(display.contains("No route found"));
+    }
+
+    #[test]
+    fn test_domain_error_variants() {
+        // Test that all variants are constructable
+        let _ = DomainError::InvalidParam("test".to_string());
+        let _ = DomainError::UnsupportedChain("test".to_string());
+        let _ = DomainError::NoRouteFound;
+    }
+
+    #[test]
+    fn test_error_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Error>();
+    }
 }

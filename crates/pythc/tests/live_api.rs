@@ -5,7 +5,7 @@
 //! cargo test -p pyth --test live_api -- --nocapture
 //! ```
 
-use pyth::{feed_ids, symbol_to_feed_id, Client, Config};
+use pythc::{feed_ids, symbol_to_feed_id, Client, Config};
 
 /// Test creating a mainnet client
 #[tokio::test]

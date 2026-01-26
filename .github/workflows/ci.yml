@@ -45,3 +45,21 @@ jobs:
         with:
           components: clippy
       - run: cargo clippy --workspace -- -D warnings
+
+  # INFO-001: Security audit for known vulnerabilities
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # INFO-002: License and security policy enforcement
+  deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2

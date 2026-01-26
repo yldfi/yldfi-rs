@@ -1140,6 +1140,214 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 println!("Endpoint not found: {}", url);
             }
         }
+
+        EndpointCommands::Health {
+            chain: chain_filter,
+            json,
+            probes,
+        } => {
+            use alloy::providers::{Provider, ProviderBuilder};
+            use ethcli::rpc::HealthTracker;
+            use ethcli::Chain;
+            use std::sync::Arc;
+            use std::time::Instant;
+
+            let config = ConfigFile::load_default()?.unwrap_or_default();
+
+            // Parse chain filter if provided
+            let chain_filter_parsed: Option<Chain> = chain_filter
+                .as_ref()
+                .map(|c| c.parse())
+                .transpose()
+                .ok()
+                .flatten();
+
+            // Filter endpoints by chain if specified
+            let endpoints: Vec<_> = config
+                .endpoints
+                .iter()
+                .filter(|e| e.enabled)
+                .filter(|e| {
+                    chain_filter_parsed
+                        .as_ref()
+                        .map(|c| e.chain == *c)
+                        .unwrap_or(true)
+                })
+                .collect();
+
+            if endpoints.is_empty() {
+                println!("No endpoints configured.");
+                return Ok(());
+            }
+
+            // Create health tracker for collecting stats
+            let health_tracker = Arc::new(HealthTracker::new());
+
+            // Probe each endpoint multiple times
+            println!(
+                "Probing {} endpoints ({} requests each)...\n",
+                endpoints.len(),
+                probes
+            );
+
+            for ep_config in &endpoints {
+                let url = &ep_config.url;
+
+                for _ in 0..*probes {
+                    let start = Instant::now();
+
+                    // Use a simple RPC call to test connectivity
+                    let url_parsed: reqwest::Url = url
+                        .parse()
+                        .unwrap_or_else(|_| "http://localhost:8545".parse().unwrap());
+                    let provider = ProviderBuilder::new().connect_http(url_parsed);
+
+                    let result: Result<u64, _> = provider.get_block_number().await;
+                    match result {
+                        Ok(_) => {
+                            let latency = start.elapsed();
+                            health_tracker.record_success(url, latency);
+                        }
+                        Err(e) => {
+                            let err_str = e.to_string();
+                            let is_timeout = err_str.contains("timeout");
+                            let is_rate_limit =
+                                err_str.contains("429") || err_str.contains("rate limit");
+                            health_tracker.record_failure(url, is_rate_limit, is_timeout);
+                        }
+                    }
+
+                    // Small delay between probes
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                }
+            }
+
+            // Collect and display health data
+            let all_health = health_tracker.get_all_health();
+
+            if *json {
+                // JSON output
+                #[derive(serde::Serialize)]
+                struct EndpointHealthJson {
+                    url: String,
+                    chain: String,
+                    available: bool,
+                    success_rate: f64,
+                    avg_latency_ms: f64,
+                    total_requests: u64,
+                    successful_requests: u64,
+                    failed_requests: u64,
+                    rate_limit_hits: u64,
+                    timeout_count: u64,
+                    circuit_open: bool,
+                    learned_max_block_range: Option<u64>,
+                    learned_max_logs: Option<usize>,
+                }
+
+                let health_json: Vec<_> = endpoints
+                    .iter()
+                    .map(|ep| {
+                        let h = all_health.get(&ep.url).cloned().unwrap_or_default();
+                        let success_rate = if h.total_requests > 0 {
+                            (h.successful_requests as f64 / h.total_requests as f64) * 100.0
+                        } else {
+                            0.0
+                        };
+                        EndpointHealthJson {
+                            url: ep.url.clone(),
+                            chain: ep.chain.to_string(),
+                            available: h.is_available(),
+                            success_rate,
+                            avg_latency_ms: h.avg_latency_ms,
+                            total_requests: h.total_requests,
+                            successful_requests: h.successful_requests,
+                            failed_requests: h.failed_requests,
+                            rate_limit_hits: h.rate_limit_hits,
+                            timeout_count: h.timeout_count,
+                            circuit_open: h.circuit_open,
+                            learned_max_block_range: h.learned_max_block_range,
+                            learned_max_logs: h.learned_max_logs,
+                        }
+                    })
+                    .collect();
+
+                println!("{}", serde_json::to_string_pretty(&health_json)?);
+            } else {
+                // Human-readable output
+                println!("Endpoint Health Status");
+                println!("{}", "═".repeat(78));
+
+                for ep in &endpoints {
+                    let h = all_health.get(&ep.url).cloned().unwrap_or_default();
+                    let success_rate = if h.total_requests > 0 {
+                        (h.successful_requests as f64 / h.total_requests as f64) * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    // Truncate/mask URL for display
+                    let display_url = if ep.url.len() > 60 {
+                        format!("{}...", &ep.url[..57])
+                    } else {
+                        ep.url.clone()
+                    };
+
+                    println!("\n{}", display_url);
+                    println!("  Chain:        {}", ep.chain);
+
+                    // Status indicator
+                    let status = if h.circuit_open {
+                        "⚠ Circuit Open"
+                    } else if h.is_available() {
+                        "✓ Available"
+                    } else {
+                        "✗ Unavailable"
+                    };
+                    println!("  Status:       {}", status);
+
+                    // Success rate
+                    println!(
+                        "  Success Rate: {:.1}% ({}/{} requests)",
+                        success_rate, h.successful_requests, h.total_requests
+                    );
+
+                    // Latency
+                    if h.avg_latency_ms > 0.0 {
+                        println!("  Avg Latency:  {:.0}ms", h.avg_latency_ms);
+                    }
+
+                    // Failures
+                    if h.rate_limit_hits > 0 {
+                        println!("  Rate Limited: {} times", h.rate_limit_hits);
+                    }
+                    if h.timeout_count > 0 {
+                        println!("  Timeouts:     {} times", h.timeout_count);
+                    }
+                    if h.consecutive_failures > 0 {
+                        println!("  Consecutive Failures: {}", h.consecutive_failures);
+                    }
+
+                    // Learned limits
+                    if h.learned_max_block_range.is_some() || h.learned_max_logs.is_some() {
+                        let mut limits = vec![];
+                        if let Some(blocks) = h.learned_max_block_range {
+                            limits.push(format!("max_blocks={}", blocks));
+                        }
+                        if let Some(logs) = h.learned_max_logs {
+                            limits.push(format!("max_logs={}", logs));
+                        }
+                        println!("  Limits:       {} (learned)", limits.join(", "));
+                    }
+                }
+
+                println!("\n{}", "═".repeat(78));
+                println!(
+                    "Probed {} endpoints with {} requests each.",
+                    endpoints.len(),
+                    probes
+                );
+            }
+        }
     }
 
     Ok(())

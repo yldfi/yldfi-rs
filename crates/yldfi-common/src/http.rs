@@ -76,7 +76,14 @@ pub struct HttpClientConfig {
     pub timeout: Duration,
     /// User-Agent header
     pub user_agent: String,
-    /// Optional proxy URL (e.g., "http://user:pass@proxy:port")
+    /// Optional proxy URL
+    ///
+    /// Supports HTTP/HTTPS proxies with optional authentication:
+    /// - `http://proxy.example.com:8080`
+    /// - `http://user:password@proxy.example.com:8080`
+    ///
+    /// **Security Note**: Embedded credentials in the URL are supported.
+    /// Avoid logging proxy URLs directly as they may contain secrets.
     pub proxy: Option<String>,
     /// Connection pool idle timeout
     pub pool_idle_timeout: Duration,

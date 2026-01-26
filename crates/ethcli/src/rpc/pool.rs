@@ -49,7 +49,7 @@ use alloy::rpc::types::{Filter, Log, Transaction, TransactionReceipt};
 use futures::future::join_all;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -59,6 +59,20 @@ use tokio::sync::Mutex;
 /// This prevents race conditions between concurrent async tasks. For multi-process
 /// scenarios, see the module-level documentation on TOCTOU considerations.
 static CONFIG_WRITE_LOCK: Mutex<()> = Mutex::const_new(());
+
+/// PERF-005 fix: Cached config to avoid repeated disk I/O on hot paths.
+/// The config is loaded once and cached for the duration of the process.
+/// Updates are written through to disk but the cached copy is updated in-memory.
+static CACHED_CONFIG: std::sync::OnceLock<parking_lot::Mutex<Option<ConfigFile>>> =
+    std::sync::OnceLock::new();
+
+/// Get or initialize the cached config
+fn get_cached_config() -> &'static parking_lot::Mutex<Option<ConfigFile>> {
+    CACHED_CONFIG.get_or_init(|| {
+        let config = ConfigFile::load_default().ok().flatten();
+        parking_lot::Mutex::new(config)
+    })
+}
 
 /// Persist a learned block range limit to the config file.
 ///
@@ -79,7 +93,10 @@ fn persist_block_range_limit(url: &str, limit: u64) {
     tokio::spawn(async move {
         // Acquire lock to prevent concurrent config modifications
         let _guard = CONFIG_WRITE_LOCK.lock().await;
-        if let Ok(Some(mut config)) = ConfigFile::load_default() {
+        // PERF-005 fix: Use cached config instead of loading from disk
+        let cached = get_cached_config();
+        let mut guard = cached.lock();
+        if let Some(ref mut config) = *guard {
             match config.update_endpoint_block_range(&url, limit) {
                 Ok(true) => {
                     tracing::info!(
@@ -105,7 +122,10 @@ fn persist_max_logs_limit(url: &str, limit: usize) {
     tokio::spawn(async move {
         // Acquire lock to prevent concurrent config modifications
         let _guard = CONFIG_WRITE_LOCK.lock().await;
-        if let Ok(Some(mut config)) = ConfigFile::load_default() {
+        // PERF-005 fix: Use cached config instead of loading from disk
+        let cached = get_cached_config();
+        let mut guard = cached.lock();
+        if let Some(ref mut config) = *guard {
             match config.update_endpoint_max_logs(&url, limit) {
                 Ok(true) => {
                     tracing::info!(
@@ -165,12 +185,24 @@ pub struct RpcPool {
 
 impl RpcPool {
     /// Create a new RPC pool for a chain
+    ///
+    /// (PERF-008 fix: Uses iterator-based filtering to avoid intermediate Vec clone)
     pub fn new(chain: Chain, config: &RpcConfig) -> Result<Self> {
-        // Use user-provided endpoints (no hardcoded defaults)
-        let mut endpoint_configs = config.endpoints.clone();
+        // Build excluded set for O(1) lookup
+        let excluded: HashSet<_> = config.exclude_endpoints.iter().collect();
 
-        // Filter by chain - only use endpoints that match the target chain
-        endpoint_configs.retain(|e| e.chain == chain);
+        // Filter endpoints with chained iterators - only clone configs that pass all filters
+        let mut endpoint_configs: Vec<EndpointConfig> = config
+            .endpoints
+            .iter()
+            .filter(|e| {
+                e.chain == chain
+                    && e.enabled
+                    && e.priority >= config.min_priority
+                    && !excluded.contains(&e.url)
+            })
+            .cloned()
+            .collect();
 
         // Add additional endpoints (these bypass chain filter as they're explicitly added)
         for url in &config.add_endpoints {
@@ -178,16 +210,6 @@ impl RpcPool {
                 endpoint_configs.push(EndpointConfig::new(url.clone()).with_chain(chain));
             }
         }
-
-        // Exclude specified endpoints
-        let excluded: HashSet<_> = config.exclude_endpoints.iter().collect();
-        endpoint_configs.retain(|e| !excluded.contains(&e.url));
-
-        // Filter by minimum priority
-        endpoint_configs.retain(|e| e.priority >= config.min_priority);
-
-        // Filter disabled endpoints
-        endpoint_configs.retain(|e| e.enabled);
 
         if endpoint_configs.is_empty() {
             return Err(RpcError::NoHealthyEndpoints.into());
@@ -197,14 +219,16 @@ impl RpcPool {
         let proxy = config.proxy.as_ref().and_then(|p| p.url.clone());
 
         // Create endpoint instances (wrapped in Arc to avoid cloning config strings)
+        // Note: cfg is consumed by Endpoint::new, capture URL before move for error logging
         let mut endpoints = Vec::new();
         for cfg in endpoint_configs {
-            match Endpoint::new(cfg.clone(), config.timeout_secs, proxy.as_deref()) {
+            let url = cfg.url.clone(); // Capture before move for error message
+            match Endpoint::new(cfg, config.timeout_secs, proxy.as_deref()) {
                 Ok(ep) => endpoints.push(Arc::new(ep)),
                 Err(e) => {
                     tracing::warn!(
                         "Failed to create endpoint {}: {}",
-                        sanitize_error_message(&cfg.url),
+                        sanitize_error_message(&url),
                         e
                     );
                 }
@@ -472,14 +496,8 @@ impl RpcPool {
     /// Select endpoints for a request based on health and priority
     ///
     /// Returns Arc<Endpoint> to avoid cloning EndpointConfig strings.
+    /// (PERF-004 fix: avoids intermediate String allocations by looking up scores directly)
     fn select_endpoints(&self, count: usize) -> Vec<Arc<Endpoint>> {
-        // Get URLs sorted by health score
-        let urls: Vec<_> = self.endpoints.iter().map(|e| e.url().to_string()).collect();
-        let ranked = self.health.rank_endpoints(&urls);
-
-        // Build HashMap for O(1) score lookup instead of O(n) linear search
-        let scores: HashMap<&str, f64> = ranked.iter().map(|(u, s)| (u.as_str(), *s)).collect();
-
         // Get available endpoints (Arc clone is cheap - just reference count increment)
         let mut available: Vec<_> = self
             .endpoints
@@ -497,10 +515,10 @@ impl RpcPool {
             );
         }
 
-        // Sort by ranking with O(1) score lookup
+        // Sort by health score - look up directly without intermediate allocations
         available.sort_by(|a, b| {
-            let a_score = scores.get(a.url()).copied().unwrap_or(0.0);
-            let b_score = scores.get(b.url()).copied().unwrap_or(0.0);
+            let a_score = self.health.get_health_score(a.url());
+            let b_score = self.health.get_health_score(b.url());
             b_score.total_cmp(&a_score)
         });
 

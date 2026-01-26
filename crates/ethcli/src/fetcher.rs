@@ -349,8 +349,17 @@ impl LogFetcher {
             .collect()
             .await;
 
+        // PERF-016 fix: Sort chunks by block range first, then merge in order
+        // Since buffer_unordered returns results in arbitrary completion order,
+        // but each chunk is internally sorted, we can avoid a full O(n log n) sort
+        // by sorting chunks O(k log k) and concatenating O(n).
+        let mut results: Vec<_> = results;
+        results.sort_by_key(|(from, _, _)| *from);
+
         // Collect all logs and track failures
-        let mut all_logs = Vec::new();
+        // PERF-015 fix: pre-allocate based on tracked log count
+        let total_logs = logs_count.load(std::sync::atomic::Ordering::Relaxed) as usize;
+        let mut all_logs = Vec::with_capacity(total_logs);
         let mut stats = FetchStats {
             chunks_total: chunks.len(),
             chunks_succeeded: 0,
@@ -358,7 +367,7 @@ impl LogFetcher {
             failed_ranges: Vec::new(),
         };
 
-        // Process results - chunk bounds are carried with each result for correct attribution
+        // Process results in sorted chunk order - logs within each chunk are already sorted
         for (chunk_from, chunk_to, result) in results {
             match result {
                 Ok(logs) => {
@@ -390,15 +399,20 @@ impl LogFetcher {
             );
         }
 
-        // Sort by block number and log index
-        all_logs.sort_by(|a, b| {
-            let block_cmp = a.block_number.cmp(&b.block_number);
-            if block_cmp == std::cmp::Ordering::Equal {
-                a.log_index.cmp(&b.log_index)
-            } else {
-                block_cmp
-            }
-        });
+        // Note: Since chunks are now processed in block order and each chunk's logs
+        // are already sorted by the RPC, we only need to sort if there were failures
+        // (which could cause gaps). For complete fetches, logs are already in order.
+        if stats.chunks_failed > 0 {
+            // Only sort if there were failures that could cause ordering issues
+            all_logs.sort_by(|a, b| {
+                let block_cmp = a.block_number.cmp(&b.block_number);
+                if block_cmp == std::cmp::Ordering::Equal {
+                    a.log_index.cmp(&b.log_index)
+                } else {
+                    block_cmp
+                }
+            });
+        }
 
         // Decode if needed
         let logs = if let Some(decoder) = &self.decoder {
@@ -764,17 +778,33 @@ impl StreamingFetcher {
         Ok(stats)
     }
 
-    /// Stream logs through a channel (for async consumers)
+    /// Stream logs through a bounded channel (for async consumers)
     ///
     /// Note: Uses `try_send` to avoid potential deadlock with `blocking_send`.
-    /// If channel is full, returns an error. Consider using an unbounded channel
-    /// or increasing channel capacity if you see send failures.
+    /// If channel is full, returns an error. For guaranteed delivery, use
+    /// `stream_unbounded` instead.
     pub async fn stream(mut self, tx: mpsc::Sender<Result<FetchResult>>) -> Result<FetchStats> {
         self.fetch_streaming(|result| {
             // Use try_send to avoid deadlock - blocking_send can deadlock if
             // the channel buffer is full and receiver is on the same runtime
             tx.try_send(Ok(result))
                 .map_err(|e| Error::from(format!("Channel send failed (buffer full?): {}", e)))
+        })
+        .await
+    }
+
+    /// Stream logs through an unbounded channel (for async consumers)
+    ///
+    /// RUST-003 fix: This variant uses an unbounded channel to avoid potential
+    /// deadlock issues. The unbounded channel will never block on send, but
+    /// memory usage is unbounded if the receiver is slow.
+    pub async fn stream_unbounded(
+        mut self,
+        tx: mpsc::UnboundedSender<Result<FetchResult>>,
+    ) -> Result<FetchStats> {
+        self.fetch_streaming(|result| {
+            tx.send(Ok(result))
+                .map_err(|e| Error::from(format!("Channel send failed (receiver dropped?): {}", e)))
         })
         .await
     }

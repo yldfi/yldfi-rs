@@ -279,12 +279,21 @@ impl Client {
         P: Serialize,
         R: DeserializeOwned,
     {
-        let request = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": method,
-            "params": params
-        });
+        // PERF-012 fix: use typed struct instead of json! macro to avoid double serialization
+        #[derive(Serialize)]
+        struct JsonRpcRequest<'a, P> {
+            jsonrpc: &'static str,
+            id: u32,
+            method: &'a str,
+            params: P,
+        }
+
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id: 1,
+            method,
+            params,
+        };
 
         let response = self.http.post(self.rpc_url()).json(&request).send().await?;
 

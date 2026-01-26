@@ -408,16 +408,23 @@ ethcli chainlink oracles --chain arbitrum
 
 ## Environment Variables
 
-- `ETHERSCAN_API_KEY`: Etherscan API key (optional, increases rate limit)
-- `TENDERLY_ACCESS_KEY`: Tenderly API access key (required for `ethcli tenderly` commands)
-- `ALCHEMY_API_KEY`: Alchemy API key (required for `ethcli alchemy` and `--via alcmy` simulation)
-- `COINGECKO_API_KEY`: CoinGecko API key (optional, increases rate limit)
-- `DEFILLAMA_API_KEY`: DefiLlama Pro API key (optional, for Pro endpoints)
-- `MORALIS_API_KEY`: Moralis API key (required for `ethcli moralis` commands)
-- `DUNE_SIM_API_KEY`: Dune SIM API key (required for `ethcli dsim` commands)
-- `DUNE_API_KEY`: Dune Analytics API key (required for `ethcli dune` commands)
-- `CHAINLINK_API_KEY`: Chainlink Data Streams API key (only for `streams` subcommand)
-- `CHAINLINK_USER_SECRET`: Chainlink Data Streams user secret (only for `streams` subcommand)
+**Note:** Some services have similar-named keys that serve different purposes:
+- `DUNE_API_KEY` (Dune Analytics queries) vs `DUNE_SIM_API_KEY` (Dune SIM wallet simulation)
+- `CHAINLINK_API_KEY` + `CHAINLINK_USER_SECRET` are only for Data Streams (premium), not needed for RPC-based price feeds
+
+| Variable | Required For | Description |
+|----------|-------------|-------------|
+| `ETHERSCAN_API_KEY` | Optional | Increases Etherscan rate limit |
+| `TENDERLY_ACCESS_KEY` | `ethcli tenderly` | Tenderly API access |
+| `ALCHEMY_API_KEY` | `ethcli alchemy`, `--via alcmy` | Alchemy API access |
+| `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (increases rate limit) |
+| `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
+| `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
+| `DUNE_SIM_API_KEY` | `ethcli dsim` | Dune SIM wallet simulation |
+| `DUNE_API_KEY` | `ethcli dune` | Dune Analytics queries |
+| `CHAINLINK_API_KEY` | `chainlink streams` only | Data Streams API key |
+| `CHAINLINK_USER_SECRET` | `chainlink streams` only | Data Streams secret |
+| `THEGRAPH_API_KEY` | Uniswap subgraph | The Graph API access |
 
 ## Release Process
 

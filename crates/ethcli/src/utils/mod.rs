@@ -8,7 +8,39 @@ pub mod progress;
 pub mod table;
 
 use std::borrow::Cow;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::OnceLock;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+/// Global shared HTTP client (PERF-003 fix: avoid duplicate connection pools)
+///
+/// This client is shared across AbiFetcher, etherscan::Client, and any other
+/// module that needs to make HTTP requests. Using a shared client improves
+/// performance by reusing TCP connections and TLS sessions.
+///
+/// We store Result<Client, String> to handle initialization errors.
+static SHARED_HTTP_CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
+
+/// Get or create the shared HTTP client
+///
+/// The client is configured with:
+/// - 30 second timeout
+/// - 10 idle connections per host
+/// - 90 second idle connection timeout
+///
+/// Returns an error if client initialization fails (rare, usually TLS backend issues).
+pub fn get_shared_http_client() -> Result<&'static reqwest::Client, String> {
+    SHARED_HTTP_CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .pool_max_idle_per_host(10)
+                .pool_idle_timeout(Duration::from_secs(90))
+                .build()
+                .map_err(|e| format!("Failed to initialize HTTP client: {}", e))
+        })
+        .as_ref()
+        .map_err(|e| e.clone())
+}
 
 // Re-export commonly used items
 pub use progress::{is_tty, ProgressBar, Spinner};

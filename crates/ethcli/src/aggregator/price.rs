@@ -11,6 +11,231 @@ use super::{
 };
 use futures::future::join_all;
 use secrecy::ExposeSecret;
+use std::sync::OnceLock;
+
+// =============================================================================
+// Cached API Clients (PERF-001 fix)
+// =============================================================================
+//
+// These static clients are lazily initialized and reused across all price
+// queries, avoiding HTTP client recreation overhead (~100-300ms per connection).
+
+/// Cached DefiLlama client (no API key required for basic usage)
+static LLAMA_CLIENT: OnceLock<Result<dllma::Client, String>> = OnceLock::new();
+
+/// Cached Curve client (no API key required)
+static CURVE_CLIENT: OnceLock<Result<crv::Client, String>> = OnceLock::new();
+
+/// Cached Curve Prices client (no API key required)
+static CURVE_PRICES_CLIENT: OnceLock<Result<crv::PricesClient, String>> = OnceLock::new();
+
+/// Cached Pyth client (no API key required)
+static PYTH_CLIENT: OnceLock<Result<pyth::Client, String>> = OnceLock::new();
+
+/// Cached Uniswap SubgraphClient for mainnet
+static UNISWAP_MAINNET_CLIENT: OnceLock<Result<unswp::SubgraphClient, String>> = OnceLock::new();
+
+/// Cached Uniswap SubgraphClient for Arbitrum
+static UNISWAP_ARBITRUM_CLIENT: OnceLock<Result<unswp::SubgraphClient, String>> = OnceLock::new();
+
+// =============================================================================
+// PERF-017 fix: Cached CCXT Exchange Clients
+// =============================================================================
+//
+// CCXT clients require async initialization (load_markets), so we use
+// tokio::sync::OnceCell for async-safe lazy initialization.
+
+use tokio::sync::OnceCell as AsyncOnceCell;
+
+/// Cached Binance client (PERF-017 fix)
+static BINANCE_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Binance>> = AsyncOnceCell::const_new();
+
+/// Cached Bitget client (PERF-017 fix)
+static BITGET_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Bitget>> = AsyncOnceCell::const_new();
+
+/// Cached OKX client (PERF-017 fix)
+static OKX_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Okx>> = AsyncOnceCell::const_new();
+
+/// Get or initialize Binance client
+async fn get_binance_client() -> Option<&'static ccxt_rust::prelude::Binance> {
+    use ccxt_rust::prelude::{Binance, Exchange};
+    BINANCE_CLIENT
+        .get_or_init(|| async {
+            let exchange = Binance::builder().build().ok()?;
+            if Exchange::load_markets(&exchange, false).await.is_ok() {
+                Some(exchange)
+            } else {
+                None
+            }
+        })
+        .await
+        .as_ref()
+}
+
+/// Get or initialize Bitget client
+async fn get_bitget_client() -> Option<&'static ccxt_rust::prelude::Bitget> {
+    use ccxt_rust::prelude::{Bitget, Exchange};
+    BITGET_CLIENT
+        .get_or_init(|| async {
+            let exchange = Bitget::builder().build().ok()?;
+            if Exchange::load_markets(&exchange, false).await.is_ok() {
+                Some(exchange)
+            } else {
+                None
+            }
+        })
+        .await
+        .as_ref()
+}
+
+/// Get or initialize OKX client
+async fn get_okx_client() -> Option<&'static ccxt_rust::prelude::Okx> {
+    use ccxt_rust::prelude::{Exchange, Okx};
+    OKX_CLIENT
+        .get_or_init(|| async {
+            let exchange = Okx::builder().build().ok()?;
+            if Exchange::load_markets(&exchange, false).await.is_ok() {
+                Some(exchange)
+            } else {
+                None
+            }
+        })
+        .await
+        .as_ref()
+}
+
+/// Cached Uniswap SubgraphClient for Base
+static UNISWAP_BASE_CLIENT: OnceLock<Result<unswp::SubgraphClient, String>> = OnceLock::new();
+
+/// Cached CoinGecko client (PERF-001/PERF-013 fix)
+/// We store Option<Client> since client creation can fail, and we need to distinguish
+/// between "not initialized" and "initialization failed"
+static GECKO_CLIENT: OnceLock<Option<cgko::Client>> = OnceLock::new();
+
+/// Get or create the cached DefiLlama client
+fn get_llama_client() -> Result<&'static dllma::Client, &'static str> {
+    LLAMA_CLIENT
+        .get_or_init(|| {
+            // Check for API key in config or env
+            let config = get_cached_config();
+            let api_key = config
+                .as_ref()
+                .and_then(|c| c.defillama.as_ref())
+                .and_then(|cfg| cfg.api_key.as_ref())
+                .map(|k| k.expose_secret().to_string())
+                .or_else(|| std::env::var("DEFILLAMA_API_KEY").ok().filter(|k| !k.is_empty()));
+
+            if let Some(key) = api_key {
+                dllma::Client::with_api_key(key).map_err(|e| e.to_string())
+            } else {
+                dllma::Client::new().map_err(|e| e.to_string())
+            }
+        })
+        .as_ref()
+        .map_err(|_| "Failed to create DefiLlama client")
+}
+
+/// Get or create the cached Curve client
+fn get_curve_client() -> Result<&'static crv::Client, &'static str> {
+    CURVE_CLIENT
+        .get_or_init(|| crv::Client::new().map_err(|e| e.to_string()))
+        .as_ref()
+        .map_err(|_| "Failed to create Curve client")
+}
+
+/// Get or create the cached Curve Prices client
+fn get_curve_prices_client() -> Result<&'static crv::PricesClient, &'static str> {
+    CURVE_PRICES_CLIENT
+        .get_or_init(|| crv::PricesClient::new().map_err(|e| e.to_string()))
+        .as_ref()
+        .map_err(|_| "Failed to create Curve Prices client")
+}
+
+/// Get or create the cached Pyth client
+fn get_pyth_client() -> Result<&'static pyth::Client, &'static str> {
+    PYTH_CLIENT
+        .get_or_init(|| pyth::Client::new().map_err(|e| e.to_string()))
+        .as_ref()
+        .map_err(|_| "Failed to create Pyth client")
+}
+
+/// Get or create the cached CoinGecko client (PERF-001/PERF-013 fix)
+///
+/// This caches environment variable lookups and client creation.
+/// Returns None if client creation fails.
+fn get_gecko_client() -> Option<&'static cgko::Client> {
+    GECKO_CLIENT
+        .get_or_init(|| {
+            let config = get_cached_config();
+            let gecko_config = config.as_ref().and_then(|c| c.coingecko.as_ref());
+
+            if let Some(cfg) = gecko_config {
+                if cfg.use_pro {
+                    cfg.api_key
+                        .as_ref()
+                        .and_then(|key| cgko::Client::pro(key.expose_secret()).ok())
+                } else {
+                    cgko::Client::demo(cfg.api_key.as_ref().map(|s| s.expose_secret().to_string()))
+                        .ok()
+                }
+            } else {
+                // Fallback to environment variables (cached on first access)
+                let api_key = std::env::var("COINGECKO_API_KEY").ok();
+                let is_pro = std::env::var("COINGECKO_PRO")
+                    .map(|v| v == "true" || v == "1")
+                    .unwrap_or(false);
+
+                if is_pro {
+                    api_key.and_then(|k| cgko::Client::pro(k).ok())
+                } else {
+                    cgko::Client::demo(api_key).ok()
+                }
+            }
+        })
+        .as_ref()
+}
+
+/// Get or create the cached Uniswap SubgraphClient for a specific chain
+fn get_uniswap_client(chain: &str) -> Result<&'static unswp::SubgraphClient, String> {
+    // Get API key from cached config or environment variable
+    let config = get_cached_config();
+    let api_key = match config
+        .as_ref()
+        .and_then(|c| c.thegraph.as_ref())
+        .map(|t| t.api_key.expose_secret().to_string())
+    {
+        Some(key) => key,
+        None => match std::env::var("THEGRAPH_API_KEY") {
+            Ok(key) if !key.is_empty() => key,
+            _ => return Err("THEGRAPH_API_KEY not configured".to_string()),
+        },
+    };
+
+    match chain.to_lowercase().as_str() {
+        "ethereum" | "mainnet" | "eth" | "" => UNISWAP_MAINNET_CLIENT
+            .get_or_init(|| {
+                let config = unswp::SubgraphConfig::mainnet_v3(&api_key);
+                unswp::SubgraphClient::new(config).map_err(|e| e.to_string())
+            })
+            .as_ref()
+            .map_err(|e| e.clone()),
+        "arbitrum" | "arb" => UNISWAP_ARBITRUM_CLIENT
+            .get_or_init(|| {
+                let config = unswp::SubgraphConfig::arbitrum_v3(&api_key);
+                unswp::SubgraphClient::new(config).map_err(|e| e.to_string())
+            })
+            .as_ref()
+            .map_err(|e| e.clone()),
+        "base" => UNISWAP_BASE_CLIENT
+            .get_or_init(|| {
+                let config = unswp::SubgraphConfig::base_v3(&api_key);
+                unswp::SubgraphClient::new(config).map_err(|e| e.to_string())
+            })
+            .as_ref()
+            .map_err(|e| e.clone()),
+        _ => Err(format!("Uniswap subgraph not available for chain '{}'", chain)),
+    }
+}
 
 /// Fetch prices from all available sources in parallel
 pub async fn fetch_prices_all(
@@ -101,71 +326,15 @@ async fn fetch_gecko_price(
     chain: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
-    // Get API key from cached config or env
-    let config = get_cached_config();
-    let gecko_config = config.as_ref().and_then(|c| c.coingecko.as_ref());
-
-    // Create gecko client with API key if available
-    let client = if let Some(cfg) = gecko_config {
-        if cfg.use_pro {
-            if let Some(ref key) = cfg.api_key {
-                match cgko::Client::pro(key.expose_secret()) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        return SourceResult::error(
-                            "gecko",
-                            format!("Client error: {}", e),
-                            measure.elapsed_ms(),
-                        )
-                    }
-                }
-            } else {
-                return SourceResult::error(
-                    "gecko",
-                    "Pro API configured but no API key provided",
-                    measure.elapsed_ms(),
-                );
-            }
-        } else {
-            match cgko::Client::demo(cfg.api_key.as_ref().map(|s| s.expose_secret().to_string())) {
-                Ok(c) => c,
-                Err(e) => {
-                    return SourceResult::error(
-                        "gecko",
-                        format!("Client error: {}", e),
-                        measure.elapsed_ms(),
-                    )
-                }
-            }
-        }
-    } else {
-        // Try env var fallback
-        let api_key = std::env::var("COINGECKO_API_KEY").ok();
-        let is_pro = std::env::var("COINGECKO_PRO")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(false);
-        if is_pro {
-            match cgko::Client::pro(api_key.unwrap_or_default()) {
-                Ok(c) => c,
-                Err(e) => {
-                    return SourceResult::error(
-                        "gecko",
-                        format!("Client error: {}", e),
-                        measure.elapsed_ms(),
-                    )
-                }
-            }
-        } else {
-            match cgko::Client::demo(api_key) {
-                Ok(c) => c,
-                Err(e) => {
-                    return SourceResult::error(
-                        "gecko",
-                        format!("Client error: {}", e),
-                        measure.elapsed_ms(),
-                    )
-                }
-            }
+    // Use cached client (PERF-001/PERF-013 fix)
+    let client = match get_gecko_client() {
+        Some(c) => c,
+        None => {
+            return SourceResult::error(
+                "gecko",
+                "Failed to create CoinGecko client",
+                measure.elapsed_ms(),
+            )
         }
     };
 
@@ -257,58 +426,11 @@ async fn fetch_llama_price(
         }
     };
 
-    // Get API key from cached config or env
-    let config = get_cached_config();
-    let llama_config = config.as_ref().and_then(|c| c.defillama.as_ref());
-
-    // Create llama client with API key if available
-    let client = if let Some(cfg) = llama_config {
-        if let Some(ref key) = cfg.api_key {
-            match dllma::Client::with_api_key(key.expose_secret()) {
-                Ok(c) => c,
-                Err(e) => {
-                    return SourceResult::error(
-                        "llama",
-                        format!("Client error: {}", e),
-                        measure.elapsed_ms(),
-                    )
-                }
-            }
-        } else {
-            match dllma::Client::new() {
-                Ok(c) => c,
-                Err(e) => {
-                    return SourceResult::error(
-                        "llama",
-                        format!("Client error: {}", e),
-                        measure.elapsed_ms(),
-                    )
-                }
-            }
-        }
-    } else {
-        // Try env var fallback
-        match std::env::var("DEFILLAMA_API_KEY") {
-            Ok(key) if !key.is_empty() => match dllma::Client::with_api_key(key) {
-                Ok(c) => c,
-                Err(e) => {
-                    return SourceResult::error(
-                        "llama",
-                        format!("Client error: {}", e),
-                        measure.elapsed_ms(),
-                    )
-                }
-            },
-            _ => match dllma::Client::new() {
-                Ok(c) => c,
-                Err(e) => {
-                    return SourceResult::error(
-                        "llama",
-                        format!("Client error: {}", e),
-                        measure.elapsed_ms(),
-                    )
-                }
-            },
+    // Use cached client (PERF-001 fix)
+    let client = match get_llama_client() {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error("llama", format!("Client error: {}", e), measure.elapsed_ms())
         }
     };
 
@@ -536,7 +658,8 @@ async fn fetch_curve_price(
     }
 
     let chain_name = normalize_chain_for_source("curve", chain);
-    let client = match crv::Client::new() {
+    // Use cached client (PERF-001 fix)
+    let client = match get_curve_client() {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -689,7 +812,8 @@ async fn fetch_curve_lp_price(lp_token: &str, chain: &str) -> SourceResult<Norma
     let measure = LatencyMeasure::start();
 
     let chain_name = normalize_chain_for_source("curve", chain);
-    let client = match crv::PricesClient::new() {
+    // Use cached client (PERF-001 fix)
+    let client = match get_curve_prices_client() {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -908,7 +1032,7 @@ pub fn symbol_to_coingecko_id(symbol: &str) -> String {
 ///
 /// Uses tokio::select! to race exchanges in parallel, returning the first successful result.
 async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<NormalizedPrice> {
-    use ccxt_rust::prelude::{Binance, Bitget, Exchange as ExchangeTrait, Okx};
+    use ccxt_rust::prelude::Exchange as ExchangeTrait;
     use num_traits::ToPrimitive;
     use tokio::select;
 
@@ -935,11 +1059,11 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
     let pair_clone2 = trading_pair.clone();
     let pair_clone3 = trading_pair.clone();
 
-    // Helper to fetch from a specific exchange
+    // PERF-017 fix: Use cached exchange clients instead of creating new ones
+    // Helper to fetch from a specific exchange using cached client
     async fn fetch_from_binance(trading_pair: String) -> Option<(f64, f64, &'static str)> {
-        let exchange = Binance::builder().build().ok()?;
-        exchange.load_markets(false).await.ok()?;
-        let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)
+        let exchange = get_binance_client().await?;
+        let ticker = ExchangeTrait::fetch_ticker(exchange, &trading_pair)
             .await
             .ok()?;
         let price = ticker.last?.0.to_f64()?;
@@ -948,9 +1072,8 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
     }
 
     async fn fetch_from_bitget(trading_pair: String) -> Option<(f64, f64, &'static str)> {
-        let exchange = Bitget::builder().build().ok()?;
-        exchange.load_markets(false).await.ok()?;
-        let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)
+        let exchange = get_bitget_client().await?;
+        let ticker = ExchangeTrait::fetch_ticker(exchange, &trading_pair)
             .await
             .ok()?;
         let price = ticker.last?.0.to_f64()?;
@@ -959,9 +1082,8 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
     }
 
     async fn fetch_from_okx(trading_pair: String) -> Option<(f64, f64, &'static str)> {
-        let exchange = Okx::builder().build().ok()?;
-        exchange.load_markets(false).await.ok()?;
-        let ticker = ExchangeTrait::fetch_ticker(&exchange, &trading_pair)
+        let exchange = get_okx_client().await?;
+        let ticker = ExchangeTrait::fetch_ticker(exchange, &trading_pair)
             .await
             .ok()?;
         let price = ticker.last?.0.to_f64()?;
@@ -1328,8 +1450,8 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
         }
     };
 
-    // Create Pyth client
-    let client = match pyth::Client::new() {
+    // Use cached client (PERF-001 fix)
+    let client = match get_pyth_client() {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -1382,44 +1504,8 @@ async fn fetch_uniswap_price(
     chain: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
-    use unswp::{SubgraphClient, SubgraphConfig};
-
-    // Get API key from cached config or environment variable
-    let config = get_cached_config();
-    let api_key = match config
-        .as_ref()
-        .and_then(|c| c.thegraph.as_ref())
-        .map(|t| t.api_key.expose_secret().to_string())
-    {
-        Some(key) => key,
-        None => match std::env::var("THEGRAPH_API_KEY") {
-            Ok(key) if !key.is_empty() => key,
-            _ => {
-                return SourceResult::error(
-                    "uniswap",
-                    "THEGRAPH_API_KEY not configured",
-                    measure.elapsed_ms(),
-                );
-            }
-        },
-    };
-
-    // Currently only Ethereum mainnet is well-supported for price queries
-    // Other chains may have different subgraph schemas or less liquidity
-    let subgraph_config = match chain.to_lowercase().as_str() {
-        "ethereum" | "mainnet" | "eth" | "" => SubgraphConfig::mainnet_v3(&api_key),
-        "arbitrum" | "arb" => SubgraphConfig::arbitrum_v3(&api_key),
-        "base" => SubgraphConfig::base_v3(&api_key),
-        _ => {
-            return SourceResult::error(
-                "uniswap",
-                format!("Uniswap subgraph not available for chain '{}'", chain),
-                measure.elapsed_ms(),
-            );
-        }
-    };
-
-    let client = match SubgraphClient::new(subgraph_config) {
+    // Use cached client (PERF-001/PERF-019 fix)
+    let client = match get_uniswap_client(chain) {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(

@@ -416,51 +416,51 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let mut all_positions: Vec<serde_json::Value> = Vec::new();
 
             // Query V2 (mainnet only)
-            if args.version.is_none() || matches!(args.version, Some(Version::V2)) {
-                if chain == "ethereum" || chain == "mainnet" || chain == "eth" {
-                    let config = SubgraphConfig::mainnet_v2(&api_key);
-                    if let Ok(client) = SubgraphClient::new(config) {
-                        match client.get_positions_v2(&address).await {
-                            Ok(positions) => {
-                                for pos in positions {
-                                    let pair = &pos.pair;
-                                    let lp_balance: f64 = pos.liquidity_token_balance.parse().unwrap_or(0.0);
-                                    let total_supply: f64 = pair.total_supply.parse().unwrap_or(1.0);
-                                    let reserve0: f64 = pair.reserve0.parse().unwrap_or(0.0);
-                                    let reserve1: f64 = pair.reserve1.parse().unwrap_or(0.0);
-                                    let reserve_usd: f64 = pair.reserve_usd.as_ref()
-                                        .and_then(|s| s.parse().ok()).unwrap_or(0.0);
+            if (args.version.is_none() || matches!(args.version, Some(Version::V2)))
+                && (chain == "ethereum" || chain == "mainnet" || chain == "eth")
+            {
+                let config = SubgraphConfig::mainnet_v2(&api_key);
+                if let Ok(client) = SubgraphClient::new(config) {
+                    match client.get_positions_v2(&address).await {
+                        Ok(positions) => {
+                            for pos in positions {
+                                let pair = &pos.pair;
+                                let lp_balance: f64 = pos.liquidity_token_balance.parse().unwrap_or(0.0);
+                                let total_supply: f64 = pair.total_supply.parse().unwrap_or(1.0);
+                                let reserve0: f64 = pair.reserve0.parse().unwrap_or(0.0);
+                                let reserve1: f64 = pair.reserve1.parse().unwrap_or(0.0);
+                                let reserve_usd: f64 = pair.reserve_usd.as_ref()
+                                    .and_then(|s| s.parse().ok()).unwrap_or(0.0);
 
-                                    // Calculate share of pool
-                                    let share = if total_supply > 0.0 { lp_balance / total_supply } else { 0.0 };
-                                    let token0_amount = reserve0 * share;
-                                    let token1_amount = reserve1 * share;
-                                    let usd_value = reserve_usd * share;
+                                // Calculate share of pool
+                                let share = if total_supply > 0.0 { lp_balance / total_supply } else { 0.0 };
+                                let token0_amount = reserve0 * share;
+                                let token1_amount = reserve1 * share;
+                                let usd_value = reserve_usd * share;
 
-                                    all_positions.push(serde_json::json!({
-                                        "version": "v2",
-                                        "positionId": pos.id,
-                                        "pool": pair.id,
-                                        "token0": {
-                                            "symbol": pair.token0.symbol,
-                                            "address": pair.token0.id,
-                                            "amount": token0_amount,
-                                        },
-                                        "token1": {
-                                            "symbol": pair.token1.symbol,
-                                            "address": pair.token1.id,
-                                            "amount": token1_amount,
-                                        },
-                                        "lpTokenBalance": lp_balance,
-                                        "poolShare": format!("{:.4}%", share * 100.0),
-                                        "usdValue": usd_value,
-                                    }));
-                                }
+                                all_positions.push(serde_json::json!({
+                                    "version": "v2",
+                                    "positionId": pos.id,
+                                    "pool": pair.id,
+                                    "token0": {
+                                        "symbol": pair.token0.symbol,
+                                        "address": pair.token0.id,
+                                        "amount": token0_amount,
+                                    },
+                                    "token1": {
+                                        "symbol": pair.token1.symbol,
+                                        "address": pair.token1.id,
+                                        "amount": token1_amount,
+                                    },
+                                    "lpTokenBalance": lp_balance,
+                                    "poolShare": format!("{:.4}%", share * 100.0),
+                                    "usdValue": usd_value,
+                                }));
                             }
-                            Err(e) => {
-                                if !quiet {
-                                    eprintln!("V2 query failed: {}", e);
-                                }
+                        }
+                        Err(e) => {
+                            if !quiet {
+                                eprintln!("V2 query failed: {}", e);
                             }
                         }
                     }
@@ -599,68 +599,66 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             // Output results
             if args.json {
                 println!("{}", serde_json::to_string_pretty(&all_positions)?);
+            } else if all_positions.is_empty() {
+                println!("No LP positions found for {} on {}", address, args.chain);
             } else {
-                if all_positions.is_empty() {
-                    println!("No LP positions found for {} on {}", address, args.chain);
-                } else {
-                    println!("\nUniswap LP Positions for {}", address);
-                    println!("{}", "=".repeat(80));
-                    println!("Chain: {}\n", args.chain);
+                println!("\nUniswap LP Positions for {}", address);
+                println!("{}", "=".repeat(80));
+                println!("Chain: {}\n", args.chain);
 
-                    for pos in &all_positions {
-                        let version = pos["version"].as_str().unwrap_or("?");
-                        let token0 = pos["token0"]["symbol"].as_str().unwrap_or("?");
-                        let token1 = pos["token1"]["symbol"].as_str().unwrap_or("?");
-                        let fee = pos["feeTier"].as_str().unwrap_or("?");
+                for pos in &all_positions {
+                    let version = pos["version"].as_str().unwrap_or("?");
+                    let token0 = pos["token0"]["symbol"].as_str().unwrap_or("?");
+                    let token1 = pos["token1"]["symbol"].as_str().unwrap_or("?");
+                    let fee = pos["feeTier"].as_str().unwrap_or("?");
 
-                        println!("[{}] {}/{} ({})", version.to_uppercase(), token0, token1, fee);
-                        println!("  Position ID: {}", pos["positionId"]);
-                        println!("  Pool: {}", pos["pool"]);
+                    println!("[{}] {}/{} ({})", version.to_uppercase(), token0, token1, fee);
+                    println!("  Position ID: {}", pos["positionId"]);
+                    println!("  Pool: {}", pos["pool"]);
 
-                        if version == "v2" {
-                            let t0_amt = pos["token0"]["amount"].as_f64().unwrap_or(0.0);
-                            let t1_amt = pos["token1"]["amount"].as_f64().unwrap_or(0.0);
-                            let usd = pos["usdValue"].as_f64().unwrap_or(0.0);
-                            let share = pos["poolShare"].as_str().unwrap_or("?");
-                            println!("  {} Amount: {:.6}", token0, t0_amt);
-                            println!("  {} Amount: {:.6}", token1, t1_amt);
-                            println!("  Pool Share: {}", share);
-                            if usd > 0.0 {
-                                println!("  USD Value: ${:.2}", usd);
-                            }
-                        } else if version == "v3" {
-                            let in_range = pos["inRange"].as_bool().unwrap_or(false);
-                            let tick_lower = pos["tickRange"]["lower"].as_i64().unwrap_or(0);
-                            let tick_upper = pos["tickRange"]["upper"].as_i64().unwrap_or(0);
-                            let current = pos["tickRange"]["current"].as_i64().unwrap_or(0);
-                            let liquidity = pos["liquidity"].as_f64().unwrap_or(0.0);
-
-                            println!("  Liquidity: {:.0}", liquidity);
-                            println!("  Tick Range: {} to {} (current: {})", tick_lower, tick_upper, current);
-                            println!("  In Range: {}", if in_range { "✓ Yes" } else { "✗ No" });
-
-                            let fees0 = pos["token0"]["collectedFees"].as_f64().unwrap_or(0.0);
-                            let fees1 = pos["token1"]["collectedFees"].as_f64().unwrap_or(0.0);
-                            if fees0 > 0.0 || fees1 > 0.0 {
-                                println!("  Collected Fees: {:.6} {} / {:.6} {}", fees0, token0, fees1, token1);
-                            }
-                        } else if version == "v4" {
-                            let tick_lower = pos["tickRange"]["lower"].as_i64().unwrap_or(0);
-                            let tick_upper = pos["tickRange"]["upper"].as_i64().unwrap_or(0);
-                            let liquidity = pos["liquidity"].as_f64().unwrap_or(0.0);
-                            let has_hooks = pos["hasHooks"].as_bool().unwrap_or(false);
-
-                            println!("  Liquidity: {:.0}", liquidity);
-                            println!("  Tick Range: {} to {}", tick_lower, tick_upper);
-                            if has_hooks {
-                                println!("  Hooks: {}", pos["hooks"].as_str().unwrap_or("?"));
-                            }
+                    if version == "v2" {
+                        let t0_amt = pos["token0"]["amount"].as_f64().unwrap_or(0.0);
+                        let t1_amt = pos["token1"]["amount"].as_f64().unwrap_or(0.0);
+                        let usd = pos["usdValue"].as_f64().unwrap_or(0.0);
+                        let share = pos["poolShare"].as_str().unwrap_or("?");
+                        println!("  {} Amount: {:.6}", token0, t0_amt);
+                        println!("  {} Amount: {:.6}", token1, t1_amt);
+                        println!("  Pool Share: {}", share);
+                        if usd > 0.0 {
+                            println!("  USD Value: ${:.2}", usd);
                         }
-                        println!();
-                    }
+                    } else if version == "v3" {
+                        let in_range = pos["inRange"].as_bool().unwrap_or(false);
+                        let tick_lower = pos["tickRange"]["lower"].as_i64().unwrap_or(0);
+                        let tick_upper = pos["tickRange"]["upper"].as_i64().unwrap_or(0);
+                        let current = pos["tickRange"]["current"].as_i64().unwrap_or(0);
+                        let liquidity = pos["liquidity"].as_f64().unwrap_or(0.0);
 
-                    println!("Total positions: {}", all_positions.len());
+                        println!("  Liquidity: {:.0}", liquidity);
+                        println!("  Tick Range: {} to {} (current: {})", tick_lower, tick_upper, current);
+                        println!("  In Range: {}", if in_range { "✓ Yes" } else { "✗ No" });
+
+                        let fees0 = pos["token0"]["collectedFees"].as_f64().unwrap_or(0.0);
+                        let fees1 = pos["token1"]["collectedFees"].as_f64().unwrap_or(0.0);
+                        if fees0 > 0.0 || fees1 > 0.0 {
+                            println!("  Collected Fees: {:.6} {} / {:.6} {}", fees0, token0, fees1, token1);
+                        }
+                    } else if version == "v4" {
+                        let tick_lower = pos["tickRange"]["lower"].as_i64().unwrap_or(0);
+                        let tick_upper = pos["tickRange"]["upper"].as_i64().unwrap_or(0);
+                        let liquidity = pos["liquidity"].as_f64().unwrap_or(0.0);
+                        let has_hooks = pos["hasHooks"].as_bool().unwrap_or(false);
+
+                        println!("  Liquidity: {:.0}", liquidity);
+                        println!("  Tick Range: {} to {}", tick_lower, tick_upper);
+                        if has_hooks {
+                            println!("  Hooks: {}", pos["hooks"].as_str().unwrap_or("?"));
+                        }
+                    }
+                    println!();
                 }
+
+                println!("Total positions: {}", all_positions.len());
             }
         }
 

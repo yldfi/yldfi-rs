@@ -16,6 +16,7 @@ use alloy::consensus::Transaction as TxTrait;
 use alloy::primitives::{Address, B256};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use std::sync::Arc;
 
 /// Transaction analyzer
 pub struct TxAnalyzer {
@@ -23,8 +24,8 @@ pub struct TxAnalyzer {
     pool: RpcPool,
     /// Chain
     chain: Chain,
-    /// ABI fetcher for Etherscan lookups
-    abi_fetcher: AbiFetcher,
+    /// ABI fetcher for Etherscan lookups (shared to avoid HTTP client recreation - PERF-002 fix)
+    abi_fetcher: Arc<AbiFetcher>,
 }
 
 impl TxAnalyzer {
@@ -33,8 +34,25 @@ impl TxAnalyzer {
         Ok(Self {
             pool,
             chain,
-            abi_fetcher: AbiFetcher::new(None)?,
+            abi_fetcher: Arc::new(AbiFetcher::new(None)?),
         })
+    }
+
+    /// Create a new analyzer with a shared AbiFetcher (PERF-002 fix)
+    ///
+    /// Use this when analyzing multiple transactions to avoid recreating
+    /// HTTP clients for each transaction.
+    pub fn with_fetcher(pool: RpcPool, chain: Chain, abi_fetcher: Arc<AbiFetcher>) -> Self {
+        Self {
+            pool,
+            chain,
+            abi_fetcher,
+        }
+    }
+
+    /// Get a reference to the ABI fetcher for sharing with other analyzers
+    pub fn abi_fetcher(&self) -> Arc<AbiFetcher> {
+        Arc::clone(&self.abi_fetcher)
     }
 
     /// Analyze a transaction by hash (basic analysis)
@@ -153,28 +171,42 @@ impl TxAnalyzer {
 
     /// Enrich unknown contracts with Etherscan metadata
     async fn enrich_contracts(&self, contracts: &mut [ContractInfo]) {
-        for contract in contracts.iter_mut() {
-            // Skip if already labeled
-            if contract.label.is_some() {
-                continue;
-            }
+        use futures::future::join_all;
 
-            // Skip zero address
-            if contract.address == Address::ZERO {
-                continue;
-            }
+        // Collect contracts that need lookup
+        let lookup_indices: Vec<usize> = contracts
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.label.is_none() && c.address != Address::ZERO)
+            .map(|(i, _)| i)
+            .collect();
 
-            // Try to get metadata from Etherscan
-            if let Ok(metadata) = self
-                .abi_fetcher
-                .get_contract_metadata(self.chain, &format!("{:#x}", contract.address))
-                .await
-            {
+        if lookup_indices.is_empty() {
+            return;
+        }
+
+        // Fetch metadata in parallel
+        let futures = lookup_indices.iter().map(|&i| {
+            let address = contracts[i].address;
+            async move {
+                let result = self
+                    .abi_fetcher
+                    .get_contract_metadata(self.chain, &format!("{:#x}", address))
+                    .await;
+                (i, result)
+            }
+        });
+
+        let results = join_all(futures).await;
+
+        // Apply results
+        for (i, result) in results {
+            if let Ok(metadata) = result {
                 if let Some(name) = metadata.name {
-                    contract.label = Some(name);
+                    contracts[i].label = Some(name);
                     // If verified, it's likely a contract (not EOA)
-                    if metadata.is_verified && contract.category == ContractCategory::Unknown {
-                        contract.category = ContractCategory::Protocol;
+                    if metadata.is_verified && contracts[i].category == ContractCategory::Unknown {
+                        contracts[i].category = ContractCategory::Protocol;
                     }
                 }
             }
@@ -183,6 +215,8 @@ impl TxAnalyzer {
 
     /// Enrich token flows with token metadata
     async fn enrich_token_flows(&self, flows: &mut [crate::tx::types::TokenFlow]) {
+        use futures::future::join_all;
+
         // Collect unique tokens that need lookup
         let mut tokens_to_lookup: HashSet<Address> = HashSet::new();
         for flow in flows.iter() {
@@ -191,14 +225,26 @@ impl TxAnalyzer {
             }
         }
 
-        // Lookup token metadata for each
-        let mut token_symbols: HashMap<Address, String> = HashMap::new();
-        for token in tokens_to_lookup {
-            if let Ok(metadata) = self
+        if tokens_to_lookup.is_empty() {
+            return;
+        }
+
+        // Lookup token metadata in parallel
+        let tokens: Vec<Address> = tokens_to_lookup.into_iter().collect();
+        let futures = tokens.iter().map(|&token| async move {
+            let result = self
                 .abi_fetcher
                 .get_token_metadata_rpc(self.chain, &format!("{:#x}", token))
-                .await
-            {
+                .await;
+            (token, result)
+        });
+
+        let results = join_all(futures).await;
+
+        // Build symbol map from results
+        let mut token_symbols: HashMap<Address, String> = HashMap::new();
+        for (token, result) in results {
+            if let Ok(metadata) = result {
                 if let Some(symbol) = metadata.symbol {
                     token_symbols.insert(token, symbol);
                 }
@@ -339,7 +385,8 @@ impl TxAnalyzer {
         log: &alloy::rpc::types::Log,
         topic0: &B256,
     ) -> HashMap<String, EventParam> {
-        let mut params = HashMap::new();
+        // PERF-010 fix: pre-allocate for typical event parameter count (3-4)
+        let mut params = HashMap::with_capacity(4);
         let topics = log.topics();
 
         if *topic0 == events::TRANSFER && topics.len() >= 3 {

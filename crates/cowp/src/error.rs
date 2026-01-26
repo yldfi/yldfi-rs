@@ -8,6 +8,7 @@ pub use yldfi_common::api::ApiError;
 
 /// Domain-specific errors for CoW Protocol
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DomainError {
     /// Invalid parameter
     #[error("Invalid parameter: {0}")]
@@ -60,4 +61,64 @@ pub fn insufficient_liquidity() -> Error {
 /// Create an order not found error
 pub fn order_not_found(order_id: impl Into<String>) -> Error {
     ApiError::domain(DomainError::OrderNotFound(order_id.into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_invalid_param_error() {
+        let err = invalid_param("missing amount");
+        let display = format!("{err}");
+        assert!(display.contains("Invalid parameter"));
+        assert!(display.contains("missing amount"));
+    }
+
+    #[test]
+    fn test_unsupported_chain_error() {
+        let err = unsupported_chain("fantom");
+        let display = format!("{err}");
+        assert!(display.contains("Unsupported chain"));
+        assert!(display.contains("fantom"));
+    }
+
+    #[test]
+    fn test_no_quote_error() {
+        let err = no_quote("price impact too high");
+        let display = format!("{err}");
+        assert!(display.contains("No quote available"));
+        assert!(display.contains("price impact too high"));
+    }
+
+    #[test]
+    fn test_insufficient_liquidity_error() {
+        let err = insufficient_liquidity();
+        let display = format!("{err}");
+        assert!(display.contains("Insufficient liquidity"));
+    }
+
+    #[test]
+    fn test_order_not_found_error() {
+        let err = order_not_found("0x1234abcd");
+        let display = format!("{err}");
+        assert!(display.contains("Order not found"));
+        assert!(display.contains("0x1234abcd"));
+    }
+
+    #[test]
+    fn test_domain_error_variants() {
+        // Test that all variants are constructable
+        let _ = DomainError::InvalidParam("test".to_string());
+        let _ = DomainError::UnsupportedChain("test".to_string());
+        let _ = DomainError::NoQuote("test".to_string());
+        let _ = DomainError::InsufficientLiquidity;
+        let _ = DomainError::OrderNotFound("test".to_string());
+    }
+
+    #[test]
+    fn test_error_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Error>();
+    }
 }

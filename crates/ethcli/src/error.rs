@@ -23,7 +23,15 @@ pub const REDACTED: &str = "[REDACTED]";
 /// Sanitize a string to remove potential API keys and secrets.
 ///
 /// Replaces detected API keys, tokens, and secrets with [`REDACTED`].
-pub fn sanitize_error_message(msg: &str) -> String {
+/// Returns a `Cow` to avoid allocation when the input contains no sensitive data.
+pub fn sanitize_error_message(msg: &str) -> std::borrow::Cow<'_, str> {
+    // First, check if any pattern matches to avoid allocation
+    let needs_sanitization = API_KEY_PATTERNS.iter().any(|p| p.is_match(msg));
+    if !needs_sanitization {
+        return std::borrow::Cow::Borrowed(msg);
+    }
+
+    // Only allocate if we need to sanitize
     let mut result = msg.to_string();
     for pattern in API_KEY_PATTERNS.iter() {
         result = pattern
@@ -37,7 +45,7 @@ pub fn sanitize_error_message(msg: &str) -> String {
             })
             .to_string();
     }
-    result
+    std::borrow::Cow::Owned(result)
 }
 
 /// Keywords that indicate a transient/retryable error when found in error messages.

@@ -19,3 +19,4 @@ yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 [dev-dependencies]
 tokio-test = "0.4"
+wiremock = "0.6"
