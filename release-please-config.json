@@ -177,6 +177,17 @@
       "draft": false,
       "prerelease": false
     },
+    "crates/unswp": {
+      "release-type": "rust",
+      "component": "unswp",
+      "tag-separator": "-",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "draft": false,
+      "prerelease": false
+    },
     "crates/vlra": {
       "release-type": "rust",
       "component": "vlra",
@@ -191,6 +202,17 @@
     "crates/yldfi-common": {
       "release-type": "rust",
       "component": "yldfi-common",
+      "tag-separator": "-",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "draft": false,
+      "prerelease": false
+    },
+    "crates/ykong": {
+      "release-type": "rust",
+      "component": "ykong",
       "tag-separator": "-",
       "include-component-in-tag": true,
       "changelog-path": "CHANGELOG.md",
