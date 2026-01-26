@@ -9,6 +9,9 @@
 db-path = "~/.cargo/advisory-db"
 # The url(s) of the advisory databases to use
 db-urls = ["https://github.com/rustsec/advisory-db"]
+# Only error on unmaintained crates that are direct dependencies
+# Transitive dependencies from external crates are allowed
+unmaintained = "workspace"
 # Ignore specific advisories (add as needed)
 ignore = []
 
