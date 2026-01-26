@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.21.8](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.7...ethcli-v0.21.8) (2026-01-26)
+
+
+### Features
+
+* add ykong (Yearn Kong) and unswp improvements ([f065b43](https://github.com/yldfi/yldfi-rs/commit/f065b4313245716d0671df278441bc05f048f872))
+* **ethcli:** add Uniswap V2/V3/V4 support and refactor API clients ([46df1e0](https://github.com/yldfi/yldfi-rs/commit/46df1e0b7bdf733f504b00931cd310ec429cc0c7))
+
+
+### Bug Fixes
+
+* address 14 issues from multi-agent code review ([d1e8de0](https://github.com/yldfi/yldfi-rs/commit/d1e8de0428b0380572cd01ffd1053649bc94840f))
+* address 44 issues from multi-agent code review ([5812bae](https://github.com/yldfi/yldfi-rs/commit/5812baea74461394a0f8a68ec490987b1cda168d))
+* address 8 issues from follow-up code review ([97a3f18](https://github.com/yldfi/yldfi-rs/commit/97a3f18b7e6b17e2984949d3daa968adf225e027))
+* address 9 issues from fresh code review ([ee275fe](https://github.com/yldfi/yldfi-rs/commit/ee275fe54a46e5b93ec1aae91a8afef38fe2c967))
+* **ethcli:** address 16 issues from multi-agent code review ([09f50be](https://github.com/yldfi/yldfi-rs/commit/09f50be38184ce4b0f35302da49965d66910c3b3))
+
+
+### Performance Improvements
+
+* **ethcli:** optimize HTTP client pooling and reduce allocations ([6f7886e](https://github.com/yldfi/yldfi-rs/commit/6f7886ea89f013398099e824fc5576985e675eaa))
+
 ## [0.21.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.6...ethcli-v0.21.7) (2026-01-23)
 
 
