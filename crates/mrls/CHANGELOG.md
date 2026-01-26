@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.1...mrls-v0.1.2) (2026-01-26)
+
+
+### Bug Fixes
+
+* address 8 issues from follow-up code review ([97a3f18](https://github.com/yldfi/yldfi-rs/commit/97a3f18b7e6b17e2984949d3daa968adf225e027))
+* address 9 issues from fresh code review ([ee275fe](https://github.com/yldfi/yldfi-rs/commit/ee275fe54a46e5b93ec1aae91a8afef38fe2c967))
+
 ## [0.1.1](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.0...mrls-v0.1.1) (2026-01-17)
 
 
