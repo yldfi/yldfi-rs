@@ -241,7 +241,7 @@ API keys stored as plaintext in `config.toml`. Security relies on 0600 file perm
 | **MED-001** | ✅ Fixed | JSON key-value sanitization for sensitive keys in `api.rs` |
 | **MED-002** | ✅ Fixed | Atomic writes with `sync_all()` before rename |
 | **LOW-001** | ✅ Fixed | Documentation added to `rate_limit.rs` about boundary behavior |
-| **LOW-002** | ⚠️ Deferred | `new_unchecked` kept for testing; consider feature flag later |
+| **LOW-002** | ✅ Fixed | `new_unchecked` removed (was unused) |
 | **LOW-003** | ✅ Fixed | URL parsing with host check in `mrls/client.rs` |
 | **LOW-004** | ✅ Fixed | HTTP header pattern redaction (X-API-Key, Authorization, etc.) |
 | **LOW-005** | ⚠️ Deferred | Keychain integration is optional enhancement |

@@ -843,46 +843,6 @@ impl BaseClient {
         })
     }
 
-    /// Create a new base client without HTTPS validation.
-    ///
-    /// # Security Warning
-    ///
-    /// **API-001: This method bypasses HTTPS enforcement and should only be used
-    /// for testing with local HTTP servers.**
-    ///
-    /// Using this method with production API endpoints will transmit API keys
-    /// in plain text, exposing them to network interception (MITM attacks).
-    ///
-    /// Consider using `new()` instead, which enforces HTTPS for all non-localhost URLs.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the HTTP client cannot be built.
-    #[doc(hidden)]
-    #[deprecated(
-        since = "0.1.3",
-        note = "Use new() instead. This method bypasses HTTPS security checks and may expose API keys."
-    )]
-    pub fn new_unchecked(config: ApiConfig) -> Result<Self, HttpError> {
-        // API-001 fix: Log warning when used in debug builds
-        #[cfg(debug_assertions)]
-        {
-            eprintln!(
-                "WARNING: BaseClient::new_unchecked() bypasses HTTPS validation. \
-                 API keys may be transmitted insecurely. URL: {}",
-                config.base_url
-            );
-        }
-
-        let http = config.build_client()?;
-        let normalized_base_url = config.base_url.trim_end_matches('/').to_string();
-        Ok(Self {
-            http,
-            config,
-            normalized_base_url,
-        })
-    }
-
     /// Get the underlying HTTP client.
     #[must_use]
     pub fn http(&self) -> &Client {
