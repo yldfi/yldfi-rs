@@ -222,7 +222,7 @@ pub fn sanitize_error_body(body: &str) -> String {
                     .unwrap_or(value_start);
                 // Find end of header value (newline or end of string)
                 let value_end = result[trimmed_start..]
-                    .find(|c: char| c == '\n' || c == '\r')
+                    .find(['\n', '\r'])
                     .map(|i| trimmed_start + i)
                     .unwrap_or(result.len());
                 let value = &result[trimmed_start..value_end];
@@ -334,38 +334,33 @@ pub fn sanitize_error_body(body: &str) -> String {
     // API-002 fix: Redact hex-encoded private keys (0x followed by 64 hex chars)
     // These are Ethereum private keys and should never appear in logs
     let mut search_from = 0;
-    loop {
-        if let Some(pos) = result[search_from..].find("0x") {
-            let abs_pos = search_from + pos;
-            let after_0x = abs_pos + 2;
+    while let Some(pos) = result[search_from..].find("0x") {
+        let abs_pos = search_from + pos;
+        let after_0x = abs_pos + 2;
 
-            // Check if followed by exactly 64 hex characters
-            if after_0x + 64 <= result.len() {
-                let potential_key = &result[after_0x..after_0x + 64];
-                if potential_key.chars().all(|c| c.is_ascii_hexdigit()) {
-                    // Check it's not followed by more hex (could be longer hash)
-                    let is_exact_64 = after_0x + 64 >= result.len()
-                        || !result[after_0x + 64..]
-                            .chars()
-                            .next()
-                            .map(|c| c.is_ascii_hexdigit())
-                            .unwrap_or(false);
+        // Check if followed by exactly 64 hex characters
+        if after_0x + 64 <= result.len() {
+            let potential_key = &result[after_0x..after_0x + 64];
+            if potential_key.chars().all(|c| c.is_ascii_hexdigit()) {
+                // Check it's not followed by more hex (could be longer hash)
+                let is_exact_64 = after_0x + 64 >= result.len()
+                    || !result[after_0x + 64..]
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_hexdigit());
 
-                    if is_exact_64 {
-                        result = format!(
-                            "{}0x[REDACTED_KEY]{}",
-                            &result[..abs_pos],
-                            &result[after_0x + 64..]
-                        );
-                        search_from = abs_pos + "0x[REDACTED_KEY]".len();
-                        continue;
-                    }
+                if is_exact_64 {
+                    result = format!(
+                        "{}0x[REDACTED_KEY]{}",
+                        &result[..abs_pos],
+                        &result[after_0x + 64..]
+                    );
+                    search_from = abs_pos + "0x[REDACTED_KEY]".len();
+                    continue;
                 }
             }
-            search_from = after_0x;
-        } else {
-            break;
         }
+        search_from = after_0x;
     }
 
     result

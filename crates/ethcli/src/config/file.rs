@@ -489,6 +489,7 @@ impl ConfigFile {
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(false) // Intentional: truncate after acquiring lock for atomicity
             .open(&temp_path)
             .map_err(|e| {
                 ConfigError::InvalidFile(format!("Failed to create temp config file: {}", e))

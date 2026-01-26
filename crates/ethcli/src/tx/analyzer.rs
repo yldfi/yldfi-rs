@@ -2,6 +2,7 @@
 //!
 //! Coordinates fetching and analyzing Ethereum transactions.
 
+use alloy::primitives::U256;
 use crate::abi::AbiFetcher;
 use crate::config::Chain;
 use crate::error::Result;
@@ -17,6 +18,57 @@ use alloy::primitives::{Address, B256};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
+
+/// Convert U256 to f64 with ETH decimals (HIGH-001 fix)
+///
+/// Handles arbitrarily large values by:
+/// 1. Using u128 conversion when possible for precision
+/// 2. Falling back to string conversion for very large values
+/// 3. Saturating at f64::MAX to prevent overflow/panic
+fn u256_to_eth_f64(value: &U256) -> f64 {
+    const ETH_SCALE: f64 = 1e18;
+
+    // Try u128 first for better precision (covers values up to ~340 undecillion wei)
+    if let Ok(as_u128) = TryInto::<u128>::try_into(*value) {
+        return (as_u128 as f64) / ETH_SCALE;
+    }
+
+    // For values > u128::MAX, convert via string (loses precision but handles any size)
+    let s = value.to_string();
+    match s.parse::<f64>() {
+        Ok(v) if v.is_finite() => v / ETH_SCALE,
+        _ => f64::MAX, // Saturate on overflow or parse failure
+    }
+}
+
+/// Format token amount with decimals (LOW-002 fix)
+///
+/// Safely formats large token amounts without panicking on edge cases.
+/// Returns a human-readable string with 2 decimal places.
+fn format_token_amount(amount_str: &str, decimals: usize) -> String {
+    // Handle empty or non-numeric input
+    if amount_str.is_empty() || !amount_str.chars().all(|c| c.is_ascii_digit()) {
+        return "0.00".to_string();
+    }
+
+    if amount_str.len() > decimals {
+        let int_part = &amount_str[..amount_str.len() - decimals];
+        let frac_part = &amount_str[amount_str.len() - decimals..];
+        // Take first 2 decimal places
+        let frac_display = if frac_part.len() >= 2 {
+            &frac_part[..2]
+        } else {
+            frac_part
+        };
+        format!("{}.{}", int_part, frac_display)
+    } else {
+        // Amount is less than 1 whole token
+        let padding = "0".repeat(decimals - amount_str.len());
+        let padded = format!("{}{}", padding, amount_str);
+        let frac_display = if padded.len() >= 2 { &padded[..2] } else { &padded };
+        format!("0.{}", frac_display)
+    }
+}
 
 /// Transaction analyzer
 pub struct TxAnalyzer {
@@ -171,7 +223,10 @@ impl TxAnalyzer {
 
     /// Enrich unknown contracts with Etherscan metadata
     async fn enrich_contracts(&self, contracts: &mut [ContractInfo]) {
-        use futures::future::join_all;
+        use futures::stream::{self, StreamExt};
+
+        // MED-004 fix: Limit concurrency to prevent resource exhaustion
+        const MAX_CONCURRENT_REQUESTS: usize = 10;
 
         // Collect contracts that need lookup
         let lookup_indices: Vec<usize> = contracts
@@ -185,8 +240,8 @@ impl TxAnalyzer {
             return;
         }
 
-        // Fetch metadata in parallel
-        let futures = lookup_indices.iter().map(|&i| {
+        // Fetch metadata with bounded concurrency
+        let results: Vec<_> = stream::iter(lookup_indices.iter().map(|&i| {
             let address = contracts[i].address;
             async move {
                 let result = self
@@ -195,9 +250,10 @@ impl TxAnalyzer {
                     .await;
                 (i, result)
             }
-        });
-
-        let results = join_all(futures).await;
+        }))
+        .buffer_unordered(MAX_CONCURRENT_REQUESTS)
+        .collect()
+        .await;
 
         // Apply results
         for (i, result) in results {
@@ -215,7 +271,10 @@ impl TxAnalyzer {
 
     /// Enrich token flows with token metadata
     async fn enrich_token_flows(&self, flows: &mut [crate::tx::types::TokenFlow]) {
-        use futures::future::join_all;
+        use futures::stream::{self, StreamExt};
+
+        // MED-004 fix: Limit concurrency to prevent resource exhaustion
+        const MAX_CONCURRENT_REQUESTS: usize = 10;
 
         // Collect unique tokens that need lookup
         let mut tokens_to_lookup: HashSet<Address> = HashSet::new();
@@ -229,17 +288,18 @@ impl TxAnalyzer {
             return;
         }
 
-        // Lookup token metadata in parallel
+        // Lookup token metadata with bounded concurrency
         let tokens: Vec<Address> = tokens_to_lookup.into_iter().collect();
-        let futures = tokens.iter().map(|&token| async move {
+        let results: Vec<_> = stream::iter(tokens.iter().map(|&token| async move {
             let result = self
                 .abi_fetcher
                 .get_token_metadata_rpc(self.chain, &format!("{:#x}", token))
                 .await;
             (token, result)
-        });
-
-        let results = join_all(futures).await;
+        }))
+        .buffer_unordered(MAX_CONCURRENT_REQUESTS)
+        .collect()
+        .await;
 
         // Build symbol map from results
         let mut token_symbols: HashMap<Address, String> = HashMap::new();
@@ -312,6 +372,8 @@ impl TxAnalyzer {
 
         // Sort by category then by label
         contracts.sort_by(|a, b| {
+            // LOW-006: Explicit exhaustive match - adding new ContractCategory variants
+            // will cause a compile error here, ensuring the sort order is updated.
             let cat_ord = |c: &ContractCategory| match c {
                 ContractCategory::Token => 0,
                 ContractCategory::Dex => 1,
@@ -404,6 +466,13 @@ impl TxAnalyzer {
             if data.len() >= 32 {
                 let value = alloy::primitives::U256::from_be_slice(&data[..32]);
                 params.insert("value".to_string(), EventParam::Uint(value.to_string()));
+            } else {
+                // LOW-001 fix: Log malformed event data for debugging
+                tracing::debug!(
+                    "Malformed Transfer event data: expected >= 32 bytes, got {} at {:?}",
+                    data.len(),
+                    log.address()
+                );
             }
         } else if *topic0 == events::APPROVAL && topics.len() >= 3 {
             // Approval(address indexed owner, address indexed spender, uint256 value)
@@ -423,6 +492,12 @@ impl TxAnalyzer {
             if data.len() >= 32 {
                 let value = alloy::primitives::U256::from_be_slice(&data[..32]);
                 params.insert("value".to_string(), EventParam::Uint(value.to_string()));
+            } else {
+                tracing::debug!(
+                    "Malformed Approval event data: expected >= 32 bytes, got {} at {:?}",
+                    data.len(),
+                    log.address()
+                );
             }
         } else if *topic0 == events::DEPOSIT && topics.len() >= 2 {
             // Deposit(address indexed dst, uint256 wad)
@@ -436,6 +511,12 @@ impl TxAnalyzer {
             if data.len() >= 32 {
                 let wad = alloy::primitives::U256::from_be_slice(&data[..32]);
                 params.insert("wad".to_string(), EventParam::Uint(wad.to_string()));
+            } else {
+                tracing::debug!(
+                    "Malformed Deposit event data: expected >= 32 bytes, got {} at {:?}",
+                    data.len(),
+                    log.address()
+                );
             }
         } else if *topic0 == events::WITHDRAWAL && topics.len() >= 2 {
             // Withdrawal(address indexed src, uint256 wad)
@@ -449,6 +530,12 @@ impl TxAnalyzer {
             if data.len() >= 32 {
                 let wad = alloy::primitives::U256::from_be_slice(&data[..32]);
                 params.insert("wad".to_string(), EventParam::Uint(wad.to_string()));
+            } else {
+                tracing::debug!(
+                    "Malformed Withdrawal event data: expected >= 32 bytes, got {} at {:?}",
+                    data.len(),
+                    log.address()
+                );
             }
         }
 
@@ -458,7 +545,8 @@ impl TxAnalyzer {
 
 /// Format transaction analysis for display
 pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
-    let mut output = String::new();
+    // LOW-005 fix: Pre-allocate for typical output size
+    let mut output = String::with_capacity(2048);
 
     // Header
     output.push_str(&format!("Transaction: {:#x}\n", analysis.hash));
@@ -474,10 +562,11 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
         output.push_str("To: Contract Creation\n");
     }
 
+    // HIGH-001 fix: Use safe U256 to f64 conversion
     output.push_str(&format!(
         "Value: {} wei ({:.6} ETH)\n",
         analysis.value,
-        analysis.value.to_string().parse::<f64>().unwrap_or(0.0) / 1e18
+        u256_to_eth_f64(&analysis.value)
     ));
     output.push_str(&format!("Gas Used: {}\n", analysis.gas_used));
     output.push_str(&format!(
@@ -532,17 +621,8 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
                 &to_short
             };
 
-            // Format amount nicely
-            let amount = &flow.amount;
-            let amount_display = if amount.len() > 18 {
-                format!(
-                    "{}.{}",
-                    &amount[..amount.len() - 18],
-                    &amount[amount.len() - 18..amount.len() - 16]
-                )
-            } else {
-                format!("0.{}", amount)
-            };
+            // LOW-002 fix: Use safe token amount formatting
+            let amount_display = format_token_amount(&flow.amount, 18);
 
             output.push_str(&format!(
                 "  {} {}... → {}... {} {}\n",
@@ -585,7 +665,9 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{address, b256, U256};
+    use alloy::primitives::{address, b256, B256, U256};
+    use crate::tx::types::{AnalyzedEvent, FunctionCall, FunctionParam};
+    use std::collections::HashMap;
 
     fn make_test_analysis() -> TransactionAnalysis {
         TransactionAnalysis {
@@ -634,5 +716,177 @@ mod tests {
         let output = format_analysis(&analysis);
 
         assert!(output.contains("Contract Creation"));
+    }
+
+    // LOW-007: Edge case tests
+
+    #[test]
+    fn test_u256_to_eth_f64_normal() {
+        // 1 ETH = 1e18 wei
+        let one_eth = U256::from(1_000_000_000_000_000_000u128);
+        let result = u256_to_eth_f64(&one_eth);
+        assert!((result - 1.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_u256_to_eth_f64_small() {
+        // 1 wei
+        let one_wei = U256::from(1u64);
+        let result = u256_to_eth_f64(&one_wei);
+        assert!(result > 0.0 && result < 1e-17);
+    }
+
+    #[test]
+    fn test_u256_to_eth_f64_zero() {
+        let zero = U256::ZERO;
+        let result = u256_to_eth_f64(&zero);
+        assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn test_u256_to_eth_f64_large() {
+        // Value larger than u128::MAX
+        let large = U256::MAX;
+        let result = u256_to_eth_f64(&large);
+        // Should not panic, and should return a large positive number
+        assert!(result > 0.0);
+        assert!(result.is_finite() || result == f64::MAX);
+    }
+
+    #[test]
+    fn test_format_token_amount_normal() {
+        // 1.23 tokens (with 18 decimals)
+        let amount = "1230000000000000000";
+        let result = format_token_amount(amount, 18);
+        assert_eq!(result, "1.23");
+    }
+
+    #[test]
+    fn test_format_token_amount_small() {
+        // 0.01 tokens
+        let amount = "10000000000000000";
+        let result = format_token_amount(amount, 18);
+        assert_eq!(result, "0.01");
+    }
+
+    #[test]
+    fn test_format_token_amount_very_small() {
+        // Very small amount (less than 0.01)
+        let amount = "1000000000000";
+        let result = format_token_amount(amount, 18);
+        assert_eq!(result, "0.00");
+    }
+
+    #[test]
+    fn test_format_token_amount_empty() {
+        let result = format_token_amount("", 18);
+        assert_eq!(result, "0.00");
+    }
+
+    #[test]
+    fn test_format_token_amount_invalid() {
+        let result = format_token_amount("not_a_number", 18);
+        assert_eq!(result, "0.00");
+    }
+
+    #[test]
+    fn test_format_token_amount_large() {
+        // 1 million tokens
+        let amount = "1000000000000000000000000";
+        let result = format_token_amount(amount, 18);
+        assert_eq!(result, "1000000.00");
+    }
+
+    #[test]
+    fn test_format_analysis_many_events() {
+        let mut analysis = make_test_analysis();
+        // Add 25 events (more than the 20 limit)
+        for i in 0..25 {
+            analysis.events.push(AnalyzedEvent {
+                log_index: i as u64,
+                address: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                address_label: Some("WETH".to_string()),
+                name: Some("Transfer".to_string()),
+                signature: Some("Transfer(address,address,uint256)".to_string()),
+                params: HashMap::new(),
+                topic0: B256::ZERO,
+                is_transfer: true,
+            });
+        }
+
+        let output = format_analysis(&analysis);
+        assert!(output.contains("... and 5 more"));
+    }
+
+    #[test]
+    fn test_format_analysis_many_token_flows() {
+        use crate::tx::types::TokenFlow;
+
+        let mut analysis = make_test_analysis();
+        // Add 20 token flows (more than the 15 limit)
+        for i in 0..20 {
+            analysis.token_flows.push(TokenFlow {
+                token: address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+                token_label: Some("USDC".to_string()),
+                from: address!("d8da6bf26964af9d7eed9e03e53415d37aa96045"),
+                from_label: None,
+                to: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                to_label: None,
+                amount: "1000000".to_string(),
+                log_index: i as u64,
+            });
+        }
+
+        let output = format_analysis(&analysis);
+        assert!(output.contains("... and 5 more"));
+    }
+
+    #[test]
+    fn test_format_analysis_with_function_call() {
+        let mut analysis = make_test_analysis();
+        analysis.function_call = Some(FunctionCall {
+            selector: "0xa9059cbb".to_string(),
+            name: Some("transfer".to_string()),
+            signature: Some("transfer(address,uint256)".to_string()),
+            params: vec![
+                FunctionParam {
+                    name: "to".to_string(),
+                    ty: "address".to_string(),
+                    value: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string(),
+                },
+                FunctionParam {
+                    name: "amount".to_string(),
+                    ty: "uint256".to_string(),
+                    value: "1000000000000000000".to_string(),
+                },
+            ],
+        });
+
+        let output = format_analysis(&analysis);
+        assert!(output.contains("Function Call:"));
+        assert!(output.contains("transfer"));
+        assert!(output.contains("0xa9059cbb"));
+        assert!(output.contains("Parameters:"));
+    }
+
+    #[test]
+    fn test_format_analysis_empty_contracts() {
+        let mut analysis = make_test_analysis();
+        analysis.contracts.clear();
+        let output = format_analysis(&analysis);
+
+        // Should still have the "Contracts Involved:" header
+        assert!(output.contains("Contracts Involved:"));
+    }
+
+    #[test]
+    fn test_format_analysis_large_value() {
+        let mut analysis = make_test_analysis();
+        // Set a very large value (> u128::MAX would overflow, but let's test a large u128)
+        analysis.value = U256::from(u128::MAX);
+        let output = format_analysis(&analysis);
+
+        // Should not panic and should contain ETH formatting
+        assert!(output.contains("ETH"));
     }
 }

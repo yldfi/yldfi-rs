@@ -81,6 +81,7 @@ num-traits = "0.2"
 sha2 = "0.10"
 secrecy = { workspace = true }
 semver = "1"
+fs2 = "0.4"  # MED-003 fix: File locking for config persistence
 
 # API clients
 alcmy = { version = "0.1", path = "../alcmy" }

@@ -38,9 +38,32 @@ impl ProxyRotator {
     }
 
     /// Create from a proxy file (one URL per line)
+    ///
+    /// HIGH-002 fix: Validates and canonicalizes the path before reading to:
+    /// - Resolve symlinks to their actual target
+    /// - Normalize path traversal sequences (../)
+    /// - Provide a clear error if the file doesn't exist
     pub fn from_file(path: &Path, mode: RotationMode) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
+        // HIGH-002: Canonicalize path to resolve symlinks and validate existence
+        let canonical_path = path.canonicalize().map_err(|e| {
+            ConfigError::InvalidFile(format!(
+                "Invalid proxy file path '{}': {}",
+                path.display(),
+                e
+            ))
+        })?;
+
+        // Ensure it's a file, not a directory
+        if !canonical_path.is_file() {
+            return Err(ConfigError::InvalidFile(format!(
+                "Proxy path '{}' is not a file",
+                canonical_path.display()
+            ))
+            .into());
+        }
+
+        let content = fs::read_to_string(&canonical_path)
+            .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", canonical_path.display(), e)))?;
 
         let proxies: Vec<String> = content
             .lines()

@@ -18,6 +18,7 @@
 use reqwest::Client;
 use std::time::Duration;
 use thiserror::Error;
+use url::Url;
 
 /// Default User-Agent to avoid Cloudflare blocks.
 ///
@@ -33,6 +34,21 @@ pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_
 /// - Long enough for slow API responses (e.g., archive node queries, large responses)
 /// - Matches common API gateway timeouts (AWS API Gateway: 29s, Cloudflare: 30s)
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Redact credentials from a proxy URL for safe logging (MED-001 fix)
+///
+/// Replaces username and password with `[REDACTED]` if present.
+fn redact_proxy_url(url: &str) -> String {
+    if let Ok(mut parsed) = Url::parse(url) {
+        if !parsed.username().is_empty() || parsed.password().is_some() {
+            let _ = parsed.set_username("[REDACTED]");
+            let _ = parsed.set_password(Some("[REDACTED]"));
+        }
+        parsed.to_string()
+    } else {
+        "[invalid proxy URL]".to_string()
+    }
+}
 
 /// HTTP client configuration errors
 #[derive(Debug, Error)]
@@ -67,6 +83,23 @@ pub const DEFAULT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 /// - Higher values waste memory for infrequent hosts
 /// - Lower values cause connection churn under parallel load
 /// - reqwest's default is 100, which is excessive for CLI tools
+///
+/// ## Tuning Guidelines (MED-004)
+///
+/// **Increase `DEFAULT_POOL_MAX_IDLE_PER_HOST` if:**
+/// - Running many parallel CLI commands to the same API
+/// - Seeing connection setup latency in traces
+/// - Batch operations with high parallelism (e.g., 20+ concurrent requests)
+///
+/// **Decrease if:**
+/// - Running on memory-constrained systems
+/// - Targeting many different API hosts (memory per host adds up)
+/// - Simple sequential operations with low parallelism
+///
+/// **Adjust `DEFAULT_POOL_IDLE_TIMEOUT` based on target API's keep-alive:**
+/// - Lower (30-60s) for APIs with short keep-alive timeouts
+/// - Higher (120s+) for APIs with long timeouts or when running long batch operations
+/// - Match to the minimum keep-alive of your target APIs to avoid broken connection errors
 pub const DEFAULT_POOL_MAX_IDLE_PER_HOST: usize = 10;
 
 /// HTTP client configuration
@@ -169,11 +202,22 @@ pub fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
 
     if let Some(ref proxy_url) = config.proxy {
         let proxy = reqwest::Proxy::all(proxy_url)
-            .map_err(|e| HttpError::InvalidProxy(format!("{}: {}", proxy_url, e)))?;
+            // MED-001 fix: Redact credentials from error message
+            .map_err(|e| HttpError::InvalidProxy(format!("{}: {}", redact_proxy_url(proxy_url), e)))?;
         builder = builder.proxy(proxy);
     }
 
-    builder.build().map_err(HttpError::from)
+    // MED-003 fix: Provide detailed context on build failure
+    builder.build().map_err(|e| {
+        HttpError::BuildError(format!(
+            "Failed to build HTTP client (timeout: {:?}, pool_idle: {:?}, pool_max_idle: {}, proxy: {}): {}",
+            config.timeout,
+            config.pool_idle_timeout,
+            config.pool_max_idle_per_host,
+            config.proxy.as_ref().map(|p| redact_proxy_url(p)).unwrap_or_else(|| "none".to_string()),
+            e
+        ))
+    })
 }
 
 /// Build a reqwest Client with default configuration
