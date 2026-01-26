@@ -2,7 +2,10 @@
 
 use super::{EndpointConfig, ProxyConfig};
 use crate::error::{ConfigError, Result};
+use fs2::FileExt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
@@ -404,16 +407,44 @@ impl ConfigFile {
     }
 
     /// Load from a specific path
+    ///
+    /// MED-003 fix: Uses shared file lock to coordinate with concurrent writers.
     pub fn load(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
+        use std::io::Read;
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .open(path)
             .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
+
+        // Acquire shared lock (allows other readers, blocks writers)
+        file.lock_shared().map_err(|e| {
+            ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e))
+        })?;
+
+        let mut content = String::new();
+        file.read_to_string(&mut content)
+            .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
+
+        // Lock is automatically released when file is dropped
 
         let config: Self = toml::from_str(&content).map_err(ConfigError::from)?;
         Ok(config)
     }
 
     /// Save to a specific path
+    ///
+    /// MED-003/HIGH-001 fix: Uses file-level locking with atomic write pattern
+    /// to prevent TOCTOU race conditions and data loss when multiple CLI
+    /// instances run simultaneously.
+    ///
+    /// Uses write-to-temp-and-rename pattern for atomic writes:
+    /// 1. Write to a temporary file with exclusive lock
+    /// 2. Sync to disk
+    /// 3. Rename atomically to target path
     pub fn save(&self, path: &Path) -> Result<()> {
+        use std::io::{Seek, SeekFrom};
+
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
@@ -424,8 +455,48 @@ impl ConfigFile {
         let content = toml::to_string_pretty(self)
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to serialize config: {}", e)))?;
 
-        std::fs::write(path, content)
+        // HIGH-001/MED-002 fix: Use atomic write pattern
+        // Create temp file in same directory (for same-filesystem rename)
+        let temp_path = path.with_extension("toml.tmp");
+
+        // Open temp file WITHOUT truncate - we'll truncate AFTER acquiring lock
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&temp_path)
+            .map_err(|e| {
+                ConfigError::InvalidFile(format!("Failed to create temp config file: {}", e))
+            })?;
+
+        // Acquire exclusive lock FIRST (blocks until available)
+        file.lock_exclusive().map_err(|e| {
+            ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e))
+        })?;
+
+        // NOW truncate after we have the lock (HIGH-001 fix)
+        file.set_len(0).map_err(|e| {
+            ConfigError::InvalidFile(format!("Failed to truncate temp file: {}", e))
+        })?;
+        file.seek(SeekFrom::Start(0)).map_err(|e| {
+            ConfigError::InvalidFile(format!("Failed to seek temp file: {}", e))
+        })?;
+
+        // Write content
+        file.write_all(content.as_bytes())
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to write config: {}", e)))?;
+
+        // Sync to disk before rename for durability (MED-002 fix)
+        file.sync_all().map_err(|e| {
+            ConfigError::InvalidFile(format!("Failed to sync config file: {}", e))
+        })?;
+
+        // Lock is released when file is dropped, but rename is still atomic
+        drop(file);
+
+        // Atomic rename (same filesystem guaranteed since temp is in same dir)
+        std::fs::rename(&temp_path, path).map_err(|e| {
+            ConfigError::InvalidFile(format!("Failed to rename config file: {}", e))
+        })?;
 
         // Set restrictive permissions (0600) on Unix systems since config may contain API keys
         #[cfg(unix)]

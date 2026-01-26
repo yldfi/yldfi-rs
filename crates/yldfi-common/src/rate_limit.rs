@@ -4,6 +4,14 @@
 //! This protects both the client (from quota exhaustion) and the server
 //! (from excessive requests).
 //!
+//! # Concurrency Note (LOW-001)
+//!
+//! Under high concurrency at window boundaries, there is a small race window
+//! where slightly more requests than `max_requests` may be allowed. This is
+//! because the window reset and request counting are not fully atomic to avoid
+//! lock contention. For CLI tools and typical API usage, this is acceptable.
+//! If strict enforcement is required, consider using a mutex-based approach.
+//!
 //! # Example
 //!
 //! ```no_run
@@ -45,7 +53,9 @@ struct RateLimiterInner {
     max_requests: u32,
     /// Time window for rate limiting
     window: Duration,
-    /// Timestamp of last reset (as nanos since some epoch)
+    /// Fixed start time for computing elapsed time (CRIT-001 fix)
+    start_time: Instant,
+    /// Timestamp of last reset (as nanos since start_time)
     last_reset: AtomicU64,
     /// Number of requests in current window
     request_count: AtomicU64,
@@ -78,6 +88,7 @@ impl RateLimiter {
                 semaphore: Semaphore::new(max_requests as usize),
                 max_requests,
                 window,
+                start_time: Instant::now(), // CRIT-001 fix: store fixed start time
                 last_reset: AtomicU64::new(0),
                 request_count: AtomicU64::new(0),
             }),
@@ -98,12 +109,75 @@ impl RateLimiter {
     /// waiting until a new window starts or a slot becomes available.
     pub async fn acquire(&self) {
         let inner = &self.inner;
-        let now = Instant::now();
-        let now_nanos = now.elapsed().as_nanos() as u64;
-
-        // Check if we need to reset the window
-        let last = inner.last_reset.load(Ordering::Relaxed);
         let window_nanos = inner.window.as_nanos() as u64;
+
+        // CRIT-002 fix: Loop to re-check window after sleeping
+        loop {
+            // CRIT-001 fix: Compute elapsed from stored start_time, not from now
+            let now_nanos = inner.start_time.elapsed().as_nanos() as u64;
+
+            // Check if we need to reset the window
+            let last = inner.last_reset.load(Ordering::Relaxed);
+
+            if now_nanos.saturating_sub(last) >= window_nanos {
+                // Try to reset the window
+                if inner
+                    .last_reset
+                    .compare_exchange(last, now_nanos, Ordering::SeqCst, Ordering::Relaxed)
+                    .is_ok()
+                {
+                    inner.request_count.store(0, Ordering::Relaxed);
+                    // Release all permits back to max
+                    let current = inner.semaphore.available_permits();
+                    let to_add = inner.max_requests as usize - current;
+                    if to_add > 0 {
+                        inner.semaphore.add_permits(to_add);
+                    }
+                }
+            }
+
+            // Try to acquire a slot
+            let count = inner.request_count.fetch_add(1, Ordering::Relaxed);
+            if count < inner.max_requests as u64 {
+                // We got a slot, try to acquire semaphore permit
+                if let Ok(permit) = inner.semaphore.try_acquire() {
+                    // Forget the permit so it gets returned when the window resets
+                    permit.forget();
+                    return;
+                }
+            }
+
+            // Over the limit or no semaphore permit - undo the count increment and wait
+            inner.request_count.fetch_sub(1, Ordering::Relaxed);
+
+            // Calculate time remaining in current window
+            let current_elapsed = inner.start_time.elapsed().as_nanos() as u64;
+            let current_last = inner.last_reset.load(Ordering::Relaxed);
+            let elapsed_in_window = current_elapsed.saturating_sub(current_last);
+            let remaining = window_nanos.saturating_sub(elapsed_in_window);
+
+            // Sleep for remaining window time (or a small backoff if window just reset)
+            let sleep_time = if remaining > 0 {
+                Duration::from_nanos(remaining)
+            } else {
+                Duration::from_millis(10) // Small backoff
+            };
+            sleep(sleep_time).await;
+            // Loop back to re-check and try again
+        }
+    }
+
+    /// Try to acquire a permit without blocking.
+    ///
+    /// Returns `true` if a permit was acquired, `false` if rate limited.
+    #[must_use]
+    pub fn try_acquire(&self) -> bool {
+        let inner = &self.inner;
+
+        // HIGH-001 fix: Check and reset window before checking count
+        let now_nanos = inner.start_time.elapsed().as_nanos() as u64;
+        let window_nanos = inner.window.as_nanos() as u64;
+        let last = inner.last_reset.load(Ordering::Relaxed);
 
         if now_nanos.saturating_sub(last) >= window_nanos {
             // Try to reset the window
@@ -122,31 +196,6 @@ impl RateLimiter {
             }
         }
 
-        // Check if we're over the limit
-        let count = inner.request_count.fetch_add(1, Ordering::Relaxed);
-        if count >= inner.max_requests as u64 {
-            // Wait for the window to reset
-            let elapsed_in_window = now_nanos.saturating_sub(last);
-            let remaining = window_nanos.saturating_sub(elapsed_in_window);
-            if remaining > 0 {
-                sleep(Duration::from_nanos(remaining)).await;
-            }
-        }
-
-        // Acquire semaphore permit (will wait if none available)
-        let permit = inner.semaphore.acquire().await;
-        // Forget the permit so it gets returned when the window resets
-        if let Ok(p) = permit {
-            p.forget();
-        }
-    }
-
-    /// Try to acquire a permit without blocking.
-    ///
-    /// Returns `true` if a permit was acquired, `false` if rate limited.
-    #[must_use]
-    pub fn try_acquire(&self) -> bool {
-        let inner = &self.inner;
         let count = inner.request_count.load(Ordering::Relaxed);
 
         if count >= inner.max_requests as u64 {

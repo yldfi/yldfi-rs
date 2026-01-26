@@ -114,6 +114,23 @@ impl Client {
             return Err(error::missing_api_key());
         }
 
+        // MED-002/LOW-003 fix: Validate HTTPS before sending API key
+        // Allow HTTP only for localhost development
+        // LOW-003 fix: Parse URL and check host component specifically to prevent
+        // bypass via URLs like "http://attacker.com/localhost/"
+        let is_localhost = if let Ok(parsed_url) = reqwest::Url::parse(&config.base_url) {
+            parsed_url
+                .host_str()
+                .map(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        if !config.base_url.starts_with("https://") && !is_localhost {
+            return Err(error::insecure_scheme(&config.base_url));
+        }
+
         let http = yldfi_common::build_client(&config.http)?;
 
         Ok(Self {

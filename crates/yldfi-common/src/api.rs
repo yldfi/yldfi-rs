@@ -57,11 +57,49 @@ impl std::error::Error for NoDomainError {}
 /// Maximum length for error message bodies (SEC-005 fix)
 const MAX_ERROR_BODY_LENGTH: usize = 500;
 
+/// Join a base URL with a path, handling edge cases properly (LOW-003 fix).
+///
+/// This is more robust than simple string concatenation:
+/// - Handles trailing slashes in base URL
+/// - Handles leading slashes in path
+/// - Handles query strings properly
+///
+/// Falls back to simple concatenation if URL parsing fails.
+pub fn join_url(base: &str, path: &str) -> String {
+    // Try to use url::Url::parse for validation and proper handling
+    if let Ok(base_url) = url::Url::parse(base) {
+        // url::Url::join treats paths starting with / as absolute, which would
+        // replace the entire path. We want to append instead.
+        let path_to_join = path.trim_start_matches('/');
+
+        // For proper joining, the base needs a trailing slash
+        let base_path = base_url.path();
+        if base_path.ends_with('/') {
+            if let Ok(joined) = base_url.join(path_to_join) {
+                return joined.to_string();
+            }
+        } else {
+            // Manually append path with proper separator
+            let base_str = base.trim_end_matches('/');
+            return format!("{}/{}", base_str, path_to_join);
+        }
+    }
+
+    // Fallback to simple concatenation
+    let base_str = base.trim_end_matches('/');
+    if path.starts_with('/') {
+        format!("{}{}", base_str, path)
+    } else {
+        format!("{}/{}", base_str, path)
+    }
+}
+
 /// Sanitize an API error body to remove potential secrets and truncate if too long.
 ///
 /// This function:
 /// 1. Truncates bodies longer than 500 characters
-/// 2. Redacts common API key patterns (query params, bearer tokens)
+/// 2. Redacts common API key patterns (query params, bearer tokens, headers)
+/// 3. Redacts JSON key-value pairs with sensitive keys (MED-001 fix)
 ///
 /// This is a security measure to prevent accidental exposure of sensitive data
 /// in error messages and logs.
@@ -77,36 +115,184 @@ fn sanitize_error_body(body: &str) -> String {
     // Redact query params that look like keys/tokens
     let mut result = truncated;
 
-    // Redact patterns like ?key=xxx or &api_key=xxx
+    // LOW-002 fix: Use a loop to redact ALL occurrences of each pattern
+    // Query parameter patterns (key=value&)
     for pattern in ["key=", "apikey=", "api_key=", "token=", "secret=", "auth=", "password="] {
-        if let Some(start) = result.to_lowercase().find(pattern) {
-            // Find the end of the value (next & or end of string/whitespace)
-            let value_start = start + pattern.len();
-            let value_end = result[value_start..]
-                .find(|c: char| c == '&' || c.is_whitespace())
-                .map(|i| value_start + i)
-                .unwrap_or(result.len());
+        // Track search position to avoid infinite loop
+        let mut search_from = 0;
+        loop {
+            let lowercase = result.to_lowercase();
+            // Search only from current position forward
+            if let Some(relative_pos) = lowercase[search_from..].find(pattern) {
+                let start = search_from + relative_pos;
+                // Find the end of the value (next & or end of string/whitespace)
+                let value_start = start + pattern.len();
+                let value_end = result[value_start..]
+                    .find(|c: char| c == '&' || c.is_whitespace())
+                    .map(|i| value_start + i)
+                    .unwrap_or(result.len());
 
-            if value_end > value_start {
-                result = format!(
-                    "{}{}[REDACTED]{}",
-                    &result[..start],
-                    pattern,
-                    &result[value_end..]
-                );
+                // Only redact if there's actual content and it's not already [REDACTED]
+                let value = &result[value_start..value_end];
+                if value_end > value_start && value != "[REDACTED]" {
+                    // Preserve original case of the pattern key
+                    let original_pattern = &result[start..start + pattern.len()];
+                    result = format!(
+                        "{}{}[REDACTED]{}",
+                        &result[..start],
+                        original_pattern,
+                        &result[value_end..]
+                    );
+                    // Move search position past redaction
+                    search_from = start + pattern.len() + "[REDACTED]".len();
+                } else {
+                    // Move past this occurrence
+                    search_from = value_start;
+                }
+            } else {
+                break; // Pattern not found, move to next pattern
             }
         }
     }
 
-    // Redact Bearer tokens
-    if let Some(start) = result.to_lowercase().find("bearer ") {
-        let token_start = start + 7;
-        let token_end = result[token_start..]
-            .find(|c: char| c.is_whitespace())
-            .map(|i| token_start + i)
-            .unwrap_or(result.len());
-        if token_end > token_start {
-            result = format!("{}Bearer [REDACTED]{}", &result[..start], &result[token_end..]);
+    // Redact ALL Bearer tokens (LOW-002 fix: loop for multiple occurrences)
+    let mut search_from = 0;
+    loop {
+        let lowercase = result.to_lowercase();
+        if let Some(relative_pos) = lowercase[search_from..].find("bearer ") {
+            let start = search_from + relative_pos;
+            let token_start = start + 7;
+            let token_end = result[token_start..]
+                .find(|c: char| c.is_whitespace())
+                .map(|i| token_start + i)
+                .unwrap_or(result.len());
+            let token = &result[token_start..token_end];
+            if token_end > token_start && token != "[REDACTED]" {
+                result = format!("{}Bearer [REDACTED]{}", &result[..start], &result[token_end..]);
+                search_from = start + "Bearer [REDACTED]".len();
+            } else {
+                search_from = token_start;
+            }
+        } else {
+            break;
+        }
+    }
+
+    // LOW-004 fix: Redact HTTP header patterns (e.g., "X-API-Key: value")
+    for header_pattern in [
+        "x-api-key:",
+        "x-auth-token:",
+        "authorization:",
+        "x-secret:",
+        "api-key:",
+    ] {
+        let mut search_from = 0;
+        loop {
+            let lowercase = result.to_lowercase();
+            if let Some(relative_pos) = lowercase[search_from..].find(header_pattern) {
+                let start = search_from + relative_pos;
+                let value_start = start + header_pattern.len();
+                // Skip whitespace after colon
+                let trimmed_start = result[value_start..]
+                    .find(|c: char| !c.is_whitespace())
+                    .map(|i| value_start + i)
+                    .unwrap_or(value_start);
+                // Find end of header value (newline or end of string)
+                let value_end = result[trimmed_start..]
+                    .find(|c: char| c == '\n' || c == '\r')
+                    .map(|i| trimmed_start + i)
+                    .unwrap_or(result.len());
+                let value = &result[trimmed_start..value_end];
+                if value_end > trimmed_start && value != "[REDACTED]" {
+                    let original_header = &result[start..start + header_pattern.len()];
+                    result = format!(
+                        "{}{} [REDACTED]{}",
+                        &result[..start],
+                        original_header,
+                        &result[value_end..]
+                    );
+                    search_from = start + header_pattern.len() + " [REDACTED]".len();
+                } else {
+                    search_from = value_start;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    // MED-001 fix: Redact JSON key-value pairs with sensitive keys
+    // Patterns like: "key": "value" or "api_key": "secret123"
+    for json_key in [
+        "\"key\"",
+        "\"apikey\"",
+        "\"api_key\"",
+        "\"token\"",
+        "\"secret\"",
+        "\"password\"",
+        "\"auth\"",
+        "\"access_token\"",
+        "\"refresh_token\"",
+        "\"api-key\"",
+    ] {
+        // Track search position to avoid infinite loop
+        let mut search_from = 0;
+        loop {
+            let lowercase = result.to_lowercase();
+            // Search only from the current position forward
+            if let Some(relative_pos) = lowercase[search_from..].find(json_key) {
+                let key_start = search_from + relative_pos;
+                // Look for ": followed by a string value
+                let after_key = key_start + json_key.len();
+                let remaining = &result[after_key..];
+
+                // Find the colon and opening quote
+                if let Some(colon_offset) = remaining.find(':') {
+                    let after_colon = &remaining[colon_offset + 1..];
+                    // Skip whitespace
+                    let quote_offset = after_colon.find('"');
+                    if let Some(qo) = quote_offset {
+                        let value_start_abs = after_key + colon_offset + 1 + qo + 1;
+                        // Find closing quote (handle escaped quotes)
+                        let value_content = &result[value_start_abs..];
+                        let mut end_quote = 0;
+                        let mut chars = value_content.chars().peekable();
+                        while let Some(c) = chars.next() {
+                            if c == '\\' {
+                                // Skip escaped char
+                                chars.next();
+                                end_quote += 2;
+                            } else if c == '"' {
+                                break;
+                            } else {
+                                end_quote += c.len_utf8();
+                            }
+                        }
+                        if end_quote > 0 {
+                            let value_end_abs = value_start_abs + end_quote;
+                            // Preserve the key and structure, just redact the value
+                            result = format!(
+                                "{}[REDACTED]{}",
+                                &result[..value_start_abs],
+                                &result[value_end_abs..]
+                            );
+                            // Move search position past this redaction
+                            search_from = value_start_abs + "[REDACTED]".len();
+                        } else {
+                            // Move past this key to avoid infinite loop on malformed JSON
+                            search_from = after_key;
+                        }
+                    } else {
+                        // No opening quote found, move past this key
+                        search_from = after_key;
+                    }
+                } else {
+                    // No colon found, move past this key
+                    search_from = after_key;
+                }
+            } else {
+                break;
+            }
         }
     }
 
@@ -625,12 +811,20 @@ impl BaseClient {
     /// Build the full URL for a path.
     ///
     /// Uses cached normalized base URL to avoid repeated string allocation.
+    /// LOW-003 fix: Uses proper URL joining for robustness.
     #[must_use]
     pub fn url(&self, path: &str) -> String {
-        if path.starts_with('/') {
-            format!("{}{}", self.normalized_base_url, path)
+        // For simple relative paths, use the optimized string format
+        // This covers the common case where base_url is just a host + fixed path
+        if !path.contains('?') && !self.normalized_base_url.contains('?') {
+            if path.starts_with('/') {
+                format!("{}{}", self.normalized_base_url, path)
+            } else {
+                format!("{}/{}", self.normalized_base_url, path)
+            }
         } else {
-            format!("{}/{}", self.normalized_base_url, path)
+            // For complex cases (query strings), use proper URL parsing
+            join_url(&self.normalized_base_url, path)
         }
     }
 
@@ -1106,5 +1300,54 @@ mod tests {
         let body = "Simple error message";
         let sanitized = super::sanitize_error_body(body);
         assert_eq!(sanitized, body);
+    }
+
+    #[test]
+    fn test_sanitize_error_body_json_key_redaction() {
+        // MED-001 fix: Test JSON key-value redaction
+        let body = r#"{"error": "Invalid API Key", "key": "sk_live_secret123", "status": 401}"#;
+        let sanitized = super::sanitize_error_body(body);
+        assert!(sanitized.contains("[REDACTED]"));
+        assert!(!sanitized.contains("sk_live_secret123"));
+        // Should preserve structure
+        assert!(sanitized.contains("\"error\""));
+        assert!(sanitized.contains("\"status\""));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_json_api_key_redaction() {
+        let body = r#"{"api_key": "test_api_key_12345", "message": "unauthorized"}"#;
+        let sanitized = super::sanitize_error_body(body);
+        assert!(sanitized.contains("[REDACTED]"));
+        assert!(!sanitized.contains("test_api_key_12345"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_header_redaction() {
+        // LOW-004 fix: Test HTTP header pattern redaction
+        let body = "Request failed\nX-API-Key: my_secret_key_here\nContent-Type: application/json";
+        let sanitized = super::sanitize_error_body(body);
+        assert!(sanitized.contains("[REDACTED]"));
+        assert!(!sanitized.contains("my_secret_key_here"));
+        // Should preserve non-sensitive headers
+        assert!(sanitized.contains("Content-Type"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_authorization_header() {
+        let body = "Error: Authorization: Basic dXNlcjpwYXNz";
+        let sanitized = super::sanitize_error_body(body);
+        assert!(sanitized.contains("[REDACTED]"));
+        assert!(!sanitized.contains("dXNlcjpwYXNz"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_multiple_json_keys() {
+        // Test multiple sensitive JSON keys in same body
+        let body = r#"{"key": "key1", "token": "token1", "api_key": "api1"}"#;
+        let sanitized = super::sanitize_error_body(body);
+        assert!(!sanitized.contains("key1"));
+        assert!(!sanitized.contains("token1"));
+        assert!(!sanitized.contains("api1"));
     }
 }
