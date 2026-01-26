@@ -1,4 +1,46 @@
-//! Health tracking for RPC endpoints
+//! Health tracking for RPC endpoints.
+//!
+//! This module provides health monitoring and circuit breaker functionality
+//! for RPC endpoints. It tracks:
+//!
+//! - Success/failure rates and latency
+//! - Rate limiting incidents
+//! - Timeout counts
+//! - Learned limits (block range, max logs)
+//!
+//! # Circuit Breaker
+//!
+//! When an endpoint experiences consecutive failures, the circuit breaker
+//! opens to prevent wasting requests. The circuit closes after a timeout
+//! period, allowing a probe request to test if the endpoint has recovered.
+//!
+//! # Health Scoring
+//!
+//! Endpoints are ranked by a health score (0-100) that combines:
+//! - Success rate (50% weight)
+//! - Latency (30% weight, lower is better)
+//! - Rate limit avoidance (20% weight)
+//!
+//! # Example
+//!
+//! ```ignore
+//! use ethcli::rpc::{HealthTracker, EndpointHealth};
+//! use std::time::Duration;
+//!
+//! let tracker = HealthTracker::new();
+//!
+//! // Record successful request
+//! tracker.record_success("https://rpc.example.com", Duration::from_millis(50));
+//!
+//! // Check if endpoint is available
+//! if tracker.is_available("https://rpc.example.com") {
+//!     // Use the endpoint
+//! }
+//!
+//! // Get health score for ranking
+//! let urls = vec!["https://rpc1.example.com".to_string()];
+//! let ranked = tracker.rank_endpoints(&urls);
+//! ```
 
 use parking_lot::RwLock;
 use std::collections::HashMap;

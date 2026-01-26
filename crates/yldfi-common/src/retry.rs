@@ -114,8 +114,20 @@ impl RetryConfig {
         self
     }
 
-    /// Calculate delay for a given attempt number (0-indexed)
+    /// Calculate delay for a given attempt number (0-indexed).
+    ///
+    /// # Overflow Safety
+    ///
+    /// The exponential calculation uses `f64` arithmetic, which handles overflow
+    /// gracefully by producing `f64::INFINITY`. This is immediately capped by
+    /// `min(max_delay)`, so even with extreme inputs, the result is bounded.
+    ///
+    /// Example: With default settings (100ms initial, 2.0 multiplier, 10s max),
+    /// attempt 100 would compute 2^100 * 100ms ≈ 10^32 ms, but the result is
+    /// capped to 10s.
     fn delay_for_attempt(&self, attempt: u32) -> Duration {
+        // Note: powi can produce f64::INFINITY for large exponents, but
+        // min() will cap it to max_delay, making overflow safe.
         let base_delay =
             self.initial_delay.as_millis() as f64 * self.backoff_multiplier.powi(attempt as i32);
         let capped_delay = base_delay.min(self.max_delay.as_millis() as f64);

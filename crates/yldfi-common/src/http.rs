@@ -19,10 +19,19 @@ use reqwest::Client;
 use std::time::Duration;
 use thiserror::Error;
 
-/// Default User-Agent to avoid Cloudflare blocks
+/// Default User-Agent to avoid Cloudflare blocks.
+///
+/// Many API providers (especially those behind Cloudflare) block requests with
+/// default library User-Agent strings. This mimics a real browser to avoid
+/// 403 Forbidden responses.
 pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-/// Default request timeout
+/// Default request timeout (30 seconds).
+///
+/// This balances responsiveness with reliability:
+/// - Short enough to fail fast on unresponsive servers
+/// - Long enough for slow API responses (e.g., archive node queries, large responses)
+/// - Matches common API gateway timeouts (AWS API Gateway: 29s, Cloudflare: 30s)
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// HTTP client configuration errors
@@ -41,10 +50,23 @@ impl From<reqwest::Error> for HttpError {
     }
 }
 
-/// Default connection pool idle timeout
+/// Default connection pool idle timeout (90 seconds).
+///
+/// Connections are kept alive for reuse to avoid TCP/TLS handshake overhead.
+/// 90 seconds is chosen because:
+/// - Most HTTP keep-alive defaults are 60-120 seconds
+/// - Long enough to benefit from connection reuse in burst operations
+/// - Short enough to release resources reasonably quickly after idle periods
+/// - Matches common load balancer idle timeouts (AWS ALB: 60s, nginx: 75s)
 pub const DEFAULT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 
-/// Default maximum idle connections per host
+/// Default maximum idle connections per host (10).
+///
+/// This limits memory usage while allowing good parallelism:
+/// - 10 connections supports typical CLI concurrency (1-10 parallel requests)
+/// - Higher values waste memory for infrequent hosts
+/// - Lower values cause connection churn under parallel load
+/// - reqwest's default is 100, which is excessive for CLI tools
 pub const DEFAULT_POOL_MAX_IDLE_PER_HOST: usize = 10;
 
 /// HTTP client configuration

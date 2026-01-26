@@ -1,10 +1,12 @@
 //! HTTP client for the DefiLlama API
+//!
+//! This client uses common utilities from `yldfi-common` for HTTP operations
+//! while supporting DefiLlama's multi-URL API structure.
 
 use reqwest::Client as HttpClient;
-use secrecy::{ExposeSecret, SecretString};
 use std::time::Duration;
 use url::Url;
-use yldfi_common::http::HttpClientConfig;
+use yldfi_common::api::{extract_retry_after, ApiConfig, SecretApiKey};
 
 use crate::error::{Error, Result};
 
@@ -23,12 +25,15 @@ pub mod base_urls {
 }
 
 /// Configuration for the DefiLlama API client
+///
+/// Built on top of [`ApiConfig`] from `yldfi-common` for consistent
+/// configuration patterns across all API clients.
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Pro API key (optional, enables Pro endpoints)
-    pub api_key: Option<SecretString>,
-    /// HTTP client configuration (timeout, proxy, user-agent)
-    pub http: HttpClientConfig,
+    pub api_key: Option<SecretApiKey>,
+    /// HTTP client configuration
+    inner: ApiConfig,
 }
 
 impl Config {
@@ -36,22 +41,22 @@ impl Config {
     pub fn new() -> Self {
         Self {
             api_key: None,
-            http: HttpClientConfig::default(),
+            inner: ApiConfig::new(base_urls::MAIN),
         }
     }
 
     /// Create a new Pro config with API key
     pub fn with_api_key(api_key: impl Into<String>) -> Self {
         Self {
-            api_key: Some(SecretString::from(api_key.into())),
-            http: HttpClientConfig::default(),
+            api_key: Some(SecretApiKey::new(api_key)),
+            inner: ApiConfig::new(base_urls::MAIN),
         }
     }
 
     /// Set a custom timeout
     #[must_use]
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.http.timeout = timeout;
+        self.inner.http.timeout = timeout;
         self
     }
 
@@ -64,14 +69,14 @@ impl Config {
     /// Set a proxy URL
     #[must_use]
     pub fn proxy(mut self, proxy: impl Into<String>) -> Self {
-        self.http.proxy = Some(proxy.into());
+        self.inner.http.proxy = Some(proxy.into());
         self
     }
 
     /// Set optional proxy URL
     #[must_use]
     pub fn optional_proxy(mut self, proxy: Option<String>) -> Self {
-        self.http.proxy = proxy;
+        self.inner.http.proxy = proxy;
         self
     }
 }
@@ -83,6 +88,8 @@ impl Default for Config {
 }
 
 /// DefiLlama API client
+///
+/// Supports multiple DefiLlama API endpoints (main, coins, stablecoins, yields, pro).
 #[derive(Debug, Clone)]
 pub struct Client {
     http: HttpClient,
@@ -91,7 +98,7 @@ pub struct Client {
     stablecoins_url: Url,
     yields_url: Url,
     /// Pro API key (if provided, enables Pro endpoints)
-    api_key: Option<SecretString>,
+    api_key: Option<SecretApiKey>,
 }
 
 impl Client {
@@ -110,7 +117,7 @@ impl Client {
 
     /// Create a client with custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
-        let http = yldfi_common::build_client(&config.http)?;
+        let http = config.inner.build_client()?;
 
         Ok(Self {
             http,
@@ -195,7 +202,7 @@ impl Client {
         let url = Url::parse(&format!(
             "{}/{}{}",
             base_urls::PRO,
-            api_key.expose_secret(),
+            api_key.expose(),
             path
         ))?;
         self.get(&url).await
@@ -222,20 +229,16 @@ impl Client {
         self.get(&url).await
     }
 
-    /// Make a GET request
+    /// Make a GET request using common error handling
     async fn get<T: serde::de::DeserializeOwned>(&self, url: &Url) -> Result<T> {
         let response = self.http.get(url.as_str()).send().await?;
         let status = response.status().as_u16();
 
         if !response.status().is_success() {
-            let retry_after = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok());
-
+            // Use common extract_retry_after utility
+            let retry_after = extract_retry_after(response.headers());
             let body = response.text().await.unwrap_or_default();
-            return Err(Error::from_response(status, &body, retry_after));
+            return Err(crate::error::from_response(status, &body, retry_after));
         }
 
         let body = response.text().await?;
@@ -257,14 +260,10 @@ impl Client {
         let status = response.status().as_u16();
 
         if !response.status().is_success() {
-            let retry_after = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok());
-
+            // Use common extract_retry_after utility
+            let retry_after = extract_retry_after(response.headers());
             let body = response.text().await.unwrap_or_default();
-            return Err(Error::from_response(status, &body, retry_after));
+            return Err(crate::error::from_response(status, &body, retry_after));
         }
 
         let body = response.text().await?;

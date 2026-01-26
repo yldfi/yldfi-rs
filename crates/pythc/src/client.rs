@@ -1,12 +1,15 @@
 //! HTTP client for the Pyth Hermes API
+//!
+//! This client uses the common `BaseClient` from `yldfi-common` for HTTP operations,
+//! providing consistent error handling, retry logic, and configuration patterns.
 
-use reqwest::Client as HttpClient;
 use std::borrow::Cow;
 use std::time::Duration;
 use url::Url;
-use yldfi_common::http::HttpClientConfig;
+use yldfi_common::api::{ApiConfig, BaseClient};
+use yldfi_common::{with_retry, RetryConfig};
 
-use crate::error::{Error, Result};
+use crate::error::{DomainError, Error, Result};
 use crate::types::{LatestPriceResponse, ParsedPriceFeed, PriceFeedId};
 
 /// Maximum length of error body to include in error messages
@@ -21,19 +24,18 @@ pub mod base_urls {
 }
 
 /// Configuration for the Pyth Hermes client
+///
+/// This is a thin wrapper around [`ApiConfig`] that provides Pyth-specific
+/// defaults and convenience methods.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Base URL (mainnet or testnet)
-    pub base_url: String,
-    /// HTTP client configuration
-    pub http: HttpClientConfig,
+    inner: ApiConfig,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            base_url: base_urls::MAINNET.to_string(),
-            http: HttpClientConfig::default(),
+            inner: ApiConfig::new(base_urls::MAINNET),
         }
     }
 }
@@ -47,38 +49,81 @@ impl Config {
     /// Create a testnet config
     pub fn testnet() -> Self {
         Self {
-            base_url: base_urls::TESTNET.to_string(),
-            http: HttpClientConfig::default(),
+            inner: ApiConfig::new(base_urls::TESTNET),
         }
     }
 
     /// Set a custom base URL
     #[must_use]
     pub fn with_base_url(mut self, url: impl Into<String>) -> Self {
-        self.base_url = url.into();
+        self.inner.base_url = url.into();
         self
     }
 
     /// Set a custom timeout
     #[must_use]
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.http.timeout = timeout;
+        self.inner.http.timeout = timeout;
         self
     }
 
     /// Set a proxy URL
     #[must_use]
     pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
-        self.http.proxy = Some(proxy.into());
+        self.inner.http.proxy = Some(proxy.into());
         self
+    }
+
+    /// Validate the configuration.
+    ///
+    /// Checks that the base URL is valid and uses HTTPS (except for localhost).
+    /// This is called automatically by `Client::with_config()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The URL is malformed
+    /// - The URL uses HTTP for non-localhost addresses
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pythc::Config;
+    ///
+    /// // HTTPS URLs are valid
+    /// let config = Config::mainnet();
+    /// assert!(config.validate().is_ok());
+    ///
+    /// // HTTP is rejected for non-localhost
+    /// let config = Config::default().with_base_url("http://example.com");
+    /// assert!(config.validate().is_err());
+    ///
+    /// // HTTP localhost is allowed for development
+    /// let config = Config::default().with_base_url("http://localhost:8080");
+    /// assert!(config.validate().is_ok());
+    /// ```
+    pub fn validate(&self) -> Result<()> {
+        self.inner
+            .validate()
+            .map_err(|e| match e {
+                yldfi_common::api::ConfigValidationError::InsecureScheme => {
+                    crate::error::insecure_scheme()
+                }
+                yldfi_common::api::ConfigValidationError::InvalidUrl(msg) => {
+                    crate::error::invalid_url(msg)
+                }
+            })
     }
 }
 
 /// Pyth Hermes API client
+///
+/// Built on top of [`BaseClient`] from `yldfi-common` for consistent
+/// HTTP handling across all API clients.
 #[derive(Debug, Clone)]
 pub struct Client {
-    http: HttpClient,
-    base_url: String,
+    base: BaseClient,
+    retry_config: RetryConfig,
 }
 
 impl Client {
@@ -93,14 +138,25 @@ impl Client {
     }
 
     /// Create a client with custom configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid (e.g., malformed URL
+    /// or insecure HTTP scheme for non-localhost addresses).
     pub fn with_config(config: Config) -> Result<Self> {
-        let http = yldfi_common::build_client(&config.http)?;
-        // Validate URL format
-        let _ = Url::parse(&config.base_url)?;
-        // Store as string without trailing slash
-        let base_url = config.base_url.trim_end_matches('/').to_string();
+        // Validate URL format and security (HTTPS required for non-localhost)
+        config.validate()?;
 
-        Ok(Self { http, base_url })
+        let base = BaseClient::new(config.inner).map_err(|e| {
+            yldfi_common::api::ApiError::<DomainError>::HttpBuild(e)
+        })?;
+
+        Ok(Self {
+            base,
+            retry_config: RetryConfig::new(3)
+                .with_initial_delay(Duration::from_millis(100))
+                .with_max_delay(Duration::from_secs(5)),
+        })
     }
 
     /// Get the latest price for one or more feed IDs
@@ -127,7 +183,7 @@ impl Client {
         }
 
         // Build URL with proper encoding
-        let mut url = Url::parse(&format!("{}/v2/updates/price/latest", self.base_url))?;
+        let mut url = Url::parse(&self.base.url("/v2/updates/price/latest"))?;
         {
             let mut pairs = url.query_pairs_mut();
             for id in feed_ids {
@@ -153,7 +209,7 @@ impl Client {
 
     /// Search for price feeds by query (symbol, base, quote, etc.)
     pub async fn search_feeds(&self, query: &str) -> Result<Vec<PriceFeedId>> {
-        let mut url = Url::parse(&format!("{}/v2/price_feeds", self.base_url))?;
+        let mut url = Url::parse(&self.base.url("/v2/price_feeds"))?;
         url.query_pairs_mut()
             .append_pair("query", query)
             .append_pair("asset_type", "crypto");
@@ -162,78 +218,51 @@ impl Client {
 
     /// Get price feeds filtered by asset type
     pub async fn get_feeds_by_asset_type(&self, asset_type: &str) -> Result<Vec<PriceFeedId>> {
-        let mut url = Url::parse(&format!("{}/v2/price_feeds", self.base_url))?;
+        let mut url = Url::parse(&self.base.url("/v2/price_feeds"))?;
         url.query_pairs_mut().append_pair("asset_type", asset_type);
         self.get_url(&url).await
     }
 
     async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
-        let url = Url::parse(&format!("{}{}", self.base_url, path))?;
+        let url = Url::parse(&self.base.url(path))?;
         self.get_url(&url).await
     }
 
     async fn get_url<T: serde::de::DeserializeOwned>(&self, url: &Url) -> Result<T> {
-        self.get_url_with_retry(url, 3).await
-    }
+        let url_str = url.to_string();
+        let http = self.base.http().clone();
 
-    /// GET request with retry logic for rate limiting
-    async fn get_url_with_retry<T: serde::de::DeserializeOwned>(
-        &self,
-        url: &Url,
-        max_retries: u32,
-    ) -> Result<T> {
-        let url_str = url.as_str();
-        let mut last_error: Option<Error> = None;
+        // Use with_retry for automatic retry with backoff
+        let result = with_retry(&self.retry_config, || {
+            let http = http.clone();
+            let url_str = url_str.clone();
+            async move {
+                let response = http.get(&url_str).send().await?;
+                let status = response.status().as_u16();
 
-        for attempt in 0..=max_retries {
-            let response = self.http.get(url_str).send().await?;
-            let status = response.status().as_u16();
-
-            // Handle rate limiting with Retry-After header support
-            if status == 429 {
-                if attempt < max_retries {
-                    let backoff = parse_retry_after(&response)
-                        .unwrap_or_else(|| Duration::from_millis(100 * 2u64.pow(attempt)));
-                    tokio::time::sleep(backoff).await;
-                    continue;
-                }
-                return Err(Error::api(
-                    429,
-                    "Rate limited - too many requests".to_string(),
-                ));
-            }
-
-            if !response.status().is_success() {
-                let body = response.text().await.unwrap_or_default();
-                // Truncate error body to prevent huge error messages
-                let body_truncated = if body.len() > MAX_ERROR_BODY_LEN {
-                    format!("{}...(truncated)", &body[..MAX_ERROR_BODY_LEN])
+                if response.status().is_success() {
+                    response
+                        .json()
+                        .await
+                        .map_err(|e| Error::api(status, format!("Parse error: {e}")))
                 } else {
-                    body
-                };
-                last_error = Some(Error::api(
-                    status,
-                    format!("{} - {}", status, body_truncated),
-                ));
+                    let retry_after = yldfi_common::api::extract_retry_after(response.headers());
+                    let body = response.text().await.unwrap_or_default();
 
-                // Retry on 5xx errors
-                if status >= 500 && attempt < max_retries {
-                    let backoff = Duration::from_millis(100 * 2u64.pow(attempt));
-                    tokio::time::sleep(backoff).await;
-                    continue;
+                    // Truncate error body to prevent huge error messages
+                    let body_truncated = if body.len() > MAX_ERROR_BODY_LEN {
+                        format!("{}...(truncated)", &body[..MAX_ERROR_BODY_LEN])
+                    } else {
+                        body
+                    };
+
+                    Err(Error::from_response(status, &body_truncated, retry_after))
                 }
-
-                return Err(last_error.unwrap());
             }
+        })
+        .await;
 
-            // Use response.json() directly for better performance
-            return response
-                .json()
-                .await
-                .map_err(|e| Error::api(status, format!("Parse error: {e}")));
-        }
-
-        Err(last_error.unwrap_or_else(|| Error::api(0, "Unknown error".to_string())))
+        result.map_err(|e| e.into_inner())
     }
 }
 
@@ -267,20 +296,6 @@ fn validate_feed_id(id: &str) -> bool {
     let id = id.trim();
     let hex_part = id.strip_prefix("0x").unwrap_or(id);
     hex_part.len() == 64 && hex_part.chars().all(|c| c.is_ascii_hexdigit())
-}
-
-/// Parse the Retry-After header from a response
-///
-/// Supports delay-seconds format (e.g., "5"). HTTP-date format is not
-/// supported and will fall back to default backoff.
-/// Returns None if header is missing or unparseable.
-fn parse_retry_after(response: &reqwest::Response) -> Option<Duration> {
-    let header_value = response.headers().get("retry-after")?.to_str().ok()?;
-
-    // Parse as seconds (most common for APIs)
-    let seconds: u64 = header_value.trim().parse().ok()?;
-    // Cap at 60 seconds to prevent unreasonably long waits
-    Some(Duration::from_secs(seconds.min(60)))
 }
 
 /// Well-known Pyth price feed IDs for common assets

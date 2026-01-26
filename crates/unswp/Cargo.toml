@@ -1,0 +1,33 @@
+[package]
+name = "unswp"
+version = "0.1.0"
+edition = "2021"
+description = "Unofficial Rust client for Uniswap - combining on-chain lens queries and subgraph historical data"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/unswp"
+keywords = ["uniswap", "defi", "ethereum", "amm", "dex"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[dependencies]
+# Workspace deps
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+yldfi-common = { version = "0.1", path = "../yldfi-common" }
+
+# Uniswap ecosystem crates
+uniswap-sdk-core = "6.0"
+uniswap-v2-sdk = "2.0"
+uniswap-v3-sdk = { version = "6.0", features = ["extensions", "std"] }
+uniswap-v4-sdk = { version = "1.0", features = ["extensions", "std"] }
+uniswap-lens = { version = "0.15", features = ["std"] }
+
+# Ethereum (version aligned with uniswap-v3-sdk)
+alloy = { version = "1.1", features = ["providers", "transports", "transport-http", "rpc-types"] }
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

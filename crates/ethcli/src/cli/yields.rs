@@ -18,7 +18,7 @@ pub struct YieldsArgs {
     #[arg(long, short)]
     pub project: Option<String>,
 
-    /// Source(s) to query: all, curve, llama (default: all)
+    /// Source(s) to query: all, curve, llama, uniswap (default: all)
     #[arg(long, short = 's', default_value = "all")]
     pub source: String,
 
@@ -109,19 +109,26 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
             // Print aggregation summary
             println!("\nYield Aggregation Summary");
             println!("=========================");
-            println!("Total pools:  {}", result.aggregated.total_pools);
-            println!("Curve pools:  {}", result.aggregated.curve_pools);
-            println!("Llama pools:  {}", result.aggregated.llama_pools);
+            println!("Total pools:    {}", result.aggregated.total_pools);
+            println!("Curve pools:    {}", result.aggregated.curve_pools);
+            println!("Llama pools:    {}", result.aggregated.llama_pools);
+            println!(
+                "Uniswap pools:  {} (V2: {}, V3: {}, V4: {})",
+                result.aggregated.uniswap_pools,
+                result.aggregated.uniswap_v2_pools,
+                result.aggregated.uniswap_v3_pools,
+                result.aggregated.uniswap_v4_pools
+            );
             if let Some(max) = result.aggregated.max_apy {
-                println!("Max APY:      {:.2}%", max);
+                println!("Max APY:        {:.2}%", max);
             }
             if let Some(avg) = result.aggregated.avg_apy {
-                println!("Avg APY:      {:.2}%", avg);
+                println!("Avg APY:        {:.2}%", avg);
             }
             if let Some(tvl) = result.aggregated.total_tvl_usd {
-                println!("Total TVL:    ${:.2}M", tvl / 1_000_000.0);
+                println!("Total TVL:      ${:.2}M", tvl / 1_000_000.0);
             }
-            println!("Query time:   {}ms", result.total_latency_ms);
+            println!("Query time:     {}ms", result.total_latency_ms);
             println!();
 
             // Print source status if requested
@@ -185,7 +192,9 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
                         .unwrap_or_else(|| "N/A".to_string());
 
                     // Determine source based on project name
-                    let source = if y.project.to_lowercase() == "curve" && y.tvl_usd.is_none() {
+                    let source = if y.project.to_lowercase().starts_with("uniswap") {
+                        "uniswap"
+                    } else if y.project.to_lowercase() == "curve" && y.tvl_usd.is_none() {
                         "curve"
                     } else {
                         "llama"

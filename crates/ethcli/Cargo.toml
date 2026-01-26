@@ -104,6 +104,9 @@ lfi = { version = "0.1", path = "../lfi" }
 vlra = { version = "0.1", path = "../vlra" }
 ensof = { version = "0.1", path = "../ensof" }
 
+# Uniswap client (V2, V3, V4)
+unswp = { version = "0.1", path = "../unswp" }
+
 # Chainlink Data Streams
 chainlink-data-streams-sdk = { version = "1.2", features = ["full"] }
 chainlink-data-streams-report = "1.2"

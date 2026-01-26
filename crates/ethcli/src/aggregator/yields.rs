@@ -14,6 +14,7 @@ pub enum YieldSource {
     All,
     Curve,
     Llama,
+    Uniswap,
 }
 
 impl std::str::FromStr for YieldSource {
@@ -24,6 +25,7 @@ impl std::str::FromStr for YieldSource {
             "all" => Ok(YieldSource::All),
             "curve" | "crv" => Ok(YieldSource::Curve),
             "llama" | "defillama" => Ok(YieldSource::Llama),
+            "uniswap" | "uni" => Ok(YieldSource::Uniswap),
             _ => Err(format!("Unknown yield source: {}", s)),
         }
     }
@@ -35,6 +37,7 @@ impl std::fmt::Display for YieldSource {
             YieldSource::All => write!(f, "all"),
             YieldSource::Curve => write!(f, "curve"),
             YieldSource::Llama => write!(f, "llama"),
+            YieldSource::Uniswap => write!(f, "uniswap"),
         }
     }
 }
@@ -76,6 +79,14 @@ pub struct YieldAggregation {
     pub curve_pools: usize,
     /// Number of pools from DefiLlama
     pub llama_pools: usize,
+    /// Number of pools from Uniswap (all versions combined)
+    pub uniswap_pools: usize,
+    /// Number of V2 pools from Uniswap
+    pub uniswap_v2_pools: usize,
+    /// Number of V3 pools from Uniswap
+    pub uniswap_v3_pools: usize,
+    /// Number of V4 pools from Uniswap
+    pub uniswap_v4_pools: usize,
     /// Highest APY found
     pub max_apy: Option<f64>,
     /// Average APY across all pools
@@ -230,6 +241,345 @@ async fn fetch_llama_yields(
     }
 }
 
+/// Fetch yields from Uniswap V2 pairs via The Graph subgraph
+async fn fetch_uniswap_v2_yields(chain: &str, api_key: &str) -> SourceResult<Vec<NormalizedYield>> {
+    let measure = LatencyMeasure::start();
+
+    // V2 only available on mainnet
+    if !matches!(chain.to_lowercase().as_str(), "ethereum" | "mainnet" | "eth") {
+        return SourceResult::error(
+            "uniswap-v2",
+            format!("Uniswap V2 subgraph only available on Ethereum mainnet, not {}", chain),
+            measure.elapsed_ms(),
+        );
+    }
+
+    let subgraph_config = unswp::SubgraphConfig::mainnet_v2(api_key);
+
+    let client = match unswp::SubgraphClient::new(subgraph_config) {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error("uniswap-v2", e.to_string(), measure.elapsed_ms());
+        }
+    };
+
+    match client.get_top_pairs(100).await {
+        Ok(pairs) => {
+            let mut yields: Vec<NormalizedYield> = Vec::new();
+
+            for pair in pairs {
+                // V2 has 0.3% fee on all swaps
+                // APY = (volume * 0.003 / TVL) * 365 annualized
+                let tvl_f: f64 = pair.reserve_usd.parse().unwrap_or(0.0);
+                let volume_f: f64 = pair.volume_usd.parse().unwrap_or(0.0);
+                let apy = if tvl_f > 0.0 && volume_f > 0.0 {
+                    // Estimate daily volume from total volume and estimate APY
+                    // This is approximate - cumulative volume / TVL gives rough fee yield
+                    Some((volume_f * 0.003 / tvl_f) * 100.0)
+                } else {
+                    None
+                };
+
+                let symbol = format!("{}/{}", pair.token0.symbol, pair.token1.symbol);
+                let symbol_with_fee = format!("{} (0.3%)", symbol);
+
+                let tvl_usd: Option<f64> = pair.reserve_usd.parse().ok();
+
+                let underlying = vec![pair.token0.symbol.clone(), pair.token1.symbol.clone()];
+                let stablecoin = is_stablecoin_pool(&underlying);
+
+                yields.push(NormalizedYield {
+                    pool_id: pair.id.clone(),
+                    symbol: symbol_with_fee,
+                    project: "uniswap-v2".to_string(),
+                    chain: chain.to_string(),
+                    apy_base: apy,
+                    apy_reward: None,
+                    apy_total: apy,
+                    tvl_usd,
+                    underlying_tokens: underlying,
+                    stablecoin: Some(stablecoin),
+                    url: Some(format!(
+                        "https://info.uniswap.org/#/pools/{}",
+                        pair.id
+                    )),
+                });
+            }
+
+            yields.sort_by(|a, b| {
+                b.apy_total
+                    .unwrap_or(0.0)
+                    .partial_cmp(&a.apy_total.unwrap_or(0.0))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            SourceResult::success("uniswap-v2", yields, measure.elapsed_ms())
+        }
+        Err(e) => SourceResult::error("uniswap-v2", e.to_string(), measure.elapsed_ms()),
+    }
+}
+
+/// Fetch yields from Uniswap V3 pools via The Graph subgraph
+async fn fetch_uniswap_v3_yields(chain: &str, api_key: &str) -> SourceResult<Vec<NormalizedYield>> {
+    let measure = LatencyMeasure::start();
+
+    // Create subgraph config based on chain
+    let subgraph_config = match chain.to_lowercase().as_str() {
+        "ethereum" | "mainnet" | "eth" => unswp::SubgraphConfig::mainnet_v3(api_key),
+        "arbitrum" | "arb" => unswp::SubgraphConfig::arbitrum_v3(api_key),
+        "optimism" | "op" => unswp::SubgraphConfig::optimism_v3(api_key),
+        "polygon" | "matic" => unswp::SubgraphConfig::mainnet_v3(api_key)
+            .with_subgraph_id(unswp::subgraph_ids::POLYGON_V3),
+        "base" => unswp::SubgraphConfig::base_v3(api_key),
+        "bsc" | "binance" => unswp::SubgraphConfig::mainnet_v3(api_key)
+            .with_subgraph_id(unswp::subgraph_ids::BSC_V3),
+        _ => {
+            return SourceResult::error(
+                "uniswap-v3",
+                format!("Unsupported chain for Uniswap V3 subgraph: {}", chain),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    let client = match unswp::SubgraphClient::new(subgraph_config) {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error("uniswap-v3", e.to_string(), measure.elapsed_ms());
+        }
+    };
+
+    match client.get_top_pools(100).await {
+        Ok(pools) => {
+            let mut yields: Vec<NormalizedYield> = Vec::new();
+
+            for pool in pools {
+                let tvl_f: f64 = pool.total_value_locked_usd.parse().unwrap_or(0.0);
+                let fees_f: f64 = pool.fees_usd.parse().unwrap_or(0.0);
+                let apy = if tvl_f > 0.0 {
+                    Some((fees_f / tvl_f) * 100.0)
+                } else {
+                    None
+                };
+
+                let symbol = format!("{}/{}", pool.token0.symbol, pool.token1.symbol);
+                let fee_tier: f64 = pool.fee_tier.parse().unwrap_or(0.0) / 10000.0;
+                let symbol_with_fee = format!("{} ({}%)", symbol, fee_tier);
+
+                let tvl_usd: Option<f64> = pool.total_value_locked_usd.parse().ok();
+
+                let underlying = vec![pool.token0.symbol.clone(), pool.token1.symbol.clone()];
+                let stablecoin = is_stablecoin_pool(&underlying);
+
+                yields.push(NormalizedYield {
+                    pool_id: pool.id.clone(),
+                    symbol: symbol_with_fee,
+                    project: "uniswap-v3".to_string(),
+                    chain: chain.to_string(),
+                    apy_base: apy,
+                    apy_reward: None,
+                    apy_total: apy,
+                    tvl_usd,
+                    underlying_tokens: underlying,
+                    stablecoin: Some(stablecoin),
+                    url: Some(format!(
+                        "https://info.uniswap.org/#/{}/pools/{}",
+                        chain, pool.id
+                    )),
+                });
+            }
+
+            yields.sort_by(|a, b| {
+                b.apy_total
+                    .unwrap_or(0.0)
+                    .partial_cmp(&a.apy_total.unwrap_or(0.0))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            SourceResult::success("uniswap-v3", yields, measure.elapsed_ms())
+        }
+        Err(e) => SourceResult::error("uniswap-v3", e.to_string(), measure.elapsed_ms()),
+    }
+}
+
+/// Fetch yields from Uniswap V4 pools via The Graph subgraph
+async fn fetch_uniswap_v4_yields(chain: &str, api_key: &str) -> SourceResult<Vec<NormalizedYield>> {
+    let measure = LatencyMeasure::start();
+
+    // V4 subgraph config based on chain
+    let subgraph_config = match chain.to_lowercase().as_str() {
+        "ethereum" | "mainnet" | "eth" => unswp::SubgraphConfig::mainnet_v4(api_key),
+        "arbitrum" | "arb" => unswp::SubgraphConfig::arbitrum_v4(api_key),
+        "base" => unswp::SubgraphConfig::base_v4(api_key),
+        "polygon" | "matic" => unswp::SubgraphConfig::mainnet_v4(api_key)
+            .with_subgraph_id(unswp::subgraph_ids::POLYGON_V4),
+        _ => {
+            return SourceResult::error(
+                "uniswap-v4",
+                format!("Unsupported chain for Uniswap V4 subgraph: {}", chain),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    let client = match unswp::SubgraphClient::new(subgraph_config) {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error("uniswap-v4", e.to_string(), measure.elapsed_ms());
+        }
+    };
+
+    match client.get_top_pools_v4(100).await {
+        Ok(pools) => {
+            let mut yields: Vec<NormalizedYield> = Vec::new();
+
+            for pool in pools {
+                let tvl_f: f64 = pool.total_value_locked_usd.parse().unwrap_or(0.0);
+                let fees_f: f64 = pool.fees_usd.parse().unwrap_or(0.0);
+                let apy = if tvl_f > 0.0 {
+                    Some((fees_f / tvl_f) * 100.0)
+                } else {
+                    None
+                };
+
+                let symbol = format!("{}/{}", pool.token0.symbol, pool.token1.symbol);
+                // V4 feeTier is in hundredths of a bip (e.g., 3000 = 0.3%)
+                let fee_f: f64 = pool.fee_tier.parse().unwrap_or(0.0) / 10000.0;
+                let symbol_with_fee = format!("{} ({}%)", symbol, fee_f);
+
+                let tvl_usd: Option<f64> = pool.total_value_locked_usd.parse().ok();
+
+                let underlying = vec![pool.token0.symbol.clone(), pool.token1.symbol.clone()];
+                let stablecoin = is_stablecoin_pool(&underlying);
+
+                // Note if pool has hooks
+                let hooks_note = pool.hooks.as_ref()
+                    .filter(|h| !h.is_empty() && *h != "0x0000000000000000000000000000000000000000")
+                    .map(|_| " [hooks]")
+                    .unwrap_or("");
+
+                yields.push(NormalizedYield {
+                    pool_id: pool.id.clone(),
+                    symbol: format!("{}{}", symbol_with_fee, hooks_note),
+                    project: "uniswap-v4".to_string(),
+                    chain: chain.to_string(),
+                    apy_base: apy,
+                    apy_reward: None,
+                    apy_total: apy,
+                    tvl_usd,
+                    underlying_tokens: underlying,
+                    stablecoin: Some(stablecoin),
+                    url: Some(format!(
+                        "https://app.uniswap.org/explore/pools/{}/{}",
+                        chain, pool.id
+                    )),
+                });
+            }
+
+            yields.sort_by(|a, b| {
+                b.apy_total
+                    .unwrap_or(0.0)
+                    .partial_cmp(&a.apy_total.unwrap_or(0.0))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            SourceResult::success("uniswap-v4", yields, measure.elapsed_ms())
+        }
+        Err(e) => SourceResult::error("uniswap-v4", e.to_string(), measure.elapsed_ms()),
+    }
+}
+
+/// Fetch yields from all Uniswap versions (V2, V3, V4) via The Graph subgraph
+async fn fetch_uniswap_yields(chain: &str) -> SourceResult<Vec<NormalizedYield>> {
+    let measure = LatencyMeasure::start();
+
+    // Get API key from config or env
+    let config = get_cached_config();
+    let api_key = config
+        .as_ref()
+        .and_then(|c| c.thegraph.as_ref())
+        .map(|g| g.api_key.expose_secret().to_string())
+        .or_else(|| std::env::var("THEGRAPH_API_KEY").ok());
+
+    let api_key = match api_key {
+        Some(key) => key,
+        None => {
+            return SourceResult::error(
+                "uniswap",
+                "TheGraph API key not configured (set THEGRAPH_API_KEY or add [thegraph] to config)",
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    // Fetch from all versions in parallel
+    let (v2_result, v3_result, v4_result) = tokio::join!(
+        fetch_uniswap_v2_yields(chain, &api_key),
+        fetch_uniswap_v3_yields(chain, &api_key),
+        fetch_uniswap_v4_yields(chain, &api_key),
+    );
+
+    // Combine results
+    let mut all_yields: Vec<NormalizedYield> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+
+    if let Some(yields) = v2_result.data {
+        all_yields.extend(yields);
+    } else if let Some(e) = v2_result.error {
+        // V2 error is expected for non-mainnet chains, don't treat as error
+        if !e.contains("only available on Ethereum mainnet") {
+            errors.push(format!("V2: {}", e));
+        }
+    }
+
+    if let Some(yields) = v3_result.data {
+        all_yields.extend(yields);
+    } else if let Some(e) = v3_result.error {
+        errors.push(format!("V3: {}", e));
+    }
+
+    if let Some(yields) = v4_result.data {
+        all_yields.extend(yields);
+    } else if let Some(e) = v4_result.error {
+        // V4 error for unsupported chains is expected
+        if !e.contains("Unsupported chain") {
+            errors.push(format!("V4: {}", e));
+        }
+    }
+
+    // Sort combined results by APY descending
+    all_yields.sort_by(|a, b| {
+        b.apy_total
+            .unwrap_or(0.0)
+            .partial_cmp(&a.apy_total.unwrap_or(0.0))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    if all_yields.is_empty() && !errors.is_empty() {
+        SourceResult::error("uniswap", errors.join("; "), measure.elapsed_ms())
+    } else {
+        let mut result = SourceResult::success("uniswap", all_yields, measure.elapsed_ms());
+        if !errors.is_empty() {
+            result.error = Some(errors.join("; "));
+        }
+        result
+    }
+}
+
+/// Check if a pool contains stablecoin pairs
+fn is_stablecoin_pool(tokens: &[String]) -> bool {
+    let stablecoins = [
+        "USDC", "USDT", "DAI", "FRAX", "TUSD", "USDP", "GUSD", "LUSD", "BUSD", "USDD", "PYUSD",
+        "EURC", "EUROC", "EURS", "EURT", "CEUR",
+    ];
+
+    // Pool is stablecoin if all tokens are stablecoins
+    tokens.iter().all(|t| {
+        let upper = t.to_uppercase();
+        stablecoins.iter().any(|s| upper.contains(s))
+    })
+}
+
 /// Fetch lending yields from Curve
 async fn fetch_curve_lending_yields(chain: &str) -> SourceResult<Vec<NormalizedLendingYield>> {
     let measure = LatencyMeasure::start();
@@ -277,10 +627,12 @@ pub async fn fetch_yields_aggregated(
     let futures: Vec<_> = match sources {
         YieldSource::All => {
             let curve_chain = chain.unwrap_or("ethereum");
+            let uniswap_chain = chain.unwrap_or("ethereum");
             vec![
                 Box::pin(fetch_curve_yields(curve_chain))
                     as std::pin::Pin<Box<dyn std::future::Future<Output = _> + Send>>,
                 Box::pin(fetch_llama_yields(chain, project)),
+                Box::pin(fetch_uniswap_yields(uniswap_chain)),
             ]
         }
         YieldSource::Curve => {
@@ -290,6 +642,10 @@ pub async fn fetch_yields_aggregated(
         YieldSource::Llama => {
             vec![Box::pin(fetch_llama_yields(chain, project))]
         }
+        YieldSource::Uniswap => {
+            let uniswap_chain = chain.unwrap_or("ethereum");
+            vec![Box::pin(fetch_uniswap_yields(uniswap_chain))]
+        }
     };
 
     let results = join_all(futures).await;
@@ -298,6 +654,7 @@ pub async fn fetch_yields_aggregated(
     let mut all_yields: Vec<NormalizedYield> = Vec::new();
     let mut curve_count = 0;
     let mut llama_count = 0;
+    let mut uniswap_count = 0;
 
     for result in &results {
         if let Some(yields) = &result.data {
@@ -305,6 +662,8 @@ pub async fn fetch_yields_aggregated(
                 curve_count = yields.len();
             } else if result.source == "llama" {
                 llama_count = yields.len();
+            } else if result.source == "uniswap" {
+                uniswap_count = yields.len();
             }
             all_yields.extend(yields.clone());
         }
@@ -344,10 +703,19 @@ pub async fn fetch_yields_aggregated(
         }
     };
 
+    // Count Uniswap pools by version
+    let uniswap_v2_count = all_yields.iter().filter(|y| y.project == "uniswap-v2").count();
+    let uniswap_v3_count = all_yields.iter().filter(|y| y.project == "uniswap-v3").count();
+    let uniswap_v4_count = all_yields.iter().filter(|y| y.project == "uniswap-v4").count();
+
     let aggregation = YieldAggregation {
         total_pools,
         curve_pools: curve_count,
         llama_pools: llama_count,
+        uniswap_pools: uniswap_count,
+        uniswap_v2_pools: uniswap_v2_count,
+        uniswap_v3_pools: uniswap_v3_count,
+        uniswap_v4_pools: uniswap_v4_count,
         max_apy,
         avg_apy,
         total_tvl_usd: total_tvl,

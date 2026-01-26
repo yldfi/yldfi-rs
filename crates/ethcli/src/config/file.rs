@@ -124,6 +124,10 @@ pub struct ConfigFile {
     #[serde(default)]
     pub enso: Option<EnsoConfig>,
 
+    /// The Graph API configuration (for Uniswap subgraphs)
+    #[serde(default)]
+    pub thegraph: Option<TheGraphConfig>,
+
     /// Debug-capable RPC endpoints (for debug_traceCall, etc.)
     #[serde(default)]
     pub debug_rpc_urls: Vec<String>,
@@ -267,6 +271,17 @@ pub struct OneInchConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnsoConfig {
     /// Enso API key (Bearer token)
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
+    pub api_key: SecretString,
+}
+
+/// The Graph API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TheGraphConfig {
+    /// The Graph API key (from The Graph Studio)
     #[serde(
         serialize_with = "serialize_secret",
         deserialize_with = "deserialize_secret"

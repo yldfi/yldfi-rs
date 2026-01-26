@@ -17,7 +17,12 @@ static API_KEY_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     ]
 });
 
-/// Sanitize a string to remove potential API keys and secrets
+/// Redacted placeholder for sensitive data in error messages.
+pub const REDACTED: &str = "[REDACTED]";
+
+/// Sanitize a string to remove potential API keys and secrets.
+///
+/// Replaces detected API keys, tokens, and secrets with [`REDACTED`].
 pub fn sanitize_error_message(msg: &str) -> String {
     let mut result = msg.to_string();
     for pattern in API_KEY_PATTERNS.iter() {
@@ -25,14 +30,49 @@ pub fn sanitize_error_message(msg: &str) -> String {
             .replace_all(&result, |caps: &regex::Captures| {
                 // Preserve the prefix (?|&) if present
                 if let Some(m) = caps.get(1) {
-                    format!("{}[REDACTED]", m.as_str())
+                    format!("{}{}", m.as_str(), REDACTED)
                 } else {
-                    "[REDACTED]".to_string()
+                    REDACTED.to_string()
                 }
             })
             .to_string();
     }
     result
+}
+
+/// Keywords that indicate a transient/retryable error when found in error messages.
+const TRANSIENT_ERROR_KEYWORDS: &[&str] = &[
+    "timeout",
+    "connection",
+    "temporarily",
+    "503", // Service Unavailable
+    "502", // Bad Gateway
+    "504", // Gateway Timeout
+    "network",
+];
+
+/// Check if an error message indicates a transient error that should be retried.
+///
+/// This is used for provider errors where we don't have structured error types
+/// and must infer retryability from the error message content.
+fn is_transient_error_message(msg: &str) -> bool {
+    let msg_lower = msg.to_lowercase();
+    TRANSIENT_ERROR_KEYWORDS
+        .iter()
+        .any(|keyword| msg_lower.contains(keyword))
+}
+
+/// Transient IO error kinds that should be retried.
+const TRANSIENT_IO_ERROR_KINDS: &[std::io::ErrorKind] = &[
+    std::io::ErrorKind::TimedOut,
+    std::io::ErrorKind::ConnectionReset,
+    std::io::ErrorKind::ConnectionAborted,
+    std::io::ErrorKind::Interrupted,
+];
+
+/// Check if an IO error is transient and should be retried.
+fn is_transient_io_error(err: &std::io::Error) -> bool {
+    TRANSIENT_IO_ERROR_KINDS.contains(&err.kind())
 }
 
 /// Main error type for the library
@@ -258,56 +298,37 @@ impl From<OtherError> for Error {
     }
 }
 
-/// Implement RetryableError for RpcError to determine which errors should be retried
+/// Implement RetryableError for RpcError to determine which errors should be retried.
 impl crate::rpc::retry::RetryableError for RpcError {
     fn is_retryable(&self) -> bool {
         match self {
-            // Transient errors that should be retried
-            RpcError::Timeout(_) => true,
-            RpcError::RateLimited(_) => true,
-            RpcError::ConnectionFailed(_) => true,
-            RpcError::Http(_) => true,
+            // Explicit transient errors - always retry
+            RpcError::Timeout(_)
+            | RpcError::RateLimited(_)
+            | RpcError::ConnectionFailed(_)
+            | RpcError::Http(_) => true,
 
-            // Provider errors - check if transient
-            RpcError::Provider(msg) => {
-                let msg_lower = msg.to_lowercase();
-                // Retry on common transient errors
-                msg_lower.contains("timeout")
-                    || msg_lower.contains("connection")
-                    || msg_lower.contains("temporarily")
-                    || msg_lower.contains("503")
-                    || msg_lower.contains("502")
-                    || msg_lower.contains("504")
-                    || msg_lower.contains("network")
-            }
+            // Provider errors - infer from message content
+            RpcError::Provider(msg) => is_transient_error_message(msg),
 
-            // Non-retryable errors
-            RpcError::AllEndpointsFailed => false,
-            RpcError::NoHealthyEndpoints => false,
-            RpcError::BlockRangeTooLarge { .. } => false,
-            RpcError::ResponseTooLarge(_) => false,
-            RpcError::InvalidResponse(_) => false,
-            RpcError::ProxyNotSupported(_) => false,
+            // Terminal errors - don't retry (would fail again)
+            RpcError::AllEndpointsFailed
+            | RpcError::NoHealthyEndpoints
+            | RpcError::BlockRangeTooLarge { .. }
+            | RpcError::ResponseTooLarge(_)
+            | RpcError::InvalidResponse(_)
+            | RpcError::ProxyNotSupported(_) => false,
         }
     }
 }
 
-/// Implement RetryableError for the main Error type
+/// Implement RetryableError for the main Error type.
 impl crate::rpc::retry::RetryableError for Error {
     fn is_retryable(&self) -> bool {
         match self {
             Error::Rpc(rpc_err) => rpc_err.is_retryable(),
-            Error::Io(io_err) => {
-                // Retry on transient IO errors
-                matches!(
-                    io_err.kind(),
-                    std::io::ErrorKind::TimedOut
-                        | std::io::ErrorKind::ConnectionReset
-                        | std::io::ErrorKind::ConnectionAborted
-                        | std::io::ErrorKind::Interrupted
-                )
-            }
-            // Other error types are generally not retryable
+            Error::Io(io_err) => is_transient_io_error(io_err),
+            // Other error types (Config, Abi, Checkpoint, etc.) are not retryable
             _ => false,
         }
     }
@@ -334,8 +355,22 @@ mod tests {
         let url = "https://api.example.com?apikey=secret123&foo=bar";
         let sanitized = sanitize_error_message(url);
         assert!(!sanitized.contains("secret123"));
-        assert!(sanitized.contains("[REDACTED]"));
+        assert!(sanitized.contains(REDACTED));
         assert!(sanitized.contains("foo=bar"));
+    }
+
+    #[test]
+    fn test_transient_error_detection() {
+        // Should be detected as transient
+        assert!(is_transient_error_message("Connection timeout after 30s"));
+        assert!(is_transient_error_message("503 Service Unavailable"));
+        assert!(is_transient_error_message("network error"));
+        assert!(is_transient_error_message("Service temporarily unavailable"));
+
+        // Should NOT be detected as transient
+        assert!(!is_transient_error_message("Invalid address format"));
+        assert!(!is_transient_error_message("Unauthorized: bad API key"));
+        assert!(!is_transient_error_message("Block not found"));
     }
 
     #[test]
@@ -365,5 +400,19 @@ mod tests {
         let msg = "Request failed with Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
         let sanitized = sanitize_error_message(msg);
         assert!(!sanitized.contains("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"));
+    }
+
+    #[test]
+    fn test_api_key_patterns_compile() {
+        // Force evaluation of the LazyLock to ensure all regex patterns compile.
+        // This catches malformed patterns at test time rather than runtime.
+        assert!(
+            !API_KEY_PATTERNS.is_empty(),
+            "API key patterns should be defined"
+        );
+        // Verify each pattern can match (doesn't panic)
+        for pattern in API_KEY_PATTERNS.iter() {
+            let _ = pattern.is_match("test string");
+        }
     }
 }

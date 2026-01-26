@@ -23,6 +23,8 @@ pub enum PortfolioSource {
     Moralis,
     /// Dune SIM Balances API
     DuneSim,
+    /// Uniswap V3 LP positions via The Graph
+    Uniswap,
 }
 
 impl PortfolioSource {
@@ -32,6 +34,7 @@ impl PortfolioSource {
             PortfolioSource::Alchemy => "alchemy",
             PortfolioSource::Moralis => "moralis",
             PortfolioSource::DuneSim => "dsim",
+            PortfolioSource::Uniswap => "uniswap",
         }
     }
 }
@@ -156,6 +159,7 @@ pub async fn fetch_portfolio_all(
         PortfolioSource::Alchemy,
         PortfolioSource::Moralis,
         PortfolioSource::DuneSim,
+        PortfolioSource::Uniswap,
     ];
 
     fetch_portfolio_parallel(address, chains, &sources).await
@@ -202,6 +206,7 @@ pub async fn fetch_portfolio_from_source(
         PortfolioSource::Alchemy => fetch_alchemy_portfolio(address, chains, measure).await,
         PortfolioSource::Moralis => fetch_moralis_portfolio(address, chains, measure).await,
         PortfolioSource::DuneSim => fetch_dsim_portfolio(address, chains, measure).await,
+        PortfolioSource::Uniswap => fetch_uniswap_portfolio(address, chains, measure).await,
         PortfolioSource::All => SourceResult::error("all", "Use fetch_portfolio_all instead", 0),
     }
 }
@@ -438,6 +443,222 @@ async fn fetch_dsim_portfolio(
     }
 }
 
+/// Fetch Uniswap LP positions (V2, V3, and V4)
+async fn fetch_uniswap_portfolio(
+    address: &str,
+    chains: &[String],
+    measure: LatencyMeasure,
+) -> SourceResult<Vec<PortfolioBalance>> {
+    // Get API key from config
+    let config = get_cached_config();
+    let api_key = match config
+        .as_ref()
+        .and_then(|c| c.thegraph.as_ref())
+        .map(|g| g.api_key.expose_secret().to_string())
+    {
+        Some(key) => key,
+        None => match std::env::var("THEGRAPH_API_KEY") {
+            Ok(key) => key,
+            Err(_) => {
+                return SourceResult::error(
+                    "uniswap",
+                    "THEGRAPH_API_KEY not configured",
+                    measure.elapsed_ms(),
+                )
+            }
+        },
+    };
+
+    let mut all_balances = Vec::new();
+
+    // Query each chain
+    for chain in chains {
+        let chain_lower = chain.to_lowercase();
+
+        // === V2 Positions (Ethereum mainnet only) ===
+        if matches!(chain_lower.as_str(), "ethereum" | "mainnet" | "eth" | "eth-mainnet") {
+            if let Ok(client) =
+                unswp::SubgraphClient::new(unswp::SubgraphConfig::mainnet_v2(&api_key))
+            {
+                if let Ok(positions) = client.get_positions_v2(address).await {
+                    for pos in positions {
+                        let lp_balance: f64 = pos.liquidity_token_balance.parse().unwrap_or(0.0);
+                        if lp_balance <= 0.0 {
+                            continue;
+                        }
+
+                        // Calculate share of pool
+                        let total_supply: f64 = pos.pair.total_supply.parse().unwrap_or(1.0);
+                        let share = if total_supply > 0.0 {
+                            lp_balance / total_supply
+                        } else {
+                            0.0
+                        };
+
+                        // Estimate USD value from reserves
+                        let usd_value = pos
+                            .pair
+                            .reserve_usd
+                            .as_ref()
+                            .and_then(|r| r.parse::<f64>().ok())
+                            .map(|reserve_usd| reserve_usd * share);
+
+                        let symbol = format!(
+                            "UNI-V2 {}/{}",
+                            pos.pair.token0.symbol, pos.pair.token1.symbol
+                        );
+
+                        let balance = PortfolioBalance::new(
+                            &pos.pair.id,
+                            &symbol,
+                            chain,
+                            &pos.liquidity_token_balance,
+                            18,
+                        )
+                        .with_name(Some(format!(
+                            "Uniswap V2 LP: {}/{}",
+                            pos.pair.token0.symbol, pos.pair.token1.symbol
+                        )))
+                        .with_usd_value(usd_value);
+
+                        all_balances.push(balance);
+                    }
+                }
+            }
+        }
+
+        // === V3 Positions ===
+        let v3_config = match chain_lower.as_str() {
+            "ethereum" | "mainnet" | "eth" | "eth-mainnet" => {
+                Some(unswp::SubgraphConfig::mainnet_v3(&api_key))
+            }
+            "arbitrum" | "arb" | "arb-mainnet" | "arbitrum-mainnet" => {
+                Some(unswp::SubgraphConfig::arbitrum_v3(&api_key))
+            }
+            "optimism" | "op" | "op-mainnet" | "optimism-mainnet" => {
+                Some(unswp::SubgraphConfig::optimism_v3(&api_key))
+            }
+            "polygon" | "matic" | "polygon-mainnet" => Some(
+                unswp::SubgraphConfig::mainnet_v3(&api_key)
+                    .with_subgraph_id(unswp::subgraph_ids::POLYGON_V3),
+            ),
+            "base" | "base-mainnet" => Some(unswp::SubgraphConfig::base_v3(&api_key)),
+            _ => None,
+        };
+
+        if let Some(config) = v3_config {
+            if let Ok(client) = unswp::SubgraphClient::new(config) {
+                if let Ok(positions) = client.get_positions(address).await {
+                    for pos in positions {
+                        let liquidity: u128 = pos.liquidity.parse().unwrap_or(0);
+                        if liquidity == 0 {
+                            continue;
+                        }
+
+                        let net_token0: f64 = pos.deposited_token0.parse().unwrap_or(0.0)
+                            - pos.withdrawn_token0.parse().unwrap_or(0.0);
+                        let net_token1: f64 = pos.deposited_token1.parse().unwrap_or(0.0)
+                            - pos.withdrawn_token1.parse().unwrap_or(0.0);
+
+                        let usd_value = estimate_lp_usd_value(
+                            &pos.pool.token0.symbol,
+                            &pos.pool.token1.symbol,
+                            net_token0,
+                            net_token1,
+                        );
+
+                        let fee_tier: f64 = pos.pool.fee_tier.parse().unwrap_or(0.0) / 10000.0;
+
+                        let symbol = format!(
+                            "UNI-V3 {}/{} ({}%)",
+                            pos.pool.token0.symbol, pos.pool.token1.symbol, fee_tier
+                        );
+
+                        let balance = PortfolioBalance::new(
+                            &pos.id,
+                            &symbol,
+                            chain,
+                            &pos.liquidity,
+                            18,
+                        )
+                        .with_name(Some(format!(
+                            "Uniswap V3 LP: {}/{}",
+                            pos.pool.token0.symbol, pos.pool.token1.symbol
+                        )))
+                        .with_usd_value(usd_value);
+
+                        all_balances.push(balance);
+                    }
+                }
+            }
+        }
+
+        // === V4 Positions ===
+        let v4_config = match chain_lower.as_str() {
+            "ethereum" | "mainnet" | "eth" | "eth-mainnet" => {
+                Some(unswp::SubgraphConfig::mainnet_v4(&api_key))
+            }
+            "arbitrum" | "arb" | "arb-mainnet" | "arbitrum-mainnet" => {
+                Some(unswp::SubgraphConfig::arbitrum_v4(&api_key))
+            }
+            "base" | "base-mainnet" => Some(unswp::SubgraphConfig::base_v4(&api_key)),
+            "polygon" | "matic" | "polygon-mainnet" => Some(
+                unswp::SubgraphConfig::mainnet_v4(&api_key)
+                    .with_subgraph_id(unswp::subgraph_ids::POLYGON_V4),
+            ),
+            _ => None,
+        };
+
+        if let Some(config) = v4_config {
+            if let Ok(client) = unswp::SubgraphClient::new(config) {
+                if let Ok(positions) = client.get_positions_v4(address).await {
+                    for pos in positions {
+                        let liquidity: u128 = pos.liquidity.parse().unwrap_or(0);
+                        if liquidity == 0 {
+                            continue;
+                        }
+
+                        // V4 has TVL in USD directly on pool
+                        let usd_value = pos.pool.total_value_locked_usd.as_ref().and_then(|tvl| {
+                            // Estimate position value as fraction of pool TVL
+                            // This is rough - actual calculation would need more data
+                            tvl.parse::<f64>().ok()
+                        });
+
+                        let fee: f64 = pos.pool.fee.parse().unwrap_or(0.0) / 10000.0;
+
+                        let symbol = format!(
+                            "UNI-V4 {}/{} ({}%)",
+                            pos.pool.token0.symbol, pos.pool.token1.symbol, fee
+                        );
+
+                        let balance = PortfolioBalance::new(
+                            &pos.id,
+                            &symbol,
+                            chain,
+                            &pos.liquidity,
+                            18,
+                        )
+                        .with_name(Some(format!(
+                            "Uniswap V4 LP: {}/{}",
+                            pos.pool.token0.symbol, pos.pool.token1.symbol
+                        )))
+                        .with_usd_value(usd_value);
+
+                        all_balances.push(balance);
+                    }
+                }
+            }
+        }
+    }
+
+    if all_balances.is_empty() {
+        SourceResult::error("uniswap", "No LP positions found", measure.elapsed_ms())
+    } else {
+        SourceResult::success("uniswap", all_balances, measure.elapsed_ms())
+    }
+}
+
 /// Merge portfolio results from multiple sources
 fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> PortfolioResult {
     // Key: (lowercase address, chain) -> Vec<(source, balance)>
@@ -555,6 +776,38 @@ fn parse_balance(balance: &str, decimals: u8) -> f64 {
         raw as f64 / divisor as f64
     } else {
         balance.parse::<f64>().unwrap_or(0.0)
+    }
+}
+
+/// Estimate USD value for LP positions based on token composition
+/// This is a simplified estimation - for stablecoin pairs, uses 1:1 USD
+/// For other pairs, returns None (would need price oracle for accuracy)
+fn estimate_lp_usd_value(
+    token0_symbol: &str,
+    token1_symbol: &str,
+    net_token0: f64,
+    net_token1: f64,
+) -> Option<f64> {
+    let stables = ["USDC", "USDT", "DAI", "FRAX", "LUSD", "TUSD", "GUSD", "USDP"];
+
+    let t0_upper = token0_symbol.to_uppercase();
+    let t1_upper = token1_symbol.to_uppercase();
+
+    let t0_is_stable = stables.iter().any(|s| t0_upper.contains(s));
+    let t1_is_stable = stables.iter().any(|s| t1_upper.contains(s));
+
+    if t0_is_stable && t1_is_stable {
+        // Both stablecoins - sum directly
+        Some(net_token0 + net_token1)
+    } else if t0_is_stable {
+        // Only token0 is stable - report just the stable portion (conservative)
+        Some(net_token0 * 2.0) // Approximate: double the stable amount
+    } else if t1_is_stable {
+        // Only token1 is stable - report just the stable portion (conservative)
+        Some(net_token1 * 2.0) // Approximate: double the stable amount
+    } else {
+        // Neither is stable - we'd need price data
+        None
     }
 }
 

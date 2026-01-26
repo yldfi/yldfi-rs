@@ -321,6 +321,11 @@ fn test_price_source_from_str() {
         PriceSource::Chainlink
     );
     assert_eq!("pyth".parse::<PriceSource>().unwrap(), PriceSource::Pyth);
+    assert_eq!(
+        "uniswap".parse::<PriceSource>().unwrap(),
+        PriceSource::Uniswap
+    );
+    assert_eq!("uni".parse::<PriceSource>().unwrap(), PriceSource::Uniswap);
     assert!("invalid".parse::<PriceSource>().is_err());
 }
 
@@ -331,6 +336,7 @@ fn test_price_source_display() {
     assert_eq!(PriceSource::All.to_string(), "all");
     assert_eq!(PriceSource::Chainlink.to_string(), "chainlink");
     assert_eq!(PriceSource::Pyth.to_string(), "pyth");
+    assert_eq!(PriceSource::Uniswap.to_string(), "uniswap");
 }
 
 // ==================== Chain mapping tests ====================

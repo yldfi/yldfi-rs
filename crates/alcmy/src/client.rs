@@ -1,10 +1,11 @@
 //! HTTP client for the Alchemy API
+//!
+//! This client uses common utilities from `yldfi-common` for HTTP operations.
 
 use crate::error::{self, Error, Result};
-use secrecy::{ExposeSecret, SecretString};
 use serde::{de::DeserializeOwned, Serialize};
 use std::time::Duration;
-use yldfi_common::http::HttpClientConfig;
+use yldfi_common::api::{extract_retry_after, ApiConfig, SecretApiKey};
 
 /// Supported blockchain networks
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,44 +125,48 @@ impl Network {
 }
 
 /// Configuration for the Alchemy API client
+///
+/// Built on top of [`ApiConfig`] from `yldfi-common` for consistent
+/// configuration patterns across all API clients.
 #[derive(Clone)]
 pub struct Config {
     /// API key for authentication
-    pub api_key: SecretString,
+    pub api_key: SecretApiKey,
     /// Target blockchain network
     pub network: Network,
-    /// HTTP client configuration (timeout, proxy, user-agent)
-    pub http: HttpClientConfig,
+    /// Inner API configuration
+    inner: ApiConfig,
 }
 
 impl Config {
     /// Create a new configuration
     pub fn new(api_key: impl Into<String>, network: Network) -> Self {
+        // Use a placeholder base URL since Alchemy uses dynamic URLs per endpoint
         Self {
-            api_key: SecretString::from(api_key.into()),
+            api_key: SecretApiKey::new(api_key),
             network,
-            http: HttpClientConfig::default(),
+            inner: ApiConfig::new("https://api.g.alchemy.com"),
         }
     }
 
     /// Set a custom timeout
     #[must_use]
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.http.timeout = timeout;
+        self.inner.http.timeout = timeout;
         self
     }
 
     /// Set a proxy URL
     #[must_use]
     pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
-        self.http.proxy = Some(proxy.into());
+        self.inner.http.proxy = Some(proxy.into());
         self
     }
 
     /// Set optional proxy URL
     #[must_use]
     pub fn with_optional_proxy(mut self, proxy: Option<String>) -> Self {
-        self.http.proxy = proxy;
+        self.inner.http.proxy = proxy;
         self
     }
 }
@@ -171,7 +176,7 @@ impl std::fmt::Debug for Config {
         f.debug_struct("Config")
             .field("api_key", &"[REDACTED]")
             .field("network", &self.network)
-            .field("http", &self.http)
+            .field("inner", &self.inner)
             .finish()
     }
 }
@@ -180,7 +185,7 @@ impl std::fmt::Debug for Config {
 #[derive(Clone)]
 pub struct Client {
     http: reqwest::Client,
-    api_key: SecretString,
+    api_key: SecretApiKey,
     network: Network,
 }
 
@@ -199,7 +204,7 @@ impl Client {
 
     /// Create a new client with custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
-        let http = yldfi_common::build_client(&config.http)?;
+        let http = config.inner.build_client()?;
 
         Ok(Self {
             http,
@@ -221,7 +226,7 @@ impl Client {
     /// # Warning
     /// This exposes the secret API key. Only use when necessary (e.g., URL construction).
     pub fn api_key(&self) -> &str {
-        self.api_key.expose_secret()
+        self.api_key.expose()
     }
 
     /// Get the current network
@@ -239,7 +244,7 @@ impl Client {
         format!(
             "https://{}.g.alchemy.com/v2/{}",
             self.network.slug(),
-            self.api_key.expose_secret()
+            self.api_key.expose()
         )
     }
 
@@ -248,7 +253,7 @@ impl Client {
         format!(
             "https://{}.g.alchemy.com/nft/v3/{}",
             self.network.slug(),
-            self.api_key.expose_secret()
+            self.api_key.expose()
         )
     }
 
@@ -256,7 +261,7 @@ impl Client {
     pub fn prices_url(&self) -> String {
         format!(
             "https://api.g.alchemy.com/prices/v1/{}",
-            self.api_key.expose_secret()
+            self.api_key.expose()
         )
     }
 
@@ -264,7 +269,7 @@ impl Client {
     pub fn data_url(&self) -> String {
         format!(
             "https://api.g.alchemy.com/data/v1/{}",
-            self.api_key.expose_secret()
+            self.api_key.expose()
         )
     }
 
@@ -284,11 +289,7 @@ impl Client {
         let response = self.http.post(self.rpc_url()).json(&request).send().await?;
 
         if response.status() == 429 {
-            let retry_after = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok());
+            let retry_after = extract_retry_after(response.headers());
             return Err(Error::rate_limited(retry_after));
         }
 
@@ -370,17 +371,13 @@ impl Client {
         self.handle_response(response).await
     }
 
-    /// Handle API response
+    /// Handle API response using common utilities
     async fn handle_response<R>(&self, response: reqwest::Response) -> Result<R>
     where
         R: DeserializeOwned,
     {
         if response.status() == 429 {
-            let retry_after = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok());
+            let retry_after = extract_retry_after(response.headers());
             return Err(Error::rate_limited(retry_after));
         }
 

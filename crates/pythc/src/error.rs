@@ -22,6 +22,14 @@ pub enum DomainError {
     /// URL parse error
     #[error("URL parse error: {0}")]
     UrlParse(#[from] url::ParseError),
+
+    /// Insecure URL scheme (HTTP instead of HTTPS)
+    #[error("Insecure URL scheme: HTTPS required for non-localhost URLs")]
+    InsecureScheme,
+
+    /// Invalid URL configuration
+    #[error("Invalid URL: {0}")]
+    InvalidUrl(String),
 }
 
 /// Error type for Pyth API operations
@@ -43,6 +51,16 @@ pub fn invalid_feed_id(feed_id: impl Into<String>) -> Error {
 /// Create a stale price error
 pub fn stale_price() -> Error {
     ApiError::domain(DomainError::StalePrice)
+}
+
+/// Create an insecure scheme error
+pub fn insecure_scheme() -> Error {
+    ApiError::domain(DomainError::InsecureScheme)
+}
+
+/// Create an invalid URL error
+pub fn invalid_url(msg: impl Into<String>) -> Error {
+    ApiError::domain(DomainError::InvalidUrl(msg.into()))
 }
 
 #[cfg(test)]

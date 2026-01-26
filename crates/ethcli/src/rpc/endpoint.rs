@@ -1,4 +1,20 @@
-//! Single RPC endpoint wrapper
+//! Single RPC endpoint wrapper.
+//!
+//! This module provides the [`Endpoint`] type, which wraps an Alloy provider
+//! with configuration and timeout handling. Each endpoint represents a single
+//! Ethereum RPC connection.
+//!
+//! # Features
+//!
+//! - Configured timeout for all requests
+//! - Block range limits (learned from errors)
+//! - Priority-based endpoint selection support
+//! - Node type awareness (full vs archive)
+//!
+//! # Usage
+//!
+//! Endpoints are typically managed by [`RpcPool`](super::RpcPool) rather than
+//! used directly. The pool handles health tracking, load balancing, and failover.
 
 use crate::config::EndpointConfig;
 use crate::error::{Result, RpcError};

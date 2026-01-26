@@ -488,6 +488,8 @@ impl std::error::Error for ConfigValidationError {}
 pub struct BaseClient {
     http: Client,
     config: ApiConfig,
+    /// Cached normalized base URL (trailing slash removed) to avoid allocation in url()
+    normalized_base_url: String,
 }
 
 impl BaseClient {
@@ -498,7 +500,13 @@ impl BaseClient {
     /// Returns an error if the HTTP client cannot be built.
     pub fn new(config: ApiConfig) -> Result<Self, HttpError> {
         let http = config.build_client()?;
-        Ok(Self { http, config })
+        // Cache normalized base URL to avoid repeated allocation in url()
+        let normalized_base_url = config.base_url.trim_end_matches('/').to_string();
+        Ok(Self {
+            http,
+            config,
+            normalized_base_url,
+        })
     }
 
     /// Get the underlying HTTP client.
@@ -520,12 +528,14 @@ impl BaseClient {
     }
 
     /// Build the full URL for a path.
+    ///
+    /// Uses cached normalized base URL to avoid repeated string allocation.
     #[must_use]
     pub fn url(&self, path: &str) -> String {
         if path.starts_with('/') {
-            format!("{}{}", self.config.base_url.trim_end_matches('/'), path)
+            format!("{}{}", self.normalized_base_url, path)
         } else {
-            format!("{}/{}", self.config.base_url.trim_end_matches('/'), path)
+            format!("{}/{}", self.normalized_base_url, path)
         }
     }
 
@@ -681,12 +691,40 @@ impl BaseClient {
 // Response Handling Helper
 // ============================================================================
 
-/// Extract retry-after header value from a response
+/// Extract retry-after header value from a response.
+///
+/// Parses the `Retry-After` header as seconds (delay-seconds format).
+/// HTTP-date format (e.g., "Wed, 21 Oct 2015 07:28:00 GMT") is not supported
+/// and will return `None`.
+///
+/// # Bounds
+///
+/// - Returns `None` for values that can't be parsed as a positive integer
+/// - Caps the result at 3600 seconds (1 hour) to prevent unreasonably long waits
+///   from malformed or malicious servers
+///
+/// # Example
+///
+/// ```
+/// use reqwest::header::{HeaderMap, HeaderValue};
+/// use yldfi_common::api::extract_retry_after;
+///
+/// let mut headers = HeaderMap::new();
+/// headers.insert("retry-after", HeaderValue::from_static("30"));
+/// assert_eq!(extract_retry_after(&headers), Some(30));
+///
+/// // Values over 3600 are capped
+/// headers.insert("retry-after", HeaderValue::from_static("9999"));
+/// assert_eq!(extract_retry_after(&headers), Some(3600));
+/// ```
 pub fn extract_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    const MAX_RETRY_AFTER_SECS: u64 = 3600; // 1 hour max
+
     headers
         .get("retry-after")
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse().ok())
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .map(|secs| secs.min(MAX_RETRY_AFTER_SECS))
 }
 
 /// Handle an HTTP response, converting errors appropriately

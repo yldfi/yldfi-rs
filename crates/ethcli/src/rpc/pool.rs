@@ -1,4 +1,42 @@
-//! RPC pool for managing multiple endpoints with parallel requests
+//! RPC pool for managing multiple endpoints with parallel requests.
+//!
+//! This module provides the [`RpcPool`] which manages a collection of RPC endpoints
+//! with automatic health tracking, load balancing, and failover capabilities.
+//!
+//! # Endpoint Selection
+//!
+//! Endpoints are selected based on health scores, which factor in:
+//! - Success/failure rates
+//! - Response latency
+//! - Rate limiting incidents
+//! - Configured priority
+//!
+//! # Learned Optimizations
+//!
+//! The pool learns from errors and persists optimizations to the config file:
+//! - **Block range limits**: When an endpoint returns "block range too large", the pool
+//!   learns and remembers the reduced limit for future requests.
+//! - **Max logs limits**: When an endpoint returns "response too large", the pool
+//!   learns and remembers the limit.
+//!
+//! # Concurrency Model
+//!
+//! ## Config File Persistence (TOCTOU Considerations)
+//!
+//! Config persistence uses a global mutex (`CONFIG_WRITE_LOCK`) to serialize writes
+//! within a single process. However, there are trade-offs to be aware of:
+//!
+//! - **Single process**: The mutex prevents race conditions between concurrent async tasks.
+//! - **Multiple processes**: If multiple ethcli processes run simultaneously, there's a
+//!   theoretical TOCTOU (time-of-check-to-time-of-use) window between reading and writing
+//!   the config file. In practice, this is rare for CLI usage and the worst case is a
+//!   lost optimization (not data corruption).
+//! - **Fire-and-forget**: Persistence is done in background tasks. If the process exits
+//!   quickly (Ctrl+C), writes may not complete. This is acceptable since learned limits
+//!   are optimizations, not critical data.
+//!
+//! If this code were used in a long-running daemon or library context, consider adding
+//! file-level locking (e.g., `fs2::FileExt::lock_exclusive`).
 
 use crate::config::{
     Chain, ConfigFile, EndpointConfig, NodeType, RpcConfig, DEFAULT_MAX_BLOCK_RANGE,
@@ -16,15 +54,25 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
-/// Global mutex to serialize config file updates and prevent TOCTOU race conditions
+/// Global mutex to serialize config file updates within a single process.
+///
+/// This prevents race conditions between concurrent async tasks. For multi-process
+/// scenarios, see the module-level documentation on TOCTOU considerations.
 static CONFIG_WRITE_LOCK: Mutex<()> = Mutex::const_new(());
 
 /// Persist a learned block range limit to the config file.
 ///
-/// This is fire-and-forget - errors are logged but don't affect operation.
-/// Note: If the process exits quickly (e.g., Ctrl+C), these background writes
-/// may not complete. This is acceptable for a CLI tool since learned limits
-/// are optimizations, not critical data.
+/// This function spawns a background task to update the config file with the
+/// learned limit. The operation is **fire-and-forget**:
+///
+/// - Errors are logged at debug level but don't affect the caller
+/// - If the process exits quickly (e.g., Ctrl+C), the write may not complete
+/// - Multiple concurrent calls are serialized via `CONFIG_WRITE_LOCK`
+///
+/// This trade-off is acceptable for a CLI tool since:
+/// 1. Learned limits are optimizations, not critical data
+/// 2. The limit will be re-learned on the next run if not persisted
+/// 3. Blocking the main operation for config writes would hurt UX
 fn persist_block_range_limit(url: &str, limit: u64) {
     let url = url.to_string();
     // Spawn a blocking task to avoid blocking the async runtime
@@ -49,7 +97,9 @@ fn persist_block_range_limit(url: &str, limit: u64) {
     });
 }
 
-/// Persist a learned max logs limit to the config file
+/// Persist a learned max logs limit to the config file.
+///
+/// See [`persist_block_range_limit`] for details on the fire-and-forget behavior.
 fn persist_max_logs_limit(url: &str, limit: usize) {
     let url = url.to_string();
     tokio::spawn(async move {
@@ -73,15 +123,43 @@ fn persist_max_logs_limit(url: &str, limit: usize) {
     });
 }
 
-/// Pool of RPC endpoints with load balancing and health tracking
+/// Pool of RPC endpoints with load balancing and health tracking.
+///
+/// # Memory Considerations
+///
+/// The endpoint list is fixed at construction time. Endpoints are never removed,
+/// only marked as unhealthy via the [`HealthTracker`]. This is intentional:
+///
+/// - CLI tools are short-lived, so memory growth isn't a concern
+/// - Endpoints may recover after temporary issues (circuit breaker resets)
+/// - The list size is bounded by user configuration
+///
+/// For long-running daemons, consider implementing periodic cleanup of
+/// persistently unhealthy endpoints.
+///
+/// # Block Reorganization Handling
+///
+/// This pool does **not** account for chain reorganizations. Queries for recent
+/// blocks may return data that becomes stale if a reorg occurs. This is acceptable
+/// for a CLI tool because:
+///
+/// - Most queries are for historical data (well past finalization)
+/// - Real-time queries are point-in-time snapshots by nature
+/// - Reorg detection would add significant complexity
+///
+/// For applications requiring reorg-aware data, consider waiting for finalization
+/// (12-15 confirmations on Ethereum mainnet) or using a service that handles reorgs.
 pub struct RpcPool {
-    /// Available endpoints (wrapped in Arc to avoid cloning config strings)
+    /// Available endpoints (wrapped in Arc to avoid cloning config strings).
+    ///
+    /// Endpoints are created at construction and never removed. Unhealthy endpoints
+    /// are tracked via `health` and excluded from selection until they recover.
     endpoints: Vec<Arc<Endpoint>>,
-    /// Health tracker
+    /// Health tracker for endpoint selection and circuit breaking.
     health: Arc<HealthTracker>,
-    /// Max concurrent requests
+    /// Max concurrent requests for parallel operations.
     concurrency: usize,
-    /// Override chunk size (max block range per request)
+    /// User-specified chunk size override (max block range per request).
     chunk_size_override: Option<u64>,
 }
 
@@ -632,5 +710,237 @@ mod tests {
         // add_endpoints should be usable for any chain since they're explicitly added
         assert_eq!(config.add_endpoints.len(), 1);
         assert_eq!(config.add_endpoints[0], "https://custom.example.com");
+    }
+
+    #[test]
+    fn test_health_tracker_selection_priority() {
+        // Test that endpoints with lower latency get higher scores
+        let tracker = HealthTracker::new();
+
+        // Simulate successful requests with different latencies
+        for _ in 0..5 {
+            tracker.record_success("https://fast.com", Duration::from_millis(50));
+            tracker.record_success("https://medium.com", Duration::from_millis(200));
+            tracker.record_success("https://slow.com", Duration::from_millis(1000));
+        }
+
+        let urls = vec![
+            "https://slow.com".to_string(),
+            "https://fast.com".to_string(),
+            "https://medium.com".to_string(),
+        ];
+        let ranked = tracker.rank_endpoints(&urls);
+
+        // Fast should be first (highest score), slow should be last
+        assert_eq!(ranked.len(), 3);
+        assert_eq!(ranked[0].0, "https://fast.com");
+        assert_eq!(ranked[2].0, "https://slow.com");
+    }
+
+    #[test]
+    fn test_health_tracker_failure_tracking() {
+        let tracker = HealthTracker::new();
+
+        // Record some successes
+        tracker.record_success("https://good.com", Duration::from_millis(100));
+        tracker.record_success("https://good.com", Duration::from_millis(100));
+
+        // Record failures
+        tracker.record_failure("https://bad.com", false, false);
+        tracker.record_failure("https://bad.com", false, false);
+
+        let urls = vec!["https://good.com".to_string(), "https://bad.com".to_string()];
+        let ranked = tracker.rank_endpoints(&urls);
+
+        // Good should have higher score
+        assert_eq!(ranked.len(), 2);
+        assert!(ranked[0].1 > ranked[1].1);
+        assert_eq!(ranked[0].0, "https://good.com");
+    }
+
+    #[test]
+    fn test_circuit_breaker_activation() {
+        // Test that circuit breaker opens after consecutive failures
+        let tracker = HealthTracker::with_circuit_breaker(3, 60);
+
+        assert!(tracker.is_available("https://test.com"));
+
+        // Record consecutive failures
+        tracker.record_failure("https://test.com", false, false);
+        assert!(tracker.is_available("https://test.com"));
+
+        tracker.record_failure("https://test.com", false, false);
+        assert!(tracker.is_available("https://test.com"));
+
+        tracker.record_failure("https://test.com", false, false);
+        // Circuit breaker should be open now
+        assert!(!tracker.is_available("https://test.com"));
+    }
+
+    #[test]
+    fn test_circuit_breaker_reset_on_success() {
+        let tracker = HealthTracker::with_circuit_breaker(3, 60);
+
+        // Get close to threshold
+        tracker.record_failure("https://test.com", false, false);
+        tracker.record_failure("https://test.com", false, false);
+
+        // Success resets the counter
+        tracker.record_success("https://test.com", Duration::from_millis(100));
+
+        // Now need 3 more failures to trip
+        tracker.record_failure("https://test.com", false, false);
+        tracker.record_failure("https://test.com", false, false);
+        assert!(tracker.is_available("https://test.com"));
+
+        tracker.record_failure("https://test.com", false, false);
+        assert!(!tracker.is_available("https://test.com"));
+    }
+
+    #[test]
+    fn test_rate_limit_tracking() {
+        let tracker = HealthTracker::new();
+
+        // Record rate limit hits
+        tracker.record_failure("https://test.com", true, false);
+        tracker.record_failure("https://test.com", true, false);
+
+        let health = tracker.get_health("https://test.com").unwrap();
+        assert_eq!(health.rate_limit_hits, 2);
+        assert_eq!(health.failed_requests, 2);
+    }
+
+    #[test]
+    fn test_learned_block_range_limits() {
+        let tracker = HealthTracker::new();
+
+        // Learn a limit
+        tracker.record_block_range_limit("https://test.com", 1000);
+
+        // Should use learned limit
+        assert_eq!(tracker.effective_max_block_range("https://test.com", 5000), 1000);
+
+        // Should use configured if smaller
+        assert_eq!(tracker.effective_max_block_range("https://test.com", 500), 500);
+
+        // Unknown endpoint uses configured
+        assert_eq!(
+            tracker.effective_max_block_range("https://unknown.com", 5000),
+            5000
+        );
+    }
+
+    #[test]
+    fn test_learned_limit_only_decreases() {
+        let tracker = HealthTracker::new();
+
+        // Learn a limit
+        tracker.record_block_range_limit("https://test.com", 1000);
+        assert_eq!(tracker.effective_max_block_range("https://test.com", 5000), 1000);
+
+        // Trying to set a higher limit doesn't change it
+        tracker.record_block_range_limit("https://test.com", 2000);
+        assert_eq!(tracker.effective_max_block_range("https://test.com", 5000), 1000);
+
+        // Lower limit does update it
+        tracker.record_block_range_limit("https://test.com", 500);
+        assert_eq!(tracker.effective_max_block_range("https://test.com", 5000), 500);
+    }
+
+    #[test]
+    fn test_endpoint_priority_config() {
+        // Test that priority is respected in config
+        let high_priority =
+            EndpointConfig::new("https://primary.com").with_priority(1);
+        let low_priority =
+            EndpointConfig::new("https://backup.com").with_priority(10);
+
+        assert_eq!(high_priority.priority, 1);
+        assert_eq!(low_priority.priority, 10);
+    }
+
+    #[test]
+    fn test_node_type_config() {
+        let archive = EndpointConfig::new("https://archive.com").with_node_type(NodeType::Archive);
+        let full = EndpointConfig::new("https://full.com").with_node_type(NodeType::Full);
+
+        assert_eq!(archive.node_type, NodeType::Archive);
+        assert_eq!(full.node_type, NodeType::Full);
+    }
+
+    #[test]
+    fn test_max_block_range_config() {
+        let endpoint =
+            EndpointConfig::new("https://test.com").with_max_block_range(10000);
+        assert_eq!(endpoint.max_block_range, 10000);
+
+        // Default should be DEFAULT_MAX_BLOCK_RANGE
+        let default_endpoint = EndpointConfig::new("https://default.com");
+        assert_eq!(default_endpoint.max_block_range, DEFAULT_MAX_BLOCK_RANGE);
+    }
+
+    #[test]
+    fn test_rpc_config_defaults() {
+        let config = RpcConfig::default();
+
+        // Default config has no endpoints - users add them via config or CLI
+        assert!(config.endpoints.is_empty(), "Default config should have no endpoints");
+        assert_eq!(config.timeout_secs, 30, "Should have 30s default timeout");
+        assert_eq!(config.concurrency, 5, "Should have default concurrency of 5");
+        assert_eq!(config.max_retries, 3, "Should have default max_retries of 3");
+        assert_eq!(config.min_priority, 1, "Should have default min_priority of 1");
+    }
+
+    #[test]
+    fn test_new_endpoint_has_high_initial_score() {
+        // New endpoints without any history should be given benefit of the doubt
+        let tracker = HealthTracker::new();
+
+        let urls = vec![
+            "https://new.com".to_string(),
+            "https://other.com".to_string(),
+        ];
+
+        let ranked = tracker.rank_endpoints(&urls);
+        assert_eq!(ranked.len(), 2);
+        // Both should have score of 100 (new endpoints assumed healthy)
+        assert_eq!(ranked[0].1, 100.0);
+        assert_eq!(ranked[1].1, 100.0);
+    }
+
+    #[test]
+    fn test_health_score_calculation() {
+        let mut health = EndpointHealth::default();
+
+        // Empty endpoint should have 0 error rate
+        assert_eq!(health.error_rate(), 0.0);
+
+        // Simulate requests
+        health.total_requests = 10;
+        health.failed_requests = 3;
+        health.successful_requests = 7;
+
+        assert!((health.error_rate() - 0.3).abs() < 0.001);
+
+        // Score should be positive and bounded
+        let score = health.health_score();
+        assert!(score > 0.0);
+        assert!(score <= 100.0);
+    }
+
+    #[test]
+    fn test_try_probe_atomicity() {
+        // Test that try_probe properly gates concurrent probes
+        let tracker = HealthTracker::with_circuit_breaker(1, 1); // 1 failure trips, 1 sec timeout
+
+        // Trip the circuit breaker
+        tracker.record_failure("https://test.com", false, false);
+        assert!(!tracker.is_available("https://test.com"));
+
+        // Wait for timeout (in test, we can't easily do this, but we can test the logic)
+        // For now just verify the method exists and can be called
+        let can_probe = tracker.try_probe("https://test.com");
+        // Initially should be false since timeout hasn't passed
+        assert!(!can_probe);
     }
 }

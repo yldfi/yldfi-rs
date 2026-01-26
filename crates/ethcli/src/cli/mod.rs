@@ -31,6 +31,7 @@ pub mod simulate;
 pub mod tenderly;
 pub mod token;
 pub mod tx;
+pub mod uniswap;
 pub mod update;
 pub mod yields;
 
@@ -331,6 +332,16 @@ pub enum Commands {
     Ccxt {
         #[command(subcommand)]
         action: ccxt::CcxtCommands,
+    },
+
+    /// Uniswap V2/V3/V4 pool queries (on-chain and subgraph)
+    ///
+    /// On-chain queries (pool, liquidity, balance) require only an RPC URL.
+    /// Subgraph queries (eth-price, top-pools, swaps, day-data) require a The Graph API key.
+    #[command(visible_alias = "uni")]
+    Uniswap {
+        #[command(subcommand)]
+        action: uniswap::UniswapCommands,
     },
 
     /// Generate shell completions

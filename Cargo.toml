@@ -21,6 +21,7 @@ members = [
     "crates/ensof",
     "crates/lfi",
     "crates/pythc",
+    "crates/unswp",
 ]
 
 [workspace.package]

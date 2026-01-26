@@ -1,10 +1,11 @@
 //! HTTP client for the CoinGecko API
+//!
+//! This client uses common utilities from `yldfi-common` for HTTP operations.
 
 use reqwest::Client as HttpClient;
-use secrecy::{ExposeSecret, SecretString};
 use std::time::Duration;
 use url::Url;
-use yldfi_common::http::HttpClientConfig;
+use yldfi_common::api::{extract_retry_after, ApiConfig, SecretApiKey};
 
 use crate::error::{Error, Result};
 
@@ -17,14 +18,17 @@ pub mod base_urls {
 }
 
 /// Configuration for the CoinGecko API client
+///
+/// Built on top of [`ApiConfig`] from `yldfi-common` for consistent
+/// configuration patterns across all API clients.
 #[derive(Debug, Clone)]
 pub struct Config {
     /// API key (optional for demo, required for pro)
-    pub api_key: Option<SecretString>,
+    pub api_key: Option<SecretApiKey>,
     /// Whether to use the Pro API
     pub is_pro: bool,
-    /// HTTP client configuration (timeout, proxy, user-agent)
-    pub http: HttpClientConfig,
+    /// Inner API configuration
+    inner: ApiConfig,
 }
 
 impl Config {
@@ -33,46 +37,46 @@ impl Config {
         Self {
             api_key: None,
             is_pro: false,
-            http: HttpClientConfig::default(),
+            inner: ApiConfig::new(base_urls::DEMO),
         }
     }
 
     /// Create a new demo config with API key
     pub fn demo_with_key(api_key: impl Into<String>) -> Self {
         Self {
-            api_key: Some(SecretString::from(api_key.into())),
+            api_key: Some(SecretApiKey::new(api_key)),
             is_pro: false,
-            http: HttpClientConfig::default(),
+            inner: ApiConfig::new(base_urls::DEMO),
         }
     }
 
     /// Create a new Pro config
     pub fn pro(api_key: impl Into<String>) -> Self {
         Self {
-            api_key: Some(SecretString::from(api_key.into())),
+            api_key: Some(SecretApiKey::new(api_key)),
             is_pro: true,
-            http: HttpClientConfig::default(),
+            inner: ApiConfig::new(base_urls::PRO),
         }
     }
 
     /// Set a custom timeout
     #[must_use]
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.http.timeout = timeout;
+        self.inner.http.timeout = timeout;
         self
     }
 
     /// Set a proxy URL
     #[must_use]
     pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
-        self.http.proxy = Some(proxy.into());
+        self.inner.http.proxy = Some(proxy.into());
         self
     }
 
     /// Set optional proxy URL
     #[must_use]
     pub fn with_optional_proxy(mut self, proxy: Option<String>) -> Self {
-        self.http.proxy = proxy;
+        self.inner.http.proxy = proxy;
         self
     }
 }
@@ -82,7 +86,7 @@ impl Config {
 pub struct Client {
     http: HttpClient,
     base_url: Url,
-    api_key: Option<SecretString>,
+    api_key: Option<SecretApiKey>,
     is_pro: bool,
 }
 
@@ -108,7 +112,7 @@ impl Client {
 
     /// Create a client with custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
-        let http = yldfi_common::build_client(&config.http)?;
+        let http = config.inner.build_client()?;
         let base_url = if config.is_pro {
             Url::parse(base_urls::PRO)?
         } else {
@@ -152,18 +156,15 @@ impl Client {
             } else {
                 "x-cg-demo-api-key"
             };
-            req = req.header(header, key.expose_secret());
+            req = req.header(header, key.expose());
         }
 
         let response = req.send().await?;
         let status = response.status().as_u16();
 
         if !response.status().is_success() {
-            let retry_after = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok());
+            // Use common extract_retry_after utility
+            let retry_after = extract_retry_after(response.headers());
             let body = response.text().await.unwrap_or_default();
             return Err(Error::from_response(status, &body, retry_after));
         }

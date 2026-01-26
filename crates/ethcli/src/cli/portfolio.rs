@@ -22,6 +22,8 @@ pub enum PortfolioSourceArg {
     Moralis,
     /// Dune SIM Balances API
     Dsim,
+    /// Uniswap V3 LP positions
+    Uniswap,
 }
 
 impl From<PortfolioSourceArg> for PortfolioSource {
@@ -31,15 +33,16 @@ impl From<PortfolioSourceArg> for PortfolioSource {
             PortfolioSourceArg::Alchemy => PortfolioSource::Alchemy,
             PortfolioSourceArg::Moralis => PortfolioSource::Moralis,
             PortfolioSourceArg::Dsim => PortfolioSource::DuneSim,
+            PortfolioSourceArg::Uniswap => PortfolioSource::Uniswap,
         }
     }
 }
 
 #[derive(Args)]
 pub struct PortfolioArgs {
-    /// Wallet address to query
+    /// Wallet address to query (or label from address book). If omitted, uses "me" from address book.
     #[arg(value_name = "ADDRESS")]
-    pub address: String,
+    pub address: Option<String>,
 
     /// Chain(s) to query (can be specified multiple times)
     #[arg(long, short, default_value = "ethereum", value_name = "CHAIN")]
@@ -87,7 +90,23 @@ pub struct SourcePortfolio {
 
 /// Execute the portfolio command
 pub async fn execute(args: &PortfolioArgs, quiet: bool) -> anyhow::Result<()> {
-    let address = &args.address;
+    // Resolve address: use provided address, or fall back to "me" from address book
+    let address = match &args.address {
+        Some(addr) => crate::utils::address::resolve_label(addr),
+        None => {
+            let resolved = crate::utils::address::resolve_label("me");
+            if resolved == "me" {
+                // "me" wasn't found in address book
+                anyhow::bail!(
+                    "No address provided and 'me' not found in address book.\n\
+                     Provide an address or save your default address:\n\
+                     ethcli address add me <your-address>"
+                );
+            }
+            resolved
+        }
+    };
+
     let chains: Vec<&str> = args.chain.iter().map(|s| s.as_str()).collect();
 
     if !quiet {
@@ -95,10 +114,10 @@ pub async fn execute(args: &PortfolioArgs, quiet: bool) -> anyhow::Result<()> {
     }
 
     let result = match args.source {
-        PortfolioSourceArg::All => fetch_portfolio_all(address, &chains).await,
+        PortfolioSourceArg::All => fetch_portfolio_all(&address, &chains).await,
         source => {
             let portfolio_source: PortfolioSource = source.into();
-            fetch_portfolio_parallel(address, &chains, &[portfolio_source]).await
+            fetch_portfolio_parallel(&address, &chains, &[portfolio_source]).await
         }
     };
 

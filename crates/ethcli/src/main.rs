@@ -228,6 +228,10 @@ async fn main() -> anyhow::Result<()> {
             return ethcli::cli::ccxt::handle(action, cli.quiet).await;
         }
 
+        Commands::Uniswap { action } => {
+            return ethcli::cli::uniswap::handle(action, cli.quiet).await;
+        }
+
         Commands::Completions { shell } => {
             Cli::generate_completions(*shell);
             return Ok(());
