@@ -1,5 +1,5 @@
 /target
-Cargo.lock
+# Cargo.lock is tracked for reproducible builds and security audits
 **/*.rs.bk
 *.pdb
 .env

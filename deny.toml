@@ -1,25 +1,18 @@
-# cargo-deny configuration
+# cargo-deny configuration for v2
 # https://embarkstudios.github.io/cargo-deny/
+
+# Version 2 format - removed deprecated keys (vulnerability, notice, unlicensed)
+# See: https://github.com/EmbarkStudios/cargo-deny/pull/611
 
 [advisories]
 # The database path
 db-path = "~/.cargo/advisory-db"
-# The url(s) of the advisory databases to use (updated from 'url' to 'db-urls')
+# The url(s) of the advisory databases to use
 db-urls = ["https://github.com/rustsec/advisory-db"]
-# The lint level for security vulnerabilities
-vulnerability = "deny"
-# The lint level for unmaintained crates (changed from "warn" to "workspace")
-unmaintained = "workspace"
-# The lint level for crates that have been yanked
-yanked = "warn"
-# The lint level for crates with security notices
-notice = "warn"
 # Ignore specific advisories (add as needed)
 ignore = []
 
 [licenses]
-# The lint level for when a crate's license cannot be determined
-unlicensed = "deny"
 # List of explicitly allowed licenses
 allow = [
     "MIT",

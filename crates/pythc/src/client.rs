@@ -146,7 +146,7 @@ impl Client {
         config.validate()?;
 
         let base = BaseClient::new(config.inner)
-            .map_err(|e| yldfi_common::api::ApiError::<DomainError>::HttpBuild(e))?;
+            .map_err(yldfi_common::api::ApiError::<DomainError>::HttpBuild)?;
 
         Ok(Self {
             base,
