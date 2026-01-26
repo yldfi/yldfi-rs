@@ -18,6 +18,7 @@ pub mod endpoints;
 pub mod ens;
 pub mod gas;
 pub mod gecko;
+pub mod kong;
 pub mod llama;
 pub mod logs;
 pub mod moralis;
@@ -342,6 +343,16 @@ pub enum Commands {
     Uniswap {
         #[command(subcommand)]
         action: uniswap::UniswapCommands,
+    },
+
+    /// Yearn Kong GraphQL API (vaults, strategies, prices, TVL, reports)
+    ///
+    /// Access Yearn Finance vault and strategy data via the Kong API.
+    /// No API key required.
+    #[command(visible_alias = "yearn")]
+    Kong {
+        #[command(subcommand)]
+        action: kong::KongCommands,
     },
 
     /// Generate shell completions

@@ -1,0 +1,23 @@
+[package]
+name = "ykong"
+version = "0.1.0"
+edition = "2021"
+description = "Rust client for Yearn's Kong GraphQL API"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/ykong"
+keywords = ["yearn", "defi", "vaults", "graphql", "api"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+readme = "README.md"
+
+[dependencies]
+# Use workspace dependencies for consistency
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+yldfi-common = { version = "0.1", path = "../yldfi-common" }
+
+[dev-dependencies]
+tokio = { workspace = true }

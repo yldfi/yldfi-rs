@@ -15,6 +15,7 @@ pub enum YieldSource {
     Curve,
     Llama,
     Uniswap,
+    Yearn,
 }
 
 impl std::str::FromStr for YieldSource {
@@ -26,6 +27,7 @@ impl std::str::FromStr for YieldSource {
             "curve" | "crv" => Ok(YieldSource::Curve),
             "llama" | "defillama" => Ok(YieldSource::Llama),
             "uniswap" | "uni" => Ok(YieldSource::Uniswap),
+            "yearn" | "ykong" | "kong" => Ok(YieldSource::Yearn),
             _ => Err(format!("Unknown yield source: {}", s)),
         }
     }
@@ -38,6 +40,7 @@ impl std::fmt::Display for YieldSource {
             YieldSource::Curve => write!(f, "curve"),
             YieldSource::Llama => write!(f, "llama"),
             YieldSource::Uniswap => write!(f, "uniswap"),
+            YieldSource::Yearn => write!(f, "yearn"),
         }
     }
 }
@@ -87,6 +90,8 @@ pub struct YieldAggregation {
     pub uniswap_v3_pools: usize,
     /// Number of V4 pools from Uniswap
     pub uniswap_v4_pools: usize,
+    /// Number of vaults from Yearn (Kong API)
+    pub yearn_vaults: usize,
     /// Highest APY found
     pub max_apy: Option<f64>,
     /// Average APY across all pools
@@ -566,6 +571,133 @@ async fn fetch_uniswap_yields(chain: &str) -> SourceResult<Vec<NormalizedYield>>
     }
 }
 
+/// Fetch yields from Yearn vaults via Kong GraphQL API
+async fn fetch_yearn_yields(chain_id: Option<u64>) -> SourceResult<Vec<NormalizedYield>> {
+    let measure = LatencyMeasure::start();
+
+    let client = match ykong::Client::new() {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error("yearn", e.to_string(), measure.elapsed_ms());
+        }
+    };
+
+    // Fetch vaults - optionally filter by chain
+    let vaults_result = if let Some(cid) = chain_id {
+        client.vaults().by_chain(cid).await
+    } else {
+        client.vaults().list(None).await
+    };
+
+    match vaults_result {
+        Ok(vaults) => {
+            let mut yields: Vec<NormalizedYield> = Vec::new();
+
+            for vault in vaults {
+                // Skip shutdown vaults
+                if vault.is_shutdown == Some(true) || vault.emergency_shutdown == Some(true) {
+                    continue;
+                }
+
+                // Get APY - prefer net APY, fall back to weekly/monthly
+                let apy_total = vault.apy.as_ref().and_then(|a| {
+                    a.net.or(a.weekly_net).or(a.monthly_net)
+                });
+
+                // Skip vaults with no APY data
+                if apy_total.is_none() {
+                    continue;
+                }
+
+                // Get TVL from the tvl field
+                let tvl_usd = vault.tvl.as_ref().and_then(|t| t.close);
+
+                // Determine chain name from chain_id
+                let chain = match vault.chain_id {
+                    1 => "ethereum".to_string(),
+                    10 => "optimism".to_string(),
+                    137 => "polygon".to_string(),
+                    250 => "fantom".to_string(),
+                    42161 => "arbitrum".to_string(),
+                    43114 => "avalanche".to_string(),
+                    8453 => "base".to_string(),
+                    _ => format!("chain-{}", vault.chain_id),
+                };
+
+                // Build the symbol - prefer asset symbol if available
+                let symbol = vault.symbol.clone().or_else(|| {
+                    vault.asset.as_ref().and_then(|a| a.symbol.clone())
+                }).unwrap_or_else(|| vault.name.clone().unwrap_or_else(|| vault.address[..10].to_string()));
+
+                // Get underlying token
+                let underlying = vault.asset.as_ref()
+                    .and_then(|a| a.symbol.clone())
+                    .map(|s| vec![s])
+                    .unwrap_or_default();
+
+                // Check if stablecoin based on underlying
+                let stablecoin = if underlying.is_empty() {
+                    None
+                } else {
+                    Some(is_stablecoin_pool(&underlying))
+                };
+
+                // Build URL to Yearn UI
+                let url = Some(format!(
+                    "https://yearn.fi/v3/{}/{}",
+                    vault.chain_id, vault.address
+                ));
+
+                // Determine vault version for project name
+                let project = if vault.v3 == Some(true) {
+                    "yearn-v3".to_string()
+                } else {
+                    "yearn-v2".to_string()
+                };
+
+                yields.push(NormalizedYield {
+                    pool_id: vault.address.clone(),
+                    symbol,
+                    project,
+                    chain,
+                    apy_base: apy_total, // Yearn APY is typically net
+                    apy_reward: None,    // Yearn doesn't separate rewards
+                    apy_total,
+                    tvl_usd,
+                    underlying_tokens: underlying,
+                    stablecoin,
+                    url,
+                });
+            }
+
+            // Sort by APY descending
+            yields.sort_by(|a, b| {
+                b.apy_total
+                    .unwrap_or(0.0)
+                    .partial_cmp(&a.apy_total.unwrap_or(0.0))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            SourceResult::success("yearn", yields, measure.elapsed_ms())
+        }
+        Err(e) => SourceResult::error("yearn", e.to_string(), measure.elapsed_ms()),
+    }
+}
+
+/// Map chain name to Yearn chain ID
+fn chain_name_to_yearn_id(chain: &str) -> Option<u64> {
+    match chain.to_lowercase().as_str() {
+        "ethereum" | "mainnet" | "eth" => Some(1),
+        "optimism" | "op" => Some(10),
+        "polygon" | "matic" => Some(137),
+        "fantom" | "ftm" => Some(250),
+        "arbitrum" | "arb" => Some(42161),
+        "avalanche" | "avax" => Some(43114),
+        "base" => Some(8453),
+        _ => None,
+    }
+}
+
 /// Check if a pool contains stablecoin pairs
 fn is_stablecoin_pool(tokens: &[String]) -> bool {
     let stablecoins = [
@@ -628,11 +760,13 @@ pub async fn fetch_yields_aggregated(
         YieldSource::All => {
             let curve_chain = chain.unwrap_or("ethereum");
             let uniswap_chain = chain.unwrap_or("ethereum");
+            let yearn_chain_id = chain.and_then(chain_name_to_yearn_id);
             vec![
                 Box::pin(fetch_curve_yields(curve_chain))
                     as std::pin::Pin<Box<dyn std::future::Future<Output = _> + Send>>,
                 Box::pin(fetch_llama_yields(chain, project)),
                 Box::pin(fetch_uniswap_yields(uniswap_chain)),
+                Box::pin(fetch_yearn_yields(yearn_chain_id)),
             ]
         }
         YieldSource::Curve => {
@@ -646,6 +780,10 @@ pub async fn fetch_yields_aggregated(
             let uniswap_chain = chain.unwrap_or("ethereum");
             vec![Box::pin(fetch_uniswap_yields(uniswap_chain))]
         }
+        YieldSource::Yearn => {
+            let yearn_chain_id = chain.and_then(chain_name_to_yearn_id);
+            vec![Box::pin(fetch_yearn_yields(yearn_chain_id))]
+        }
     };
 
     let results = join_all(futures).await;
@@ -655,6 +793,7 @@ pub async fn fetch_yields_aggregated(
     let mut curve_count = 0;
     let mut llama_count = 0;
     let mut uniswap_count = 0;
+    let mut yearn_count = 0;
 
     for result in &results {
         if let Some(yields) = &result.data {
@@ -664,6 +803,8 @@ pub async fn fetch_yields_aggregated(
                 llama_count = yields.len();
             } else if result.source == "uniswap" {
                 uniswap_count = yields.len();
+            } else if result.source == "yearn" {
+                yearn_count = yields.len();
             }
             all_yields.extend(yields.clone());
         }
@@ -716,6 +857,7 @@ pub async fn fetch_yields_aggregated(
         uniswap_v2_pools: uniswap_v2_count,
         uniswap_v3_pools: uniswap_v3_count,
         uniswap_v4_pools: uniswap_v4_count,
+        yearn_vaults: yearn_count,
         max_apy,
         avg_apy,
         total_tvl_usd: total_tvl,

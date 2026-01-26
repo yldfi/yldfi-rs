@@ -25,6 +25,8 @@ pub enum PortfolioSource {
     DuneSim,
     /// Uniswap V3 LP positions via The Graph
     Uniswap,
+    /// Yearn vault positions via Kong API
+    Yearn,
 }
 
 impl PortfolioSource {
@@ -35,6 +37,7 @@ impl PortfolioSource {
             PortfolioSource::Moralis => "moralis",
             PortfolioSource::DuneSim => "dsim",
             PortfolioSource::Uniswap => "uniswap",
+            PortfolioSource::Yearn => "yearn",
         }
     }
 }
@@ -160,6 +163,7 @@ pub async fn fetch_portfolio_all(
         PortfolioSource::Moralis,
         PortfolioSource::DuneSim,
         PortfolioSource::Uniswap,
+        PortfolioSource::Yearn,
     ];
 
     fetch_portfolio_parallel(address, chains, &sources).await
@@ -207,6 +211,7 @@ pub async fn fetch_portfolio_from_source(
         PortfolioSource::Moralis => fetch_moralis_portfolio(address, chains, measure).await,
         PortfolioSource::DuneSim => fetch_dsim_portfolio(address, chains, measure).await,
         PortfolioSource::Uniswap => fetch_uniswap_portfolio(address, chains, measure).await,
+        PortfolioSource::Yearn => fetch_yearn_portfolio(address, chains, measure).await,
         PortfolioSource::All => SourceResult::error("all", "Use fetch_portfolio_all instead", 0),
     }
 }
@@ -656,6 +661,150 @@ async fn fetch_uniswap_portfolio(
         SourceResult::error("uniswap", "No LP positions found", measure.elapsed_ms())
     } else {
         SourceResult::success("uniswap", all_balances, measure.elapsed_ms())
+    }
+}
+
+/// Fetch Yearn vault positions via Kong API
+async fn fetch_yearn_portfolio(
+    address: &str,
+    chains: &[String],
+    measure: LatencyMeasure,
+) -> SourceResult<Vec<PortfolioBalance>> {
+    // Create ykong client (no API key needed)
+    let client = match ykong::Client::new() {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error(
+                "yearn",
+                format!("Client error: {}", e),
+                measure.elapsed_ms(),
+            )
+        }
+    };
+
+    let mut all_balances = Vec::new();
+
+    // Query each chain
+    for chain in chains {
+        let chain_id = match chain_name_to_id(chain) {
+            Some(id) => id,
+            None => continue, // Skip unsupported chains
+        };
+
+        // Get vault accounts (user positions) for this address on this chain
+        match client.vaults().accounts(chain_id, address).await {
+            Ok(accounts) => {
+                for account in accounts {
+                    // Skip zero balances
+                    let balance_raw = account.balance.as_deref().unwrap_or("0");
+                    if balance_raw == "0" || balance_raw.is_empty() {
+                        continue;
+                    }
+
+                    // Try to get vault details for better info
+                    let (symbol, name, decimals, usd_value) =
+                        match client.vaults().get(chain_id, &account.vault).await {
+                            Ok(Some(vault)) => {
+                                let sym = vault
+                                    .symbol
+                                    .clone()
+                                    .unwrap_or_else(|| format!("yv-{}", &account.vault[..8]));
+                                let nm = vault.name.clone();
+                                let dec: u8 = vault
+                                    .decimals
+                                    .as_ref()
+                                    .and_then(|d| d.parse().ok())
+                                    .unwrap_or(18);
+
+                                // Calculate USD value from TVL if available
+                                let usd = calculate_yearn_position_value(
+                                    balance_raw,
+                                    dec,
+                                    vault.price_per_share.as_deref(),
+                                    vault.tvl.as_ref().and_then(|t| t.close),
+                                    vault.total_supply.as_deref(),
+                                );
+
+                                (sym, nm, dec, usd)
+                            }
+                            _ => {
+                                // Fallback if vault lookup fails
+                                let sym = format!("yv-{}", &account.vault[..8]);
+                                (sym, None, 18u8, None)
+                            }
+                        };
+
+                    let balance = PortfolioBalance::new(
+                        &account.vault,
+                        &symbol,
+                        chain,
+                        balance_raw,
+                        decimals,
+                    )
+                    .with_name(name)
+                    .with_usd_value(usd_value);
+
+                    all_balances.push(balance);
+                }
+            }
+            Err(e) => {
+                // Log error but continue with other chains
+                eprintln!("Yearn error for chain {}: {}", chain, e);
+            }
+        }
+    }
+
+    if all_balances.is_empty() {
+        SourceResult::error("yearn", "No vault positions found", measure.elapsed_ms())
+    } else {
+        SourceResult::success("yearn", all_balances, measure.elapsed_ms())
+    }
+}
+
+/// Calculate USD value of a Yearn vault position
+fn calculate_yearn_position_value(
+    balance_raw: &str,
+    decimals: u8,
+    price_per_share: Option<&str>,
+    tvl_usd: Option<f64>,
+    total_supply: Option<&str>,
+) -> Option<f64> {
+    let balance = parse_balance(balance_raw, decimals);
+    if balance <= 0.0 {
+        return None;
+    }
+
+    // Method 1: Use price per share if available
+    // Note: price_per_share gives underlying token amount, not USD
+    // We'd need the underlying token price for full accuracy
+    // For now, we use the TVL method below which gives USD directly
+    let _ = price_per_share;
+
+    // Method 2: Use TVL and total supply to estimate share value
+    if let (Some(tvl), Some(supply_str)) = (tvl_usd, total_supply) {
+        if let Ok(supply_raw) = supply_str.parse::<u128>() {
+            let total_supply = supply_raw as f64 / 10f64.powi(decimals as i32);
+            if total_supply > 0.0 {
+                let price_per_share_usd = tvl / total_supply;
+                return Some(balance * price_per_share_usd);
+            }
+        }
+    }
+
+    None
+}
+
+/// Convert chain name to chain ID for Yearn
+fn chain_name_to_id(chain: &str) -> Option<u64> {
+    match chain.to_lowercase().as_str() {
+        "ethereum" | "eth" | "mainnet" | "eth-mainnet" => Some(1),
+        "polygon" | "matic" | "polygon-mainnet" => Some(137),
+        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => Some(42161),
+        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => Some(10),
+        "base" | "base-mainnet" => Some(8453),
+        "fantom" | "ftm" => Some(250),
+        "gnosis" | "xdai" => Some(100),
+        _ => None,
     }
 }
 

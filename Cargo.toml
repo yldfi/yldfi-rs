@@ -22,6 +22,7 @@ members = [
     "crates/lfi",
     "crates/pythc",
     "crates/unswp",
+    "crates/ykong",
 ]
 
 [workspace.package]
@@ -58,6 +59,22 @@ fastrand = "2"
 url = "2"
 
 # Workspace-wide release profile settings
+#
+# Design Rationale:
+# - lto = true: Link-time optimization for smaller binaries and better inlining
+# - codegen-units = 1: Single codegen unit enables maximum optimization (slower compile)
+# - panic = "abort": Smaller binaries, no unwinding overhead (CLI tool, not a library)
+# - strip = true: Remove symbols for smaller binaries
+# - opt-level = "z": Optimize for binary size over speed
+#
+# Why opt-level = "z" (size) instead of "3" (speed)?
+# 1. ethcli is a CLI tool - startup time matters more than throughput
+# 2. Most operations are I/O-bound (network requests), not CPU-bound
+# 3. Smaller binaries = faster downloads and less disk usage
+# 4. The performance difference is negligible for our use case
+#
+# To build with speed optimization instead: cargo build --release -Z build-std
+# Or override locally with CARGO_PROFILE_RELEASE_OPT_LEVEL=3
 [profile.release]
 lto = true
 codegen-units = 1

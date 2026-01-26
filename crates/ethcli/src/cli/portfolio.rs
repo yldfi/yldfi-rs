@@ -24,6 +24,8 @@ pub enum PortfolioSourceArg {
     Dsim,
     /// Uniswap V3 LP positions
     Uniswap,
+    /// Yearn vault positions via Kong API
+    Yearn,
 }
 
 impl From<PortfolioSourceArg> for PortfolioSource {
@@ -34,6 +36,7 @@ impl From<PortfolioSourceArg> for PortfolioSource {
             PortfolioSourceArg::Moralis => PortfolioSource::Moralis,
             PortfolioSourceArg::Dsim => PortfolioSource::DuneSim,
             PortfolioSourceArg::Uniswap => PortfolioSource::Uniswap,
+            PortfolioSourceArg::Yearn => PortfolioSource::Yearn,
         }
     }
 }

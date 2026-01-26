@@ -108,6 +108,9 @@ ensof = { version = "0.1", path = "../ensof" }
 # Uniswap client (V2, V3, V4)
 unswp = { version = "0.1", path = "../unswp" }
 
+# Yearn Kong API client
+ykong = { version = "0.1", path = "../ykong" }
+
 # Chainlink Data Streams
 chainlink-data-streams-sdk = { version = "1.2", features = ["full"] }
 chainlink-data-streams-report = "1.2"

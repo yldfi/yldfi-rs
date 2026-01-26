@@ -193,6 +193,8 @@ pub enum PriceSource {
     Pyth,
     /// Uniswap subgraph (ETH price from DEX pools)
     Uniswap,
+    /// Yearn Kong API (DeFi token prices)
+    Kong,
 }
 
 impl std::str::FromStr for PriceSource {
@@ -210,6 +212,7 @@ impl std::str::FromStr for PriceSource {
             "chainlink" | "cl" => Ok(PriceSource::Chainlink),
             "pyth" => Ok(PriceSource::Pyth),
             "uniswap" | "uni" => Ok(PriceSource::Uniswap),
+            "kong" | "yearn" | "ykong" => Ok(PriceSource::Kong),
             _ => Err(format!("Unknown price source: {}", s)),
         }
     }
@@ -228,6 +231,7 @@ impl std::fmt::Display for PriceSource {
             PriceSource::Chainlink => write!(f, "chainlink"),
             PriceSource::Pyth => write!(f, "pyth"),
             PriceSource::Uniswap => write!(f, "uniswap"),
+            PriceSource::Kong => write!(f, "kong"),
         }
     }
 }
@@ -359,6 +363,9 @@ mod tests {
             PriceSource::Uniswap
         );
         assert_eq!("uni".parse::<PriceSource>().unwrap(), PriceSource::Uniswap);
+        assert_eq!("kong".parse::<PriceSource>().unwrap(), PriceSource::Kong);
+        assert_eq!("yearn".parse::<PriceSource>().unwrap(), PriceSource::Kong);
+        assert_eq!("ykong".parse::<PriceSource>().unwrap(), PriceSource::Kong);
         assert!("invalid".parse::<PriceSource>().is_err());
     }
 
@@ -368,5 +375,6 @@ mod tests {
         assert_eq!(PriceSource::Llama.to_string(), "llama");
         assert_eq!(PriceSource::All.to_string(), "all");
         assert_eq!(PriceSource::Uniswap.to_string(), "uniswap");
+        assert_eq!(PriceSource::Kong.to_string(), "kong");
     }
 }

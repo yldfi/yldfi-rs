@@ -18,7 +18,7 @@ pub struct YieldsArgs {
     #[arg(long, short)]
     pub project: Option<String>,
 
-    /// Source(s) to query: all, curve, llama, uniswap (default: all)
+    /// Source(s) to query: all, curve, llama, uniswap, yearn (default: all)
     #[arg(long, short = 's', default_value = "all")]
     pub source: String,
 
@@ -119,6 +119,7 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
                 result.aggregated.uniswap_v3_pools,
                 result.aggregated.uniswap_v4_pools
             );
+            println!("Yearn vaults:   {}", result.aggregated.yearn_vaults);
             if let Some(max) = result.aggregated.max_apy {
                 println!("Max APY:        {:.2}%", max);
             }

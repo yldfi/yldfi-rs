@@ -28,6 +28,12 @@
 - **Address Book**: Save and lookup addresses by label
 - **Self-Updating**: Check for updates and auto-install
 - **Multi-chain**: Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Avalanche
+- **Price Aggregation**: Multi-source prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, CCXT
+- **Portfolio Aggregation**: Balance data from Alchemy, Dune SIM, Moralis
+- **NFT Aggregation**: Holdings from Alchemy, CoinGecko, Moralis, Dune SIM
+- **Yield Aggregation**: DeFi yields from DefiLlama and Curve
+- **Uniswap**: V2/V3/V4 pool queries (on-chain + subgraph)
+- **Yearn**: Vault and strategy data via Kong API
 
 ## Installation
 
@@ -354,6 +360,142 @@ ethcli update --install
 ethcli doctor
 ```
 
+### Price - Multi-Source Price Aggregation
+
+Query token prices from multiple sources in parallel and get aggregated results.
+
+```bash
+# Get aggregated price for a token
+ethcli price ETH
+ethcli price BTC
+
+# Query specific chain
+ethcli price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain ethereum
+
+# Query specific source
+ethcli price ETH --source gecko
+ethcli price ETH --source chainlink
+ethcli price ETH --source pyth
+
+# LP token prices (Curve priority)
+ethcli price 0x... --lp
+
+# Output formats
+ethcli price ETH -o json
+ethcli price ETH -o table
+```
+
+### Portfolio - Multi-Source Balance Aggregation
+
+```bash
+# Get aggregated portfolio balances
+ethcli portfolio 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+
+# With options
+ethcli portfolio 0x... --chain polygon
+ethcli portfolio 0x... -o json
+```
+
+### NFTs - Multi-Source NFT Aggregation
+
+```bash
+# Get aggregated NFT holdings
+ethcli nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+
+# With options
+ethcli nfts 0x... --chain polygon
+ethcli nfts 0x... -o json
+```
+
+### Yields - DeFi Yield Aggregation
+
+```bash
+# Get DeFi yields
+ethcli yields --protocol aave
+ethcli yields --protocol curve
+ethcli yields --chain ethereum
+```
+
+### Uniswap - V2/V3/V4 Pool Queries
+
+Query Uniswap pools via on-chain lens contracts and The Graph subgraph.
+
+```bash
+# On-chain queries (no API key needed)
+ethcli uniswap pool 0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640
+ethcli uniswap liquidity 0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640
+ethcli uniswap balance <token> <account>
+
+# Subgraph queries (requires THEGRAPH_API_KEY)
+ethcli uniswap eth-price
+ethcli uniswap eth-price --version v2
+ethcli uniswap top-pools 10
+ethcli uniswap top-pools 20 --version v4
+ethcli uniswap swaps 0x... --limit 20
+ethcli uniswap day-data 0x... --days 7
+
+# LP positions
+ethcli uniswap positions 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli uniswap positions <address> --version v3 --chain arbitrum
+ethcli uniswap positions <address> --json
+
+# Well-known addresses
+ethcli uniswap addresses
+ethcli uniswap addresses --factories
+ethcli uniswap addresses --pools --version v3
+```
+
+### Kong - Yearn Finance Data
+
+Query Yearn Finance vault and strategy data via the Kong GraphQL API.
+
+```bash
+# List vaults
+ethcli kong vaults list
+ethcli kong vaults list --chain-id 1 --yearn
+ethcli kong vaults list --v3 --erc4626
+
+# Get vault details
+ethcli kong vaults get --chain-id 1 0x...
+
+# User positions
+ethcli kong vaults accounts --chain-id 1 0x...
+
+# Strategies
+ethcli kong strategies list --chain-id 1
+ethcli kong strategies get --chain-id 1 0x...
+
+# Prices
+ethcli kong prices current --chain-id 1 0x...
+ethcli kong prices historical --chain-id 1 0x... 1700000000
+
+# TVL
+ethcli kong tvl current --chain-id 1 0x...
+ethcli kong tvl history --chain-id 1 0x... --period day --limit 30
+
+# Reports (harvests)
+ethcli kong reports vault --chain-id 1 0x...
+ethcli kong reports strategy --chain-id 1 0x...
+```
+
+### Chainlink - Price Feeds
+
+```bash
+# Get current price (RPC-based, no API key needed)
+ethcli chainlink price ETH
+ethcli chainlink price BTC --chain arbitrum
+
+# Historical price
+ethcli chainlink price ETH --block 18000000
+
+# Get feed address
+ethcli chainlink feed CVX
+
+# List oracles
+ethcli chainlink oracles
+ethcli chainlink oracles --chain arbitrum
+```
+
 ## Multi-Chain Support
 
 ```bash
@@ -390,7 +532,16 @@ ethcli config set-etherscan-key YOUR_KEY
 ## Environment Variables
 
 ```bash
-ETHERSCAN_API_KEY    # Etherscan API key (optional)
+ETHERSCAN_API_KEY       # Etherscan API key (optional, increases rate limit)
+TENDERLY_ACCESS_KEY     # Tenderly API access
+ALCHEMY_API_KEY         # Alchemy API access
+COINGECKO_API_KEY       # CoinGecko Pro API (optional)
+MORALIS_API_KEY         # Moralis API access
+DUNE_SIM_API_KEY        # Dune SIM wallet simulation
+DUNE_API_KEY            # Dune Analytics queries
+THEGRAPH_API_KEY        # The Graph API (for Uniswap subgraph)
+CHAINLINK_API_KEY       # Chainlink Data Streams (premium, optional)
+CHAINLINK_USER_SECRET   # Chainlink Data Streams (premium, optional)
 ```
 
 ## License

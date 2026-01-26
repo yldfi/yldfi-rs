@@ -72,6 +72,8 @@ ethcli dune       # Dune Analytics API (queries, executions, tables)
 ethcli curve      # Curve Finance API (pools, volumes, lending, tokens, router)
 ethcli chainlink  # Chainlink price feeds (RPC-based, no API key needed)
 ethcli ccxt       # Exchange data (Binance, Bitget, OKX, Hyperliquid)
+ethcli kong       # Yearn Kong API (vaults, strategies, prices, TVL, reports)
+ethcli uniswap    # Uniswap V2/V3/V4 (on-chain lens + subgraph)
 ```
 
 ## Simulation Commands
@@ -232,6 +234,85 @@ ethcli chainlink streams history <feed_id> <timestamp> --limit 10
 - **Historical queries**: Require an archive node. Feed address is resolved at the target block for accuracy.
 - **Stale detection**: Warns if `answeredInRound < roundId` (oracle hasn't updated recently).
 
+## Kong (Yearn) Commands
+
+Query Yearn Finance vault and strategy data via the Kong GraphQL API. No API key required.
+
+```bash
+# List vaults (optionally filtered)
+ethcli kong vaults list                        # All vaults
+ethcli kong vaults list --chain-id 1           # Ethereum mainnet vaults
+ethcli kong vaults list --chain-id 1 --yearn   # Official Yearn vaults only
+ethcli kong vaults list --v3                   # V3 vaults only
+ethcli kong vaults list --erc4626              # ERC4626 compliant vaults
+
+# Get specific vault details
+ethcli kong vaults get --chain-id 1 0x7B5A0182E400b241b317e781a4e9dEdFc1429822
+
+# Get user positions in vaults
+ethcli kong vaults accounts --chain-id 1 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+
+# List strategies
+ethcli kong strategies list --chain-id 1
+ethcli kong strategies list --vault 0x...      # Strategies for specific vault
+ethcli kong strategies get --chain-id 1 0x...  # Get strategy details
+
+# Token prices (contract addresses only)
+ethcli kong prices current --chain-id 1 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli kong prices historical --chain-id 1 0x... 1700000000  # At timestamp
+
+# TVL data
+ethcli kong tvl current --chain-id 1 0x...
+ethcli kong tvl history --chain-id 1 0x... --period day --limit 30
+
+# Vault/strategy reports (harvests)
+ethcli kong reports vault --chain-id 1 0x...
+ethcli kong reports strategy --chain-id 1 0x...
+```
+
+### Notes
+
+- **Chain IDs**: 1=Ethereum, 137=Polygon, 42161=Arbitrum, 10=Optimism, 8453=Base
+- **Alias**: `ethcli yearn` works as an alias for `ethcli kong`
+- **No API key**: Kong API is free and public
+
+## Uniswap Commands
+
+Query Uniswap V2, V3, and V4 pools via on-chain lens queries and The Graph subgraph.
+
+```bash
+# On-chain queries (no API key needed)
+ethcli uniswap pool 0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640        # Get V3 pool state
+ethcli uniswap liquidity 0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640  # Get pool liquidity
+ethcli uniswap balance <token> <account>                              # Get token balance
+
+# Subgraph queries (requires THEGRAPH_API_KEY)
+ethcli uniswap eth-price                            # Current ETH price
+ethcli uniswap eth-price --version v2               # From V2 subgraph
+ethcli uniswap top-pools 10                         # Top 10 pools by TVL
+ethcli uniswap top-pools 20 --version v4            # Top V4 pools
+ethcli uniswap swaps 0x... --limit 20               # Recent swaps for a pool
+ethcli uniswap day-data 0x... --days 7              # Daily data for a pool
+
+# LP positions (subgraph, queries all versions by default)
+ethcli uniswap positions 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli uniswap positions <address> --version v3 --chain arbitrum
+ethcli uniswap positions <address> --json           # JSON output
+
+# List well-known addresses
+ethcli uniswap addresses                            # All factories, pools, tokens
+ethcli uniswap addresses --factories                # Only factories
+ethcli uniswap addresses --pools --version v3       # Only V3 pools
+```
+
+### Notes
+
+- **Alias**: `ethcli uni` works as an alias for `ethcli uniswap`
+- **On-chain queries**: Use `pool`, `liquidity`, `balance` - no API key needed
+- **Subgraph queries**: Use `eth-price`, `top-pools`, `swaps`, `day-data`, `positions` - requires `THEGRAPH_API_KEY`
+- **Multi-chain**: Supports Ethereum, Arbitrum, Optimism, Polygon, Base
+- **Multi-version**: Supports V2, V3, and V4 protocols
+
 ## Project Structure
 
 ```
@@ -326,7 +407,9 @@ src/
     ├── dune_cli.rs   # Direct Dune Analytics API
     ├── curve.rs      # Direct Curve Finance API
     ├── chainlink.rs  # Chainlink price feeds (RPC + Data Streams)
-    └── ccxt.rs       # Exchange data via CCXT
+    ├── ccxt.rs       # Exchange data via CCXT
+    ├── kong.rs       # Direct Yearn Kong API
+    └── uniswap.rs    # Uniswap V2/V3/V4 queries
 ```
 
 ## Key Dependencies
@@ -343,6 +426,8 @@ src/
 - **dsim**: Dune SIM API client
 - **dune**: Dune Analytics API client
 - **crv**: Curve Finance API client
+- **ykong**: Yearn Kong GraphQL API client
+- **unswp**: Uniswap V2/V3/V4 client (on-chain lens + subgraph)
 - **tokio**: Async runtime
 - **clap**: CLI parsing
 - **serde/serde_json**: Serialization

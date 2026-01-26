@@ -17,6 +17,35 @@ use std::sync::OnceLock;
 // Cached API Clients (PERF-001 fix)
 // =============================================================================
 //
+// ## Safety Rationale
+//
+// These static clients use `OnceLock` and `AsyncOnceCell` for thread-safe lazy
+// initialization. This pattern is safe because:
+//
+// 1. **Immutability**: Once initialized, the clients are never mutated. All client
+//    methods take `&self` and are internally thread-safe (using connection pools).
+//
+// 2. **Thread Safety**: `OnceLock<T>` and `AsyncOnceCell<T>` guarantee that
+//    initialization happens exactly once, even under concurrent access.
+//
+// 3. **HTTP Client Safety**: The underlying `reqwest::Client` is designed to be
+//    cloned and shared across threads - it uses `Arc` internally for the
+//    connection pool.
+//
+// 4. **Lifetime**: These statics live for the program duration, which is
+//    appropriate for a CLI tool. The connection pools are cleaned up on exit.
+//
+// ## Trade-offs
+//
+// - **Testability**: Static clients cannot be reset between tests. Integration
+//   tests should use separate processes or accept cached state.
+//
+// - **Memory**: Clients remain in memory for program lifetime. Acceptable for
+//   CLI usage; consider `Arc<Client>` in a struct for library usage.
+//
+// - **Error Caching**: Initialization errors are also cached. If client creation
+//   fails, it will continue to fail for the program's lifetime.
+//
 // These static clients are lazily initialized and reused across all price
 // queries, avoiding HTTP client recreation overhead (~100-300ms per connection).
 
@@ -112,6 +141,9 @@ static UNISWAP_BASE_CLIENT: OnceLock<Result<unswp::SubgraphClient, String>> = On
 /// between "not initialized" and "initialization failed"
 static GECKO_CLIENT: OnceLock<Option<cgko::Client>> = OnceLock::new();
 
+/// Cached Yearn Kong client (no API key required)
+static KONG_CLIENT: OnceLock<Result<ykong::Client, String>> = OnceLock::new();
+
 /// Get or create the cached DefiLlama client
 fn get_llama_client() -> Result<&'static dllma::Client, &'static str> {
     LLAMA_CLIENT
@@ -195,6 +227,14 @@ fn get_gecko_client() -> Option<&'static cgko::Client> {
         .as_ref()
 }
 
+/// Get or create the cached Yearn Kong client (no API key required)
+fn get_kong_client() -> Result<&'static ykong::Client, &'static str> {
+    KONG_CLIENT
+        .get_or_init(|| ykong::Client::new().map_err(|e| e.to_string()))
+        .as_ref()
+        .map_err(|_| "Failed to create Kong client")
+}
+
 /// Get or create the cached Uniswap SubgraphClient for a specific chain
 fn get_uniswap_client(chain: &str) -> Result<&'static unswp::SubgraphClient, String> {
     // Get API key from cached config or environment variable
@@ -251,6 +291,7 @@ pub async fn fetch_prices_all(
         PriceSource::Chainlink,
         PriceSource::Pyth,
         PriceSource::Uniswap,
+        PriceSource::Kong,
     ];
 
     fetch_prices_parallel(token, chain, &sources).await
@@ -316,6 +357,7 @@ pub async fn fetch_price_from_source(
         PriceSource::Chainlink => fetch_chainlink_price(token, chain, measure).await,
         PriceSource::Pyth => fetch_pyth_price(token, measure).await,
         PriceSource::Uniswap => fetch_uniswap_price(token, chain, measure).await,
+        PriceSource::Kong => fetch_kong_price(token, chain, measure).await,
         PriceSource::All => SourceResult::error("all", "Use fetch_prices_all instead", 0),
     }
 }
@@ -1672,5 +1714,68 @@ async fn fetch_uniswap_price(
             format!("Failed to query pools: {}", e),
             measure.elapsed_ms(),
         ),
+    }
+}
+
+/// Fetch price from Yearn Kong API
+///
+/// Kong provides prices for DeFi tokens, especially those in Yearn vaults.
+/// Requires a contract address (not symbol).
+async fn fetch_kong_price(
+    token: &str,
+    chain: &str,
+    measure: LatencyMeasure,
+) -> SourceResult<NormalizedPrice> {
+    // Kong requires contract addresses
+    if !token.starts_with("0x") {
+        return SourceResult::error(
+            "kong",
+            "Kong requires contract address (0x...)",
+            measure.elapsed_ms(),
+        );
+    }
+
+    // Convert chain name to chain ID
+    let chain_id = match chain.to_lowercase().as_str() {
+        "ethereum" | "eth" | "mainnet" | "eth-mainnet" | "" => 1,
+        "polygon" | "matic" | "polygon-mainnet" => 137,
+        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => 42161,
+        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => 10,
+        "base" | "base-mainnet" => 8453,
+        "fantom" | "ftm" => 250,
+        "gnosis" | "xdai" => 100,
+        _ => {
+            return SourceResult::error(
+                "kong",
+                format!("Unsupported chain for Kong: {}", chain),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    // Use cached client
+    let client = match get_kong_client() {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error(
+                "kong",
+                format!("Client error: {}", e),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    // Fetch price from Kong
+    match client.prices().current(chain_id, token).await {
+        Ok(Some(price_data)) => {
+            let price = NormalizedPrice::new(price_data.price_usd);
+            SourceResult::success("kong", price, measure.elapsed_ms())
+        }
+        Ok(None) => SourceResult::error(
+            "kong",
+            format!("No price data for token {} on chain {}", token, chain),
+            measure.elapsed_ms(),
+        ),
+        Err(e) => SourceResult::error("kong", format!("API error: {}", e), measure.elapsed_ms()),
     }
 }

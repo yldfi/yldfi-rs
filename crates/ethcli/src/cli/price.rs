@@ -32,6 +32,10 @@ pub enum PriceSourceArg {
     Chainlink,
     /// Pyth Network Hermes API
     Pyth,
+    /// Uniswap subgraph (DEX pools)
+    Uniswap,
+    /// Yearn Kong API (DeFi token prices)
+    Kong,
 }
 
 impl From<PriceSourceArg> for PriceSource {
@@ -46,6 +50,8 @@ impl From<PriceSourceArg> for PriceSource {
             PriceSourceArg::Ccxt => PriceSource::Ccxt,
             PriceSourceArg::Chainlink => PriceSource::Chainlink,
             PriceSourceArg::Pyth => PriceSource::Pyth,
+            PriceSourceArg::Uniswap => PriceSource::Uniswap,
+            PriceSourceArg::Kong => PriceSource::Kong,
         }
     }
 }
