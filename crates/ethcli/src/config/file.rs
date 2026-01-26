@@ -439,9 +439,10 @@ impl ConfigFile {
     /// instances run simultaneously.
     ///
     /// Uses write-to-temp-and-rename pattern for atomic writes:
-    /// 1. Write to a temporary file with exclusive lock
-    /// 2. Sync to disk
-    /// 3. Rename atomically to target path
+    /// 1. Write to a unique temporary file with exclusive lock
+    /// 2. Set restrictive permissions (before rename to avoid race)
+    /// 3. Sync to disk
+    /// 4. Rename atomically to target path
     pub fn save(&self, path: &Path) -> Result<()> {
         use std::io::{Seek, SeekFrom};
 
@@ -455,9 +456,34 @@ impl ConfigFile {
         let content = toml::to_string_pretty(self)
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to serialize config: {}", e)))?;
 
-        // HIGH-001/MED-002 fix: Use atomic write pattern
-        // Create temp file in same directory (for same-filesystem rename)
-        let temp_path = path.with_extension("toml.tmp");
+        // CFG-001 fix: Use unique temp filename to prevent race conditions
+        // Include PID and timestamp for uniqueness across concurrent processes
+        let unique_suffix = format!(
+            "{}.{}.tmp",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        );
+        let temp_path = path.with_extension(unique_suffix);
+
+        // CFG-003 fix: RAII guard to clean up temp file on failure
+        struct TempFileGuard<'a> {
+            path: &'a Path,
+            keep: bool,
+        }
+        impl Drop for TempFileGuard<'_> {
+            fn drop(&mut self) {
+                if !self.keep {
+                    let _ = std::fs::remove_file(self.path);
+                }
+            }
+        }
+        let mut guard = TempFileGuard {
+            path: &temp_path,
+            keep: false,
+        };
 
         // Open temp file WITHOUT truncate - we'll truncate AFTER acquiring lock
         let mut file = OpenOptions::new()
@@ -468,12 +494,22 @@ impl ConfigFile {
                 ConfigError::InvalidFile(format!("Failed to create temp config file: {}", e))
             })?;
 
+        // CFG-002 fix: Set restrictive permissions BEFORE writing content
+        // This prevents a window where the file has default permissions
+        #[cfg(unix)]
+        {
+            let permissions = std::fs::Permissions::from_mode(0o600);
+            std::fs::set_permissions(&temp_path, permissions).map_err(|e| {
+                ConfigError::InvalidFile(format!("Failed to set temp file permissions: {}", e))
+            })?;
+        }
+
         // Acquire exclusive lock FIRST (blocks until available)
         file.lock_exclusive().map_err(|e| {
             ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e))
         })?;
 
-        // NOW truncate after we have the lock (HIGH-001 fix)
+        // Truncate after we have the lock
         file.set_len(0).map_err(|e| {
             ConfigError::InvalidFile(format!("Failed to truncate temp file: {}", e))
         })?;
@@ -485,7 +521,7 @@ impl ConfigFile {
         file.write_all(content.as_bytes())
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to write config: {}", e)))?;
 
-        // Sync to disk before rename for durability (MED-002 fix)
+        // Sync to disk before rename for durability
         file.sync_all().map_err(|e| {
             ConfigError::InvalidFile(format!("Failed to sync config file: {}", e))
         })?;
@@ -498,14 +534,8 @@ impl ConfigFile {
             ConfigError::InvalidFile(format!("Failed to rename config file: {}", e))
         })?;
 
-        // Set restrictive permissions (0600) on Unix systems since config may contain API keys
-        #[cfg(unix)]
-        {
-            let permissions = std::fs::Permissions::from_mode(0o600);
-            std::fs::set_permissions(path, permissions).map_err(|e| {
-                ConfigError::InvalidFile(format!("Failed to set config permissions: {}", e))
-            })?;
-        }
+        // Success - don't delete the temp file (it's been renamed)
+        guard.keep = true;
 
         Ok(())
     }

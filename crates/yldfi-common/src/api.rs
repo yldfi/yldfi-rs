@@ -103,7 +103,15 @@ pub fn join_url(base: &str, path: &str) -> String {
 ///
 /// This is a security measure to prevent accidental exposure of sensitive data
 /// in error messages and logs.
-fn sanitize_error_body(body: &str) -> String {
+/// Sanitize an API error body to remove potential secrets.
+///
+/// This function:
+/// 1. Truncates long error messages
+/// 2. Redacts common API key patterns (query params, bearer tokens, headers, JSON)
+/// 3. Redacts hex-encoded private keys
+///
+/// Use this to sanitize error messages before logging or displaying them.
+pub fn sanitize_error_body(body: &str) -> String {
     // Truncate if too long
     let truncated = if body.len() > MAX_ERROR_BODY_LENGTH {
         format!("{}... (truncated)", &body[..MAX_ERROR_BODY_LENGTH])
@@ -115,9 +123,24 @@ fn sanitize_error_body(body: &str) -> String {
     // Redact query params that look like keys/tokens
     let mut result = truncated;
 
-    // LOW-002 fix: Use a loop to redact ALL occurrences of each pattern
-    // Query parameter patterns (key=value&)
-    for pattern in ["key=", "apikey=", "api_key=", "token=", "secret=", "auth=", "password="] {
+    // API-002 fix: Extended list of sensitive query parameter patterns
+    // Includes private_key, client_secret, client_id variants
+    for pattern in [
+        "key=",
+        "apikey=",
+        "api_key=",
+        "token=",
+        "secret=",
+        "auth=",
+        "password=",
+        "private_key=",
+        "privatekey=",
+        "pk=",
+        "client_secret=",
+        "client_id=",
+        "access_key=",
+        "secret_key=",
+    ] {
         // Track search position to avoid infinite loop
         let mut search_from = 0;
         loop {
@@ -221,19 +244,31 @@ fn sanitize_error_body(body: &str) -> String {
         }
     }
 
-    // MED-001 fix: Redact JSON key-value pairs with sensitive keys
+    // MED-001/API-002 fix: Redact JSON key-value pairs with sensitive keys
     // Patterns like: "key": "value" or "api_key": "secret123"
+    // Extended list includes private_key, client_secret variants
     for json_key in [
         "\"key\"",
         "\"apikey\"",
         "\"api_key\"",
+        "\"apiKey\"",
         "\"token\"",
         "\"secret\"",
         "\"password\"",
         "\"auth\"",
         "\"access_token\"",
+        "\"accessToken\"",
         "\"refresh_token\"",
+        "\"refreshToken\"",
         "\"api-key\"",
+        "\"private_key\"",
+        "\"privateKey\"",
+        "\"client_secret\"",
+        "\"clientSecret\"",
+        "\"client_id\"",
+        "\"clientId\"",
+        "\"secret_key\"",
+        "\"secretKey\"",
     ] {
         // Track search position to avoid infinite loop
         let mut search_from = 0;
@@ -293,6 +328,43 @@ fn sanitize_error_body(body: &str) -> String {
             } else {
                 break;
             }
+        }
+    }
+
+    // API-002 fix: Redact hex-encoded private keys (0x followed by 64 hex chars)
+    // These are Ethereum private keys and should never appear in logs
+    let mut search_from = 0;
+    loop {
+        if let Some(pos) = result[search_from..].find("0x") {
+            let abs_pos = search_from + pos;
+            let after_0x = abs_pos + 2;
+
+            // Check if followed by exactly 64 hex characters
+            if after_0x + 64 <= result.len() {
+                let potential_key = &result[after_0x..after_0x + 64];
+                if potential_key.chars().all(|c| c.is_ascii_hexdigit()) {
+                    // Check it's not followed by more hex (could be longer hash)
+                    let is_exact_64 = after_0x + 64 >= result.len()
+                        || !result[after_0x + 64..]
+                            .chars()
+                            .next()
+                            .map(|c| c.is_ascii_hexdigit())
+                            .unwrap_or(false);
+
+                    if is_exact_64 {
+                        result = format!(
+                            "{}0x[REDACTED_KEY]{}",
+                            &result[..abs_pos],
+                            &result[after_0x + 64..]
+                        );
+                        search_from = abs_pos + "0x[REDACTED_KEY]".len();
+                        continue;
+                    }
+                }
+            }
+            search_from = after_0x;
+        } else {
+            break;
         }
     }
 
@@ -773,14 +845,35 @@ impl BaseClient {
 
     /// Create a new base client without HTTPS validation.
     ///
-    /// **Warning:** This bypasses HTTPS enforcement. Only use this for development
-    /// with local HTTP servers. Never use this with production API endpoints that
-    /// require API keys, as credentials will be transmitted in plain text.
+    /// # Security Warning
+    ///
+    /// **API-001: This method bypasses HTTPS enforcement and should only be used
+    /// for testing with local HTTP servers.**
+    ///
+    /// Using this method with production API endpoints will transmit API keys
+    /// in plain text, exposing them to network interception (MITM attacks).
+    ///
+    /// Consider using `new()` instead, which enforces HTTPS for all non-localhost URLs.
     ///
     /// # Errors
     ///
     /// Returns an error if the HTTP client cannot be built.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "0.1.3",
+        note = "Use new() instead. This method bypasses HTTPS security checks and may expose API keys."
+    )]
     pub fn new_unchecked(config: ApiConfig) -> Result<Self, HttpError> {
+        // API-001 fix: Log warning when used in debug builds
+        #[cfg(debug_assertions)]
+        {
+            eprintln!(
+                "WARNING: BaseClient::new_unchecked() bypasses HTTPS validation. \
+                 API keys may be transmitted insecurely. URL: {}",
+                config.base_url
+            );
+        }
+
         let http = config.build_client()?;
         let normalized_base_url = config.base_url.trim_end_matches('/').to_string();
         Ok(Self {
@@ -1349,5 +1442,32 @@ mod tests {
         assert!(!sanitized.contains("key1"));
         assert!(!sanitized.contains("token1"));
         assert!(!sanitized.contains("api1"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_hex_private_key() {
+        // API-002 fix: Test hex-encoded private key redaction (64 hex chars)
+        let body = "Error: Invalid key 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef in request";
+        let sanitized = super::sanitize_error_body(body);
+        assert!(sanitized.contains("0x[REDACTED_KEY]"));
+        assert!(!sanitized.contains("1234567890abcdef"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_private_key_param() {
+        // API-002 fix: Test private_key query param redaction
+        let body = "Error: ?private_key=secretkey123&foo=bar";
+        let sanitized = super::sanitize_error_body(body);
+        assert!(sanitized.contains("[REDACTED]"));
+        assert!(!sanitized.contains("secretkey123"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_client_secret() {
+        // API-002 fix: Test client_secret JSON key redaction
+        let body = r#"{"client_secret": "my_secret_value", "client_id": "my_client_id"}"#;
+        let sanitized = super::sanitize_error_body(body);
+        assert!(!sanitized.contains("my_secret_value"));
+        assert!(!sanitized.contains("my_client_id"));
     }
 }

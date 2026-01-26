@@ -170,11 +170,16 @@ impl RateLimiter {
     /// Try to acquire a permit without blocking.
     ///
     /// Returns `true` if a permit was acquired, `false` if rate limited.
+    ///
+    /// # Note
+    ///
+    /// Uses a compare-and-swap loop to avoid TOCTOU race between checking
+    /// the count and incrementing it.
     #[must_use]
     pub fn try_acquire(&self) -> bool {
         let inner = &self.inner;
 
-        // HIGH-001 fix: Check and reset window before checking count
+        // Check and reset window before checking count
         let now_nanos = inner.start_time.elapsed().as_nanos() as u64;
         let window_nanos = inner.window.as_nanos() as u64;
         let last = inner.last_reset.load(Ordering::Relaxed);
@@ -196,14 +201,26 @@ impl RateLimiter {
             }
         }
 
-        let count = inner.request_count.load(Ordering::Relaxed);
+        // RL-002 fix: Use CAS loop to atomically check and increment count
+        // This prevents TOCTOU race between load and fetch_add
+        loop {
+            let count = inner.request_count.load(Ordering::Relaxed);
 
-        if count >= inner.max_requests as u64 {
-            return false;
+            if count >= inner.max_requests as u64 {
+                return false;
+            }
+
+            // Try to atomically increment only if count hasn't changed
+            if inner
+                .request_count
+                .compare_exchange(count, count + 1, Ordering::SeqCst, Ordering::Relaxed)
+                .is_ok()
+            {
+                // Successfully incremented, try to acquire semaphore permit
+                return inner.semaphore.try_acquire().map(|p| p.forget()).is_ok();
+            }
+            // CAS failed - another thread modified count, retry
         }
-
-        inner.request_count.fetch_add(1, Ordering::Relaxed);
-        inner.semaphore.try_acquire().map(|p| p.forget()).is_ok()
     }
 
     /// Get the current number of available permits.

@@ -5,7 +5,7 @@
 
 use serde::Deserialize;
 use thiserror::Error;
-pub use yldfi_common::api::ApiError;
+pub use yldfi_common::api::{sanitize_error_body, ApiError};
 
 /// Moralis API error response structure
 #[derive(Debug, Clone, Deserialize)]
@@ -67,6 +67,10 @@ pub enum DomainError {
     /// Missing API key
     #[error("Missing API key")]
     MissingApiKey,
+
+    /// Insecure URL scheme (MED-002 fix)
+    #[error("Insecure URL scheme: use HTTPS to protect API keys (got: {0})")]
+    InsecureScheme(String),
 }
 
 /// Error type for Moralis API operations
@@ -105,6 +109,11 @@ pub fn missing_api_key() -> Error {
     ApiError::domain(DomainError::MissingApiKey)
 }
 
+/// Create an insecure scheme error (MED-002 fix)
+pub fn insecure_scheme(scheme: impl Into<String>) -> Error {
+    ApiError::domain(DomainError::InsecureScheme(scheme.into()))
+}
+
 /// Create from HTTP response status and body
 ///
 /// Handles Moralis-specific error patterns:
@@ -113,13 +122,19 @@ pub fn missing_api_key() -> Error {
 /// - 404 -> NotFound
 /// - 429 -> RateLimited
 /// - 5xx -> ServerError
+///
+/// MRLS-001 fix: All error messages are sanitized to prevent credential leaks
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
-    // Try to parse the error response
+    // MRLS-001 fix: Sanitize body before using in error messages
+    // This prevents API keys/tokens from leaking if server echoes them
+    let sanitized_body = sanitize_error_body(body);
+
+    // Try to parse the error response (use original for parsing, sanitized for messages)
     let parsed: Option<ApiErrorResponse> = serde_json::from_str(body).ok();
     let message = parsed
         .as_ref()
-        .and_then(|r| r.message.clone())
-        .unwrap_or_else(|| body.to_string());
+        .and_then(|r| r.message.as_ref().map(|m| sanitize_error_body(m)))
+        .unwrap_or_else(|| sanitized_body.clone());
 
     match status {
         401 => unauthorized(),
@@ -137,7 +152,7 @@ pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error
             plan_required(required_plan, message)
         }
         404 => not_found(message),
-        _ => ApiError::from_response(status, body, retry_after),
+        _ => ApiError::from_response(status, &sanitized_body, retry_after),
     }
 }
 

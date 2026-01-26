@@ -149,6 +149,14 @@ impl Client {
             .and_then(|s| s.parse().ok())
     }
 
+    /// MRLS-002 fix: Join base URL with path properly
+    /// Handles trailing/leading slashes correctly to avoid malformed URLs
+    fn join_url(&self, path: &str) -> String {
+        let base = self.base_url.trim_end_matches('/');
+        let path = path.trim_start_matches('/');
+        format!("{}/{}", base, path)
+    }
+
     /// Handle error response and convert to appropriate Error type
     async fn handle_error_response(response: reqwest::Response) -> Error {
         let status = response.status().as_u16();
@@ -159,7 +167,8 @@ impl Client {
 
     /// Make a GET request to the API
     pub(crate) async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
+        // MRLS-002 fix: Use join_url for proper URL construction
+        let url = self.join_url(path);
         let response = self
             .http
             .get(&url)
@@ -181,7 +190,8 @@ impl Client {
         path: &str,
         query: &Q,
     ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
+        // MRLS-002 fix: Use join_url for proper URL construction
+        let url = self.join_url(path);
         let response = self
             .http
             .get(&url)
@@ -204,7 +214,8 @@ impl Client {
         path: &str,
         body: &B,
     ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
+        // MRLS-002 fix: Use join_url for proper URL construction
+        let url = self.join_url(path);
         let response = self
             .http
             .post(&url)
@@ -232,7 +243,8 @@ impl Client {
         body: &B,
         query: &Q,
     ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
+        // MRLS-002 fix: Use join_url for proper URL construction
+        let url = self.join_url(path);
         let response = self
             .http
             .post(&url)
@@ -256,7 +268,8 @@ impl Client {
         path: &str,
         body: &B,
     ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
+        // MRLS-002 fix: Use join_url for proper URL construction
+        let url = self.join_url(path);
         let response = self
             .http
             .put(&url)
