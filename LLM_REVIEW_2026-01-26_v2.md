@@ -29,7 +29,7 @@ This follow-up review was conducted after fixing the 11 issues identified in the
 | HIGH-001: try_acquire never resets window | ✅ Fixed | Window reset added |
 | MED-001: Proxy credentials leak | ✅ Fixed | `redact_proxy_url()` implemented |
 | MED-002: Moralis HTTPS bypass | ✅ Fixed | Scheme validation added |
-| MED-003: Config TOCTOU race | ⚠️ Partially | Lock added but truncate-before-lock issue |
+| MED-003: Config TOCTOU race | ✅ Fixed | Unique temp files + lock-then-truncate + RAII cleanup |
 | MED-004: Unbounded join_all | ✅ Fixed | `buffer_unordered(10)` |
 | LOW-002: Single-match sanitization | ✅ Fixed | Loop for all occurrences |
 | LOW-003: String URL concatenation | ✅ Fixed | `join_url()` helper added |
@@ -244,7 +244,7 @@ API keys stored as plaintext in `config.toml`. Security relies on 0600 file perm
 | **LOW-002** | ✅ Fixed | `new_unchecked` removed (was unused) |
 | **LOW-003** | ✅ Fixed | URL parsing with host check in `mrls/client.rs` |
 | **LOW-004** | ✅ Fixed | HTTP header pattern redaction (X-API-Key, Authorization, etc.) |
-| **LOW-005** | ⚠️ Deferred | Keychain integration is optional enhancement |
+| **LOW-005** | ✅ Won't Fix | Plaintext config with 0600 perms is standard CLI practice |
 
 ### Implementation Details
 
