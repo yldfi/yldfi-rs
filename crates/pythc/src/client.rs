@@ -103,16 +103,14 @@ impl Config {
     /// assert!(config.validate().is_ok());
     /// ```
     pub fn validate(&self) -> Result<()> {
-        self.inner
-            .validate()
-            .map_err(|e| match e {
-                yldfi_common::api::ConfigValidationError::InsecureScheme => {
-                    crate::error::insecure_scheme()
-                }
-                yldfi_common::api::ConfigValidationError::InvalidUrl(msg) => {
-                    crate::error::invalid_url(msg)
-                }
-            })
+        self.inner.validate().map_err(|e| match e {
+            yldfi_common::api::ConfigValidationError::InsecureScheme => {
+                crate::error::insecure_scheme()
+            }
+            yldfi_common::api::ConfigValidationError::InvalidUrl(msg) => {
+                crate::error::invalid_url(msg)
+            }
+        })
     }
 }
 
@@ -147,9 +145,8 @@ impl Client {
         // Validate URL format and security (HTTPS required for non-localhost)
         config.validate()?;
 
-        let base = BaseClient::new(config.inner).map_err(|e| {
-            yldfi_common::api::ApiError::<DomainError>::HttpBuild(e)
-        })?;
+        let base = BaseClient::new(config.inner)
+            .map_err(|e| yldfi_common::api::ApiError::<DomainError>::HttpBuild(e))?;
 
         Ok(Self {
             base,

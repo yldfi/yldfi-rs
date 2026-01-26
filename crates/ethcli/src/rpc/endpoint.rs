@@ -132,9 +132,10 @@ impl Endpoint {
 
         match result {
             Ok(Ok(block)) => Ok(block),
-            Ok(Err(e)) => {
-                Err(RpcError::Provider(crate::error::sanitize_error_message(&e.to_string()).into_owned()).into())
-            }
+            Ok(Err(e)) => Err(RpcError::Provider(
+                crate::error::sanitize_error_message(&e.to_string()).into_owned(),
+            )
+            .into()),
             Err(_) => Err(RpcError::Timeout(self.timeout.as_millis() as u64).into()),
         }
     }
@@ -186,7 +187,10 @@ impl Endpoint {
                     return Err(RpcError::ResponseTooLarge(0).into());
                 }
 
-                Err(RpcError::Provider(crate::error::sanitize_error_message(&e.to_string()).into_owned()).into())
+                Err(RpcError::Provider(
+                    crate::error::sanitize_error_message(&e.to_string()).into_owned(),
+                )
+                .into())
             }
             Err(_) => Err(RpcError::Timeout(self.timeout.as_millis() as u64).into()),
         }
@@ -199,9 +203,10 @@ impl Endpoint {
 
         match result {
             Ok(Ok(tx)) => Ok(tx),
-            Ok(Err(e)) => {
-                Err(RpcError::Provider(crate::error::sanitize_error_message(&e.to_string()).into_owned()).into())
-            }
+            Ok(Err(e)) => Err(RpcError::Provider(
+                crate::error::sanitize_error_message(&e.to_string()).into_owned(),
+            )
+            .into()),
             Err(_) => Err(RpcError::Timeout(self.timeout.as_millis() as u64).into()),
         }
     }
@@ -213,9 +218,10 @@ impl Endpoint {
 
         match result {
             Ok(Ok(receipt)) => Ok(receipt),
-            Ok(Err(e)) => {
-                Err(RpcError::Provider(crate::error::sanitize_error_message(&e.to_string()).into_owned()).into())
-            }
+            Ok(Err(e)) => Err(RpcError::Provider(
+                crate::error::sanitize_error_message(&e.to_string()).into_owned(),
+            )
+            .into()),
             Err(_) => Err(RpcError::Timeout(self.timeout.as_millis() as u64).into()),
         }
     }

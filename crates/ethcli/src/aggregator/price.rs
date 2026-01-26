@@ -77,10 +77,12 @@ static UNISWAP_ARBITRUM_CLIENT: OnceLock<Result<unswp::SubgraphClient, String>> 
 use tokio::sync::OnceCell as AsyncOnceCell;
 
 /// Cached Binance client (PERF-017 fix)
-static BINANCE_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Binance>> = AsyncOnceCell::const_new();
+static BINANCE_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Binance>> =
+    AsyncOnceCell::const_new();
 
 /// Cached Bitget client (PERF-017 fix)
-static BITGET_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Bitget>> = AsyncOnceCell::const_new();
+static BITGET_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Bitget>> =
+    AsyncOnceCell::const_new();
 
 /// Cached OKX client (PERF-017 fix)
 static OKX_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Okx>> = AsyncOnceCell::const_new();
@@ -155,7 +157,11 @@ fn get_llama_client() -> Result<&'static dllma::Client, &'static str> {
                 .and_then(|c| c.defillama.as_ref())
                 .and_then(|cfg| cfg.api_key.as_ref())
                 .map(|k| k.expose_secret().to_string())
-                .or_else(|| std::env::var("DEFILLAMA_API_KEY").ok().filter(|k| !k.is_empty()));
+                .or_else(|| {
+                    std::env::var("DEFILLAMA_API_KEY")
+                        .ok()
+                        .filter(|k| !k.is_empty())
+                });
 
             if let Some(key) = api_key {
                 dllma::Client::with_api_key(key).map_err(|e| e.to_string())
@@ -273,7 +279,10 @@ fn get_uniswap_client(chain: &str) -> Result<&'static unswp::SubgraphClient, Str
             })
             .as_ref()
             .map_err(|e| e.clone()),
-        _ => Err(format!("Uniswap subgraph not available for chain '{}'", chain)),
+        _ => Err(format!(
+            "Uniswap subgraph not available for chain '{}'",
+            chain
+        )),
     }
 }
 
@@ -472,7 +481,11 @@ async fn fetch_llama_price(
     let client = match get_llama_client() {
         Ok(c) => c,
         Err(e) => {
-            return SourceResult::error("llama", format!("Client error: {}", e), measure.elapsed_ms())
+            return SourceResult::error(
+                "llama",
+                format!("Client error: {}", e),
+                measure.elapsed_ms(),
+            )
         }
     };
 

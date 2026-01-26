@@ -62,8 +62,9 @@ impl ProxyRotator {
             .into());
         }
 
-        let content = fs::read_to_string(&canonical_path)
-            .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", canonical_path.display(), e)))?;
+        let content = fs::read_to_string(&canonical_path).map_err(|e| {
+            ConfigError::InvalidFile(format!("{}: {}", canonical_path.display(), e))
+        })?;
 
         let proxies: Vec<String> = content
             .lines()

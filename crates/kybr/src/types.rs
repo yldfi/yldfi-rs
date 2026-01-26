@@ -104,7 +104,9 @@ impl FromStr for Chain {
             "blast" => Ok(Chain::Blast),
             "mantle" | "mnt" => Ok(Chain::Mantle),
             "polygon-zkevm" | "zkevm" => Ok(Chain::PolygonZkEvm),
-            _ => Err(ParseChainError { input: s.to_string() }),
+            _ => Err(ParseChainError {
+                input: s.to_string(),
+            }),
         }
     }
 }

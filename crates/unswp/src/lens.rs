@@ -75,11 +75,11 @@ pub mod factories {
     }
 
     // Re-export V3 addresses at top level for backwards compatibility
-    pub use v3::MAINNET;
     pub use v3::ARBITRUM;
+    pub use v3::BASE;
+    pub use v3::MAINNET;
     pub use v3::OPTIMISM;
     pub use v3::POLYGON;
-    pub use v3::BASE;
 }
 
 /// Well-known pool addresses for common pairs
@@ -123,10 +123,10 @@ pub mod pools {
     }
 
     // Re-export V3 pools at top level for backwards compatibility
+    pub use v3::MAINNET_WBTC_WETH_030;
     pub use v3::MAINNET_WETH_USDC_005;
     pub use v3::MAINNET_WETH_USDC_030;
     pub use v3::MAINNET_WETH_USDT_005;
-    pub use v3::MAINNET_WBTC_WETH_030;
 }
 
 /// Common token addresses

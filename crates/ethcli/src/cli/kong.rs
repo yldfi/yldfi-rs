@@ -372,7 +372,11 @@ async fn handle_strategies(
     quiet: bool,
 ) -> anyhow::Result<()> {
     match action {
-        StrategyCommands::List { chain_id, vault, v3 } => {
+        StrategyCommands::List {
+            chain_id,
+            vault,
+            v3,
+        } => {
             if !quiet {
                 eprintln!("Fetching strategies...");
             }

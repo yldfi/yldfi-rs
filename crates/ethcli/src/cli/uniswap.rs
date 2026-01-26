@@ -239,7 +239,9 @@ fn resolve_api_key(arg_key: &Option<String>) -> anyhow::Result<String> {
 /// Handle Uniswap CLI commands
 pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()> {
     use alloy::primitives::Address;
-    use unswp::{factories, pools, subgraph_ids, tokens, LensClient, SubgraphClient, SubgraphConfig};
+    use unswp::{
+        factories, pools, subgraph_ids, tokens, LensClient, SubgraphClient, SubgraphConfig,
+    };
 
     match action {
         UniswapCommands::Pool(args) => {
@@ -394,20 +396,30 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let address = crate::utils::address::resolve_label(&args.address);
 
             // Get API key from args, config, or env
-            let api_key = args.api_key.clone().or_else(|| {
-                crate::aggregator::get_cached_config()
-                    .as_ref()
-                    .and_then(|c| c.thegraph.as_ref())
-                    .map(|g| g.api_key.expose_secret().to_string())
-            }).or_else(|| std::env::var("THEGRAPH_API_KEY").ok());
+            let api_key = args
+                .api_key
+                .clone()
+                .or_else(|| {
+                    crate::aggregator::get_cached_config()
+                        .as_ref()
+                        .and_then(|c| c.thegraph.as_ref())
+                        .map(|g| g.api_key.expose_secret().to_string())
+                })
+                .or_else(|| std::env::var("THEGRAPH_API_KEY").ok());
 
             let api_key = api_key.ok_or_else(|| {
                 anyhow::anyhow!("TheGraph API key required. Set THEGRAPH_API_KEY or use --api-key")
             })?;
 
             if !quiet {
-                let version_str = args.version.map(|v| v.to_string()).unwrap_or_else(|| "all".to_string());
-                eprintln!("Fetching {} LP positions for {} on {}...", version_str, address, args.chain);
+                let version_str = args
+                    .version
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "all".to_string());
+                eprintln!(
+                    "Fetching {} LP positions for {} on {}...",
+                    version_str, address, args.chain
+                );
             }
 
             let chain = args.chain.to_lowercase();
@@ -425,15 +437,23 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                         Ok(positions) => {
                             for pos in positions {
                                 let pair = &pos.pair;
-                                let lp_balance: f64 = pos.liquidity_token_balance.parse().unwrap_or(0.0);
+                                let lp_balance: f64 =
+                                    pos.liquidity_token_balance.parse().unwrap_or(0.0);
                                 let total_supply: f64 = pair.total_supply.parse().unwrap_or(1.0);
                                 let reserve0: f64 = pair.reserve0.parse().unwrap_or(0.0);
                                 let reserve1: f64 = pair.reserve1.parse().unwrap_or(0.0);
-                                let reserve_usd: f64 = pair.reserve_usd.as_ref()
-                                    .and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                                let reserve_usd: f64 = pair
+                                    .reserve_usd
+                                    .as_ref()
+                                    .and_then(|s| s.parse().ok())
+                                    .unwrap_or(0.0);
 
                                 // Calculate share of pool
-                                let share = if total_supply > 0.0 { lp_balance / total_supply } else { 0.0 };
+                                let share = if total_supply > 0.0 {
+                                    lp_balance / total_supply
+                                } else {
+                                    0.0
+                                };
                                 let token0_amount = reserve0 * share;
                                 let token1_amount = reserve1 * share;
                                 let usd_value = reserve_usd * share;
@@ -487,10 +507,11 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                                 let liquidity: f64 = pos.liquidity.parse().unwrap_or(0.0);
                                 let tick_lower: i32 = pos.tick_lower.tick_idx.parse().unwrap_or(0);
                                 let tick_upper: i32 = pos.tick_upper.tick_idx.parse().unwrap_or(0);
-                                let current_tick: i32 = pool.tick.as_ref()
-                                    .and_then(|t| t.parse().ok()).unwrap_or(0);
+                                let current_tick: i32 =
+                                    pool.tick.as_ref().and_then(|t| t.parse().ok()).unwrap_or(0);
 
-                                let in_range = current_tick >= tick_lower && current_tick <= tick_upper;
+                                let in_range =
+                                    current_tick >= tick_lower && current_tick <= tick_upper;
                                 let fee_tier: f64 = pool.fee_tier.parse().unwrap_or(0.0) / 10000.0;
 
                                 let deposited0: f64 = pos.deposited_token0.parse().unwrap_or(0.0);
@@ -544,8 +565,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                     "ethereum" | "mainnet" | "eth" => Some(SubgraphConfig::mainnet_v4(&api_key)),
                     "arbitrum" | "arb" => Some(SubgraphConfig::arbitrum_v4(&api_key)),
                     "base" => Some(SubgraphConfig::base_v4(&api_key)),
-                    "polygon" | "matic" => Some(SubgraphConfig::mainnet_v4(&api_key)
-                        .with_subgraph_id(subgraph_ids::POLYGON_V4)),
+                    "polygon" | "matic" => Some(
+                        SubgraphConfig::mainnet_v4(&api_key)
+                            .with_subgraph_id(subgraph_ids::POLYGON_V4),
+                    ),
                     _ => None,
                 };
 
@@ -557,11 +580,19 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                                     let pool = &pos.pool;
                                     let liquidity: f64 = pos.liquidity.parse().unwrap_or(0.0);
                                     let fee: f64 = pool.fee.parse().unwrap_or(0.0) / 1_000_000.0;
-                                    let tvl: f64 = pool.total_value_locked_usd.as_ref()
-                                        .and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                                    let tvl: f64 = pool
+                                        .total_value_locked_usd
+                                        .as_ref()
+                                        .and_then(|s| s.parse().ok())
+                                        .unwrap_or(0.0);
 
-                                    let has_hooks = pool.hooks.as_ref()
-                                        .map(|h| !h.is_empty() && h != "0x0000000000000000000000000000000000000000")
+                                    let has_hooks = pool
+                                        .hooks
+                                        .as_ref()
+                                        .map(|h| {
+                                            !h.is_empty()
+                                                && h != "0x0000000000000000000000000000000000000000"
+                                        })
                                         .unwrap_or(false);
 
                                     all_positions.push(serde_json::json!({
@@ -612,7 +643,13 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                     let token1 = pos["token1"]["symbol"].as_str().unwrap_or("?");
                     let fee = pos["feeTier"].as_str().unwrap_or("?");
 
-                    println!("[{}] {}/{} ({})", version.to_uppercase(), token0, token1, fee);
+                    println!(
+                        "[{}] {}/{} ({})",
+                        version.to_uppercase(),
+                        token0,
+                        token1,
+                        fee
+                    );
                     println!("  Position ID: {}", pos["positionId"]);
                     println!("  Pool: {}", pos["pool"]);
 
@@ -635,13 +672,19 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                         let liquidity = pos["liquidity"].as_f64().unwrap_or(0.0);
 
                         println!("  Liquidity: {:.0}", liquidity);
-                        println!("  Tick Range: {} to {} (current: {})", tick_lower, tick_upper, current);
+                        println!(
+                            "  Tick Range: {} to {} (current: {})",
+                            tick_lower, tick_upper, current
+                        );
                         println!("  In Range: {}", if in_range { "✓ Yes" } else { "✗ No" });
 
                         let fees0 = pos["token0"]["collectedFees"].as_f64().unwrap_or(0.0);
                         let fees1 = pos["token1"]["collectedFees"].as_f64().unwrap_or(0.0);
                         if fees0 > 0.0 || fees1 > 0.0 {
-                            println!("  Collected Fees: {:.6} {} / {:.6} {}", fees0, token0, fees1, token1);
+                            println!(
+                                "  Collected Fees: {:.6} {} / {:.6} {}",
+                                fees0, token0, fees1, token1
+                            );
                         }
                     } else if version == "v4" {
                         let tick_lower = pos["tickRange"]["lower"].as_i64().unwrap_or(0);
@@ -730,7 +773,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                     );
                 }
 
-                output.insert("factories".to_string(), serde_json::Value::Object(factory_map));
+                output.insert(
+                    "factories".to_string(),
+                    serde_json::Value::Object(factory_map),
+                );
             }
 
             // Pool addresses (V2 and V3 only, V4 pools are dynamic)

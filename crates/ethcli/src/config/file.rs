@@ -418,9 +418,8 @@ impl ConfigFile {
             .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
 
         // Acquire shared lock (allows other readers, blocks writers)
-        file.lock_shared().map_err(|e| {
-            ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e))
-        })?;
+        file.lock_shared()
+            .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
 
         let mut content = String::new();
         file.read_to_string(&mut content)
@@ -506,26 +505,23 @@ impl ConfigFile {
         }
 
         // Acquire exclusive lock FIRST (blocks until available)
-        file.lock_exclusive().map_err(|e| {
-            ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e))
-        })?;
+        file.lock_exclusive()
+            .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
 
         // Truncate after we have the lock
         file.set_len(0).map_err(|e| {
             ConfigError::InvalidFile(format!("Failed to truncate temp file: {}", e))
         })?;
-        file.seek(SeekFrom::Start(0)).map_err(|e| {
-            ConfigError::InvalidFile(format!("Failed to seek temp file: {}", e))
-        })?;
+        file.seek(SeekFrom::Start(0))
+            .map_err(|e| ConfigError::InvalidFile(format!("Failed to seek temp file: {}", e)))?;
 
         // Write content
         file.write_all(content.as_bytes())
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to write config: {}", e)))?;
 
         // Sync to disk before rename for durability
-        file.sync_all().map_err(|e| {
-            ConfigError::InvalidFile(format!("Failed to sync config file: {}", e))
-        })?;
+        file.sync_all()
+            .map_err(|e| ConfigError::InvalidFile(format!("Failed to sync config file: {}", e)))?;
 
         // Lock is released when file is dropped, but rename is still atomic
         drop(file);

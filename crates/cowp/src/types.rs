@@ -95,7 +95,9 @@ impl FromStr for Chain {
             "gnosis" | "xdai" | "100" => Ok(Chain::Gnosis),
             "arbitrum" | "arb" | "42161" => Ok(Chain::Arbitrum),
             "sepolia" | "11155111" => Ok(Chain::Sepolia),
-            _ => Err(ParseChainError { input: s.to_string() }),
+            _ => Err(ParseChainError {
+                input: s.to_string(),
+            }),
         }
     }
 }

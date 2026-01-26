@@ -63,9 +63,7 @@ pub struct Client {
 impl Client {
     /// Create a new Uniswap client
     pub fn new(config: Config) -> Result<Self> {
-        let factory = config
-            .factory
-            .unwrap_or(crate::lens::factories::MAINNET);
+        let factory = config.factory.unwrap_or(crate::lens::factories::MAINNET);
         let lens = LensClient::new(&config.rpc_url, factory)?;
 
         let subgraph = if let Some(api_key) = config.subgraph_api_key {
@@ -106,7 +104,11 @@ impl Client {
     }
 
     /// Get token balance for an account
-    pub async fn get_token_balance(&self, token: Address, account: Address) -> Result<alloy::primitives::U256> {
+    pub async fn get_token_balance(
+        &self,
+        token: Address,
+        account: Address,
+    ) -> Result<alloy::primitives::U256> {
         self.lens.get_token_balance(token, account).await
     }
 

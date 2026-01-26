@@ -104,8 +104,12 @@ fn test_is_token_address() {
     ));
 
     // Invalid - wrong length
-    assert!(!is_token_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4")); // 41 chars
-    assert!(!is_token_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48a")); // 43 chars
+    assert!(!is_token_address(
+        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4"
+    )); // 41 chars
+    assert!(!is_token_address(
+        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48a"
+    )); // 43 chars
 
     // Invalid - not hex
     assert!(!is_token_address("ETH"));
@@ -347,7 +351,10 @@ fn test_chain_normalization_for_gecko() {
 
     assert_eq!(normalize_chain_for_source("gecko", "ethereum"), "ethereum");
     assert_eq!(normalize_chain_for_source("gecko", "eth"), "ethereum");
-    assert_eq!(normalize_chain_for_source("gecko", "polygon"), "polygon-pos");
+    assert_eq!(
+        normalize_chain_for_source("gecko", "polygon"),
+        "polygon-pos"
+    );
     assert_eq!(
         normalize_chain_for_source("gecko", "arbitrum"),
         "arbitrum-one"
@@ -373,7 +380,10 @@ fn test_chain_normalization_for_llama() {
 fn test_chain_normalization_for_alchemy() {
     use ethcli::aggregator::chain_map::normalize_chain_for_source;
 
-    assert_eq!(normalize_chain_for_source("alchemy", "ethereum"), "eth-mainnet");
+    assert_eq!(
+        normalize_chain_for_source("alchemy", "ethereum"),
+        "eth-mainnet"
+    );
     assert_eq!(
         normalize_chain_for_source("alchemy", "polygon"),
         "polygon-mainnet"

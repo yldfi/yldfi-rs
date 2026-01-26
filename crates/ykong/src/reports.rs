@@ -173,20 +173,14 @@ impl<'a> ReportsApi<'a> {
     /// Calculate total gains from vault reports
     pub async fn vault_total_gains_usd(&self, chain_id: u64, address: &str) -> Result<f64> {
         let reports = self.vault_reports(chain_id, address).await?;
-        let total = reports
-            .iter()
-            .filter_map(|r| r.gain_usd)
-            .sum();
+        let total = reports.iter().filter_map(|r| r.gain_usd).sum();
         Ok(total)
     }
 
     /// Calculate total gains from strategy reports
     pub async fn strategy_total_profits_usd(&self, chain_id: u64, address: &str) -> Result<f64> {
         let reports = self.strategy_reports(chain_id, address).await?;
-        let total = reports
-            .iter()
-            .filter_map(|r| r.profit_usd)
-            .sum();
+        let total = reports.iter().filter_map(|r| r.profit_usd).sum();
         Ok(total)
     }
 }

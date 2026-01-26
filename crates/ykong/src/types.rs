@@ -20,12 +20,14 @@ mod string_or_int {
             Float(f64),
         }
 
-        Ok(Option::<StringOrInt>::deserialize(deserializer)?.map(|v| match v {
-            StringOrInt::String(s) => s,
-            StringOrInt::Int(i) => i.to_string(),
-            StringOrInt::UInt(u) => u.to_string(),
-            StringOrInt::Float(f) => f.to_string(),
-        }))
+        Ok(
+            Option::<StringOrInt>::deserialize(deserializer)?.map(|v| match v {
+                StringOrInt::String(s) => s,
+                StringOrInt::Int(i) => i.to_string(),
+                StringOrInt::UInt(u) => u.to_string(),
+                StringOrInt::Float(f) => f.to_string(),
+            }),
+        )
     }
 }
 

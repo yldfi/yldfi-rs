@@ -203,7 +203,9 @@ pub fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
     if let Some(ref proxy_url) = config.proxy {
         let proxy = reqwest::Proxy::all(proxy_url)
             // MED-001 fix: Redact credentials from error message
-            .map_err(|e| HttpError::InvalidProxy(format!("{}: {}", redact_proxy_url(proxy_url), e)))?;
+            .map_err(|e| {
+                HttpError::InvalidProxy(format!("{}: {}", redact_proxy_url(proxy_url), e))
+            })?;
         builder = builder.proxy(proxy);
     }
 

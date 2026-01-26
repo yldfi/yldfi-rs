@@ -8,24 +8,32 @@ use unswp::{Client, Config};
 #[test]
 fn test_mainnet_client_creation() {
     let client = Client::mainnet("https://eth.llamarpc.com");
-    assert!(client.is_ok(), "Mainnet client should be created: {:?}", client.err());
+    assert!(
+        client.is_ok(),
+        "Mainnet client should be created: {:?}",
+        client.err()
+    );
 }
 
 #[test]
 fn test_client_with_config() {
-    let config = Config::new("https://eth.llamarpc.com")
-        .with_subgraph_key("test-api-key");
+    let config = Config::new("https://eth.llamarpc.com").with_subgraph_key("test-api-key");
     let client = Client::new(config);
-    assert!(client.is_ok(), "Client with config should be created: {:?}", client.err());
+    assert!(
+        client.is_ok(),
+        "Client with config should be created: {:?}",
+        client.err()
+    );
 }
 
 #[test]
 fn test_client_with_subgraph() {
-    let client = Client::mainnet_with_subgraph(
-        "https://eth.llamarpc.com",
-        "test-api-key"
+    let client = Client::mainnet_with_subgraph("https://eth.llamarpc.com", "test-api-key");
+    assert!(
+        client.is_ok(),
+        "Client with subgraph should be created: {:?}",
+        client.err()
     );
-    assert!(client.is_ok(), "Client with subgraph should be created: {:?}", client.err());
 
     let client = client.unwrap();
     assert!(client.has_subgraph(), "Should have subgraph configured");
@@ -33,10 +41,12 @@ fn test_client_with_subgraph() {
 
 #[test]
 fn test_client_without_subgraph() {
-    let client = Client::mainnet("https://eth.llamarpc.com")
-        .expect("Client creation failed");
+    let client = Client::mainnet("https://eth.llamarpc.com").expect("Client creation failed");
 
-    assert!(!client.has_subgraph(), "Should not have subgraph by default");
+    assert!(
+        !client.has_subgraph(),
+        "Should not have subgraph by default"
+    );
 }
 
 #[test]
@@ -89,11 +99,14 @@ fn test_sdk_reexports() {
 #[tokio::test]
 #[ignore = "requires network access"]
 async fn test_fetch_block_number() {
-    let client = Client::mainnet("https://eth.llamarpc.com")
-        .expect("Client creation failed");
+    let client = Client::mainnet("https://eth.llamarpc.com").expect("Client creation failed");
 
     let block = client.get_block_number().await;
-    assert!(block.is_ok(), "Should fetch block number: {:?}", block.err());
+    assert!(
+        block.is_ok(),
+        "Should fetch block number: {:?}",
+        block.err()
+    );
     assert!(block.unwrap() > 0, "Block number should be positive");
 }
 
@@ -102,8 +115,7 @@ async fn test_fetch_block_number() {
 async fn test_fetch_pool_state() {
     use unswp::pools;
 
-    let client = Client::mainnet("https://eth.llamarpc.com")
-        .expect("Client creation failed");
+    let client = Client::mainnet("https://eth.llamarpc.com").expect("Client creation failed");
 
     let state = client.get_pool_state(pools::MAINNET_WETH_USDC_005).await;
     assert!(state.is_ok(), "Should fetch pool state: {:?}", state.err());
@@ -117,10 +129,16 @@ async fn test_fetch_pool_state() {
 async fn test_fetch_liquidity() {
     use unswp::pools;
 
-    let client = Client::mainnet("https://eth.llamarpc.com")
-        .expect("Client creation failed");
+    let client = Client::mainnet("https://eth.llamarpc.com").expect("Client creation failed");
 
     let liquidity = client.get_liquidity(pools::MAINNET_WETH_USDC_005).await;
-    assert!(liquidity.is_ok(), "Should fetch liquidity: {:?}", liquidity.err());
-    assert!(liquidity.unwrap() > 0, "Liquidity should be positive for active pool");
+    assert!(
+        liquidity.is_ok(),
+        "Should fetch liquidity: {:?}",
+        liquidity.err()
+    );
+    assert!(
+        liquidity.unwrap() > 0,
+        "Liquidity should be positive for active pool"
+    );
 }

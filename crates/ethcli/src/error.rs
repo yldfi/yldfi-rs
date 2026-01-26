@@ -373,7 +373,9 @@ mod tests {
         assert!(is_transient_error_message("Connection timeout after 30s"));
         assert!(is_transient_error_message("503 Service Unavailable"));
         assert!(is_transient_error_message("network error"));
-        assert!(is_transient_error_message("Service temporarily unavailable"));
+        assert!(is_transient_error_message(
+            "Service temporarily unavailable"
+        ));
 
         // Should NOT be detected as transient
         assert!(!is_transient_error_message("Invalid address format"));

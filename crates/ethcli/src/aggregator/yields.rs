@@ -251,10 +251,16 @@ async fn fetch_uniswap_v2_yields(chain: &str, api_key: &str) -> SourceResult<Vec
     let measure = LatencyMeasure::start();
 
     // V2 only available on mainnet
-    if !matches!(chain.to_lowercase().as_str(), "ethereum" | "mainnet" | "eth") {
+    if !matches!(
+        chain.to_lowercase().as_str(),
+        "ethereum" | "mainnet" | "eth"
+    ) {
         return SourceResult::error(
             "uniswap-v2",
-            format!("Uniswap V2 subgraph only available on Ethereum mainnet, not {}", chain),
+            format!(
+                "Uniswap V2 subgraph only available on Ethereum mainnet, not {}",
+                chain
+            ),
             measure.elapsed_ms(),
         );
     }
@@ -304,10 +310,7 @@ async fn fetch_uniswap_v2_yields(chain: &str, api_key: &str) -> SourceResult<Vec
                     tvl_usd,
                     underlying_tokens: underlying,
                     stablecoin: Some(stablecoin),
-                    url: Some(format!(
-                        "https://info.uniswap.org/#/pools/{}",
-                        pair.id
-                    )),
+                    url: Some(format!("https://info.uniswap.org/#/pools/{}", pair.id)),
                 });
             }
 
@@ -336,8 +339,9 @@ async fn fetch_uniswap_v3_yields(chain: &str, api_key: &str) -> SourceResult<Vec
         "polygon" | "matic" => unswp::SubgraphConfig::mainnet_v3(api_key)
             .with_subgraph_id(unswp::subgraph_ids::POLYGON_V3),
         "base" => unswp::SubgraphConfig::base_v3(api_key),
-        "bsc" | "binance" => unswp::SubgraphConfig::mainnet_v3(api_key)
-            .with_subgraph_id(unswp::subgraph_ids::BSC_V3),
+        "bsc" | "binance" => {
+            unswp::SubgraphConfig::mainnet_v3(api_key).with_subgraph_id(unswp::subgraph_ids::BSC_V3)
+        }
         _ => {
             return SourceResult::error(
                 "uniswap-v3",
@@ -458,7 +462,9 @@ async fn fetch_uniswap_v4_yields(chain: &str, api_key: &str) -> SourceResult<Vec
                 let stablecoin = is_stablecoin_pool(&underlying);
 
                 // Note if pool has hooks
-                let hooks_note = pool.hooks.as_ref()
+                let hooks_note = pool
+                    .hooks
+                    .as_ref()
                     .filter(|h| !h.is_empty() && *h != "0x0000000000000000000000000000000000000000")
                     .map(|_| " [hooks]")
                     .unwrap_or("");
@@ -600,9 +606,10 @@ async fn fetch_yearn_yields(chain_id: Option<u64>) -> SourceResult<Vec<Normalize
                 }
 
                 // Get APY - prefer net APY, fall back to weekly/monthly
-                let apy_total = vault.apy.as_ref().and_then(|a| {
-                    a.net.or(a.weekly_net).or(a.monthly_net)
-                });
+                let apy_total = vault
+                    .apy
+                    .as_ref()
+                    .and_then(|a| a.net.or(a.weekly_net).or(a.monthly_net));
 
                 // Skip vaults with no APY data
                 if apy_total.is_none() {
@@ -625,12 +632,21 @@ async fn fetch_yearn_yields(chain_id: Option<u64>) -> SourceResult<Vec<Normalize
                 };
 
                 // Build the symbol - prefer asset symbol if available
-                let symbol = vault.symbol.clone().or_else(|| {
-                    vault.asset.as_ref().and_then(|a| a.symbol.clone())
-                }).unwrap_or_else(|| vault.name.clone().unwrap_or_else(|| vault.address[..10].to_string()));
+                let symbol = vault
+                    .symbol
+                    .clone()
+                    .or_else(|| vault.asset.as_ref().and_then(|a| a.symbol.clone()))
+                    .unwrap_or_else(|| {
+                        vault
+                            .name
+                            .clone()
+                            .unwrap_or_else(|| vault.address[..10].to_string())
+                    });
 
                 // Get underlying token
-                let underlying = vault.asset.as_ref()
+                let underlying = vault
+                    .asset
+                    .as_ref()
                     .and_then(|a| a.symbol.clone())
                     .map(|s| vec![s])
                     .unwrap_or_default();
@@ -845,9 +861,18 @@ pub async fn fetch_yields_aggregated(
     };
 
     // Count Uniswap pools by version
-    let uniswap_v2_count = all_yields.iter().filter(|y| y.project == "uniswap-v2").count();
-    let uniswap_v3_count = all_yields.iter().filter(|y| y.project == "uniswap-v3").count();
-    let uniswap_v4_count = all_yields.iter().filter(|y| y.project == "uniswap-v4").count();
+    let uniswap_v2_count = all_yields
+        .iter()
+        .filter(|y| y.project == "uniswap-v2")
+        .count();
+    let uniswap_v3_count = all_yields
+        .iter()
+        .filter(|y| y.project == "uniswap-v3")
+        .count();
+    let uniswap_v4_count = all_yields
+        .iter()
+        .filter(|y| y.project == "uniswap-v4")
+        .count();
 
     let aggregation = YieldAggregation {
         total_pools,

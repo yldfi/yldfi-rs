@@ -481,7 +481,10 @@ async fn fetch_uniswap_portfolio(
         let chain_lower = chain.to_lowercase();
 
         // === V2 Positions (Ethereum mainnet only) ===
-        if matches!(chain_lower.as_str(), "ethereum" | "mainnet" | "eth" | "eth-mainnet") {
+        if matches!(
+            chain_lower.as_str(),
+            "ethereum" | "mainnet" | "eth" | "eth-mainnet"
+        ) {
             if let Ok(client) =
                 unswp::SubgraphClient::new(unswp::SubgraphConfig::mainnet_v2(&api_key))
             {
@@ -579,18 +582,13 @@ async fn fetch_uniswap_portfolio(
                             pos.pool.token0.symbol, pos.pool.token1.symbol, fee_tier
                         );
 
-                        let balance = PortfolioBalance::new(
-                            &pos.id,
-                            &symbol,
-                            chain,
-                            &pos.liquidity,
-                            18,
-                        )
-                        .with_name(Some(format!(
-                            "Uniswap V3 LP: {}/{}",
-                            pos.pool.token0.symbol, pos.pool.token1.symbol
-                        )))
-                        .with_usd_value(usd_value);
+                        let balance =
+                            PortfolioBalance::new(&pos.id, &symbol, chain, &pos.liquidity, 18)
+                                .with_name(Some(format!(
+                                    "Uniswap V3 LP: {}/{}",
+                                    pos.pool.token0.symbol, pos.pool.token1.symbol
+                                )))
+                                .with_usd_value(usd_value);
 
                         all_balances.push(balance);
                     }
@@ -637,18 +635,13 @@ async fn fetch_uniswap_portfolio(
                             pos.pool.token0.symbol, pos.pool.token1.symbol, fee
                         );
 
-                        let balance = PortfolioBalance::new(
-                            &pos.id,
-                            &symbol,
-                            chain,
-                            &pos.liquidity,
-                            18,
-                        )
-                        .with_name(Some(format!(
-                            "Uniswap V4 LP: {}/{}",
-                            pos.pool.token0.symbol, pos.pool.token1.symbol
-                        )))
-                        .with_usd_value(usd_value);
+                        let balance =
+                            PortfolioBalance::new(&pos.id, &symbol, chain, &pos.liquidity, 18)
+                                .with_name(Some(format!(
+                                    "Uniswap V4 LP: {}/{}",
+                                    pos.pool.token0.symbol, pos.pool.token1.symbol
+                                )))
+                                .with_usd_value(usd_value);
 
                         all_balances.push(balance);
                     }
@@ -937,7 +930,9 @@ fn estimate_lp_usd_value(
     net_token0: f64,
     net_token1: f64,
 ) -> Option<f64> {
-    let stables = ["USDC", "USDT", "DAI", "FRAX", "LUSD", "TUSD", "GUSD", "USDP"];
+    let stables = [
+        "USDC", "USDT", "DAI", "FRAX", "LUSD", "TUSD", "GUSD", "USDP",
+    ];
 
     let t0_upper = token0_symbol.to_uppercase();
     let t1_upper = token1_symbol.to_uppercase();

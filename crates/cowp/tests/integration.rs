@@ -34,7 +34,12 @@ async fn test_config_builder() {
 #[tokio::test]
 async fn test_quote_request_validation() {
     // Test that validation catches invalid addresses
-    let request = QuoteRequest::sell("invalid", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "1000", "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
+    let request = QuoteRequest::sell(
+        "invalid",
+        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "1000",
+        "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    );
 
     let result = request.validate();
     assert!(result.is_err(), "Should reject invalid sell_token address");

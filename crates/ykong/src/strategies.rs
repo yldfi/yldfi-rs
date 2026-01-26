@@ -149,10 +149,8 @@ impl<'a> StrategiesApi<'a> {
 
     /// Get strategies for a specific vault
     pub async fn by_vault(&self, chain_id: u64, vault: &str) -> Result<Vec<Strategy>> {
-        self.list(Some(
-            StrategyFilter::new().chain_id(chain_id).vault(vault),
-        ))
-        .await
+        self.list(Some(StrategyFilter::new().chain_id(chain_id).vault(vault)))
+            .await
     }
 
     /// Get a single strategy by address and chain

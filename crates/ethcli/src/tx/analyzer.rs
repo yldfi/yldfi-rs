@@ -2,7 +2,6 @@
 //!
 //! Coordinates fetching and analyzing Ethereum transactions.
 
-use alloy::primitives::U256;
 use crate::abi::AbiFetcher;
 use crate::config::Chain;
 use crate::error::Result;
@@ -14,6 +13,7 @@ use crate::tx::types::{
     RawTxData, TransactionAnalysis,
 };
 use alloy::consensus::Transaction as TxTrait;
+use alloy::primitives::U256;
 use alloy::primitives::{Address, B256};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -65,7 +65,11 @@ fn format_token_amount(amount_str: &str, decimals: usize) -> String {
         // Amount is less than 1 whole token
         let padding = "0".repeat(decimals - amount_str.len());
         let padded = format!("{}{}", padding, amount_str);
-        let frac_display = if padded.len() >= 2 { &padded[..2] } else { &padded };
+        let frac_display = if padded.len() >= 2 {
+            &padded[..2]
+        } else {
+            &padded
+        };
         format!("0.{}", frac_display)
     }
 }
@@ -665,8 +669,8 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{address, b256, B256, U256};
     use crate::tx::types::{AnalyzedEvent, FunctionCall, FunctionParam};
+    use alloy::primitives::{address, b256, B256, U256};
     use std::collections::HashMap;
 
     fn make_test_analysis() -> TransactionAnalysis {

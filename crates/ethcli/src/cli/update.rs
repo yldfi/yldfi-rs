@@ -1,8 +1,8 @@
 //! Update command - check for and install updates from GitHub releases
 
+use semver::Version;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use semver::Version;
 
 #[derive(Deserialize)]
 struct GitHubRelease {

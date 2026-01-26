@@ -114,11 +114,7 @@ impl PriceAggregation {
     /// Returns None if no valid prices remain after filtering.
     pub fn from_prices(prices: &[f64]) -> Option<Self> {
         // Filter out NaN and infinite values
-        let mut sorted: Vec<f64> = prices
-            .iter()
-            .copied()
-            .filter(|p| p.is_finite())
-            .collect();
+        let mut sorted: Vec<f64> = prices.iter().copied().filter(|p| p.is_finite()).collect();
 
         if sorted.is_empty() {
             return None;
@@ -248,14 +244,15 @@ fn parse_balance_formatted(raw: &str, decimals: u8) -> f64 {
     }
 
     // Parse as integer
-    let raw_int: u128 = if let Some(hex_part) = raw.strip_prefix("0x").or_else(|| raw.strip_prefix("0X")) {
-        if hex_part.is_empty() {
-            return 0.0;
-        }
-        u128::from_str_radix(hex_part, 16).unwrap_or(0)
-    } else {
-        raw.parse().unwrap_or(0)
-    };
+    let raw_int: u128 =
+        if let Some(hex_part) = raw.strip_prefix("0x").or_else(|| raw.strip_prefix("0X")) {
+            if hex_part.is_empty() {
+                return 0.0;
+            }
+            u128::from_str_radix(hex_part, 16).unwrap_or(0)
+        } else {
+            raw.parse().unwrap_or(0)
+        };
 
     // Prevent overflow: 10^39 exceeds u128::MAX, so cap decimals at 38
     // For decimals > 38, the divisor would overflow, so return 0.0

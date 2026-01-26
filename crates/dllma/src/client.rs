@@ -199,12 +199,7 @@ impl Client {
             )
         })?;
 
-        let url = Url::parse(&format!(
-            "{}/{}{}",
-            base_urls::PRO,
-            api_key.expose(),
-            path
-        ))?;
+        let url = Url::parse(&format!("{}/{}{}", base_urls::PRO, api_key.expose(), path))?;
         self.get(&url).await
     }
 

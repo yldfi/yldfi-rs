@@ -767,7 +767,10 @@ mod tests {
         tracker.record_failure("https://bad.com", false, false);
         tracker.record_failure("https://bad.com", false, false);
 
-        let urls = vec!["https://good.com".to_string(), "https://bad.com".to_string()];
+        let urls = vec![
+            "https://good.com".to_string(),
+            "https://bad.com".to_string(),
+        ];
         let ranked = tracker.rank_endpoints(&urls);
 
         // Good should have higher score
@@ -836,10 +839,16 @@ mod tests {
         tracker.record_block_range_limit("https://test.com", 1000);
 
         // Should use learned limit
-        assert_eq!(tracker.effective_max_block_range("https://test.com", 5000), 1000);
+        assert_eq!(
+            tracker.effective_max_block_range("https://test.com", 5000),
+            1000
+        );
 
         // Should use configured if smaller
-        assert_eq!(tracker.effective_max_block_range("https://test.com", 500), 500);
+        assert_eq!(
+            tracker.effective_max_block_range("https://test.com", 500),
+            500
+        );
 
         // Unknown endpoint uses configured
         assert_eq!(
@@ -854,24 +863,31 @@ mod tests {
 
         // Learn a limit
         tracker.record_block_range_limit("https://test.com", 1000);
-        assert_eq!(tracker.effective_max_block_range("https://test.com", 5000), 1000);
+        assert_eq!(
+            tracker.effective_max_block_range("https://test.com", 5000),
+            1000
+        );
 
         // Trying to set a higher limit doesn't change it
         tracker.record_block_range_limit("https://test.com", 2000);
-        assert_eq!(tracker.effective_max_block_range("https://test.com", 5000), 1000);
+        assert_eq!(
+            tracker.effective_max_block_range("https://test.com", 5000),
+            1000
+        );
 
         // Lower limit does update it
         tracker.record_block_range_limit("https://test.com", 500);
-        assert_eq!(tracker.effective_max_block_range("https://test.com", 5000), 500);
+        assert_eq!(
+            tracker.effective_max_block_range("https://test.com", 5000),
+            500
+        );
     }
 
     #[test]
     fn test_endpoint_priority_config() {
         // Test that priority is respected in config
-        let high_priority =
-            EndpointConfig::new("https://primary.com").with_priority(1);
-        let low_priority =
-            EndpointConfig::new("https://backup.com").with_priority(10);
+        let high_priority = EndpointConfig::new("https://primary.com").with_priority(1);
+        let low_priority = EndpointConfig::new("https://backup.com").with_priority(10);
 
         assert_eq!(high_priority.priority, 1);
         assert_eq!(low_priority.priority, 10);
@@ -888,8 +904,7 @@ mod tests {
 
     #[test]
     fn test_max_block_range_config() {
-        let endpoint =
-            EndpointConfig::new("https://test.com").with_max_block_range(10000);
+        let endpoint = EndpointConfig::new("https://test.com").with_max_block_range(10000);
         assert_eq!(endpoint.max_block_range, 10000);
 
         // Default should be DEFAULT_MAX_BLOCK_RANGE
@@ -902,11 +917,23 @@ mod tests {
         let config = RpcConfig::default();
 
         // Default config has no endpoints - users add them via config or CLI
-        assert!(config.endpoints.is_empty(), "Default config should have no endpoints");
+        assert!(
+            config.endpoints.is_empty(),
+            "Default config should have no endpoints"
+        );
         assert_eq!(config.timeout_secs, 30, "Should have 30s default timeout");
-        assert_eq!(config.concurrency, 5, "Should have default concurrency of 5");
-        assert_eq!(config.max_retries, 3, "Should have default max_retries of 3");
-        assert_eq!(config.min_priority, 1, "Should have default min_priority of 1");
+        assert_eq!(
+            config.concurrency, 5,
+            "Should have default concurrency of 5"
+        );
+        assert_eq!(
+            config.max_retries, 3,
+            "Should have default max_retries of 3"
+        );
+        assert_eq!(
+            config.min_priority, 1,
+            "Should have default min_priority of 1"
+        );
     }
 
     #[test]

@@ -197,7 +197,10 @@ impl Client {
             .await
             .map_err(|e| Error::Api {
                 status: 0,
-                message: format!("HTTP request failed for query '{}...': {}", query_preview, e),
+                message: format!(
+                    "HTTP request failed for query '{}...': {}",
+                    query_preview, e
+                ),
             })?;
 
         let status = response.status().as_u16();
@@ -213,15 +216,14 @@ impl Client {
             message: format!("Failed to read response body: {}", e),
         })?;
 
-        let gql_response: GraphQLResponse<T> = serde_json::from_str(&body).map_err(|e| {
-            Error::Api {
+        let gql_response: GraphQLResponse<T> =
+            serde_json::from_str(&body).map_err(|e| Error::Api {
                 status,
                 message: format!(
                     "Failed to parse GraphQL response for query '{}...': {}",
                     query_preview, e
                 ),
-            }
-        })?;
+            })?;
 
         // Check for GraphQL errors - preserve ALL error messages
         if let Some(errors) = gql_response.errors {

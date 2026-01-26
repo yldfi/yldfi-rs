@@ -191,7 +191,11 @@ pub fn sanitize_error_body(body: &str) -> String {
                 .unwrap_or(result.len());
             let token = &result[token_start..token_end];
             if token_end > token_start && token != "[REDACTED]" {
-                result = format!("{}Bearer [REDACTED]{}", &result[..start], &result[token_end..]);
+                result = format!(
+                    "{}Bearer [REDACTED]{}",
+                    &result[..start],
+                    &result[token_end..]
+                );
                 search_from = start + "Bearer [REDACTED]".len();
             } else {
                 search_from = token_start;
