@@ -1,6 +1,6 @@
 #![warn(missing_docs)]
 
-//! # pyth
+//! # pythc
 //!
 //! Rust client for the Pyth Network Hermes API.
 //!
@@ -10,21 +10,21 @@
 //! ## Quick Start
 //!
 //! ```no_run
-//! # async fn example() -> pyth::error::Result<()> {
-//! use pyth::Client;
+//! # async fn example() -> pythc::error::Result<()> {
+//! use pythc::Client;
 //!
 //! let client = Client::new()?;
 //!
 //! // Get ETH/USD price
-//! let eth = client.get_latest_price(pyth::feed_ids::ETH_USD).await?;
+//! let eth = client.get_latest_price(pythc::feed_ids::ETH_USD).await?;
 //! if let Some(feed) = eth {
 //!     println!("ETH/USD: ${:.2}", feed.price_f64().unwrap_or(0.0));
 //! }
 //!
 //! // Get multiple prices at once
 //! let feeds = client.get_latest_prices(&[
-//!     pyth::feed_ids::BTC_USD,
-//!     pyth::feed_ids::ETH_USD,
+//!     pythc::feed_ids::BTC_USD,
+//!     pythc::feed_ids::ETH_USD,
 //! ]).await?;
 //!
 //! for feed in feeds {
@@ -37,8 +37,8 @@
 //! ## Symbol Lookup
 //!
 //! ```no_run
-//! # async fn example() -> pyth::error::Result<()> {
-//! use pyth::{Client, symbol_to_feed_id};
+//! # async fn example() -> pythc::error::Result<()> {
+//! use pythc::{Client, symbol_to_feed_id};
 //!
 //! let client = Client::new()?;
 //!
@@ -53,8 +53,8 @@
 //! ## Search for Feeds
 //!
 //! ```no_run
-//! # async fn example() -> pyth::error::Result<()> {
-//! use pyth::Client;
+//! # async fn example() -> pythc::error::Result<()> {
+//! use pythc::Client;
 //!
 //! let client = Client::new()?;
 //!

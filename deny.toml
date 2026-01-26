@@ -4,12 +4,12 @@
 [advisories]
 # The database path
 db-path = "~/.cargo/advisory-db"
-# The url(s) of the advisory databases to use
-url = "https://github.com/rustsec/advisory-db"
+# The url(s) of the advisory databases to use (updated from 'url' to 'db-urls')
+db-urls = ["https://github.com/rustsec/advisory-db"]
 # The lint level for security vulnerabilities
 vulnerability = "deny"
-# The lint level for unmaintained crates
-unmaintained = "warn"
+# The lint level for unmaintained crates (changed from "warn" to "workspace")
+unmaintained = "workspace"
 # The lint level for crates that have been yanked
 yanked = "warn"
 # The lint level for crates with security notices
