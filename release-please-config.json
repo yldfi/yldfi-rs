@@ -89,6 +89,17 @@
       "draft": false,
       "prerelease": false
     },
+    "crates/gplus": {
+      "release-type": "rust",
+      "component": "gplus",
+      "tag-separator": "-",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "draft": false,
+      "prerelease": false
+    },
     "crates/ethcli": {
       "release-type": "rust",
       "component": "ethcli",
@@ -158,6 +169,17 @@
     "crates/pythc": {
       "release-type": "rust",
       "component": "pythc",
+      "tag-separator": "-",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "draft": false,
+      "prerelease": false
+    },
+    "crates/sldt": {
+      "release-type": "rust",
+      "component": "sldt",
       "tag-separator": "-",
       "include-component-in-tag": true,
       "changelog-path": "CHANGELOG.md",
