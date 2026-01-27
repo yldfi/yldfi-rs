@@ -5,6 +5,7 @@
 pub mod account;
 pub mod address;
 pub mod alchemy;
+pub mod blacklist;
 pub mod cast;
 pub mod ccxt;
 pub mod chainlink;
@@ -18,6 +19,7 @@ pub mod endpoints;
 pub mod ens;
 pub mod gas;
 pub mod gecko;
+pub mod goplus;
 pub mod kong;
 pub mod llama;
 pub mod logs;
@@ -165,6 +167,10 @@ pub enum Commands {
         action: address::AddressCommands,
     },
 
+    /// Token blacklist (exclude spam/scam tokens from portfolio)
+    #[command(visible_alias = "bl")]
+    Blacklist(blacklist::BlacklistArgs),
+
     /// Contract operations (ABI, source, creation)
     #[command(visible_alias = "c")]
     Contract {
@@ -277,6 +283,13 @@ pub enum Commands {
         #[command(subcommand)]
         action: gecko::GeckoCommands,
     },
+
+    /// GoPlus Security API (token, address, NFT, approval security)
+    ///
+    /// Free API for security analysis. Set GOPLUS_APP_KEY and GOPLUS_APP_SECRET
+    /// for batch queries and higher rate limits.
+    #[command(visible_alias = "gp")]
+    Goplus(goplus::GoPlusArgs),
 
     /// Direct DefiLlama API access
     Llama {

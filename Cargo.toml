@@ -23,6 +23,7 @@ members = [
     "crates/pythc",
     "crates/unswp",
     "crates/ykong",
+    "crates/gplus",
 ]
 
 [workspace.package]

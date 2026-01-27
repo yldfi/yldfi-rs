@@ -74,7 +74,82 @@ ethcli chainlink  # Chainlink price feeds (RPC-based, no API key needed)
 ethcli ccxt       # Exchange data (Binance, Bitget, OKX, Hyperliquid)
 ethcli kong       # Yearn Kong API (vaults, strategies, prices, TVL, reports)
 ethcli uniswap    # Uniswap V2/V3/V4 (on-chain lens + subgraph)
+ethcli goplus     # GoPlus Security API (token/address/NFT/approval security)
 ```
+
+### Security & Token Analysis
+```
+ethcli blacklist  # Token blacklist management (spam/scam filtering)
+```
+
+## GoPlus Security Commands
+
+Query the GoPlus Security API for token, address, NFT, and approval security analysis.
+
+```bash
+# Check token security (honeypot detection, taxes, ownership)
+ethcli goplus token 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain-id 1
+
+# Check if address is malicious
+ethcli goplus address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --chain-id 1
+
+# Check NFT collection security
+ethcli goplus nft 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d --chain-id 1
+
+# Check ERC20/721/1155 approval security
+ethcli goplus approval 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain-id 1
+
+# List supported chains
+ethcli goplus chains
+
+# JSON output
+ethcli goplus token 0x... --chain-id 1 --json
+```
+
+### Notes
+
+- **Free API**: No API key required for basic usage
+- **Authenticated mode**: Set `GOPLUS_APP_KEY` and `GOPLUS_APP_SECRET` for batch queries and higher rate limits
+- **Alias**: `ethcli gp` works as an alias for `ethcli goplus`
+- **Chain IDs**: 1=Ethereum, 56=BSC, 137=Polygon, 42161=Arbitrum, 8453=Base, etc.
+
+## Blacklist Commands
+
+Manage a local token blacklist for filtering spam/scam tokens from portfolio views.
+
+```bash
+# Scan a token for security issues
+ethcli blacklist scan 0x... --chain ethereum
+
+# Scan entire portfolio for suspicious tokens
+ethcli blacklist scan-portfolio 0xYourAddress --chain ethereum --auto-blacklist
+
+# Only show suspicious tokens (skip safe ones)
+ethcli blacklist scan-portfolio 0xYourAddress --suspicious-only --auto-blacklist
+
+# List blacklisted tokens
+ethcli blacklist list
+ethcli blacklist list --links  # With Etherscan links
+
+# Add token to blacklist
+ethcli blacklist add 0x... --chain ethereum --reason "Honeypot token"
+
+# Remove token from blacklist
+ethcli blacklist remove 0x...
+
+# Check if token is blacklisted
+ethcli blacklist check 0x...
+
+# Clear all blacklisted tokens
+ethcli blacklist clear
+```
+
+### Notes
+
+- **Storage**: Blacklist stored in `~/.config/ethcli/blacklist.toml`
+- **Security checks**: Uses GoPlus API + Etherscan verification status
+- **Known protocols**: Yearn, Curve, Aave, Compound, etc. are auto-whitelisted
+- **Alias**: `ethcli bl` works as an alias for `ethcli blacklist`
 
 ## Simulation Commands
 
@@ -409,7 +484,9 @@ src/
     ├── chainlink.rs  # Chainlink price feeds (RPC + Data Streams)
     ├── ccxt.rs       # Exchange data via CCXT
     ├── kong.rs       # Direct Yearn Kong API
-    └── uniswap.rs    # Uniswap V2/V3/V4 queries
+    ├── uniswap.rs    # Uniswap V2/V3/V4 queries
+    ├── goplus.rs     # GoPlus Security API (token/address/NFT/approval)
+    └── blacklist.rs  # Token blacklist management
 ```
 
 ## Key Dependencies
@@ -510,6 +587,8 @@ ethcli chainlink oracles --chain arbitrum
 | `CHAINLINK_API_KEY` | `chainlink streams` only | Data Streams API key |
 | `CHAINLINK_USER_SECRET` | `chainlink streams` only | Data Streams secret |
 | `THEGRAPH_API_KEY` | Uniswap subgraph | The Graph API access |
+| `GOPLUS_APP_KEY` | Optional | GoPlus batch queries (>1 token) |
+| `GOPLUS_APP_SECRET` | Optional | GoPlus batch queries (>1 token) |
 
 ## Release Process
 

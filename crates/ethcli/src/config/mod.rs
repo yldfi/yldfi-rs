@@ -1,11 +1,13 @@
 //! Configuration management for ethcli
 
 mod addressbook;
+mod blacklist;
 mod chain;
 mod endpoint;
 mod file;
 
 pub use addressbook::{AddressBook, AddressEntry};
+pub use blacklist::{BlacklistEntry, TokenBlacklist};
 pub use chain::{Chain, ChainId};
 pub use endpoint::{
     EndpointConfig, NodeType, DEFAULT_MAX_BLOCK_RANGE, DEFAULT_MAX_LOGS, DEFAULT_PRIORITY,

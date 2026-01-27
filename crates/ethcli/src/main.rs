@@ -128,6 +128,9 @@ async fn main() -> anyhow::Result<()> {
         Commands::Address { action } => {
             return ethcli::cli::address::handle(action, cli.quiet);
         }
+        Commands::Blacklist(args) => {
+            return ethcli::cli::blacklist::execute(args).await;
+        }
         Commands::Contract { action } => {
             return ethcli::cli::contract::handle(action, chain, etherscan_key.clone(), cli.quiet)
                 .await;
@@ -190,6 +193,10 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Gecko { action } => {
             return ethcli::cli::gecko::handle(action, cli.quiet).await;
+        }
+
+        Commands::Goplus(args) => {
+            return ethcli::cli::goplus::execute(args).await;
         }
 
         Commands::Llama { action } => {
