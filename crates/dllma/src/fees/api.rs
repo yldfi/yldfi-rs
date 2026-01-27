@@ -12,7 +12,7 @@ pub struct FeesApi<'a> {
 
 impl<'a> FeesApi<'a> {
     /// Create a new Fees API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

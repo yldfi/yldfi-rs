@@ -53,7 +53,7 @@ pub struct TokenInfoOptions {
 }
 
 impl TokenInfoOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new(chain_ids: &str) -> Self {
         Self {
             chain_ids: chain_ids.to_string(),
@@ -63,7 +63,7 @@ impl TokenInfoOptions {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = vec![format!("chain_ids={}", self.chain_ids)];
         if let Some(ref historical) = self.historical_prices {

@@ -139,12 +139,12 @@ pub struct ActivityOptions {
 }
 
 impl ActivityOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref chain_ids) = self.chain_ids {

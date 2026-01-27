@@ -65,13 +65,13 @@ impl Error {
     }
 
     /// Create an unauthorized error
-    #[must_use] 
+    #[must_use]
     pub fn unauthorized() -> Self {
         Self::Unauthorized
     }
 
     /// Create a rate limited error
-    #[must_use] 
+    #[must_use]
     pub fn rate_limited() -> Self {
         Self::RateLimited
     }
@@ -87,19 +87,19 @@ impl Error {
     }
 
     /// Check if this is an unauthorized error
-    #[must_use] 
+    #[must_use]
     pub fn is_unauthorized(&self) -> bool {
         matches!(self, Self::Unauthorized)
     }
 
     /// Check if this is a rate limit error
-    #[must_use] 
+    #[must_use]
     pub fn is_rate_limited(&self) -> bool {
         matches!(self, Self::RateLimited)
     }
 
     /// Check if this is a not found error
-    #[must_use] 
+    #[must_use]
     pub fn is_not_found(&self) -> bool {
         matches!(self, Self::NotFound(_))
     }

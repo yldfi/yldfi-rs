@@ -195,7 +195,9 @@ async fn test_address_security_clean() {
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
-        .and(path("/address_security/0xd8da6bf26964af9d7eed9e03e53415d37aa96045"))
+        .and(path(
+            "/address_security/0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        ))
         .and(query_param("chain_id", "1"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "code": 1,

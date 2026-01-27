@@ -1,6 +1,6 @@
 //! Activity API endpoints
 
-use super::types::{ActivityResponse, ActivityOptions};
+use super::types::{ActivityOptions, ActivityResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +10,7 @@ pub struct ActivityApi<'a> {
 }
 
 impl<'a> ActivityApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

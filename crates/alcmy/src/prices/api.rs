@@ -1,6 +1,9 @@
 //! Prices API implementation
 
-use super::types::{TokenPricesBySymbolResponse, TokenPricesByAddressResponse, TokenPricesByAddressRequest, TokenAddress, HistoricalInterval, HistoricalPriceResponse, HistoricalPriceRequest};
+use super::types::{
+    HistoricalInterval, HistoricalPriceRequest, HistoricalPriceResponse, TokenAddress,
+    TokenPricesByAddressRequest, TokenPricesByAddressResponse, TokenPricesBySymbolResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 

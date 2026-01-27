@@ -1,6 +1,10 @@
 //! Wallet API client
 
-use super::types::{NativeBalance, TokenBalance, PaginatedResponse, WalletTransaction, NetWorth, ActiveChains, TokenApproval, WalletHistoryEntry, WalletStats, WalletProfitability, TokenProfitability, WalletBalances};
+use super::types::{
+    ActiveChains, NativeBalance, NetWorth, PaginatedResponse, TokenApproval, TokenBalance,
+    TokenProfitability, WalletBalances, WalletHistoryEntry, WalletProfitability, WalletStats,
+    WalletTransaction,
+};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -21,7 +25,7 @@ pub struct WalletQuery {
 
 impl WalletQuery {
     /// Create a new query
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -55,7 +59,7 @@ pub struct WalletApi<'a> {
 
 impl<'a> WalletApi<'a> {
     /// Create a new wallet API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -197,7 +201,10 @@ impl<'a> WalletApi<'a> {
         }
 
         let query = BalancesQuery {
-            wallet_addresses: wallet_addresses.iter().map(std::string::ToString::to_string).collect(),
+            wallet_addresses: wallet_addresses
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
             chain: chain.map(std::string::ToString::to_string),
         };
 

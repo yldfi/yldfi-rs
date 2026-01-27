@@ -1,6 +1,8 @@
 //! NFT API endpoints
 
-use super::types::{NftListItem, NftListOptions, NftCollection, NftMarketItem, NftTickersResponse, NftMarketChart};
+use super::types::{
+    NftCollection, NftListItem, NftListOptions, NftMarketChart, NftMarketItem, NftTickersResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +12,7 @@ pub struct NftsApi<'a> {
 }
 
 impl<'a> NftsApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

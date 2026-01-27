@@ -38,7 +38,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 // Convenience constructors for domain errors
 /// Create an invalid API key error
-#[must_use] 
+#[must_use]
 pub fn invalid_api_key() -> Error {
     ApiError::domain(DomainError::InvalidApiKey)
 }
@@ -49,13 +49,13 @@ pub fn execution_failed(message: impl Into<String>) -> Error {
 }
 
 /// Create an execution timeout error
-#[must_use] 
+#[must_use]
 pub fn execution_timeout(seconds: u64) -> Error {
     ApiError::domain(DomainError::ExecutionTimeout(seconds))
 }
 
 /// Create an insufficient credits error
-#[must_use] 
+#[must_use]
 pub fn insufficient_credits() -> Error {
     ApiError::domain(DomainError::InsufficientCredits)
 }

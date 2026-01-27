@@ -3,7 +3,10 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::{BridgesResponse, ListBridgesOptions, BridgeDetail, ChainBridgeVolume, DailyBridgeStats, BridgeTransactionsResponse, TransactionsOptions};
+use super::types::{
+    BridgeDetail, BridgeTransactionsResponse, BridgesResponse, ChainBridgeVolume, DailyBridgeStats,
+    ListBridgesOptions, TransactionsOptions,
+};
 
 /// Bridges API client (Pro only)
 pub struct BridgesApi<'a> {
@@ -12,7 +15,7 @@ pub struct BridgesApi<'a> {
 
 impl<'a> BridgesApi<'a> {
     /// Create a new Bridges API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

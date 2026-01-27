@@ -1,6 +1,9 @@
 //! Utils/Contract API client
 
-use super::types::{RunContractFunctionRequest, Web3Version, EndpointWeight, GetContractEventsRequest, ContractEventsResponse, ContractReviewRequest, ContractReview};
+use super::types::{
+    ContractEventsResponse, ContractReview, ContractReviewRequest, EndpointWeight,
+    GetContractEventsRequest, RunContractFunctionRequest, Web3Version,
+};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -23,7 +26,7 @@ pub struct UtilsQuery {
 }
 
 impl UtilsQuery {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -71,7 +74,7 @@ pub struct UtilsApi<'a> {
 }
 
 impl<'a> UtilsApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

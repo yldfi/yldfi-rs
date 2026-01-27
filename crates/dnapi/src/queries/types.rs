@@ -96,7 +96,7 @@ pub struct CreateQueryRequest {
 
 impl CreateQueryRequest {
     /// Create a new query request
-    #[must_use] 
+    #[must_use]
     pub fn new(name: &str, query_sql: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -109,21 +109,21 @@ impl CreateQueryRequest {
     }
 
     /// Set the description
-    #[must_use] 
+    #[must_use]
     pub fn description(mut self, description: &str) -> Self {
         self.description = Some(description.to_string());
         self
     }
 
     /// Set as private
-    #[must_use] 
+    #[must_use]
     pub fn private(mut self, is_private: bool) -> Self {
         self.is_private = Some(is_private);
         self
     }
 
     /// Set tags
-    #[must_use] 
+    #[must_use]
     pub fn tags(mut self, tags: Vec<String>) -> Self {
         self.tags = Some(tags);
         self
@@ -169,7 +169,7 @@ pub struct ListQueriesOptions {
 }
 
 impl ListQueriesOptions {
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {

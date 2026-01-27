@@ -122,13 +122,13 @@ impl Client {
     // ========================================================================
 
     /// Check if subgraph queries are available
-    #[must_use] 
+    #[must_use]
     pub fn has_subgraph(&self) -> bool {
         self.subgraph.is_some()
     }
 
     /// Get the subgraph client (if configured)
-    #[must_use] 
+    #[must_use]
     pub fn subgraph(&self) -> Option<&SubgraphClient> {
         self.subgraph.as_ref()
     }

@@ -51,7 +51,7 @@ pub fn bad_request(message: impl Into<String>) -> Error {
 /// Create from HTTP response status and body
 ///
 /// Handles Dune SIM-specific error patterns
-#[must_use] 
+#[must_use]
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
     match status {
         400 => bad_request(body),

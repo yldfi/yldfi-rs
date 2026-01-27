@@ -68,26 +68,26 @@ impl RouterApi {
     }
 
     /// Create from an existing graph
-    #[must_use] 
+    #[must_use]
     pub fn from_graph(graph: RouteGraph) -> Self {
         let chain = graph.chain_id.clone();
         Self { graph, chain }
     }
 
     /// Get the underlying route graph
-    #[must_use] 
+    #[must_use]
     pub fn graph(&self) -> &RouteGraph {
         &self.graph
     }
 
     /// Get the chain identifier
-    #[must_use] 
+    #[must_use]
     pub fn chain(&self) -> &str {
         &self.chain
     }
 
     /// Get the router contract address for this chain
-    #[must_use] 
+    #[must_use]
     pub fn router_address(&self) -> Option<&'static str> {
         router_address(&self.chain)
     }
@@ -95,7 +95,7 @@ impl RouterApi {
     /// Find all routes between two tokens
     ///
     /// Returns routes sorted by: shortest first, then by highest TVL.
-    #[must_use] 
+    #[must_use]
     pub fn find_routes(&self, from: &str, to: &str) -> Vec<Route> {
         find_routes(&self.graph, from, to)
     }
@@ -103,19 +103,19 @@ impl RouterApi {
     /// Find the single best route between two tokens
     ///
     /// The "best" route is typically the shortest path with good liquidity.
-    #[must_use] 
+    #[must_use]
     pub fn find_best_route(&self, from: &str, to: &str) -> Option<Route> {
         find_best_route(&self.graph, from, to)
     }
 
     /// Check if a token exists in the routing graph
-    #[must_use] 
+    #[must_use]
     pub fn has_token(&self, address: &str) -> bool {
         self.graph.has_token(address)
     }
 
     /// Get statistics about the graph
-    #[must_use] 
+    #[must_use]
     pub fn stats(&self) -> RouterStats {
         RouterStats {
             chain: self.chain.clone(),

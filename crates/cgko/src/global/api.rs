@@ -1,6 +1,9 @@
 //! Global and general API endpoints
 
-use super::types::{PingResponse, GlobalResponse, DefiGlobalResponse, TrendingResponse, SearchResponse, ExchangeRatesResponse, AssetPlatform, ApiKeyUsage, MarketCapChart, TokenList};
+use super::types::{
+    ApiKeyUsage, AssetPlatform, DefiGlobalResponse, ExchangeRatesResponse, GlobalResponse,
+    MarketCapChart, PingResponse, SearchResponse, TokenList, TrendingResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +13,7 @@ pub struct GlobalApi<'a> {
 }
 
 impl<'a> GlobalApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

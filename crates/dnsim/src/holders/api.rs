@@ -1,6 +1,6 @@
 //! Token holders API endpoints
 
-use super::types::{TokenHoldersResponse, TokenHoldersOptions};
+use super::types::{TokenHoldersOptions, TokenHoldersResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +10,7 @@ pub struct HoldersApi<'a> {
 }
 
 impl<'a> HoldersApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

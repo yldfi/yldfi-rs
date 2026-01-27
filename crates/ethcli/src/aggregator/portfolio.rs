@@ -520,7 +520,8 @@ async fn fetch_uniswap_portfolio(
                                 }
 
                                 // Calculate share of pool
-                                let total_supply: f64 = pos.pair.total_supply.parse().unwrap_or(1.0);
+                                let total_supply: f64 =
+                                    pos.pair.total_supply.parse().unwrap_or(1.0);
                                 let share = if total_supply > 0.0 {
                                     lp_balance / total_supply
                                 } else {
@@ -599,20 +600,26 @@ async fn fetch_uniswap_portfolio(
                                     net_token1,
                                 );
 
-                                let fee_tier: f64 = pos.pool.fee_tier.parse().unwrap_or(0.0) / 10000.0;
+                                let fee_tier: f64 =
+                                    pos.pool.fee_tier.parse().unwrap_or(0.0) / 10000.0;
 
                                 let symbol = format!(
                                     "UNI-V3 {}/{} ({}%)",
                                     pos.pool.token0.symbol, pos.pool.token1.symbol, fee_tier
                                 );
 
-                                let balance =
-                                    PortfolioBalance::new(&pos.id, &symbol, &chain, &pos.liquidity, 18)
-                                        .with_name(Some(format!(
-                                            "Uniswap V3 LP: {}/{}",
-                                            pos.pool.token0.symbol, pos.pool.token1.symbol
-                                        )))
-                                        .with_usd_value(usd_value);
+                                let balance = PortfolioBalance::new(
+                                    &pos.id,
+                                    &symbol,
+                                    &chain,
+                                    &pos.liquidity,
+                                    18,
+                                )
+                                .with_name(Some(format!(
+                                    "Uniswap V3 LP: {}/{}",
+                                    pos.pool.token0.symbol, pos.pool.token1.symbol
+                                )))
+                                .with_usd_value(usd_value);
 
                                 balances.push(balance);
                             }
@@ -660,13 +667,18 @@ async fn fetch_uniswap_portfolio(
                                     pos.pool.token0.symbol, pos.pool.token1.symbol, fee
                                 );
 
-                                let balance =
-                                    PortfolioBalance::new(&pos.id, &symbol, &chain, &pos.liquidity, 18)
-                                        .with_name(Some(format!(
-                                            "Uniswap V4 LP: {}/{}",
-                                            pos.pool.token0.symbol, pos.pool.token1.symbol
-                                        )))
-                                        .with_usd_value(usd_value);
+                                let balance = PortfolioBalance::new(
+                                    &pos.id,
+                                    &symbol,
+                                    &chain,
+                                    &pos.liquidity,
+                                    18,
+                                )
+                                .with_name(Some(format!(
+                                    "Uniswap V4 LP: {}/{}",
+                                    pos.pool.token0.symbol, pos.pool.token1.symbol
+                                )))
+                                .with_usd_value(usd_value);
 
                                 balances.push(balance);
                             }
@@ -721,11 +733,7 @@ async fn fetch_yearn_portfolio(
     let user_address: Address = match address.parse() {
         Ok(a) => a,
         Err(_) => {
-            return SourceResult::error(
-                "yearn",
-                "Invalid address format",
-                measure.elapsed_ms(),
-            )
+            return SourceResult::error("yearn", "Invalid address format", measure.elapsed_ms())
         }
     };
 
@@ -1033,7 +1041,11 @@ fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> P
                 None
             } else {
                 let avg = usd_values.iter().sum::<f64>() / usd_values.len() as f64;
-                if avg.is_finite() { Some(avg) } else { None }
+                if avg.is_finite() {
+                    Some(avg)
+                } else {
+                    None
+                }
             };
 
             // Filter out NaN/Infinity values from prices
@@ -1046,7 +1058,11 @@ fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> P
                 None
             } else {
                 let avg = prices.iter().sum::<f64>() / prices.len() as f64;
-                if avg.is_finite() { Some(avg) } else { None }
+                if avg.is_finite() {
+                    Some(avg)
+                } else {
+                    None
+                }
             };
 
             // Take highest precision balance

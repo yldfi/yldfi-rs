@@ -1,6 +1,6 @@
 //! Trace API implementation (Parity-style)
 
-use super::types::{Trace, TraceCallRequest, TraceType, TraceCallResponse, TraceFilter};
+use super::types::{Trace, TraceCallRequest, TraceCallResponse, TraceFilter, TraceType};
 use crate::client::Client;
 use crate::error::Result;
 

@@ -1,6 +1,10 @@
 //! NFT API client
 
-use super::types::{NftResponse, Nft, NftTransfer, NftCollection, NftOwner, NftCollectionStats, NftFloorPrice, NftTrade, NftTrait, GetMultipleNftsRequest, NftsByTraitsRequest, HistoricalFloorPrice, NftSyncStatus, GetMultipleCollectionsRequest, TraitResyncStatus, NftSalePrice};
+use super::types::{
+    GetMultipleCollectionsRequest, GetMultipleNftsRequest, HistoricalFloorPrice, Nft,
+    NftCollection, NftCollectionStats, NftFloorPrice, NftOwner, NftResponse, NftSalePrice,
+    NftSyncStatus, NftTrade, NftTrait, NftTransfer, NftsByTraitsRequest, TraitResyncStatus,
+};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -25,7 +29,7 @@ pub struct NftQuery {
 }
 
 impl NftQuery {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -61,7 +65,7 @@ pub struct NftApi<'a> {
 }
 
 impl<'a> NftApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

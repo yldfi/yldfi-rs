@@ -1,6 +1,9 @@
 //! Materialized Views API implementation
 
-use super::types::{UpsertMatviewRequest, UpsertMatviewResponse, Matview, ListMatviewsResponse, ListMatviewsOptions, RefreshMatviewResponse, RefreshMatviewRequest, DeleteMatviewResponse};
+use super::types::{
+    DeleteMatviewResponse, ListMatviewsOptions, ListMatviewsResponse, Matview,
+    RefreshMatviewRequest, RefreshMatviewResponse, UpsertMatviewRequest, UpsertMatviewResponse,
+};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 

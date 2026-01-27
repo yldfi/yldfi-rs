@@ -43,7 +43,7 @@ impl Default for Config {
 
 impl Config {
     /// Create a new config with default settings
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -145,7 +145,7 @@ impl Client {
     }
 
     /// Get the integrator identifier
-    #[must_use] 
+    #[must_use]
     pub fn integrator(&self) -> Option<&str> {
         self.integrator.as_deref()
     }

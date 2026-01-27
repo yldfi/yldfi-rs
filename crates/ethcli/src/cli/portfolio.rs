@@ -15,7 +15,8 @@ use serde::Serialize;
 use std::collections::HashMap;
 
 /// Type alias for portfolio fetch results
-type PortfolioFetchResult = AggregatedResult<Vec<crate::aggregator::portfolio::PortfolioBalance>, PortfolioResult>;
+type PortfolioFetchResult =
+    AggregatedResult<Vec<crate::aggregator::portfolio::PortfolioBalance>, PortfolioResult>;
 
 /// Portfolio source selection for CLI
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
@@ -216,9 +217,7 @@ pub async fn execute(args: &PortfolioArgs, quiet: bool) -> anyhow::Result<()> {
     // Apply blacklist and min_value filters
     let wallet_portfolios: Vec<WalletPortfolio> = wallet_results
         .into_iter()
-        .map(|(wallet, result)| {
-            apply_filters(wallet, result, &blacklist, args, quiet)
-        })
+        .map(|(wallet, result)| apply_filters(wallet, result, &blacklist, args, quiet))
         .collect();
 
     // Calculate grand total
@@ -286,7 +285,10 @@ pub async fn execute(args: &PortfolioArgs, quiet: bool) -> anyhow::Result<()> {
 }
 
 /// Resolve wallet addresses from args (addresses, tag, or default "me")
-fn resolve_wallets(args: &PortfolioArgs, address_book: &AddressBook) -> anyhow::Result<Vec<ResolvedWallet>> {
+fn resolve_wallets(
+    args: &PortfolioArgs,
+    address_book: &AddressBook,
+) -> anyhow::Result<Vec<ResolvedWallet>> {
     let mut wallets = Vec::new();
 
     // If --tag is specified, get all addresses with that tag
@@ -366,13 +368,7 @@ async fn fetch_wallets_parallel(
                         fetch_portfolio_parallel(&address, &chains, &[portfolio_source]).await
                     }
                 };
-                (
-                    ResolvedWallet {
-                        label,
-                        address,
-                    },
-                    result,
-                )
+                (ResolvedWallet { label, address }, result)
             }
         })
         .collect();
@@ -440,7 +436,11 @@ fn aggregate_wallets(wallets: &[WalletPortfolio]) -> AggregatedPortfolio {
         }
 
         for token in &wallet.tokens {
-            let key = format!("{}:{}", token.chain.to_lowercase(), token.address.to_lowercase());
+            let key = format!(
+                "{}:{}",
+                token.chain.to_lowercase(),
+                token.address.to_lowercase()
+            );
 
             if let Some(existing) = token_map.get_mut(&key) {
                 // Merge balances
@@ -537,10 +537,7 @@ fn print_multi_wallet_table(output: &MultiPortfolioOutput, wallets: &[WalletPort
 
     // Per-wallet token details
     for wallet in wallets {
-        let name = wallet
-            .label
-            .as_ref()
-            .unwrap_or(&wallet.address);
+        let name = wallet.label.as_ref().unwrap_or(&wallet.address);
 
         println!("── {} ──", name);
         if wallet.tokens.is_empty() {

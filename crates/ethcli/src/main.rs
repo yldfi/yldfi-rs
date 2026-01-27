@@ -282,11 +282,9 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
     });
 
     // Apply defaults: CLI > config file > hardcoded defaults
-    let concurrency = args.concurrency.unwrap_or_else(|| {
-        config_file
-            .as_ref()
-            .map_or(5, |c| c.settings.concurrency)
-    });
+    let concurrency = args
+        .concurrency
+        .unwrap_or_else(|| config_file.as_ref().map_or(5, |c| c.settings.concurrency));
 
     // Build RPC config (with optional chunk_size override)
     let rpc_config = build_rpc_config_from_logs_args_full(
@@ -1176,11 +1174,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 .endpoints
                 .iter()
                 .filter(|e| e.enabled)
-                .filter(|e| {
-                    chain_filter_parsed
-                        .as_ref()
-                        .is_none_or(|c| e.chain == *c)
-                })
+                .filter(|e| chain_filter_parsed.as_ref().is_none_or(|c| e.chain == *c))
                 .collect();
 
             if endpoints.is_empty() {
@@ -1402,8 +1396,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
         ConfigCommands::SetEtherscanKey { key, stdin } => {
             use ethcli::cli::config::read_from_stdin;
             let api_key = if *stdin {
-                read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1424,8 +1417,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
         } => {
             use ethcli::cli::config::read_from_stdin;
             let access_key = if *stdin {
-                read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("Access key required (provide --key or use --stdin)")
@@ -1449,8 +1441,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::AlchemyConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1475,8 +1466,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::MoralisConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1541,8 +1531,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::DuneConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1563,8 +1552,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::DuneSimConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1585,8 +1573,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::config::SoloditConfig;
             use secrecy::SecretString;
             let api_key = if *stdin {
-                read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")

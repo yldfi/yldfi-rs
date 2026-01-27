@@ -219,9 +219,9 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
         }
         let binary = temp_dir.join(expected_binary);
         // Verify the binary exists and is within temp_dir (defense in depth)
-        let canonical = binary.canonicalize().map_err(|_| {
-            anyhow::anyhow!("Binary '{}' not found in archive", expected_binary)
-        })?;
+        let canonical = binary
+            .canonicalize()
+            .map_err(|_| anyhow::anyhow!("Binary '{}' not found in archive", expected_binary))?;
         let temp_canonical = temp_dir.canonicalize()?;
         if !canonical.starts_with(&temp_canonical) {
             anyhow::bail!("Security: extracted path escapes temp directory");
@@ -248,9 +248,9 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
         }
         let binary = temp_dir.join(expected_binary);
         // Verify the binary exists and is within temp_dir (defense in depth)
-        let canonical = binary.canonicalize().map_err(|_| {
-            anyhow::anyhow!("Binary '{}' not found in archive", expected_binary)
-        })?;
+        let canonical = binary
+            .canonicalize()
+            .map_err(|_| anyhow::anyhow!("Binary '{}' not found in archive", expected_binary))?;
         let temp_canonical = temp_dir.canonicalize()?;
         if !canonical.starts_with(&temp_canonical) {
             anyhow::bail!("Security: extracted path escapes temp directory");

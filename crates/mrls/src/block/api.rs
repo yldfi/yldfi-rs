@@ -1,6 +1,6 @@
 //! Block API client
 
-use super::types::{Block, LatestBlock, DateToBlock};
+use super::types::{Block, DateToBlock, LatestBlock};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -15,7 +15,7 @@ pub struct BlockQuery {
 }
 
 impl BlockQuery {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -39,7 +39,7 @@ pub struct BlockApi<'a> {
 }
 
 impl<'a> BlockApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

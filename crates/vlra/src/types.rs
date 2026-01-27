@@ -235,7 +235,7 @@ impl PriceRequest {
     }
 
     /// Convert to query parameters
-    #[must_use] 
+    #[must_use]
     pub fn to_query_params(&self, network: u64) -> Vec<(String, String)> {
         let mut params = vec![
             ("srcToken".to_string(), self.src_token.clone()),

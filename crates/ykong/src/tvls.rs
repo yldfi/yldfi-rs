@@ -33,7 +33,7 @@ pub struct TvlsApi<'a> {
 
 impl<'a> TvlsApi<'a> {
     /// Create a new TVLs API instance
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

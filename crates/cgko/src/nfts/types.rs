@@ -143,12 +143,12 @@ pub struct NftListOptions {
 }
 
 impl NftListOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref o) = self.order {

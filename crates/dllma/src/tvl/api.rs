@@ -15,7 +15,7 @@ pub struct TvlApi<'a> {
 
 impl<'a> TvlApi<'a> {
     /// Create a new TVL API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

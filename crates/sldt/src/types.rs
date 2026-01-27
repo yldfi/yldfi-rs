@@ -16,7 +16,9 @@ where
         Value::String(_) => Ok(None), // empty string
         Value::Null => Ok(None),
         Value::Object(map) if map.is_empty() => Ok(None), // empty object {}
-        Value::Object(_) => Err(D::Error::custom("expected string or empty object, got non-empty object")),
+        Value::Object(_) => Err(D::Error::custom(
+            "expected string or empty object, got non-empty object",
+        )),
         _ => Err(D::Error::custom("expected string or empty object")),
     }
 }
@@ -47,7 +49,7 @@ impl std::fmt::Display for Impact {
 
 impl Impact {
     /// Convert to API string format
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Impact::High => "HIGH",
@@ -68,7 +70,7 @@ pub enum SortDirection {
 }
 
 impl SortDirection {
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             SortDirection::Desc => "Desc",
@@ -87,7 +89,7 @@ pub enum SortField {
 }
 
 impl SortField {
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             SortField::Recency => "Recency",
@@ -114,7 +116,7 @@ pub enum ReportedPeriod {
 }
 
 impl ReportedPeriod {
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             ReportedPeriod::Days30 => "30",
@@ -380,23 +382,27 @@ impl Finding {
     }
 
     /// Get the audit firm name
-    #[must_use] 
+    #[must_use]
     pub fn firm(&self) -> Option<&str> {
-        self.firm_name
-            .as_deref()
-            .or_else(|| self.auditfirms_auditfirm.as_ref().and_then(|f| f.name.as_deref()))
+        self.firm_name.as_deref().or_else(|| {
+            self.auditfirms_auditfirm
+                .as_ref()
+                .and_then(|f| f.name.as_deref())
+        })
     }
 
     /// Get the protocol name
-    #[must_use] 
+    #[must_use]
     pub fn protocol(&self) -> Option<&str> {
-        self.protocol_name
-            .as_deref()
-            .or_else(|| self.protocols_protocol.as_ref().and_then(|p| p.name.as_deref()))
+        self.protocol_name.as_deref().or_else(|| {
+            self.protocols_protocol
+                .as_ref()
+                .and_then(|p| p.name.as_deref())
+        })
     }
 
     /// Get finder handles
-    #[must_use] 
+    #[must_use]
     pub fn finder_handles(&self) -> Vec<&str> {
         self.issues_issue_finders
             .iter()
@@ -405,7 +411,7 @@ impl Finding {
     }
 
     /// Get tags
-    #[must_use] 
+    #[must_use]
     pub fn tags(&self) -> Vec<&str> {
         self.issues_issuetagscore
             .iter()
@@ -414,7 +420,7 @@ impl Finding {
     }
 
     /// Get the Solodit URL for this finding
-    #[must_use] 
+    #[must_use]
     pub fn solodit_url(&self) -> Option<String> {
         self.slug
             .as_ref()
@@ -497,7 +503,7 @@ impl SearchFilter {
     }
 
     /// Create an empty filter (returns all findings)
-    #[must_use] 
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             page: 1,
@@ -515,21 +521,21 @@ impl SearchFilter {
     }
 
     /// Set page number (1-indexed)
-    #[must_use] 
+    #[must_use]
     pub fn page(mut self, page: u32) -> Self {
         self.page = page.max(1);
         self
     }
 
     /// Set page size (max 100)
-    #[must_use] 
+    #[must_use]
     pub fn page_size(mut self, size: u32) -> Self {
         self.page_size = size.clamp(1, 100);
         self
     }
 
     /// Filter by a single impact level
-    #[must_use] 
+    #[must_use]
     pub fn impact(mut self, impact: Impact) -> Self {
         self.impacts.push(impact);
         self
@@ -590,7 +596,7 @@ impl SearchFilter {
     }
 
     /// Filter by number of finders
-    #[must_use] 
+    #[must_use]
     pub fn finders_range(mut self, min: Option<u32>, max: Option<u32>) -> Self {
         self.min_finders = min;
         self.max_finders = max;
@@ -598,7 +604,7 @@ impl SearchFilter {
     }
 
     /// Filter by report date period
-    #[must_use] 
+    #[must_use]
     pub fn reported(mut self, period: ReportedPeriod) -> Self {
         self.reported = Some(period);
         self
@@ -612,49 +618,49 @@ impl SearchFilter {
     }
 
     /// Set minimum quality score (0-5)
-    #[must_use] 
+    #[must_use]
     pub fn min_quality(mut self, score: u32) -> Self {
         self.quality_score = Some(score.min(5));
         self
     }
 
     /// Set minimum rarity score (0-5)
-    #[must_use] 
+    #[must_use]
     pub fn min_rarity(mut self, score: u32) -> Self {
         self.rarity_score = Some(score.min(5));
         self
     }
 
     /// Sort by recency (newest first by default)
-    #[must_use] 
+    #[must_use]
     pub fn sort_by_recency(mut self) -> Self {
         self.sort_field = SortField::Recency;
         self
     }
 
     /// Sort by quality score
-    #[must_use] 
+    #[must_use]
     pub fn sort_by_quality(mut self) -> Self {
         self.sort_field = SortField::Quality;
         self
     }
 
     /// Sort by rarity score
-    #[must_use] 
+    #[must_use]
     pub fn sort_by_rarity(mut self) -> Self {
         self.sort_field = SortField::Rarity;
         self
     }
 
     /// Sort ascending
-    #[must_use] 
+    #[must_use]
     pub fn ascending(mut self) -> Self {
         self.sort_direction = SortDirection::Asc;
         self
     }
 
     /// Sort descending
-    #[must_use] 
+    #[must_use]
     pub fn descending(mut self) -> Self {
         self.sort_direction = SortDirection::Desc;
         self
@@ -663,7 +669,7 @@ impl SearchFilter {
     /// Create a copy of this filter with a different page number
     ///
     /// Used internally by the paginator to avoid manual field-by-field cloning.
-    #[must_use] 
+    #[must_use]
     pub fn with_page(&self, page: u32) -> Self {
         Self {
             keywords: self.keywords.clone(),
@@ -764,7 +770,7 @@ pub struct SearchResults {
 
 impl SearchResults {
     /// Create from API response
-    #[must_use] 
+    #[must_use]
     pub fn from_response(response: ApiResponse) -> Self {
         Self {
             findings: response.findings,
@@ -777,13 +783,13 @@ impl SearchResults {
     }
 
     /// Check if there are more pages
-    #[must_use] 
+    #[must_use]
     pub fn has_more(&self) -> bool {
         self.page < self.total_pages
     }
 
     /// Get remaining rate limit
-    #[must_use] 
+    #[must_use]
     pub fn rate_limit_remaining(&self) -> u32 {
         self.rate_limit.remaining
     }

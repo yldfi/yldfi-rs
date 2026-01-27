@@ -136,7 +136,7 @@ impl Client {
     /// Create a new client with a custom HTTP client (no rate limiting)
     ///
     /// Note: The client will be wrapped in Arc internally for cheap cloning.
-    #[must_use] 
+    #[must_use]
     pub fn with_http_client(http: HttpClient) -> Self {
         Self {
             http: Arc::new(http),
@@ -146,13 +146,13 @@ impl Client {
     }
 
     /// Get the underlying HTTP client
-    #[must_use] 
+    #[must_use]
     pub fn http(&self) -> &HttpClient {
         &self.http
     }
 
     /// Get the rate limiter if configured
-    #[must_use] 
+    #[must_use]
     pub fn rate_limiter(&self) -> Option<&RateLimiter> {
         self.rate_limiter.as_ref()
     }
@@ -200,9 +200,7 @@ impl Client {
             .await
             .map_err(|e| Error::Api {
                 status: 0,
-                message: format!(
-                    "HTTP request failed for query '{query_preview}...': {e}"
-                ),
+                message: format!("HTTP request failed for query '{query_preview}...': {e}"),
             })?;
 
         let status = response.status().as_u16();

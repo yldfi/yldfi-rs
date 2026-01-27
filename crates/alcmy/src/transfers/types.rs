@@ -91,7 +91,7 @@ pub struct AssetTransfersOptions {
 
 impl AssetTransfersOptions {
     /// Create options for getting transfers from an address
-    #[must_use] 
+    #[must_use]
     pub fn from_address(address: &str) -> Self {
         Self {
             from_address: Some(address.to_string()),
@@ -106,7 +106,7 @@ impl AssetTransfersOptions {
     }
 
     /// Create options for getting transfers to an address
-    #[must_use] 
+    #[must_use]
     pub fn to_address(address: &str) -> Self {
         Self {
             to_address: Some(address.to_string()),
@@ -121,7 +121,7 @@ impl AssetTransfersOptions {
     }
 
     /// Set block range
-    #[must_use] 
+    #[must_use]
     pub fn with_block_range(mut self, from: &str, to: &str) -> Self {
         self.from_block = Some(from.to_string());
         self.to_block = Some(to.to_string());
@@ -129,7 +129,7 @@ impl AssetTransfersOptions {
     }
 
     /// Include internal transfers
-    #[must_use] 
+    #[must_use]
     pub fn with_internal_transfers(mut self) -> Self {
         let mut categories = self.category.unwrap_or_default();
         if !categories.contains(&TransferCategory::Internal) {
@@ -140,28 +140,28 @@ impl AssetTransfersOptions {
     }
 
     /// Exclude zero-value transfers
-    #[must_use] 
+    #[must_use]
     pub fn exclude_zero_value(mut self) -> Self {
         self.exclude_zero_value = Some(true);
         self
     }
 
     /// Set maximum results
-    #[must_use] 
+    #[must_use]
     pub fn with_max_count(mut self, count: u32) -> Self {
         self.max_count = Some(format!("0x{count:x}"));
         self
     }
 
     /// Set sort order
-    #[must_use] 
+    #[must_use]
     pub fn with_order(mut self, order: TransferOrder) -> Self {
         self.order = Some(order);
         self
     }
 
     /// Include block metadata
-    #[must_use] 
+    #[must_use]
     pub fn with_metadata(mut self) -> Self {
         self.with_metadata = Some(true);
         self

@@ -41,7 +41,7 @@ pub fn unsupported_chain(chain: impl Into<String>) -> Error {
 }
 
 /// Create a no route found error
-#[must_use] 
+#[must_use]
 pub fn no_route_found() -> Error {
     ApiError::domain(DomainError::NoRouteFound)
 }

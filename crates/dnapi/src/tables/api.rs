@@ -1,6 +1,10 @@
 //! Tables API implementation
 
-use super::types::{CreateTableRequest, CreateTableResponse, UploadCsvRequest, UploadCsvResponse, ListTablesResponse, ListTablesOptions, Table, InsertResponse, ClearTableResponse, DeleteTableResponse};
+use super::types::{
+    ClearTableResponse, CreateTableRequest, CreateTableResponse, DeleteTableResponse,
+    InsertResponse, ListTablesOptions, ListTablesResponse, Table, UploadCsvRequest,
+    UploadCsvResponse,
+};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 
@@ -81,9 +85,7 @@ impl<'a> TablesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!(
-                "Table {namespace}/{table_name}"
-            )))
+            Err(error::not_found(format!("Table {namespace}/{table_name}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -111,9 +113,7 @@ impl<'a> TablesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!(
-                "Table {namespace}/{table_name}"
-            )))
+            Err(error::not_found(format!("Table {namespace}/{table_name}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -134,9 +134,7 @@ impl<'a> TablesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!(
-                "Table {namespace}/{table_name}"
-            )))
+            Err(error::not_found(format!("Table {namespace}/{table_name}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -157,9 +155,7 @@ impl<'a> TablesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!(
-                "Table {namespace}/{table_name}"
-            )))
+            Err(error::not_found(format!("Table {namespace}/{table_name}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();

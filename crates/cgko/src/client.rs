@@ -33,7 +33,7 @@ pub struct Config {
 
 impl Config {
     /// Create a new demo config (no API key)
-    #[must_use] 
+    #[must_use]
     pub fn demo() -> Self {
         Self {
             api_key: None,
@@ -143,7 +143,7 @@ impl Client {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn is_pro(&self) -> bool {
         self.is_pro
     }

@@ -79,7 +79,7 @@ pub struct CreateWebhookRequest {
 
 impl CreateWebhookRequest {
     /// Create a new webhook request for transactions
-    #[must_use] 
+    #[must_use]
     pub fn transactions(name: &str, url: &str, addresses: Vec<String>) -> Self {
         Self {
             name: name.to_string(),
@@ -96,7 +96,7 @@ impl CreateWebhookRequest {
     }
 
     /// Create a new webhook request for activities
-    #[must_use] 
+    #[must_use]
     pub fn activities(name: &str, url: &str, addresses: Vec<String>) -> Self {
         Self {
             name: name.to_string(),
@@ -113,7 +113,7 @@ impl CreateWebhookRequest {
     }
 
     /// Create a new webhook request for balances
-    #[must_use] 
+    #[must_use]
     pub fn balances(name: &str, url: &str, addresses: Vec<String>) -> Self {
         Self {
             name: name.to_string(),
@@ -163,7 +163,7 @@ pub struct UpdateWebhookRequest {
 }
 
 impl UpdateWebhookRequest {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -197,12 +197,12 @@ pub struct UpdateAddressesRequest {
 }
 
 impl UpdateAddressesRequest {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn add(addresses: Vec<String>) -> Self {
         Self {
             add_addresses: Some(addresses),
@@ -210,7 +210,7 @@ impl UpdateAddressesRequest {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn remove(addresses: Vec<String>) -> Self {
         Self {
             add_addresses: None,
@@ -229,12 +229,12 @@ pub struct WebhooksListOptions {
 }
 
 impl WebhooksListOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {
@@ -261,12 +261,12 @@ pub struct AddressesListOptions {
 }
 
 impl AddressesListOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {

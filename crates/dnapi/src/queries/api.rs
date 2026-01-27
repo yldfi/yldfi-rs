@@ -1,6 +1,9 @@
 //! Queries API implementation
 
-use super::types::{CreateQueryRequest, CreateQueryResponse, Query, UpdateQueryRequest, UpdateQueryResponse, ListQueriesResponse, ListQueriesOptions};
+use super::types::{
+    CreateQueryRequest, CreateQueryResponse, ListQueriesOptions, ListQueriesResponse, Query,
+    UpdateQueryRequest, UpdateQueryResponse,
+};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 

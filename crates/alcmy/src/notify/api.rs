@@ -1,6 +1,10 @@
 //! Notify/Webhooks API implementation
 
-use super::types::{ListWebhooksResponse, CreateWebhookRequest, Webhook, UpdateWebhookRequest, ListAddressesResponse, UpdateWebhookAddressesRequest, ReplaceWebhookAddressesRequest, ListNftFiltersResponse, UpdateNftFiltersRequest, GraphqlVariable, PatchGraphqlVariableRequest};
+use super::types::{
+    CreateWebhookRequest, GraphqlVariable, ListAddressesResponse, ListNftFiltersResponse,
+    ListWebhooksResponse, PatchGraphqlVariableRequest, ReplaceWebhookAddressesRequest,
+    UpdateNftFiltersRequest, UpdateWebhookAddressesRequest, UpdateWebhookRequest, Webhook,
+};
 use crate::client::Client;
 use crate::error::{Error, Result};
 
@@ -262,7 +266,6 @@ impl<'a> NotifyApi<'a> {
 
     /// Delete a GraphQL variable
     pub async fn delete_graphql_variable(&self, variable: &str) -> Result<()> {
-        self.delete(&format!("/graphql/variables/{variable}"))
-            .await
+        self.delete(&format!("/graphql/variables/{variable}")).await
     }
 }

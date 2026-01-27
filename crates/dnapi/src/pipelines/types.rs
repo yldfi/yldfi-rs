@@ -42,7 +42,7 @@ pub struct PipelineNode {
 
 impl PipelineNode {
     /// Create a query execution node
-    #[must_use] 
+    #[must_use]
     pub fn query(query_id: i64) -> Self {
         Self {
             node_type: "query_execution".to_string(),
@@ -54,7 +54,7 @@ impl PipelineNode {
     }
 
     /// Create a materialized view refresh node
-    #[must_use] 
+    #[must_use]
     pub fn matview(name: &str) -> Self {
         Self {
             node_type: "materialized_view_refresh".to_string(),
@@ -66,14 +66,14 @@ impl PipelineNode {
     }
 
     /// Set node ID
-    #[must_use] 
+    #[must_use]
     pub fn with_id(mut self, id: &str) -> Self {
         self.id = Some(id.to_string());
         self
     }
 
     /// Set dependencies
-    #[must_use] 
+    #[must_use]
     pub fn depends_on(mut self, deps: Vec<String>) -> Self {
         self.depends_on = deps;
         self

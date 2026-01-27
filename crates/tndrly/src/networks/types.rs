@@ -62,13 +62,13 @@ pub struct Network {
 
 impl Network {
     /// Get the chain ID as u64
-    #[must_use] 
+    #[must_use]
     pub fn chain_id_u64(&self) -> Option<u64> {
         self.chain_id.parse().ok()
     }
 
     /// Check if this is a testnet (heuristic based on name)
-    #[must_use] 
+    #[must_use]
     pub fn is_testnet(&self) -> bool {
         let name_lower = self.network_name.to_lowercase();
         name_lower.contains("testnet")
@@ -79,37 +79,37 @@ impl Network {
     }
 
     /// Check if simulations are supported
-    #[must_use] 
+    #[must_use]
     pub fn simulation_supported(&self) -> bool {
         self.supported_features.simulator
     }
 
     /// Check if Virtual `TestNets` are supported
-    #[must_use] 
+    #[must_use]
     pub fn vnet_supported(&self) -> bool {
         self.supported_features.virtual_testnet
     }
 
     /// Check if Node RPC is supported
-    #[must_use] 
+    #[must_use]
     pub fn node_supported(&self) -> bool {
         self.supported_features.node
     }
 
     /// Check if monitoring is supported
-    #[must_use] 
+    #[must_use]
     pub fn monitoring_supported(&self) -> bool {
         self.supported_features.monitoring
     }
 
     /// Get the primary slug (explorer slug)
-    #[must_use] 
+    #[must_use]
     pub fn slug(&self) -> &str {
         &self.network_slugs.explorer_slug
     }
 
     /// Get the `VNet` RPC slug
-    #[must_use] 
+    #[must_use]
     pub fn vnet_slug(&self) -> &str {
         &self.network_slugs.vnet_rpc_slug
     }

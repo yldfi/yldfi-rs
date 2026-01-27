@@ -40,7 +40,7 @@ pub enum Chain {
 
 impl Chain {
     /// Convert from EVM chain ID
-    #[must_use] 
+    #[must_use]
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
         match chain_id {
             1 => Some(Chain::Ethereum),
@@ -61,7 +61,7 @@ impl Chain {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Chain::Ethereum => "ethereum",
@@ -82,7 +82,7 @@ impl Chain {
     }
 
     /// Parse chain from string (returns Option for backward compatibility)
-    #[must_use] 
+    #[must_use]
     pub fn try_from_str(s: &str) -> Option<Self> {
         s.parse().ok()
     }

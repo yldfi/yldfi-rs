@@ -65,7 +65,7 @@ const MAX_ERROR_BODY_LENGTH: usize = 500;
 /// - Handles query strings properly
 ///
 /// Falls back to simple concatenation if URL parsing fails.
-#[must_use] 
+#[must_use]
 pub fn join_url(base: &str, path: &str) -> String {
     // Try to use url::Url::parse for validation and proper handling
     if let Ok(base_url) = url::Url::parse(base) {
@@ -112,7 +112,7 @@ pub fn join_url(base: &str, path: &str) -> String {
 /// 3. Redacts hex-encoded private keys
 ///
 /// Use this to sanitize error messages before logging or displaying them.
-#[must_use] 
+#[must_use]
 pub fn sanitize_error_body(body: &str) -> String {
     // Truncate if too long
     let truncated = if body.len() > MAX_ERROR_BODY_LENGTH {
@@ -446,7 +446,7 @@ impl<E: std::error::Error> ApiError<E> {
     }
 
     /// Create a rate limited error
-    #[must_use] 
+    #[must_use]
     pub fn rate_limited(retry_after: Option<u64>) -> Self {
         Self::RateLimited { retry_after }
     }
@@ -473,7 +473,7 @@ impl<E: std::error::Error> ApiError<E> {
     ///
     /// Note: The body is sanitized to remove potential secrets and truncated
     /// if too long (SEC-005 fix).
-    #[must_use] 
+    #[must_use]
     pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Self {
         let sanitized = sanitize_error_body(body);
         match status {
@@ -1070,7 +1070,7 @@ impl BaseClient {
 /// headers.insert("retry-after", HeaderValue::from_static("9999"));
 /// assert_eq!(extract_retry_after(&headers), Some(3600));
 /// ```
-#[must_use] 
+#[must_use]
 pub fn extract_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     const MAX_RETRY_AFTER_SECS: u64 = 3600; // 1 hour max
 

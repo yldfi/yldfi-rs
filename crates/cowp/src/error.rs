@@ -54,7 +54,7 @@ pub fn no_quote(message: impl Into<String>) -> Error {
 }
 
 /// Create an insufficient liquidity error
-#[must_use] 
+#[must_use]
 pub fn insufficient_liquidity() -> Error {
     ApiError::domain(DomainError::InsufficientLiquidity)
 }

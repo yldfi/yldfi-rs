@@ -173,7 +173,10 @@ impl ScanResult {
                 reasons.push("Honeypot".to_string());
             }
             if sec.has_high_sell_tax() {
-                reasons.push(format!("High sell tax ({:.0}%)", sec.sell_tax.unwrap_or(0.0)));
+                reasons.push(format!(
+                    "High sell tax ({:.0}%)",
+                    sec.sell_tax.unwrap_or(0.0)
+                ));
             }
             reasons.extend(sec.issues.clone());
         }
@@ -229,25 +232,59 @@ impl ScanResult {
 /// These are whitelisted even if they have unusual ownership patterns
 const SAFE_PROTOCOL_PATTERNS: &[&str] = &[
     // Yearn ecosystem
-    "yearn", "yvault", "ystrategy", "yvtoken", "v3 vault",
+    "yearn",
+    "yvault",
+    "ystrategy",
+    "yvtoken",
+    "v3 vault",
     // Curve ecosystem
-    "curve", "crv", "vyper_contract", "gauge", "minter",
+    "curve",
+    "crv",
+    "vyper_contract",
+    "gauge",
+    "minter",
     // Convex ecosystem
-    "convex", "cvx", "basepool", "booster", "rewardpool",
+    "convex",
+    "cvx",
+    "basepool",
+    "booster",
+    "rewardpool",
     // Lido ecosystem
-    "lido", "steth", "wsteth",
+    "lido",
+    "steth",
+    "wsteth",
     // Compound ecosystem
-    "compound", "ctoken", "cerc20", "comptroller",
+    "compound",
+    "ctoken",
+    "cerc20",
+    "comptroller",
     // Aave ecosystem
-    "aave", "atoken", "debttoken", "pool",
+    "aave",
+    "atoken",
+    "debttoken",
+    "pool",
     // Other major DeFi
-    "uniswap", "sushiswap", "balancer", "makerdao", "dsr", "dai",
-    "origin", "oeth", "ousd",
-    "frax", "sfrax", "frxeth", "sfrxeth",
-    "prisma", "mkusd",
-    "eigen", "eigenlayer",
-    "rocket", "reth",
-    "coinbase", "cbeth",
+    "uniswap",
+    "sushiswap",
+    "balancer",
+    "makerdao",
+    "dsr",
+    "dai",
+    "origin",
+    "oeth",
+    "ousd",
+    "frax",
+    "sfrax",
+    "frxeth",
+    "sfrxeth",
+    "prisma",
+    "mkusd",
+    "eigen",
+    "eigenlayer",
+    "rocket",
+    "reth",
+    "coinbase",
+    "cbeth",
 ];
 
 /// Check if a contract name suggests it's a known safe protocol
@@ -311,8 +348,14 @@ pub async fn scan_token(
     // Get token metadata (name, symbol) via RPC
     let token_meta = fetcher.get_token_metadata_rpc(chain, address).await.ok();
 
-    let name = token_meta.as_ref().and_then(|t| t.name.clone()).unwrap_or_default();
-    let symbol = token_meta.as_ref().and_then(|t| t.symbol.clone()).unwrap_or_default();
+    let name = token_meta
+        .as_ref()
+        .and_then(|t| t.name.clone())
+        .unwrap_or_default();
+    let symbol = token_meta
+        .as_ref()
+        .and_then(|t| t.symbol.clone())
+        .unwrap_or_default();
 
     let mut warnings = Vec::new();
 
@@ -349,7 +392,11 @@ pub async fn scan_token(
 
     Ok(ScanResult {
         address: address.to_string(),
-        symbol: if symbol.is_empty() { None } else { Some(symbol) },
+        symbol: if symbol.is_empty() {
+            None
+        } else {
+            Some(symbol)
+        },
         name: if name.is_empty() { None } else { Some(name) },
         is_verified: effective_verified,
         is_proxy: metadata.is_proxy,
@@ -408,7 +455,10 @@ pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
                 .and_then(|e| e.symbol.clone())
                 .unwrap_or_else(|| address.to_string());
 
-            if blacklist.remove(address).map_err(|e| anyhow::anyhow!("{}", e))? {
+            if blacklist
+                .remove(address)
+                .map_err(|e| anyhow::anyhow!("{}", e))?
+            {
                 println!("Removed {} from blacklist", symbol);
             } else {
                 println!("Token {} was not in blacklist", address);
@@ -453,10 +503,7 @@ pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
                     "Symbol", "Address", "Reason"
                 );
             } else {
-                println!(
-                    "{:<12} {:<44} Reason",
-                    "Symbol", "Address"
-                );
+                println!("{:<12} {:<44} Reason", "Symbol", "Address");
             }
             println!("{}", "-".repeat(if *links { 120 } else { 80 }));
 
@@ -477,7 +524,10 @@ pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
                     let url = etherscan_url(chain, &entry.address);
                     println!(
                         "{:<12} {:<44} {:<40} {}",
-                        symbol, entry.address, format!("{}{}", reason_display, chain_suffix), url
+                        symbol,
+                        entry.address,
+                        format!("{}{}", reason_display, chain_suffix),
+                        url
                     );
                 } else {
                     println!(
@@ -505,11 +555,20 @@ pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
             }
         }
 
-        BlacklistCommands::Scan { address, chain, auto_blacklist } => {
+        BlacklistCommands::Scan {
+            address,
+            chain,
+            auto_blacklist,
+        } => {
             execute_scan(address, chain, *auto_blacklist).await?;
         }
 
-        BlacklistCommands::ScanPortfolio { address, chain, auto_blacklist, suspicious_only } => {
+        BlacklistCommands::ScanPortfolio {
+            address,
+            chain,
+            auto_blacklist,
+            suspicious_only,
+        } => {
             execute_scan_portfolio(address, chain, *auto_blacklist, *suspicious_only).await?;
         }
 
@@ -537,15 +596,25 @@ fn print_token_analysis(result: &ScanResult, chain_str: &str) {
     }
     println!(
         "  Verified:   {}",
-        if result.is_verified { "YES ✓" } else { "NO ✗" }
+        if result.is_verified {
+            "YES ✓"
+        } else {
+            "NO ✗"
+        }
     );
-    println!("  Proxy:      {}", if result.is_proxy { "Yes" } else { "No" });
+    println!(
+        "  Proxy:      {}",
+        if result.is_proxy { "Yes" } else { "No" }
+    );
     if result.is_proxy {
         if let Some(impl_addr) = &result.implementation {
             println!("  Impl:       {}", impl_addr);
         }
     }
-    println!("  Etherscan:  {}", etherscan_url(chain_str, &result.address));
+    println!(
+        "  Etherscan:  {}",
+        etherscan_url(chain_str, &result.address)
+    );
 }
 
 /// Print security analysis section
@@ -554,7 +623,11 @@ fn print_security_analysis(security: &SecurityResult) {
     println!("Security Analysis:");
     println!(
         "  Honeypot:    {}",
-        if security.is_honeypot { "YES ⚠️" } else { "No ✓" }
+        if security.is_honeypot {
+            "YES ⚠️"
+        } else {
+            "No ✓"
+        }
     );
     if let Some(buy) = security.buy_tax {
         println!("  Buy Tax:     {:.1}%", buy);
@@ -570,7 +643,11 @@ fn print_security_analysis(security: &SecurityResult) {
             } else {
                 ""
             };
-            let display = if owner.len() >= 10 { &owner[..10] } else { owner };
+            let display = if owner.len() >= 10 {
+                &owner[..10]
+            } else {
+                owner
+            };
             println!("  Owner:       {}{}", display, status);
         }
     }

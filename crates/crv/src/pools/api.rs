@@ -1,6 +1,6 @@
 //! Pools API client
 
-use super::types::{PoolsResponse, PoolListResponse, HiddenPoolsResponse};
+use super::types::{HiddenPoolsResponse, PoolListResponse, PoolsResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -11,7 +11,7 @@ pub struct PoolsApi<'a> {
 
 impl<'a> PoolsApi<'a> {
     /// Create a new pools API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

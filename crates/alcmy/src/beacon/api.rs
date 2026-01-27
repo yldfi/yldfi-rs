@@ -2,7 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::{BeaconResponse, GenesisInfo, BeaconListResponse, ForkScheduleEntry, DepositContract, BlockHeaderResponse, Attestation, BlobSidecar, ForkInfo, FinalityCheckpoints, ValidatorInfo, SyncCommittee, SignedVoluntaryExit, BlockReward, SyncStatus, NodeVersion, PeerInfo, PeerCount, AttesterDuty, ProposerDuty, SyncDuty};
+use super::types::{
+    Attestation, AttesterDuty, BeaconListResponse, BeaconResponse, BlobSidecar,
+    BlockHeaderResponse, BlockReward, DepositContract, FinalityCheckpoints, ForkInfo,
+    ForkScheduleEntry, GenesisInfo, NodeVersion, PeerCount, PeerInfo, ProposerDuty,
+    SignedVoluntaryExit, SyncCommittee, SyncDuty, SyncStatus, ValidatorInfo,
+};
 use crate::client::Client;
 use crate::error::{Error, Result};
 
@@ -146,8 +151,7 @@ impl<'a> BeaconApi<'a> {
         &self,
         block_id: &str,
     ) -> Result<BeaconListResponse<BlobSidecar>> {
-        self.get(&format!("/beacon/blob_sidecars/{block_id}"))
-            .await
+        self.get(&format!("/beacon/blob_sidecars/{block_id}")).await
     }
 
     // ========== State ==========
@@ -212,8 +216,7 @@ impl<'a> BeaconApi<'a> {
 
     /// Get RANDAO
     pub async fn get_randao(&self, state_id: &str) -> Result<BeaconResponse<RandaoResponse>> {
-        self.get(&format!("/beacon/states/{state_id}/randao"))
-            .await
+        self.get(&format!("/beacon/states/{state_id}/randao")).await
     }
 
     // ========== Pool ==========

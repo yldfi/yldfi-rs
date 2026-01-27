@@ -16,13 +16,13 @@ pub struct VolumeOverviewOptions {
 
 impl VolumeOverviewOptions {
     /// Create new options with defaults
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Exclude chart data from response
-    #[must_use] 
+    #[must_use]
     pub fn exclude_charts(mut self) -> Self {
         self.exclude_total_data_chart = true;
         self.exclude_total_data_chart_breakdown = true;
@@ -36,7 +36,7 @@ impl VolumeOverviewOptions {
     }
 
     /// Build query string
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if self.exclude_total_data_chart {
@@ -194,7 +194,7 @@ pub enum VolumeType {
 
 impl VolumeType {
     /// Get the API path segment
-    #[must_use] 
+    #[must_use]
     pub fn path(&self) -> &'static str {
         match self {
             Self::Dex => "dexs",

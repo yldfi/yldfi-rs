@@ -96,7 +96,7 @@ impl Client {
     /// ```ignore
     /// let result = client.simulation().simulate(&request).await?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn simulation(&self) -> simulation::SimulationApi<'_> {
         simulation::SimulationApi::new(self)
     }
@@ -108,7 +108,7 @@ impl Client {
     /// ```ignore
     /// let vnets = client.vnets().list(None).await?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn vnets(&self) -> vnets::VNetsApi<'_> {
         vnets::VNetsApi::new(self)
     }
@@ -120,7 +120,7 @@ impl Client {
     /// ```ignore
     /// let alerts = client.alerts().list().await?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn alerts(&self) -> alerts::AlertsApi<'_> {
         alerts::AlertsApi::new(self)
     }
@@ -132,7 +132,7 @@ impl Client {
     /// ```ignore
     /// let contracts = client.contracts().list(None).await?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn contracts(&self) -> contracts::ContractsApi<'_> {
         contracts::ContractsApi::new(self)
     }
@@ -144,7 +144,7 @@ impl Client {
     /// ```ignore
     /// let actions = client.actions().list().await?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn actions(&self) -> actions::ActionsApi<'_> {
         actions::ActionsApi::new(self)
     }
@@ -156,7 +156,7 @@ impl Client {
     /// ```ignore
     /// let wallets = client.wallets().list().await?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn wallets(&self) -> wallets::WalletsApi<'_> {
         wallets::WalletsApi::new(self)
     }
@@ -168,7 +168,7 @@ impl Client {
     /// ```ignore
     /// let channels = client.delivery_channels().list_project().await?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn delivery_channels(&self) -> delivery_channels::DeliveryChannelsApi<'_> {
         delivery_channels::DeliveryChannelsApi::new(self)
     }
@@ -180,7 +180,7 @@ impl Client {
     /// ```ignore
     /// let networks = client.networks().supported().await?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn networks(&self) -> networks::NetworksApi<'_> {
         networks::NetworksApi::new(self)
     }

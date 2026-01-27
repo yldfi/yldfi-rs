@@ -106,31 +106,31 @@ impl Client {
     // ========== Core APIs ==========
 
     /// Access the NFT API
-    #[must_use] 
+    #[must_use]
     pub fn nft(&self) -> nft::NftApi<'_> {
         nft::NftApi::new(self)
     }
 
     /// Access the Prices API
-    #[must_use] 
+    #[must_use]
     pub fn prices(&self) -> prices::PricesApi<'_> {
         prices::PricesApi::new(self)
     }
 
     /// Access the Portfolio/Data API
-    #[must_use] 
+    #[must_use]
     pub fn portfolio(&self) -> portfolio::PortfolioApi<'_> {
         portfolio::PortfolioApi::new(self)
     }
 
     /// Access the Token API (RPC methods)
-    #[must_use] 
+    #[must_use]
     pub fn token(&self) -> token::TokenApi<'_> {
         token::TokenApi::new(self)
     }
 
     /// Access the Transfers API
-    #[must_use] 
+    #[must_use]
     pub fn transfers(&self) -> transfers::TransfersApi<'_> {
         transfers::TransfersApi::new(self)
     }
@@ -138,19 +138,19 @@ impl Client {
     // ========== Debugging & Tracing ==========
 
     /// Access the Debug API (debug_* methods)
-    #[must_use] 
+    #[must_use]
     pub fn debug(&self) -> debug::DebugApi<'_> {
         debug::DebugApi::new(self)
     }
 
     /// Access the Trace API (Parity-style trace_* methods)
-    #[must_use] 
+    #[must_use]
     pub fn trace(&self) -> trace::TraceApi<'_> {
         trace::TraceApi::new(self)
     }
 
     /// Access the Simulation API
-    #[must_use] 
+    #[must_use]
     pub fn simulation(&self) -> simulation::SimulationApi<'_> {
         simulation::SimulationApi::new(self)
     }
@@ -158,25 +158,25 @@ impl Client {
     // ========== Account Abstraction (ERC-4337) ==========
 
     /// Access the Bundler API for ERC-4337 operations
-    #[must_use] 
+    #[must_use]
     pub fn bundler(&self) -> bundler::BundlerApi<'_> {
         bundler::BundlerApi::new(self)
     }
 
     /// Access the Gas Manager API for gas sponsorship
-    #[must_use] 
+    #[must_use]
     pub fn gas_manager(&self) -> gasmanager::GasManagerApi<'_> {
         gasmanager::GasManagerApi::new(self)
     }
 
     /// Access the Wallet API for smart wallet operations
-    #[must_use] 
+    #[must_use]
     pub fn wallet(&self) -> wallet::WalletApi<'_> {
         wallet::WalletApi::new(self)
     }
 
     /// Access the Accounts API for smart wallet authentication
-    #[must_use] 
+    #[must_use]
     pub fn accounts(&self) -> accounts::AccountsApi<'_> {
         accounts::AccountsApi::new(self)
     }
@@ -184,7 +184,7 @@ impl Client {
     // ========== Notifications ==========
 
     /// Access the Notify API for webhook management
-    #[must_use] 
+    #[must_use]
     pub fn notify(&self) -> notify::NotifyApi<'_> {
         notify::NotifyApi::new(self)
     }
@@ -192,13 +192,13 @@ impl Client {
     // ========== Chain-Specific ==========
 
     /// Access the Beacon API (Ethereum consensus layer)
-    #[must_use] 
+    #[must_use]
     pub fn beacon(&self) -> beacon::BeaconApi<'_> {
         beacon::BeaconApi::new(self)
     }
 
     /// Access the Solana DAS API
-    #[must_use] 
+    #[must_use]
     pub fn solana(&self) -> solana::SolanaApi<'_> {
         solana::SolanaApi::new(self)
     }

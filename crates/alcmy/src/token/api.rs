@@ -1,6 +1,8 @@
 //! Token API implementation (RPC methods)
 
-use super::types::{RpcTokenBalancesResponse, TokenSpec, RpcTokenBalancesOptions, RpcTokenMetadata};
+use super::types::{
+    RpcTokenBalancesOptions, RpcTokenBalancesResponse, RpcTokenMetadata, TokenSpec,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -62,8 +64,12 @@ impl<'a> TokenApi<'a> {
         address: &str,
         token_addresses: &[&str],
     ) -> Result<RpcTokenBalancesResponse> {
-        let token_spec =
-            TokenSpec::Addresses(token_addresses.iter().map(std::string::ToString::to_string).collect());
+        let token_spec = TokenSpec::Addresses(
+            token_addresses
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
+        );
         self.get_token_balances_with_spec(address, token_spec, None)
             .await
     }

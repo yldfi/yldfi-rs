@@ -1,6 +1,6 @@
 //! Collectibles API endpoints
 
-use super::types::{CollectiblesResponse, CollectiblesOptions};
+use super::types::{CollectiblesOptions, CollectiblesResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +10,7 @@ pub struct CollectiblesApi<'a> {
 }
 
 impl<'a> CollectiblesApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

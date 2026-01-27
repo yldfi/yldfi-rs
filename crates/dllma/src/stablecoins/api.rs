@@ -3,7 +3,10 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::{StablecoinsResponse, StablecoinDetail, StablecoinChartPoint, StablecoinDominance, StablecoinChain, StablecoinPricesResponse};
+use super::types::{
+    StablecoinChain, StablecoinChartPoint, StablecoinDetail, StablecoinDominance,
+    StablecoinPricesResponse, StablecoinsResponse,
+};
 
 /// Stablecoins API client
 pub struct StablecoinsApi<'a> {
@@ -12,7 +15,7 @@ pub struct StablecoinsApi<'a> {
 
 impl<'a> StablecoinsApi<'a> {
     /// Create a new Stablecoins API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

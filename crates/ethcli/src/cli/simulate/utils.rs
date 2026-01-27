@@ -82,8 +82,14 @@ pub fn format_request(
             h_obj.push_str("\n  }");
 
             let body_str = serde_json::to_string_pretty(body).unwrap_or_default();
-            let mut s = format!("const response = await fetch('{}', {{\n", escape_js_single_quote(url));
-            s.push_str(&format!("  method: '{}',\n", escape_js_single_quote(method)));
+            let mut s = format!(
+                "const response = await fetch('{}', {{\n",
+                escape_js_single_quote(url)
+            );
+            s.push_str(&format!(
+                "  method: '{}',\n",
+                escape_js_single_quote(method)
+            ));
             s.push_str(&format!("  headers: {},\n", h_obj));
             s.push_str(&format!("  body: JSON.stringify({})\n", body_str));
             s.push_str("});\n");
@@ -99,7 +105,11 @@ pub fn format_request(
                 } else {
                     format!("'{}'", escape_powershell_single_quote(value))
                 };
-                h_hash.push_str(&format!("\n    '{}' = {}", escape_powershell_single_quote(key), val));
+                h_hash.push_str(&format!(
+                    "\n    '{}' = {}",
+                    escape_powershell_single_quote(key),
+                    val
+                ));
             }
             h_hash.push_str("\n}");
 
@@ -127,7 +137,11 @@ pub fn format_request(
                 if i > 0 {
                     h_dict.push_str(", ");
                 }
-                h_dict.push_str(&format!("\n    '{}': {}", escape_python_single_quote(key), val));
+                h_dict.push_str(&format!(
+                    "\n    '{}': {}",
+                    escape_python_single_quote(key),
+                    val
+                ));
             }
             h_dict.push_str("\n}");
 
@@ -164,7 +178,11 @@ pub fn format_request(
             cmd
         }
         DryRunFormat::Wget => {
-            let mut cmd = format!("wget -q -O - --method={} '{}'", method, escape_shell_single_quote(url));
+            let mut cmd = format!(
+                "wget -q -O - --method={} '{}'",
+                method,
+                escape_shell_single_quote(url)
+            );
             for (key, value) in headers {
                 let val = if should_mask(key) {
                     format!("${}", key.to_uppercase().replace("-", "_"))
@@ -202,7 +220,13 @@ pub fn format_request(
             let mut s = String::from("package main\n\nimport (\n    \"bytes\"\n    \"encoding/json\"\n    \"fmt\"\n    \"net/http\"\n    \"os\"\n)\n\nfunc main() {\n");
             // Go raw strings (backticks) don't allow backticks inside, so escape if present
             let safe_body = if body_str.contains('`') {
-                format!("\"{}\"", body_str.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n"))
+                format!(
+                    "\"{}\"",
+                    body_str
+                        .replace('\\', "\\\\")
+                        .replace('"', "\\\"")
+                        .replace('\n', "\\n")
+                )
             } else {
                 format!("`{}`", body_str)
             };

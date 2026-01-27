@@ -1,6 +1,8 @@
 //! Token Analytics API client
 
-use super::types::{AnalyticsTimeseriesRequest, AnalyticsTimeseries, BatchAnalyticsRequest, BatchAnalyticsResult};
+use super::types::{
+    AnalyticsTimeseries, AnalyticsTimeseriesRequest, BatchAnalyticsRequest, BatchAnalyticsResult,
+};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -19,7 +21,7 @@ pub struct AnalyticsQuery {
 }
 
 impl AnalyticsQuery {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -55,7 +57,7 @@ pub struct AnalyticsApi<'a> {
 }
 
 impl<'a> AnalyticsApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

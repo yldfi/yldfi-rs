@@ -82,7 +82,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 // Convenience constructors for domain errors
 
 /// Create an unauthorized error
-#[must_use] 
+#[must_use]
 pub fn unauthorized() -> Error {
     ApiError::domain(DomainError::Unauthorized)
 }
@@ -106,7 +106,7 @@ pub fn config(message: impl Into<String>) -> Error {
 }
 
 /// Create a missing API key error
-#[must_use] 
+#[must_use]
 pub fn missing_api_key() -> Error {
     ApiError::domain(DomainError::MissingApiKey)
 }
@@ -126,7 +126,7 @@ pub fn insecure_scheme(scheme: impl Into<String>) -> Error {
 /// - 5xx -> `ServerError`
 ///
 /// MRLS-001 fix: All error messages are sanitized to prevent credential leaks
-#[must_use] 
+#[must_use]
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
     // MRLS-001 fix: Sanitize body before using in error messages
     // This prevents API keys/tokens from leaking if server echoes them
@@ -160,7 +160,7 @@ pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error
 }
 
 /// Check if an error is due to plan restrictions
-#[must_use] 
+#[must_use]
 pub fn is_plan_required(error: &Error) -> bool {
     matches!(error, ApiError::Domain(DomainError::PlanRequired { .. }))
 }

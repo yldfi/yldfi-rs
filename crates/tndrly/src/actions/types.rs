@@ -298,7 +298,7 @@ impl ActionSecret {
     }
 
     /// Expose the secret value (use with care)
-    #[must_use] 
+    #[must_use]
     pub fn expose_value(&self) -> &str {
         self.value.expose_secret()
     }
@@ -497,13 +497,13 @@ pub struct InvokeActionRequest {
 
 impl InvokeActionRequest {
     /// Create an empty invoke request
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Create with a payload
-    #[must_use] 
+    #[must_use]
     pub fn with_payload(payload: serde_json::Value) -> Self {
         Self {
             payload: Some(payload),
@@ -546,7 +546,7 @@ pub struct ActionCallsQuery {
 
 impl ActionCallsQuery {
     /// Create a new query
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

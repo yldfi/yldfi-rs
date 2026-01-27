@@ -214,7 +214,11 @@ pub async fn handle(
             }
         }
 
-        RpcCommands::Block { block, full, format } => {
+        RpcCommands::Block {
+            block,
+            full,
+            format,
+        } => {
             let block_id = parse_block_id(block)?;
 
             let block_data = if *full {

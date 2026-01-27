@@ -286,79 +286,79 @@ impl Client {
     }
 
     /// Access the Wallet API
-    #[must_use] 
+    #[must_use]
     pub fn wallet(&self) -> WalletApi<'_> {
         WalletApi::new(self)
     }
 
     /// Access the Token API
-    #[must_use] 
+    #[must_use]
     pub fn token(&self) -> TokenApi<'_> {
         TokenApi::new(self)
     }
 
     /// Access the NFT API
-    #[must_use] 
+    #[must_use]
     pub fn nft(&self) -> NftApi<'_> {
         NftApi::new(self)
     }
 
     /// Access the Block API
-    #[must_use] 
+    #[must_use]
     pub fn block(&self) -> BlockApi<'_> {
         BlockApi::new(self)
     }
 
     /// Access the Transaction API
-    #[must_use] 
+    #[must_use]
     pub fn transaction(&self) -> TransactionApi<'_> {
         TransactionApi::new(self)
     }
 
     /// Access the `DeFi` API
-    #[must_use] 
+    #[must_use]
     pub fn defi(&self) -> DefiApi<'_> {
         DefiApi::new(self)
     }
 
     /// Access the Resolve API (ENS, domains)
-    #[must_use] 
+    #[must_use]
     pub fn resolve(&self) -> ResolveApi<'_> {
         ResolveApi::new(self)
     }
 
     /// Access the Market Data API
-    #[must_use] 
+    #[must_use]
     pub fn market(&self) -> MarketApi<'_> {
         MarketApi::new(self)
     }
 
     /// Access the Discovery API
-    #[must_use] 
+    #[must_use]
     pub fn discovery(&self) -> DiscoveryApi<'_> {
         DiscoveryApi::new(self)
     }
 
     /// Access the Entities API
-    #[must_use] 
+    #[must_use]
     pub fn entities(&self) -> EntitiesApi<'_> {
         EntitiesApi::new(self)
     }
 
     /// Access the Utils/Contract API
-    #[must_use] 
+    #[must_use]
     pub fn utils(&self) -> UtilsApi<'_> {
         UtilsApi::new(self)
     }
 
     /// Access the Volume API
-    #[must_use] 
+    #[must_use]
     pub fn volume(&self) -> VolumeApi<'_> {
         VolumeApi::new(self)
     }
 
     /// Access the Analytics API
-    #[must_use] 
+    #[must_use]
     pub fn analytics(&self) -> AnalyticsApi<'_> {
         AnalyticsApi::new(self)
     }

@@ -465,7 +465,10 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
 
             match args.format {
                 OutputFormat::Table => {
-                    println!("\nOHLCV for {} on {} ({})", symbol, args.exchange, timeframe);
+                    println!(
+                        "\nOHLCV for {} on {} ({})",
+                        symbol, args.exchange, timeframe
+                    );
                     println!("{}", "=".repeat(80));
                     println!(
                         "{:<20} {:>12} {:>12} {:>12} {:>12} {:>12}",
@@ -567,7 +570,10 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                             t.side,
                             truncate_num(&t.price, 15),
                             truncate_num(&t.amount, 15),
-                            t.cost.as_deref().map(|c| truncate_num(c, 15)).unwrap_or_else(|| "-".to_string())
+                            t.cost
+                                .as_deref()
+                                .map(|c| truncate_num(c, 15))
+                                .unwrap_or_else(|| "-".to_string())
                         );
                     }
                 }
@@ -643,8 +649,13 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                     if quote.is_some() || base.is_some() {
                         println!(
                             "Filtered by: {}{}",
-                            base.as_ref().map(|b| format!("base={}", b)).unwrap_or_default(),
-                            quote.as_ref().map(|q| format!(" quote={}", q)).unwrap_or_default()
+                            base.as_ref()
+                                .map(|b| format!("base={}", b))
+                                .unwrap_or_default(),
+                            quote
+                                .as_ref()
+                                .map(|q| format!(" quote={}", q))
+                                .unwrap_or_default()
                         );
                     }
                     println!("{}", "=".repeat(70));
@@ -785,6 +796,9 @@ fn parse_timeframe(s: &str) -> anyhow::Result<ccxt_rust::Timeframe> {
         "3d" => Ok(Timeframe::D3),
         "1w" | "w" => Ok(Timeframe::W1),
         "1M" | "M" => Ok(Timeframe::Mon1),
-        _ => anyhow::bail!("Invalid timeframe: {}. Valid: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w", s),
+        _ => anyhow::bail!(
+            "Invalid timeframe: {}. Valid: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w",
+            s
+        ),
     }
 }

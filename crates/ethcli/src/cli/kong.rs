@@ -358,9 +358,7 @@ async fn handle_vaults(
             // Note: Kong API removed user position queries in 2024.
             // This command now returns empty results.
             // Use `ethcli portfolio` with Alchemy/Moralis for vault balances.
-            eprintln!(
-                "Warning: Kong API no longer provides user position data."
-            );
+            eprintln!("Warning: Kong API no longer provides user position data.");
             eprintln!(
                 "User vault balances must be queried on-chain. Use `ethcli portfolio` instead."
             );

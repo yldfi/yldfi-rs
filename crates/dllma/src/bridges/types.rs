@@ -11,20 +11,20 @@ pub struct ListBridgesOptions {
 
 impl ListBridgesOptions {
     /// Create new options with defaults
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Include chain information
-    #[must_use] 
+    #[must_use]
     pub fn include_chains(mut self) -> Self {
         self.include_chains = true;
         self
     }
 
     /// Build query string
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         if self.include_chains {
             "?includeChains=true".to_string()
@@ -51,20 +51,20 @@ pub struct TransactionsOptions {
 
 impl TransactionsOptions {
     /// Create new options with defaults
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Set limit
-    #[must_use] 
+    #[must_use]
     pub fn limit(mut self, limit: u32) -> Self {
         self.limit = Some(limit);
         self
     }
 
     /// Set time range
-    #[must_use] 
+    #[must_use]
     pub fn time_range(mut self, start: u64, end: u64) -> Self {
         self.start_timestamp = Some(start);
         self.end_timestamp = Some(end);
@@ -84,7 +84,7 @@ impl TransactionsOptions {
     }
 
     /// Build query string
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {

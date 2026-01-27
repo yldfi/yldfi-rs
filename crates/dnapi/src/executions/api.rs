@@ -1,6 +1,9 @@
 //! Executions API implementation
 
-use super::types::{ExecuteQueryResponse, ExecuteQueryRequest, ExecuteSqlRequest, ExecutionStatus, ExecutionResult, GetResultsOptions, CancelExecutionResponse};
+use super::types::{
+    CancelExecutionResponse, ExecuteQueryRequest, ExecuteQueryResponse, ExecuteSqlRequest,
+    ExecutionResult, ExecutionStatus, GetResultsOptions,
+};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 use std::time::Duration;

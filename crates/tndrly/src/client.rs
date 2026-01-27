@@ -130,7 +130,7 @@ impl Config {
     }
 
     /// Get the base URL
-    #[must_use] 
+    #[must_use]
     pub fn base_url(&self) -> &str {
         self.base_url.as_deref().unwrap_or(API_BASE_URL)
     }
@@ -196,19 +196,19 @@ impl Client {
     }
 
     /// Get the client configuration
-    #[must_use] 
+    #[must_use]
     pub fn config(&self) -> &Config {
         &self.config
     }
 
     /// Get the account slug
-    #[must_use] 
+    #[must_use]
     pub fn account(&self) -> &str {
         &self.config.account
     }
 
     /// Get the project slug
-    #[must_use] 
+    #[must_use]
     pub fn project(&self) -> &str {
         &self.config.project
     }
@@ -216,7 +216,7 @@ impl Client {
     /// Build the full URL for an API endpoint
     ///
     /// Uses pre-computed URL prefix for efficiency (PERF-011 fix).
-    #[must_use] 
+    #[must_use]
     pub fn url(&self, path: &str) -> String {
         format!("{}{}", self.url_prefix, path)
     }
@@ -402,7 +402,7 @@ impl Client {
     }
 
     /// Build the full URL for an account-level API endpoint (no project in path)
-    #[must_use] 
+    #[must_use]
     pub fn account_url(&self, path: &str) -> String {
         format!(
             "{}/account/{}{}",
@@ -413,7 +413,7 @@ impl Client {
     }
 
     /// Build the full URL for a global API endpoint (no account or project in path)
-    #[must_use] 
+    #[must_use]
     pub fn global_url(&self, path: &str) -> String {
         format!("{}{}", self.config.base_url(), path)
     }

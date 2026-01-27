@@ -102,7 +102,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
     let client = gplus::Client::from_env()?;
 
     match &args.command {
-        GoPlusCommands::Token { address, chain_id, format } => {
+        GoPlusCommands::Token {
+            address,
+            chain_id,
+            format,
+        } => {
             let security = client.token_security(*chain_id, address).await?;
 
             if matches!(format, OutputFormat::Json) {
@@ -129,7 +133,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             println!("Contract:");
             println!(
                 "  Verified:     {}",
-                if security.is_verified() { "Yes ✓" } else { "No ✗" }
+                if security.is_verified() {
+                    "Yes ✓"
+                } else {
+                    "No ✗"
+                }
             );
             println!(
                 "  Proxy:        {}",
@@ -137,7 +145,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             );
             println!(
                 "  Mintable:     {}",
-                if security.is_mintable() { "Yes ⚠️" } else { "No" }
+                if security.is_mintable() {
+                    "Yes ⚠️"
+                } else {
+                    "No"
+                }
             );
             println!();
 
@@ -169,7 +181,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
                     } else {
                         ""
                     };
-                    println!("  Owner:        {}{}", &owner[..20.min(owner.len())], status);
+                    println!(
+                        "  Owner:        {}{}",
+                        &owner[..20.min(owner.len())],
+                        status
+                    );
                 }
             }
             println!(
@@ -202,7 +218,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             );
             println!(
                 "  Anti-whale:   {}",
-                if security.has_anti_whale() { "Yes" } else { "No" }
+                if security.has_anti_whale() {
+                    "Yes"
+                } else {
+                    "No"
+                }
             );
             println!();
 
@@ -218,7 +238,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             }
         }
 
-        GoPlusCommands::TokenBatch { addresses, chain_id, format } => {
+        GoPlusCommands::TokenBatch {
+            addresses,
+            chain_id,
+            format,
+        } => {
             let addrs: Vec<&str> = addresses.split(',').map(|s| s.trim()).collect();
             let results = client.token_security_batch(*chain_id, &addrs).await?;
 
@@ -239,12 +263,20 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
 
             for (addr, security) in &results {
                 let symbol = security.token_symbol.as_deref().unwrap_or("???");
-                let honeypot = if security.is_honeypot() { "YES ⚠️" } else { "No" };
+                let honeypot = if security.is_honeypot() {
+                    "YES ⚠️"
+                } else {
+                    "No"
+                };
                 let sell_tax = security
                     .sell_tax_percent()
                     .map(|t| format!("{:.1}%", t))
                     .unwrap_or_else(|| "-".to_string());
-                let verified = if security.is_verified() { "Yes" } else { "No ⚠️" };
+                let verified = if security.is_verified() {
+                    "Yes"
+                } else {
+                    "No ⚠️"
+                };
 
                 println!(
                     "{:<44} {:<10} {:<10} {:<10} {:<10}",
@@ -253,7 +285,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             }
         }
 
-        GoPlusCommands::Address { address, chain_id, format } => {
+        GoPlusCommands::Address {
+            address,
+            chain_id,
+            format,
+        } => {
             let security = client.address_security(*chain_id, address).await?;
 
             if matches!(format, OutputFormat::Json) {
@@ -287,7 +323,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             }
         }
 
-        GoPlusCommands::Nft { address, chain_id, format } => {
+        GoPlusCommands::Nft {
+            address,
+            chain_id,
+            format,
+        } => {
             let security = client.nft_security(*chain_id, address).await?;
 
             if matches!(format, OutputFormat::Json) {
@@ -312,15 +352,27 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
 
             println!(
                 "Verified:      {}",
-                if security.is_verified() { "Yes ✓" } else { "No ⚠️" }
+                if security.is_verified() {
+                    "Yes ✓"
+                } else {
+                    "No ⚠️"
+                }
             );
             println!(
                 "Open Source:   {}",
-                if security.is_open_source() { "Yes" } else { "No ⚠️" }
+                if security.is_open_source() {
+                    "Yes"
+                } else {
+                    "No ⚠️"
+                }
             );
             println!(
                 "Honeypot:      {}",
-                if security.is_honeypot() { "Yes ⚠️" } else { "No ✓" }
+                if security.is_honeypot() {
+                    "Yes ⚠️"
+                } else {
+                    "No ✓"
+                }
             );
             println!();
 
@@ -348,7 +400,11 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             }
         }
 
-        GoPlusCommands::Approval { address, chain_id, format } => {
+        GoPlusCommands::Approval {
+            address,
+            chain_id,
+            format,
+        } => {
             let security = client.approval_security(*chain_id, address).await?;
 
             if matches!(format, OutputFormat::Json) {

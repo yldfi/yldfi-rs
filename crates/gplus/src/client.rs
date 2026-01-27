@@ -32,7 +32,7 @@ pub struct RateLimitInfo {
 
 impl RateLimitInfo {
     /// Check if we're close to hitting the rate limit (< 10% remaining)
-    #[must_use] 
+    #[must_use]
     pub fn is_near_limit(&self) -> bool {
         match (self.remaining, self.limit) {
             (Some(remaining), Some(limit)) if limit > 0 => {
@@ -43,7 +43,7 @@ impl RateLimitInfo {
     }
 
     /// Check if rate limit is exhausted
-    #[must_use] 
+    #[must_use]
     pub fn is_exhausted(&self) -> bool {
         self.remaining == Some(0)
     }
@@ -108,7 +108,7 @@ impl Default for Config {
 
 impl Config {
     /// Create a new config without authentication (limited access)
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             credentials: None,
@@ -199,7 +199,7 @@ impl Client {
     }
 
     /// Check if client has authentication configured
-    #[must_use] 
+    #[must_use]
     pub fn is_authenticated(&self) -> bool {
         self.credentials.is_some()
     }
@@ -291,7 +291,9 @@ impl Client {
         }
 
         let body: TokenResponse = response.json().await?;
-        let data = body.result.ok_or_else(|| Error::api(401, "No token in response"))?;
+        let data = body
+            .result
+            .ok_or_else(|| Error::api(401, "No token in response"))?;
 
         // Cache the token
         {
@@ -457,9 +459,7 @@ impl Client {
             .collect::<Vec<_>>()
             .join(",");
 
-        let path = format!(
-            "/token_security/{chain_id}?contract_addresses={addresses_str}"
-        );
+        let path = format!("/token_security/{chain_id}?contract_addresses={addresses_str}");
 
         let body: Response<TokenSecurityResponse> = self.get(&path).await?;
 
@@ -517,11 +517,13 @@ impl Client {
     /// # Arguments
     /// * `chain_id` - The chain ID
     /// * `address` - The contract address to check approvals for
-    pub async fn approval_security(&self, chain_id: u64, address: &str) -> Result<ApprovalSecurity> {
+    pub async fn approval_security(
+        &self,
+        chain_id: u64,
+        address: &str,
+    ) -> Result<ApprovalSecurity> {
         let address = address.to_lowercase();
-        let path = format!(
-            "/approval_security/{chain_id}?contract_addresses={address}"
-        );
+        let path = format!("/approval_security/{chain_id}?contract_addresses={address}");
 
         let body: Response<ApprovalSecurity> = self.get(&path).await?;
 
@@ -539,23 +541,22 @@ mod tests {
 
     #[test]
     fn test_url_construction() {
-        let client = Client::with_config(
-            Config::new().with_base_url("http://127.0.0.1:63762"),
-        )
-        .unwrap();
+        let client =
+            Client::with_config(Config::new().with_base_url("http://127.0.0.1:63762")).unwrap();
         let path = "/token_security/1?contract_addresses=0xtest";
         let url = client.build_url(path);
         println!("URL: {}", url);
-        assert_eq!(url, "http://127.0.0.1:63762/token_security/1?contract_addresses=0xtest");
+        assert_eq!(
+            url,
+            "http://127.0.0.1:63762/token_security/1?contract_addresses=0xtest"
+        );
         assert!(!url.contains("//token"), "URL has double slash: {}", url);
     }
 
     #[test]
     fn test_url_construction_with_trailing_slash() {
-        let client = Client::with_config(
-            Config::new().with_base_url("http://127.0.0.1:63762/"),
-        )
-        .unwrap();
+        let client =
+            Client::with_config(Config::new().with_base_url("http://127.0.0.1:63762/")).unwrap();
         let url = client.build_url("/token_security/1");
         assert!(!url.contains("//token"), "URL has double slash: {}", url);
         assert_eq!(url, "http://127.0.0.1:63762/token_security/1");

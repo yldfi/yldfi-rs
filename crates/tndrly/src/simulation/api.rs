@@ -1,6 +1,9 @@
 //! Simulation API operations
 
-use super::types::{SimulationRequest, SimulationResponse, BundleSimulationRequest, BundleSimulationResponse, SimulationListResponse};
+use super::types::{
+    BundleSimulationRequest, BundleSimulationResponse, SimulationListResponse, SimulationRequest,
+    SimulationResponse,
+};
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
 
@@ -11,7 +14,7 @@ pub struct SimulationApi<'a> {
 
 impl<'a> SimulationApi<'a> {
     /// Create a new simulation API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

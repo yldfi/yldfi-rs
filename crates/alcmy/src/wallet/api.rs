@@ -1,6 +1,11 @@
 //! Wallet API implementation
 
-use super::types::{RequestAccountParams, AccountResponse, ListAccountsResponse, PrepareCallsRequest, PreparedCallsResponse, SendPreparedCallsRequest, SendPreparedCallsResponse, CallsStatusResponse, WalletCapabilities, CreateSessionRequest, CreateSessionResponse, Signature, SignatureRequest};
+use super::types::{
+    AccountResponse, CallsStatusResponse, CreateSessionRequest, CreateSessionResponse,
+    ListAccountsResponse, PrepareCallsRequest, PreparedCallsResponse, RequestAccountParams,
+    SendPreparedCallsRequest, SendPreparedCallsResponse, Signature, SignatureRequest,
+    WalletCapabilities,
+};
 use crate::client::Client;
 use crate::error::Result;
 

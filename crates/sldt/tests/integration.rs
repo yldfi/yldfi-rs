@@ -63,9 +63,7 @@ fn test_search_filter_builder() {
 
 #[test]
 fn test_search_filter_sort_options() {
-    let filter = SearchFilter::new("test")
-        .sort_by_quality()
-        .ascending();
+    let filter = SearchFilter::new("test").sort_by_quality().ascending();
 
     assert_eq!(filter.sort_field.as_str(), "Quality");
     assert_eq!(filter.sort_direction.as_str(), "Asc");
@@ -104,9 +102,7 @@ fn test_search_filter_with_user_constraints() {
 
 #[test]
 fn test_search_filter_with_quality_scores() {
-    let filter = SearchFilter::new("test")
-        .min_quality(3)
-        .min_rarity(2);
+    let filter = SearchFilter::new("test").min_quality(3).min_rarity(2);
 
     assert_eq!(filter.quality_score, Some(3));
     assert_eq!(filter.rarity_score, Some(2));

@@ -1,6 +1,8 @@
 //! Discovery API client
 
-use super::types::{DiscoveryResponse, TokenAnalytics, TokenScore, DiscoveryFilter, DiscoveredToken};
+use super::types::{
+    DiscoveredToken, DiscoveryFilter, DiscoveryResponse, TokenAnalytics, TokenScore,
+};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -17,7 +19,7 @@ pub struct DiscoveryQuery {
 }
 
 impl DiscoveryQuery {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -47,7 +49,7 @@ pub struct DiscoveryApi<'a> {
 }
 
 impl<'a> DiscoveryApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

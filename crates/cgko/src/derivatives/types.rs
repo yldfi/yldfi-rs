@@ -105,26 +105,26 @@ pub struct DerivativesOptions {
 }
 
 impl DerivativesOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn all_tickers() -> Self {
         Self {
             include_tickers: Some("all".to_string()),
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn unexpired_tickers() -> Self {
         Self {
             include_tickers: Some("unexpired".to_string()),
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         match &self.include_tickers {
             Some(t) => format!("?include_tickers={t}"),
@@ -142,12 +142,12 @@ pub struct DerivativeExchangesOptions {
 }
 
 impl DerivativeExchangesOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref o) = self.order {
