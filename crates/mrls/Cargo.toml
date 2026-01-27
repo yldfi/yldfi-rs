@@ -1,6 +1,6 @@
 [package]
 name = "mrls"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "Unofficial Rust client for the Moralis Web3 API - tokens, NFTs, wallets, DeFi, and market data"
 license = "MIT"

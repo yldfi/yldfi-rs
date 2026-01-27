@@ -1,6 +1,6 @@
 [package]
 name = "crv"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Unofficial Rust client for the Curve Finance API - pools, volumes, gauges, and lending"
 license = "MIT"

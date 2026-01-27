@@ -1,6 +1,6 @@
 [package]
 name = "alcmy"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "Unofficial Rust client for the Alchemy API"
 license = "MIT"

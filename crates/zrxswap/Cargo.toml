@@ -1,6 +1,6 @@
 [package]
 name = "zrxswap"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Unofficial Rust client for the 0x DEX aggregator API (zrxswap)"
 license = "MIT"
