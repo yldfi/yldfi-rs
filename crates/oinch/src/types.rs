@@ -375,7 +375,7 @@ pub struct QuoteResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolInfo {
-    /// Protocol name (e.g., "UNISWAP_V3")
+    /// Protocol name (e.g., "`UNISWAP_V3`")
     pub name: String,
     /// Percentage of the swap going through this protocol (0-100)
     pub part: f64,
@@ -387,7 +387,7 @@ pub struct ProtocolInfo {
 
 /// Swap request parameters for GET /swap
 ///
-/// Extends QuoteRequest with additional parameters needed for swap execution.
+/// Extends `QuoteRequest` with additional parameters needed for swap execution.
 #[derive(Debug, Clone, Default)]
 pub struct SwapRequest {
     /// Source token address (required)
@@ -448,7 +448,7 @@ impl SwapRequest {
         }
     }
 
-    /// Create from a QuoteRequest with additional swap parameters
+    /// Create from a `QuoteRequest` with additional swap parameters
     #[must_use]
     pub fn from_quote(quote: QuoteRequest, from: impl Into<String>, slippage: f64) -> Self {
         Self {

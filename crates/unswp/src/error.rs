@@ -66,6 +66,7 @@ pub fn invalid_token_address(address: impl Into<String>) -> Error {
 }
 
 /// Create a subgraph key required error
+#[must_use] 
 pub fn subgraph_key_required() -> Error {
     ApiError::domain(DomainError::SubgraphKeyRequired)
 }

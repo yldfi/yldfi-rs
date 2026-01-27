@@ -1,6 +1,6 @@
 //! Utils/Contract API client
 
-use super::types::*;
+use super::types::{RunContractFunctionRequest, Web3Version, EndpointWeight, GetContractEventsRequest, ContractEventsResponse, ContractReviewRequest, ContractReview};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -23,6 +23,7 @@ pub struct UtilsQuery {
 }
 
 impl UtilsQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -70,6 +71,7 @@ pub struct UtilsApi<'a> {
 }
 
 impl<'a> UtilsApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -81,7 +83,7 @@ impl<'a> UtilsApi<'a> {
         request: &RunContractFunctionRequest,
         query: Option<&UtilsQuery>,
     ) -> Result<serde_json::Value> {
-        let path = format!("/{}/function", address);
+        let path = format!("/{address}/function");
         if let Some(q) = query {
             self.client.post_with_query(&path, request, q).await
         } else {
@@ -106,7 +108,7 @@ impl<'a> UtilsApi<'a> {
         request: &GetContractEventsRequest,
         query: Option<&UtilsQuery>,
     ) -> Result<ContractEventsResponse> {
-        let path = format!("/{}/events", address);
+        let path = format!("/{address}/events");
         if let Some(q) = query {
             self.client.post_with_query(&path, request, q).await
         } else {
@@ -120,7 +122,7 @@ impl<'a> UtilsApi<'a> {
         address: &str,
         query: Option<&UtilsQuery>,
     ) -> Result<ContractEventsResponse> {
-        let path = format!("/{}/logs", address);
+        let path = format!("/{address}/logs");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {

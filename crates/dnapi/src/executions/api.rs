@@ -1,6 +1,6 @@
 //! Executions API implementation
 
-use super::types::*;
+use super::types::{ExecuteQueryResponse, ExecuteQueryRequest, ExecuteSqlRequest, ExecutionStatus, ExecutionResult, GetResultsOptions, CancelExecutionResponse};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 use std::time::Duration;
@@ -34,7 +34,7 @@ impl<'a> ExecutionsApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else if response.status() == 402 {
             Err(error::insufficient_credits())
         } else if response.status() == 429 {
@@ -76,7 +76,7 @@ impl<'a> ExecutionsApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Execution {}", execution_id)))
+            Err(error::not_found(format!("Execution {execution_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -107,7 +107,7 @@ impl<'a> ExecutionsApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Execution {}", execution_id)))
+            Err(error::not_found(format!("Execution {execution_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -138,7 +138,7 @@ impl<'a> ExecutionsApi<'a> {
         if response.status().is_success() {
             Ok(response.text().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Execution {}", execution_id)))
+            Err(error::not_found(format!("Execution {execution_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -158,7 +158,7 @@ impl<'a> ExecutionsApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Execution {}", execution_id)))
+            Err(error::not_found(format!("Execution {execution_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -189,7 +189,7 @@ impl<'a> ExecutionsApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -220,7 +220,7 @@ impl<'a> ExecutionsApi<'a> {
         if response.status().is_success() {
             Ok(response.text().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();

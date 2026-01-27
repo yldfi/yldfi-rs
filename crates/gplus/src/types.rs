@@ -1,9 +1,9 @@
-//! Types for GoPlus Security API responses
+//! Types for `GoPlus` Security API responses
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// GoPlus API response wrapper
+/// `GoPlus` API response wrapper
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Response<T> {
     /// Response code (1 = success)
@@ -74,7 +74,7 @@ pub struct FakeToken {
     pub value: Option<i32>,
 }
 
-/// Token security information from GoPlus API
+/// Token security information from `GoPlus` API
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct TokenSecurity {
     // === Basic Info ===
@@ -221,71 +221,85 @@ impl TokenSecurity {
     }
 
     /// Check if token is a honeypot
+    #[must_use] 
     pub fn is_honeypot(&self) -> bool {
         Self::parse_bool(self.is_honeypot.as_ref())
     }
 
     /// Check if contract is verified/open source
+    #[must_use] 
     pub fn is_verified(&self) -> bool {
         Self::parse_bool(self.is_open_source.as_ref())
     }
 
     /// Check if contract is a proxy
+    #[must_use] 
     pub fn is_proxy(&self) -> bool {
         Self::parse_bool(self.is_proxy.as_ref())
     }
 
     /// Check if token is mintable
+    #[must_use] 
     pub fn is_mintable(&self) -> bool {
         Self::parse_bool(self.is_mintable.as_ref())
     }
 
     /// Check if transfers can be paused
+    #[must_use] 
     pub fn is_transfer_pausable(&self) -> bool {
         Self::parse_bool(self.transfer_pausable.as_ref())
     }
 
     /// Check if owner can blacklist addresses
+    #[must_use] 
     pub fn can_blacklist(&self) -> bool {
         Self::parse_bool(self.is_blacklisted.as_ref())
     }
 
     /// Check if there's a hidden owner
+    #[must_use] 
     pub fn has_hidden_owner(&self) -> bool {
         Self::parse_bool(self.hidden_owner.as_ref())
     }
 
     /// Check if anti-whale mechanism exists
+    #[must_use] 
     pub fn has_anti_whale(&self) -> bool {
         Self::parse_bool(self.is_anti_whale.as_ref())
     }
 
     /// Check if owner can change balances
+    #[must_use] 
     pub fn owner_can_change_balance(&self) -> bool {
         Self::parse_bool(self.owner_change_balance.as_ref())
     }
 
     /// Check if it's an airdrop scam
+    #[must_use] 
     pub fn is_airdrop_scam(&self) -> bool {
         Self::parse_bool(self.is_airdrop_scam.as_ref())
     }
 
     /// Get buy tax as percentage (0-100)
+    #[must_use] 
     pub fn buy_tax_percent(&self) -> Option<f64> {
         Self::parse_percent(self.buy_tax.as_ref())
     }
 
     /// Get sell tax as percentage (0-100)
+    #[must_use] 
     pub fn sell_tax_percent(&self) -> Option<f64> {
         Self::parse_percent(self.sell_tax.as_ref())
     }
 
     /// Check if sell tax is high (> 10%)
+    #[must_use] 
     pub fn has_high_sell_tax(&self) -> bool {
         self.sell_tax_percent().is_some_and(|t| t > 10.0)
     }
 
     /// Check if owner is renounced (address is zero)
+    #[must_use] 
     pub fn is_owner_renounced(&self) -> bool {
         self.owner_address
             .as_ref()
@@ -293,6 +307,7 @@ impl TokenSecurity {
     }
 
     /// Check if token has any major red flags
+    #[must_use] 
     pub fn has_major_risks(&self) -> bool {
         self.is_honeypot()
             || self.has_high_sell_tax()
@@ -302,6 +317,7 @@ impl TokenSecurity {
     }
 
     /// Get list of detected issues
+    #[must_use] 
     pub fn get_issues(&self) -> Vec<String> {
         let mut issues = Vec::new();
 
@@ -366,11 +382,13 @@ pub enum Chain {
 
 impl Chain {
     /// Get chain ID
+    #[must_use] 
     pub fn id(&self) -> u64 {
         *self as u64
     }
 
     /// Try to create from chain ID
+    #[must_use] 
     pub fn from_id(id: u64) -> Option<Self> {
         match id {
             1 => Some(Self::Ethereum),
@@ -394,6 +412,7 @@ impl Chain {
     }
 
     /// Check if chain ID is supported
+    #[must_use] 
     pub fn is_supported(id: u64) -> bool {
         Self::from_id(id).is_some()
     }
@@ -462,6 +481,7 @@ impl AddressSecurity {
     }
 
     /// Check if address is flagged as malicious
+    #[must_use] 
     pub fn is_malicious(&self) -> bool {
         Self::parse_bool(self.cybercrime.as_ref())
             || Self::parse_bool(self.money_laundering.as_ref())
@@ -473,6 +493,7 @@ impl AddressSecurity {
     }
 
     /// Get list of detected issues
+    #[must_use] 
     pub fn get_issues(&self) -> Vec<String> {
         let mut issues = Vec::new();
         if Self::parse_bool(self.cybercrime.as_ref()) {
@@ -607,26 +628,31 @@ pub struct NftSecurity {
 
 impl NftSecurity {
     /// Check if NFT is verified
+    #[must_use] 
     pub fn is_verified(&self) -> bool {
         self.nft_verified == Some(1)
     }
 
     /// Check if NFT contract is open source
+    #[must_use] 
     pub fn is_open_source(&self) -> bool {
         self.nft_open_source == Some(1)
     }
 
     /// Check if NFT is a malicious contract
+    #[must_use] 
     pub fn is_malicious(&self) -> bool {
         self.malicious_nft_contract == Some(1)
     }
 
-    /// Check if NFT is a honeypot (uses malicious_nft_contract flag)
+    /// Check if NFT is a honeypot (uses `malicious_nft_contract` flag)
+    #[must_use] 
     pub fn is_honeypot(&self) -> bool {
         self.is_malicious()
     }
 
     /// Check if has privileged burn capability
+    #[must_use] 
     pub fn has_privileged_burn(&self) -> bool {
         self.privileged_burn
             .as_ref()
@@ -634,6 +660,7 @@ impl NftSecurity {
     }
 
     /// Check if has privileged minting capability
+    #[must_use] 
     pub fn has_privileged_minting(&self) -> bool {
         self.privileged_minting
             .as_ref()
@@ -641,6 +668,7 @@ impl NftSecurity {
     }
 
     /// Check if has self destruct capability
+    #[must_use] 
     pub fn has_self_destruct(&self) -> bool {
         self.self_destruct
             .as_ref()
@@ -648,6 +676,7 @@ impl NftSecurity {
     }
 
     /// Check if NFT has risks
+    #[must_use] 
     pub fn has_risks(&self) -> bool {
         self.is_malicious()
             || self.has_privileged_burn()
@@ -713,7 +742,7 @@ pub struct ApprovalSecurity {
     pub doubt_list: Option<i32>,
     /// Malicious behavior
     pub malicious_behavior: Option<Vec<String>>,
-    /// Tag (e.g., "Fake_Phishing")
+    /// Tag (e.g., "`Fake_Phishing`")
     pub tag: Option<String>,
     /// Contract scan results
     pub contract_scan: Option<ContractScan>,
@@ -723,6 +752,7 @@ pub struct ApprovalSecurity {
 
 impl ApprovalSecurity {
     /// Check if contract is malicious
+    #[must_use] 
     pub fn is_malicious(&self) -> bool {
         self.doubt_list == Some(1)
             || self
@@ -733,11 +763,13 @@ impl ApprovalSecurity {
     }
 
     /// Check if contract is trusted
+    #[must_use] 
     pub fn is_trusted(&self) -> bool {
         self.trust_list == Some(1)
     }
 
     /// Check if contract is on doubt list
+    #[must_use] 
     pub fn is_doubtful(&self) -> bool {
         self.doubt_list == Some(1)
     }

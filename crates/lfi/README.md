@@ -60,6 +60,14 @@ lfi = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [LI.FI Terms and Conditions](https://li.fi/legal/terms/).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by LI.FI.
+
 ## License
 
 MIT

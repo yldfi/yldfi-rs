@@ -1,6 +1,6 @@
 //! NFT API client
 
-use super::types::*;
+use super::types::{NftResponse, Nft, NftTransfer, NftCollection, NftOwner, NftCollectionStats, NftFloorPrice, NftTrade, NftTrait, GetMultipleNftsRequest, NftsByTraitsRequest, HistoricalFloorPrice, NftSyncStatus, GetMultipleCollectionsRequest, TraitResyncStatus, NftSalePrice};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -25,6 +25,7 @@ pub struct NftQuery {
 }
 
 impl NftQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -60,6 +61,7 @@ pub struct NftApi<'a> {
 }
 
 impl<'a> NftApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -70,7 +72,7 @@ impl<'a> NftApi<'a> {
         address: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<Nft>> {
-        let path = format!("/{}/nft", address);
+        let path = format!("/{address}/nft");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -84,7 +86,7 @@ impl<'a> NftApi<'a> {
         address: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftTransfer>> {
-        let path = format!("/{}/nft/transfers", address);
+        let path = format!("/{address}/nft/transfers");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -98,7 +100,7 @@ impl<'a> NftApi<'a> {
         address: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftCollection>> {
-        let path = format!("/{}/nft/collections", address);
+        let path = format!("/{address}/nft/collections");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -112,7 +114,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftTransfer>> {
-        let path = format!("/nft/{}/transfers", contract);
+        let path = format!("/nft/{contract}/transfers");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -127,7 +129,7 @@ impl<'a> NftApi<'a> {
         token_id: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftTransfer>> {
-        let path = format!("/nft/{}/{}/transfers", contract, token_id);
+        let path = format!("/nft/{contract}/{token_id}/transfers");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -141,7 +143,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         chain: Option<&str>,
     ) -> Result<NftCollection> {
-        let path = format!("/nft/{}/metadata", contract);
+        let path = format!("/nft/{contract}/metadata");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -156,7 +158,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftOwner>> {
-        let path = format!("/nft/{}/owners", contract);
+        let path = format!("/nft/{contract}/owners");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -171,7 +173,7 @@ impl<'a> NftApi<'a> {
         token_id: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftOwner>> {
-        let path = format!("/nft/{}/{}/owners", contract, token_id);
+        let path = format!("/nft/{contract}/{token_id}/owners");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -186,7 +188,7 @@ impl<'a> NftApi<'a> {
         token_id: &str,
         chain: Option<&str>,
     ) -> Result<Nft> {
-        let path = format!("/nft/{}/{}", contract, token_id);
+        let path = format!("/nft/{contract}/{token_id}");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -201,7 +203,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         chain: Option<&str>,
     ) -> Result<NftCollectionStats> {
-        let path = format!("/nft/{}/stats", contract);
+        let path = format!("/nft/{contract}/stats");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -216,7 +218,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         chain: Option<&str>,
     ) -> Result<NftFloorPrice> {
-        let path = format!("/nft/{}/floor-price", contract);
+        let path = format!("/nft/{contract}/floor-price");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -232,7 +234,7 @@ impl<'a> NftApi<'a> {
         token_id: &str,
         chain: Option<&str>,
     ) -> Result<NftFloorPrice> {
-        let path = format!("/nft/{}/{}/floor-price", contract, token_id);
+        let path = format!("/nft/{contract}/{token_id}/floor-price");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -247,7 +249,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftTrade>> {
-        let path = format!("/nft/{}/trades", contract);
+        let path = format!("/nft/{contract}/trades");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -262,7 +264,7 @@ impl<'a> NftApi<'a> {
         token_id: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftTrade>> {
-        let path = format!("/nft/{}/{}/trades", contract, token_id);
+        let path = format!("/nft/{contract}/{token_id}/trades");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -276,7 +278,7 @@ impl<'a> NftApi<'a> {
         address: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftTrade>> {
-        let path = format!("/wallets/{}/nfts/trades", address);
+        let path = format!("/wallets/{address}/nfts/trades");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -290,7 +292,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         chain: Option<&str>,
     ) -> Result<Vec<NftTrait>> {
-        let path = format!("/nft/{}/traits", contract);
+        let path = format!("/nft/{contract}/traits");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -305,7 +307,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftTrait>> {
-        let path = format!("/nft/{}/traits/paginate", contract);
+        let path = format!("/nft/{contract}/traits/paginate");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -319,7 +321,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         chain: Option<&str>,
     ) -> Result<serde_json::Value> {
-        let path = format!("/nft/{}/unique-owners", contract);
+        let path = format!("/nft/{contract}/unique-owners");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -335,7 +337,7 @@ impl<'a> NftApi<'a> {
         token_id: &str,
         chain: Option<&str>,
     ) -> Result<serde_json::Value> {
-        let path = format!("/nft/{}/{}/metadata/resync", contract, token_id);
+        let path = format!("/nft/{contract}/{token_id}/metadata/resync");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -367,7 +369,7 @@ impl<'a> NftApi<'a> {
         request: &NftsByTraitsRequest,
         chain: Option<&str>,
     ) -> Result<NftResponse<Nft>> {
-        let path = format!("/nft/{}/nfts-by-traits", contract);
+        let path = format!("/nft/{contract}/nfts-by-traits");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.post_with_query(&path, request, &query).await
@@ -382,7 +384,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         chain: Option<&str>,
     ) -> Result<Vec<HistoricalFloorPrice>> {
-        let path = format!("/nft/{}/floor-price/historical", contract);
+        let path = format!("/nft/{contract}/floor-price/historical");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -399,9 +401,9 @@ impl<'a> NftApi<'a> {
     ) -> Result<NftSyncStatus> {
         let body = serde_json::json!({});
         let path = if let Some(c) = chain {
-            format!("/nft/{}/sync?chain={}", contract, c)
+            format!("/nft/{contract}/sync?chain={c}")
         } else {
-            format!("/nft/{}/sync", contract)
+            format!("/nft/{contract}/sync")
         };
         self.client.put(&path, &body).await
     }
@@ -412,7 +414,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<Nft>> {
-        let path = format!("/nft/{}", contract);
+        let path = format!("/nft/{contract}");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -442,7 +444,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         chain: Option<&str>,
     ) -> Result<TraitResyncStatus> {
-        let path = format!("/nft/{}/traits/resync", contract);
+        let path = format!("/nft/{contract}/traits/resync");
         if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -457,7 +459,7 @@ impl<'a> NftApi<'a> {
         contract: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftSalePrice>> {
-        let path = format!("/nft/{}/price", contract);
+        let path = format!("/nft/{contract}/price");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -472,7 +474,7 @@ impl<'a> NftApi<'a> {
         token_id: &str,
         query: Option<&NftQuery>,
     ) -> Result<NftResponse<NftSalePrice>> {
-        let path = format!("/nft/{}/{}/price", contract, token_id);
+        let path = format!("/nft/{contract}/{token_id}/price");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {

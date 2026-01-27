@@ -1,14 +1,14 @@
-//! Virtual TestNets API
+//! Virtual `TestNets` API
 //!
-//! Create and manage Virtual TestNets - isolated blockchain environments
+//! Create and manage Virtual `TestNets` - isolated blockchain environments
 //! that fork from mainnet or other networks for development and testing.
 //!
 //! # Features
 //!
-//! - Create VNets forked from any EVM network at any block
+//! - Create `VNets` forked from any EVM network at any block
 //! - Infinite faucet for test accounts
 //! - State sync with parent network
-//! - Fork VNets from other VNets
+//! - Fork `VNets` from other `VNets`
 //! - CI/CD integration with bulk operations
 //! - Admin RPC for state manipulation (time warping, balance setting, snapshots)
 //!

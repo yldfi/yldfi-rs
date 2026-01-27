@@ -62,6 +62,14 @@ zrxswap = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [0x Terms of Service](https://0x.org/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by 0x Labs.
+
 ## License
 
 MIT

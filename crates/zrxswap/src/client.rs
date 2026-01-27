@@ -316,7 +316,7 @@ impl Client {
     /// # Arguments
     ///
     /// * `chain` - The blockchain to get the price for
-    /// * `request` - Price request parameters (same as QuoteRequest)
+    /// * `request` - Price request parameters (same as `QuoteRequest`)
     ///
     /// # Example
     ///

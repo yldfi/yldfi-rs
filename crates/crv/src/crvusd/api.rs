@@ -10,6 +10,7 @@ pub struct CrvUsdApi<'a> {
 
 impl<'a> CrvUsdApi<'a> {
     /// Create a new crvUSD API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

@@ -98,6 +98,7 @@ pub enum HistoricalInterval {
 }
 
 impl HistoricalInterval {
+    #[must_use] 
     pub fn as_str(&self) -> &'static str {
         match self {
             HistoricalInterval::FiveMinutes => "5m",

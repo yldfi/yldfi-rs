@@ -38,17 +38,19 @@ pub struct TokenHoldersOptions {
 }
 
 impl TokenHoldersOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {
-            params.push(format!("limit={}", limit));
+            params.push(format!("limit={limit}"));
         }
         if let Some(ref offset) = self.offset {
-            params.push(format!("offset={}", offset));
+            params.push(format!("offset={offset}"));
         }
         if params.is_empty() {
             String::new()

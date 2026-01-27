@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{BridgesResponse, ListBridgesOptions, BridgeDetail, ChainBridgeVolume, DailyBridgeStats, BridgeTransactionsResponse, TransactionsOptions};
 
 /// Bridges API client (Pro only)
 pub struct BridgesApi<'a> {
@@ -12,6 +12,7 @@ pub struct BridgesApi<'a> {
 
 impl<'a> BridgesApi<'a> {
     /// Create a new Bridges API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -43,7 +44,7 @@ impl<'a> BridgesApi<'a> {
     ///
     /// * `id` - Bridge ID
     pub async fn get(&self, id: u64) -> Result<BridgeDetail> {
-        let path = format!("/bridges/bridge/{}", id);
+        let path = format!("/bridges/bridge/{id}");
         self.client.get_pro(&path).await
     }
 
@@ -55,7 +56,7 @@ impl<'a> BridgesApi<'a> {
     ///
     /// * `chain` - Chain name (e.g., "Ethereum", "Arbitrum")
     pub async fn chain_volume(&self, chain: &str) -> Result<ChainBridgeVolume> {
-        let path = format!("/bridges/bridgevolume/{}", chain);
+        let path = format!("/bridges/bridgevolume/{chain}");
         self.client.get_pro(&path).await
     }
 
@@ -68,7 +69,7 @@ impl<'a> BridgesApi<'a> {
     /// * `timestamp` - Unix timestamp for the day
     /// * `chain` - Chain name
     pub async fn daily_stats(&self, timestamp: u64, chain: &str) -> Result<DailyBridgeStats> {
-        let path = format!("/bridges/bridgedaystats/{}/{}", timestamp, chain);
+        let path = format!("/bridges/bridgedaystats/{timestamp}/{chain}");
         self.client.get_pro(&path).await
     }
 
@@ -80,7 +81,7 @@ impl<'a> BridgesApi<'a> {
     ///
     /// * `id` - Bridge ID
     pub async fn transactions(&self, id: u64) -> Result<BridgeTransactionsResponse> {
-        let path = format!("/bridges/transactions/{}", id);
+        let path = format!("/bridges/transactions/{id}");
         self.client.get_pro(&path).await
     }
 

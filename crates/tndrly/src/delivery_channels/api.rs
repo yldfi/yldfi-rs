@@ -1,6 +1,6 @@
 //! Delivery Channels API operations
 
-use super::types::*;
+use super::types::{ListDeliveryChannelsResponse, DeliveryChannel};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -11,6 +11,7 @@ pub struct DeliveryChannelsApi<'a> {
 
 impl<'a> DeliveryChannelsApi<'a> {
     /// Create a new Delivery Channels API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

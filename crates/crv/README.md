@@ -157,6 +157,14 @@ async fn main() -> Result<(), crv::Error> {
 }
 ```
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Curve Finance Terms of Use](https://curve.fi/#/ethereum/terms-of-use).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Curve Finance.
+
 ## License
 
 MIT

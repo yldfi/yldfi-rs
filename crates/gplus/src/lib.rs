@@ -1,8 +1,8 @@
 //! # gplus
 //!
-//! Unofficial Rust client for the GoPlus Security API.
+//! Unofficial Rust client for the `GoPlus` Security API.
 //!
-//! GoPlus provides real-time token security analysis including honeypot detection,
+//! `GoPlus` provides real-time token security analysis including honeypot detection,
 //! tax analysis, ownership checks, and more.
 //!
 //! ## Quick Start
@@ -66,18 +66,19 @@ pub use types::{
     AddressSecurity, ApprovalSecurity, Chain, NftSecurity, TokenSecurity, TokenSecurityResponse,
 };
 
-/// Create a new GoPlus client without authentication (limited access)
+/// Create a new `GoPlus` client without authentication (limited access)
 pub fn new_client() -> Result<Client> {
     Client::new()
 }
 
-/// Create a new GoPlus client from environment variables
+/// Create a new `GoPlus` client from environment variables
 /// Uses `GOPLUS_APP_KEY` and `GOPLUS_APP_SECRET`
 pub fn client_from_env() -> Result<Client> {
     Client::from_env()
 }
 
-/// Check if a chain ID is supported by GoPlus
+/// Check if a chain ID is supported by `GoPlus`
+#[must_use] 
 pub fn is_chain_supported(chain_id: u64) -> bool {
     Chain::is_supported(chain_id)
 }

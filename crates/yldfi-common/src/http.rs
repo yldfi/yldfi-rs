@@ -138,6 +138,7 @@ impl Default for HttpClientConfig {
 
 impl HttpClientConfig {
     /// Create a new config with default settings
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -216,7 +217,7 @@ pub fn build_client(config: &HttpClientConfig) -> Result<Client, HttpError> {
             config.timeout,
             config.pool_idle_timeout,
             config.pool_max_idle_per_host,
-            config.proxy.as_ref().map(|p| redact_proxy_url(p)).unwrap_or_else(|| "none".to_string()),
+            config.proxy.as_ref().map_or_else(|| "none".to_string(), |p| redact_proxy_url(p)),
             e
         ))
     })

@@ -217,29 +217,31 @@ pub struct MarketsOptions {
 }
 
 impl MarketsOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref o) = self.order {
-            params.push(format!("order={}", o));
+            params.push(format!("order={o}"));
         }
         if let Some(pp) = self.per_page {
-            params.push(format!("per_page={}", pp));
+            params.push(format!("per_page={pp}"));
         }
         if let Some(p) = self.page {
-            params.push(format!("page={}", p));
+            params.push(format!("page={p}"));
         }
         if self.sparkline {
             params.push("sparkline=true".to_string());
         }
         if let Some(ref pcp) = self.price_change_percentage {
-            params.push(format!("price_change_percentage={}", pcp));
+            params.push(format!("price_change_percentage={pcp}"));
         }
         if let Some(ref c) = self.category {
-            params.push(format!("category={}", c));
+            params.push(format!("category={c}"));
         }
         if params.is_empty() {
             String::new()

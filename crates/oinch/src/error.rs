@@ -52,11 +52,13 @@ pub fn unsupported_chain(chain: impl Into<String>) -> Error {
 }
 
 /// Create a no route found error
+#[must_use] 
 pub fn no_route_found() -> Error {
     ApiError::domain(DomainError::NoRouteFound)
 }
 
 /// Create an insufficient liquidity error
+#[must_use] 
 pub fn insufficient_liquidity() -> Error {
     ApiError::domain(DomainError::InsufficientLiquidity)
 }
@@ -67,6 +69,7 @@ pub fn token_not_found(token: impl Into<String>) -> Error {
 }
 
 /// Create a missing API key error
+#[must_use] 
 pub fn missing_api_key() -> Error {
     ApiError::domain(DomainError::MissingApiKey)
 }
@@ -75,6 +78,7 @@ pub fn missing_api_key() -> Error {
 ///
 /// This function includes special handling for 1inch-specific error messages
 /// that indicate insufficient liquidity or no route found.
+#[must_use] 
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
     // Check for 1inch-specific error patterns
     if status == 400 {

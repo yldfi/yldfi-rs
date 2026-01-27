@@ -65,6 +65,7 @@ const MAX_ERROR_BODY_LENGTH: usize = 500;
 /// - Handles query strings properly
 ///
 /// Falls back to simple concatenation if URL parsing fails.
+#[must_use] 
 pub fn join_url(base: &str, path: &str) -> String {
     // Try to use url::Url::parse for validation and proper handling
     if let Ok(base_url) = url::Url::parse(base) {
@@ -81,16 +82,16 @@ pub fn join_url(base: &str, path: &str) -> String {
         } else {
             // Manually append path with proper separator
             let base_str = base.trim_end_matches('/');
-            return format!("{}/{}", base_str, path_to_join);
+            return format!("{base_str}/{path_to_join}");
         }
     }
 
     // Fallback to simple concatenation
     let base_str = base.trim_end_matches('/');
     if path.starts_with('/') {
-        format!("{}{}", base_str, path)
+        format!("{base_str}{path}")
     } else {
-        format!("{}/{}", base_str, path)
+        format!("{base_str}/{path}")
     }
 }
 
@@ -111,6 +112,7 @@ pub fn join_url(base: &str, path: &str) -> String {
 /// 3. Redacts hex-encoded private keys
 ///
 /// Use this to sanitize error messages before logging or displaying them.
+#[must_use] 
 pub fn sanitize_error_body(body: &str) -> String {
     // Truncate if too long
     let truncated = if body.len() > MAX_ERROR_BODY_LENGTH {
@@ -152,8 +154,7 @@ pub fn sanitize_error_body(body: &str) -> String {
                 let value_start = start + pattern.len();
                 let value_end = result[value_start..]
                     .find(|c: char| c == '&' || c.is_whitespace())
-                    .map(|i| value_start + i)
-                    .unwrap_or(result.len());
+                    .map_or(result.len(), |i| value_start + i);
 
                 // Only redact if there's actual content and it's not already [REDACTED]
                 let value = &result[value_start..value_end];
@@ -187,8 +188,7 @@ pub fn sanitize_error_body(body: &str) -> String {
             let token_start = start + 7;
             let token_end = result[token_start..]
                 .find(|c: char| c.is_whitespace())
-                .map(|i| token_start + i)
-                .unwrap_or(result.len());
+                .map_or(result.len(), |i| token_start + i);
             let token = &result[token_start..token_end];
             if token_end > token_start && token != "[REDACTED]" {
                 result = format!(
@@ -222,13 +222,11 @@ pub fn sanitize_error_body(body: &str) -> String {
                 // Skip whitespace after colon
                 let trimmed_start = result[value_start..]
                     .find(|c: char| !c.is_whitespace())
-                    .map(|i| value_start + i)
-                    .unwrap_or(value_start);
+                    .map_or(value_start, |i| value_start + i);
                 // Find end of header value (newline or end of string)
                 let value_end = result[trimmed_start..]
                     .find(['\n', '\r'])
-                    .map(|i| trimmed_start + i)
-                    .unwrap_or(result.len());
+                    .map_or(result.len(), |i| trimmed_start + i);
                 let value = &result[trimmed_start..value_end];
                 if value_end > trimmed_start && value != "[REDACTED]" {
                     let original_header = &result[start..start + header_pattern.len()];
@@ -407,7 +405,7 @@ pub enum ApiError<E: std::error::Error = NoDomainError> {
     },
 
     /// Rate limit exceeded (429)
-    #[error("Rate limited{}", .retry_after.map(|s| format!(" (retry after {}s)", s)).unwrap_or_default())]
+    #[error("Rate limited{}", .retry_after.map(|s| format!(" (retry after {s}s)")).unwrap_or_default())]
     RateLimited {
         /// Seconds to wait before retrying
         retry_after: Option<u64>,
@@ -448,6 +446,7 @@ impl<E: std::error::Error> ApiError<E> {
     }
 
     /// Create a rate limited error
+    #[must_use] 
     pub fn rate_limited(retry_after: Option<u64>) -> Self {
         Self::RateLimited { retry_after }
     }
@@ -468,12 +467,13 @@ impl<E: std::error::Error> ApiError<E> {
     /// Create from HTTP response status and body
     ///
     /// Automatically categorizes the error based on status code:
-    /// - 429 -> RateLimited
-    /// - 500-599 -> ServerError
+    /// - 429 -> `RateLimited`
+    /// - 500-599 -> `ServerError`
     /// - Other -> Api
     ///
     /// Note: The body is sanitized to remove potential secrets and truncated
     /// if too long (SEC-005 fix).
+    #[must_use] 
     pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Self {
         let sanitized = sanitize_error_body(body);
         match status {
@@ -737,8 +737,7 @@ impl ApiConfig {
                 Err(ConfigValidationError::InsecureScheme)
             }
             scheme => Err(ConfigValidationError::InvalidUrl(format!(
-                "Unsupported URL scheme: {}",
-                scheme
+                "Unsupported URL scheme: {scheme}"
             ))),
         }
     }
@@ -752,7 +751,7 @@ impl ApiConfig {
     /// Get the exposed API key, if set.
     #[must_use]
     pub fn get_api_key(&self) -> Option<&str> {
-        self.api_key.as_ref().map(|k| k.expose())
+        self.api_key.as_ref().map(SecretApiKey::expose)
     }
 }
 
@@ -772,7 +771,7 @@ impl fmt::Display for ConfigValidationError {
                 f,
                 "Insecure URL scheme: use HTTPS instead of HTTP to protect API keys"
             ),
-            Self::InvalidUrl(msg) => write!(f, "Invalid URL: {}", msg),
+            Self::InvalidUrl(msg) => write!(f, "Invalid URL: {msg}"),
         }
     }
 }
@@ -808,7 +807,7 @@ impl std::error::Error for ConfigValidationError {}
 pub struct BaseClient {
     http: Client,
     config: ApiConfig,
-    /// Cached normalized base URL (trailing slash removed) to avoid allocation in url()
+    /// Cached normalized base URL (trailing slash removed) to avoid allocation in `url()`
     normalized_base_url: String,
 }
 
@@ -827,8 +826,7 @@ impl BaseClient {
         // Validate HTTPS requirement (SEC-003 fix)
         if let Err(e) = config.validate() {
             return Err(HttpError::BuildError(format!(
-                "Configuration validation failed: {}. Use HTTPS URLs to protect API keys.",
-                e
+                "Configuration validation failed: {e}. Use HTTPS URLs to protect API keys."
             )));
         }
 
@@ -888,7 +886,7 @@ impl BaseClient {
 
         // Add Authorization header if API key is set
         if let Some(key) = self.config.get_api_key() {
-            if let Ok(value) = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", key)) {
+            if let Ok(value) = reqwest::header::HeaderValue::from_str(&format!("Bearer {key}")) {
                 headers.insert(reqwest::header::AUTHORIZATION, value);
             }
         }
@@ -905,7 +903,7 @@ impl BaseClient {
     ///
     /// # Arguments
     ///
-    /// * `path` - The API path (will be joined with base_url)
+    /// * `path` - The API path (will be joined with `base_url`)
     /// * `params` - Query parameters as key-value pairs
     ///
     /// # Errors
@@ -1072,6 +1070,7 @@ impl BaseClient {
 /// headers.insert("retry-after", HeaderValue::from_static("9999"));
 /// assert_eq!(extract_retry_after(&headers), Some(3600));
 /// ```
+#[must_use] 
 pub fn extract_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     const MAX_RETRY_AFTER_SECS: u64 = 3600; // 1 hour max
 

@@ -28,6 +28,7 @@ impl Default for Config {
 
 impl Config {
     /// Create a new config with default settings
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }

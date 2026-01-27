@@ -22,6 +22,7 @@ pub enum ExecutionState {
 
 impl ExecutionState {
     /// Check if the execution is finished
+    #[must_use] 
     pub fn is_finished(&self) -> bool {
         matches!(
             self,
@@ -33,6 +34,7 @@ impl ExecutionState {
     }
 
     /// Check if the execution succeeded
+    #[must_use] 
     pub fn is_success(&self) -> bool {
         matches!(self, ExecutionState::Completed)
     }
@@ -59,6 +61,7 @@ pub struct ExecuteQueryRequest {
 }
 
 impl ExecuteQueryRequest {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -72,6 +75,7 @@ impl ExecuteQueryRequest {
     }
 
     /// Set performance tier to large
+    #[must_use] 
     pub fn large(mut self) -> Self {
         self.performance = Some("large".to_string());
         self
@@ -92,6 +96,7 @@ pub struct ExecuteSqlRequest {
 }
 
 impl ExecuteSqlRequest {
+    #[must_use] 
     pub fn new(query_sql: &str) -> Self {
         Self {
             query_sql: query_sql.to_string(),
@@ -109,6 +114,7 @@ impl ExecuteSqlRequest {
     }
 
     /// Set performance tier to large
+    #[must_use] 
     pub fn large(mut self) -> Self {
         self.performance = Some("large".to_string());
         self
@@ -263,28 +269,29 @@ pub struct GetResultsOptions {
 }
 
 impl GetResultsOptions {
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {
-            params.push(format!("limit={}", limit));
+            params.push(format!("limit={limit}"));
         }
         if let Some(offset) = self.offset {
-            params.push(format!("offset={}", offset));
+            params.push(format!("offset={offset}"));
         }
         if let Some(ref sort_by) = self.sort_by {
-            params.push(format!("sort_by={}", sort_by));
+            params.push(format!("sort_by={sort_by}"));
         }
         if let Some(ref order) = self.order {
-            params.push(format!("order={}", order));
+            params.push(format!("order={order}"));
         }
         if let Some(ref columns) = self.columns {
-            params.push(format!("columns={}", columns));
+            params.push(format!("columns={columns}"));
         }
         if let Some(sample_count) = self.sample_count {
-            params.push(format!("sample_count={}", sample_count));
+            params.push(format!("sample_count={sample_count}"));
         }
         if let Some(allow_partial) = self.allow_partial_results {
-            params.push(format!("allow_partial_results={}", allow_partial));
+            params.push(format!("allow_partial_results={allow_partial}"));
         }
         if params.is_empty() {
             String::new()

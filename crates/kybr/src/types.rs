@@ -1,4 +1,4 @@
-//! Types for the KyberSwap API responses
+//! Types for the `KyberSwap` API responses
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -18,7 +18,7 @@ impl fmt::Display for ParseChainError {
 
 impl std::error::Error for ParseChainError {}
 
-/// Supported chains for KyberSwap
+/// Supported chains for `KyberSwap`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Chain {
@@ -40,6 +40,7 @@ pub enum Chain {
 
 impl Chain {
     /// Convert from EVM chain ID
+    #[must_use] 
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
         match chain_id {
             1 => Some(Chain::Ethereum),
@@ -60,6 +61,7 @@ impl Chain {
         }
     }
 
+    #[must_use] 
     pub fn as_str(&self) -> &'static str {
         match self {
             Chain::Ethereum => "ethereum",
@@ -80,6 +82,7 @@ impl Chain {
     }
 
     /// Parse chain from string (returns Option for backward compatibility)
+    #[must_use] 
     pub fn try_from_str(s: &str) -> Option<Self> {
         s.parse().ok()
     }
@@ -284,7 +287,7 @@ fn is_valid_amount(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
 }
 
-/// Routes response from KyberSwap API
+/// Routes response from `KyberSwap` API
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutesResponse {
@@ -364,7 +367,7 @@ pub struct SwapStep {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BuildRouteRequest {
-    /// Route summary from get_routes
+    /// Route summary from `get_routes`
     pub route_summary: RouteSummary,
     /// Sender address
     pub sender: String,

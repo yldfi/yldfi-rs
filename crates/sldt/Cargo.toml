@@ -1,0 +1,23 @@
+[package]
+name = "sldt"
+version = "0.1.0"
+edition = "2021"
+description = "Rust client for the Solodit smart contract vulnerability database"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/sldt"
+keywords = ["solodit", "security", "audit", "vulnerabilities", "smart-contracts"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+readme = "README.md"
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+url = "2"
+urlencoding = "2"
+tokio = { version = "1", features = ["sync"] }
+secrecy = "0.10"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

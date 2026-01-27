@@ -245,6 +245,14 @@ pub struct PriceData {
 }
 ```
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Pyth Network Terms of Use](https://pyth.network/terms-of-use).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Pyth Network.
+
 ## License
 
 MIT

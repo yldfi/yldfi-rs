@@ -21,7 +21,7 @@
 //! - Slack
 //! - Discord
 //! - Telegram
-//! - PagerDuty
+//! - `PagerDuty`
 //! - Webhooks
 //! - Web3 Actions
 //!

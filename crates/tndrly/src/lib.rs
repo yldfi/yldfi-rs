@@ -4,7 +4,7 @@
 //!
 //! Provides access to:
 //! - **Simulation API** - Simulate transactions without broadcasting
-//! - **Virtual TestNets API** - Create isolated blockchain environments
+//! - **Virtual `TestNets` API** - Create isolated blockchain environments
 //! - **Alerts API** - Monitor on-chain activity with notifications
 //! - **Contract API** - Manage and verify smart contracts
 //! - **Web3 Actions API** - Deploy serverless functions
@@ -55,7 +55,7 @@
 //!
 //! All API modules are always available:
 //! - [`simulation`] - Transaction simulation
-//! - [`vnets`] - Virtual TestNets
+//! - [`vnets`] - Virtual `TestNets`
 //! - [`alerts`] - Alert monitoring
 //! - [`contracts`] - Contract management
 //! - [`actions`] - Web3 Actions
@@ -96,17 +96,19 @@ impl Client {
     /// ```ignore
     /// let result = client.simulation().simulate(&request).await?;
     /// ```
+    #[must_use] 
     pub fn simulation(&self) -> simulation::SimulationApi<'_> {
         simulation::SimulationApi::new(self)
     }
 
-    /// Access the Virtual TestNets API
+    /// Access the Virtual `TestNets` API
     ///
     /// # Example
     ///
     /// ```ignore
     /// let vnets = client.vnets().list(None).await?;
     /// ```
+    #[must_use] 
     pub fn vnets(&self) -> vnets::VNetsApi<'_> {
         vnets::VNetsApi::new(self)
     }
@@ -118,6 +120,7 @@ impl Client {
     /// ```ignore
     /// let alerts = client.alerts().list().await?;
     /// ```
+    #[must_use] 
     pub fn alerts(&self) -> alerts::AlertsApi<'_> {
         alerts::AlertsApi::new(self)
     }
@@ -129,6 +132,7 @@ impl Client {
     /// ```ignore
     /// let contracts = client.contracts().list(None).await?;
     /// ```
+    #[must_use] 
     pub fn contracts(&self) -> contracts::ContractsApi<'_> {
         contracts::ContractsApi::new(self)
     }
@@ -140,6 +144,7 @@ impl Client {
     /// ```ignore
     /// let actions = client.actions().list().await?;
     /// ```
+    #[must_use] 
     pub fn actions(&self) -> actions::ActionsApi<'_> {
         actions::ActionsApi::new(self)
     }
@@ -151,6 +156,7 @@ impl Client {
     /// ```ignore
     /// let wallets = client.wallets().list().await?;
     /// ```
+    #[must_use] 
     pub fn wallets(&self) -> wallets::WalletsApi<'_> {
         wallets::WalletsApi::new(self)
     }
@@ -162,6 +168,7 @@ impl Client {
     /// ```ignore
     /// let channels = client.delivery_channels().list_project().await?;
     /// ```
+    #[must_use] 
     pub fn delivery_channels(&self) -> delivery_channels::DeliveryChannelsApi<'_> {
         delivery_channels::DeliveryChannelsApi::new(self)
     }
@@ -173,6 +180,7 @@ impl Client {
     /// ```ignore
     /// let networks = client.networks().supported().await?;
     /// ```
+    #[must_use] 
     pub fn networks(&self) -> networks::NetworksApi<'_> {
         networks::NetworksApi::new(self)
     }

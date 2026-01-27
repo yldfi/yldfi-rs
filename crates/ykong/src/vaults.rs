@@ -20,6 +20,7 @@ pub struct VaultFilter {
 
 impl VaultFilter {
     /// Create a new filter
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -85,28 +86,28 @@ impl VaultFilter {
         let mut args = Vec::new();
 
         if let Some(chain_id) = self.chain_id {
-            args.push(format!("chainId: {}", chain_id));
+            args.push(format!("chainId: {chain_id}"));
         }
         if let Some(ref version) = self.api_version {
-            args.push(format!("apiVersion: \"{}\"", version));
+            args.push(format!("apiVersion: \"{version}\""));
         }
         if let Some(v3) = self.v3 {
-            args.push(format!("v3: {}", v3));
+            args.push(format!("v3: {v3}"));
         }
         if let Some(yearn) = self.yearn {
-            args.push(format!("yearn: {}", yearn));
+            args.push(format!("yearn: {yearn}"));
         }
         if let Some(erc4626) = self.erc4626 {
-            args.push(format!("erc4626: {}", erc4626));
+            args.push(format!("erc4626: {erc4626}"));
         }
         if let Some(vault_type) = self.vault_type {
-            args.push(format!("vaultType: {}", vault_type));
+            args.push(format!("vaultType: {vault_type}"));
         }
         if let Some(risk_level) = self.risk_level {
-            args.push(format!("riskLevel: {}", risk_level));
+            args.push(format!("riskLevel: {risk_level}"));
         }
         if let Some(ref addresses) = self.addresses {
-            let addr_str: Vec<String> = addresses.iter().map(|a| format!("\"{}\"", a)).collect();
+            let addr_str: Vec<String> = addresses.iter().map(|a| format!("\"{a}\"")).collect();
             args.push(format!("addresses: [{}]", addr_str.join(", ")));
         }
 
@@ -125,6 +126,7 @@ pub struct VaultsApi<'a> {
 
 impl<'a> VaultsApi<'a> {
     /// Create a new vaults API instance
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -146,8 +148,8 @@ impl<'a> VaultsApi<'a> {
     pub async fn list(&self, filter: Option<VaultFilter>) -> Result<Vec<Vault>> {
         let args = filter.unwrap_or_default().build_args();
         let query = format!(
-            r#"{{
-                vaults{} {{
+            r"{{
+                vaults{args} {{
                     address
                     name
                     symbol
@@ -188,8 +190,7 @@ impl<'a> VaultsApi<'a> {
                     meta {{ displayName description category isHidden isBoosted }}
                     asset {{ address name symbol decimals }}
                 }}
-            }}"#,
-            args
+            }}"
         );
 
         #[derive(Deserialize)]
@@ -245,7 +246,7 @@ impl<'a> VaultsApi<'a> {
     pub async fn get(&self, chain_id: u64, address: &str) -> Result<Option<Vault>> {
         let query = format!(
             r#"{{
-                vault(chainId: {}, address: "{}") {{
+                vault(chainId: {chain_id}, address: "{address}") {{
                     address
                     name
                     symbol
@@ -286,8 +287,7 @@ impl<'a> VaultsApi<'a> {
                     meta {{ displayName description category isHidden isBoosted }}
                     asset {{ address name symbol decimals }}
                 }}
-            }}"#,
-            chain_id, address
+            }}"#
         );
 
         #[derive(Deserialize)]
@@ -300,29 +300,26 @@ impl<'a> VaultsApi<'a> {
     }
 
     /// Get vault accounts (user positions) for an address
-    pub async fn accounts(&self, chain_id: u64, address: &str) -> Result<Vec<VaultAccount>> {
-        let query = format!(
-            r#"{{
-                vaultAccounts(chainId: {}, address: "{}") {{
-                    address
-                    vault
-                    chainId
-                    balance
-                    deposits
-                    withdrawals
-                    profit
-                }}
-            }}"#,
-            chain_id, address
-        );
-
-        #[derive(Deserialize)]
-        struct Response {
-            #[serde(rename = "vaultAccounts")]
-            vault_accounts: Vec<VaultAccount>,
-        }
-
-        let response: Response = self.client.query(&query).await?;
-        Ok(response.vault_accounts)
+    ///
+    /// **DEPRECATED:** The Kong API removed user position queries in 2024.
+    /// The old `vaultAccounts(chainId, address)` endpoint no longer exists.
+    ///
+    /// To get user vault balances, you must query on-chain via vault `balanceOf(user)` calls.
+    /// Consider using Alchemy, Moralis, or direct RPC calls instead.
+    #[deprecated(
+        since = "0.1.2",
+        note = "Kong API removed user position queries. Use on-chain balanceOf() calls instead."
+    )]
+    pub async fn accounts(&self, _chain_id: u64, _address: &str) -> Result<Vec<VaultAccount>> {
+        // The Kong API changed in 2024:
+        // - Old: vaultAccounts(chainId, address) returned user positions with balances
+        // - New: vaultAccounts(chainId, vault) returns AccountRole (role holders, not depositors)
+        // - accountVaults(chainId, account) returns vaults where user has ROLES, not deposits
+        //
+        // User position/balance data must now be fetched on-chain via balanceOf() calls.
+        Err(crate::Error::Domain(crate::error::DomainError::ApiEndpointRemoved {
+            endpoint: "vaultAccounts".to_string(),
+            alternative: "Use on-chain balanceOf() calls or ethcli portfolio command".to_string(),
+        }))
     }
 }

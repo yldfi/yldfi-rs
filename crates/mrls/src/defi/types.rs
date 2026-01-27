@@ -1,4 +1,4 @@
-//! Types for the DeFi API
+//! Types for the `DeFi` API
 
 use serde::{Deserialize, Serialize};
 
@@ -39,7 +39,7 @@ pub struct PairAddress {
     pub pair_address: Option<String>,
 }
 
-/// DeFi summary for a wallet
+/// `DeFi` summary for a wallet
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefiSummary {
     /// Total USD value
@@ -65,7 +65,7 @@ pub struct ProtocolSummary {
     pub position_count: Option<i32>,
 }
 
-/// DeFi position
+/// `DeFi` position
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefiPosition {
     /// Protocol ID
@@ -90,7 +90,7 @@ pub struct DefiPosition {
     pub position: Option<serde_json::Value>,
 }
 
-/// Token in DeFi position
+/// Token in `DeFi` position
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefiToken {
     /// Token address
@@ -113,7 +113,7 @@ pub struct DefiToken {
     pub usd_price: Option<f64>,
 }
 
-/// DeFi positions response
+/// `DeFi` positions response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefiPositionsResponse {
     /// Cursor

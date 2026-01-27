@@ -148,6 +148,19 @@ pub enum ConfigCommands {
         stdin: bool,
     },
 
+    /// Set Solodit API key (smart contract vulnerability database)
+    #[command(
+        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-solodit --stdin\n\nGet an API key at: https://solodit.cyfrin.io (Profile > API Keys)"
+    )]
+    SetSolodit {
+        /// Solodit API key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read API key from stdin
+        #[arg(long)]
+        stdin: bool,
+    },
+
     /// Add a debug-capable RPC URL (for debug_traceCall, etc.)
     AddDebugRpc {
         /// RPC URL with debug namespace enabled

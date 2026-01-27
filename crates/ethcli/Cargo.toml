@@ -82,6 +82,7 @@ sha2 = "0.10"
 secrecy = { workspace = true }
 semver = "1"
 fs2 = "0.4"  # MED-003 fix: File locking for config persistence
+chrono = "0.4"  # Timestamp formatting for CCXT commands
 
 # API clients
 alcmy = { version = "0.1", path = "../alcmy" }
@@ -113,6 +114,9 @@ ykong = { version = "0.1", path = "../ykong" }
 
 # GoPlus Security API client
 gplus = { version = "0.1", path = "../gplus" }
+
+# Solodit vulnerability database client
+sldt = { version = "0.1", path = "../sldt" }
 
 # Chainlink Data Streams
 chainlink-data-streams-sdk = { version = "1.2", features = ["full"] }

@@ -1,20 +1,8 @@
 use crate::config::Chain;
 use crate::rpc::get_rpc_url;
 use crate::utils::address::resolve_label;
-use crate::utils::is_safe_cli_value;
 use std::process::{Command, Stdio};
 use tokio::time::{sleep, Duration};
-
-/// Validate a CLI argument to prevent injection attacks
-fn validate_cli_arg(arg: &str, arg_name: &str) -> anyhow::Result<()> {
-    if !is_safe_cli_value(arg) {
-        return Err(anyhow::anyhow!(
-            "Invalid {}: contains potentially dangerous characters",
-            arg_name
-        ));
-    }
-    Ok(())
-}
 
 /// Simulate using Anvil fork
 #[allow(clippy::too_many_arguments)]
@@ -28,25 +16,6 @@ pub async fn simulate_via_anvil(
     rpc_url: &Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    // Validate inputs before passing to external commands
-    validate_cli_arg(to, "target address")?;
-    validate_cli_arg(value, "value")?;
-    if let Some(s) = sig {
-        validate_cli_arg(s, "signature")?;
-    }
-    if let Some(d) = data {
-        validate_cli_arg(d, "data")?;
-    }
-    if let Some(f) = from {
-        validate_cli_arg(f, "from address")?;
-    }
-    for (i, arg) in args.iter().enumerate() {
-        validate_cli_arg(arg, &format!("argument {}", i))?;
-    }
-    if let Some(url) = rpc_url {
-        validate_cli_arg(url, "RPC URL")?;
-    }
-
     let fork_url = rpc_url
         .clone()
         .or_else(|| {
@@ -77,23 +46,7 @@ pub async fn simulate_via_anvil(
     let mut cmd = Command::new("cast");
     cmd.arg("call");
 
-    // Resolve target address
-    let resolved_to = resolve_label(to);
-    cmd.arg(&resolved_to);
-
-    if let Some(sig) = sig {
-        cmd.arg(sig);
-        for arg in args {
-            // Resolve address labels in args
-            cmd.arg(resolve_label(arg));
-        }
-    } else if let Some(data) = data {
-        cmd.arg("--data").arg(data);
-    } else {
-        anvil.kill()?;
-        return Err(anyhow::anyhow!("Must provide --sig or --data"));
-    }
-
+    // Add all flags FIRST (these are controlled by us)
     if let Some(from) = from {
         cmd.arg("--from").arg(from);
     }
@@ -104,6 +57,33 @@ pub async fn simulate_via_anvil(
 
     cmd.arg("--rpc-url").arg("http://localhost:8546");
     cmd.arg("--trace");
+
+    // Add --data flag if using raw data (before the -- separator)
+    if sig.is_none() {
+        if let Some(data) = data {
+            cmd.arg("--data").arg(data);
+        } else {
+            anvil.kill()?;
+            return Err(anyhow::anyhow!("Must provide --sig or --data"));
+        }
+    }
+
+    // SEC-ANVIL-001: Add `--` to prevent flag injection from user-provided arguments.
+    // Everything after `--` is interpreted as a positional argument, not a flag.
+    cmd.arg("--");
+
+    // Now add positional arguments (user-controlled, potentially untrusted)
+    let resolved_to = resolve_label(to);
+    cmd.arg(&resolved_to);
+
+    // Add signature and args if using sig mode
+    if let Some(sig) = sig {
+        cmd.arg(sig);
+        for arg in args {
+            // Resolve address labels in args
+            cmd.arg(resolve_label(arg));
+        }
+    }
 
     let output = cmd.output()?;
 

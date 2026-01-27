@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{Category, Fork, Oracle, Entity, Treasury, Hack, Raise, LiquidityData, TokenProtocols, ProtocolInflows, ChainAssets};
 
 /// Ecosystem API client (mostly Pro)
 pub struct EcosystemApi<'a> {
@@ -12,6 +12,7 @@ pub struct EcosystemApi<'a> {
 
 impl<'a> EcosystemApi<'a> {
     /// Create a new Ecosystem API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -73,7 +74,7 @@ impl<'a> EcosystemApi<'a> {
     ///
     /// * `token` - Token symbol or address
     pub async fn liquidity(&self, token: &str) -> Result<LiquidityData> {
-        let path = format!("/historicalLiquidity/{}", token);
+        let path = format!("/historicalLiquidity/{token}");
         self.client.get_pro(&path).await
     }
 
@@ -85,7 +86,7 @@ impl<'a> EcosystemApi<'a> {
     ///
     /// * `symbol` - Token symbol (e.g., "ETH", "USDC")
     pub async fn token_protocols(&self, symbol: &str) -> Result<TokenProtocols> {
-        let path = format!("/tokenProtocols/{}", symbol);
+        let path = format!("/tokenProtocols/{symbol}");
         self.client.get_pro(&path).await
     }
 
@@ -98,7 +99,7 @@ impl<'a> EcosystemApi<'a> {
     /// * `protocol` - Protocol slug
     /// * `timestamp` - Unix timestamp
     pub async fn inflows(&self, protocol: &str, timestamp: u64) -> Result<ProtocolInflows> {
-        let path = format!("/inflows/{}/{}", protocol, timestamp);
+        let path = format!("/inflows/{protocol}/{timestamp}");
         self.client.get_pro(&path).await
     }
 

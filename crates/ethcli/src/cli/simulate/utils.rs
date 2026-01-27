@@ -3,6 +3,29 @@ use crate::config::{Chain, ConfigFile};
 use crate::utils::address::resolve_label;
 use std::process::Command;
 
+/// Escape a string for use in single-quoted shell context.
+/// SEC-SHELL-001: Prevents shell injection when users copy-paste dry-run output.
+/// Single quotes in the input are escaped as '\'' (end quote, escaped quote, start quote).
+fn escape_shell_single_quote(s: &str) -> String {
+    s.replace('\'', "'\\''")
+}
+
+/// Escape a string for use in JavaScript single-quoted strings.
+fn escape_js_single_quote(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+/// Escape a string for use in PowerShell single-quoted strings.
+/// In PowerShell, single quotes are escaped by doubling them.
+fn escape_powershell_single_quote(s: &str) -> String {
+    s.replace('\'', "''")
+}
+
+/// Escape a string for use in Python single-quoted strings.
+fn escape_python_single_quote(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
 /// Format a request as the specified output format
 pub fn format_request(
     url: &str,
@@ -21,22 +44,22 @@ pub fn format_request(
         DryRunFormat::Json => serde_json::to_string_pretty(body).unwrap_or_default(),
         DryRunFormat::Url => url.to_string(),
         DryRunFormat::Curl => {
-            let mut cmd = format!("curl -X {} '{}'", method, url);
+            let mut cmd = format!("curl -X {} '{}'", method, escape_shell_single_quote(url));
             for (key, value) in headers {
                 let display_value = if should_mask(key) {
                     format!("${}", key.to_uppercase().replace("-", "_"))
                 } else {
-                    value.to_string()
+                    escape_shell_single_quote(value)
                 };
                 cmd.push_str(" \\\n  -H '");
-                cmd.push_str(key);
+                cmd.push_str(&escape_shell_single_quote(key));
                 cmd.push_str(": ");
                 cmd.push_str(&display_value);
                 cmd.push('\'');
             }
             let body_str = serde_json::to_string(body).unwrap_or_default();
             cmd.push_str(" \\\n  -d '");
-            cmd.push_str(&body_str);
+            cmd.push_str(&escape_shell_single_quote(&body_str));
             cmd.push('\'');
             cmd
         }
@@ -46,21 +69,21 @@ pub fn format_request(
                 let val = if should_mask(key) {
                     format!("process.env.{}", key.to_uppercase().replace("-", "_"))
                 } else {
-                    format!("'{}'", value)
+                    format!("'{}'", escape_js_single_quote(value))
                 };
                 if i > 0 {
                     h_obj.push(',');
                 }
                 h_obj.push_str("\n    '");
-                h_obj.push_str(key);
+                h_obj.push_str(&escape_js_single_quote(key));
                 h_obj.push_str("': ");
                 h_obj.push_str(&val);
             }
             h_obj.push_str("\n  }");
 
             let body_str = serde_json::to_string_pretty(body).unwrap_or_default();
-            let mut s = format!("const response = await fetch('{}', {{\n", url);
-            s.push_str(&format!("  method: '{}',\n", method));
+            let mut s = format!("const response = await fetch('{}', {{\n", escape_js_single_quote(url));
+            s.push_str(&format!("  method: '{}',\n", escape_js_single_quote(method)));
             s.push_str(&format!("  headers: {},\n", h_obj));
             s.push_str(&format!("  body: JSON.stringify({})\n", body_str));
             s.push_str("});\n");
@@ -74,18 +97,23 @@ pub fn format_request(
                 let val = if should_mask(key) {
                     format!("$env:{}", key.to_uppercase().replace("-", "_"))
                 } else {
-                    format!("'{}'", value)
+                    format!("'{}'", escape_powershell_single_quote(value))
                 };
-                h_hash.push_str(&format!("\n    '{}' = {}", key, val));
+                h_hash.push_str(&format!("\n    '{}' = {}", escape_powershell_single_quote(key), val));
             }
             h_hash.push_str("\n}");
 
             let body_str = serde_json::to_string(body).unwrap_or_default();
             let mut s = format!("$headers = {}\n\n", h_hash);
+            // PowerShell here-strings (@'...'@) don't need escaping for the content
             s.push_str("$body = @'\n");
             s.push_str(&body_str);
-            s.push_str("'@\n\n");
-            s.push_str(&format!("Invoke-RestMethod -Uri '{}' -Method {} -Headers $headers -Body $body -ContentType 'application/json'", url, method));
+            s.push_str("\n'@\n\n");
+            s.push_str(&format!(
+                "Invoke-RestMethod -Uri '{}' -Method {} -Headers $headers -Body $body -ContentType 'application/json'",
+                escape_powershell_single_quote(url),
+                method
+            ));
             s
         }
         DryRunFormat::Python => {
@@ -94,12 +122,12 @@ pub fn format_request(
                 let val = if should_mask(key) {
                     format!("os.environ['{}']", key.to_uppercase().replace("-", "_"))
                 } else {
-                    format!("'{}'", value)
+                    format!("'{}'", escape_python_single_quote(value))
                 };
                 if i > 0 {
                     h_dict.push_str(", ");
                 }
-                h_dict.push_str(&format!("\n    '{}': {}", key, val));
+                h_dict.push_str(&format!("\n    '{}': {}", escape_python_single_quote(key), val));
             }
             h_dict.push_str("\n}");
 
@@ -110,48 +138,48 @@ pub fn format_request(
             s.push_str(&format!(
                 "response = requests.{}('{}', headers=headers, json=data)\n",
                 method.to_lowercase(),
-                url
+                escape_python_single_quote(url)
             ));
             s.push_str("print(response.json())");
             s
         }
         DryRunFormat::Httpie => {
-            let mut cmd = format!("http {} '{}'", method, url);
+            let mut cmd = format!("http {} '{}'", method, escape_shell_single_quote(url));
             for (key, value) in headers {
                 let val = if should_mask(key) {
                     format!("${}", key.to_uppercase().replace("-", "_"))
                 } else {
-                    value.to_string()
+                    escape_shell_single_quote(value)
                 };
                 cmd.push_str(" \\\n  '");
-                cmd.push_str(key);
+                cmd.push_str(&escape_shell_single_quote(key));
                 cmd.push(':');
                 cmd.push_str(&val);
                 cmd.push('\'');
             }
             let body_str = serde_json::to_string(body).unwrap_or_default();
             cmd.push_str(" \\\n  --raw '");
-            cmd.push_str(&body_str);
+            cmd.push_str(&escape_shell_single_quote(&body_str));
             cmd.push('\'');
             cmd
         }
         DryRunFormat::Wget => {
-            let mut cmd = format!("wget -q -O - --method={} '{}'", method, url);
+            let mut cmd = format!("wget -q -O - --method={} '{}'", method, escape_shell_single_quote(url));
             for (key, value) in headers {
                 let val = if should_mask(key) {
                     format!("${}", key.to_uppercase().replace("-", "_"))
                 } else {
-                    value.to_string()
+                    escape_shell_single_quote(value)
                 };
                 cmd.push_str(" \\\n  --header='");
-                cmd.push_str(key);
+                cmd.push_str(&escape_shell_single_quote(key));
                 cmd.push_str(": ");
                 cmd.push_str(&val);
                 cmd.push('\'');
             }
             let body_str = serde_json::to_string(body).unwrap_or_default();
             cmd.push_str(" \\\n  --body-data='");
-            cmd.push_str(&body_str);
+            cmd.push_str(&escape_shell_single_quote(&body_str));
             cmd.push('\'');
             cmd
         }
@@ -162,15 +190,27 @@ pub fn format_request(
                 let val = if should_mask(key) {
                     format!("os.Getenv(\"{}\")", key.to_uppercase().replace("-", "_"))
                 } else {
-                    format!("\"{}\"", value)
+                    // Escape for Go double-quoted strings
+                    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
                 };
-                h_lines.push_str(&format!("    req.Header.Set(\"{}\", {})\n", key, val));
+                h_lines.push_str(&format!(
+                    "    req.Header.Set(\"{}\", {})\n",
+                    key.replace('\\', "\\\\").replace('"', "\\\""),
+                    val
+                ));
             }
             let mut s = String::from("package main\n\nimport (\n    \"bytes\"\n    \"encoding/json\"\n    \"fmt\"\n    \"net/http\"\n    \"os\"\n)\n\nfunc main() {\n");
-            s.push_str(&format!("    data := `{}`\n\n", body_str));
+            // Go raw strings (backticks) don't allow backticks inside, so escape if present
+            let safe_body = if body_str.contains('`') {
+                format!("\"{}\"", body_str.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n"))
+            } else {
+                format!("`{}`", body_str)
+            };
+            s.push_str(&format!("    data := {}\n\n", safe_body));
             s.push_str(&format!(
                 "    req, _ := http.NewRequest(\"{}\", \"{}\", bytes.NewBuffer([]byte(data)))\n",
-                method, url
+                method,
+                url.replace('\\', "\\\\").replace('"', "\\\"")
             ));
             s.push_str(&h_lines);
             s.push_str("    req.Header.Set(\"Content-Type\", \"application/json\")\n\n");

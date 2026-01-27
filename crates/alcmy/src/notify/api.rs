@@ -1,6 +1,6 @@
 //! Notify/Webhooks API implementation
 
-use super::types::*;
+use super::types::{ListWebhooksResponse, CreateWebhookRequest, Webhook, UpdateWebhookRequest, ListAddressesResponse, UpdateWebhookAddressesRequest, ReplaceWebhookAddressesRequest, ListNftFiltersResponse, UpdateNftFiltersRequest, GraphqlVariable, PatchGraphqlVariableRequest};
 use crate::client::Client;
 use crate::error::{Error, Result};
 
@@ -24,7 +24,7 @@ impl<'a> NotifyApi<'a> {
     where
         R: serde::de::DeserializeOwned,
     {
-        let url = format!("{}{}", NOTIFY_BASE_URL, path);
+        let url = format!("{NOTIFY_BASE_URL}{path}");
         let response = self
             .client
             .http()
@@ -51,7 +51,7 @@ impl<'a> NotifyApi<'a> {
         B: serde::Serialize,
         R: serde::de::DeserializeOwned,
     {
-        let url = format!("{}{}", NOTIFY_BASE_URL, path);
+        let url = format!("{NOTIFY_BASE_URL}{path}");
         let response = self
             .client
             .http()
@@ -79,7 +79,7 @@ impl<'a> NotifyApi<'a> {
         B: serde::Serialize,
         R: serde::de::DeserializeOwned,
     {
-        let url = format!("{}{}", NOTIFY_BASE_URL, path);
+        let url = format!("{NOTIFY_BASE_URL}{path}");
         let response = self
             .client
             .http()
@@ -107,7 +107,7 @@ impl<'a> NotifyApi<'a> {
         B: serde::Serialize,
         R: serde::de::DeserializeOwned,
     {
-        let url = format!("{}{}", NOTIFY_BASE_URL, path);
+        let url = format!("{NOTIFY_BASE_URL}{path}");
         let response = self
             .client
             .http()
@@ -131,7 +131,7 @@ impl<'a> NotifyApi<'a> {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let url = format!("{}{}", NOTIFY_BASE_URL, path);
+        let url = format!("{NOTIFY_BASE_URL}{path}");
         let response = self
             .client
             .http()
@@ -173,7 +173,7 @@ impl<'a> NotifyApi<'a> {
     /// Delete a webhook
     pub async fn delete_webhook(&self, webhook_id: &str) -> Result<()> {
         let body = serde_json::json!({ "webhook_id": webhook_id });
-        let url = format!("{}/delete-webhook", NOTIFY_BASE_URL);
+        let url = format!("{NOTIFY_BASE_URL}/delete-webhook");
         let response = self
             .client
             .http()
@@ -196,7 +196,7 @@ impl<'a> NotifyApi<'a> {
 
     /// List addresses tracked by a webhook
     pub async fn list_webhook_addresses(&self, webhook_id: &str) -> Result<ListAddressesResponse> {
-        self.get(&format!("/webhook-addresses?webhook_id={}", webhook_id))
+        self.get(&format!("/webhook-addresses?webhook_id={webhook_id}"))
             .await
     }
 
@@ -222,7 +222,7 @@ impl<'a> NotifyApi<'a> {
 
     /// List NFT filters for a webhook
     pub async fn list_nft_filters(&self, webhook_id: &str) -> Result<ListNftFiltersResponse> {
-        self.get(&format!("/webhook-nft-filters?webhook_id={}", webhook_id))
+        self.get(&format!("/webhook-nft-filters?webhook_id={webhook_id}"))
             .await
     }
 
@@ -236,7 +236,7 @@ impl<'a> NotifyApi<'a> {
 
     /// Get a GraphQL variable
     pub async fn get_graphql_variable(&self, variable: &str) -> Result<GraphqlVariable> {
-        self.get(&format!("/graphql/variables/{}", variable)).await
+        self.get(&format!("/graphql/variables/{variable}")).await
     }
 
     /// Create a GraphQL variable
@@ -246,7 +246,7 @@ impl<'a> NotifyApi<'a> {
         values: Vec<String>,
     ) -> Result<GraphqlVariable> {
         let body = serde_json::json!({ "values": values });
-        self.post(&format!("/graphql/variables/{}", variable), &body)
+        self.post(&format!("/graphql/variables/{variable}"), &body)
             .await
     }
 
@@ -256,13 +256,13 @@ impl<'a> NotifyApi<'a> {
         variable: &str,
         request: &PatchGraphqlVariableRequest,
     ) -> Result<GraphqlVariable> {
-        self.patch(&format!("/graphql/variables/{}", variable), request)
+        self.patch(&format!("/graphql/variables/{variable}"), request)
             .await
     }
 
     /// Delete a GraphQL variable
     pub async fn delete_graphql_variable(&self, variable: &str) -> Result<()> {
-        self.delete(&format!("/graphql/variables/{}", variable))
+        self.delete(&format!("/graphql/variables/{variable}"))
             .await
     }
 }

@@ -1,22 +1,23 @@
-//! Virtual TestNets API operations
+//! Virtual `TestNets` API operations
 
 use super::admin_rpc::AdminRpc;
-use super::types::*;
+use super::types::{CreateVNetRequest, VNet, ListVNetsQuery, DeleteVNetsRequest, ForkVNetRequest, ListVNetTransactionsQuery, VNetTransaction, VNetSimulationRequest, VNetRpcs, UpdateVNetRequest, SendVNetTransactionRequest};
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
 
-/// Virtual TestNets API client
+/// Virtual `TestNets` API client
 pub struct VNetsApi<'a> {
     client: &'a Client,
 }
 
 impl<'a> VNetsApi<'a> {
-    /// Create a new VNets API client
+    /// Create a new `VNets` API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
 
-    /// Create a new Virtual TestNet
+    /// Create a new Virtual `TestNet`
     ///
     /// # Example
     ///
@@ -32,9 +33,9 @@ impl<'a> VNetsApi<'a> {
         self.client.post("/vnets", request).await
     }
 
-    /// List Virtual TestNets
+    /// List Virtual `TestNets`
     ///
-    /// Returns a vector of VNets directly (API returns a raw array).
+    /// Returns a vector of `VNets` directly (API returns a raw array).
     ///
     /// # Example
     ///
@@ -55,21 +56,21 @@ impl<'a> VNetsApi<'a> {
         }
     }
 
-    /// Get a Virtual TestNet by ID
+    /// Get a Virtual `TestNet` by ID
     pub async fn get(&self, id: &str) -> Result<VNet> {
         self.client
             .get(&format!("/vnets/{}", encode_path_segment(id)))
             .await
     }
 
-    /// Delete a Virtual TestNet
+    /// Delete a Virtual `TestNet`
     pub async fn delete(&self, id: &str) -> Result<()> {
         self.client
             .delete(&format!("/vnets/{}", encode_path_segment(id)))
             .await
     }
 
-    /// Delete multiple Virtual TestNets
+    /// Delete multiple Virtual `TestNets`
     ///
     /// Useful for CI/CD cleanup after test runs.
     pub async fn delete_many(&self, ids: Vec<String>) -> Result<()> {
@@ -77,9 +78,9 @@ impl<'a> VNetsApi<'a> {
         self.client.delete_with_body("/vnets", &request).await
     }
 
-    /// Fork a Virtual TestNet
+    /// Fork a Virtual `TestNet`
     ///
-    /// Creates a new VNet based on the state of an existing one.
+    /// Creates a new `VNet` based on the state of an existing one.
     ///
     /// # Example
     ///
@@ -93,7 +94,7 @@ impl<'a> VNetsApi<'a> {
         self.client.post("/vnets/fork", request).await
     }
 
-    /// List transactions on a Virtual TestNet
+    /// List transactions on a Virtual `TestNet`
     ///
     /// Returns transactions as a raw array (API returns JSON array directly).
     ///
@@ -117,9 +118,9 @@ impl<'a> VNetsApi<'a> {
         }
     }
 
-    /// Simulate a transaction on a Virtual TestNet
+    /// Simulate a transaction on a Virtual `TestNet`
     ///
-    /// Unlike the main Simulation API, this simulates against the VNet's state.
+    /// Unlike the main Simulation API, this simulates against the `VNet`'s state.
     pub async fn simulate(
         &self,
         vnet_id: &str,
@@ -136,16 +137,16 @@ impl<'a> VNetsApi<'a> {
             .await
     }
 
-    /// Get the RPC URLs for a Virtual TestNet
+    /// Get the RPC URLs for a Virtual `TestNet`
     pub async fn rpc_urls(&self, vnet_id: &str) -> Result<VNetRpcs> {
         let vnet = self.get(vnet_id).await?;
         vnet.rpcs
             .ok_or_else(|| crate::error::not_found("RPC URLs not available for this VNet"))
     }
 
-    /// Get an Admin RPC client for a Virtual TestNet
+    /// Get an Admin RPC client for a Virtual `TestNet`
     ///
-    /// The Admin RPC client provides methods for manipulating the VNet state,
+    /// The Admin RPC client provides methods for manipulating the `VNet` state,
     /// including time warping, balance setting, storage manipulation, and snapshots.
     ///
     /// # Example
@@ -175,9 +176,9 @@ impl<'a> VNetsApi<'a> {
         AdminRpc::new(admin_url)
     }
 
-    /// Get an Admin RPC client from an existing VNet object
+    /// Get an Admin RPC client from an existing `VNet` object
     ///
-    /// Use this when you already have the VNet object to avoid an extra API call.
+    /// Use this when you already have the `VNet` object to avoid an extra API call.
     ///
     /// # Example
     ///
@@ -197,7 +198,7 @@ impl<'a> VNetsApi<'a> {
         AdminRpc::new(admin_url)
     }
 
-    /// Update a Virtual TestNet
+    /// Update a Virtual `TestNet`
     ///
     /// # Example
     ///
@@ -212,9 +213,9 @@ impl<'a> VNetsApi<'a> {
             .await
     }
 
-    /// Send a transaction to be executed on a Virtual TestNet
+    /// Send a transaction to be executed on a Virtual `TestNet`
     ///
-    /// Unlike `simulate`, this actually modifies the VNet's state.
+    /// Unlike `simulate`, this actually modifies the `VNet`'s state.
     ///
     /// # Example
     ///
@@ -240,7 +241,7 @@ impl<'a> VNetsApi<'a> {
             .await
     }
 
-    /// Get a specific transaction from a Virtual TestNet
+    /// Get a specific transaction from a Virtual `TestNet`
     ///
     /// # Example
     ///

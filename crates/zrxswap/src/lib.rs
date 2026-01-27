@@ -1,4 +1,4 @@
-//! Rust client for the 0x (ZeroEx) DEX Aggregator API v2
+//! Rust client for the 0x (`ZeroEx`) DEX Aggregator API v2
 //!
 //! This crate provides a type-safe Rust client for the 0x Swap API, a professional-grade
 //! DEX aggregator that finds optimal swap routes across multiple DEXs on Ethereum and

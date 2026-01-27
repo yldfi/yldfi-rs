@@ -44,7 +44,7 @@ fn parse_duration_string(s: &str) -> anyhow::Result<f64> {
     let value: f64 = num_str
         .trim()
         .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid duration number: '{}'", num_str))?;
+        .map_err(|_| anyhow::anyhow!("Invalid duration number: '{num_str}'"))?;
 
     let seconds = match unit {
         "m" | "min" | "mins" | "minute" | "minutes" => value * 60.0,
@@ -53,8 +53,7 @@ fn parse_duration_string(s: &str) -> anyhow::Result<f64> {
         "w" | "wk" | "wks" | "week" | "weeks" => value * 604800.0,
         _ => {
             return Err(anyhow::anyhow!(
-                "Unknown duration unit: '{}'. Use m/h/d/w (e.g., 30d, 6h, 2w, 90m)",
-                unit
+                "Unknown duration unit: '{unit}'. Use m/h/d/w (e.g., 30d, 6h, 2w, 90m)"
             ))
         }
     };
@@ -69,7 +68,7 @@ fn load_config_with_warning() -> Option<ConfigFile> {
     match ConfigFile::load_default() {
         Ok(config) => config,
         Err(e) => {
-            eprintln!("Warning: Failed to load config file: {}", e);
+            eprintln!("Warning: Failed to load config file: {e}");
             eprintln!("Using default settings. Fix the config or run: ethcli config path");
             None
         }
@@ -199,6 +198,10 @@ async fn main() -> anyhow::Result<()> {
             return ethcli::cli::goplus::execute(args).await;
         }
 
+        Commands::Solodit(args) => {
+            return ethcli::cli::solodit::execute(args).await;
+        }
+
         Commands::Llama { action } => {
             return ethcli::cli::llama::handle(action, cli.quiet).await;
         }
@@ -250,7 +253,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-/// Run logs command with LogsArgs
+/// Run logs command with `LogsArgs`
 async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
     let contract = &args.contract;
 
@@ -282,8 +285,7 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
     let concurrency = args.concurrency.unwrap_or_else(|| {
         config_file
             .as_ref()
-            .map(|c| c.settings.concurrency)
-            .unwrap_or(5)
+            .map_or(5, |c| c.settings.concurrency)
     });
 
     // Build RPC config (with optional chunk_size override)
@@ -309,8 +311,7 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
 
         if !cli.quiet {
             eprintln!(
-                "Using --since {}: ~{} blocks back from {} to block {}",
-                since_str, blocks_back, current_block, target_block
+                "Using --since {since_str}: ~{blocks_back} blocks back from {current_block} to block {target_block}"
             );
         }
 
@@ -388,23 +389,22 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
                 stats.chunks_failed, stats.chunks_total
             );
             for (from, to, err) in &stats.failed_ranges {
-                eprintln!("  - Blocks {}-{}: {}", from, to, err);
+                eprintln!("  - Blocks {from}-{to}: {err}");
             }
             return Err(anyhow::anyhow!(
                 "Fetch incomplete: {} chunks failed",
                 stats.chunks_failed
             ));
-        } else {
-            eprintln!(
-                "Warning: {} of {} chunks failed ({:.1}% success rate)",
-                stats.chunks_failed,
-                stats.chunks_total,
-                stats.success_rate()
-            );
-            if cli.verbose > 0 {
-                for (from, to, err) in &stats.failed_ranges {
-                    eprintln!("  - Blocks {}-{}: {}", from, to, err);
-                }
+        }
+        eprintln!(
+            "Warning: {} of {} chunks failed ({:.1}% success rate)",
+            stats.chunks_failed,
+            stats.chunks_total,
+            stats.success_rate()
+        );
+        if cli.verbose > 0 {
+            for (from, to, err) in &stats.failed_ranges {
+                eprintln!("  - Blocks {from}-{to}: {err}");
             }
         }
     }
@@ -637,7 +637,7 @@ async fn run_streaming_fetch(
                         let rt = tokio::runtime::Handle::current();
                         rt.block_on(async {
                             if let Err(e) = add_timestamps_to_logs(logs, endpoints).await {
-                                eprintln!("Warning: Failed to fetch timestamps: {}", e);
+                                eprintln!("Warning: Failed to fetch timestamps: {e}");
                             }
                         });
                     });
@@ -647,7 +647,7 @@ async fn run_streaming_fetch(
             total_logs += result.len();
 
             if let Some(ref pb) = pb {
-                pb.set_message(format!("{} logs fetched", total_logs));
+                pb.set_message(format!("{total_logs} logs fetched"));
             }
 
             writer.write_logs(&result)?;
@@ -662,7 +662,7 @@ async fn run_streaming_fetch(
     Ok((total_logs, stats))
 }
 
-/// Build RPC config from LogsArgs (has embedded RPC/Proxy args)
+/// Build RPC config from `LogsArgs` (has embedded RPC/Proxy args)
 fn build_rpc_config_from_logs_args(
     rpc: &RpcArgs,
     proxy: &ProxyArgs,
@@ -715,15 +715,13 @@ fn build_rpc_config_from_logs_args(
     rpc_config.timeout_secs = rpc.timeout.unwrap_or_else(|| {
         config_file
             .as_ref()
-            .map(|c| c.settings.timeout_seconds)
-            .unwrap_or(30)
+            .map_or(30, |c| c.settings.timeout_seconds)
     });
 
     rpc_config.max_retries = rpc.retries.unwrap_or_else(|| {
         config_file
             .as_ref()
-            .map(|c| c.settings.retry_attempts)
-            .unwrap_or(3)
+            .map_or(3, |c| c.settings.retry_attempts)
     });
 
     rpc_config.concurrency = concurrency;
@@ -757,7 +755,7 @@ fn build_rpc_config_from_logs_args(
     Ok(rpc_config)
 }
 
-/// Build RPC config from LogsArgs with chunk_size support
+/// Build RPC config from `LogsArgs` with `chunk_size` support
 fn build_rpc_config_from_logs_args_full(
     rpc: &RpcArgs,
     proxy: &ProxyArgs,
@@ -896,10 +894,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                             }
                         );
                         if let Some(note) = &ep.note {
-                            println!("      Note: {}", note);
+                            println!("      Note: {note}");
                         }
                         if let Some(tested) = &ep.last_tested {
-                            println!("      Last tested: {}", tested);
+                            println!("      Last tested: {tested}");
                         }
                     }
                 }
@@ -916,7 +914,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
             // Check if already exists
             if config.endpoints.iter().any(|e| e.url == *url) {
-                println!("Endpoint already exists: {}", url);
+                println!("Endpoint already exists: {url}");
                 return Ok(());
             }
 
@@ -930,7 +928,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 EndpointConfig::new(url).with_chain(chain)
             } else {
                 // Optimize to detect capabilities
-                println!("Optimizing endpoint: {}\n", url);
+                println!("Optimizing endpoint: {url}\n");
 
                 let expected_chain: Option<Chain> =
                     chain_override.as_ref().map(|c| c.parse()).transpose()?;
@@ -980,12 +978,12 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             config.endpoints.retain(|e| e.url != *url);
 
             if config.endpoints.len() == initial_len {
-                println!("Endpoint not found: {}", url);
+                println!("Endpoint not found: {url}");
                 return Ok(());
             }
 
             config.save_default()?;
-            println!("Endpoint removed from config: {}", url);
+            println!("Endpoint removed from config: {url}");
         }
 
         EndpointCommands::Optimize {
@@ -1039,7 +1037,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 let ep_url = config.endpoints[idx].url.clone();
                 let expected_chain = Some(config.endpoints[idx].chain);
 
-                print!("Testing {}... ", ep_url);
+                print!("Testing {ep_url}... ");
                 std::io::Write::flush(&mut std::io::stdout())?;
 
                 match optimize_endpoint(&ep_url, expected_chain, *timeout).await {
@@ -1066,7 +1064,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         }
                     }
                     Err(e) => {
-                        println!("ERROR: {}", e);
+                        println!("ERROR: {e}");
                     }
                 }
             }
@@ -1076,7 +1074,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
         }
 
         EndpointCommands::Test { url } => {
-            println!("Testing endpoint: {}\n", url);
+            println!("Testing endpoint: {url}\n");
 
             // Test connectivity
             print!("[1/3] Connectivity.............. ");
@@ -1095,7 +1093,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     p
                 }
                 Err(e) => {
-                    println!("FAILED: {}", e);
+                    println!("FAILED: {e}");
                     return Ok(());
                 }
             };
@@ -1105,9 +1103,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             std::io::Write::flush(&mut std::io::stdout())?;
 
             match pool.get_block_number().await {
-                Ok(block) => println!("Block {}", block),
+                Ok(block) => println!("Block {block}"),
                 Err(e) => {
-                    println!("FAILED: {}", e);
+                    println!("FAILED: {e}");
                     return Ok(());
                 }
             }
@@ -1122,7 +1120,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             match endpoint.test_archive_support().await {
                 Ok(true) => println!("YES (historical state accessible)"),
                 Ok(false) => println!("NO (pruned node)"),
-                Err(e) => println!("UNKNOWN: {}", e),
+                Err(e) => println!("UNKNOWN: {e}"),
             }
 
             println!("\nEndpoint test complete.");
@@ -1134,9 +1132,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             if let Some(ep) = config.endpoints.iter_mut().find(|e| e.url == *url) {
                 ep.enabled = true;
                 config.save_default()?;
-                println!("Endpoint enabled: {}", url);
+                println!("Endpoint enabled: {url}");
             } else {
-                println!("Endpoint not found: {}", url);
+                println!("Endpoint not found: {url}");
             }
         }
 
@@ -1146,9 +1144,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             if let Some(ep) = config.endpoints.iter_mut().find(|e| e.url == *url) {
                 ep.enabled = false;
                 config.save_default()?;
-                println!("Endpoint disabled: {}", url);
+                println!("Endpoint disabled: {url}");
             } else {
-                println!("Endpoint not found: {}", url);
+                println!("Endpoint not found: {url}");
             }
         }
 
@@ -1181,8 +1179,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 .filter(|e| {
                     chain_filter_parsed
                         .as_ref()
-                        .map(|c| e.chain == *c)
-                        .unwrap_or(true)
+                        .is_none_or(|c| e.chain == *c)
                 })
                 .collect();
 
@@ -1303,7 +1300,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         ep.url.clone()
                     };
 
-                    println!("\n{}", display_url);
+                    println!("\n{display_url}");
                     println!("  Chain:        {}", ep.chain);
 
                     // Status indicator
@@ -1314,7 +1311,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     } else {
                         "✗ Unavailable"
                     };
-                    println!("  Status:       {}", status);
+                    println!("  Status:       {status}");
 
                     // Success rate
                     println!(
@@ -1342,10 +1339,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     if h.learned_max_block_range.is_some() || h.learned_max_logs.is_some() {
                         let mut limits = vec![];
                         if let Some(blocks) = h.learned_max_block_range {
-                            limits.push(format!("max_blocks={}", blocks));
+                            limits.push(format!("max_blocks={blocks}"));
                         }
                         if let Some(logs) = h.learned_max_logs {
-                            limits.push(format!("max_logs={}", logs));
+                            limits.push(format!("max_logs={logs}"));
                         }
                         println!("  Limits:       {} (learned)", limits.join(", "));
                     }
@@ -1406,7 +1403,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::cli::config::read_from_stdin;
             let api_key = if *stdin {
                 read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1428,7 +1425,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use ethcli::cli::config::read_from_stdin;
             let access_key = if *stdin {
                 read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("Access key required (provide --key or use --stdin)")
@@ -1437,8 +1434,8 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.set_tenderly(access_key, account.clone(), project.clone())?;
             println!("Tenderly credentials saved to config file.");
-            println!("  Account: {}", account);
-            println!("  Project: {}", project);
+            println!("  Account: {account}");
+            println!("  Project: {project}");
             println!("\nBy using Tenderly, you agree to their Terms of Service.");
             println!("See: https://tenderly.co/terms-of-service");
         }
@@ -1453,7 +1450,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use secrecy::SecretString;
             let api_key = if *stdin {
                 read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1467,7 +1464,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             cfg.save_default()?;
             println!("Alchemy API key saved to config file.");
             if let Some(net) = network {
-                println!("  Network: {}", net);
+                println!("  Network: {net}");
             }
             println!("\nBy using Alchemy, you agree to their Terms of Service.");
             println!("See: https://www.alchemy.com/terms-conditions");
@@ -1479,7 +1476,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use secrecy::SecretString;
             let api_key = if *stdin {
                 read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1507,7 +1504,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use secrecy::SecretString;
             let (api_key, user_secret) = if *stdin {
                 let input = read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?;
                 let parts: Vec<&str> = input.splitn(2, ':').collect();
                 if parts.len() != 2 {
                     return Err(anyhow::anyhow!(
@@ -1545,7 +1542,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use secrecy::SecretString;
             let api_key = if *stdin {
                 read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1567,7 +1564,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             use secrecy::SecretString;
             let api_key = if *stdin {
                 read_from_stdin()
-                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {}", e))?
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 key.clone().ok_or_else(|| {
                     anyhow::anyhow!("API key required (provide key or use --stdin)")
@@ -1583,11 +1580,33 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://sim.dune.com/terms");
         }
 
+        ConfigCommands::SetSolodit { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            use ethcli::config::SoloditConfig;
+            use secrecy::SecretString;
+            let api_key = if *stdin {
+                read_from_stdin()
+                    .map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+            } else {
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
+            };
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.solodit = Some(SoloditConfig {
+                api_key: SecretString::new(api_key.into()),
+            });
+            cfg.save_default()?;
+            println!("Solodit API key saved to config file.");
+            println!("\nBy using Solodit, you agree to Cyfrin's Terms of Service.");
+            println!("See: https://www.cyfrin.io/terms-of-service");
+        }
+
         ConfigCommands::AddDebugRpc { url } => {
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.add_debug_rpc(url.clone())?;
             println!("Debug RPC URL added to config file.");
-            println!("  URL: {}", url);
+            println!("  URL: {url}");
         }
 
         ConfigCommands::RemoveDebugRpc { url } => {
@@ -1601,7 +1620,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             if path.exists() {
                 let content = std::fs::read_to_string(&path)?;
                 println!("# {}\n", path.display());
-                println!("{}", content);
+                println!("{content}");
             } else {
                 println!("No config file found at: {}", path.display());
                 println!("\nCreate one with:");
@@ -1692,6 +1711,10 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                         api_keys_present += 1;
                         println!("Dune SIM API key: configured");
                     }
+                    if config.solodit.is_some() {
+                        api_keys_present += 1;
+                        println!("Solodit API key: configured");
+                    }
                     if api_keys_present == 0 {
                         warnings.push(
                             "No API keys configured - some features will be unavailable"
@@ -1701,7 +1724,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                     println!();
                 }
                 Err(e) => {
-                    errors.push(format!("TOML parse error: {}", e));
+                    errors.push(format!("TOML parse error: {e}"));
                 }
             }
 
@@ -1709,7 +1732,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             if !warnings.is_empty() {
                 println!("Warnings:");
                 for w in &warnings {
-                    println!("  - {}", w);
+                    println!("  - {w}");
                 }
                 println!();
             }
@@ -1717,13 +1740,12 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             if !errors.is_empty() {
                 println!("Errors:");
                 for e in &errors {
-                    println!("  - {}", e);
+                    println!("  - {e}");
                 }
                 println!();
                 anyhow::bail!("Config validation failed with {} error(s)", errors.len());
-            } else {
-                println!("Config validation passed.");
             }
+            println!("Config validation passed.");
         }
     }
 
@@ -1998,9 +2020,9 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
             .map(|(i, hash)| {
                 let analyzer = analyzer.clone();
                 let hash = if hash.starts_with("0x") || hash.starts_with("0X") {
-                    hash.to_string()
+                    hash.clone()
                 } else {
-                    format!("0x{}", hash)
+                    format!("0x{hash}")
                 };
                 let idx = batch_start + i;
 
@@ -2053,16 +2075,16 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
     if args.output.is_json() {
         if analyses.len() == 1 {
             let json = serde_json::to_string_pretty(&analyses[0])?;
-            println!("{}", json);
+            println!("{json}");
         } else {
             let json = serde_json::to_string_pretty(&analyses)?;
-            println!("{}", json);
+            println!("{json}");
         }
     } else if args.output.is_ndjson() {
         // Newline-delimited JSON - one per line, good for streaming/large datasets
         for analysis in &analyses {
             let json = serde_json::to_string(analysis)?;
-            println!("{}", json);
+            println!("{json}");
         }
     } else {
         // Pretty/table print
@@ -2081,7 +2103,7 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
 
     if !cli.quiet {
         let failed_msg = if failed_count > 0 {
-            format!(", {} failed", failed_count)
+            format!(", {failed_count} failed")
         } else {
             String::new()
         };

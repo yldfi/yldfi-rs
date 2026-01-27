@@ -43,6 +43,7 @@ impl Default for Config {
 
 impl Config {
     /// Create a new config with default settings
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -144,6 +145,7 @@ impl Client {
     }
 
     /// Get the integrator identifier
+    #[must_use] 
     pub fn integrator(&self) -> Option<&str> {
         self.integrator.as_deref()
     }
@@ -548,7 +550,7 @@ impl Client {
     /// }
     /// ```
     pub async fn get_gas_prices(&self, chain_id: ChainId) -> Result<crate::types::GasPrice> {
-        self.get(&format!("/gas?chainId={}", chain_id)).await
+        self.get(&format!("/gas?chainId={chain_id}")).await
     }
 
     // ========================================================================

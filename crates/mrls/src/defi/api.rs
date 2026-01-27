@@ -1,11 +1,11 @@
-//! DeFi API client
+//! `DeFi` API client
 
-use super::types::*;
+use super::types::{PairPrice, PairReserves, PairAddress, DefiSummary, DefiPositionsResponse};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
 
-/// Query parameters for DeFi endpoints
+/// Query parameters for `DeFi` endpoints
 #[derive(Debug, Default, Serialize)]
 pub struct DefiQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -21,6 +21,7 @@ pub struct DefiQuery {
 }
 
 impl DefiQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -50,12 +51,13 @@ impl DefiQuery {
     }
 }
 
-/// API for DeFi operations
+/// API for `DeFi` operations
 pub struct DefiApi<'a> {
     client: &'a Client,
 }
 
 impl<'a> DefiApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -67,7 +69,7 @@ impl<'a> DefiApi<'a> {
         token1: &str,
         query: Option<&DefiQuery>,
     ) -> Result<PairPrice> {
-        let path = format!("/{}/{}/price", token0, token1);
+        let path = format!("/{token0}/{token1}/price");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -81,7 +83,7 @@ impl<'a> DefiApi<'a> {
         pair_address: &str,
         chain: Option<&str>,
     ) -> Result<PairReserves> {
-        let path = format!("/{}/reserves", pair_address);
+        let path = format!("/{pair_address}/reserves");
         if let Some(chain) = chain {
             let query = DefiQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -97,7 +99,7 @@ impl<'a> DefiApi<'a> {
         token1: &str,
         query: Option<&DefiQuery>,
     ) -> Result<PairAddress> {
-        let path = format!("/{}/{}/pairAddress", token0, token1);
+        let path = format!("/{token0}/{token1}/pairAddress");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -105,19 +107,19 @@ impl<'a> DefiApi<'a> {
         }
     }
 
-    /// Get DeFi summary for a wallet
+    /// Get `DeFi` summary for a wallet
     pub async fn get_wallet_defi_summary(&self, address: &str) -> Result<DefiSummary> {
-        let path = format!("/wallets/{}/defi/summary", address);
+        let path = format!("/wallets/{address}/defi/summary");
         self.client.get(&path).await
     }
 
-    /// Get all DeFi positions for a wallet
+    /// Get all `DeFi` positions for a wallet
     pub async fn get_wallet_defi_positions(
         &self,
         address: &str,
         query: Option<&DefiQuery>,
     ) -> Result<DefiPositionsResponse> {
-        let path = format!("/wallets/{}/defi/positions", address);
+        let path = format!("/wallets/{address}/defi/positions");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -125,14 +127,14 @@ impl<'a> DefiApi<'a> {
         }
     }
 
-    /// Get DeFi positions for a specific protocol
+    /// Get `DeFi` positions for a specific protocol
     pub async fn get_wallet_protocol_positions(
         &self,
         address: &str,
         protocol: &str,
         query: Option<&DefiQuery>,
     ) -> Result<DefiPositionsResponse> {
-        let path = format!("/wallets/{}/defi/{}/positions", address, protocol);
+        let path = format!("/wallets/{address}/defi/{protocol}/positions");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {

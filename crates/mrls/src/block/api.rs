@@ -1,6 +1,6 @@
 //! Block API client
 
-use super::types::*;
+use super::types::{Block, LatestBlock, DateToBlock};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -15,6 +15,7 @@ pub struct BlockQuery {
 }
 
 impl BlockQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -38,6 +39,7 @@ pub struct BlockApi<'a> {
 }
 
 impl<'a> BlockApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -48,7 +50,7 @@ impl<'a> BlockApi<'a> {
         block_number_or_hash: &str,
         query: Option<&BlockQuery>,
     ) -> Result<Block> {
-        let path = format!("/block/{}", block_number_or_hash);
+        let path = format!("/block/{block_number_or_hash}");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -58,7 +60,7 @@ impl<'a> BlockApi<'a> {
 
     /// Get latest block number for a chain
     pub async fn get_latest_block_number(&self, chain: &str) -> Result<LatestBlock> {
-        let path = format!("/latestBlockNumber/{}", chain);
+        let path = format!("/latestBlockNumber/{chain}");
         self.client.get(&path).await
     }
 
@@ -73,7 +75,7 @@ impl<'a> BlockApi<'a> {
 
         let query = DateQuery {
             date: date.to_string(),
-            chain: chain.map(|s| s.to_string()),
+            chain: chain.map(std::string::ToString::to_string),
         };
 
         self.client.get_with_query("/dateToBlock", &query).await

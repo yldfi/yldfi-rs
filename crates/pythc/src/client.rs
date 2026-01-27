@@ -42,11 +42,13 @@ impl Default for Config {
 
 impl Config {
     /// Create a mainnet config
+    #[must_use] 
     pub fn mainnet() -> Self {
         Self::default()
     }
 
     /// Create a testnet config
+    #[must_use] 
     pub fn testnet() -> Self {
         Self {
             inner: ApiConfig::new(base_urls::TESTNET),
@@ -259,7 +261,7 @@ impl Client {
         })
         .await;
 
-        result.map_err(|e| e.into_inner())
+        result.map_err(yldfi_common::RetryError::into_inner)
     }
 }
 
@@ -284,7 +286,7 @@ fn normalize_feed_id(id: &str) -> Cow<'_, str> {
     if lower.starts_with("0x") {
         Cow::Owned(lower)
     } else {
-        Cow::Owned(format!("0x{}", lower))
+        Cow::Owned(format!("0x{lower}"))
     }
 }
 
@@ -297,7 +299,7 @@ fn validate_feed_id(id: &str) -> bool {
 
 /// Well-known Pyth price feed IDs for common assets
 ///
-/// Feed IDs can be found at: https://pyth.network/developers/price-feed-ids
+/// Feed IDs can be found at: <https://pyth.network/developers/price-feed-ids>
 pub mod feed_ids {
     /// BTC/USD
     pub const BTC_USD: &str = "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43";
@@ -343,6 +345,7 @@ pub mod feed_ids {
 ///
 /// Returns `None` for unknown symbols. Use `search_feeds()` to find
 /// feed IDs for tokens not in this mapping.
+#[must_use] 
 pub fn symbol_to_feed_id(symbol: &str) -> Option<&'static str> {
     match symbol.to_uppercase().as_str() {
         // Major tokens

@@ -7,6 +7,7 @@ use crate::aggregator::swap::{
     fetch_quote_from_source, fetch_quotes_all, NormalizedQuote, QuoteAggregation, SwapSource,
 };
 use crate::cli::OutputFormat;
+use crate::utils::format::truncate_str;
 use clap::{Args, Subcommand, ValueEnum};
 use serde::Serialize;
 
@@ -381,6 +382,17 @@ fn resolve_amount(amount: &str, decimals: Option<u8>) -> anyhow::Result<String> 
             .map_err(|_| anyhow::anyhow!("Invalid amount"))?;
 
         let frac_digits = frac.len();
+
+        // Validate fractional digits don't exceed token decimals
+        if frac_digits > dec as usize {
+            return Err(anyhow::anyhow!(
+                "Too many decimal places: {} has {} decimals, but {} were provided",
+                amount,
+                dec,
+                frac_digits
+            ));
+        }
+
         let frac_val: u128 = if frac.is_empty() {
             0
         } else {
@@ -390,9 +402,21 @@ fn resolve_amount(amount: &str, decimals: Option<u8>) -> anyhow::Result<String> 
 
         // Calculate: whole * 10^dec + frac * 10^(dec - frac_digits)
         let multiplier = 10u128.pow(dec as u32);
-        let frac_multiplier = 10u128.pow((dec as usize).saturating_sub(frac_digits) as u32);
+        let frac_multiplier = 10u128.pow((dec as usize - frac_digits) as u32);
 
-        let raw = whole * multiplier + frac_val * frac_multiplier;
+        // Use checked arithmetic to prevent overflow
+        let whole_scaled = whole
+            .checked_mul(multiplier)
+            .ok_or_else(|| anyhow::anyhow!("Amount overflow: {} is too large for {} decimals", whole, dec))?;
+
+        let frac_scaled = frac_val
+            .checked_mul(frac_multiplier)
+            .ok_or_else(|| anyhow::anyhow!("Fractional amount overflow"))?;
+
+        let raw = whole_scaled
+            .checked_add(frac_scaled)
+            .ok_or_else(|| anyhow::anyhow!("Total amount overflow"))?;
+
         Ok(raw.to_string())
     } else {
         // Assume already in raw format
@@ -625,6 +649,8 @@ fn format_large_number(s: &str) -> String {
     // For very large numbers, add thousand separators or use scientific notation
     if s.len() > 15 {
         // Scientific notation for very large numbers
+        // Note: u128 -> f64 loses precision for values > 2^53, but this is
+        // only for display purposes in the comparison table
         if let Ok(n) = s.parse::<u128>() {
             return format!("{:.4e}", n as f64);
         }
@@ -632,10 +658,4 @@ fn format_large_number(s: &str) -> String {
     s.to_string()
 }
 
-fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len])
-    }
-}
+// Use truncate_str from utils::format for Unicode-safe truncation

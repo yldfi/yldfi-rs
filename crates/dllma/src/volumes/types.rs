@@ -16,11 +16,13 @@ pub struct VolumeOverviewOptions {
 
 impl VolumeOverviewOptions {
     /// Create new options with defaults
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Exclude chart data from response
+    #[must_use] 
     pub fn exclude_charts(mut self) -> Self {
         self.exclude_total_data_chart = true;
         self.exclude_total_data_chart_breakdown = true;
@@ -34,6 +36,7 @@ impl VolumeOverviewOptions {
     }
 
     /// Build query string
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if self.exclude_total_data_chart {
@@ -43,7 +46,7 @@ impl VolumeOverviewOptions {
             params.push("excludeTotalDataChartBreakdown=true".to_string());
         }
         if let Some(ref dt) = self.data_type {
-            params.push(format!("dataType={}", dt));
+            params.push(format!("dataType={dt}"));
         }
         if params.is_empty() {
             String::new()
@@ -131,7 +134,7 @@ pub struct VolumeProtocol {
     pub breakdown24h: Option<HashMap<String, HashMap<String, f64>>>,
     /// Method type
     pub methodology_url: Option<String>,
-    /// DefiLlama ID
+    /// `DefiLlama` ID
     pub defi_llama_id: Option<String>,
     /// Parent protocol
     pub parent_protocol: Option<String>,
@@ -149,7 +152,7 @@ pub struct ProtocolVolumeSummary {
     pub id: Option<String>,
     /// Logo URL
     pub logo: Option<String>,
-    /// DefiLlama ID
+    /// `DefiLlama` ID
     pub defi_llama_id: Option<String>,
     /// Protocol URL
     pub url: Option<String>,
@@ -191,6 +194,7 @@ pub enum VolumeType {
 
 impl VolumeType {
     /// Get the API path segment
+    #[must_use] 
     pub fn path(&self) -> &'static str {
         match self {
             Self::Dex => "dexs",
@@ -207,7 +211,7 @@ pub struct OpenInterestOverview {
     /// List of protocols with open interest data
     #[serde(default)]
     pub protocols: Vec<OpenInterestProtocol>,
-    /// Historical chart data: [[timestamp, open_interest], ...]
+    /// Historical chart data: [[timestamp, `open_interest`], ...]
     #[serde(default)]
     pub total_data_chart: Vec<(u64, f64)>,
     /// All chains with open interest data

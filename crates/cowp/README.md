@@ -81,6 +81,14 @@ println!("You will pay: {} WETH", quote.quote.sell_amount);
 | Arbitrum | `https://api.cow.fi/arbitrum_one` |
 | Sepolia | `https://api.cow.fi/sepolia` |
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [CoW Protocol Terms and Conditions](https://cow.fi/legal/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by CoW Protocol.
+
 ## License
 
 MIT

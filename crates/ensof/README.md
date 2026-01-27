@@ -146,6 +146,14 @@ let client = Client::with_config(config)?;
 - [Enso Finance Docs](https://docs.enso.finance/)
 - [API Reference](https://api.enso.finance/docs)
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Enso Finance Terms of Service](https://www.enso.finance/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Enso Finance.
+
 ## License
 
 MIT

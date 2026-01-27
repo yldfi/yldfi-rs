@@ -1,6 +1,6 @@
 //! NFT API implementation
 
-use super::types::*;
+use super::types::{OwnedNftsResponse, GetNftsForOwnerOptions, OwnersForNftResponse, OwnersForContractResponse, ContractsForOwnerResponse, IsHolderResponse, Nft, NftsForContractResponse, ContractMetadataResponse, ContractMetadataBatchResponse, CollectionMetadata, ContractMetadata, NftRarityResponse, AttributeSummaryResponse, RefreshMetadataResponse, NftSalesResponse, FloorPriceResponse, SpamContractsResponse, IsSpamResponse, IsAirdropResponse, CollectionsForOwnerResponse, InvalidateContractResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -143,7 +143,7 @@ impl<'a> NftApi<'a> {
             .await
     }
 
-    /// Get collection metadata by OpenSea slug
+    /// Get collection metadata by `OpenSea` slug
     pub async fn get_collection_metadata(&self, slug: &str) -> Result<CollectionMetadata> {
         let query = [("collectionSlug", slug)];
         self.client.nft_get("getCollectionMetadata", &query).await

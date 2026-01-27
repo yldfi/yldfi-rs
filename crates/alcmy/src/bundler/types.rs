@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// UserOperation v0.6
+/// `UserOperation` v0.6
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserOperationV06 {
@@ -32,7 +32,7 @@ pub struct UserOperationV06 {
     pub signature: String,
 }
 
-/// UserOperation v0.7
+/// `UserOperation` v0.7
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserOperationV07 {
@@ -74,7 +74,7 @@ pub struct UserOperationV07 {
     pub signature: String,
 }
 
-/// UserOperation (either v0.6 or v0.7)
+/// `UserOperation` (either v0.6 or v0.7)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UserOperation {
@@ -82,11 +82,11 @@ pub enum UserOperation {
     V07(UserOperationV07),
 }
 
-/// UserOperation receipt
+/// `UserOperation` receipt
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserOperationReceipt {
-    /// UserOperation hash
+    /// `UserOperation` hash
     pub user_op_hash: String,
     /// Entry point address
     pub entry_point: String,
@@ -170,11 +170,11 @@ pub struct Log {
     pub removed: bool,
 }
 
-/// UserOperation by hash response
+/// `UserOperation` by hash response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserOperationByHash {
-    /// The UserOperation
+    /// The `UserOperation`
     pub user_operation: serde_json::Value,
     /// Entry point address
     pub entry_point: String,

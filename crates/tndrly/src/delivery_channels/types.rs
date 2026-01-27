@@ -15,7 +15,7 @@ pub enum DeliveryChannelType {
     Discord,
     /// Telegram bot
     Telegram,
-    /// PagerDuty integration
+    /// `PagerDuty` integration
     PagerDuty,
     /// Custom webhook
     Webhook,
@@ -65,7 +65,7 @@ impl std::str::FromStr for DeliveryChannelType {
             "webhook" => Ok(Self::Webhook),
             "sentry" => Ok(Self::Sentry),
             "datadog" => Ok(Self::Datadog),
-            _ => Err(format!("Invalid delivery channel type: {}", s)),
+            _ => Err(format!("Invalid delivery channel type: {s}")),
         }
     }
 }

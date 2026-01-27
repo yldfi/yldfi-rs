@@ -4,7 +4,7 @@
 //! and queried on specific networks, but there is no list, update, or delete
 //! endpoint in the current API.
 
-use super::types::*;
+use super::types::{WalletOnNetwork, AddWalletRequest, AddWalletResponse};
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
 
@@ -15,13 +15,14 @@ pub struct WalletsApi<'a> {
 
 impl<'a> WalletsApi<'a> {
     /// Create a new Wallet API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
 
     /// List all wallets in the project
     ///
-    /// Note: Wallets are stored alongside contracts and filtered by account_type.
+    /// Note: Wallets are stored alongside contracts and filtered by `account_type`.
     /// This method fetches from the contracts endpoint and filters for wallets.
     ///
     /// # Example

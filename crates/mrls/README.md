@@ -66,6 +66,14 @@ async fn main() -> Result<(), mrls::Error> {
 
 - `MORALIS_API_KEY` - Your Moralis API key (required)
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Moralis Terms of Service](https://moralis.io/terms/).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Moralis.
+
 ## License
 
 MIT

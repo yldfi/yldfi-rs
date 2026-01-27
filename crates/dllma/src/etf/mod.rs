@@ -1,4 +1,4 @@
-//! TradFi crypto ETF data (Pro)
+//! `TradFi` crypto ETF data (Pro)
 //!
 //! Access Bitcoin and Ethereum ETF data, flows, and performance metrics.
 //!

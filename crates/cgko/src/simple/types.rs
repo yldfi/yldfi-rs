@@ -15,7 +15,7 @@ pub struct PriceData {
 /// Response from /simple/price
 pub type PricesResponse = HashMap<String, HashMap<String, serde_json::Value>>;
 
-/// Response from /simple/token_price/{id}
+/// Response from /`simple/token_price/{id`}
 pub type TokenPricesResponse = HashMap<String, HashMap<String, serde_json::Value>>;
 
 /// Supported vs currencies
@@ -32,10 +32,12 @@ pub struct PriceOptions {
 }
 
 impl PriceOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn full() -> Self {
         Self {
             include_market_cap: true,
@@ -46,6 +48,7 @@ impl PriceOptions {
         }
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if self.include_market_cap {
@@ -61,7 +64,7 @@ impl PriceOptions {
             params.push("include_last_updated_at=true".to_string());
         }
         if let Some(ref p) = self.precision {
-            params.push(format!("precision={}", p));
+            params.push(format!("precision={p}"));
         }
         if params.is_empty() {
             String::new()

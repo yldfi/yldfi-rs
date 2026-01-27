@@ -197,6 +197,14 @@ client.wallets()
 client.wallets().remove("0xd8dA...").await?;
 ```
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Tenderly's Terms of Service](https://tenderly.co/terms-of-service).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Tenderly.
+
 ## License
 
 MIT

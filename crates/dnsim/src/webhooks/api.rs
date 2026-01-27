@@ -1,6 +1,6 @@
 //! Webhooks API endpoints (Beta)
 
-use super::types::*;
+use super::types::{WebhooksListResponse, WebhooksListOptions, CreateWebhookRequest, Webhook, UpdateWebhookRequest, AddressesListResponse, AddressesListOptions, ReplaceAddressesRequest, UpdateAddressesRequest};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct WebhooksApi<'a> {
 }
 
 impl<'a> WebhooksApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -43,7 +44,7 @@ impl<'a> WebhooksApi<'a> {
     /// # Arguments
     /// * `webhook_id` - Webhook UUID
     pub async fn get(&self, webhook_id: &str) -> Result<Webhook> {
-        let path = format!("/beta/evm/subscriptions/webhooks/{}", webhook_id);
+        let path = format!("/beta/evm/subscriptions/webhooks/{webhook_id}");
         self.client.get(&path).await
     }
 
@@ -57,7 +58,7 @@ impl<'a> WebhooksApi<'a> {
         webhook_id: &str,
         request: &UpdateWebhookRequest,
     ) -> Result<Webhook> {
-        let path = format!("/beta/evm/subscriptions/webhooks/{}", webhook_id);
+        let path = format!("/beta/evm/subscriptions/webhooks/{webhook_id}");
         self.client.patch(&path, request).await
     }
 
@@ -66,7 +67,7 @@ impl<'a> WebhooksApi<'a> {
     /// # Arguments
     /// * `webhook_id` - Webhook UUID
     pub async fn delete(&self, webhook_id: &str) -> Result<()> {
-        let path = format!("/beta/evm/subscriptions/webhooks/{}", webhook_id);
+        let path = format!("/beta/evm/subscriptions/webhooks/{webhook_id}");
         self.client.delete_no_content(&path).await
     }
 
@@ -75,7 +76,7 @@ impl<'a> WebhooksApi<'a> {
     /// # Arguments
     /// * `webhook_id` - Webhook UUID
     pub async fn get_addresses(&self, webhook_id: &str) -> Result<AddressesListResponse> {
-        let path = format!("/beta/evm/subscriptions/webhooks/{}/addresses", webhook_id);
+        let path = format!("/beta/evm/subscriptions/webhooks/{webhook_id}/addresses");
         self.client.get(&path).await
     }
 
@@ -99,7 +100,7 @@ impl<'a> WebhooksApi<'a> {
     /// * `webhook_id` - Webhook UUID
     /// * `addresses` - New addresses list
     pub async fn replace_addresses(&self, webhook_id: &str, addresses: Vec<String>) -> Result<()> {
-        let path = format!("/beta/evm/subscriptions/webhooks/{}/addresses", webhook_id);
+        let path = format!("/beta/evm/subscriptions/webhooks/{webhook_id}/addresses");
         let request = ReplaceAddressesRequest { addresses };
         self.client.put_no_content(&path, &request).await
     }
@@ -114,7 +115,7 @@ impl<'a> WebhooksApi<'a> {
         webhook_id: &str,
         request: &UpdateAddressesRequest,
     ) -> Result<()> {
-        let path = format!("/beta/evm/subscriptions/webhooks/{}/addresses", webhook_id);
+        let path = format!("/beta/evm/subscriptions/webhooks/{webhook_id}/addresses");
         self.client.patch_no_content(&path, request).await
     }
 }

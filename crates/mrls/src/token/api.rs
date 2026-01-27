@@ -1,6 +1,6 @@
 //! Token API client
 
-use super::types::*;
+use super::types::{TokenMetadata, TokenPrice, TokenTransfer, TokenPair, TokenHoldersResponse, TokenResponse, TokenSwap, TokenStats, TokenSearchResult, TrendingToken, TokenCategory, PairOhlcv, PairStats, NewToken, GetMultiplePricesRequest, TokenHoldersSummary, HistoricalHolders, AggregatedPairStats, TopTrader, PairSniper, TokenBondingStatus};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -45,6 +45,7 @@ pub struct TokenApi<'a> {
 
 impl<'a> TokenApi<'a> {
     /// Create a new token API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -83,7 +84,7 @@ impl<'a> TokenApi<'a> {
 
     /// Get token price
     pub async fn get_price(&self, address: &str, chain: Option<&str>) -> Result<TokenPrice> {
-        let path = format!("/erc20/{}/price", address);
+        let path = format!("/erc20/{address}/price");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -98,7 +99,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<Vec<TokenTransfer>> {
-        let path = format!("/{}/erc20/transfers", address);
+        let path = format!("/{address}/erc20/transfers");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -109,7 +110,7 @@ impl<'a> TokenApi<'a> {
 
     /// Get token pairs (DEX liquidity pools)
     pub async fn get_pairs(&self, address: &str, chain: Option<&str>) -> Result<Vec<TokenPair>> {
-        let path = format!("/erc20/{}/pairs", address);
+        let path = format!("/erc20/{address}/pairs");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -124,7 +125,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<TokenHoldersResponse> {
-        let path = format!("/erc20/{}/owners", address);
+        let path = format!("/erc20/{address}/owners");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -139,7 +140,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<TokenResponse<TokenSwap>> {
-        let path = format!("/erc20/{}/swaps", address);
+        let path = format!("/erc20/{address}/swaps");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -154,7 +155,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<TokenResponse<TokenSwap>> {
-        let path = format!("/wallets/{}/swaps", address);
+        let path = format!("/wallets/{address}/swaps");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -169,7 +170,7 @@ impl<'a> TokenApi<'a> {
         pair_address: &str,
         chain: Option<&str>,
     ) -> Result<TokenResponse<TokenSwap>> {
-        let path = format!("/pairs/{}/swaps", pair_address);
+        let path = format!("/pairs/{pair_address}/swaps");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -180,7 +181,7 @@ impl<'a> TokenApi<'a> {
 
     /// Get token stats
     pub async fn get_stats(&self, address: &str, chain: Option<&str>) -> Result<TokenStats> {
-        let path = format!("/erc20/{}/stats", address);
+        let path = format!("/erc20/{address}/stats");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -204,7 +205,7 @@ impl<'a> TokenApi<'a> {
 
         let q = SearchQuery {
             query: query_str.to_string(),
-            chain: chain.map(|s| s.to_string()),
+            chain: chain.map(std::string::ToString::to_string),
         };
 
         self.client.get_with_query("/tokens/search", &q).await
@@ -231,7 +232,7 @@ impl<'a> TokenApi<'a> {
         pair_address: &str,
         chain: Option<&str>,
     ) -> Result<Vec<PairOhlcv>> {
-        let path = format!("/pairs/{}/ohlcv", pair_address);
+        let path = format!("/pairs/{pair_address}/ohlcv");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -246,7 +247,7 @@ impl<'a> TokenApi<'a> {
         pair_address: &str,
         chain: Option<&str>,
     ) -> Result<PairStats> {
-        let path = format!("/pairs/{}/stats", pair_address);
+        let path = format!("/pairs/{pair_address}/stats");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -261,7 +262,7 @@ impl<'a> TokenApi<'a> {
         exchange_name: &str,
         chain: Option<&str>,
     ) -> Result<TokenResponse<NewToken>> {
-        let path = format!("/erc20/exchange/{}/new", exchange_name);
+        let path = format!("/erc20/exchange/{exchange_name}/new");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -276,7 +277,7 @@ impl<'a> TokenApi<'a> {
         exchange_name: &str,
         chain: Option<&str>,
     ) -> Result<TokenResponse<NewToken>> {
-        let path = format!("/erc20/exchange/{}/bonding", exchange_name);
+        let path = format!("/erc20/exchange/{exchange_name}/bonding");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -291,7 +292,7 @@ impl<'a> TokenApi<'a> {
         exchange_name: &str,
         chain: Option<&str>,
     ) -> Result<TokenResponse<NewToken>> {
-        let path = format!("/erc20/exchange/{}/graduated", exchange_name);
+        let path = format!("/erc20/exchange/{exchange_name}/graduated");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -330,8 +331,8 @@ impl<'a> TokenApi<'a> {
         }
 
         let query = SymbolsQuery {
-            symbols: symbols.iter().map(|s| s.to_string()).collect(),
-            chain: chain.map(|c| c.to_string()),
+            symbols: symbols.iter().map(std::string::ToString::to_string).collect(),
+            chain: chain.map(std::string::ToString::to_string),
         };
 
         self.client
@@ -345,7 +346,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<TokenResponse<TokenTransfer>> {
-        let path = format!("/erc20/{}/transfers", address);
+        let path = format!("/erc20/{address}/transfers");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -360,7 +361,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<TokenHoldersSummary> {
-        let path = format!("/erc20/{}/holders", address);
+        let path = format!("/erc20/{address}/holders");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -375,7 +376,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<Vec<HistoricalHolders>> {
-        let path = format!("/erc20/{}/holders/historical", address);
+        let path = format!("/erc20/{address}/holders/historical");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -390,7 +391,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<AggregatedPairStats> {
-        let path = format!("/erc20/{}/pairs/stats", address);
+        let path = format!("/erc20/{address}/pairs/stats");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -405,7 +406,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<Vec<TopTrader>> {
-        let path = format!("/erc20/{}/top-gainers", address);
+        let path = format!("/erc20/{address}/top-gainers");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -420,7 +421,7 @@ impl<'a> TokenApi<'a> {
         pair_address: &str,
         chain: Option<&str>,
     ) -> Result<Vec<PairSniper>> {
-        let path = format!("/pairs/{}/snipers", pair_address);
+        let path = format!("/pairs/{pair_address}/snipers");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -435,7 +436,7 @@ impl<'a> TokenApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<TokenBondingStatus> {
-        let path = format!("/erc20/{}/bondingStatus", address);
+        let path = format!("/erc20/{address}/bondingStatus");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await

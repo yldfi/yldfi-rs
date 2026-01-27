@@ -24,6 +24,7 @@ members = [
     "crates/unswp",
     "crates/ykong",
     "crates/gplus",
+    "crates/sldt",
 ]
 
 [workspace.package]

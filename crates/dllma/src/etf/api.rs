@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{EtfOverview, EtfHistoryPoint, FdvPerformance, EtfFlow, EtfSnapshot};
 
 /// ETF API client (Pro only)
 pub struct EtfApi<'a> {
@@ -12,6 +12,7 @@ pub struct EtfApi<'a> {
 
 impl<'a> EtfApi<'a> {
     /// Create a new ETF API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -129,7 +130,7 @@ impl<'a> EtfApi<'a> {
     /// # }
     /// ```
     pub async fn fdv_performance(&self, period: &str) -> Result<Vec<FdvPerformance>> {
-        let path = format!("/fdv/performance/{}", period);
+        let path = format!("/fdv/performance/{period}");
         self.client.get_pro(&path).await
     }
 

@@ -1,7 +1,7 @@
-//! Rust client for the Enso Finance DeFi aggregator API
+//! Rust client for the Enso Finance `DeFi` aggregator API
 //!
-//! Enso Finance is a DeFi infrastructure platform that provides routing and
-//! execution for complex DeFi operations. It supports bundling multiple DeFi
+//! Enso Finance is a `DeFi` infrastructure platform that provides routing and
+//! execution for complex `DeFi` operations. It supports bundling multiple `DeFi`
 //! actions into single transactions and provides smart routing across protocols.
 //!
 //! # Features
@@ -147,7 +147,7 @@ impl Client {
             .await
     }
 
-    /// Bundle multiple DeFi actions into one transaction
+    /// Bundle multiple `DeFi` actions into one transaction
     ///
     /// Allows combining multiple actions (swap, deposit, stake) into a single transaction.
     ///
@@ -189,7 +189,7 @@ impl Client {
     /// * `chain_id` - Chain ID
     /// * `token` - Token address
     pub async fn get_token_price(&self, chain_id: u64, token: &str) -> Result<TokenPrice> {
-        let path = format!("/api/v1/prices/{}/{}", chain_id, token);
+        let path = format!("/api/v1/prices/{chain_id}/{token}");
         self.base
             .get::<TokenPrice, _>(&path, &[] as &[(&str, &str)])
             .await
@@ -202,7 +202,7 @@ impl Client {
     /// * `chain_id` - Chain ID
     /// * `address` - Wallet address
     pub async fn get_balances(&self, chain_id: u64, address: &str) -> Result<Vec<TokenBalance>> {
-        let path = format!("/api/v1/balances/{}/{}", chain_id, address);
+        let path = format!("/api/v1/balances/{chain_id}/{address}");
         self.base
             .get::<Vec<TokenBalance>, _>(&path, &[] as &[(&str, &str)])
             .await

@@ -1,6 +1,6 @@
 //! Usage API implementation
 
-use super::types::*;
+use super::types::UsageResponse;
 use crate::client::Client;
 use crate::error::{Error, Result};
 

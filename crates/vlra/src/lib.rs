@@ -1,6 +1,6 @@
-//! Rust client for the Velora (ParaSwap) DEX aggregator API
+//! Rust client for the Velora (`ParaSwap`) DEX aggregator API
 //!
-//! Velora (formerly ParaSwap) is a leading DEX aggregator that provides optimal
+//! Velora (formerly `ParaSwap`) is a leading DEX aggregator that provides optimal
 //! swap routes across multiple DEXs. It offers advanced features like MEV protection,
 //! gas optimization, and multi-path routing.
 //!
@@ -71,7 +71,7 @@ pub fn config_with_api_key(api_key: impl Into<String>) -> Config {
     ApiConfig::with_api_key(DEFAULT_BASE_URL, api_key)
 }
 
-/// Client for interacting with the Velora (ParaSwap) API
+/// Client for interacting with the Velora (`ParaSwap`) API
 #[derive(Debug, Clone)]
 pub struct Client {
     base: BaseClient,

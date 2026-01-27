@@ -4,6 +4,7 @@
 
 use crate::aggregator::nft::{fetch_nfts_all, fetch_nfts_parallel, NftEntry, NftResult, NftSource};
 use crate::cli::OutputFormat;
+use crate::utils::format::truncate_str;
 use clap::{Args, ValueEnum};
 use serde::Serialize;
 
@@ -33,6 +34,12 @@ impl From<NftSourceArg> for NftSource {
 }
 
 #[derive(Args)]
+#[command(after_help = "Examples:
+  ethcli nfts 0xd8dA6BF...                             # NFTs on Ethereum
+  ethcli nfts 0xd8dA... --chain polygon --chain base   # Multi-chain query
+  ethcli nfts 0xd8dA... --exclude-spam --verified-only # Filter spam/unverified
+  ethcli nfts 0xd8dA... --source alchemy               # Query specific source
+  ethcli nfts 0xd8dA... --show-sources --limit 20      # Show per-source breakdown")]
 pub struct NftsArgs {
     /// Wallet address to query
     #[arg(value_name = "ADDRESS")]
@@ -206,10 +213,10 @@ fn print_table_output(
                 .collection_name
                 .as_ref()
                 .or(nft.name.as_ref())
-                .map(|s| truncate(s, 20))
+                .map(|s| truncate_str(s, 20))
                 .unwrap_or_else(|| "-".to_string());
 
-            let token_id = truncate(&nft.token_id, 16);
+            let token_id = truncate_str(&nft.token_id, 16);
 
             let floor_str = nft
                 .floor_price_usd
@@ -226,7 +233,7 @@ fn print_table_output(
 
             println!(
                 "{:<8} {:<20} {:<16} {:>10} {:>12} {:>8} {:>10}",
-                truncate(&nft.chain, 8),
+                truncate_str(&nft.chain, 8),
                 collection,
                 token_id,
                 nft.balance,
@@ -254,7 +261,7 @@ fn print_table_output(
             let error_note = source
                 .error
                 .as_ref()
-                .map(|e| format!(" ({})", truncate_error(e, 30)))
+                .map(|e| format!(" ({})", truncate_str(e, 30)))
                 .unwrap_or_default();
 
             println!(
@@ -269,18 +276,4 @@ fn print_table_output(
     println!();
 }
 
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len - 3])
-    }
-}
-
-fn truncate_error(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len])
-    }
-}
+// Use truncate_str from utils::format for Unicode-safe truncation

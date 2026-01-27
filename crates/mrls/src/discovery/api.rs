@@ -1,6 +1,6 @@
 //! Discovery API client
 
-use super::types::*;
+use super::types::{DiscoveryResponse, TokenAnalytics, TokenScore, DiscoveryFilter, DiscoveredToken};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -17,6 +17,7 @@ pub struct DiscoveryQuery {
 }
 
 impl DiscoveryQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -46,6 +47,7 @@ pub struct DiscoveryApi<'a> {
 }
 
 impl<'a> DiscoveryApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -167,7 +169,7 @@ impl<'a> DiscoveryApi<'a> {
         token_address: &str,
         chain: Option<&str>,
     ) -> Result<TokenAnalytics> {
-        let path = format!("/tokens/{}/analytics", token_address);
+        let path = format!("/tokens/{token_address}/analytics");
         if let Some(chain) = chain {
             let query = DiscoveryQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -182,7 +184,7 @@ impl<'a> DiscoveryApi<'a> {
         token_address: &str,
         chain: Option<&str>,
     ) -> Result<TokenScore> {
-        let path = format!("/tokens/{}/score", token_address);
+        let path = format!("/tokens/{token_address}/score");
         if let Some(chain) = chain {
             let query = DiscoveryQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -206,7 +208,7 @@ impl<'a> DiscoveryApi<'a> {
         }
         let query = TokenQuery {
             address: address.to_string(),
-            chain: chain.map(|s| s.to_string()),
+            chain: chain.map(std::string::ToString::to_string),
         };
         self.client.get_with_query("/discovery/token", &query).await
     }

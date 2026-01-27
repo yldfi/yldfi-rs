@@ -1,6 +1,6 @@
 //! Balances API endpoints
 
-use super::types::*;
+use super::types::{BalancesResponse, BalancesOptions, SingleBalanceOptions, SingleBalanceResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct BalancesApi<'a> {
 }
 
 impl<'a> BalancesApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -19,7 +20,7 @@ impl<'a> BalancesApi<'a> {
     /// # Arguments
     /// * `address` - Wallet address
     pub async fn get(&self, address: &str) -> Result<BalancesResponse> {
-        let path = format!("/v1/evm/balances/{}", address);
+        let path = format!("/v1/evm/balances/{address}");
         self.client.get(&path).await
     }
 
@@ -42,7 +43,7 @@ impl<'a> BalancesApi<'a> {
     /// # Arguments
     /// * `address` - Wallet address
     /// * `token_address` - Token contract address or "native"
-    /// * `options` - Query options (chain_ids is required)
+    /// * `options` - Query options (`chain_ids` is required)
     pub async fn get_token(
         &self,
         address: &str,

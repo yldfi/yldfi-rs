@@ -1,6 +1,6 @@
-//! Rust client for the OpenOcean DEX Aggregator API
+//! Rust client for the `OpenOcean` DEX Aggregator API
 //!
-//! OpenOcean is a multi-chain DEX aggregator that provides optimal swap routes
+//! `OpenOcean` is a multi-chain DEX aggregator that provides optimal swap routes
 //! across 40+ chains and hundreds of DEXs.
 //!
 //! # Quick Start
@@ -57,7 +57,7 @@
 //!
 //! # Supported Chains
 //!
-//! OpenOcean supports 40+ chains including:
+//! `OpenOcean` supports 40+ chains including:
 //! - Ethereum, BSC, Polygon, Arbitrum, Optimism, Base
 //! - Avalanche, Fantom, Gnosis, zkSync, Scroll
 //! - Solana, Sui (non-EVM)
@@ -79,13 +79,13 @@ pub use types::{
 pub use yldfi_common::api::{ApiConfig, BaseClient};
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
-/// Default base URL for the OpenOcean API
+/// Default base URL for the `OpenOcean` API
 pub const DEFAULT_BASE_URL: &str = "https://open-api.openocean.finance/v4";
 
-/// Configuration for the OpenOcean API client
+/// Configuration for the `OpenOcean` API client
 pub type Config = ApiConfig;
 
-/// Create a default OpenOcean config
+/// Create a default `OpenOcean` config
 #[must_use]
 pub fn default_config() -> Config {
     ApiConfig::new(DEFAULT_BASE_URL)

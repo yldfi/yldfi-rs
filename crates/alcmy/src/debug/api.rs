@@ -1,6 +1,6 @@
 //! Debug API implementation
 
-use super::types::*;
+use super::types::{CallFrame, TracerOptions, TraceCallObject, TraceCallOptions, BlockTrace};
 use crate::client::Client;
 use crate::error::Result;
 

@@ -1,6 +1,6 @@
 //! Collectibles API endpoints
 
-use super::types::*;
+use super::types::{CollectiblesResponse, CollectiblesOptions};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct CollectiblesApi<'a> {
 }
 
 impl<'a> CollectiblesApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -19,7 +20,7 @@ impl<'a> CollectiblesApi<'a> {
     /// # Arguments
     /// * `address` - Wallet address
     pub async fn get(&self, address: &str) -> Result<CollectiblesResponse> {
-        let path = format!("/v1/evm/collectibles/{}", address);
+        let path = format!("/v1/evm/collectibles/{address}");
         self.client.get(&path).await
     }
 

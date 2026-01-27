@@ -57,6 +57,14 @@ async fn main() -> ykong::Result<()> {
 - `client.tvls()` - TVL queries
 - `client.reports()` - Report queries
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Yearn Finance Terms of Service](https://yearn.fi/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Yearn Finance.
+
 ## License
 
 MIT

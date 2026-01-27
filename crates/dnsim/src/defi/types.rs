@@ -1,20 +1,20 @@
-//! Types for DeFi positions
+//! Types for `DeFi` positions
 
 use serde::{Deserialize, Serialize};
 
-/// DeFi positions response
+/// `DeFi` positions response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DefiPositionsResponse {
-    /// DeFi positions
+    /// `DeFi` positions
     pub positions: Vec<DefiPosition>,
     /// Aggregations
     pub aggregations: Option<DefiAggregations>,
 }
 
-/// DeFi position (discriminated by type field)
+/// `DeFi` position (discriminated by type field)
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DefiPosition {
-    /// Position type (Erc4626, Tokenized, UniswapV2, Nft, NftV4)
+    /// Position type (Erc4626, Tokenized, `UniswapV2`, Nft, `NftV4`)
     #[serde(rename = "type")]
     pub position_type: String,
     /// Chain ID
@@ -47,13 +47,13 @@ pub struct DefiPosition {
     // UniswapV2/Nft/NftV4 fields
     /// Protocol name
     pub protocol: Option<String>,
-    /// Pool address (UniswapV2, Nft)
+    /// Pool address (`UniswapV2`, Nft)
     pub pool: Option<String>,
-    /// Pool ID (NftV4, as byte array)
+    /// Pool ID (`NftV4`, as byte array)
     pub pool_id: Option<Vec<u8>>,
-    /// Pool manager (NftV4)
+    /// Pool manager (`NftV4`)
     pub pool_manager: Option<String>,
-    /// Salt (NftV4, as byte array)
+    /// Salt (`NftV4`, as byte array)
     pub salt: Option<Vec<u8>>,
 
     // Token pair fields (UniswapV2, Nft, NftV4)
@@ -79,7 +79,7 @@ pub struct DefiPosition {
     pub token1_price: Option<f64>,
 
     // Balance fields
-    /// LP balance (UniswapV2)
+    /// LP balance (`UniswapV2`)
     pub lp_balance: Option<String>,
     /// Calculated balance
     pub calculated_balance: Option<String>,
@@ -114,16 +114,16 @@ pub struct NftPositionDetails {
     pub token1_rewards: Option<String>,
 }
 
-/// DeFi aggregations
+/// `DeFi` aggregations
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DefiAggregations {
     /// Total USD value
     pub total_usd_value: f64,
-    /// Total by chain (chain_id -> value)
+    /// Total by chain (`chain_id` -> value)
     pub total_by_chain: Option<serde_json::Value>,
 }
 
-/// Query options for DeFi positions
+/// Query options for `DeFi` positions
 #[derive(Debug, Clone, Default)]
 pub struct DefiPositionsOptions {
     /// Filter by chain IDs (comma-separated)
@@ -131,13 +131,15 @@ pub struct DefiPositionsOptions {
 }
 
 impl DefiPositionsOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         if let Some(ref chain_ids) = self.chain_ids {
-            format!("?chain_ids={}", chain_ids)
+            format!("?chain_ids={chain_ids}")
         } else {
             String::new()
         }

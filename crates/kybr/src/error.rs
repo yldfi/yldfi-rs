@@ -1,12 +1,12 @@
-//! Error types for the KyberSwap API client
+//! Error types for the `KyberSwap` API client
 //!
-//! This module provides the error types for the KyberSwap API client,
+//! This module provides the error types for the `KyberSwap` API client,
 //! built on top of the shared `ApiError` infrastructure.
 
 use thiserror::Error;
 pub use yldfi_common::api::ApiError;
 
-/// Domain-specific errors for KyberSwap
+/// Domain-specific errors for `KyberSwap`
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum DomainError {
@@ -23,10 +23,10 @@ pub enum DomainError {
     NoRouteFound,
 }
 
-/// Error type for KyberSwap API operations
+/// Error type for `KyberSwap` API operations
 pub type Error = ApiError<DomainError>;
 
-/// Result type for KyberSwap API operations
+/// Result type for `KyberSwap` API operations
 pub type Result<T> = std::result::Result<T, Error>;
 
 // Convenience constructors for domain errors
@@ -41,6 +41,7 @@ pub fn unsupported_chain(chain: impl Into<String>) -> Error {
 }
 
 /// Create a no route found error
+#[must_use] 
 pub fn no_route_found() -> Error {
     ApiError::domain(DomainError::NoRouteFound)
 }

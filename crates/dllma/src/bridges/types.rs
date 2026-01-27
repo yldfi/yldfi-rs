@@ -11,17 +11,20 @@ pub struct ListBridgesOptions {
 
 impl ListBridgesOptions {
     /// Create new options with defaults
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Include chain information
+    #[must_use] 
     pub fn include_chains(mut self) -> Self {
         self.include_chains = true;
         self
     }
 
     /// Build query string
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         if self.include_chains {
             "?includeChains=true".to_string()
@@ -48,17 +51,20 @@ pub struct TransactionsOptions {
 
 impl TransactionsOptions {
     /// Create new options with defaults
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Set limit
+    #[must_use] 
     pub fn limit(mut self, limit: u32) -> Self {
         self.limit = Some(limit);
         self
     }
 
     /// Set time range
+    #[must_use] 
     pub fn time_range(mut self, start: u64, end: u64) -> Self {
         self.start_timestamp = Some(start);
         self.end_timestamp = Some(end);
@@ -78,22 +84,23 @@ impl TransactionsOptions {
     }
 
     /// Build query string
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {
-            params.push(format!("limit={}", limit));
+            params.push(format!("limit={limit}"));
         }
         if let Some(start) = self.start_timestamp {
-            params.push(format!("startTimestamp={}", start));
+            params.push(format!("startTimestamp={start}"));
         }
         if let Some(end) = self.end_timestamp {
-            params.push(format!("endTimestamp={}", end));
+            params.push(format!("endTimestamp={end}"));
         }
         if let Some(ref chain) = self.source_chain {
-            params.push(format!("sourceChain={}", chain));
+            params.push(format!("sourceChain={chain}"));
         }
         if let Some(ref addr) = self.address {
-            params.push(format!("address={}", addr));
+            params.push(format!("address={addr}"));
         }
         if params.is_empty() {
             String::new()

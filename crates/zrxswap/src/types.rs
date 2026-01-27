@@ -529,7 +529,7 @@ impl PriceResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LiquiditySource {
-    /// Source name (e.g., "Uniswap_V3", "Curve")
+    /// Source name (e.g., "`Uniswap_V3`", "Curve")
     pub name: String,
     /// Proportion of the swap routed through this source (0-1)
     pub proportion: String,

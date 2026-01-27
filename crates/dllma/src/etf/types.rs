@@ -82,7 +82,7 @@ pub struct FdvPerformance {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct EtfFlow {
-    /// CoinGecko ID (e.g., "bitcoin", "ethereum")
+    /// `CoinGecko` ID (e.g., "bitcoin", "ethereum")
     pub gecko_id: Option<String>,
     /// Date (e.g., "2024-01-15")
     pub day: Option<String>,

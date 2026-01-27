@@ -62,6 +62,14 @@ async fn main() -> Result<(), dnsim::Error> {
 
 - `DUNE_SIM_API_KEY` - Your Dune SIM API key (required)
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Dune SIM Terms of Service](https://sim.dune.com/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Dune Analytics.
+
 ## License
 
 MIT

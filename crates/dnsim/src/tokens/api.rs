@@ -1,6 +1,6 @@
 //! Token info API endpoints
 
-use super::types::*;
+use super::types::{TokenInfoOptions, TokensResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct TokensApi<'a> {
 }
 
 impl<'a> TokensApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -18,7 +19,7 @@ impl<'a> TokensApi<'a> {
     ///
     /// # Arguments
     /// * `address` - Token contract address or "native"
-    /// * `options` - Query options (chain_ids is required)
+    /// * `options` - Query options (`chain_ids` is required)
     pub async fn get(&self, address: &str, options: &TokenInfoOptions) -> Result<TokensResponse> {
         let path = format!(
             "/v1/evm/token-info/{}{}",

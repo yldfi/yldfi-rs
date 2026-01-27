@@ -1,12 +1,12 @@
-//! Error types for the CoW Protocol API client
+//! Error types for the `CoW` Protocol API client
 //!
-//! This module provides the error types for the CoW Protocol API client,
+//! This module provides the error types for the `CoW` Protocol API client,
 //! built on top of the shared `ApiError` infrastructure.
 
 use thiserror::Error;
 pub use yldfi_common::api::ApiError;
 
-/// Domain-specific errors for CoW Protocol
+/// Domain-specific errors for `CoW` Protocol
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum DomainError {
@@ -31,10 +31,10 @@ pub enum DomainError {
     OrderNotFound(String),
 }
 
-/// Error type for CoW Protocol API operations
+/// Error type for `CoW` Protocol API operations
 pub type Error = ApiError<DomainError>;
 
-/// Result type for CoW Protocol API operations
+/// Result type for `CoW` Protocol API operations
 pub type Result<T> = std::result::Result<T, Error>;
 
 // Convenience constructors for domain errors
@@ -54,6 +54,7 @@ pub fn no_quote(message: impl Into<String>) -> Error {
 }
 
 /// Create an insufficient liquidity error
+#[must_use] 
 pub fn insufficient_liquidity() -> Error {
     ApiError::domain(DomainError::InsufficientLiquidity)
 }

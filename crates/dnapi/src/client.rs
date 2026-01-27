@@ -111,7 +111,7 @@ impl Client {
         if let Some(ref proxy_url) = config.http.proxy {
             let proxy = reqwest::Proxy::all(proxy_url).map_err(|e| Error::Api {
                 status: 0,
-                message: format!("Invalid proxy URL: {}", e),
+                message: format!("Invalid proxy URL: {e}"),
             })?;
             builder = builder.proxy(proxy);
         }
@@ -143,31 +143,37 @@ impl Client {
     }
 
     /// Access the Queries API
+    #[must_use] 
     pub fn queries(&self) -> QueriesApi<'_> {
         QueriesApi::new(self)
     }
 
     /// Access the Executions API
+    #[must_use] 
     pub fn executions(&self) -> ExecutionsApi<'_> {
         ExecutionsApi::new(self)
     }
 
     /// Access the Tables (uploads) API
+    #[must_use] 
     pub fn tables(&self) -> TablesApi<'_> {
         TablesApi::new(self)
     }
 
     /// Access the Materialized Views API
+    #[must_use] 
     pub fn matviews(&self) -> MatviewsApi<'_> {
         MatviewsApi::new(self)
     }
 
     /// Access the Pipelines API
+    #[must_use] 
     pub fn pipelines(&self) -> PipelinesApi<'_> {
         PipelinesApi::new(self)
     }
 
     /// Access the Usage API
+    #[must_use] 
     pub fn usage(&self) -> UsageApi<'_> {
         UsageApi::new(self)
     }

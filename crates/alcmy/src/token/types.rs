@@ -14,7 +14,7 @@ pub struct RpcTokenBalance {
     pub error: Option<String>,
 }
 
-/// Response for alchemy_getTokenBalances
+/// Response for `alchemy_getTokenBalances`
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RpcTokenBalancesResponse {

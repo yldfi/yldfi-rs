@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{EmissionsSummary, EmissionDetail};
 
 /// Emissions API client (Pro only)
 pub struct EmissionsApi<'a> {
@@ -12,6 +12,7 @@ pub struct EmissionsApi<'a> {
 
 impl<'a> EmissionsApi<'a> {
     /// Create a new Emissions API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -31,7 +32,7 @@ impl<'a> EmissionsApi<'a> {
     ///
     /// * `protocol` - Protocol slug
     pub async fn get(&self, protocol: &str) -> Result<EmissionDetail> {
-        let path = format!("/emission/{}", protocol);
+        let path = format!("/emission/{protocol}");
         self.client.get_pro(&path).await
     }
 }

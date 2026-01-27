@@ -83,6 +83,14 @@ async fn main() -> Result<(), openoc::Error> {
 
 Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Fantom, Gnosis, zkSync Era, Linea, Scroll, Mantle, Blast, Solana, Sui
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [OpenOcean Terms of Service](https://openocean.finance/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by OpenOcean.
+
 ## License
 
 MIT

@@ -50,6 +50,7 @@ ethcli endpoints  # Manage RPC endpoints
 ethcli config     # Manage configuration
 ethcli update     # Check for updates and self-update
 ethcli doctor     # Diagnose configuration and connectivity
+ethcli completions # Generate shell completions (bash, zsh, fish, powershell)
 ```
 
 ### Aggregation Commands (parallel queries to multiple APIs)
@@ -58,6 +59,7 @@ ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Ch
 ethcli portfolio  # Portfolio balances from Alchemy, Dune SIM, Moralis
 ethcli nfts       # NFT holdings from Alchemy, CoinGecko, Moralis, Dune SIM
 ethcli yields     # DeFi yields from DefiLlama and Curve
+ethcli quote      # Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora, Enso
 ```
 
 ### Direct API Access Commands
@@ -75,6 +77,7 @@ ethcli ccxt       # Exchange data (Binance, Bitget, OKX, Hyperliquid)
 ethcli kong       # Yearn Kong API (vaults, strategies, prices, TVL, reports)
 ethcli uniswap    # Uniswap V2/V3/V4 (on-chain lens + subgraph)
 ethcli goplus     # GoPlus Security API (token/address/NFT/approval security)
+ethcli solodit    # Solodit vulnerability database (smart contract security findings)
 ```
 
 ### Security & Token Analysis
@@ -102,8 +105,9 @@ ethcli goplus approval 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain-id 1
 # List supported chains
 ethcli goplus chains
 
-# JSON output
-ethcli goplus token 0x... --chain-id 1 --json
+# JSON output (use --format or -o)
+ethcli goplus token 0x... --chain-id 1 --format json
+ethcli goplus token 0x... --chain-id 1 -o ndjson
 ```
 
 ### Notes
@@ -150,6 +154,77 @@ ethcli blacklist clear
 - **Security checks**: Uses GoPlus API + Etherscan verification status
 - **Known protocols**: Yearn, Curve, Aave, Compound, etc. are auto-whitelisted
 - **Alias**: `ethcli bl` works as an alias for `ethcli blacklist`
+
+## Solodit Commands
+
+Search and explore smart contract security vulnerability findings from the Solodit database (by Cyfrin).
+
+```bash
+# Search for vulnerability findings
+ethcli solodit search "reentrancy"
+ethcli sld search "oracle manipulation" --impact HIGH,MEDIUM
+ethcli sld search "flash loan" --firm "Trail of Bits" --tag Reentrancy
+
+# Filter by various criteria
+ethcli sld search "access control" --protocol "Aave" --language Solidity
+ethcli sld search "price" --min-quality 3 --sort quality
+
+# Advanced filtering
+ethcli sld search "oracle" --protocol-category DeFi,Bridge
+ethcli sld search "reentrancy" --finder "username" --min-finders 1 --max-finders 3
+ethcli sld search "flash loan" --reported 30                    # Last 30 days
+ethcli sld search "access control" --reported-after 2024-01-01  # After specific date
+ethcli sld search "price" --min-quality 3 --min-rarity 2
+ethcli sld search "oracle" --sort quality --sort-dir asc
+
+# Get a specific finding by slug
+ethcli sld get <finding-slug>
+ethcli sld get <finding-slug> --format json
+
+# Check API rate limit status
+ethcli sld rate-limit
+
+# List common vulnerability tags
+ethcli sld tags
+
+# List common audit firms
+ethcli sld firms
+
+# Pagination
+ethcli sld search "reentrancy" --page 2 --limit 50
+```
+
+### Search Filters
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--impact`, `-i` | Impact level(s) | `--impact HIGH,MEDIUM` |
+| `--firm`, `-f` | Audit firm(s) | `--firm "Cyfrin,Sherlock"` |
+| `--tag`, `-t` | Vulnerability tag(s) | `--tag Reentrancy,Oracle` |
+| `--protocol` | Protocol name (partial) | `--protocol Aave` |
+| `--protocol-category` | Protocol category | `--protocol-category DeFi` |
+| `--language` | Programming language | `--language Solidity` |
+| `--finder` | Auditor handle (partial) | `--finder username` |
+| `--min-finders` | Min number of finders | `--min-finders 1` |
+| `--max-finders` | Max number of finders | `--max-finders 5` |
+| `--reported` | Report period (30/60/90 days) | `--reported 30` |
+| `--reported-after` | Reports after date (ISO) | `--reported-after 2024-01-01` |
+| `--min-quality` | Min quality score (0-5) | `--min-quality 3` |
+| `--min-rarity` | Min rarity score (0-5) | `--min-rarity 2` |
+| `--sort` | Sort field | `--sort quality` |
+| `--sort-dir` | Sort direction (asc/desc) | `--sort-dir asc` |
+| `--page` | Page number | `--page 2` |
+| `--limit` | Results per page (max 100) | `--limit 50` |
+| `--format`, `-o` | Output format (table, json, ndjson) | `--format json` |
+
+### Notes
+
+- **API key required**: Set `SOLODIT_API_KEY` or use `ethcli config set-solodit <key>`
+- **Get API key**: https://solodit.cyfrin.io (Profile > API Keys)
+- **Rate limit**: 20 requests per 60 seconds
+- **Alias**: `ethcli sld` works as an alias for `ethcli solodit`
+- **Impact levels**: HIGH, MEDIUM, LOW, GAS
+- **Sort options**: recency (default), quality, rarity
 
 ## Simulation Commands
 
@@ -268,6 +343,57 @@ ethcli curve router address polygon
 ethcli curve router address arbitrum
 ```
 
+## Quote Commands
+
+Get swap quotes from multiple DEX aggregators in parallel. Finds the best swap route across OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora, and Enso.
+
+```bash
+# Get the best quote from all aggregators
+ethcli quote best ETH USDC 1000000000000000000 --chain ethereum
+
+# Get quote from a specific aggregator
+ethcli quote from openocean ETH USDC 1000000000000000000
+ethcli quote from 1inch WETH DAI 1000000000000000000 --chain polygon
+
+# Compare quotes from all aggregators side-by-side
+ethcli quote compare ETH USDC 1000000000000000000 --chain ethereum
+
+# Use human-readable amounts with --decimals
+ethcli quote best ETH USDC 1.5 --decimals 18 --chain ethereum
+
+# Include transaction data in output
+ethcli quote best ETH USDC 1000000000000000000 --show-tx
+
+# Set slippage tolerance (basis points, default 50 = 0.5%)
+ethcli quote best ETH USDC 1000000000000000000 --slippage 100
+
+# Provide sender address for more accurate quotes
+ethcli quote best ETH USDC 1000000000000000000 --sender 0xYourAddress
+
+# JSON output
+ethcli quote compare ETH USDC 1000000000000000000 --format json
+```
+
+### Available Sources
+
+| Alias | Aggregator | Notes |
+|-------|------------|-------|
+| `openocean`, `oo` | OpenOcean | Multi-chain DEX aggregator |
+| `kyberswap`, `kyber` | KyberSwap | Dynamic routing |
+| `0x`, `zerox` | 0x Protocol | Professional-grade liquidity |
+| `1inch`, `oneinch` | 1inch | Pathfinder algorithm |
+| `cowswap`, `cow` | CowSwap | MEV-protected trades |
+| `li.fi`, `lifi` | LI.FI | Cross-chain aggregator |
+| `velora`, `paraswap` | Velora/ParaSwap | Multi-protocol routing |
+| `enso`, `ensofi` | Enso Finance | DeFi shortcuts |
+
+### Notes
+
+- **No API keys required** for basic usage (some sources may have higher rate limits with keys)
+- **MEV protection**: CowSwap uses batch auctions to protect against MEV
+- **Amount format**: Pass raw amounts (wei) or use `--decimals` for human-readable input
+- **Chains**: Supports Ethereum, Polygon, Arbitrum, Optimism, Base, and more
+
 ## Chainlink Commands
 
 Query Chainlink price feeds via RPC (no API key required). Supports Feed Registry (mainnet) and direct oracle queries (all chains).
@@ -324,8 +450,9 @@ ethcli kong vaults list --erc4626              # ERC4626 compliant vaults
 # Get specific vault details
 ethcli kong vaults get --chain-id 1 0x7B5A0182E400b241b317e781a4e9dEdFc1429822
 
-# Get user positions in vaults
-ethcli kong vaults accounts --chain-id 1 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+# Get user positions in vaults (DEPRECATED - Kong API removed this endpoint in 2024)
+# This command returns empty results. Use `ethcli portfolio` for vault positions instead.
+# ethcli kong vaults accounts --chain-id 1 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 
 # List strategies
 ethcli kong strategies list --chain-id 1
@@ -372,7 +499,7 @@ ethcli uniswap day-data 0x... --days 7              # Daily data for a pool
 # LP positions (subgraph, queries all versions by default)
 ethcli uniswap positions 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ethcli uniswap positions <address> --version v3 --chain arbitrum
-ethcli uniswap positions <address> --json           # JSON output
+ethcli uniswap positions <address> --format json    # JSON output
 
 # List well-known addresses
 ethcli uniswap addresses                            # All factories, pools, tokens
@@ -486,6 +613,7 @@ src/
     ├── kong.rs       # Direct Yearn Kong API
     ├── uniswap.rs    # Uniswap V2/V3/V4 queries
     ├── goplus.rs     # GoPlus Security API (token/address/NFT/approval)
+    ├── solodit.rs    # Solodit vulnerability database
     └── blacklist.rs  # Token blacklist management
 ```
 
@@ -505,6 +633,7 @@ src/
 - **crv**: Curve Finance API client
 - **ykong**: Yearn Kong GraphQL API client
 - **unswp**: Uniswap V2/V3/V4 client (on-chain lens + subgraph)
+- **sldt**: Solodit vulnerability database client
 - **tokio**: Async runtime
 - **clap**: CLI parsing
 - **serde/serde_json**: Serialization
@@ -589,6 +718,7 @@ ethcli chainlink oracles --chain arbitrum
 | `THEGRAPH_API_KEY` | Uniswap subgraph | The Graph API access |
 | `GOPLUS_APP_KEY` | Optional | GoPlus batch queries (>1 token) |
 | `GOPLUS_APP_SECRET` | Optional | GoPlus batch queries (>1 token) |
+| `SOLODIT_API_KEY` | `ethcli solodit` | Solodit vulnerability database |
 
 ## Release Process
 

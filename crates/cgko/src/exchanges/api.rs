@@ -1,6 +1,6 @@
 //! Exchanges API endpoints
 
-use super::types::*;
+use super::types::{Exchange, ExchangeListItem, ExchangeTickers, VolumeChart};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct ExchangesApi<'a> {
 }
 
 impl<'a> ExchangesApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -21,7 +22,7 @@ impl<'a> ExchangesApi<'a> {
 
     /// List exchanges with pagination
     pub async fn list_paginated(&self, per_page: u32, page: u32) -> Result<Vec<Exchange>> {
-        let path = format!("/exchanges?per_page={}&page={}", per_page, page);
+        let path = format!("/exchanges?per_page={per_page}&page={page}");
         self.client.get(&path).await
     }
 
@@ -32,13 +33,13 @@ impl<'a> ExchangesApi<'a> {
 
     /// Get exchange data by ID
     pub async fn get(&self, id: &str) -> Result<Exchange> {
-        let path = format!("/exchanges/{}", id);
+        let path = format!("/exchanges/{id}");
         self.client.get(&path).await
     }
 
     /// Get exchange tickers
     pub async fn tickers(&self, id: &str) -> Result<ExchangeTickers> {
-        let path = format!("/exchanges/{}/tickers", id);
+        let path = format!("/exchanges/{id}/tickers");
         self.client.get(&path).await
     }
 
@@ -48,7 +49,7 @@ impl<'a> ExchangesApi<'a> {
     /// * `id` - Exchange ID
     /// * `days` - Data range (1, 7, 14, 30, 90, 180, 365)
     pub async fn volume_chart(&self, id: &str, days: u32) -> Result<VolumeChart> {
-        let path = format!("/exchanges/{}/volume_chart?days={}", id, days);
+        let path = format!("/exchanges/{id}/volume_chart?days={days}");
         self.client.get(&path).await
     }
 
@@ -60,8 +61,7 @@ impl<'a> ExchangesApi<'a> {
     /// * `to` - Unix timestamp end
     pub async fn volume_chart_range(&self, id: &str, from: u64, to: u64) -> Result<VolumeChart> {
         let path = format!(
-            "/exchanges/{}/volume_chart/range?from={}&to={}",
-            id, from, to
+            "/exchanges/{id}/volume_chart/range?from={from}&to={to}"
         );
         self.client.get(&path).await
     }

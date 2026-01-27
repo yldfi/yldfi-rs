@@ -31,13 +31,13 @@ pub enum SwapType {
     ExchangeUnderlying = 2,
     /// Underlying exchange via zap (factory stable metapools with lending base pool or crypto-meta pools)
     ExchangeUnderlyingZap = 3,
-    /// Coin to LP token (add_liquidity)
+    /// Coin to LP token (`add_liquidity`)
     AddLiquidity = 4,
-    /// Lending pool underlying coin to LP token (add_liquidity)
+    /// Lending pool underlying coin to LP token (`add_liquidity`)
     AddLiquidityUnderlying = 5,
-    /// LP token to coin (remove_liquidity_one_coin)
+    /// LP token to coin (`remove_liquidity_one_coin`)
     RemoveLiquidity = 6,
-    /// LP token to lending/fake pool underlying coin (remove_liquidity_one_coin)
+    /// LP token to lending/fake pool underlying coin (`remove_liquidity_one_coin`)
     RemoveLiquidityUnderlying = 7,
     /// Special wrapping: ETH↔WETH, ETH→stETH, ETH→frxETH, stETH↔wstETH, ETH→wBETH
     Wrap = 8,
@@ -47,6 +47,7 @@ pub enum SwapType {
 
 impl SwapType {
     /// Convert from u8
+    #[must_use] 
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             1 => Some(Self::Exchange),
@@ -63,6 +64,7 @@ impl SwapType {
     }
 
     /// Convert to u8
+    #[must_use] 
     pub fn as_u8(self) -> u8 {
         self as u8
     }
@@ -87,6 +89,7 @@ pub enum PoolType {
 
 impl PoolType {
     /// Convert from u8
+    #[must_use] 
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             1 => Some(Self::Main),
@@ -99,12 +102,13 @@ impl PoolType {
     }
 
     /// Convert to u8
+    #[must_use] 
     pub fn as_u8(self) -> u8 {
         self as u8
     }
 }
 
-/// Swap parameters for a single step [i, j, swap_type, pool_type, n_coins]
+/// Swap parameters for a single step [i, j, `swap_type`, `pool_type`, `n_coins`]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SwapParams {
     /// Input coin index in pool
@@ -121,6 +125,7 @@ pub struct SwapParams {
 
 impl SwapParams {
     /// Create new swap parameters
+    #[must_use] 
     pub fn new(i: u8, j: u8, swap_type: SwapType, pool_type: PoolType, n_coins: u8) -> Self {
         Self {
             i,
@@ -131,7 +136,8 @@ impl SwapParams {
         }
     }
 
-    /// Convert to array format [i, j, swap_type, pool_type, n_coins]
+    /// Convert to array format [i, j, `swap_type`, `pool_type`, `n_coins`]
+    #[must_use] 
     pub fn to_array(&self) -> [u8; 5] {
         [
             self.i,
@@ -143,6 +149,7 @@ impl SwapParams {
     }
 
     /// Create from array format
+    #[must_use] 
     pub fn from_array(arr: [u8; 5]) -> Option<Self> {
         Some(Self {
             i: arr[0],
@@ -227,17 +234,20 @@ impl Route {
     }
 
     /// Get number of steps (hops)
+    #[must_use] 
     pub fn len(&self) -> usize {
         self.steps.len()
     }
 
     /// Check if route is empty
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.steps.is_empty()
     }
 
     /// Convert to router contract format
-    /// Returns (route[11], swap_params[5][5])
+    /// Returns (route[11], `swap_params`[5][5])
+    #[must_use] 
     pub fn to_contract_format(&self) -> ([String; 11], [[u8; 5]; 5]) {
         // Route format: [input, pool, output, pool, output, ...]
         // Alternating: token, pool/zap, token, pool/zap, token...
@@ -360,6 +370,7 @@ impl RouteGraph {
     }
 
     /// Get edges from a token
+    #[must_use] 
     pub fn get_edges(&self, from: &str) -> Option<&[GraphEdge]> {
         self.nodes
             .get(&from.to_lowercase())
@@ -367,16 +378,19 @@ impl RouteGraph {
     }
 
     /// Check if a token exists in the graph
+    #[must_use] 
     pub fn has_token(&self, address: &str) -> bool {
         self.nodes.contains_key(&address.to_lowercase())
     }
 
     /// Get number of tokens in the graph
+    #[must_use] 
     pub fn token_count(&self) -> usize {
         self.nodes.len()
     }
 
     /// Get total number of edges
+    #[must_use] 
     pub fn edge_count(&self) -> usize {
         self.nodes.values().map(|n| n.edges.len()).sum()
     }
@@ -396,6 +410,7 @@ pub struct WrapperPair {
 }
 
 /// Ethereum mainnet wrapper pairs
+#[must_use] 
 pub fn eth_wrapper_pairs() -> Vec<WrapperPair> {
     vec![
         WrapperPair {
@@ -420,6 +435,7 @@ pub fn eth_wrapper_pairs() -> Vec<WrapperPair> {
 }
 
 /// Router contract addresses by chain
+#[must_use] 
 pub fn router_address(chain: &str) -> Option<&'static str> {
     match chain.to_lowercase().as_str() {
         "ethereum" | "eth" | "mainnet" => Some("0x16C6521Dff6baB339122a0FE25a9116693265353"),

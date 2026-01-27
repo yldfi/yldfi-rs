@@ -9,6 +9,7 @@ use super::types::{
 use crate::pools::Pool;
 
 /// Build a route graph from a list of pools
+#[must_use] 
 pub fn build_graph(chain: &str, pools: &[Pool]) -> RouteGraph {
     let mut graph = RouteGraph::new(chain);
 
@@ -77,7 +78,7 @@ fn add_pool_edges(graph: &mut RouteGraph, pool: &Pool) {
     let coin_addresses: Vec<String> = coins
         .iter()
         .filter_map(|c| c.get("address").and_then(|a| a.as_str()))
-        .map(|s| s.to_lowercase())
+        .map(str::to_lowercase)
         .collect();
 
     if coin_addresses.is_empty() {
@@ -89,7 +90,7 @@ fn add_pool_edges(graph: &mut RouteGraph, pool: &Pool) {
     let is_lending = pool
         .raw()
         .get("isLending")
-        .and_then(|v| v.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
     let is_meta = pool.is_meta_pool().unwrap_or(false);
 
@@ -137,7 +138,7 @@ fn add_pool_edges(graph: &mut RouteGraph, pool: &Pool) {
             };
 
             let step_add = RouteStep::new(
-                format!("{}_add_{}", pool_id, i),
+                format!("{pool_id}_add_{i}"),
                 &pool_address,
                 coin,
                 &lp_token_lower,
@@ -154,7 +155,7 @@ fn add_pool_edges(graph: &mut RouteGraph, pool: &Pool) {
             };
 
             let step_remove = RouteStep::new(
-                format!("{}_remove_{}", pool_id, i),
+                format!("{pool_id}_remove_{i}"),
                 &pool_address,
                 &lp_token_lower,
                 coin,
@@ -173,15 +174,15 @@ fn determine_pool_type(pool: &Pool) -> PoolType {
     // Check various flags in the pool data
     let is_crypto = raw
         .get("isCrypto")
-        .and_then(|v| v.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
     let is_factory = raw
         .get("isFactory")
-        .and_then(|v| v.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
     let is_lending = raw
         .get("isLending")
-        .and_then(|v| v.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
 
     // Also check registry ID

@@ -1,6 +1,6 @@
 //! Market Data API client
 
-use super::types::*;
+use super::types::{TopToken, TopNftCollection, GlobalMarketCap, GlobalVolume};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -15,6 +15,7 @@ pub struct MarketQuery {
 }
 
 impl MarketQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -38,6 +39,7 @@ pub struct MarketApi<'a> {
 }
 
 impl<'a> MarketApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

@@ -47,9 +47,9 @@ pub enum UnitsError {
 impl fmt::Display for UnitsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidNumber(s) => write!(f, "invalid number: {}", s),
+            Self::InvalidNumber(s) => write!(f, "invalid number: {s}"),
             Self::TooManyDecimals { max, found } => {
-                write!(f, "too many decimal places: max {}, found {}", max, found)
+                write!(f, "too many decimal places: max {max}, found {found}")
             }
             Self::Overflow => write!(f, "overflow during conversion"),
         }
@@ -223,7 +223,7 @@ impl Wei {
         self.0.checked_div(rhs).map(Self)
     }
 
-    /// Saturating addition (caps at u128::MAX instead of overflowing).
+    /// Saturating addition (caps at `u128::MAX` instead of overflowing).
     #[must_use]
     pub fn saturating_add(self, rhs: Self) -> Self {
         Self(self.0.saturating_add(rhs.0))
@@ -258,7 +258,7 @@ impl From<u128> for Wei {
 
 impl From<u64> for Wei {
     fn from(value: u64) -> Self {
-        Self(value as u128)
+        Self(u128::from(value))
     }
 }
 
@@ -340,6 +340,7 @@ pub fn to_wei(value: &str, decimals: u8) -> Result<String, UnitsError> {
 /// // 100 USDC
 /// assert_eq!(from_wei("100000000", 6), "100");
 /// ```
+#[must_use] 
 pub fn from_wei(wei: &str, decimals: u8) -> String {
     format_units(wei, decimals)
 }
@@ -368,6 +369,7 @@ pub fn ether_to_wei(ether: &str) -> Result<String, UnitsError> {
 /// assert_eq!(wei_to_ether("1000000000000000000"), "1");
 /// assert_eq!(wei_to_ether("500000000000000000"), "0.5");
 /// ```
+#[must_use] 
 pub fn wei_to_ether(wei: &str) -> String {
     from_wei(wei, ETHER_DECIMALS)
 }
@@ -396,6 +398,7 @@ pub fn gwei_to_wei(gwei: &str) -> Result<String, UnitsError> {
 /// assert_eq!(wei_to_gwei("1000000000"), "1");
 /// assert_eq!(wei_to_gwei("30500000000"), "30.5");
 /// ```
+#[must_use] 
 pub fn wei_to_gwei(wei: &str) -> String {
     from_wei(wei, GWEI_DECIMALS)
 }
@@ -429,6 +432,7 @@ pub fn ether_to_gwei(ether: &str) -> Result<String, UnitsError> {
 /// assert_eq!(gwei_to_ether("1000000000"), "1");
 /// assert_eq!(gwei_to_ether("1000000"), "0.001");
 /// ```
+#[must_use] 
 pub fn gwei_to_ether(gwei: &str) -> String {
     // gwei has 9 decimals relative to ether
     format_units(gwei, GWEI_DECIMALS)
@@ -507,7 +511,7 @@ pub fn parse_units(value: &str, decimals: u8) -> Result<String, UnitsError> {
     let result = if result.is_empty() { "0" } else { result };
 
     if is_negative && result != "0" {
-        Ok(format!("-{}", result))
+        Ok(format!("-{result}"))
     } else {
         Ok(result.to_string())
     }
@@ -534,6 +538,7 @@ pub fn parse_units(value: &str, decimals: u8) -> Result<String, UnitsError> {
 /// // Zero
 /// assert_eq!(format_units("0", 18), "0");
 /// ```
+#[must_use] 
 pub fn format_units(value: &str, decimals: u8) -> String {
     let value = value.trim();
 
@@ -577,11 +582,11 @@ pub fn format_units(value: &str, decimals: u8) -> String {
     let result = if fractional_part.is_empty() {
         integer_part.to_string()
     } else {
-        format!("{}.{}", integer_part, fractional_part)
+        format!("{integer_part}.{fractional_part}")
     };
 
     if is_negative {
-        format!("-{}", result)
+        format!("-{result}")
     } else {
         result
     }
@@ -601,13 +606,14 @@ pub fn format_units(value: &str, decimals: u8) -> String {
 /// assert_eq!(format_wei_human("30000000000"), "30 Gwei");
 /// assert_eq!(format_wei_human("1000"), "1000 Wei");
 /// ```
+#[must_use] 
 pub fn format_wei_human(wei: &str) -> String {
     let wei = wei.trim();
 
     // Try to parse as u128 for comparison
     let wei_val: u128 = match wei.parse() {
         Ok(v) => v,
-        Err(_) => return format!("{} Wei", wei), // Fallback for very large numbers
+        Err(_) => return format!("{wei} Wei"), // Fallback for very large numbers
     };
 
     const GWEI: u128 = 1_000_000_000;
@@ -615,12 +621,12 @@ pub fn format_wei_human(wei: &str) -> String {
 
     if wei_val >= ETHER {
         let formatted = wei_to_ether(wei);
-        format!("{} ETH", formatted)
+        format!("{formatted} ETH")
     } else if wei_val >= GWEI {
         let formatted = wei_to_gwei(wei);
-        format!("{} Gwei", formatted)
+        format!("{formatted} Gwei")
     } else {
-        format!("{} Wei", wei)
+        format!("{wei} Wei")
     }
 }
 

@@ -294,7 +294,8 @@ pub async fn fetch_nfts_parallel(
     for (source_name, result, latency) in results {
         match result {
             Ok(nfts) => {
-                all_nfts.extend(nfts.clone());
+                // Extend all_nfts first, then move to source result
+                all_nfts.extend(nfts.iter().cloned());
                 source_results.push(SourceResult {
                     source: Cow::Borrowed(source_name),
                     data: Some(nfts),
@@ -303,7 +304,7 @@ pub async fn fetch_nfts_parallel(
                     latency_ms: latency,
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
+                        .expect("system time before UNIX epoch")
                         .as_secs(),
                 });
             }
@@ -316,7 +317,7 @@ pub async fn fetch_nfts_parallel(
                     latency_ms: latency,
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
+                        .expect("system time before UNIX epoch")
                         .as_secs(),
                 });
             }

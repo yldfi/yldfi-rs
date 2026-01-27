@@ -364,7 +364,7 @@ pub struct HoldersChartData {
 /// Holders chart attributes
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct HoldersChartAttributes {
-    /// Vec of [timestamp, holder_count]
+    /// Vec of [timestamp, `holder_count`]
     pub holders_chart: Option<Vec<(u64, u64)>>,
 }
 
@@ -428,10 +428,12 @@ pub struct MegafilterOptions {
 }
 
 impl MegafilterOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref networks) = self.networks {
@@ -444,7 +446,7 @@ impl MegafilterOptions {
             params.push(format!("include={}", include.join(",")));
         }
         if let Some(page) = self.page {
-            params.push(format!("page={}", page));
+            params.push(format!("page={page}"));
         }
         if params.is_empty() {
             String::new()

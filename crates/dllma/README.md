@@ -75,6 +75,14 @@ let yields = client.yields().pools().await?;
 
 - `DEFILLAMA_API_KEY` - Your DefiLlama Pro API key (optional, for Pro endpoints)
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [DefiLlama's Terms of Service](https://defillama.com/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by DefiLlama.
+
 ## License
 
 MIT

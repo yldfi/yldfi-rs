@@ -91,7 +91,7 @@ pub struct CreateWebhookRequest {
     pub webhook_type: WebhookType,
     /// URL to receive webhook events
     pub webhook_url: String,
-    /// Addresses to track (for ADDRESS_ACTIVITY)
+    /// Addresses to track (for `ADDRESS_ACTIVITY`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub addresses: Option<Vec<String>>,
     /// GraphQL query (for GRAPHQL type)

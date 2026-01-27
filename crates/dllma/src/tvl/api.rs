@@ -15,6 +15,7 @@ pub struct TvlApi<'a> {
 
 impl<'a> TvlApi<'a> {
     /// Create a new TVL API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -54,7 +55,7 @@ impl<'a> TvlApi<'a> {
     /// # }
     /// ```
     pub async fn protocol(&self, slug: &str) -> Result<ProtocolDetail> {
-        let path = format!("/protocol/{}", slug);
+        let path = format!("/protocol/{slug}");
         self.client.get_main(&path).await
     }
 
@@ -75,7 +76,7 @@ impl<'a> TvlApi<'a> {
     /// # }
     /// ```
     pub async fn protocol_tvl(&self, slug: &str) -> Result<f64> {
-        let path = format!("/tvl/{}", slug);
+        let path = format!("/tvl/{slug}");
         self.client.get_main(&path).await
     }
 
@@ -135,7 +136,7 @@ impl<'a> TvlApi<'a> {
     /// # }
     /// ```
     pub async fn chain_historical_tvl(&self, chain: &str) -> Result<ChainHistoricalTvl> {
-        let path = format!("/v2/historicalChainTvl/{}", chain);
+        let path = format!("/v2/historicalChainTvl/{chain}");
         self.client.get_main(&path).await
     }
 
@@ -162,7 +163,7 @@ impl<'a> TvlApi<'a> {
     /// # }
     /// ```
     pub async fn token_protocols(&self, symbol: &str) -> Result<Vec<TokenProtocol>> {
-        let path = format!("/tokenProtocols/{}", symbol);
+        let path = format!("/tokenProtocols/{symbol}");
         self.client.get_pro(&path).await
     }
 
@@ -190,7 +191,7 @@ impl<'a> TvlApi<'a> {
     /// # }
     /// ```
     pub async fn inflows(&self, protocol: &str, timestamp: u64) -> Result<ProtocolInflows> {
-        let path = format!("/inflows/{}/{}", protocol, timestamp);
+        let path = format!("/inflows/{protocol}/{timestamp}");
         self.client.get_pro(&path).await
     }
 

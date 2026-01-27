@@ -24,13 +24,13 @@ pub struct GlobalData {
     pub updated_at: Option<u64>,
 }
 
-/// DeFi global data response
+/// `DeFi` global data response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DefiGlobalResponse {
     pub data: DefiGlobalData,
 }
 
-/// DeFi global data
+/// `DeFi` global data
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DefiGlobalData {
     pub defi_market_cap: Option<String>,

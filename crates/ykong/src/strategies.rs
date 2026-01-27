@@ -16,6 +16,7 @@ pub struct StrategyFilter {
 
 impl StrategyFilter {
     /// Create a new filter
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -53,16 +54,16 @@ impl StrategyFilter {
         let mut args = Vec::new();
 
         if let Some(chain_id) = self.chain_id {
-            args.push(format!("chainId: {}", chain_id));
+            args.push(format!("chainId: {chain_id}"));
         }
         if let Some(ref vault) = self.vault {
-            args.push(format!("vault: \"{}\"", vault));
+            args.push(format!("vault: \"{vault}\""));
         }
         if let Some(v3) = self.v3 {
-            args.push(format!("v3: {}", v3));
+            args.push(format!("v3: {v3}"));
         }
         if let Some(ref addresses) = self.addresses {
-            let addr_str: Vec<String> = addresses.iter().map(|a| format!("\"{}\"", a)).collect();
+            let addr_str: Vec<String> = addresses.iter().map(|a| format!("\"{a}\"")).collect();
             args.push(format!("addresses: [{}]", addr_str.join(", ")));
         }
 
@@ -81,6 +82,7 @@ pub struct StrategiesApi<'a> {
 
 impl<'a> StrategiesApi<'a> {
     /// Create a new strategies API instance
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -102,8 +104,8 @@ impl<'a> StrategiesApi<'a> {
     pub async fn list(&self, filter: Option<StrategyFilter>) -> Result<Vec<Strategy>> {
         let args = filter.unwrap_or_default().build_args();
         let query = format!(
-            r#"{{
-                strategies{} {{
+            r"{{
+                strategies{args} {{
                     address
                     name
                     chainId
@@ -128,8 +130,7 @@ impl<'a> StrategiesApi<'a> {
                     apy {{ net weeklyNet monthlyNet }}
                     tvl {{ close blockNumber blockTime }}
                 }}
-            }}"#,
-            args
+            }}"
         );
 
         #[derive(Deserialize)]
@@ -157,7 +158,7 @@ impl<'a> StrategiesApi<'a> {
     pub async fn get(&self, chain_id: u64, address: &str) -> Result<Option<Strategy>> {
         let query = format!(
             r#"{{
-                strategy(chainId: {}, address: "{}") {{
+                strategy(chainId: {chain_id}, address: "{address}") {{
                     address
                     name
                     chainId
@@ -182,8 +183,7 @@ impl<'a> StrategiesApi<'a> {
                     apy {{ net weeklyNet monthlyNet inceptionNet grossApr }}
                     tvl {{ close blockNumber blockTime }}
                 }}
-            }}"#,
-            chain_id, address
+            }}"#
         );
 
         #[derive(Deserialize)]

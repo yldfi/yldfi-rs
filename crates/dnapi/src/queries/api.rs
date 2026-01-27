@@ -1,6 +1,6 @@
 //! Queries API implementation
 
-use super::types::*;
+use super::types::{CreateQueryRequest, CreateQueryResponse, Query, UpdateQueryRequest, UpdateQueryResponse, ListQueriesResponse, ListQueriesOptions};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 
@@ -36,7 +36,7 @@ impl<'a> QueriesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -56,7 +56,7 @@ impl<'a> QueriesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -98,7 +98,7 @@ impl<'a> QueriesApi<'a> {
         if response.status().is_success() {
             Ok(())
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -114,7 +114,7 @@ impl<'a> QueriesApi<'a> {
         if response.status().is_success() {
             Ok(())
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -130,7 +130,7 @@ impl<'a> QueriesApi<'a> {
         if response.status().is_success() {
             Ok(())
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -146,7 +146,7 @@ impl<'a> QueriesApi<'a> {
         if response.status().is_success() {
             Ok(())
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Query {}", query_id)))
+            Err(error::not_found(format!("Query {query_id}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();

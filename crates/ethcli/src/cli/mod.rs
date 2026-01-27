@@ -31,6 +31,7 @@ pub mod quote;
 pub mod rpc;
 pub mod sig;
 pub mod simulate;
+pub mod solodit;
 pub mod tenderly;
 pub mod token;
 pub mod tx;
@@ -290,6 +291,13 @@ pub enum Commands {
     /// for batch queries and higher rate limits.
     #[command(visible_alias = "gp")]
     Goplus(goplus::GoPlusArgs),
+
+    /// Solodit vulnerability database (search smart contract security findings)
+    ///
+    /// Search and explore vulnerability findings from audits across the web3 ecosystem.
+    /// Requires SOLODIT_API_KEY environment variable (get from solodit.cyfrin.io).
+    #[command(visible_alias = "sld")]
+    Solodit(solodit::SoloditArgs),
 
     /// Direct DefiLlama API access
     Llama {

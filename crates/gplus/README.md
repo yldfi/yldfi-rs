@@ -99,6 +99,14 @@ The `TokenSecurity` struct provides helper methods:
 - `has_major_risks()` - Any major red flags
 - `get_issues()` - List of detected issues
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [GoPlus Terms of Service](https://gopluslabs.io/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by GoPlus Security.
+
 ## License
 
 MIT

@@ -1,6 +1,6 @@
 //! NFT API endpoints
 
-use super::types::*;
+use super::types::{NftListItem, NftListOptions, NftCollection, NftMarketItem, NftTickersResponse, NftMarketChart};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct NftsApi<'a> {
 }
 
 impl<'a> NftsApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -27,7 +28,7 @@ impl<'a> NftsApi<'a> {
 
     /// Get NFT collection by ID
     pub async fn get(&self, id: &str) -> Result<NftCollection> {
-        let path = format!("/nfts/{}", id);
+        let path = format!("/nfts/{id}");
         self.client.get(&path).await
     }
 
@@ -37,7 +38,7 @@ impl<'a> NftsApi<'a> {
         asset_platform_id: &str,
         contract_address: &str,
     ) -> Result<NftCollection> {
-        let path = format!("/nfts/{}/contract/{}", asset_platform_id, contract_address);
+        let path = format!("/nfts/{asset_platform_id}/contract/{contract_address}");
         self.client.get(&path).await
     }
 
@@ -57,13 +58,13 @@ impl<'a> NftsApi<'a> {
 
     /// Get NFT collection tickers
     pub async fn tickers(&self, id: &str) -> Result<NftTickersResponse> {
-        let path = format!("/nfts/{}/tickers", id);
+        let path = format!("/nfts/{id}/tickers");
         self.client.get(&path).await
     }
 
     /// Get NFT collection market chart by ID (Pro API only)
     pub async fn market_chart(&self, id: &str, days: &str) -> Result<NftMarketChart> {
-        let path = format!("/nfts/{}/market_chart?days={}", id, days);
+        let path = format!("/nfts/{id}/market_chart?days={days}");
         self.client.get(&path).await
     }
 
@@ -75,8 +76,7 @@ impl<'a> NftsApi<'a> {
         days: &str,
     ) -> Result<NftMarketChart> {
         let path = format!(
-            "/nfts/{}/contract/{}/market_chart?days={}",
-            asset_platform_id, contract_address, days
+            "/nfts/{asset_platform_id}/contract/{contract_address}/market_chart?days={days}"
         );
         self.client.get(&path).await
     }

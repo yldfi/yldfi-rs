@@ -77,6 +77,14 @@ println!("Calldata: {}", tx_data.data);
 
 Ethereum, BSC, Polygon, Arbitrum, Optimism, Avalanche, Base, Fantom, Linea, Scroll, zkSync, Blast, Mantle, Polygon zkEVM
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [KyberSwap Terms of Use](https://kyberswap.com/terms-of-use).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Kyber Network.
+
 ## License
 
 MIT

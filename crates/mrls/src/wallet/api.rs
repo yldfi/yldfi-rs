@@ -1,6 +1,6 @@
 //! Wallet API client
 
-use super::types::*;
+use super::types::{NativeBalance, TokenBalance, PaginatedResponse, WalletTransaction, NetWorth, ActiveChains, TokenApproval, WalletHistoryEntry, WalletStats, WalletProfitability, TokenProfitability, WalletBalances};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -21,6 +21,7 @@ pub struct WalletQuery {
 
 impl WalletQuery {
     /// Create a new query
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -54,6 +55,7 @@ pub struct WalletApi<'a> {
 
 impl<'a> WalletApi<'a> {
     /// Create a new wallet API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -64,7 +66,7 @@ impl<'a> WalletApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<NativeBalance> {
-        let path = format!("/{}/balance", address);
+        let path = format!("/{address}/balance");
         if let Some(chain) = chain {
             let query = WalletQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -79,7 +81,7 @@ impl<'a> WalletApi<'a> {
         address: &str,
         query: Option<&WalletQuery>,
     ) -> Result<Vec<TokenBalance>> {
-        let path = format!("/{}/erc20", address);
+        let path = format!("/{address}/erc20");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -93,7 +95,7 @@ impl<'a> WalletApi<'a> {
         address: &str,
         query: Option<&WalletQuery>,
     ) -> Result<PaginatedResponse<WalletTransaction>> {
-        let path = format!("/{}", address);
+        let path = format!("/{address}");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -103,13 +105,13 @@ impl<'a> WalletApi<'a> {
 
     /// Get net worth for an address across all chains
     pub async fn get_net_worth(&self, address: &str) -> Result<NetWorth> {
-        let path = format!("/wallets/{}/net-worth", address);
+        let path = format!("/wallets/{address}/net-worth");
         self.client.get(&path).await
     }
 
     /// Get active chains for an address
     pub async fn get_active_chains(&self, address: &str) -> Result<ActiveChains> {
-        let path = format!("/wallets/{}/chains", address);
+        let path = format!("/wallets/{address}/chains");
         self.client.get(&path).await
     }
 
@@ -119,7 +121,7 @@ impl<'a> WalletApi<'a> {
         address: &str,
         query: Option<&WalletQuery>,
     ) -> Result<PaginatedResponse<TokenApproval>> {
-        let path = format!("/wallets/{}/approvals", address);
+        let path = format!("/wallets/{address}/approvals");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -133,7 +135,7 @@ impl<'a> WalletApi<'a> {
         address: &str,
         query: Option<&WalletQuery>,
     ) -> Result<PaginatedResponse<WalletHistoryEntry>> {
-        let path = format!("/wallets/{}/history", address);
+        let path = format!("/wallets/{address}/history");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -147,7 +149,7 @@ impl<'a> WalletApi<'a> {
         address: &str,
         query: Option<&WalletQuery>,
     ) -> Result<PaginatedResponse<TokenBalance>> {
-        let path = format!("/wallets/{}/tokens", address);
+        let path = format!("/wallets/{address}/tokens");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -157,13 +159,13 @@ impl<'a> WalletApi<'a> {
 
     /// Get wallet stats
     pub async fn get_stats(&self, address: &str) -> Result<WalletStats> {
-        let path = format!("/wallets/{}/stats", address);
+        let path = format!("/wallets/{address}/stats");
         self.client.get(&path).await
     }
 
     /// Get wallet profitability summary
     pub async fn get_profitability_summary(&self, address: &str) -> Result<WalletProfitability> {
-        let path = format!("/wallets/{}/profitability/summary", address);
+        let path = format!("/wallets/{address}/profitability/summary");
         self.client.get(&path).await
     }
 
@@ -173,7 +175,7 @@ impl<'a> WalletApi<'a> {
         address: &str,
         query: Option<&WalletQuery>,
     ) -> Result<PaginatedResponse<TokenProfitability>> {
-        let path = format!("/wallets/{}/profitability", address);
+        let path = format!("/wallets/{address}/profitability");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -195,8 +197,8 @@ impl<'a> WalletApi<'a> {
         }
 
         let query = BalancesQuery {
-            wallet_addresses: wallet_addresses.iter().map(|s| s.to_string()).collect(),
-            chain: chain.map(|c| c.to_string()),
+            wallet_addresses: wallet_addresses.iter().map(std::string::ToString::to_string).collect(),
+            chain: chain.map(std::string::ToString::to_string),
         };
 
         self.client

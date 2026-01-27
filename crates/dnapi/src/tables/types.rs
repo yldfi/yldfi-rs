@@ -17,6 +17,7 @@ pub struct TableColumn {
 
 impl TableColumn {
     /// Create a new column definition
+    #[must_use] 
     pub fn new(name: &str, column_type: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -26,6 +27,7 @@ impl TableColumn {
     }
 
     /// Create a non-nullable column
+    #[must_use] 
     pub fn not_null(mut self) -> Self {
         self.nullable = false;
         self
@@ -93,6 +95,7 @@ pub struct CreateTableRequest {
 
 impl CreateTableRequest {
     /// Create a new table request
+    #[must_use] 
     pub fn new(namespace: &str, table_name: &str, schema: Vec<TableColumn>) -> Self {
         Self {
             namespace: namespace.to_string(),
@@ -104,12 +107,14 @@ impl CreateTableRequest {
     }
 
     /// Set the description
+    #[must_use] 
     pub fn description(mut self, description: &str) -> Self {
         self.description = Some(description.to_string());
         self
     }
 
     /// Set as private
+    #[must_use] 
     pub fn private(mut self, is_private: bool) -> Self {
         self.is_private = Some(is_private);
         self
@@ -150,6 +155,7 @@ pub struct UploadCsvRequest {
 
 impl UploadCsvRequest {
     /// Create a new CSV upload request
+    #[must_use] 
     pub fn new(table_name: &str, csv_data: &str) -> Self {
         Self {
             table_name: table_name.to_string(),
@@ -214,13 +220,14 @@ pub struct ListTablesOptions {
 }
 
 impl ListTablesOptions {
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {
-            params.push(format!("limit={}", limit));
+            params.push(format!("limit={limit}"));
         }
         if let Some(offset) = self.offset {
-            params.push(format!("offset={}", offset));
+            params.push(format!("offset={offset}"));
         }
         if params.is_empty() {
             String::new()

@@ -5,7 +5,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{YieldPool, YieldsResponse, YieldChartPoint, LegacyPool, BorrowPool, LendBorrowChartPoint, PerpRate, LsdRate};
 
 /// Yields API client
 pub struct YieldsApi<'a> {
@@ -14,6 +14,7 @@ pub struct YieldsApi<'a> {
 
 impl<'a> YieldsApi<'a> {
     /// Create a new Yields API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -58,7 +59,7 @@ impl<'a> YieldsApi<'a> {
     /// # }
     /// ```
     pub async fn chart(&self, pool: &str) -> Result<Vec<YieldChartPoint>> {
-        let path = format!("/chart/{}", pool);
+        let path = format!("/chart/{pool}");
         let resp: YieldsResponse<Vec<YieldChartPoint>> = self.client.get_yields(&path).await?;
         Ok(resp.data)
     }
@@ -112,7 +113,7 @@ impl<'a> YieldsApi<'a> {
     ///
     /// # Arguments
     ///
-    /// * `pool` - Pool ID (from pools_borrow endpoint)
+    /// * `pool` - Pool ID (from `pools_borrow` endpoint)
     ///
     /// # Example
     ///
@@ -124,7 +125,7 @@ impl<'a> YieldsApi<'a> {
     /// # }
     /// ```
     pub async fn chart_lend_borrow(&self, pool: &str) -> Result<Vec<LendBorrowChartPoint>> {
-        let path = format!("/yields/chartLendBorrow/{}", pool);
+        let path = format!("/yields/chartLendBorrow/{pool}");
         let resp: YieldsResponse<Vec<LendBorrowChartPoint>> = self.client.get_pro(&path).await?;
         Ok(resp.data)
     }

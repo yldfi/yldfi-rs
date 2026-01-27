@@ -1,6 +1,6 @@
 //! Transactions API endpoints
 
-use super::types::*;
+use super::types::{TransactionsResponse, TransactionsOptions};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct TransactionsApi<'a> {
 }
 
 impl<'a> TransactionsApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -19,7 +20,7 @@ impl<'a> TransactionsApi<'a> {
     /// # Arguments
     /// * `address` - Wallet address
     pub async fn get(&self, address: &str) -> Result<TransactionsResponse> {
-        let path = format!("/v1/evm/transactions/{}", address);
+        let path = format!("/v1/evm/transactions/{address}");
         self.client.get(&path).await
     }
 

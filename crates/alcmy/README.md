@@ -189,6 +189,14 @@ let request = SearchAssetsRequest::new().owner("...").collection("...");
 let results = client.solana().search_assets(&request).await?;
 ```
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Alchemy's Terms of Service](https://www.alchemy.com/terms-conditions).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Alchemy.
+
 ## License
 
 MIT

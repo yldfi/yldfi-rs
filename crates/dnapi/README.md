@@ -61,6 +61,14 @@ async fn main() -> Result<(), dnapi::Error> {
 
 - `DUNE_API_KEY` - Your Dune API key (required)
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Dune's Terms of Service](https://dune.com/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Dune Analytics.
+
 ## License
 
 MIT

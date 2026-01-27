@@ -228,7 +228,7 @@ pub mod tokens {
         pub const ETH: &str = super::NATIVE;
         /// USDC (Circle - native)
         pub const USDC: &str = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-        /// USDbC (Bridged USDC)
+        /// `USDbC` (Bridged USDC)
         pub const USDBC: &str = "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA";
         /// WETH
         pub const WETH: &str = "0x4200000000000000000000000000000000000006";

@@ -175,7 +175,7 @@ impl SimulationRequest {
     /// Set the value in wei from u128
     #[must_use]
     pub fn value_wei(mut self, wei: u128) -> Self {
-        self.value = Some(format!("0x{:x}", wei));
+        self.value = Some(format!("0x{wei:x}"));
         self
     }
 
@@ -189,7 +189,7 @@ impl SimulationRequest {
     /// Set the gas price (legacy transactions)
     #[must_use]
     pub fn gas_price(mut self, price: u64) -> Self {
-        self.gas_price = Some(format!("{}", price));
+        self.gas_price = Some(format!("{price}"));
         self
     }
 
@@ -204,7 +204,7 @@ impl SimulationRequest {
     /// Set max fee per gas from u64 (EIP-1559)
     #[must_use]
     pub fn max_fee_per_gas_wei(mut self, fee: u64) -> Self {
-        self.max_fee_per_gas = Some(format!("{}", fee));
+        self.max_fee_per_gas = Some(format!("{fee}"));
         self.transaction_type = Some(2);
         self
     }
@@ -220,7 +220,7 @@ impl SimulationRequest {
     /// Set max priority fee per gas from u64 (EIP-1559)
     #[must_use]
     pub fn max_priority_fee_per_gas_wei(mut self, fee: u64) -> Self {
-        self.max_priority_fee_per_gas = Some(format!("{}", fee));
+        self.max_priority_fee_per_gas = Some(format!("{fee}"));
         self.transaction_type = Some(2);
         self
     }
@@ -336,7 +336,7 @@ impl SimulationRequest {
         let header = self
             .block_header
             .get_or_insert_with(BlockHeaderOverride::default);
-        header.timestamp = Some(format!("0x{:x}", timestamp));
+        header.timestamp = Some(format!("0x{timestamp:x}"));
         self
     }
 
@@ -470,8 +470,7 @@ impl std::str::FromStr for SimulationType {
             "quick" => Ok(Self::Quick),
             "abi" => Ok(Self::Abi),
             _ => Err(format!(
-                "Invalid simulation type: {}. Expected: full, quick, or abi",
-                s
+                "Invalid simulation type: {s}. Expected: full, quick, or abi"
             )),
         }
     }
@@ -624,7 +623,7 @@ pub struct SimulationResponse {
     #[serde(default)]
     pub contracts: Vec<serde_json::Value>,
 
-    /// Generated access list (when generate_access_list: true was set in request)
+    /// Generated access list (when `generate_access_list`: true was set in request)
     #[serde(default)]
     pub generated_access_list: Option<Vec<AccessListEntry>>,
 }

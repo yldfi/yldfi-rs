@@ -1,6 +1,6 @@
 //! Transfers API implementation
 
-use super::types::*;
+use super::types::{AssetTransfersOptions, AssetTransfersResponse};
 use crate::client::Client;
 use crate::error::Result;
 

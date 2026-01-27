@@ -1,4 +1,4 @@
-//! Wallet API - balances, transactions, DeFi positions
+//! Wallet API - balances, transactions, `DeFi` positions
 
 mod api;
 mod types;

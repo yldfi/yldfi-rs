@@ -126,6 +126,14 @@ let client = Client::with_config(config)?;
 - [ParaSwap Docs](https://developers.paraswap.network/)
 - [API Reference](https://developers.paraswap.network/api/get-rate-for-a-token-pair)
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [ParaSwap Terms of Service](https://www.paraswap.io/terms-of-service).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by ParaSwap.
+
 ## License
 
 MIT

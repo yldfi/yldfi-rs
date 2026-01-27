@@ -2,7 +2,7 @@
 //!
 //! Unofficial Rust client for the [DefiLlama API](https://defillama.com/).
 //!
-//! Provides access to DeFi protocol data including TVL, prices, yields, volumes,
+//! Provides access to `DeFi` protocol data including TVL, prices, yields, volumes,
 //! fees, stablecoins, bridges, and more.
 //!
 //! ## Quick Start
@@ -84,7 +84,7 @@ pub use error::{Error, Result};
 pub use yldfi_common::http::HttpClientConfig;
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
-/// Base URLs for the DefiLlama API
+/// Base URLs for the `DefiLlama` API
 pub mod base_urls {
     /// Main API (TVL, protocols, fees, volumes) - Free tier
     pub const MAIN: &str = "https://api.llama.fi";
@@ -98,7 +98,7 @@ pub mod base_urls {
     pub const YIELDS: &str = "https://yields.llama.fi";
 }
 
-/// Create a default DefiLlama config (free tier)
+/// Create a default `DefiLlama` config (free tier)
 #[must_use]
 pub fn default_config() -> Config {
     Config::default()
@@ -122,6 +122,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn tvl(&self) -> tvl::TvlApi<'_> {
         tvl::TvlApi::new(self)
     }
@@ -138,6 +139,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn coins(&self) -> coins::CoinsApi<'_> {
         coins::CoinsApi::new(self)
     }
@@ -153,6 +155,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn stablecoins(&self) -> stablecoins::StablecoinsApi<'_> {
         stablecoins::StablecoinsApi::new(self)
     }
@@ -168,6 +171,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn volumes(&self) -> volumes::VolumesApi<'_> {
         volumes::VolumesApi::new(self)
     }
@@ -183,6 +187,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn fees(&self) -> fees::FeesApi<'_> {
         fees::FeesApi::new(self)
     }
@@ -200,6 +205,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn yields(&self) -> yields::YieldsApi<'_> {
         yields::YieldsApi::new(self)
     }
@@ -217,6 +223,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn bridges(&self) -> bridges::BridgesApi<'_> {
         bridges::BridgesApi::new(self)
     }
@@ -234,6 +241,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn ecosystem(&self) -> ecosystem::EcosystemApi<'_> {
         ecosystem::EcosystemApi::new(self)
     }
@@ -251,6 +259,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn emissions(&self) -> emissions::EmissionsApi<'_> {
         emissions::EmissionsApi::new(self)
     }
@@ -268,6 +277,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn etf(&self) -> etf::EtfApi<'_> {
         etf::EtfApi::new(self)
     }
@@ -285,6 +295,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    #[must_use] 
     pub fn dat(&self) -> dat::DatApi<'_> {
         dat::DatApi::new(self)
     }

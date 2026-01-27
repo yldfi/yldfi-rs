@@ -1,20 +1,26 @@
-//! HTTP client for the CoW Protocol API
+//! HTTP client for the `CoW` Protocol API
+//!
+//! This client uses the shared `BaseClient` infrastructure from `yldfi_common`
+//! while handling `CoW` Protocol's chain-specific base URLs.
 
 use crate::error::{self, Error, Result};
 use crate::types::{
     ApiError, Chain, Order, OrderCreation, OrderResponse, QuoteRequest, QuoteResponse, Trade,
 };
-use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
 use std::time::Duration;
 
-use yldfi_common::http::HttpClientConfig;
+use yldfi_common::api::{ApiConfig, BaseClient};
 
-/// Configuration for the CoW Protocol API client
+/// Configuration for the `CoW` Protocol API client
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// HTTP client configuration (timeout, proxy, user-agent)
-    pub http: HttpClientConfig,
+    /// Base URL (placeholder - actual URL is determined by chain)
+    base_url: String,
+    /// Request timeout
+    pub timeout: Duration,
+    /// Optional proxy URL
+    pub proxy: Option<String>,
     /// Default chain
     pub chain: Chain,
 }
@@ -22,7 +28,10 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            http: HttpClientConfig::default(),
+            // Placeholder URL - actual URL is determined by chain at request time
+            base_url: Chain::Mainnet.api_url().to_string(),
+            timeout: Duration::from_secs(30),
+            proxy: None,
             chain: Chain::Mainnet,
         }
     }
@@ -30,6 +39,7 @@ impl Default for Config {
 
 impl Config {
     /// Create a new config with default settings
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -38,27 +48,28 @@ impl Config {
     #[must_use]
     pub fn with_chain(mut self, chain: Chain) -> Self {
         self.chain = chain;
+        self.base_url = chain.api_url().to_string();
         self
     }
 
     /// Set a custom timeout
     #[must_use]
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.http.timeout = timeout;
+        self.timeout = timeout;
         self
     }
 
     /// Set a proxy URL
     #[must_use]
     pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
-        self.http.proxy = Some(proxy.into());
+        self.proxy = Some(proxy.into());
         self
     }
 
     /// Set optional proxy URL
     #[must_use]
     pub fn with_optional_proxy(mut self, proxy: Option<String>) -> Self {
-        self.http.proxy = proxy;
+        self.proxy = proxy;
         self
     }
 
@@ -67,15 +78,26 @@ impl Config {
     pub fn optional_proxy(self, proxy: Option<String>) -> Self {
         self.with_optional_proxy(proxy)
     }
+
+    /// Convert to `ApiConfig` for `BaseClient`
+    fn to_api_config(&self) -> ApiConfig {
+        ApiConfig::new(&self.base_url)
+            .timeout(self.timeout)
+            .optional_proxy(self.proxy.clone())
+    }
 }
 
-/// Client for the CoW Protocol (CowSwap) API
+/// Client for the `CoW` Protocol (`CowSwap`) API
 ///
-/// CoW Protocol provides MEV-protected swaps through batch auctions.
+/// `CoW` Protocol provides MEV-protected swaps through batch auctions.
 /// Quotes are free and don't require authentication.
+///
+/// Note: This client uses `BaseClient` for HTTP infrastructure but handles
+/// chain-specific base URLs (mainnet, gnosis, arbitrum) separately since
+/// each chain has a different API endpoint.
 #[derive(Debug, Clone)]
 pub struct Client {
-    http: HttpClient,
+    base: BaseClient,
     default_chain: Chain,
 }
 
@@ -87,11 +109,12 @@ impl Client {
 
     /// Create a new client with custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
-        let http = yldfi_common::build_client(&config.http)?;
+        let default_chain = config.chain;
+        let base = BaseClient::new(config.to_api_config())?;
 
         Ok(Self {
-            http,
-            default_chain: config.chain,
+            base,
+            default_chain,
         })
     }
 
@@ -103,7 +126,7 @@ impl Client {
     /// Make a GET request to the API
     async fn get<T: DeserializeOwned>(&self, chain: Option<Chain>, path: &str) -> Result<T> {
         let url = format!("{}{}", self.base_url(chain), path);
-        let response = self.http.get(&url).send().await?;
+        let response = self.base.http().get(&url).send().await?;
 
         self.handle_response(response).await
     }
@@ -116,19 +139,22 @@ impl Client {
         body: &B,
     ) -> Result<T> {
         let url = format!("{}{}", self.base_url(chain), path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self.base.http().post(&url).json(body).send().await?;
 
         self.handle_response(response).await
     }
 
-    /// Handle API response
+    /// Handle API response with `CoW` Protocol-specific error parsing
+    ///
+    /// `CoW` Protocol returns structured errors for conditions like `NoLiquidity`
+    /// and `UnsupportedToken` that we map to domain-specific error types.
     async fn handle_response<T: DeserializeOwned>(&self, response: reqwest::Response) -> Result<T> {
         let status = response.status().as_u16();
 
         if !response.status().is_success() {
             let body = response.text().await.unwrap_or_default();
 
-            // Try to parse as API error
+            // Try to parse as CoW Protocol API error for domain-specific handling
             if let Ok(api_error) = serde_json::from_str::<ApiError>(&body) {
                 return match api_error.error_type.as_str() {
                     "NoLiquidity" => Err(error::insufficient_liquidity()),
@@ -210,7 +236,7 @@ impl Client {
     /// }
     /// ```
     pub async fn get_order(&self, chain: Option<Chain>, uid: &str) -> Result<Order> {
-        let path = format!("/api/v1/orders/{}", uid);
+        let path = format!("/api/v1/orders/{uid}");
         self.get(chain, &path).await
     }
 
@@ -220,20 +246,21 @@ impl Client {
         chain: Option<Chain>,
         owner: &str,
     ) -> Result<Vec<Order>> {
-        let path = format!("/api/v1/account/{}/orders", owner);
+        let path = format!("/api/v1/account/{owner}/orders");
         self.get(chain, &path).await
     }
 
     /// Cancel order by UID
     ///
     /// Note: This requires a signature proving ownership.
+    /// Uses DELETE method directly since `BaseClient` doesn't provide a delete helper.
     pub async fn cancel_order(
         &self,
         chain: Option<Chain>,
         uid: &str,
         signature: &str,
     ) -> Result<()> {
-        let path = format!("/api/v1/orders/{}", uid);
+        let path = format!("/api/v1/orders/{uid}");
         let url = format!("{}{}", self.base_url(chain), path);
 
         let body = serde_json::json!({
@@ -241,7 +268,7 @@ impl Client {
             "signingScheme": "eip712"
         });
 
-        let response = self.http.delete(&url).json(&body).send().await?;
+        let response = self.base.http().delete(&url).json(&body).send().await?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -258,7 +285,7 @@ impl Client {
         chain: Option<Chain>,
         owner: &str,
     ) -> Result<Vec<Trade>> {
-        let path = format!("/api/v1/trades?owner={}", owner);
+        let path = format!("/api/v1/trades?owner={owner}");
         self.get(chain, &path).await
     }
 
@@ -268,7 +295,7 @@ impl Client {
         chain: Option<Chain>,
         order_uid: &str,
     ) -> Result<Vec<Trade>> {
-        let path = format!("/api/v1/trades?orderUid={}", order_uid);
+        let path = format!("/api/v1/trades?orderUid={order_uid}");
         self.get(chain, &path).await
     }
 
@@ -283,7 +310,7 @@ impl Client {
         chain: Option<Chain>,
         auction_id: u64,
     ) -> Result<serde_json::Value> {
-        let path = format!("/api/v1/solver_competition/{}", auction_id);
+        let path = format!("/api/v1/solver_competition/{auction_id}");
         self.get(chain, &path).await
     }
 
@@ -293,7 +320,7 @@ impl Client {
         chain: Option<Chain>,
         token: &str,
     ) -> Result<serde_json::Value> {
-        let path = format!("/api/v1/token/{}/native_price", token);
+        let path = format!("/api/v1/token/{token}/native_price");
         self.get(chain, &path).await
     }
 }

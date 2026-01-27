@@ -1,6 +1,6 @@
 //! Portfolio/Data API implementation
 
-use super::types::*;
+use super::types::{TokenBalancesResponse, TokenBalancesRequest, AddressNetwork, TokenInfoResponse, TokenInfoRequest, TokenAddressInfo, NftsByAddressResponse, NftsByAddressRequest, NftContractsByAddressResponse, NftContractsByAddressRequest};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -34,7 +34,7 @@ impl<'a> PortfolioApi<'a> {
                 .iter()
                 .map(|(addr, networks)| AddressNetwork {
                     address: addr.to_string(),
-                    networks: networks.iter().map(|n| n.to_string()).collect(),
+                    networks: networks.iter().map(std::string::ToString::to_string).collect(),
                 })
                 .collect(),
         };
@@ -89,12 +89,12 @@ impl<'a> PortfolioApi<'a> {
                 .iter()
                 .map(|(addr, networks)| AddressNetwork {
                     address: addr.to_string(),
-                    networks: networks.iter().map(|n| n.to_string()).collect(),
+                    networks: networks.iter().map(std::string::ToString::to_string).collect(),
                 })
                 .collect(),
             with_metadata: Some(with_metadata),
             page_size,
-            page_key: page_key.map(|k| k.to_string()),
+            page_key: page_key.map(std::string::ToString::to_string),
         };
         self.client.data_post("assets/nfts/by-address", &body).await
     }
@@ -123,11 +123,11 @@ impl<'a> PortfolioApi<'a> {
                 .iter()
                 .map(|(addr, networks)| AddressNetwork {
                     address: addr.to_string(),
-                    networks: networks.iter().map(|n| n.to_string()).collect(),
+                    networks: networks.iter().map(std::string::ToString::to_string).collect(),
                 })
                 .collect(),
             page_size,
-            page_key: page_key.map(|k| k.to_string()),
+            page_key: page_key.map(std::string::ToString::to_string),
         };
         self.client
             .data_post("assets/nfts/contracts/by-address", &body)

@@ -112,21 +112,25 @@ pub struct WalletOnNetwork {
 
 impl WalletOnNetwork {
     /// Get the wallet address
+    #[must_use] 
     pub fn address(&self) -> Option<&str> {
         self.account.as_ref().map(|a| a.address.as_str())
     }
 
     /// Get the network ID
+    #[must_use] 
     pub fn network_id(&self) -> Option<&str> {
         self.account.as_ref().and_then(|a| a.network_id.as_deref())
     }
 
     /// Get the balance in hex format
+    #[must_use] 
     pub fn balance(&self) -> Option<&str> {
         self.account.as_ref().and_then(|a| a.balance.as_deref())
     }
 
     /// Check if this is a wallet (not a contract)
+    #[must_use] 
     pub fn is_wallet(&self) -> bool {
         self.account
             .as_ref()

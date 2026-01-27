@@ -262,7 +262,7 @@ where
 
 /// Simple retry wrapper for operations that return Result with any error type
 ///
-/// This version always retries on any error up to max_retries times.
+/// This version always retries on any error up to `max_retries` times.
 /// Use this when you don't need fine-grained control over which errors are retryable.
 ///
 /// # Example

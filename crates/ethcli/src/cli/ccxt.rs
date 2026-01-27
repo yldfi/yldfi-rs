@@ -87,7 +87,7 @@ pub enum CcxtCommands {
 
         /// Number of candles to fetch
         #[arg(long, default_value = "100")]
-        limit: usize,
+        limit: u32,
 
         #[command(flatten)]
         args: CcxtArgs,
@@ -100,7 +100,7 @@ pub enum CcxtCommands {
 
         /// Number of trades to fetch
         #[arg(long, default_value = "50")]
-        limit: usize,
+        limit: u32,
 
         #[command(flatten)]
         args: CcxtArgs,
@@ -154,6 +154,50 @@ struct OrderBookOutput {
     bids: Vec<(String, String)>,
     asks: Vec<(String, String)>,
     timestamp: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct OhlcvOutput {
+    exchange: String,
+    symbol: String,
+    timeframe: String,
+    candles: Vec<CandleOutput>,
+}
+
+#[derive(Debug, Serialize)]
+struct CandleOutput {
+    timestamp: i64,
+    open: String,
+    high: String,
+    low: String,
+    close: String,
+    volume: String,
+}
+
+#[derive(Debug, Serialize)]
+struct TradeOutput {
+    id: Option<String>,
+    timestamp: i64,
+    side: String,
+    price: String,
+    amount: String,
+    cost: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct TradesOutput {
+    exchange: String,
+    symbol: String,
+    trades: Vec<TradeOutput>,
+}
+
+#[derive(Debug, Serialize)]
+struct MarketOutput {
+    symbol: String,
+    base: String,
+    quote: String,
+    market_type: String,
+    active: bool,
 }
 
 /// Create an exchange and load markets
@@ -373,13 +417,79 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                 );
             }
 
-            // OHLCV is similar but requires different handling per exchange
-            // For now, just show a placeholder
-            println!(
-                "OHLCV data fetch for {} on {} not yet fully implemented",
-                symbol, args.exchange
-            );
-            println!("Timeframe: {}, Limit: {}", timeframe, limit);
+            let tf = parse_timeframe(timeframe)?;
+
+            let candles = match args.exchange {
+                ExchangeId::Binance => {
+                    let exchange = create_exchange!(Binance, args.testnet);
+                    ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?
+                }
+                ExchangeId::Bitget => {
+                    let exchange = create_exchange!(Bitget, args.testnet);
+                    ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?
+                }
+                ExchangeId::Okx => {
+                    let exchange = create_exchange!(Okx, args.testnet);
+                    ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?
+                }
+                ExchangeId::Hyperliquid => {
+                    let exchange = create_exchange!(HyperLiquid, args.testnet);
+                    ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?
+                }
+            };
+
+            let output = OhlcvOutput {
+                exchange: args.exchange.to_string(),
+                symbol: symbol.clone(),
+                timeframe: timeframe.clone(),
+                candles: candles
+                    .into_iter()
+                    .map(|c| CandleOutput {
+                        timestamp: c.timestamp,
+                        open: c.open.to_string(),
+                        high: c.high.to_string(),
+                        low: c.low.to_string(),
+                        close: c.close.to_string(),
+                        volume: c.volume.to_string(),
+                    })
+                    .collect(),
+            };
+
+            match args.format {
+                OutputFormat::Table => {
+                    println!("\nOHLCV for {} on {} ({})", symbol, args.exchange, timeframe);
+                    println!("{}", "=".repeat(80));
+                    println!(
+                        "{:<20} {:>12} {:>12} {:>12} {:>12} {:>12}",
+                        "Time", "Open", "High", "Low", "Close", "Volume"
+                    );
+                    println!("{}", "-".repeat(80));
+
+                    for c in &output.candles {
+                        let time = chrono::DateTime::from_timestamp(c.timestamp / 1000, 0)
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+                            .unwrap_or_else(|| c.timestamp.to_string());
+                        println!(
+                            "{:<20} {:>12} {:>12} {:>12} {:>12} {:>12}",
+                            time,
+                            truncate_num(&c.open, 12),
+                            truncate_num(&c.high, 12),
+                            truncate_num(&c.low, 12),
+                            truncate_num(&c.close, 12),
+                            truncate_num(&c.volume, 12)
+                        );
+                    }
+                }
+                _ => print_output(&output, args.format)?,
+            }
         }
 
         CcxtCommands::Trades {
@@ -394,11 +504,75 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                 );
             }
 
-            // Trades endpoint - placeholder
-            println!(
-                "Trades fetch for {} on {} not yet fully implemented",
-                symbol, args.exchange
-            );
+            let trades = match args.exchange {
+                ExchangeId::Binance => {
+                    let exchange = create_exchange!(Binance, args.testnet);
+                    ExchangeTrait::fetch_trades(&exchange, symbol, Some(*limit))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch trades: {:?}", e))?
+                }
+                ExchangeId::Bitget => {
+                    let exchange = create_exchange!(Bitget, args.testnet);
+                    ExchangeTrait::fetch_trades(&exchange, symbol, Some(*limit))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch trades: {:?}", e))?
+                }
+                ExchangeId::Okx => {
+                    let exchange = create_exchange!(Okx, args.testnet);
+                    ExchangeTrait::fetch_trades(&exchange, symbol, Some(*limit))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch trades: {:?}", e))?
+                }
+                ExchangeId::Hyperliquid => {
+                    let exchange = create_exchange!(HyperLiquid, args.testnet);
+                    ExchangeTrait::fetch_trades(&exchange, symbol, Some(*limit))
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch trades: {:?}", e))?
+                }
+            };
+
+            let output = TradesOutput {
+                exchange: args.exchange.to_string(),
+                symbol: symbol.clone(),
+                trades: trades
+                    .into_iter()
+                    .map(|t| TradeOutput {
+                        id: t.id.map(|id| id.to_string()),
+                        timestamp: t.timestamp,
+                        side: format!("{:?}", t.side).to_lowercase(),
+                        price: t.price.to_string(),
+                        amount: t.amount.to_string(),
+                        cost: t.cost.map(|c| c.to_string()),
+                    })
+                    .collect(),
+            };
+
+            match args.format {
+                OutputFormat::Table => {
+                    println!("\nRecent Trades for {} on {}", symbol, args.exchange);
+                    println!("{}", "=".repeat(80));
+                    println!(
+                        "{:<20} {:>8} {:>15} {:>15} {:>15}",
+                        "Time", "Side", "Price", "Amount", "Cost"
+                    );
+                    println!("{}", "-".repeat(80));
+
+                    for t in &output.trades {
+                        let time = chrono::DateTime::from_timestamp(t.timestamp / 1000, 0)
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                            .unwrap_or_else(|| t.timestamp.to_string());
+                        println!(
+                            "{:<20} {:>8} {:>15} {:>15} {:>15}",
+                            time,
+                            t.side,
+                            truncate_num(&t.price, 15),
+                            truncate_num(&t.amount, 15),
+                            t.cost.as_deref().map(|c| truncate_num(c, 15)).unwrap_or_else(|| "-".to_string())
+                        );
+                    }
+                }
+                _ => print_output(&output, args.format)?,
+            }
         }
 
         CcxtCommands::Markets { quote, base, args } => {
@@ -406,16 +580,94 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                 eprintln!("Fetching markets from {}...", args.exchange);
             }
 
-            // Markets listing - placeholder
-            println!(
-                "Markets listing for {} not yet fully implemented",
-                args.exchange
-            );
-            if let Some(q) = quote {
-                println!("Filter by quote: {}", q);
+            let markets = match args.exchange {
+                ExchangeId::Binance => {
+                    let exchange = create_exchange!(Binance, args.testnet);
+                    ExchangeTrait::fetch_markets(&exchange)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch markets: {:?}", e))?
+                }
+                ExchangeId::Bitget => {
+                    let exchange = create_exchange!(Bitget, args.testnet);
+                    ExchangeTrait::fetch_markets(&exchange)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch markets: {:?}", e))?
+                }
+                ExchangeId::Okx => {
+                    let exchange = create_exchange!(Okx, args.testnet);
+                    ExchangeTrait::fetch_markets(&exchange)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch markets: {:?}", e))?
+                }
+                ExchangeId::Hyperliquid => {
+                    let exchange = create_exchange!(HyperLiquid, args.testnet);
+                    ExchangeTrait::fetch_markets(&exchange)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to fetch markets: {:?}", e))?
+                }
+            };
+
+            // Filter markets
+            let mut output: Vec<MarketOutput> = markets
+                .into_iter()
+                .filter(|m| {
+                    let quote_match = quote
+                        .as_ref()
+                        .map(|q| m.quote.eq_ignore_ascii_case(q))
+                        .unwrap_or(true);
+                    let base_match = base
+                        .as_ref()
+                        .map(|b| m.base.eq_ignore_ascii_case(b))
+                        .unwrap_or(true);
+                    quote_match && base_match
+                })
+                .map(|m| MarketOutput {
+                    symbol: m.symbol.to_string(),
+                    base: m.base.to_string(),
+                    quote: m.quote.to_string(),
+                    market_type: format!("{:?}", m.market_type).to_lowercase(),
+                    active: m.active,
+                })
+                .collect();
+
+            // Sort by symbol
+            output.sort_by(|a, b| a.symbol.cmp(&b.symbol));
+
+            if !quiet {
+                eprintln!("Found {} markets", output.len());
             }
-            if let Some(b) = base {
-                println!("Filter by base: {}", b);
+
+            match args.format {
+                OutputFormat::Table => {
+                    println!("\nMarkets on {}", args.exchange);
+                    if quote.is_some() || base.is_some() {
+                        println!(
+                            "Filtered by: {}{}",
+                            base.as_ref().map(|b| format!("base={}", b)).unwrap_or_default(),
+                            quote.as_ref().map(|q| format!(" quote={}", q)).unwrap_or_default()
+                        );
+                    }
+                    println!("{}", "=".repeat(70));
+                    println!(
+                        "{:<20} {:>10} {:>10} {:>12} {:>10}",
+                        "Symbol", "Base", "Quote", "Type", "Active"
+                    );
+                    println!("{}", "-".repeat(70));
+
+                    for m in &output {
+                        println!(
+                            "{:<20} {:>10} {:>10} {:>12} {:>10}",
+                            m.symbol,
+                            m.base,
+                            m.quote,
+                            m.market_type,
+                            if m.active { "Yes" } else { "No" }
+                        );
+                    }
+                    println!("{}", "-".repeat(70));
+                    println!("Total: {} markets", output.len());
+                }
+                _ => print_output(&output, args.format)?,
             }
         }
 
@@ -501,4 +753,38 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         }
     }
     Ok(())
+}
+
+/// Truncate a numeric string to fit in a column width
+fn truncate_num(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        // Try to preserve meaningful digits by trimming trailing zeros after decimal
+        let truncated = &s[..max_len.saturating_sub(2)];
+        format!("{}…", truncated)
+    }
+}
+
+/// Parse a timeframe string into the ccxt Timeframe enum
+fn parse_timeframe(s: &str) -> anyhow::Result<ccxt_rust::Timeframe> {
+    use ccxt_rust::Timeframe;
+    match s.to_lowercase().as_str() {
+        "1m" => Ok(Timeframe::M1),
+        "3m" => Ok(Timeframe::M3),
+        "5m" => Ok(Timeframe::M5),
+        "15m" => Ok(Timeframe::M15),
+        "30m" => Ok(Timeframe::M30),
+        "1h" => Ok(Timeframe::H1),
+        "2h" => Ok(Timeframe::H2),
+        "4h" => Ok(Timeframe::H4),
+        "6h" => Ok(Timeframe::H6),
+        "8h" => Ok(Timeframe::H8),
+        "12h" => Ok(Timeframe::H12),
+        "1d" | "d" => Ok(Timeframe::D1),
+        "3d" => Ok(Timeframe::D3),
+        "1w" | "w" => Ok(Timeframe::W1),
+        "1M" | "M" => Ok(Timeframe::Mon1),
+        _ => anyhow::bail!("Invalid timeframe: {}. Valid: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w", s),
+    }
 }

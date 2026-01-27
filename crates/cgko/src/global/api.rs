@@ -1,6 +1,6 @@
 //! Global and general API endpoints
 
-use super::types::*;
+use super::types::{PingResponse, GlobalResponse, DefiGlobalResponse, TrendingResponse, SearchResponse, ExchangeRatesResponse, AssetPlatform, ApiKeyUsage, MarketCapChart, TokenList};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct GlobalApi<'a> {
 }
 
 impl<'a> GlobalApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -34,7 +35,7 @@ impl<'a> GlobalApi<'a> {
         self.client.get("/global").await
     }
 
-    /// Get global DeFi data
+    /// Get global `DeFi` data
     pub async fn defi(&self) -> Result<DefiGlobalResponse> {
         self.client.get("/global/decentralized_finance_defi").await
     }
@@ -46,7 +47,7 @@ impl<'a> GlobalApi<'a> {
 
     /// Search for coins, exchanges, categories, NFTs
     pub async fn search(&self, query: &str) -> Result<SearchResponse> {
-        let path = format!("/search?query={}", query);
+        let path = format!("/search?query={query}");
         self.client.get(&path).await
     }
 
@@ -70,13 +71,13 @@ impl<'a> GlobalApi<'a> {
     /// # Arguments
     /// * `days` - Data range (1, 7, 14, 30, 90, 180, 365, "max")
     pub async fn market_cap_chart(&self, days: &str) -> Result<MarketCapChart> {
-        let path = format!("/global/market_cap_chart?days={}", days);
+        let path = format!("/global/market_cap_chart?days={days}");
         self.client.get(&path).await
     }
 
     /// Get token list for a blockchain
     pub async fn token_list(&self, asset_platform_id: &str) -> Result<TokenList> {
-        let path = format!("/token_lists/{}/all.json", asset_platform_id);
+        let path = format!("/token_lists/{asset_platform_id}/all.json");
         self.client.get(&path).await
     }
 }

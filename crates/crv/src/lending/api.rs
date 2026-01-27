@@ -1,6 +1,6 @@
 //! Lending API client
 
-use super::types::*;
+use super::types::LendingVaultsResponse;
 use crate::client::Client;
 use crate::error::Result;
 
@@ -11,19 +11,20 @@ pub struct LendingApi<'a> {
 
 impl<'a> LendingApi<'a> {
     /// Create a new lending API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
 
     /// Get lending vaults from a specific registry on a chain
     pub async fn get(&self, chain: &str, registry: &str) -> Result<LendingVaultsResponse> {
-        let path = format!("/getLendingVaults/{}/{}", chain, registry);
+        let path = format!("/getLendingVaults/{chain}/{registry}");
         self.client.get(&path).await
     }
 
     /// Get all lending vaults on a specific chain
     pub async fn get_all_on_chain(&self, chain: &str) -> Result<LendingVaultsResponse> {
-        let path = format!("/getLendingVaults/all/{}", chain);
+        let path = format!("/getLendingVaults/all/{chain}");
         self.client.get(&path).await
     }
 

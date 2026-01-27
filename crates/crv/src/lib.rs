@@ -75,26 +75,31 @@ pub use volumes::{GaugesResponse, VolumesResponse};
 // API accessors on Client
 impl Client {
     /// Access the Pools API
+    #[must_use] 
     pub fn pools(&self) -> pools::PoolsApi<'_> {
         pools::PoolsApi::new(self)
     }
 
     /// Access the Volumes and APYs API
+    #[must_use] 
     pub fn volumes(&self) -> volumes::VolumesApi<'_> {
         volumes::VolumesApi::new(self)
     }
 
     /// Access the crvUSD API
+    #[must_use] 
     pub fn crvusd(&self) -> crvusd::CrvUsdApi<'_> {
         crvusd::CrvUsdApi::new(self)
     }
 
     /// Access the Lending API
+    #[must_use] 
     pub fn lending(&self) -> lending::LendingApi<'_> {
         lending::LendingApi::new(self)
     }
 
     /// Access the Tokens API
+    #[must_use] 
     pub fn tokens(&self) -> tokens::TokensApi<'_> {
         tokens::TokensApi::new(self)
     }

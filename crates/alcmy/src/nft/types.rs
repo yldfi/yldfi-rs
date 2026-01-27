@@ -13,7 +13,7 @@ pub enum NftTokenType {
     Unknown,
 }
 
-/// OpenSea safety level
+/// `OpenSea` safety level
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OpenSeaSafetyLevel {
@@ -46,7 +46,7 @@ pub struct ContractMetadata {
     pub opensea_metadata: Option<OpenSeaMetadata>,
 }
 
-/// OpenSea collection metadata
+/// `OpenSea` collection metadata
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenSeaMetadata {
@@ -393,6 +393,7 @@ pub struct GetNftsForOwnerOptions {
 }
 
 impl GetNftsForOwnerOptions {
+    #[must_use] 
     pub fn to_query_params(&self) -> Vec<(&'static str, String)> {
         let mut params = Vec::new();
         if let Some(ref key) = self.page_key {

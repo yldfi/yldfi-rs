@@ -53,26 +53,31 @@ pub use vaults::{VaultFilter, VaultsApi};
 
 impl Client {
     /// Access the vaults API
+    #[must_use] 
     pub fn vaults(&self) -> VaultsApi<'_> {
         VaultsApi::new(self)
     }
 
     /// Access the strategies API
+    #[must_use] 
     pub fn strategies(&self) -> StrategiesApi<'_> {
         StrategiesApi::new(self)
     }
 
     /// Access the prices API
+    #[must_use] 
     pub fn prices(&self) -> PricesApi<'_> {
         PricesApi::new(self)
     }
 
     /// Access the TVLs API
+    #[must_use] 
     pub fn tvls(&self) -> TvlsApi<'_> {
         TvlsApi::new(self)
     }
 
     /// Access the reports API
+    #[must_use] 
     pub fn reports(&self) -> ReportsApi<'_> {
         ReportsApi::new(self)
     }

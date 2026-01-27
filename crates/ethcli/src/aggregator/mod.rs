@@ -175,25 +175,40 @@ impl LatencyMeasure {
     }
 }
 
-/// Price source enum for CLI selection
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Price source enum for CLI selection and aggregation
+///
+/// Used both by the CLI (`ethcli price --source`) and by the aggregation layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 #[non_exhaustive]
 pub enum PriceSource {
+    /// Query all sources in parallel
+    #[default]
     All,
+    /// CoinGecko
+    #[value(alias = "coingecko")]
     Gecko,
+    /// DefiLlama
+    #[value(alias = "defillama")]
     Llama,
+    /// Alchemy
     Alchemy,
+    /// Moralis
     Moralis,
+    /// Curve
     Curve,
     /// CCXT exchange data (Binance, Bitget, OKX, Hyperliquid)
+    #[value(alias = "cex", alias = "exchange")]
     Ccxt,
     /// Chainlink Data Streams
+    #[value(alias = "cl")]
     Chainlink,
     /// Pyth Network Hermes API
     Pyth,
     /// Uniswap subgraph (ETH price from DEX pools)
+    #[value(alias = "uni")]
     Uniswap,
     /// Yearn Kong API (DeFi token prices)
+    #[value(alias = "yearn", alias = "ykong")]
     Kong,
 }
 

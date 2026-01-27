@@ -1,6 +1,6 @@
 //! Trace API implementation (Parity-style)
 
-use super::types::*;
+use super::types::{Trace, TraceCallRequest, TraceType, TraceCallResponse, TraceFilter};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -35,7 +35,7 @@ impl<'a> TraceApi<'a> {
     /// Get a specific trace by position in transaction
     pub async fn get(&self, tx_hash: &str, trace_indices: &[u32]) -> Result<Trace> {
         // Convert indices to hex
-        let hex_indices: Vec<String> = trace_indices.iter().map(|i| format!("0x{:x}", i)).collect();
+        let hex_indices: Vec<String> = trace_indices.iter().map(|i| format!("0x{i:x}")).collect();
         self.client.rpc("trace_get", (tx_hash, hex_indices)).await
     }
 

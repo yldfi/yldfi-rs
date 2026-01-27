@@ -26,7 +26,7 @@ pub struct PoolsData {
 /// A Curve pool
 ///
 /// The Curve API has inconsistent types (some fields are sometimes strings,
-/// sometimes integers), so we use serde_json::Value internally and provide
+/// sometimes integers), so we use `serde_json::Value` internally and provide
 /// typed accessor methods.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -34,51 +34,61 @@ pub struct Pool(pub serde_json::Value);
 
 impl Pool {
     /// Get pool ID
+    #[must_use] 
     pub fn id(&self) -> Option<&str> {
         self.0.get("id").and_then(|v| v.as_str())
     }
 
     /// Get pool name
+    #[must_use] 
     pub fn name(&self) -> Option<&str> {
         self.0.get("name").and_then(|v| v.as_str())
     }
 
     /// Get pool address
+    #[must_use] 
     pub fn address(&self) -> Option<&str> {
         self.0.get("address").and_then(|v| v.as_str())
     }
 
     /// Get LP token address
+    #[must_use] 
     pub fn lp_token_address(&self) -> Option<&str> {
         self.0.get("lpTokenAddress").and_then(|v| v.as_str())
     }
 
     /// Get gauge address
+    #[must_use] 
     pub fn gauge_address(&self) -> Option<&str> {
         self.0.get("gaugeAddress").and_then(|v| v.as_str())
     }
 
     /// Get asset type name (e.g., "usd", "eth", "crypto")
+    #[must_use] 
     pub fn asset_type_name(&self) -> Option<&str> {
         self.0.get("assetTypeName").and_then(|v| v.as_str())
     }
 
     /// Get USD total
+    #[must_use] 
     pub fn usd_total(&self) -> Option<f64> {
-        self.0.get("usdTotal").and_then(|v| v.as_f64())
+        self.0.get("usdTotal").and_then(serde_json::Value::as_f64)
     }
 
     /// Get total supply
+    #[must_use] 
     pub fn total_supply(&self) -> Option<&str> {
         self.0.get("totalSupply").and_then(|v| v.as_str())
     }
 
     /// Get virtual price
+    #[must_use] 
     pub fn virtual_price(&self) -> Option<&str> {
         self.0.get("virtualPrice").and_then(|v| v.as_str())
     }
 
     /// Get amplification coefficient
+    #[must_use] 
     pub fn amplification_coefficient(&self) -> Option<&str> {
         self.0
             .get("amplificationCoefficient")
@@ -86,21 +96,25 @@ impl Pool {
     }
 
     /// Get symbol
+    #[must_use] 
     pub fn symbol(&self) -> Option<&str> {
         self.0.get("symbol").and_then(|v| v.as_str())
     }
 
     /// Get coins as raw JSON array
+    #[must_use] 
     pub fn coins(&self) -> Option<&Vec<serde_json::Value>> {
         self.0.get("coins").and_then(|v| v.as_array())
     }
 
     /// Check if pool is a metapool
+    #[must_use] 
     pub fn is_meta_pool(&self) -> Option<bool> {
-        self.0.get("isMetaPool").and_then(|v| v.as_bool())
+        self.0.get("isMetaPool").and_then(serde_json::Value::as_bool)
     }
 
     /// Get the underlying raw JSON value
+    #[must_use] 
     pub fn raw(&self) -> &serde_json::Value {
         &self.0
     }

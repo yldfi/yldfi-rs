@@ -12,6 +12,7 @@ pub struct PricesApi<'a> {
 
 impl<'a> PricesApi<'a> {
     /// Create a new prices API instance
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -36,7 +37,7 @@ impl<'a> PricesApi<'a> {
     pub async fn get(&self, chain_id: u64, address: &str) -> Result<Vec<Price>> {
         let query = format!(
             r#"{{
-                prices(chainId: {}, address: "{}") {{
+                prices(chainId: {chain_id}, address: "{address}") {{
                     chainId
                     address
                     priceUsd
@@ -44,8 +45,7 @@ impl<'a> PricesApi<'a> {
                     blockNumber
                     timestamp
                 }}
-            }}"#,
-            chain_id, address
+            }}"#
         );
 
         #[derive(Deserialize)]
@@ -72,7 +72,7 @@ impl<'a> PricesApi<'a> {
     ) -> Result<Vec<Price>> {
         let query = format!(
             r#"{{
-                prices(chainId: {}, address: "{}", timestamp: {}) {{
+                prices(chainId: {chain_id}, address: "{address}", timestamp: {timestamp}) {{
                     chainId
                     address
                     priceUsd
@@ -80,8 +80,7 @@ impl<'a> PricesApi<'a> {
                     blockNumber
                     timestamp
                 }}
-            }}"#,
-            chain_id, address, timestamp
+            }}"#
         );
 
         #[derive(Deserialize)]

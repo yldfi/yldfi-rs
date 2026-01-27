@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{VolumeOverview, VolumeOverviewOptions, ProtocolVolumeSummary, OpenInterestOverview};
 
 /// Volumes API client
 pub struct VolumesApi<'a> {
@@ -12,6 +12,7 @@ pub struct VolumesApi<'a> {
 
 impl<'a> VolumesApi<'a> {
     /// Create a new Volumes API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -76,7 +77,7 @@ impl<'a> VolumesApi<'a> {
     /// # }
     /// ```
     pub async fn dex_chain(&self, chain: &str) -> Result<VolumeOverview> {
-        let path = format!("/overview/dexs/{}", chain);
+        let path = format!("/overview/dexs/{chain}");
         self.client.get_main(&path).await
     }
 
@@ -97,7 +98,7 @@ impl<'a> VolumesApi<'a> {
     /// # }
     /// ```
     pub async fn dex_protocol(&self, protocol: &str) -> Result<ProtocolVolumeSummary> {
-        let path = format!("/summary/dexs/{}", protocol);
+        let path = format!("/summary/dexs/{protocol}");
         self.client.get_main(&path).await
     }
 
@@ -135,7 +136,7 @@ impl<'a> VolumesApi<'a> {
     /// # }
     /// ```
     pub async fn options_chain(&self, chain: &str) -> Result<VolumeOverview> {
-        let path = format!("/overview/options/{}", chain);
+        let path = format!("/overview/options/{chain}");
         self.client.get_main(&path).await
     }
 
@@ -155,7 +156,7 @@ impl<'a> VolumesApi<'a> {
     /// # }
     /// ```
     pub async fn options_protocol(&self, protocol: &str) -> Result<ProtocolVolumeSummary> {
-        let path = format!("/summary/options/{}", protocol);
+        let path = format!("/summary/options/{protocol}");
         self.client.get_main(&path).await
     }
 
@@ -197,7 +198,7 @@ impl<'a> VolumesApi<'a> {
     /// # }
     /// ```
     pub async fn derivatives_protocol(&self, protocol: &str) -> Result<ProtocolVolumeSummary> {
-        let path = format!("/summary/derivatives/{}", protocol);
+        let path = format!("/summary/derivatives/{protocol}");
         self.client.get_pro(&path).await
     }
 

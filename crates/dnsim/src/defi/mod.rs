@@ -1,4 +1,4 @@
-//! DeFi positions module (Beta)
+//! `DeFi` positions module (Beta)
 
 mod api;
 mod types;

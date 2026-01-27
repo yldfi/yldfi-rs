@@ -50,7 +50,7 @@ impl std::str::FromStr for ActionTrigger {
             "periodic" | "cron" | "schedule" => Ok(Self::Periodic),
             "block" => Ok(Self::Block),
             "transaction" | "tx" => Ok(Self::Transaction),
-            _ => Err(format!("Invalid action trigger: {}", s)),
+            _ => Err(format!("Invalid action trigger: {s}")),
         }
     }
 }
@@ -90,7 +90,7 @@ impl std::str::FromStr for ActionExecution {
         match s.to_lowercase().as_str() {
             "sequential" | "seq" => Ok(Self::Sequential),
             "parallel" | "par" => Ok(Self::Parallel),
-            _ => Err(format!("Invalid action execution: {}", s)),
+            _ => Err(format!("Invalid action execution: {s}")),
         }
     }
 }
@@ -298,6 +298,7 @@ impl ActionSecret {
     }
 
     /// Expose the secret value (use with care)
+    #[must_use] 
     pub fn expose_value(&self) -> &str {
         self.value.expose_secret()
     }
@@ -473,7 +474,7 @@ impl std::str::FromStr for ActionLogStatus {
             "timeout" | "timed_out" => Ok(Self::Timeout),
             "pending" | "queued" => Ok(Self::Pending),
             "running" | "in_progress" => Ok(Self::Running),
-            _ => Err(format!("Invalid action log status: {}", s)),
+            _ => Err(format!("Invalid action log status: {s}")),
         }
     }
 }
@@ -496,11 +497,13 @@ pub struct InvokeActionRequest {
 
 impl InvokeActionRequest {
     /// Create an empty invoke request
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Create with a payload
+    #[must_use] 
     pub fn with_payload(payload: serde_json::Value) -> Self {
         Self {
             payload: Some(payload),
@@ -543,6 +546,7 @@ pub struct ActionCallsQuery {
 
 impl ActionCallsQuery {
     /// Create a new query
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }

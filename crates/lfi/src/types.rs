@@ -75,7 +75,7 @@ pub struct Token {
     /// USD price
     #[serde(default)]
     pub price_usd: Option<String>,
-    /// Tags (e.g., "stablecoin", "major_asset")
+    /// Tags (e.g., "stablecoin", "`major_asset`")
     #[serde(default)]
     pub tags: Vec<String>,
 }
@@ -114,7 +114,7 @@ pub struct QuoteRequest {
     pub from_amount: String,
     /// Sender address
     pub from_address: String,
-    /// Recipient address (defaults to from_address if not specified)
+    /// Recipient address (defaults to `from_address` if not specified)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_address: Option<String>,
     /// Slippage tolerance in percent (e.g., 0.5 for 0.5%)
@@ -395,6 +395,7 @@ pub struct RoutesOptions {
 
 impl RoutesOptions {
     /// Create new route options
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -1064,6 +1065,7 @@ pub struct ConnectionsRequest {
 
 impl ConnectionsRequest {
     /// Create a new connections request
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -1134,6 +1136,7 @@ pub struct TokensRequest {
 
 impl TokensRequest {
     /// Create a new tokens request
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }

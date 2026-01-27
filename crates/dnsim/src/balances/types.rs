@@ -143,32 +143,34 @@ pub struct BalancesOptions {
 }
 
 impl BalancesOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref chain_ids) = self.chain_ids {
-            params.push(format!("chain_ids={}", chain_ids));
+            params.push(format!("chain_ids={chain_ids}"));
         }
         if let Some(ref filters) = self.filters {
-            params.push(format!("filters={}", filters));
+            params.push(format!("filters={filters}"));
         }
         if let Some(ref metadata) = self.metadata {
-            params.push(format!("metadata={}", metadata));
+            params.push(format!("metadata={metadata}"));
         }
         if let Some(exclude_spam) = self.exclude_spam_tokens {
-            params.push(format!("exclude_spam_tokens={}", exclude_spam));
+            params.push(format!("exclude_spam_tokens={exclude_spam}"));
         }
         if let Some(ref historical) = self.historical_prices {
-            params.push(format!("historical_prices={}", historical));
+            params.push(format!("historical_prices={historical}"));
         }
         if let Some(ref offset) = self.offset {
-            params.push(format!("offset={}", offset));
+            params.push(format!("offset={offset}"));
         }
         if let Some(limit) = self.limit {
-            params.push(format!("limit={}", limit));
+            params.push(format!("limit={limit}"));
         }
         if params.is_empty() {
             String::new()
@@ -190,6 +192,7 @@ pub struct SingleBalanceOptions {
 }
 
 impl SingleBalanceOptions {
+    #[must_use] 
     pub fn new(chain_ids: &str) -> Self {
         Self {
             chain_ids: chain_ids.to_string(),
@@ -197,13 +200,14 @@ impl SingleBalanceOptions {
         }
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = vec![format!("chain_ids={}", self.chain_ids)];
         if let Some(ref metadata) = self.metadata {
-            params.push(format!("metadata={}", metadata));
+            params.push(format!("metadata={metadata}"));
         }
         if let Some(ref historical) = self.historical_prices {
-            params.push(format!("historical_prices={}", historical));
+            params.push(format!("historical_prices={historical}"));
         }
         format!("?{}", params.join("&"))
     }

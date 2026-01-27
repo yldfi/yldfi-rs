@@ -12,7 +12,7 @@ pub struct ChainsResponse {
 /// Chain info
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Chain {
-    /// Chain ID (API returns chain_id, not id)
+    /// Chain ID (API returns `chain_id`, not id)
     pub chain_id: i64,
     /// Chain name
     pub name: String,
@@ -31,7 +31,7 @@ pub struct Chain {
     pub token_holders: Option<EndpointSupport>,
     /// Collectibles endpoint support
     pub collectibles: Option<EndpointSupport>,
-    /// DeFi positions endpoint support
+    /// `DeFi` positions endpoint support
     pub defi_positions: Option<EndpointSupport>,
 }
 

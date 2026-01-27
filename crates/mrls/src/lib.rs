@@ -7,7 +7,7 @@
 //! - **Wallet API** - Native balances, token balances, transactions, approvals, net worth, profitability
 //! - **Token API** - Metadata, prices, transfers, swaps, pairs, holders, stats, trending
 //! - **NFT API** - NFT metadata, transfers, owners, trades, floor prices, collections
-//! - **DeFi API** - Pair prices, reserves, positions, protocol summaries
+//! - **`DeFi` API** - Pair prices, reserves, positions, protocol summaries
 //! - **Block API** - Block data, timestamps, date-to-block lookups
 //! - **Transaction API** - Transaction details, decoded calls, internal transactions
 //! - **Resolve API** - ENS, Unstoppable Domains, domain resolution

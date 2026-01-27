@@ -23,7 +23,7 @@ pub enum KeyType {
     Contract,
 }
 
-/// WebAuthn public key
+/// `WebAuthn` public key
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebAuthnPublicKey {
@@ -55,7 +55,7 @@ pub struct RequestAccountParams {
     /// Signer address
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_address: Option<String>,
-    /// WebAuthn public key
+    /// `WebAuthn` public key
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_public_key: Option<WebAuthnPublicKey>,
     /// Existing account address
@@ -96,7 +96,7 @@ pub struct CounterfactualInfo {
     pub is_deployed: bool,
 }
 
-/// Call for wallet_prepareCalls
+/// Call for `wallet_prepareCalls`
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletCall {

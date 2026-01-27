@@ -1,6 +1,6 @@
 //! Networks API operations
 
-use super::types::*;
+use super::types::Network;
 use crate::client::Client;
 use crate::error::Result;
 
@@ -11,6 +11,7 @@ pub struct NetworksApi<'a> {
 
 impl<'a> NetworksApi<'a> {
     /// Create a new Networks API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -74,7 +75,7 @@ impl<'a> NetworksApi<'a> {
     /// List only testnet networks
     pub async fn testnets(&self) -> Result<Vec<Network>> {
         let networks = self.supported().await?;
-        Ok(networks.into_iter().filter(|n| n.is_testnet()).collect())
+        Ok(networks.into_iter().filter(super::types::Network::is_testnet).collect())
     }
 
     /// List networks that support simulations
@@ -82,16 +83,16 @@ impl<'a> NetworksApi<'a> {
         let networks = self.supported().await?;
         Ok(networks
             .into_iter()
-            .filter(|n| n.simulation_supported())
+            .filter(super::types::Network::simulation_supported)
             .collect())
     }
 
-    /// List networks that support Virtual TestNets
+    /// List networks that support Virtual `TestNets`
     pub async fn with_vnet_support(&self) -> Result<Vec<Network>> {
         let networks = self.supported().await?;
         Ok(networks
             .into_iter()
-            .filter(|n| n.vnet_supported())
+            .filter(super::types::Network::vnet_supported)
             .collect())
     }
 }

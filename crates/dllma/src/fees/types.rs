@@ -16,11 +16,13 @@ pub struct FeesOverviewOptions {
 
 impl FeesOverviewOptions {
     /// Create new options with defaults
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Exclude chart data from response
+    #[must_use] 
     pub fn exclude_charts(mut self) -> Self {
         self.exclude_total_data_chart = true;
         self.exclude_total_data_chart_breakdown = true;
@@ -34,6 +36,7 @@ impl FeesOverviewOptions {
     }
 
     /// Build query string
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if self.exclude_total_data_chart {
@@ -43,7 +46,7 @@ impl FeesOverviewOptions {
             params.push("excludeTotalDataChartBreakdown=true".to_string());
         }
         if let Some(ref dt) = self.data_type {
-            params.push(format!("dataType={}", dt));
+            params.push(format!("dataType={dt}"));
         }
         if params.is_empty() {
             String::new()
@@ -141,7 +144,7 @@ pub struct FeesProtocol {
     /// Chain breakdown
     #[serde(default)]
     pub breakdown24h: Option<HashMap<String, HashMap<String, f64>>>,
-    /// DefiLlama ID
+    /// `DefiLlama` ID
     pub defi_llama_id: Option<String>,
     /// Parent protocol
     pub parent_protocol: Option<String>,
@@ -161,7 +164,7 @@ pub struct ProtocolFeesSummary {
     pub id: Option<String>,
     /// Logo URL
     pub logo: Option<String>,
-    /// DefiLlama ID
+    /// `DefiLlama` ID
     pub defi_llama_id: Option<String>,
     /// Protocol URL
     pub url: Option<String>,

@@ -1,6 +1,6 @@
 //! TVL and protocol data
 //!
-//! Access Total Value Locked data for DeFi protocols and chains.
+//! Access Total Value Locked data for `DeFi` protocols and chains.
 //!
 //! # Example
 //!

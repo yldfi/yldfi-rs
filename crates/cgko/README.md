@@ -69,6 +69,14 @@ let markets = client.coins().markets("usd").await?;
 
 - `COINGECKO_API_KEY` - Your CoinGecko Pro API key (optional, for higher rate limits)
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [CoinGecko's Terms of Service](https://www.coingecko.com/en/terms).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by CoinGecko.
+
 ## License
 
 MIT

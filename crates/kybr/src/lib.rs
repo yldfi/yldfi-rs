@@ -1,6 +1,6 @@
-//! Rust client for the KyberSwap Aggregator API
+//! Rust client for the `KyberSwap` Aggregator API
 //!
-//! KyberSwap is a multi-chain DEX aggregator that provides optimal swap routes.
+//! `KyberSwap` is a multi-chain DEX aggregator that provides optimal swap routes.
 //!
 //! # Quick Start
 //!
@@ -39,10 +39,10 @@ pub use types::{
 pub use yldfi_common::api::{ApiConfig, BaseClient};
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
-/// Default base URL for the KyberSwap API
+/// Default base URL for the `KyberSwap` API
 pub const DEFAULT_BASE_URL: &str = "https://aggregator-api.kyberswap.com";
 
-/// Configuration for the KyberSwap API client
+/// Configuration for the `KyberSwap` API client
 pub type Config = ApiConfig;
 
 /// Create a default Kyber config

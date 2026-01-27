@@ -1,9 +1,9 @@
-//! Types for the OpenOcean API responses
+//! Types for the `OpenOcean` API responses
 
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-/// Supported chains for OpenOcean
+/// Supported chains for `OpenOcean`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
@@ -44,6 +44,7 @@ pub enum Chain {
 
 impl Chain {
     /// Convert from EVM chain ID (returns None for non-EVM chains like Solana/Sui)
+    #[must_use] 
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
         match chain_id {
             1 => Some(Chain::Eth),
@@ -66,6 +67,7 @@ impl Chain {
     }
 
     /// Get the chain ID for API requests
+    #[must_use] 
     pub fn as_str(&self) -> &'static str {
         match self {
             Chain::Eth => "eth",
@@ -88,6 +90,7 @@ impl Chain {
     }
 
     /// Parse chain from string (returns Option for backward compatibility)
+    #[must_use] 
     pub fn try_from_str(s: &str) -> Option<Self> {
         s.parse().ok()
     }
@@ -114,7 +117,7 @@ impl FromStr for Chain {
             "blast" => Ok(Chain::Blast),
             "solana" | "sol" => Ok(Chain::Solana),
             "sui" => Ok(Chain::Sui),
-            _ => Err(format!("Unknown chain: {}", s)),
+            _ => Err(format!("Unknown chain: {s}")),
         }
     }
 }
@@ -210,11 +213,31 @@ impl QuoteRequest {
         }
     }
 
-    /// Set slippage tolerance
+    /// Set slippage tolerance (must be between 0.01 and 50.0 percent)
+    ///
+    /// # Panics
+    /// Panics if slippage is outside the valid range (0.01..=50.0)
     #[must_use]
     pub fn with_slippage(mut self, slippage: f64) -> Self {
+        assert!(
+            (0.01..=50.0).contains(&slippage),
+            "Slippage must be between 0.01% and 50%, got {slippage}%"
+        );
         self.slippage = Some(slippage);
         self
+    }
+
+    /// Set slippage tolerance with validation, returning an error if out of range
+    ///
+    /// Slippage must be between 0.01% and 50%
+    pub fn try_with_slippage(mut self, slippage: f64) -> Result<Self, String> {
+        if !(0.01..=50.0).contains(&slippage) {
+            return Err(format!(
+                "Slippage must be between 0.01% and 50%, got {slippage}%"
+            ));
+        }
+        self.slippage = Some(slippage);
+        Ok(self)
     }
 
     /// Set gas price in Gwei
@@ -273,11 +296,31 @@ impl SwapRequest {
         }
     }
 
-    /// Set slippage tolerance
+    /// Set slippage tolerance (must be between 0.01 and 50.0 percent)
+    ///
+    /// # Panics
+    /// Panics if slippage is outside the valid range (0.01..=50.0)
     #[must_use]
     pub fn with_slippage(mut self, slippage: f64) -> Self {
+        assert!(
+            (0.01..=50.0).contains(&slippage),
+            "Slippage must be between 0.01% and 50%, got {slippage}%"
+        );
         self.slippage = Some(slippage);
         self
+    }
+
+    /// Set slippage tolerance with validation, returning an error if out of range
+    ///
+    /// Slippage must be between 0.01% and 50%
+    pub fn try_with_slippage(mut self, slippage: f64) -> Result<Self, String> {
+        if !(0.01..=50.0).contains(&slippage) {
+            return Err(format!(
+                "Slippage must be between 0.01% and 50%, got {slippage}%"
+            ));
+        }
+        self.slippage = Some(slippage);
+        Ok(self)
     }
 
     /// Set gas price
@@ -295,7 +338,7 @@ impl SwapRequest {
     }
 }
 
-/// Quote response from OpenOcean API
+/// Quote response from `OpenOcean` API
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuoteResponse {
     /// Response code (200 = success)

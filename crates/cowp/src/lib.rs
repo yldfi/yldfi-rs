@@ -1,10 +1,10 @@
-//! Rust client for the CoW Protocol (CowSwap) API
+//! Rust client for the `CoW` Protocol (`CowSwap`) API
 //!
-//! CoW Protocol is a fully permissionless trading protocol that leverages
+//! `CoW` Protocol is a fully permissionless trading protocol that leverages
 //! Batch Auctions as its price finding mechanism. It provides:
 //! - MEV protection through batch auctions
 //! - Gasless trading (fees taken from output tokens)
-//! - Coincidence of Wants (CoW) for better prices
+//! - Coincidence of Wants (`CoW`) for better prices
 //!
 //! # Quick Start
 //!
@@ -86,7 +86,7 @@ pub use types::{
 pub use yldfi_common::http::HttpClientConfig;
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
-/// Create a default CowSwap config
+/// Create a default `CowSwap` config
 #[must_use]
 pub fn default_config() -> Config {
     Config::default()

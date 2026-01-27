@@ -105,7 +105,7 @@ impl std::str::FromStr for AlertType {
             "block_mined" | "block" => Ok(Self::BlockMined),
             "whale_alert" | "whale" => Ok(Self::WhaleAlert),
             "expression" | "custom" => Ok(Self::Expression),
-            _ => Err(format!("Invalid alert type: {}", s)),
+            _ => Err(format!("Invalid alert type: {s}")),
         }
     }
 }
@@ -153,7 +153,7 @@ impl std::str::FromStr for AlertTarget {
             "network" | "net" => Ok(Self::Network),
             "project" | "proj" => Ok(Self::Project),
             "tag" => Ok(Self::Tag),
-            _ => Err(format!("Invalid alert target: {}", s)),
+            _ => Err(format!("Invalid alert target: {s}")),
         }
     }
 }
@@ -171,7 +171,7 @@ pub enum DestinationType {
     Discord,
     /// Telegram bot
     Telegram,
-    /// PagerDuty
+    /// `PagerDuty`
     PagerDuty,
     /// Custom webhook
     Webhook,
@@ -213,7 +213,7 @@ impl std::str::FromStr for DestinationType {
             "pagerduty" | "pager_duty" => Ok(Self::PagerDuty),
             "webhook" => Ok(Self::Webhook),
             "web3_action" | "web3action" | "action" => Ok(Self::Web3Action),
-            _ => Err(format!("Invalid destination type: {}", s)),
+            _ => Err(format!("Invalid destination type: {s}")),
         }
     }
 }
@@ -317,11 +317,11 @@ impl CreateAlertRequest {
 /// Alert parameters (type-specific configuration)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AlertParameters {
-    /// Function signature (for FunctionCall type)
+    /// Function signature (for `FunctionCall` type)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_signature: Option<String>,
 
-    /// Event signature (for EventEmitted type)
+    /// Event signature (for `EventEmitted` type)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_signature: Option<String>,
 
@@ -329,7 +329,7 @@ pub struct AlertParameters {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_address: Option<String>,
 
-    /// Minimum value threshold (for WhaleAlert)
+    /// Minimum value threshold (for `WhaleAlert`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub threshold: Option<String>,
 
@@ -337,7 +337,7 @@ pub struct AlertParameters {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression: Option<String>,
 
-    /// State variable to watch (for StateChange)
+    /// State variable to watch (for `StateChange`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_variable: Option<String>,
 }
@@ -564,6 +564,7 @@ pub struct AlertHistoryQuery {
 
 impl AlertHistoryQuery {
     /// Create a new query with defaults
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }

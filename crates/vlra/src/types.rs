@@ -1,6 +1,6 @@
-//! Types for the Velora (ParaSwap) API
+//! Types for the Velora (`ParaSwap`) API
 //!
-//! This module contains request and response types for the ParaSwap API,
+//! This module contains request and response types for the `ParaSwap` API,
 //! including price routing, transaction building, and token lists.
 
 use serde::{Deserialize, Serialize};
@@ -235,6 +235,7 @@ impl PriceRequest {
     }
 
     /// Convert to query parameters
+    #[must_use] 
     pub fn to_query_params(&self, network: u64) -> Vec<(String, String)> {
         let mut params = vec![
             ("srcToken".to_string(), self.src_token.clone()),
@@ -390,7 +391,7 @@ pub struct TransactionRequest {
     pub src_amount: String,
     /// Destination amount (from price route)
     pub dest_amount: String,
-    /// Price route from PriceResponse
+    /// Price route from `PriceResponse`
     pub price_route: serde_json::Value,
     /// Slippage tolerance in basis points (e.g., 100 = 1%)
     pub slippage: u32,

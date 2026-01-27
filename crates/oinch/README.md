@@ -66,6 +66,14 @@ oinch = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [1inch Terms of Use](https://1inch.io/terms-of-use/).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by 1inch Network.
+
 ## License
 
 MIT

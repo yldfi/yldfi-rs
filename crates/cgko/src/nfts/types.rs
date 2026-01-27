@@ -143,23 +143,25 @@ pub struct NftListOptions {
 }
 
 impl NftListOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref o) = self.order {
-            params.push(format!("order={}", o));
+            params.push(format!("order={o}"));
         }
         if let Some(ref ap) = self.asset_platform_id {
-            params.push(format!("asset_platform_id={}", ap));
+            params.push(format!("asset_platform_id={ap}"));
         }
         if let Some(pp) = self.per_page {
-            params.push(format!("per_page={}", pp));
+            params.push(format!("per_page={pp}"));
         }
         if let Some(p) = self.page {
-            params.push(format!("page={}", p));
+            params.push(format!("page={p}"));
         }
         if params.is_empty() {
             String::new()

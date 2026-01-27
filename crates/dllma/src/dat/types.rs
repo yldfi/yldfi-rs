@@ -101,7 +101,7 @@ pub struct AssetMetadata {
     pub name: Option<String>,
     /// Asset ticker
     pub ticker: Option<String>,
-    /// CoinGecko ID
+    /// `CoinGecko` ID
     pub gecko_id: Option<String>,
     /// Number of companies holding
     pub companies: Option<u64>,
@@ -137,7 +137,7 @@ pub struct AssetHolding {
     pub amount: Option<f64>,
 }
 
-/// Flow data point [timestamp, net_flow, inflow, outflow, usd_value, usd_net_flow]
+/// Flow data point [timestamp, `net_flow`, inflow, outflow, `usd_value`, `usd_net_flow`]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct FlowDataPoint(pub Vec<f64>);

@@ -1,6 +1,6 @@
 //! Bundler API implementation (ERC-4337)
 
-use super::types::*;
+use super::types::{UserOperation, GasEstimation, BundlerStateOverride, UserOperationByHash, UserOperationReceipt};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -19,9 +19,9 @@ impl<'a> BundlerApi<'a> {
         self.client.rpc("eth_supportedEntryPoints", ()).await
     }
 
-    /// Send a UserOperation
+    /// Send a `UserOperation`
     ///
-    /// Returns the UserOperation hash.
+    /// Returns the `UserOperation` hash.
     pub async fn send_user_operation(
         &self,
         user_op: &UserOperation,
@@ -32,7 +32,7 @@ impl<'a> BundlerApi<'a> {
             .await
     }
 
-    /// Estimate gas for a UserOperation
+    /// Estimate gas for a `UserOperation`
     pub async fn estimate_user_operation_gas(
         &self,
         user_op: &UserOperation,
@@ -58,7 +58,7 @@ impl<'a> BundlerApi<'a> {
             .await
     }
 
-    /// Get UserOperation by hash
+    /// Get `UserOperation` by hash
     pub async fn get_user_operation_by_hash(
         &self,
         user_op_hash: &str,
@@ -68,7 +68,7 @@ impl<'a> BundlerApi<'a> {
             .await
     }
 
-    /// Get UserOperation receipt
+    /// Get `UserOperation` receipt
     pub async fn get_user_operation_receipt(
         &self,
         user_op_hash: &str,

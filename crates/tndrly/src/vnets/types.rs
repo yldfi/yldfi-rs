@@ -1,11 +1,11 @@
-//! Types for Virtual TestNets API
+//! Types for Virtual `TestNets` API
 
 use serde::{Deserialize, Serialize};
 
-/// Request to create a new Virtual TestNet
+/// Request to create a new Virtual `TestNet`
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateVNetRequest {
-    /// Unique slug for the VNet
+    /// Unique slug for the `VNet`
     pub slug: String,
 
     /// Display name
@@ -27,7 +27,7 @@ pub struct CreateVNetRequest {
 }
 
 impl CreateVNetRequest {
-    /// Create a new VNet request with minimal configuration
+    /// Create a new `VNet` request with minimal configuration
     pub fn new(slug: impl Into<String>, display_name: impl Into<String>, network_id: u64) -> Self {
         Self {
             slug: slug.into(),
@@ -136,14 +136,14 @@ pub struct VirtualNetworkConfigResponse {
 }
 
 impl VirtualNetworkConfigResponse {
-    /// Get the chain ID from nested chain_config
+    /// Get the chain ID from nested `chain_config`
     #[must_use]
     pub fn chain_id(&self) -> Option<u64> {
         self.chain_config.as_ref().map(|c| c.chain_id)
     }
 }
 
-/// Chain configuration nested in VirtualNetworkConfigResponse
+/// Chain configuration nested in `VirtualNetworkConfigResponse`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChainConfig {
     /// Chain ID
@@ -167,10 +167,10 @@ pub struct ExplorerPageConfig {
     pub verification_visibility: String,
 }
 
-/// Virtual TestNet details from API response
+/// Virtual `TestNet` details from API response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VNet {
-    /// VNet ID
+    /// `VNet` ID
     pub id: String,
 
     /// Slug
@@ -216,7 +216,7 @@ pub struct RpcEndpoint {
     pub url: String,
 }
 
-/// Collection of RPC endpoints for a VNet
+/// Collection of RPC endpoints for a `VNet`
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct VNetRpcs {
     /// All RPC endpoints
@@ -243,10 +243,10 @@ impl VNetRpcs {
     }
 }
 
-/// Response when creating a VNet
+/// Response when creating a `VNet`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateVNetResponse {
-    /// The created VNet
+    /// The created `VNet`
     #[serde(flatten)]
     pub vnet: VNet,
 }
@@ -254,7 +254,7 @@ pub struct CreateVNetResponse {
 // Note: The VNets API returns a raw array, so list() returns Vec<VNet> directly.
 // No wrapper type needed.
 
-/// Query parameters for listing VNets
+/// Query parameters for listing `VNets`
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ListVNetsQuery {
     /// Filter by slug (partial match)
@@ -272,6 +272,7 @@ pub struct ListVNetsQuery {
 
 impl ListVNetsQuery {
     /// Create a new query
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -298,41 +299,42 @@ impl ListVNetsQuery {
     }
 }
 
-/// Request to delete multiple VNets
+/// Request to delete multiple `VNets`
 #[derive(Debug, Clone, Serialize)]
 pub struct DeleteVNetsRequest {
-    /// List of VNet IDs to delete
+    /// List of `VNet` IDs to delete
     pub vnet_ids: Vec<String>,
 }
 
 impl DeleteVNetsRequest {
-    /// Create a delete request for a single VNet
+    /// Create a delete request for a single `VNet`
     pub fn single(id: impl Into<String>) -> Self {
         Self {
             vnet_ids: vec![id.into()],
         }
     }
 
-    /// Create a delete request for multiple VNets
+    /// Create a delete request for multiple `VNets`
+    #[must_use] 
     pub fn multiple(ids: Vec<String>) -> Self {
         Self { vnet_ids: ids }
     }
 }
 
-/// Request to fork a VNet
+/// Request to fork a `VNet`
 #[derive(Debug, Clone, Serialize)]
 pub struct ForkVNetRequest {
-    /// ID of the source VNet to fork from
+    /// ID of the source `VNet` to fork from
     #[serde(rename = "vnet_id")]
     pub source_vnet_id: String,
 
-    /// Slug for the new forked VNet
+    /// Slug for the new forked `VNet`
     pub slug: String,
 
-    /// Display name for the forked VNet
+    /// Display name for the forked `VNet`
     pub display_name: String,
 
-    /// Block number to fork from (on the source VNet)
+    /// Block number to fork from (on the source `VNet`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_number: Option<u64>,
 }
@@ -360,14 +362,14 @@ impl ForkVNetRequest {
     }
 }
 
-/// Transaction on a VNet
+/// Transaction on a `VNet`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VNetTransaction {
     /// Unique transaction ID
     #[serde(default)]
     pub id: Option<String>,
 
-    /// VNet ID this transaction belongs to
+    /// `VNet` ID this transaction belongs to
     #[serde(default)]
     pub vnet_id: Option<String>,
 
@@ -443,7 +445,7 @@ pub struct VNetTransaction {
     #[serde(default)]
     pub kind: Option<String>,
 
-    /// RPC method used (e.g., "eth_sendRawTransaction")
+    /// RPC method used (e.g., "`eth_sendRawTransaction`")
     #[serde(default)]
     pub rpc_method: Option<String>,
 
@@ -493,7 +495,7 @@ impl VNetTransaction {
         self.gas.as_ref().and_then(|s| parse_hex_u64(s))
     }
 
-    /// Parse gas_used from hex string to u64
+    /// Parse `gas_used` from hex string to u64
     #[must_use]
     pub fn gas_used_as_u64(&self) -> Option<u64> {
         self.gas_used.as_ref().and_then(|s| parse_hex_u64(s))
@@ -524,7 +526,7 @@ fn parse_hex_u64(s: &str) -> Option<u64> {
     u64::from_str_radix(s, 16).ok()
 }
 
-/// Query parameters for listing VNet transactions
+/// Query parameters for listing `VNet` transactions
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ListVNetTransactionsQuery {
     /// Filter by address (sender or recipient)
@@ -546,6 +548,7 @@ pub struct ListVNetTransactionsQuery {
 
 impl ListVNetTransactionsQuery {
     /// Create a new query
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -593,7 +596,7 @@ impl ListVNetTransactionsQuery {
     }
 }
 
-/// Request to simulate a transaction on a VNet
+/// Request to simulate a transaction on a `VNet`
 #[derive(Debug, Clone, Serialize)]
 pub struct VNetSimulationRequest {
     /// Sender address
@@ -700,7 +703,7 @@ impl VNetSimulationRequest {
     }
 }
 
-/// Request to update a Virtual TestNet
+/// Request to update a Virtual `TestNet`
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct UpdateVNetRequest {
     /// New display name
@@ -722,6 +725,7 @@ pub struct UpdateVNetRequest {
 
 impl UpdateVNetRequest {
     /// Create a new update request
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -758,7 +762,7 @@ impl UpdateVNetRequest {
     }
 }
 
-/// Request to send a transaction on a Virtual TestNet
+/// Request to send a transaction on a Virtual `TestNet`
 #[derive(Debug, Clone, Serialize)]
 pub struct SendVNetTransactionRequest {
     /// Sender address

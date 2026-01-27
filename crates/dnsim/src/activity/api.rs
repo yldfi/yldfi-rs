@@ -1,6 +1,6 @@
 //! Activity API endpoints
 
-use super::types::*;
+use super::types::{ActivityResponse, ActivityOptions};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct ActivityApi<'a> {
 }
 
 impl<'a> ActivityApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -19,7 +20,7 @@ impl<'a> ActivityApi<'a> {
     /// # Arguments
     /// * `address` - Wallet address
     pub async fn get(&self, address: &str) -> Result<ActivityResponse> {
-        let path = format!("/v1/evm/activity/{}", address);
+        let path = format!("/v1/evm/activity/{address}");
         self.client.get(&path).await
     }
 
@@ -27,7 +28,7 @@ impl<'a> ActivityApi<'a> {
     ///
     /// # Arguments
     /// * `address` - Wallet address
-    /// * `options` - Query options (chain_ids, offset, limit)
+    /// * `options` - Query options (`chain_ids`, offset, limit)
     pub async fn get_with_options(
         &self,
         address: &str,

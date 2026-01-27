@@ -1,4 +1,4 @@
-//! HTTP client for the KyberSwap Aggregator API
+//! HTTP client for the `KyberSwap` Aggregator API
 
 use crate::error::{self, Error, Result};
 use crate::types::{
@@ -8,7 +8,7 @@ use crate::types::{
 use crate::{default_config, Config};
 use yldfi_common::api::BaseClient;
 
-/// Client for the KyberSwap Aggregator API
+/// Client for the `KyberSwap` Aggregator API
 #[derive(Debug, Clone)]
 pub struct Client {
     base: BaseClient,

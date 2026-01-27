@@ -1,4 +1,4 @@
-//! Error types for the Velora (ParaSwap) API client
+//! Error types for the Velora (`ParaSwap`) API client
 //!
 //! This module re-exports the shared `ApiError` type from `yldfi_common`.
 

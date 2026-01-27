@@ -1,6 +1,6 @@
 //! Pipelines API implementation
 
-use super::types::*;
+use super::types::{ExecutePipelineRequest, ExecutePipelineResponse, PipelineExecutionStatus};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 
@@ -48,8 +48,7 @@ impl<'a> PipelinesApi<'a> {
             Ok(response.json().await?)
         } else if response.status() == 404 {
             Err(error::not_found(format!(
-                "Pipeline execution {}",
-                pipeline_execution_id
+                "Pipeline execution {pipeline_execution_id}"
             )))
         } else {
             let status = response.status().as_u16();

@@ -1,6 +1,6 @@
 //! Accounts/Signer API implementation
 
-use super::types::*;
+use super::types::{SignupRequest, SignupResponse, AuthRequest, WhoamiResponse, LookupResponse, LookupRequest, OtpRequest, JwtAuthRequest, SignPayloadRequest, SignPayloadResponse};
 use crate::client::Client;
 use crate::error::{Error, Result};
 
@@ -21,7 +21,7 @@ impl<'a> AccountsApi<'a> {
         B: serde::Serialize,
         R: serde::de::DeserializeOwned,
     {
-        let url = format!("{}{}", SIGNER_BASE_URL, path);
+        let url = format!("{SIGNER_BASE_URL}{path}");
         let response = self
             .client
             .http()

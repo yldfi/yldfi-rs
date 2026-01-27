@@ -105,25 +105,29 @@ pub struct DerivativesOptions {
 }
 
 impl DerivativesOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn all_tickers() -> Self {
         Self {
             include_tickers: Some("all".to_string()),
         }
     }
 
+    #[must_use] 
     pub fn unexpired_tickers() -> Self {
         Self {
             include_tickers: Some("unexpired".to_string()),
         }
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         match &self.include_tickers {
-            Some(t) => format!("?include_tickers={}", t),
+            Some(t) => format!("?include_tickers={t}"),
             None => String::new(),
         }
     }
@@ -138,20 +142,22 @@ pub struct DerivativeExchangesOptions {
 }
 
 impl DerivativeExchangesOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref o) = self.order {
-            params.push(format!("order={}", o));
+            params.push(format!("order={o}"));
         }
         if let Some(pp) = self.per_page {
-            params.push(format!("per_page={}", pp));
+            params.push(format!("per_page={pp}"));
         }
         if let Some(p) = self.page {
-            params.push(format!("page={}", p));
+            params.push(format!("page={p}"));
         }
         if params.is_empty() {
             String::new()

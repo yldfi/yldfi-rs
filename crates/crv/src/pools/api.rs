@@ -1,6 +1,6 @@
 //! Pools API client
 
-use super::types::*;
+use super::types::{PoolsResponse, PoolListResponse, HiddenPoolsResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -11,6 +11,7 @@ pub struct PoolsApi<'a> {
 
 impl<'a> PoolsApi<'a> {
     /// Create a new pools API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -21,13 +22,13 @@ impl<'a> PoolsApi<'a> {
     /// * `chain` - Chain ID (e.g., "ethereum", "polygon", "arbitrum")
     /// * `registry` - Registry ID (e.g., "main", "factory", "factory-crypto")
     pub async fn get(&self, chain: &str, registry: &str) -> Result<PoolsResponse> {
-        let path = format!("/getPools/{}/{}", chain, registry);
+        let path = format!("/getPools/{chain}/{registry}");
         self.client.get(&path).await
     }
 
     /// Get all pools on a specific chain
     pub async fn get_all_on_chain(&self, chain: &str) -> Result<PoolsResponse> {
-        let path = format!("/getPools/all/{}", chain);
+        let path = format!("/getPools/all/{chain}");
         self.client.get(&path).await
     }
 
@@ -38,7 +39,7 @@ impl<'a> PoolsApi<'a> {
 
     /// Get pools with TVL >= $10k on a specific chain
     pub async fn get_big(&self, chain: &str) -> Result<PoolsResponse> {
-        let path = format!("/getPools/big/{}", chain);
+        let path = format!("/getPools/big/{chain}");
         self.client.get(&path).await
     }
 
@@ -49,7 +50,7 @@ impl<'a> PoolsApi<'a> {
 
     /// Get pools with TVL < $10k on a specific chain
     pub async fn get_small(&self, chain: &str) -> Result<PoolsResponse> {
-        let path = format!("/getPools/small/{}", chain);
+        let path = format!("/getPools/small/{chain}");
         self.client.get(&path).await
     }
 
@@ -60,7 +61,7 @@ impl<'a> PoolsApi<'a> {
 
     /// Get pools with $0 TVL on a specific chain
     pub async fn get_empty(&self, chain: &str) -> Result<PoolsResponse> {
-        let path = format!("/getPools/empty/{}", chain);
+        let path = format!("/getPools/empty/{chain}");
         self.client.get(&path).await
     }
 
@@ -71,7 +72,7 @@ impl<'a> PoolsApi<'a> {
 
     /// Get list of pool addresses on a chain
     pub async fn list(&self, chain: &str) -> Result<PoolListResponse> {
-        let path = format!("/getPoolList/{}", chain);
+        let path = format!("/getPoolList/{chain}");
         self.client.get(&path).await
     }
 

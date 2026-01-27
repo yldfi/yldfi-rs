@@ -139,20 +139,22 @@ pub struct ActivityOptions {
 }
 
 impl ActivityOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref chain_ids) = self.chain_ids {
-            params.push(format!("chain_ids={}", chain_ids));
+            params.push(format!("chain_ids={chain_ids}"));
         }
         if let Some(ref offset) = self.offset {
-            params.push(format!("offset={}", offset));
+            params.push(format!("offset={offset}"));
         }
         if let Some(limit) = self.limit {
-            params.push(format!("limit={}", limit));
+            params.push(format!("limit={limit}"));
         }
         if params.is_empty() {
             String::new()

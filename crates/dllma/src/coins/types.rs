@@ -7,7 +7,7 @@ use std::collections::HashMap;
 ///
 /// Examples:
 /// - `ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1` (ERC-20 token)
-/// - `coingecko:ethereum` (by CoinGecko ID)
+/// - `coingecko:ethereum` (by `CoinGecko` ID)
 /// - `ethereum:0x0000000000000000000000000000000000000000` (native ETH)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Token {
@@ -46,12 +46,13 @@ impl Token {
         Self::new("arbitrum", address)
     }
 
-    /// Create a token by CoinGecko ID
+    /// Create a token by `CoinGecko` ID
     pub fn coingecko(id: impl Into<String>) -> Self {
         Self::new("coingecko", id)
     }
 
     /// Format as `chain:address` string
+    #[must_use] 
     pub fn format(&self) -> String {
         format!("{}:{}", self.chain, self.address)
     }

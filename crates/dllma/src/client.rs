@@ -1,7 +1,7 @@
-//! HTTP client for the DefiLlama API
+//! HTTP client for the `DefiLlama` API
 //!
 //! This client uses common utilities from `yldfi-common` for HTTP operations
-//! while supporting DefiLlama's multi-URL API structure.
+//! while supporting `DefiLlama`'s multi-URL API structure.
 
 use reqwest::Client as HttpClient;
 use std::time::Duration;
@@ -10,7 +10,7 @@ use yldfi_common::api::{extract_retry_after, ApiConfig, SecretApiKey};
 
 use crate::error::{Error, Result};
 
-/// Base URLs for DefiLlama APIs
+/// Base URLs for `DefiLlama` APIs
 pub mod base_urls {
     /// Main API (TVL, protocols, fees, volumes) - Free tier
     pub const MAIN: &str = "https://api.llama.fi";
@@ -24,7 +24,7 @@ pub mod base_urls {
     pub const YIELDS: &str = "https://yields.llama.fi";
 }
 
-/// Configuration for the DefiLlama API client
+/// Configuration for the `DefiLlama` API client
 ///
 /// Built on top of [`ApiConfig`] from `yldfi-common` for consistent
 /// configuration patterns across all API clients.
@@ -38,6 +38,7 @@ pub struct Config {
 
 impl Config {
     /// Create a new free-tier config
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             api_key: None,
@@ -87,9 +88,9 @@ impl Default for Config {
     }
 }
 
-/// DefiLlama API client
+/// `DefiLlama` API client
 ///
-/// Supports multiple DefiLlama API endpoints (main, coins, stablecoins, yields, pro).
+/// Supports multiple `DefiLlama` API endpoints (main, coins, stablecoins, yields, pro).
 #[derive(Debug, Clone)]
 pub struct Client {
     http: HttpClient,
@@ -102,12 +103,12 @@ pub struct Client {
 }
 
 impl Client {
-    /// Create a new DefiLlama client (free tier)
+    /// Create a new `DefiLlama` client (free tier)
     pub fn new() -> Result<Self> {
         Self::with_config(Config::new())
     }
 
-    /// Create a new DefiLlama client with Pro API key
+    /// Create a new `DefiLlama` client with Pro API key
     ///
     /// Pro API keys unlock additional endpoints like yields, bridges,
     /// emissions, and more. Get your key at <https://defillama.com/subscription>
@@ -152,31 +153,37 @@ impl Client {
     }
 
     /// Check if this client has a Pro API key configured
+    #[must_use] 
     pub fn has_pro_access(&self) -> bool {
         self.api_key.is_some()
     }
 
     /// Get the underlying HTTP client
+    #[must_use] 
     pub fn http(&self) -> &HttpClient {
         &self.http
     }
 
     /// Get the main API base URL
+    #[must_use] 
     pub fn main_url(&self) -> &Url {
         &self.main_url
     }
 
     /// Get the coins API base URL
+    #[must_use] 
     pub fn coins_url(&self) -> &Url {
         &self.coins_url
     }
 
     /// Get the stablecoins API base URL
+    #[must_use] 
     pub fn stablecoins_url(&self) -> &Url {
         &self.stablecoins_url
     }
 
     /// Get the yields API base URL
+    #[must_use] 
     pub fn yields_url(&self) -> &Url {
         &self.yields_url
     }

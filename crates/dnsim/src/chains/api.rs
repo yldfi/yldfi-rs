@@ -1,6 +1,6 @@
 //! Supported chains API endpoints
 
-use super::types::*;
+use super::types::ChainsResponse;
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct ChainsApi<'a> {
 }
 
 impl<'a> ChainsApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

@@ -110,12 +110,14 @@ pub struct PriceFeedAttributes {
 
 impl ParsedPriceFeed {
     /// Convert price to f64 using the exponent
+    #[must_use] 
     pub fn price_f64(&self) -> Option<f64> {
         let price: f64 = self.price.price.parse().ok()?;
         Some(price * 10f64.powi(self.price.expo))
     }
 
     /// Convert EMA price to f64 using the exponent
+    #[must_use] 
     pub fn ema_price_f64(&self) -> Option<f64> {
         let ema = self.ema_price.as_ref()?;
         let price: f64 = ema.price.parse().ok()?;
@@ -123,19 +125,22 @@ impl ParsedPriceFeed {
     }
 
     /// Get confidence interval as f64
+    #[must_use] 
     pub fn confidence_f64(&self) -> Option<f64> {
         let conf: f64 = self.price.conf.parse().ok()?;
         Some(conf * 10f64.powi(self.price.expo))
     }
 
     /// Get EMA confidence interval as f64
+    #[must_use] 
     pub fn ema_confidence_f64(&self) -> Option<f64> {
         let ema = self.ema_price.as_ref()?;
         let conf: f64 = ema.conf.parse().ok()?;
         Some(conf * 10f64.powi(ema.expo))
     }
 
-    /// Check if price is stale (older than max_age seconds)
+    /// Check if price is stale (older than `max_age` seconds)
+    #[must_use] 
     pub fn is_stale(&self, max_age_secs: i64) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

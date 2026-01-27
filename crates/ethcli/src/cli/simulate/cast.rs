@@ -29,25 +29,6 @@ pub async fn simulate_via_cast(
     trace: bool,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    // Validate inputs to prevent flag injection
-    validate_cli_arg(value, "value")?;
-    validate_cli_arg(block, "block")?;
-    if let Some(ref sig_str) = sig {
-        validate_cli_arg(sig_str, "signature")?;
-    }
-    if let Some(ref data_str) = data {
-        validate_cli_arg(data_str, "data")?;
-    }
-    if let Some(ref rpc) = rpc_url {
-        validate_cli_arg(rpc, "rpc-url")?;
-    }
-    for arg in args {
-        validate_cli_arg(arg, "argument")?;
-    }
-
-    let mut cmd = Command::new("cast");
-    cmd.arg("call");
-
     // Resolve target address
     let resolved_to = resolve_label(to);
 
@@ -57,22 +38,10 @@ pub async fn simulate_via_cast(
         validate_cli_arg(&resolved_to, "to address")?;
     }
 
-    cmd.arg(&resolved_to);
+    let mut cmd = Command::new("cast");
+    cmd.arg("call");
 
-    // Add signature or data
-    if let Some(sig) = sig {
-        cmd.arg(sig);
-        for arg in args {
-            // Resolve address labels in args
-            cmd.arg(resolve_label(arg));
-        }
-    } else if let Some(data) = data {
-        cmd.arg("--data").arg(data);
-    } else {
-        return Err(anyhow::anyhow!("Must provide --sig or --data"));
-    }
-
-    // Add optional params
+    // Add all flags FIRST (these are controlled by us, not user input)
     if let Some(from) = from {
         cmd.arg("--from").arg(from);
     }
@@ -91,6 +60,32 @@ pub async fn simulate_via_cast(
     // Only add --trace if requested (requires debug-capable node)
     if trace {
         cmd.arg("--trace");
+    }
+
+    // Add --data flag if using raw data (before the -- separator)
+    if sig.is_none() {
+        if let Some(data) = data {
+            cmd.arg("--data").arg(data);
+        } else {
+            return Err(anyhow::anyhow!("Must provide --sig or --data"));
+        }
+    }
+
+    // SEC-CAST-001: Add `--` to prevent flag injection from user-provided arguments.
+    // Everything after `--` is interpreted as a positional argument, not a flag.
+    // This prevents attacks like passing `--rpc-url=malicious.com` as a "to" address.
+    cmd.arg("--");
+
+    // Now add positional arguments (user-controlled, potentially untrusted)
+    cmd.arg(&resolved_to);
+
+    // Add signature and args if using sig mode
+    if let Some(sig) = sig {
+        cmd.arg(sig);
+        for arg in args {
+            // Resolve address labels in args
+            cmd.arg(resolve_label(arg));
+        }
     }
 
     if !quiet {
@@ -126,15 +121,10 @@ pub async fn trace_tx_via_cast(
         );
     }
 
-    // Validate RPC URL if provided
-    if let Some(ref rpc) = rpc_url {
-        validate_cli_arg(rpc, "rpc-url")?;
-    }
-
     let mut cmd = Command::new("cast");
     cmd.arg("run");
-    cmd.arg(hash);
 
+    // Add all flags FIRST (controlled by us)
     if trace {
         cmd.arg("--trace-printer");
     }
@@ -146,6 +136,13 @@ pub async fn trace_tx_via_cast(
     if let Some(rpc) = rpc_url {
         cmd.arg("--rpc-url").arg(rpc);
     }
+
+    // SEC-CAST-002: Add `--` to prevent flag injection from user-provided hash.
+    // The hash is already validated as a proper tx hash format, but defense in depth.
+    cmd.arg("--");
+
+    // Now add positional argument (user-controlled)
+    cmd.arg(hash);
 
     if !quiet {
         eprintln!("Running: cast run {} ...", hash);

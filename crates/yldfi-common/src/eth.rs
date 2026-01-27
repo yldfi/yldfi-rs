@@ -120,7 +120,7 @@ impl std::error::Error for AddressParseError {}
 pub struct TxHash(String);
 
 impl TxHash {
-    /// Create a new TxHash from a string, validating and normalizing it.
+    /// Create a new `TxHash` from a string, validating and normalizing it.
     ///
     /// Returns `None` if the hash is invalid.
     #[must_use]
@@ -291,7 +291,7 @@ pub fn pad_to_32_bytes(value: &str) -> String {
         .strip_prefix("0x")
         .or_else(|| value.strip_prefix("0X"))
         .unwrap_or(value);
-    format!("0x{:0>64}", hex)
+    format!("0x{hex:0>64}")
 }
 
 /// HTTP status code classification for API responses

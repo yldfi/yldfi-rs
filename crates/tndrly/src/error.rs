@@ -59,9 +59,9 @@ pub fn invalid_param(message: impl Into<String>) -> Error {
 ///
 /// Handles Tenderly-specific error patterns:
 /// - 401 -> Auth error
-/// - 404 -> NotFound
-/// - 429 -> RateLimited
-/// - 5xx -> ServerError
+/// - 404 -> `NotFound`
+/// - 429 -> `RateLimited`
+/// - 5xx -> `ServerError`
 #[allow(dead_code)]
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
     match status {

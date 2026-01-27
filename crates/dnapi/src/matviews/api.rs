@@ -1,6 +1,6 @@
 //! Materialized Views API implementation
 
-use super::types::*;
+use super::types::{UpsertMatviewRequest, UpsertMatviewResponse, Matview, ListMatviewsResponse, ListMatviewsOptions, RefreshMatviewResponse, RefreshMatviewRequest, DeleteMatviewResponse};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 
@@ -36,7 +36,7 @@ impl<'a> MatviewsApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Matview {}", name)))
+            Err(error::not_found(format!("Matview {name}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -93,7 +93,7 @@ impl<'a> MatviewsApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Matview {}", name)))
+            Err(error::not_found(format!("Matview {name}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
@@ -109,7 +109,7 @@ impl<'a> MatviewsApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else if response.status() == 404 {
-            Err(error::not_found(format!("Matview {}", name)))
+            Err(error::not_found(format!("Matview {name}")))
         } else {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();

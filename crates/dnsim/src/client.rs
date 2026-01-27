@@ -117,7 +117,7 @@ impl Client {
 
         if let Some(ref proxy_url) = config.http.proxy {
             let proxy = reqwest::Proxy::all(proxy_url)
-                .map_err(|e| error::bad_request(format!("Invalid proxy URL: {}", e)))?;
+                .map_err(|e| error::bad_request(format!("Invalid proxy URL: {e}")))?;
             builder = builder.proxy(proxy);
         }
 
@@ -139,46 +139,55 @@ impl Client {
     // API accessor methods
 
     /// Access wallet activity endpoints
+    #[must_use] 
     pub fn activity(&self) -> ActivityApi<'_> {
         ActivityApi::new(self)
     }
 
     /// Access token balances endpoints
+    #[must_use] 
     pub fn balances(&self) -> BalancesApi<'_> {
         BalancesApi::new(self)
     }
 
     /// Access supported chains endpoints
+    #[must_use] 
     pub fn chains(&self) -> ChainsApi<'_> {
         ChainsApi::new(self)
     }
 
     /// Access collectibles (NFTs) endpoints
+    #[must_use] 
     pub fn collectibles(&self) -> CollectiblesApi<'_> {
         CollectiblesApi::new(self)
     }
 
-    /// Access DeFi positions endpoints (Beta)
+    /// Access `DeFi` positions endpoints (Beta)
+    #[must_use] 
     pub fn defi(&self) -> DefiApi<'_> {
         DefiApi::new(self)
     }
 
     /// Access token holders endpoints
+    #[must_use] 
     pub fn holders(&self) -> HoldersApi<'_> {
         HoldersApi::new(self)
     }
 
     /// Access token info endpoints
+    #[must_use] 
     pub fn tokens(&self) -> TokensApi<'_> {
         TokensApi::new(self)
     }
 
     /// Access transactions endpoints
+    #[must_use] 
     pub fn transactions(&self) -> TransactionsApi<'_> {
         TransactionsApi::new(self)
     }
 
     /// Access webhooks subscription endpoints (Beta)
+    #[must_use] 
     pub fn webhooks(&self) -> WebhooksApi<'_> {
         WebhooksApi::new(self)
     }

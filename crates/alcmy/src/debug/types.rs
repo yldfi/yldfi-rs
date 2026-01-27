@@ -46,6 +46,7 @@ pub struct TracerOptions {
 
 impl TracerOptions {
     /// Create call tracer options
+    #[must_use] 
     pub fn call_tracer() -> Self {
         Self {
             tracer: Some(TracerType::CallTracer),
@@ -58,6 +59,7 @@ impl TracerOptions {
     }
 
     /// Create prestate tracer options
+    #[must_use] 
     pub fn prestate_tracer() -> Self {
         Self {
             tracer: Some(TracerType::PrestateTracer),
@@ -67,7 +69,7 @@ impl TracerOptions {
     }
 }
 
-/// State overrides for debug_traceCall
+/// State overrides for `debug_traceCall`
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StateOverride {
@@ -152,7 +154,7 @@ pub struct BlockTrace {
     pub result: serde_json::Value,
 }
 
-/// Transaction call object for debug_traceCall
+/// Transaction call object for `debug_traceCall`
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TraceCallObject {
@@ -181,7 +183,7 @@ pub struct TraceCallObject {
     pub data: Option<String>,
 }
 
-/// Options for debug_traceCall
+/// Options for `debug_traceCall`
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TraceCallOptions {
@@ -196,7 +198,7 @@ pub struct TraceCallOptions {
     pub block_overrides: Option<BlockOverrides>,
 }
 
-/// Block overrides for debug_traceCall
+/// Block overrides for `debug_traceCall`
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockOverrides {

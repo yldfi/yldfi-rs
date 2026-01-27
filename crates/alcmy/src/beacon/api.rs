@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::*;
+use super::types::{BeaconResponse, GenesisInfo, BeaconListResponse, ForkScheduleEntry, DepositContract, BlockHeaderResponse, Attestation, BlobSidecar, ForkInfo, FinalityCheckpoints, ValidatorInfo, SyncCommittee, SignedVoluntaryExit, BlockReward, SyncStatus, NodeVersion, PeerInfo, PeerCount, AttesterDuty, ProposerDuty, SyncDuty};
 use crate::client::Client;
 use crate::error::{Error, Result};
 
@@ -95,7 +95,7 @@ impl<'a> BeaconApi<'a> {
 
     /// Get block header by ID
     pub async fn get_header(&self, block_id: &str) -> Result<BeaconResponse<BlockHeaderResponse>> {
-        self.get(&format!("/beacon/headers/{}", block_id)).await
+        self.get(&format!("/beacon/headers/{block_id}")).await
     }
 
     /// Get block by ID
@@ -118,7 +118,7 @@ impl<'a> BeaconApi<'a> {
 
     /// Get block root
     pub async fn get_block_root(&self, block_id: &str) -> Result<BeaconResponse<RootResponse>> {
-        self.get(&format!("/beacon/blocks/{}/root", block_id)).await
+        self.get(&format!("/beacon/blocks/{block_id}/root")).await
     }
 
     /// Get block attestations
@@ -146,7 +146,7 @@ impl<'a> BeaconApi<'a> {
         &self,
         block_id: &str,
     ) -> Result<BeaconListResponse<BlobSidecar>> {
-        self.get(&format!("/beacon/blob_sidecars/{}", block_id))
+        self.get(&format!("/beacon/blob_sidecars/{block_id}"))
             .await
     }
 
@@ -154,12 +154,12 @@ impl<'a> BeaconApi<'a> {
 
     /// Get state root
     pub async fn get_state_root(&self, state_id: &str) -> Result<BeaconResponse<RootResponse>> {
-        self.get(&format!("/beacon/states/{}/root", state_id)).await
+        self.get(&format!("/beacon/states/{state_id}/root")).await
     }
 
     /// Get fork info for state
     pub async fn get_state_fork(&self, state_id: &str) -> Result<BeaconResponse<ForkInfo>> {
-        self.get(&format!("/beacon/states/{}/fork", state_id)).await
+        self.get(&format!("/beacon/states/{state_id}/fork")).await
     }
 
     /// Get finality checkpoints
@@ -167,7 +167,7 @@ impl<'a> BeaconApi<'a> {
         &self,
         state_id: &str,
     ) -> Result<BeaconResponse<FinalityCheckpoints>> {
-        self.get(&format!("/beacon/states/{}/finality_checkpoints", state_id))
+        self.get(&format!("/beacon/states/{state_id}/finality_checkpoints"))
             .await
     }
 
@@ -176,7 +176,7 @@ impl<'a> BeaconApi<'a> {
         &self,
         state_id: &str,
     ) -> Result<BeaconListResponse<ValidatorInfo>> {
-        self.get(&format!("/beacon/states/{}/validators", state_id))
+        self.get(&format!("/beacon/states/{state_id}/validators"))
             .await
     }
 
@@ -187,8 +187,7 @@ impl<'a> BeaconApi<'a> {
         validator_id: &str,
     ) -> Result<BeaconResponse<ValidatorInfo>> {
         self.get(&format!(
-            "/beacon/states/{}/validators/{}",
-            state_id, validator_id
+            "/beacon/states/{state_id}/validators/{validator_id}"
         ))
         .await
     }
@@ -198,7 +197,7 @@ impl<'a> BeaconApi<'a> {
         &self,
         state_id: &str,
     ) -> Result<BeaconListResponse<ValidatorBalance>> {
-        self.get(&format!("/beacon/states/{}/validator_balances", state_id))
+        self.get(&format!("/beacon/states/{state_id}/validator_balances"))
             .await
     }
 
@@ -207,13 +206,13 @@ impl<'a> BeaconApi<'a> {
         &self,
         state_id: &str,
     ) -> Result<BeaconResponse<SyncCommittee>> {
-        self.get(&format!("/beacon/states/{}/sync_committees", state_id))
+        self.get(&format!("/beacon/states/{state_id}/sync_committees"))
             .await
     }
 
     /// Get RANDAO
     pub async fn get_randao(&self, state_id: &str) -> Result<BeaconResponse<RandaoResponse>> {
-        self.get(&format!("/beacon/states/{}/randao", state_id))
+        self.get(&format!("/beacon/states/{state_id}/randao"))
             .await
     }
 
@@ -244,7 +243,7 @@ impl<'a> BeaconApi<'a> {
 
     /// Get block rewards
     pub async fn get_block_rewards(&self, block_id: &str) -> Result<BeaconResponse<BlockReward>> {
-        self.get(&format!("/beacon/rewards/blocks/{}", block_id))
+        self.get(&format!("/beacon/rewards/blocks/{block_id}"))
             .await
     }
 
@@ -279,7 +278,7 @@ impl<'a> BeaconApi<'a> {
         validator_indices: &[&str],
     ) -> Result<BeaconListResponse<AttesterDuty>> {
         self.post(
-            &format!("/validator/duties/attester/{}", epoch),
+            &format!("/validator/duties/attester/{epoch}"),
             &validator_indices,
         )
         .await
@@ -290,7 +289,7 @@ impl<'a> BeaconApi<'a> {
         &self,
         epoch: &str,
     ) -> Result<BeaconListResponse<ProposerDuty>> {
-        self.get(&format!("/validator/duties/proposer/{}", epoch))
+        self.get(&format!("/validator/duties/proposer/{epoch}"))
             .await
     }
 
@@ -301,7 +300,7 @@ impl<'a> BeaconApi<'a> {
         validator_indices: &[&str],
     ) -> Result<BeaconListResponse<SyncDuty>> {
         self.post(
-            &format!("/validator/duties/sync/{}", epoch),
+            &format!("/validator/duties/sync/{epoch}"),
             &validator_indices,
         )
         .await

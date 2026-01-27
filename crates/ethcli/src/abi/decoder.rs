@@ -511,8 +511,9 @@ mod tests {
         let sig = EventSignature::parse(
             "Transfer(address indexed from, address indexed to, uint256 value)",
         )
-        .unwrap();
-        let decoder = LogDecoder::from_signature(&sig).unwrap();
+        .expect("Failed to parse event signature");
+        let decoder =
+            LogDecoder::from_signature(&sig).expect("Failed to create decoder from signature");
 
         assert_eq!(decoder.event_names(), vec!["Transfer"]);
     }
@@ -520,11 +521,11 @@ mod tests {
     #[test]
     fn test_decoded_value_json() {
         let value = DecodedValue::Address("0x1234567890123456789012345678901234567890".to_string());
-        let json = serde_json::to_string(&value).unwrap();
+        let json = serde_json::to_string(&value).expect("Failed to serialize address value");
         assert!(json.contains("0x1234567890123456789012345678901234567890"));
 
         let value = DecodedValue::Uint("1000000".to_string());
-        let json = serde_json::to_string(&value).unwrap();
+        let json = serde_json::to_string(&value).expect("Failed to serialize uint value");
         assert!(json.contains("1000000"));
     }
 }

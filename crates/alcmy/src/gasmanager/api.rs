@@ -1,6 +1,6 @@
 //! Gas Manager API implementation
 
-use super::types::*;
+use super::types::{PartialUserOperationV06, GasSponsorshipResponseV06, PartialUserOperationV07, GasSponsorshipResponseV07, RequestPaymasterAndDataResponse, PaymasterStubDataResponse, Erc20Context, TokenQuoteResponse, CreatePolicyRequest, GasPolicy, UpdatePolicyRequest, ListPoliciesResponse, PolicyStatus, PolicyStats, ListSponsorshipsResponse};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 
@@ -18,7 +18,7 @@ impl<'a> GasManagerApi<'a> {
 
     // ========== RPC Methods (Gas Sponsorship) ==========
 
-    /// Request gas and paymaster data for a v0.6 UserOperation
+    /// Request gas and paymaster data for a v0.6 `UserOperation`
     pub async fn request_gas_and_paymaster_data_v06(
         &self,
         policy_id: &str,
@@ -37,7 +37,7 @@ impl<'a> GasManagerApi<'a> {
             .await
     }
 
-    /// Request gas and paymaster data for a v0.7 UserOperation
+    /// Request gas and paymaster data for a v0.7 `UserOperation`
     pub async fn request_gas_and_paymaster_data_v07(
         &self,
         policy_id: &str,
@@ -56,7 +56,7 @@ impl<'a> GasManagerApi<'a> {
             .await
     }
 
-    /// Request paymaster data only (no gas estimation) for a v0.6 UserOperation
+    /// Request paymaster data only (no gas estimation) for a v0.6 `UserOperation`
     pub async fn request_paymaster_and_data_v06(
         &self,
         policy_id: &str,
@@ -73,7 +73,7 @@ impl<'a> GasManagerApi<'a> {
             .await
     }
 
-    /// Request paymaster data only (no gas estimation) for a v0.7 UserOperation
+    /// Request paymaster data only (no gas estimation) for a v0.7 `UserOperation`
     pub async fn request_paymaster_and_data_v07(
         &self,
         policy_id: &str,
@@ -107,7 +107,7 @@ impl<'a> GasManagerApi<'a> {
         self.client.rpc("pm_getPaymasterStubData", params).await
     }
 
-    /// Get paymaster data for a signed UserOperation
+    /// Get paymaster data for a signed `UserOperation`
     pub async fn get_paymaster_data(
         &self,
         policy_id: &str,
@@ -124,7 +124,7 @@ impl<'a> GasManagerApi<'a> {
         self.client.rpc("pm_getPaymasterData", params).await
     }
 
-    /// Request ERC-20 token quote for a UserOperation
+    /// Request ERC-20 token quote for a `UserOperation`
     pub async fn request_paymaster_token_quote(
         &self,
         policy_id: &str,
@@ -162,7 +162,7 @@ impl<'a> GasManagerApi<'a> {
         response
             .get("serializedTransaction")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .ok_or_else(|| error::rpc(-1, "Missing serializedTransaction in response"))
     }
 
@@ -177,7 +177,7 @@ impl<'a> GasManagerApi<'a> {
     where
         R: serde::de::DeserializeOwned,
     {
-        let url = format!("{}{}", ADMIN_BASE_URL, path);
+        let url = format!("{ADMIN_BASE_URL}{path}");
         let request = self
             .client
             .http()
@@ -221,7 +221,7 @@ impl<'a> GasManagerApi<'a> {
 
     /// Get a policy by ID
     pub async fn get_policy(&self, policy_id: &str) -> Result<GasPolicy> {
-        self.admin_request::<GasPolicy>("GET", &format!("/policy/{}", policy_id), None::<&()>)
+        self.admin_request::<GasPolicy>("GET", &format!("/policy/{policy_id}"), None::<&()>)
             .await
     }
 
@@ -231,14 +231,14 @@ impl<'a> GasManagerApi<'a> {
         policy_id: &str,
         request: &UpdatePolicyRequest,
     ) -> Result<GasPolicy> {
-        self.admin_request("PUT", &format!("/policy/{}", policy_id), Some(request))
+        self.admin_request("PUT", &format!("/policy/{policy_id}"), Some(request))
             .await
     }
 
     /// Delete a policy
     pub async fn delete_policy(&self, policy_id: &str) -> Result<()> {
         let _: serde_json::Value = self
-            .admin_request("DELETE", &format!("/policy/{}", policy_id), None::<&()>)
+            .admin_request("DELETE", &format!("/policy/{policy_id}"), None::<&()>)
             .await?;
         Ok(())
     }
@@ -255,7 +255,7 @@ impl<'a> GasManagerApi<'a> {
         status: PolicyStatus,
     ) -> Result<GasPolicy> {
         let body = serde_json::json!({ "status": status });
-        self.admin_request("PUT", &format!("/policy/{}/status", policy_id), Some(&body))
+        self.admin_request("PUT", &format!("/policy/{policy_id}/status"), Some(&body))
             .await
     }
 
@@ -263,7 +263,7 @@ impl<'a> GasManagerApi<'a> {
     pub async fn get_policy_stats(&self, policy_id: &str) -> Result<PolicyStats> {
         self.admin_request(
             "GET",
-            &format!("/policy/{}/stats/details", policy_id),
+            &format!("/policy/{policy_id}/stats/details"),
             None::<&()>,
         )
         .await
@@ -273,7 +273,7 @@ impl<'a> GasManagerApi<'a> {
     pub async fn list_sponsorships(&self, policy_id: &str) -> Result<ListSponsorshipsResponse> {
         self.admin_request(
             "GET",
-            &format!("/policy/{}/sponsorships", policy_id),
+            &format!("/policy/{policy_id}/sponsorships"),
             None::<&()>,
         )
         .await

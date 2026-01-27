@@ -46,7 +46,7 @@ pub struct Protocol {
     pub github: Option<Vec<String>>,
     /// Audit links
     pub audit_links: Option<Vec<String>>,
-    /// Whether the protocol is listed on DefiLlama
+    /// Whether the protocol is listed on `DefiLlama`
     pub listed_at: Option<u64>,
     /// Parent protocol (for forks/variants)
     pub parent_protocol: Option<String>,
@@ -112,7 +112,7 @@ pub struct ProtocolDetail {
     pub tokens: Vec<TokenBreakdown>,
     /// Methodology description
     pub methodology: Option<String>,
-    /// Module path in DefiLlama adapters
+    /// Module path in `DefiLlama` adapters
     pub module: Option<String>,
     /// Treasury info
     pub treasury: Option<String>,
@@ -160,7 +160,7 @@ pub struct TokenBreakdown {
 pub struct Chain {
     /// Chain name
     pub name: Option<String>,
-    /// Alternative: gecko_id as name in some responses
+    /// Alternative: `gecko_id` as name in some responses
     pub gecko_id: Option<String>,
     /// Chain CMC ID
     pub cmc_id: Option<String>,

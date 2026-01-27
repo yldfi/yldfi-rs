@@ -90,6 +90,14 @@ use unswp::v3_sdk;    // uniswap-v3-sdk
 use unswp::v4_sdk;    // uniswap-v4-sdk
 ```
 
+## Terms of Service
+
+This is an **unofficial** client. By using this library, you agree to comply with [Uniswap Labs Terms of Service](https://uniswap.org/terms-of-service) and [The Graph Terms of Service](https://thegraph.com/terms-of-service/) (for subgraph queries).
+
+## Disclaimer
+
+This crate is not affiliated with or endorsed by Uniswap Labs or The Graph.
+
 ## License
 
 MIT

@@ -7,56 +7,24 @@ use crate::aggregator::{
     symbol_to_eth_address, NormalizedPrice, PriceAggregation, PriceSource,
 };
 use crate::cli::OutputFormat;
-use clap::{Args, ValueEnum};
+use crate::utils::format::truncate_str;
+use clap::Args;
 use serde::Serialize;
 
-/// Price source selection for CLI
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
-pub enum PriceSourceArg {
-    /// Query all sources in parallel
-    #[default]
-    All,
-    /// CoinGecko
-    Gecko,
-    /// DefiLlama
-    Llama,
-    /// Alchemy
-    Alchemy,
-    /// Moralis
-    Moralis,
-    /// Curve
-    Curve,
-    /// CCXT exchanges (Binance, Bitget, OKX)
-    Ccxt,
-    /// Chainlink Data Streams
-    Chainlink,
-    /// Pyth Network Hermes API
-    Pyth,
-    /// Uniswap subgraph (DEX pools)
-    Uniswap,
-    /// Yearn Kong API (DeFi token prices)
-    Kong,
-}
-
-impl From<PriceSourceArg> for PriceSource {
-    fn from(arg: PriceSourceArg) -> Self {
-        match arg {
-            PriceSourceArg::All => PriceSource::All,
-            PriceSourceArg::Gecko => PriceSource::Gecko,
-            PriceSourceArg::Llama => PriceSource::Llama,
-            PriceSourceArg::Alchemy => PriceSource::Alchemy,
-            PriceSourceArg::Moralis => PriceSource::Moralis,
-            PriceSourceArg::Curve => PriceSource::Curve,
-            PriceSourceArg::Ccxt => PriceSource::Ccxt,
-            PriceSourceArg::Chainlink => PriceSource::Chainlink,
-            PriceSourceArg::Pyth => PriceSource::Pyth,
-            PriceSourceArg::Uniswap => PriceSource::Uniswap,
-            PriceSourceArg::Kong => PriceSource::Kong,
-        }
-    }
-}
-
 #[derive(Args)]
+#[command(after_help = r#"Examples:
+  ethcli price ETH                              # Price by symbol
+  ethcli price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain ethereum  # USDC by address
+  ethcli price CRV --source coingecko           # Single source
+  ethcli price 0x... --lp                       # LP token price via Curve
+  ethcli price BTC --summary-only               # Only aggregated result
+  ethcli price ETH --format json                # JSON output
+
+Environment Variables:
+  COINGECKO_API_KEY   Optional: Increases CoinGecko rate limit
+  DEFILLAMA_API_KEY   Optional: DefiLlama Pro endpoints
+  ALCHEMY_API_KEY     Optional: For Alchemy price source
+  MORALIS_API_KEY     Optional: For Moralis price source"#)]
 pub struct PriceArgs {
     /// Token symbol (ETH, BTC) or contract address (0x...)
     #[arg(value_name = "TOKEN")]
@@ -68,7 +36,7 @@ pub struct PriceArgs {
 
     /// Source(s) to query (default: all in parallel)
     #[arg(long, short, default_value = "all")]
-    pub source: PriceSourceArg,
+    pub source: PriceSource,
 
     /// Query LP token price (uses Curve as priority source)
     #[arg(long)]
@@ -193,11 +161,8 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
     }
 
     let result = match args.source {
-        PriceSourceArg::All => fetch_prices_all(&token_for_query, chain).await,
-        source => {
-            let price_source: PriceSource = source.into();
-            fetch_prices_parallel(&token_for_query, chain, &[price_source]).await
-        }
+        PriceSource::All => fetch_prices_all(&token_for_query, chain).await,
+        source => fetch_prices_parallel(&token_for_query, chain, &[source]).await,
     };
 
     // Build output
@@ -285,7 +250,7 @@ fn print_table_output(
             let error_note = source
                 .error
                 .as_ref()
-                .map(|e| format!(" ({})", truncate_error(e, 20)))
+                .map(|e| format!(" ({})", truncate_str(e, 20)))
                 .unwrap_or_default();
 
             println!(
@@ -300,10 +265,4 @@ fn print_table_output(
     println!();
 }
 
-fn truncate_error(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len])
-    }
-}
+// Use truncate_str from utils::format for Unicode-safe truncation

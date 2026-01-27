@@ -92,15 +92,8 @@ src/
 ├── client.rs     # Unified Client combining lens + subgraph
 ├── error.rs      # Error types (ApiError<DomainError>)
 ├── types.rs      # Data types (Pool, Swap, Token, etc.)
-├── lens/         # On-chain queries via ephemeral contracts
-│   ├── mod.rs    # LensClient
-│   ├── pools.rs  # Well-known pool addresses
-│   ├── tokens.rs # Well-known token addresses
-│   └── factories.rs # Factory addresses
-└── subgraph/     # Historical data via The Graph
-    ├── mod.rs    # SubgraphClient
-    ├── config.rs # SubgraphConfig with network presets
-    └── queries.rs # GraphQL queries
+├── lens.rs       # On-chain queries via ephemeral contracts (LensClient, pools, tokens, factories)
+└── subgraph.rs   # Historical data via The Graph (SubgraphClient, config, queries)
 ```
 
 ## Supported Networks

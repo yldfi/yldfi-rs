@@ -1,12 +1,12 @@
-//! Error types for the CoinGecko API client
+//! Error types for the `CoinGecko` API client
 //!
-//! This module provides the error types for the CoinGecko API client,
+//! This module provides the error types for the `CoinGecko` API client,
 //! built on top of the shared `ApiError` infrastructure.
 
 use thiserror::Error;
 pub use yldfi_common::api::ApiError;
 
-/// Domain-specific errors for CoinGecko API
+/// Domain-specific errors for `CoinGecko` API
 #[derive(Error, Debug)]
 pub enum DomainError {
     /// Not found
@@ -22,10 +22,10 @@ pub enum DomainError {
     UrlParse(#[from] url::ParseError),
 }
 
-/// Error type for CoinGecko API operations
+/// Error type for `CoinGecko` API operations
 pub type Error = ApiError<DomainError>;
 
-/// Result type for CoinGecko API operations
+/// Result type for `CoinGecko` API operations
 pub type Result<T> = std::result::Result<T, Error>;
 
 // Convenience constructors for domain errors

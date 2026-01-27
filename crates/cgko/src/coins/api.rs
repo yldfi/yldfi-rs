@@ -1,6 +1,6 @@
 //! Coins API endpoints
 
-use super::types::*;
+use super::types::{CoinListItem, CoinMarket, MarketsOptions, CoinData, CoinTickers, MarketChart, OhlcData, CoinHistory, TopMoversResponse, RecentlyAddedCoin, CoinContractData, SupplyChart};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct CoinsApi<'a> {
 }
 
 impl<'a> CoinsApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -38,7 +39,7 @@ impl<'a> CoinsApi<'a> {
     /// # }
     /// ```
     pub async fn markets(&self, vs_currency: &str) -> Result<Vec<CoinMarket>> {
-        let path = format!("/coins/markets?vs_currency={}", vs_currency);
+        let path = format!("/coins/markets?vs_currency={vs_currency}");
         self.client.get(&path).await
     }
 
@@ -58,13 +59,13 @@ impl<'a> CoinsApi<'a> {
 
     /// Get coin data by ID
     pub async fn get(&self, id: &str) -> Result<CoinData> {
-        let path = format!("/coins/{}", id);
+        let path = format!("/coins/{id}");
         self.client.get(&path).await
     }
 
     /// Get coin tickers
     pub async fn tickers(&self, id: &str) -> Result<CoinTickers> {
-        let path = format!("/coins/{}/tickers", id);
+        let path = format!("/coins/{id}/tickers");
         self.client.get(&path).await
     }
 
@@ -81,8 +82,7 @@ impl<'a> CoinsApi<'a> {
         days: &str,
     ) -> Result<MarketChart> {
         let path = format!(
-            "/coins/{}/market_chart?vs_currency={}&days={}",
-            id, vs_currency, days
+            "/coins/{id}/market_chart?vs_currency={vs_currency}&days={days}"
         );
         self.client.get(&path).await
     }
@@ -96,8 +96,7 @@ impl<'a> CoinsApi<'a> {
         to: u64,
     ) -> Result<MarketChart> {
         let path = format!(
-            "/coins/{}/market_chart/range?vs_currency={}&from={}&to={}",
-            id, vs_currency, from, to
+            "/coins/{id}/market_chart/range?vs_currency={vs_currency}&from={from}&to={to}"
         );
         self.client.get(&path).await
     }
@@ -110,8 +109,7 @@ impl<'a> CoinsApi<'a> {
     /// * `days` - Data range (1, 7, 14, 30, 90, 180, 365)
     pub async fn ohlc(&self, id: &str, vs_currency: &str, days: u32) -> Result<OhlcData> {
         let path = format!(
-            "/coins/{}/ohlc?vs_currency={}&days={}",
-            id, vs_currency, days
+            "/coins/{id}/ohlc?vs_currency={vs_currency}&days={days}"
         );
         self.client.get(&path).await
     }
@@ -122,7 +120,7 @@ impl<'a> CoinsApi<'a> {
     /// * `id` - Coin ID
     /// * `date` - Date in dd-mm-yyyy format
     pub async fn history(&self, id: &str, date: &str) -> Result<CoinHistory> {
-        let path = format!("/coins/{}/history?date={}", id, date);
+        let path = format!("/coins/{id}/history?date={date}");
         self.client.get(&path).await
     }
 
@@ -134,8 +132,7 @@ impl<'a> CoinsApi<'a> {
         localization: bool,
     ) -> Result<CoinHistory> {
         let path = format!(
-            "/coins/{}/history?date={}&localization={}",
-            id, date, localization
+            "/coins/{id}/history?date={date}&localization={localization}"
         );
         self.client.get(&path).await
     }
@@ -151,8 +148,7 @@ impl<'a> CoinsApi<'a> {
         duration: &str,
     ) -> Result<TopMoversResponse> {
         let path = format!(
-            "/coins/top_gainers_losers?vs_currency={}&duration={}",
-            vs_currency, duration
+            "/coins/top_gainers_losers?vs_currency={vs_currency}&duration={duration}"
         );
         self.client.get(&path).await
     }
@@ -177,8 +173,7 @@ impl<'a> CoinsApi<'a> {
         to: u64,
     ) -> Result<OhlcData> {
         let path = format!(
-            "/coins/{}/ohlc/range?vs_currency={}&from={}&to={}",
-            id, vs_currency, from, to
+            "/coins/{id}/ohlc/range?vs_currency={vs_currency}&from={from}&to={to}"
         );
         self.client.get(&path).await
     }
@@ -189,7 +184,7 @@ impl<'a> CoinsApi<'a> {
         platform_id: &str,
         contract_address: &str,
     ) -> Result<CoinContractData> {
-        let path = format!("/coins/{}/contract/{}", platform_id, contract_address);
+        let path = format!("/coins/{platform_id}/contract/{contract_address}");
         self.client.get(&path).await
     }
 
@@ -202,8 +197,7 @@ impl<'a> CoinsApi<'a> {
         days: &str,
     ) -> Result<MarketChart> {
         let path = format!(
-            "/coins/{}/contract/{}/market_chart?vs_currency={}&days={}",
-            platform_id, contract_address, vs_currency, days
+            "/coins/{platform_id}/contract/{contract_address}/market_chart?vs_currency={vs_currency}&days={days}"
         );
         self.client.get(&path).await
     }
@@ -218,8 +212,7 @@ impl<'a> CoinsApi<'a> {
         to: u64,
     ) -> Result<MarketChart> {
         let path = format!(
-            "/coins/{}/contract/{}/market_chart/range?vs_currency={}&from={}&to={}",
-            platform_id, contract_address, vs_currency, from, to
+            "/coins/{platform_id}/contract/{contract_address}/market_chart/range?vs_currency={vs_currency}&from={from}&to={to}"
         );
         self.client.get(&path).await
     }
@@ -230,7 +223,7 @@ impl<'a> CoinsApi<'a> {
     /// * `id` - Coin ID
     /// * `days` - Data range (any number, "max")
     pub async fn circulating_supply_chart(&self, id: &str, days: &str) -> Result<SupplyChart> {
-        let path = format!("/coins/{}/circulating_supply_chart?days={}", id, days);
+        let path = format!("/coins/{id}/circulating_supply_chart?days={days}");
         self.client.get(&path).await
     }
 
@@ -242,8 +235,7 @@ impl<'a> CoinsApi<'a> {
         to: u64,
     ) -> Result<SupplyChart> {
         let path = format!(
-            "/coins/{}/circulating_supply_chart/range?from={}&to={}",
-            id, from, to
+            "/coins/{id}/circulating_supply_chart/range?from={from}&to={to}"
         );
         self.client.get(&path).await
     }
@@ -254,7 +246,7 @@ impl<'a> CoinsApi<'a> {
     /// * `id` - Coin ID
     /// * `days` - Data range (any number, "max")
     pub async fn total_supply_chart(&self, id: &str, days: &str) -> Result<SupplyChart> {
-        let path = format!("/coins/{}/total_supply_chart?days={}", id, days);
+        let path = format!("/coins/{id}/total_supply_chart?days={days}");
         self.client.get(&path).await
     }
 
@@ -266,8 +258,7 @@ impl<'a> CoinsApi<'a> {
         to: u64,
     ) -> Result<SupplyChart> {
         let path = format!(
-            "/coins/{}/total_supply_chart/range?from={}&to={}",
-            id, from, to
+            "/coins/{id}/total_supply_chart/range?from={from}&to={to}"
         );
         self.client.get(&path).await
     }

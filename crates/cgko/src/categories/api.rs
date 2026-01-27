@@ -1,6 +1,6 @@
 //! Categories API endpoints
 
-use super::types::*;
+use super::types::{CategoryListItem, Category};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct CategoriesApi<'a> {
 }
 
 impl<'a> CategoriesApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -27,10 +28,10 @@ impl<'a> CategoriesApi<'a> {
     /// List categories with market data, sorted
     ///
     /// # Arguments
-    /// * `order` - Sort order: "market_cap_desc", "market_cap_asc", "name_desc", "name_asc",
-    ///   "market_cap_change_24h_desc", "market_cap_change_24h_asc"
+    /// * `order` - Sort order: "`market_cap_desc`", "`market_cap_asc`", "`name_desc`", "`name_asc`",
+    ///   "`market_cap_change_24h_desc`", "`market_cap_change_24h_asc`"
     pub async fn with_market_data_sorted(&self, order: &str) -> Result<Vec<Category>> {
-        let path = format!("/coins/categories?order={}", order);
+        let path = format!("/coins/categories?order={order}");
         self.client.get(&path).await
     }
 }

@@ -1,6 +1,6 @@
 //! Tokens API client
 
-use super::types::*;
+use super::types::TokensResponse;
 use crate::client::Client;
 use crate::error::Result;
 
@@ -11,13 +11,14 @@ pub struct TokensApi<'a> {
 
 impl<'a> TokensApi<'a> {
     /// Create a new tokens API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
 
     /// Get all tokens in pools with $10k+ TVL on a chain
     pub async fn get_all(&self, chain: &str) -> Result<TokensResponse> {
-        let path = format!("/getTokens/all/{}", chain);
+        let path = format!("/getTokens/all/{chain}");
         self.client.get(&path).await
     }
 }

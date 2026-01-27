@@ -1,15 +1,16 @@
 //! Onchain/GeckoTerminal API endpoints
 
-use super::types::*;
+use super::types::{NetworksResponse, DexesResponse, PoolsResponse, PoolResponse, TokenResponse, TokenPriceResponse, OhlcvResponse, TradesResponse, TokensResponse, TokenInfoResponse, PoolInfoResponse, TokenHoldersResponse, TokenTradersResponse, HoldersChartResponse, TokenOhlcvResponse, TokenTradesResponse, MegafilterOptions, OnchainCategoriesResponse};
 use crate::client::Client;
 use crate::error::Result;
 
-/// Onchain (GeckoTerminal) API
+/// Onchain (`GeckoTerminal`) API
 pub struct OnchainApi<'a> {
     client: &'a Client,
 }
 
 impl<'a> OnchainApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -21,7 +22,7 @@ impl<'a> OnchainApi<'a> {
 
     /// List DEXes on a network
     pub async fn dexes(&self, network: &str) -> Result<DexesResponse> {
-        let path = format!("/onchain/networks/{}/dexes", network);
+        let path = format!("/onchain/networks/{network}/dexes");
         self.client.get(&path).await
     }
 
@@ -32,31 +33,31 @@ impl<'a> OnchainApi<'a> {
 
     /// Get trending pools on a network
     pub async fn trending_pools_network(&self, network: &str) -> Result<PoolsResponse> {
-        let path = format!("/onchain/networks/{}/trending_pools", network);
+        let path = format!("/onchain/networks/{network}/trending_pools");
         self.client.get(&path).await
     }
 
     /// Get top pools on a network
     pub async fn top_pools(&self, network: &str) -> Result<PoolsResponse> {
-        let path = format!("/onchain/networks/{}/pools", network);
+        let path = format!("/onchain/networks/{network}/pools");
         self.client.get(&path).await
     }
 
     /// Get pool data
     pub async fn pool(&self, network: &str, address: &str) -> Result<PoolResponse> {
-        let path = format!("/onchain/networks/{}/pools/{}", network, address);
+        let path = format!("/onchain/networks/{network}/pools/{address}");
         self.client.get(&path).await
     }
 
     /// Get new pools on a network
     pub async fn new_pools(&self, network: &str) -> Result<PoolsResponse> {
-        let path = format!("/onchain/networks/{}/new_pools", network);
+        let path = format!("/onchain/networks/{network}/new_pools");
         self.client.get(&path).await
     }
 
     /// Get token data
     pub async fn token(&self, network: &str, address: &str) -> Result<TokenResponse> {
-        let path = format!("/onchain/networks/{}/tokens/{}", network, address);
+        let path = format!("/onchain/networks/{network}/tokens/{address}");
         self.client.get(&path).await
     }
 
@@ -77,8 +78,7 @@ impl<'a> OnchainApi<'a> {
     /// Get pools for a token
     pub async fn token_pools(&self, network: &str, token_address: &str) -> Result<PoolsResponse> {
         let path = format!(
-            "/onchain/networks/{}/tokens/{}/pools",
-            network, token_address
+            "/onchain/networks/{network}/tokens/{token_address}/pools"
         );
         self.client.get(&path).await
     }
@@ -96,8 +96,7 @@ impl<'a> OnchainApi<'a> {
         timeframe: &str,
     ) -> Result<OhlcvResponse> {
         let path = format!(
-            "/onchain/networks/{}/pools/{}/ohlcv/{}",
-            network, pool_address, timeframe
+            "/onchain/networks/{network}/pools/{pool_address}/ohlcv/{timeframe}"
         );
         self.client.get(&path).await
     }
@@ -105,15 +104,14 @@ impl<'a> OnchainApi<'a> {
     /// Get pool trades
     pub async fn pool_trades(&self, network: &str, pool_address: &str) -> Result<TradesResponse> {
         let path = format!(
-            "/onchain/networks/{}/pools/{}/trades",
-            network, pool_address
+            "/onchain/networks/{network}/pools/{pool_address}/trades"
         );
         self.client.get(&path).await
     }
 
     /// Search pools
     pub async fn search_pools(&self, query: &str) -> Result<PoolsResponse> {
-        let path = format!("/onchain/search/pools?query={}", query);
+        let path = format!("/onchain/search/pools?query={query}");
         self.client.get(&path).await
     }
 
@@ -149,13 +147,13 @@ impl<'a> OnchainApi<'a> {
 
     /// Get token info (detailed)
     pub async fn token_info(&self, network: &str, address: &str) -> Result<TokenInfoResponse> {
-        let path = format!("/onchain/networks/{}/tokens/{}/info", network, address);
+        let path = format!("/onchain/networks/{network}/tokens/{address}/info");
         self.client.get(&path).await
     }
 
     /// Get pools for a specific DEX on a network
     pub async fn dex_pools(&self, network: &str, dex: &str) -> Result<PoolsResponse> {
-        let path = format!("/onchain/networks/{}/dexes/{}/pools", network, dex);
+        let path = format!("/onchain/networks/{network}/dexes/{dex}/pools");
         self.client.get(&path).await
     }
 
@@ -168,7 +166,7 @@ impl<'a> OnchainApi<'a> {
 
     /// Get pool token metadata
     pub async fn pool_info(&self, network: &str, pool_address: &str) -> Result<PoolInfoResponse> {
-        let path = format!("/onchain/networks/{}/pools/{}/info", network, pool_address);
+        let path = format!("/onchain/networks/{network}/pools/{pool_address}/info");
         self.client.get(&path).await
     }
 
@@ -179,8 +177,7 @@ impl<'a> OnchainApi<'a> {
         token_address: &str,
     ) -> Result<TokenHoldersResponse> {
         let path = format!(
-            "/onchain/networks/{}/tokens/{}/top_holders",
-            network, token_address
+            "/onchain/networks/{network}/tokens/{token_address}/top_holders"
         );
         self.client.get(&path).await
     }
@@ -192,8 +189,7 @@ impl<'a> OnchainApi<'a> {
         token_address: &str,
     ) -> Result<TokenTradersResponse> {
         let path = format!(
-            "/onchain/networks/{}/tokens/{}/top_traders",
-            network, token_address
+            "/onchain/networks/{network}/tokens/{token_address}/top_traders"
         );
         self.client.get(&path).await
     }
@@ -205,8 +201,7 @@ impl<'a> OnchainApi<'a> {
         token_address: &str,
     ) -> Result<HoldersChartResponse> {
         let path = format!(
-            "/onchain/networks/{}/tokens/{}/holders_chart",
-            network, token_address
+            "/onchain/networks/{network}/tokens/{token_address}/holders_chart"
         );
         self.client.get(&path).await
     }
@@ -224,8 +219,7 @@ impl<'a> OnchainApi<'a> {
         timeframe: &str,
     ) -> Result<TokenOhlcvResponse> {
         let path = format!(
-            "/onchain/networks/{}/tokens/{}/ohlcv/{}",
-            network, token_address, timeframe
+            "/onchain/networks/{network}/tokens/{token_address}/ohlcv/{timeframe}"
         );
         self.client.get(&path).await
     }
@@ -237,8 +231,7 @@ impl<'a> OnchainApi<'a> {
         token_address: &str,
     ) -> Result<TokenTradesResponse> {
         let path = format!(
-            "/onchain/networks/{}/tokens/{}/trades",
-            network, token_address
+            "/onchain/networks/{network}/tokens/{token_address}/trades"
         );
         self.client.get(&path).await
     }
@@ -254,14 +247,14 @@ impl<'a> OnchainApi<'a> {
         self.client.get("/onchain/pools/trending_search").await
     }
 
-    /// Get GeckoTerminal categories (Pro API only)
+    /// Get `GeckoTerminal` categories (Pro API only)
     pub async fn categories(&self) -> Result<OnchainCategoriesResponse> {
         self.client.get("/onchain/categories").await
     }
 
     /// Get pools by category (Pro API only)
     pub async fn category_pools(&self, category_id: &str) -> Result<PoolsResponse> {
-        let path = format!("/onchain/categories/{}/pools", category_id);
+        let path = format!("/onchain/categories/{category_id}/pools");
         self.client.get(&path).await
     }
 }

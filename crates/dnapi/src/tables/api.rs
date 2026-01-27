@@ -1,6 +1,6 @@
 //! Tables API implementation
 
-use super::types::*;
+use super::types::{CreateTableRequest, CreateTableResponse, UploadCsvRequest, UploadCsvResponse, ListTablesResponse, ListTablesOptions, Table, InsertResponse, ClearTableResponse, DeleteTableResponse};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 
@@ -82,8 +82,7 @@ impl<'a> TablesApi<'a> {
             Ok(response.json().await?)
         } else if response.status() == 404 {
             Err(error::not_found(format!(
-                "Table {}/{}",
-                namespace, table_name
+                "Table {namespace}/{table_name}"
             )))
         } else {
             let status = response.status().as_u16();
@@ -113,8 +112,7 @@ impl<'a> TablesApi<'a> {
             Ok(response.json().await?)
         } else if response.status() == 404 {
             Err(error::not_found(format!(
-                "Table {}/{}",
-                namespace, table_name
+                "Table {namespace}/{table_name}"
             )))
         } else {
             let status = response.status().as_u16();
@@ -137,8 +135,7 @@ impl<'a> TablesApi<'a> {
             Ok(response.json().await?)
         } else if response.status() == 404 {
             Err(error::not_found(format!(
-                "Table {}/{}",
-                namespace, table_name
+                "Table {namespace}/{table_name}"
             )))
         } else {
             let status = response.status().as_u16();
@@ -161,8 +158,7 @@ impl<'a> TablesApi<'a> {
             Ok(response.json().await?)
         } else if response.status() == 404 {
             Err(error::not_found(format!(
-                "Table {}/{}",
-                namespace, table_name
+                "Table {namespace}/{table_name}"
             )))
         } else {
             let status = response.status().as_u16();

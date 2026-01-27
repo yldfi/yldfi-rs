@@ -3,6 +3,7 @@
 //! Query Uniswap V2, V3, and V4 pools and data via on-chain lens
 //! queries and The Graph subgraph.
 
+use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
 use secrecy::ExposeSecret;
 
@@ -166,9 +167,9 @@ pub struct PositionsArgs {
     #[arg(long, short, default_value = "ethereum")]
     pub chain: String,
 
-    /// Output as JSON
-    #[arg(long)]
-    pub json: bool,
+    /// Output format
+    #[arg(long, short = 'o', default_value = "table")]
+    pub format: OutputFormat,
 }
 
 /// Arguments for balance query
@@ -628,8 +629,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             }
 
             // Output results
-            if args.json {
+            if matches!(args.format, OutputFormat::Json) {
                 println!("{}", serde_json::to_string_pretty(&all_positions)?);
+            } else if matches!(args.format, OutputFormat::Ndjson) {
+                println!("{}", serde_json::to_string(&all_positions)?);
             } else if all_positions.is_empty() {
                 println!("No LP positions found for {} on {}", address, args.chain);
             } else {

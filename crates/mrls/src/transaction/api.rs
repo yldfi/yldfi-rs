@@ -1,6 +1,6 @@
 //! Transaction API client
 
-use super::types::*;
+use super::types::{Transaction, VerboseTransaction};
 use crate::client::Client;
 use crate::error::Result;
 use crate::wallet::PaginatedResponse;
@@ -16,6 +16,7 @@ pub struct TransactionQuery {
 }
 
 impl TransactionQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -39,13 +40,14 @@ pub struct TransactionApi<'a> {
 }
 
 impl<'a> TransactionApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
 
     /// Get transaction by hash
     pub async fn get_transaction(&self, tx_hash: &str, chain: Option<&str>) -> Result<Transaction> {
-        let path = format!("/transaction/{}", tx_hash);
+        let path = format!("/transaction/{tx_hash}");
         if let Some(chain) = chain {
             let query = TransactionQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -60,7 +62,7 @@ impl<'a> TransactionApi<'a> {
         tx_hash: &str,
         query: Option<&TransactionQuery>,
     ) -> Result<VerboseTransaction> {
-        let path = format!("/transaction/{}/verbose", tx_hash);
+        let path = format!("/transaction/{tx_hash}/verbose");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
@@ -74,7 +76,7 @@ impl<'a> TransactionApi<'a> {
         address: &str,
         chain: Option<&str>,
     ) -> Result<PaginatedResponse<Transaction>> {
-        let path = format!("/{}", address);
+        let path = format!("/{address}");
         if let Some(chain) = chain {
             let query = TransactionQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await
@@ -89,7 +91,7 @@ impl<'a> TransactionApi<'a> {
         address: &str,
         query: Option<&TransactionQuery>,
     ) -> Result<PaginatedResponse<VerboseTransaction>> {
-        let path = format!("/{}/verbose", address);
+        let path = format!("/{address}/verbose");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {

@@ -19,6 +19,7 @@ struct GitHubAsset {
 
 const REPO: &str = "yldfi/yldfi-rs";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const RELEASE_TAG_PREFIX: &str = "ethcli-v";
 
 /// Check for updates and optionally install them
 pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
@@ -26,13 +27,13 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
         eprintln!("Checking for updates...");
     }
 
-    // Fetch latest release from GitHub
+    // Fetch releases from GitHub (not /latest, as that returns any crate's release)
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .pool_max_idle_per_host(2)
         .pool_idle_timeout(std::time::Duration::from_secs(60))
         .build()?;
-    let url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
+    let url = format!("https://api.github.com/repos/{}/releases?per_page=50", REPO);
     let response = client
         .get(&url)
         .header("User-Agent", "ethcli")
@@ -50,8 +51,18 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
         anyhow::bail!("Failed to check for updates: {}", response.status());
     }
 
-    let release: GitHubRelease = response.json().await?;
-    let latest_version_str = release.tag_name.trim_start_matches('v');
+    // Filter for ethcli-specific releases (tag_name starts with "ethcli-v")
+    let releases: Vec<GitHubRelease> = response.json().await?;
+    let release = releases
+        .into_iter()
+        .find(|r| r.tag_name.starts_with(RELEASE_TAG_PREFIX))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "No ethcli releases found. Check manually: https://github.com/{}/releases",
+                REPO
+            )
+        })?;
+    let latest_version_str = release.tag_name.trim_start_matches(RELEASE_TAG_PREFIX);
 
     println!("Current version: v{}", CURRENT_VERSION);
     println!("Latest version:  {}", release.tag_name);
@@ -150,8 +161,15 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
                 eprintln!("Checksum verified.");
             }
         }
-    } else if !quiet {
-        eprintln!("Warning: No checksum file available for verification.");
+    } else {
+        // Require checksum verification for security - abort if no checksum available
+        anyhow::bail!(
+            "Security: No checksum file ({}) available for verification.\n\
+             Cannot safely install update without integrity verification.\n\
+             Please download manually from: {}",
+            checksum_asset_name,
+            release.html_url
+        );
     }
 
     // Extract and install using unique temp directory to prevent race conditions
@@ -163,29 +181,61 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
     std::fs::write(&archive_path, &bytes)?;
 
     // Extract based on file type
+    // SEC-UPDATE-001: Use --strip-components to prevent path traversal attacks.
+    // Archives could contain paths like "../../../.bashrc" that would write outside temp_dir.
+    // By stripping the first component and only extracting the expected binary name,
+    // we prevent malicious archives from overwriting arbitrary files.
     let binary_path = if asset.name.ends_with(".tar.gz") {
-        // Extract tar.gz
+        // Extract tar.gz - only extract the expected binary, strip path components
+        let expected_binary = "ethcli";
         let output = std::process::Command::new("tar")
             .args([
                 "-xzf",
                 &archive_path.to_string_lossy(),
                 "-C",
                 &temp_dir.to_string_lossy(),
+                "--strip-components=1", // Flatten any directory structure
+                "--wildcards",
+                &format!("*/{}", expected_binary), // Only extract the binary
             ])
             .output()?;
+        // If wildcards extraction fails, try without (binary might be at root)
         if !output.status.success() {
-            anyhow::bail!(
-                "Failed to extract archive: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+            let output = std::process::Command::new("tar")
+                .args([
+                    "-xzf",
+                    &archive_path.to_string_lossy(),
+                    "-C",
+                    &temp_dir.to_string_lossy(),
+                    expected_binary,
+                ])
+                .output()?;
+            if !output.status.success() {
+                anyhow::bail!(
+                    "Failed to extract archive: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
         }
-        temp_dir.join("ethcli")
+        let binary = temp_dir.join(expected_binary);
+        // Verify the binary exists and is within temp_dir (defense in depth)
+        let canonical = binary.canonicalize().map_err(|_| {
+            anyhow::anyhow!("Binary '{}' not found in archive", expected_binary)
+        })?;
+        let temp_canonical = temp_dir.canonicalize()?;
+        if !canonical.starts_with(&temp_canonical) {
+            anyhow::bail!("Security: extracted path escapes temp directory");
+        }
+        binary
     } else if asset.name.ends_with(".zip") {
-        // Extract zip
+        // Extract zip - only extract the expected binary
+        let expected_binary = "ethcli.exe";
         let output = std::process::Command::new("unzip")
             .args([
                 "-o",
+                "-j", // Junk paths - extract files without directory structure
                 &archive_path.to_string_lossy(),
+                expected_binary,
                 "-d",
                 &temp_dir.to_string_lossy(),
             ])
@@ -196,7 +246,16 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
                 String::from_utf8_lossy(&output.stderr)
             );
         }
-        temp_dir.join("ethcli.exe")
+        let binary = temp_dir.join(expected_binary);
+        // Verify the binary exists and is within temp_dir (defense in depth)
+        let canonical = binary.canonicalize().map_err(|_| {
+            anyhow::anyhow!("Binary '{}' not found in archive", expected_binary)
+        })?;
+        let temp_canonical = temp_dir.canonicalize()?;
+        if !canonical.starts_with(&temp_canonical) {
+            anyhow::bail!("Security: extracted path escapes temp directory");
+        }
+        binary
     } else {
         anyhow::bail!("Unknown archive format: {}", asset.name);
     };

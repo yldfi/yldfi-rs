@@ -106,6 +106,12 @@ pub enum KongCommands {
 }
 
 #[derive(Subcommand)]
+#[command(after_help = "Examples:
+  ethcli kong vaults list                              # List all vaults
+  ethcli kong vaults list --chain-id 1 --yearn         # Official Yearn vaults on mainnet
+  ethcli kong vaults list --v3 --erc4626               # V3 ERC4626 vaults
+  ethcli kong vaults get -c 1 0x7B5A...                # Get specific vault details
+  ethcli kong vaults accounts -c 1 0xd8dA...           # Get user positions")]
 #[non_exhaustive]
 pub enum VaultCommands {
     /// List all vaults (optionally filtered)
@@ -349,12 +355,16 @@ async fn handle_vaults(
         VaultCommands::Accounts { chain_id, address } => {
             validate_address(address)?;
             validate_chain_id(*chain_id)?;
-            if !quiet {
-                eprintln!(
-                    "Fetching vault accounts for {} on chain {}...",
-                    address, chain_id
-                );
-            }
+            // Note: Kong API removed user position queries in 2024.
+            // This command now returns empty results.
+            // Use `ethcli portfolio` with Alchemy/Moralis for vault balances.
+            eprintln!(
+                "Warning: Kong API no longer provides user position data."
+            );
+            eprintln!(
+                "User vault balances must be queried on-chain. Use `ethcli portfolio` instead."
+            );
+            #[allow(deprecated)]
             let accounts = client.vaults().accounts(*chain_id, address).await?;
             if !quiet {
                 eprintln!("Found {} positions", accounts.len());
@@ -561,6 +571,11 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         OutputFormat::Table => {
             // Table format uses pretty JSON for Kong's deeply nested GraphQL responses.
             // See function doc comment for rationale.
+            eprintln!(
+                "Note: Table format not supported for Kong data (deeply nested). Using JSON instead."
+            );
+            eprintln!("      Use --format json and pipe to jq for filtering.");
+            eprintln!();
             println!("{}", serde_json::to_string_pretty(data)?);
         }
     }

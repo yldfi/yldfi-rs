@@ -136,6 +136,7 @@ impl Client {
     /// Create a new client with a custom HTTP client (no rate limiting)
     ///
     /// Note: The client will be wrapped in Arc internally for cheap cloning.
+    #[must_use] 
     pub fn with_http_client(http: HttpClient) -> Self {
         Self {
             http: Arc::new(http),
@@ -145,11 +146,13 @@ impl Client {
     }
 
     /// Get the underlying HTTP client
+    #[must_use] 
     pub fn http(&self) -> &HttpClient {
         &self.http
     }
 
     /// Get the rate limiter if configured
+    #[must_use] 
     pub fn rate_limiter(&self) -> Option<&RateLimiter> {
         self.rate_limiter.as_ref()
     }
@@ -198,8 +201,7 @@ impl Client {
             .map_err(|e| Error::Api {
                 status: 0,
                 message: format!(
-                    "HTTP request failed for query '{}...': {}",
-                    query_preview, e
+                    "HTTP request failed for query '{query_preview}...': {e}"
                 ),
             })?;
 
@@ -213,15 +215,14 @@ impl Client {
 
         let body = response.text().await.map_err(|e| Error::Api {
             status,
-            message: format!("Failed to read response body: {}", e),
+            message: format!("Failed to read response body: {e}"),
         })?;
 
         let gql_response: GraphQLResponse<T> =
             serde_json::from_str(&body).map_err(|e| Error::Api {
                 status,
                 message: format!(
-                    "Failed to parse GraphQL response for query '{}...': {}",
-                    query_preview, e
+                    "Failed to parse GraphQL response for query '{query_preview}...': {e}"
                 ),
             })?;
 

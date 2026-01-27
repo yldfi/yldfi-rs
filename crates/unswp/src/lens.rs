@@ -16,7 +16,7 @@ pub mod factories {
 
     /// V2 Factory addresses
     pub mod v2 {
-        use super::*;
+        use super::address;
 
         /// Uniswap V2 Factory on Ethereum mainnet
         pub const MAINNET: alloy::primitives::Address =
@@ -37,7 +37,7 @@ pub mod factories {
 
     /// V3 Factory addresses
     pub mod v3 {
-        use super::*;
+        use super::address;
 
         /// Uniswap V3 Factory on Ethereum mainnet
         pub const MAINNET: alloy::primitives::Address =
@@ -56,20 +56,20 @@ pub mod factories {
             address!("33128a8fC17869897dcE68Ed026d694621f6FDfD");
     }
 
-    /// V4 Pool Manager addresses (V4 uses a single PoolManager instead of factories)
+    /// V4 Pool Manager addresses (V4 uses a single `PoolManager` instead of factories)
     pub mod v4 {
-        use super::*;
+        use super::address;
 
-        /// Uniswap V4 PoolManager on Ethereum mainnet
+        /// Uniswap V4 `PoolManager` on Ethereum mainnet
         pub const MAINNET: alloy::primitives::Address =
             address!("000000000004444c5dc75cB358380D2e3de08A90");
-        /// Uniswap V4 PoolManager on Arbitrum
+        /// Uniswap V4 `PoolManager` on Arbitrum
         pub const ARBITRUM: alloy::primitives::Address =
             address!("000000000004444c5dc75cB358380D2e3de08A90");
-        /// Uniswap V4 PoolManager on Base
+        /// Uniswap V4 `PoolManager` on Base
         pub const BASE: alloy::primitives::Address =
             address!("000000000004444c5dc75cB358380D2e3de08A90");
-        /// Uniswap V4 PoolManager on Polygon
+        /// Uniswap V4 `PoolManager` on Polygon
         pub const POLYGON: alloy::primitives::Address =
             address!("000000000004444c5dc75cB358380D2e3de08A90");
     }
@@ -88,7 +88,7 @@ pub mod pools {
 
     /// V2 pool addresses (pairs)
     pub mod v2 {
-        use super::*;
+        use super::address;
 
         /// WETH/USDC pair on Ethereum mainnet (V2)
         pub const MAINNET_WETH_USDC: alloy::primitives::Address =
@@ -106,7 +106,7 @@ pub mod pools {
 
     /// V3 pool addresses
     pub mod v3 {
-        use super::*;
+        use super::address;
 
         /// WETH/USDC 0.05% on Ethereum mainnet
         pub const MAINNET_WETH_USDC_005: alloy::primitives::Address =
@@ -228,7 +228,7 @@ impl LensClient {
             .provider
             .call(call_request)
             .await
-            .map_err(|e| lens_error(format!("slot0 call failed: {}", e)))?;
+            .map_err(|e| lens_error(format!("slot0 call failed: {e}")))?;
 
         // Decode the result (7 values: uint160, int24, uint16, uint16, uint16, uint8, bool)
         if result.len() < 224 {
@@ -268,7 +268,7 @@ impl LensClient {
             .provider
             .call(call_request)
             .await
-            .map_err(|e| lens_error(format!("liquidity call failed: {}", e)))?;
+            .map_err(|e| lens_error(format!("liquidity call failed: {e}")))?;
 
         if result.len() < 32 {
             return Err(lens_error("Invalid liquidity response"));
@@ -293,7 +293,7 @@ impl LensClient {
             .provider
             .call(call_request)
             .await
-            .map_err(|e| lens_error(format!("balanceOf call failed: {}", e)))?;
+            .map_err(|e| lens_error(format!("balanceOf call failed: {e}")))?;
 
         if result.len() < 32 {
             return Err(lens_error("Invalid balance response"));

@@ -131,6 +131,10 @@ pub struct ConfigFile {
     #[serde(default)]
     pub thegraph: Option<TheGraphConfig>,
 
+    /// Solodit API configuration
+    #[serde(default)]
+    pub solodit: Option<SoloditConfig>,
+
     /// Debug-capable RPC endpoints (for debug_traceCall, etc.)
     #[serde(default)]
     pub debug_rpc_urls: Vec<String>,
@@ -285,6 +289,17 @@ pub struct EnsoConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TheGraphConfig {
     /// The Graph API key (from The Graph Studio)
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
+    pub api_key: SecretString,
+}
+
+/// Solodit API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SoloditConfig {
+    /// Solodit API key (from solodit.cyfrin.io)
     #[serde(
         serialize_with = "serialize_secret",
         deserialize_with = "deserialize_secret"
@@ -700,7 +715,7 @@ priority = 10
 urls = ["https://disabled.com/rpc"]
 "#;
 
-        let config: ConfigFile = toml::from_str(toml).unwrap();
+        let config: ConfigFile = toml::from_str(toml).expect("Failed to parse config");
         assert_eq!(config.settings.concurrency, 10);
         assert_eq!(config.endpoints.len(), 1);
         assert_eq!(config.endpoints[0].url, "https://example.com/rpc");
@@ -743,7 +758,8 @@ has_trace = true
 chain = "polygon"
 "#;
 
-        let config: ConfigFile = toml::from_str(toml).unwrap();
+        let config: ConfigFile =
+            toml::from_str(toml).expect("Failed to parse config with new fields");
         assert_eq!(config.endpoints.len(), 2);
 
         // First endpoint - Ethereum archive with debug
@@ -832,9 +848,10 @@ chain = "polygon"
 
     #[test]
     fn test_load_invalid_toml_syntax() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let config_path = temp_dir.path().join("config.toml");
-        std::fs::write(&config_path, "this is not valid { toml [syntax").unwrap();
+        std::fs::write(&config_path, "this is not valid { toml [syntax")
+            .expect("Failed to write invalid toml");
 
         let result = ConfigFile::load(&config_path);
         assert!(result.is_err());
@@ -842,7 +859,7 @@ chain = "polygon"
 
     #[test]
     fn test_load_invalid_field_types() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let config_path = temp_dir.path().join("config.toml");
         // concurrency should be a number, not a string
         std::fs::write(
@@ -852,7 +869,7 @@ chain = "polygon"
 concurrency = "not_a_number"
 "#,
         )
-        .unwrap();
+        .expect("Failed to write invalid field types config");
 
         let result = ConfigFile::load(&config_path);
         assert!(result.is_err());
@@ -860,7 +877,7 @@ concurrency = "not_a_number"
 
     #[test]
     fn test_load_invalid_enum_value() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let config_path = temp_dir.path().join("config.toml");
         // "invalid_chain" is not a valid Chain variant
         std::fs::write(
@@ -871,7 +888,7 @@ url = "https://example.com/rpc"
 chain = "invalid_chain"
 "#,
         )
-        .unwrap();
+        .expect("Failed to write invalid enum value config");
 
         let result = ConfigFile::load(&config_path);
         assert!(result.is_err());
@@ -879,21 +896,21 @@ chain = "invalid_chain"
 
     #[test]
     fn test_load_empty_file() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let config_path = temp_dir.path().join("config.toml");
-        std::fs::write(&config_path, "").unwrap();
+        std::fs::write(&config_path, "").expect("Failed to write empty file");
 
         // Empty file should parse successfully with defaults
         let result = ConfigFile::load(&config_path);
         assert!(result.is_ok());
-        let config = result.unwrap();
+        let config = result.expect("Failed to unwrap config");
         assert!(config.endpoints.is_empty());
         assert_eq!(config.settings.concurrency, 5); // default
     }
 
     #[test]
     fn test_load_partial_config() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let config_path = temp_dir.path().join("config.toml");
         // Only specify some settings, others should use defaults
         std::fs::write(
@@ -903,11 +920,11 @@ chain = "invalid_chain"
 concurrency = 20
 "#,
         )
-        .unwrap();
+        .expect("Failed to write partial config");
 
         let result = ConfigFile::load(&config_path);
         assert!(result.is_ok());
-        let config = result.unwrap();
+        let config = result.expect("Failed to unwrap config");
         assert_eq!(config.settings.concurrency, 20);
         assert_eq!(config.settings.timeout_seconds, 30); // default
         assert_eq!(config.settings.retry_attempts, 3); // default
@@ -915,7 +932,7 @@ concurrency = 20
 
     #[test]
     fn test_save_and_load_roundtrip() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let config_path = temp_dir.path().join("config.toml");
 
         let mut config = ConfigFile::default();
@@ -926,10 +943,10 @@ concurrency = 20
             .push(EndpointConfig::new("https://test.example.com/rpc"));
 
         // Save
-        config.save(&config_path).unwrap();
+        config.save(&config_path).expect("Failed to save config");
 
         // Load and verify
-        let loaded = ConfigFile::load(&config_path).unwrap();
+        let loaded = ConfigFile::load(&config_path).expect("Failed to load config");
         assert_eq!(
             loaded.etherscan_api_key.as_ref().map(|s| s.expose_secret()),
             Some("test_key_123")
@@ -941,7 +958,7 @@ concurrency = 20
 
     #[test]
     fn test_save_creates_parent_directory() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let config_path = temp_dir
             .path()
             .join("nested")

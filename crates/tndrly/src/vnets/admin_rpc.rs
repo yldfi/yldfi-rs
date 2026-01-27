@@ -1,7 +1,7 @@
-//! Admin RPC client for Virtual TestNets
+//! Admin RPC client for Virtual `TestNets`
 //!
 //! This module provides methods for interacting with Tenderly's Admin RPC endpoints
-//! on Virtual TestNets. These are JSON-RPC methods that allow manipulating the
+//! on Virtual `TestNets`. These are JSON-RPC methods that allow manipulating the
 //! network state, balances, storage, and time.
 //!
 //! # Example
@@ -68,9 +68,9 @@ struct JsonRpcError {
     data: Option<serde_json::Value>,
 }
 
-/// Admin RPC client for a Virtual TestNet
+/// Admin RPC client for a Virtual `TestNet`
 ///
-/// Provides methods for manipulating VNet state via JSON-RPC.
+/// Provides methods for manipulating `VNet` state via JSON-RPC.
 pub struct AdminRpc {
     http: HttpClient,
     url: String,
@@ -82,7 +82,7 @@ impl AdminRpc {
     ///
     /// # Arguments
     ///
-    /// * `url` - The admin RPC URL for the Virtual TestNet
+    /// * `url` - The admin RPC URL for the Virtual `TestNet`
     pub fn new(url: impl Into<String>) -> Result<Self> {
         let http = HttpClient::builder().build().map_err(Error::Http)?;
 
@@ -147,7 +147,7 @@ impl AdminRpc {
     ///
     /// Block hash of the newly generated block
     pub async fn increase_time(&self, seconds: u64) -> Result<String> {
-        let hex_seconds = format!("0x{:x}", seconds);
+        let hex_seconds = format!("0x{seconds:x}");
         self.call("evm_increaseTime", [hex_seconds]).await
     }
 
@@ -161,7 +161,7 @@ impl AdminRpc {
     ///
     /// Transaction hash
     pub async fn set_next_block_timestamp(&self, timestamp: u64) -> Result<String> {
-        let hex_timestamp = format!("0x{:x}", timestamp);
+        let hex_timestamp = format!("0x{timestamp:x}");
         self.call("evm_setNextBlockTimestamp", [hex_timestamp])
             .await
     }
@@ -176,7 +176,7 @@ impl AdminRpc {
     ///
     /// Transaction hash
     pub async fn set_next_block_timestamp_no_mine(&self, timestamp: u64) -> Result<String> {
-        let hex_timestamp = format!("0x{:x}", timestamp);
+        let hex_timestamp = format!("0x{timestamp:x}");
         self.call("tenderly_setNextBlockTimestamp", [hex_timestamp])
             .await
     }
@@ -191,7 +191,7 @@ impl AdminRpc {
     ///
     /// Block hash of the newly generated block
     pub async fn increase_blocks(&self, blocks: u64) -> Result<String> {
-        let hex_blocks = format!("0x{:x}", blocks);
+        let hex_blocks = format!("0x{blocks:x}");
         self.call("evm_increaseBlocks", [hex_blocks]).await
     }
 
@@ -376,7 +376,7 @@ impl AdminRpc {
     // Transaction Handling
     // =========================================================================
 
-    /// Get the latest block/transaction info on the Virtual TestNet
+    /// Get the latest block/transaction info on the Virtual `TestNet`
     ///
     /// # Returns
     ///
@@ -549,7 +549,7 @@ pub struct LatestBlock {
 fn parse_hex_u64(s: &str) -> Result<u64> {
     let s = s.strip_prefix("0x").unwrap_or(s);
     u64::from_str_radix(s, 16)
-        .map_err(|e| error::invalid_param(format!("Invalid hex number: {}", e)))
+        .map_err(|e| error::invalid_param(format!("Invalid hex number: {e}")))
 }
 
 /// Convert a decimal or hex string to hex wei format
@@ -560,7 +560,7 @@ fn to_hex_wei(amount: &str) -> String {
     }
     // Otherwise parse as decimal and convert to hex
     if let Ok(n) = amount.parse::<u128>() {
-        format!("0x{:x}", n)
+        format!("0x{n:x}")
     } else {
         // Return as-is if we can't parse (let the RPC handle the error)
         amount.to_string()
@@ -571,11 +571,11 @@ fn to_hex_wei(amount: &str) -> String {
 fn to_hex_32_bytes(amount: &str) -> String {
     // If already hex with 0x prefix, ensure it's 32 bytes (64 chars)
     if let Some(hex_part) = amount.strip_prefix("0x") {
-        return format!("0x{:0>64}", hex_part);
+        return format!("0x{hex_part:0>64}");
     }
     // Parse as decimal and convert to 32-byte hex
     if let Ok(n) = amount.parse::<u128>() {
-        format!("0x{:064x}", n)
+        format!("0x{n:064x}")
     } else {
         // Return as-is if we can't parse
         amount.to_string()

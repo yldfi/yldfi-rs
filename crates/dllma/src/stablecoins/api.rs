@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{StablecoinsResponse, StablecoinDetail, StablecoinChartPoint, StablecoinDominance, StablecoinChain, StablecoinPricesResponse};
 
 /// Stablecoins API client
 pub struct StablecoinsApi<'a> {
@@ -12,6 +12,7 @@ pub struct StablecoinsApi<'a> {
 
 impl<'a> StablecoinsApi<'a> {
     /// Create a new Stablecoins API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -51,7 +52,7 @@ impl<'a> StablecoinsApi<'a> {
     /// # }
     /// ```
     pub async fn get(&self, id: &str) -> Result<StablecoinDetail> {
-        let path = format!("/stablecoin/{}", id);
+        let path = format!("/stablecoin/{id}");
         self.client.get_stablecoins(&path).await
     }
 
@@ -86,7 +87,7 @@ impl<'a> StablecoinsApi<'a> {
     /// # }
     /// ```
     pub async fn charts_chain(&self, chain: &str) -> Result<Vec<StablecoinChartPoint>> {
-        let path = format!("/stablecoincharts/{}", chain);
+        let path = format!("/stablecoincharts/{chain}");
         self.client.get_stablecoins(&path).await
     }
 
@@ -112,7 +113,7 @@ impl<'a> StablecoinsApi<'a> {
         chain: &str,
         stablecoin_id: &str,
     ) -> Result<Vec<StablecoinChartPoint>> {
-        let path = format!("/stablecoincharts/{}?stablecoin={}", chain, stablecoin_id);
+        let path = format!("/stablecoincharts/{chain}?stablecoin={stablecoin_id}");
         self.client.get_stablecoins(&path).await
     }
 
@@ -134,7 +135,7 @@ impl<'a> StablecoinsApi<'a> {
     /// # }
     /// ```
     pub async fn dominance(&self, chain: &str) -> Result<Vec<StablecoinDominance>> {
-        let path = format!("/stablecoindominance/{}", chain);
+        let path = format!("/stablecoindominance/{chain}");
         self.client.get_stablecoins(&path).await
     }
 

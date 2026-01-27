@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{FeesOverview, FeesOverviewOptions, ProtocolFeesSummary};
 
 /// Fees API client
 pub struct FeesApi<'a> {
@@ -12,6 +12,7 @@ pub struct FeesApi<'a> {
 
 impl<'a> FeesApi<'a> {
     /// Create a new Fees API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -74,7 +75,7 @@ impl<'a> FeesApi<'a> {
     /// # }
     /// ```
     pub async fn chain(&self, chain: &str) -> Result<FeesOverview> {
-        let path = format!("/overview/fees/{}", chain);
+        let path = format!("/overview/fees/{chain}");
         self.client.get_main(&path).await
     }
 
@@ -95,7 +96,7 @@ impl<'a> FeesApi<'a> {
     /// # }
     /// ```
     pub async fn protocol(&self, protocol: &str) -> Result<ProtocolFeesSummary> {
-        let path = format!("/summary/fees/{}", protocol);
+        let path = format!("/summary/fees/{protocol}");
         self.client.get_main(&path).await
     }
 }

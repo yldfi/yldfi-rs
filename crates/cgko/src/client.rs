@@ -1,4 +1,4 @@
-//! HTTP client for the CoinGecko API
+//! HTTP client for the `CoinGecko` API
 //!
 //! This client uses common utilities from `yldfi-common` for HTTP operations.
 
@@ -17,7 +17,7 @@ pub mod base_urls {
     pub const DEMO: &str = "https://api.coingecko.com/api/v3";
 }
 
-/// Configuration for the CoinGecko API client
+/// Configuration for the `CoinGecko` API client
 ///
 /// Built on top of [`ApiConfig`] from `yldfi-common` for consistent
 /// configuration patterns across all API clients.
@@ -33,6 +33,7 @@ pub struct Config {
 
 impl Config {
     /// Create a new demo config (no API key)
+    #[must_use] 
     pub fn demo() -> Self {
         Self {
             api_key: None,
@@ -81,7 +82,7 @@ impl Config {
     }
 }
 
-/// CoinGecko API client
+/// `CoinGecko` API client
 #[derive(Debug, Clone)]
 pub struct Client {
     http: HttpClient,
@@ -142,6 +143,7 @@ impl Client {
         }
     }
 
+    #[must_use] 
     pub fn is_pro(&self) -> bool {
         self.is_pro
     }

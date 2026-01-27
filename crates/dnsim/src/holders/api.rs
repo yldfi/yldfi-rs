@@ -1,6 +1,6 @@
 //! Token holders API endpoints
 
-use super::types::*;
+use super::types::{TokenHoldersResponse, TokenHoldersOptions};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,6 +10,7 @@ pub struct HoldersApi<'a> {
 }
 
 impl<'a> HoldersApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -20,7 +21,7 @@ impl<'a> HoldersApi<'a> {
     /// * `chain_id` - Chain ID
     /// * `address` - Token contract address
     pub async fn get(&self, chain_id: i64, address: &str) -> Result<TokenHoldersResponse> {
-        let path = format!("/v1/evm/token-holders/{}/{}", chain_id, address);
+        let path = format!("/v1/evm/token-holders/{chain_id}/{address}");
         self.client.get(&path).await
     }
 

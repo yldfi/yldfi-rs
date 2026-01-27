@@ -174,12 +174,12 @@ impl HealthTracker {
 
     /// Record a successful request
     pub fn record_success(&self, url: &str, latency: Duration) {
+        use std::collections::hash_map::Entry;
         let mut health = self.health.write();
-        // RUST-009 fix: avoid allocation if key already exists
-        let entry = if health.contains_key(url) {
-            health.get_mut(url).unwrap()
-        } else {
-            health.entry(url.to_string()).or_default()
+        // Use Entry API to avoid double lookup and unwrap
+        let entry = match health.entry(url.to_string()) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => e.insert(Default::default()),
         };
 
         entry.total_requests += 1;
@@ -204,12 +204,12 @@ impl HealthTracker {
 
     /// Record a failed request
     pub fn record_failure(&self, url: &str, is_rate_limit: bool, is_timeout: bool) {
+        use std::collections::hash_map::Entry;
         let mut health = self.health.write();
-        // RUST-009 fix: avoid allocation if key already exists
-        let entry = if health.contains_key(url) {
-            health.get_mut(url).unwrap()
-        } else {
-            health.entry(url.to_string()).or_default()
+        // Use Entry API to avoid double lookup and unwrap
+        let entry = match health.entry(url.to_string()) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => e.insert(Default::default()),
         };
 
         entry.total_requests += 1;
@@ -234,12 +234,12 @@ impl HealthTracker {
 
     /// Record learned block range limit
     pub fn record_block_range_limit(&self, url: &str, limit: u64) {
+        use std::collections::hash_map::Entry;
         let mut health = self.health.write();
-        // RUST-009 fix: avoid allocation if key already exists
-        let entry = if health.contains_key(url) {
-            health.get_mut(url).unwrap()
-        } else {
-            health.entry(url.to_string()).or_default()
+        // Use Entry API to avoid double lookup and unwrap
+        let entry = match health.entry(url.to_string()) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => e.insert(Default::default()),
         };
 
         // Only update if lower than current learned limit
@@ -252,12 +252,12 @@ impl HealthTracker {
 
     /// Record learned max logs limit
     pub fn record_logs_limit(&self, url: &str, limit: usize) {
+        use std::collections::hash_map::Entry;
         let mut health = self.health.write();
-        // RUST-009 fix: avoid allocation if key already exists
-        let entry = if health.contains_key(url) {
-            health.get_mut(url).unwrap()
-        } else {
-            health.entry(url.to_string()).or_default()
+        // Use Entry API to avoid double lookup and unwrap
+        let entry = match health.entry(url.to_string()) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => e.insert(Default::default()),
         };
 
         // Only update if lower than current learned limit
@@ -278,12 +278,12 @@ impl HealthTracker {
     /// If the circuit breaker timeout has expired, this extends it to prevent
     /// multiple concurrent probe requests (fixes race condition).
     pub fn try_probe(&self, url: &str) -> bool {
+        use std::collections::hash_map::Entry;
         let mut health = self.health.write();
-        // RUST-009 fix: avoid allocation if key already exists
-        let entry = if health.contains_key(url) {
-            health.get_mut(url).unwrap()
-        } else {
-            health.entry(url.to_string()).or_default()
+        // Use Entry API to avoid double lookup and unwrap
+        let entry = match health.entry(url.to_string()) {
+            Entry::Occupied(e) => e.into_mut(),
+            Entry::Vacant(e) => e.insert(Default::default()),
         };
 
         if !entry.circuit_open {

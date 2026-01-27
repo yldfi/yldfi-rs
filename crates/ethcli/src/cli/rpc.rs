@@ -2,6 +2,7 @@
 //!
 //! Commands for reading blockchain state
 
+use crate::cli::OutputFormat;
 use crate::config::{Chain, ConfigFile, EndpointConfig};
 use crate::rpc::Endpoint;
 use alloy::primitives::{Address, B256, U256};
@@ -19,7 +20,7 @@ use std::str::FromStr;
 
   # Get block info
   ethcli rpc block latest
-  ethcli rpc block 21000000 --full --json
+  ethcli rpc block 21000000 --full --format json
 
   # Read storage slot
   ethcli rpc storage 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 0
@@ -69,9 +70,9 @@ pub enum RpcCommands {
         #[arg(long, short)]
         full: bool,
 
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
+        /// Output format
+        #[arg(long, short = 'o', default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Read storage slot
@@ -117,9 +118,9 @@ pub enum RpcCommands {
         #[arg(value_name = "TX_HASH")]
         hash: String,
 
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
+        /// Output format
+        #[arg(long, short = 'o', default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Get current chain ID
@@ -213,7 +214,7 @@ pub async fn handle(
             }
         }
 
-        RpcCommands::Block { block, full, json } => {
+        RpcCommands::Block { block, full, format } => {
             let block_id = parse_block_id(block)?;
 
             let block_data = if *full {
@@ -231,8 +232,10 @@ pub async fn handle(
 
             match block_data {
                 Some(b) => {
-                    if *json {
+                    if matches!(format, OutputFormat::Json) {
                         println!("{}", serde_json::to_string_pretty(&b)?);
+                    } else if matches!(format, OutputFormat::Ndjson) {
+                        println!("{}", serde_json::to_string(&b)?);
                     } else {
                         println!("Block {}", b.header.number);
                         println!("{}", "─".repeat(50));
@@ -319,7 +322,7 @@ pub async fn handle(
             println!("{}", nonce);
         }
 
-        RpcCommands::Receipt { hash, json } => {
+        RpcCommands::Receipt { hash, format } => {
             let tx_hash =
                 B256::from_str(hash).map_err(|e| anyhow::anyhow!("Invalid tx hash: {}", e))?;
 
@@ -330,8 +333,10 @@ pub async fn handle(
 
             match receipt {
                 Some(r) => {
-                    if *json {
+                    if matches!(format, OutputFormat::Json) {
                         println!("{}", serde_json::to_string_pretty(&r)?);
+                    } else if matches!(format, OutputFormat::Ndjson) {
+                        println!("{}", serde_json::to_string(&r)?);
                     } else {
                         println!("Transaction Receipt");
                         println!("{}", "─".repeat(50));

@@ -14,7 +14,7 @@ pub enum TraceType {
     VmTrace,
 }
 
-/// Call object for trace_call
+/// Call object for `trace_call`
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TraceCallRequest {
@@ -149,7 +149,7 @@ pub struct TraceCallResponse {
     pub output: Option<String>,
 }
 
-/// Filter for trace_filter
+/// Filter for `trace_filter`
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TraceFilter {

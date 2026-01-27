@@ -27,7 +27,7 @@ fn main() -> ExitCode {
             }
         }
         Err(e) => {
-            eprintln!("Failed to run ethcli: {}", e);
+            eprintln!("Failed to run ethcli: {e}");
             ExitCode::FAILURE
         }
     }

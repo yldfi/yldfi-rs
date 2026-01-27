@@ -251,7 +251,7 @@ pub struct RouteResponse {
     pub created_at: Option<u64>,
 }
 
-/// Deserialize price_impact that can be an integer (0) or float (0.0)
+/// Deserialize `price_impact` that can be an integer (0) or float (0.0)
 fn deserialize_price_impact<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -260,7 +260,7 @@ where
 
     struct PriceImpactVisitor;
 
-    impl<'de> Visitor<'de> for PriceImpactVisitor {
+    impl Visitor<'_> for PriceImpactVisitor {
         type Value = Option<f64>;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

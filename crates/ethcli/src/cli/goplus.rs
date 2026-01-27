@@ -2,9 +2,19 @@
 //!
 //! Query token, address, NFT, and approval security information.
 
+use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
 
 #[derive(Args)]
+#[command(after_help = r#"Examples:
+  ethcli goplus token 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain-id 1
+  ethcli goplus address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --chain-id 1
+  ethcli goplus nft 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d --chain-id 1
+  ethcli goplus chains
+
+Environment Variables:
+  GOPLUS_APP_KEY       Optional: Enables batch queries (>1 token)
+  GOPLUS_APP_SECRET    Optional: Required with APP_KEY for authentication"#)]
 pub struct GoPlusArgs {
     #[command(subcommand)]
     pub command: GoPlusCommands,
@@ -21,9 +31,9 @@ pub enum GoPlusCommands {
         #[arg(long = "chain-id", short = 'i', default_value = "1")]
         chain_id: u64,
 
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
+        /// Output format
+        #[arg(long, short = 'o', default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Check multiple tokens at once (requires auth for >1)
@@ -35,9 +45,9 @@ pub enum GoPlusCommands {
         #[arg(long = "chain-id", short = 'i', default_value = "1")]
         chain_id: u64,
 
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
+        /// Output format
+        #[arg(long, short = 'o', default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Check if an address is malicious
@@ -49,9 +59,9 @@ pub enum GoPlusCommands {
         #[arg(long = "chain-id", short = 'i', default_value = "1")]
         chain_id: u64,
 
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
+        /// Output format
+        #[arg(long, short = 'o', default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Check NFT collection security
@@ -63,9 +73,9 @@ pub enum GoPlusCommands {
         #[arg(long = "chain-id", short = 'i', default_value = "1")]
         chain_id: u64,
 
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
+        /// Output format
+        #[arg(long, short = 'o', default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Check approval security (ERC20/721/1155)
@@ -77,9 +87,9 @@ pub enum GoPlusCommands {
         #[arg(long = "chain-id", short = 'i', default_value = "1")]
         chain_id: u64,
 
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
+        /// Output format
+        #[arg(long, short = 'o', default_value = "table")]
+        format: OutputFormat,
     },
 
     /// List supported chains
@@ -92,11 +102,15 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
     let client = gplus::Client::from_env()?;
 
     match &args.command {
-        GoPlusCommands::Token { address, chain_id, json } => {
+        GoPlusCommands::Token { address, chain_id, format } => {
             let security = client.token_security(*chain_id, address).await?;
 
-            if *json {
+            if matches!(format, OutputFormat::Json) {
                 println!("{}", serde_json::to_string_pretty(&security)?);
+                return Ok(());
+            }
+            if matches!(format, OutputFormat::Ndjson) {
+                println!("{}", serde_json::to_string(&security)?);
                 return Ok(());
             }
 
@@ -204,12 +218,16 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             }
         }
 
-        GoPlusCommands::TokenBatch { addresses, chain_id, json } => {
+        GoPlusCommands::TokenBatch { addresses, chain_id, format } => {
             let addrs: Vec<&str> = addresses.split(',').map(|s| s.trim()).collect();
             let results = client.token_security_batch(*chain_id, &addrs).await?;
 
-            if *json {
+            if matches!(format, OutputFormat::Json) {
                 println!("{}", serde_json::to_string_pretty(&results)?);
+                return Ok(());
+            }
+            if matches!(format, OutputFormat::Ndjson) {
+                println!("{}", serde_json::to_string(&results)?);
                 return Ok(());
             }
 
@@ -235,11 +253,15 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             }
         }
 
-        GoPlusCommands::Address { address, chain_id, json } => {
+        GoPlusCommands::Address { address, chain_id, format } => {
             let security = client.address_security(*chain_id, address).await?;
 
-            if *json {
+            if matches!(format, OutputFormat::Json) {
                 println!("{}", serde_json::to_string_pretty(&security)?);
+                return Ok(());
+            }
+            if matches!(format, OutputFormat::Ndjson) {
+                println!("{}", serde_json::to_string(&security)?);
                 return Ok(());
             }
 
@@ -265,11 +287,15 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             }
         }
 
-        GoPlusCommands::Nft { address, chain_id, json } => {
+        GoPlusCommands::Nft { address, chain_id, format } => {
             let security = client.nft_security(*chain_id, address).await?;
 
-            if *json {
+            if matches!(format, OutputFormat::Json) {
                 println!("{}", serde_json::to_string_pretty(&security)?);
+                return Ok(());
+            }
+            if matches!(format, OutputFormat::Ndjson) {
+                println!("{}", serde_json::to_string(&security)?);
                 return Ok(());
             }
 
@@ -322,11 +348,15 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             }
         }
 
-        GoPlusCommands::Approval { address, chain_id, json } => {
+        GoPlusCommands::Approval { address, chain_id, format } => {
             let security = client.approval_security(*chain_id, address).await?;
 
-            if *json {
+            if matches!(format, OutputFormat::Json) {
                 println!("{}", serde_json::to_string_pretty(&security)?);
+                return Ok(());
+            }
+            if matches!(format, OutputFormat::Ndjson) {
+                println!("{}", serde_json::to_string(&security)?);
                 return Ok(());
             }
 

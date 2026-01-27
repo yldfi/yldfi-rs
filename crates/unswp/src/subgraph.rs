@@ -201,6 +201,7 @@ impl SubgraphClient {
     }
 
     /// Get the Uniswap version this client is configured for
+    #[must_use] 
     pub fn version(&self) -> UniswapVersion {
         self.version
     }
@@ -233,13 +234,13 @@ impl SubgraphClient {
         if !response.status().is_success() {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
-            return Err(subgraph_error(format!("HTTP {}: {}", status, body)));
+            return Err(subgraph_error(format!("HTTP {status}: {body}")));
         }
 
         let gql_response: GraphQLResponse<T> = response
             .json()
             .await
-            .map_err(|e| subgraph_error(format!("Parse error: {}", e)))?;
+            .map_err(|e| subgraph_error(format!("Parse error: {e}")))?;
 
         if let Some(err) = gql_response.first_error() {
             return Err(subgraph_error(err));
@@ -255,25 +256,25 @@ impl SubgraphClient {
         // V2 uses `ethPrice`, V3/V4 use `ethPriceUSD`
         let (query, field_name) = match self.version {
             UniswapVersion::V2 => (
-                r#"
+                r"
                 query {
                     bundles(first: 1) {
                         id
                         ethPrice
                     }
                 }
-                "#,
+                ",
                 "ethPrice",
             ),
             UniswapVersion::V3 | UniswapVersion::V4 => (
-                r#"
+                r"
                 query {
                     bundles(first: 1) {
                         id
                         ethPriceUSD
                     }
                 }
-                "#,
+                ",
                 "ethPriceUSD",
             ),
         };
@@ -297,10 +298,10 @@ impl SubgraphClient {
         }
 
         let query = format!(
-            r#"
+            r"
             query {{
                 pools(
-                    first: {}
+                    first: {limit}
                     orderBy: totalValueLockedUSD
                     orderDirection: desc
                 ) {{
@@ -324,8 +325,7 @@ impl SubgraphClient {
                     txCount
                 }}
             }}
-        "#,
-            limit
+        "
         );
 
         let data: Response = self.query(&query).await?;
@@ -340,10 +340,10 @@ impl SubgraphClient {
         }
 
         let query = format!(
-            r#"
+            r"
             query {{
                 pairs(
-                    first: {}
+                    first: {limit}
                     orderBy: reserveUSD
                     orderDirection: desc
                 ) {{
@@ -368,8 +368,7 @@ impl SubgraphClient {
                     txCount
                 }}
             }}
-        "#,
-            limit
+        "
         );
 
         let data: Response = self.query(&query).await?;
@@ -384,10 +383,10 @@ impl SubgraphClient {
         }
 
         let query = format!(
-            r#"
+            r"
             query {{
                 pools(
-                    first: {}
+                    first: {limit}
                     orderBy: totalValueLockedUSD
                     orderDirection: desc
                 ) {{
@@ -412,8 +411,7 @@ impl SubgraphClient {
                     txCount
                 }}
             }}
-        "#,
-            limit
+        "
         );
 
         let data: Response = self.query(&query).await?;

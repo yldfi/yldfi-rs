@@ -103,26 +103,28 @@ pub struct CollectiblesOptions {
 }
 
 impl CollectiblesOptions {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use] 
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(ref chain_ids) = self.chain_ids {
-            params.push(format!("chain_ids={}", chain_ids));
+            params.push(format!("chain_ids={chain_ids}"));
         }
         if let Some(ref offset) = self.offset {
-            params.push(format!("offset={}", offset));
+            params.push(format!("offset={offset}"));
         }
         if let Some(limit) = self.limit {
-            params.push(format!("limit={}", limit));
+            params.push(format!("limit={limit}"));
         }
         if let Some(filter_spam) = self.filter_spam {
-            params.push(format!("filter_spam={}", filter_spam));
+            params.push(format!("filter_spam={filter_spam}"));
         }
         if let Some(show_spam_scores) = self.show_spam_scores {
-            params.push(format!("show_spam_scores={}", show_spam_scores));
+            params.push(format!("show_spam_scores={show_spam_scores}"));
         }
         if params.is_empty() {
             String::new()

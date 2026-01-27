@@ -1,4 +1,4 @@
-//! HTTP client for the GoPlus Security API
+//! HTTP client for the `GoPlus` Security API
 
 use reqwest::Client as HttpClient;
 use secrecy::{ExposeSecret, SecretString};
@@ -14,7 +14,7 @@ use crate::types::{
     AddressSecurity, ApprovalSecurity, NftSecurity, Response, TokenSecurity, TokenSecurityResponse,
 };
 
-/// Base URL for GoPlus API
+/// Base URL for `GoPlus` API
 pub const BASE_URL: &str = "https://api.gopluslabs.io/api/v1";
 
 /// Rate limit information from API response headers
@@ -32,16 +32,18 @@ pub struct RateLimitInfo {
 
 impl RateLimitInfo {
     /// Check if we're close to hitting the rate limit (< 10% remaining)
+    #[must_use] 
     pub fn is_near_limit(&self) -> bool {
         match (self.remaining, self.limit) {
             (Some(remaining), Some(limit)) if limit > 0 => {
-                (remaining as f64 / limit as f64) < 0.1
+                (f64::from(remaining) / f64::from(limit)) < 0.1
             }
             _ => false,
         }
     }
 
     /// Check if rate limit is exhausted
+    #[must_use] 
     pub fn is_exhausted(&self) -> bool {
         self.remaining == Some(0)
     }
@@ -57,9 +59,9 @@ struct CachedToken {
 /// API credentials for authenticated requests
 #[derive(Debug, Clone)]
 pub struct Credentials {
-    /// App key from GoPlus
+    /// App key from `GoPlus`
     pub app_key: String,
-    /// App secret from GoPlus (kept secret)
+    /// App secret from `GoPlus` (kept secret)
     pub app_secret: SecretString,
 }
 
@@ -72,7 +74,10 @@ impl Credentials {
         }
     }
 
-    /// Generate signature for access token request
+    /// Generate signature for access token request.
+    ///
+    /// NOTE: SHA1 is required by the `GoPlus` API specification for signature generation.
+    /// This is not a security design choice - it's mandated by the external API.
     fn sign(&self, timestamp: u64) -> String {
         let data = format!(
             "{}{}{}",
@@ -86,7 +91,7 @@ impl Credentials {
     }
 }
 
-/// Configuration for the GoPlus API client
+/// Configuration for the `GoPlus` API client
 #[derive(Debug, Clone)]
 pub struct Config {
     /// API credentials (optional for limited access)
@@ -103,6 +108,7 @@ impl Default for Config {
 
 impl Config {
     /// Create a new config without authentication (limited access)
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             credentials: None,
@@ -140,7 +146,7 @@ impl Config {
     }
 }
 
-/// GoPlus Security API client
+/// `GoPlus` Security API client
 #[derive(Debug, Clone)]
 pub struct Client {
     http: HttpClient,
@@ -193,6 +199,7 @@ impl Client {
     }
 
     /// Check if client has authentication configured
+    #[must_use] 
     pub fn is_authenticated(&self) -> bool {
         self.credentials.is_some()
     }
@@ -200,7 +207,7 @@ impl Client {
     /// Build a full URL from a path (handles trailing slash issue)
     fn build_url(&self, path: &str) -> String {
         let base = self.base_url.as_str().trim_end_matches('/');
-        format!("{}{}", base, path)
+        format!("{base}{path}")
     }
 
     /// Clear the cached access token
@@ -224,7 +231,7 @@ impl Client {
             .read()
             .await
             .as_ref()
-            .is_some_and(|r| r.is_near_limit())
+            .is_some_and(RateLimitInfo::is_near_limit)
     }
 
     /// Get or refresh access token
@@ -239,7 +246,7 @@ impl Client {
             if let Some(token) = &*cached {
                 let now = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
-                    .unwrap()
+                    .expect("system clock should be after UNIX epoch")
                     .as_secs();
                 // Refresh 60 seconds before expiry
                 if token.expires_at > now + 60 {
@@ -251,7 +258,7 @@ impl Client {
         // Request new token
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("system clock should be after UNIX epoch")
             .as_secs();
         let sign = creds.sign(timestamp);
 
@@ -302,7 +309,7 @@ impl Client {
     fn extract_rate_limit(headers: &reqwest::header::HeaderMap) -> Option<RateLimitInfo> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("system clock should be after UNIX epoch")
             .as_secs();
 
         // GoPlus uses standard rate limit headers
@@ -351,7 +358,7 @@ impl Client {
 
         // Add auth header if we have credentials
         if let Ok(Some(token)) = self.get_access_token().await {
-            req = req.header("Authorization", format!("Bearer {}", token));
+            req = req.header("Authorization", format!("Bearer {token}"));
         }
 
         let response = req.send().await?;
@@ -387,7 +394,7 @@ impl Client {
 
         // Get fresh token after cache clear
         if let Ok(Some(token)) = self.get_access_token().await {
-            req = req.header("Authorization", format!("Bearer {}", token));
+            req = req.header("Authorization", format!("Bearer {token}"));
         }
 
         let response = req.send().await?;
@@ -417,7 +424,7 @@ impl Client {
     /// * `address` - The token contract address
     pub async fn token_security(&self, chain_id: u64, address: &str) -> Result<TokenSecurity> {
         let address = address.to_lowercase();
-        let path = format!("/token_security/{}?contract_addresses={}", chain_id, address);
+        let path = format!("/token_security/{chain_id}?contract_addresses={address}");
 
         let body: Response<TokenSecurityResponse> = self.get(&path).await?;
 
@@ -451,8 +458,7 @@ impl Client {
             .join(",");
 
         let path = format!(
-            "/token_security/{}?contract_addresses={}",
-            chain_id, addresses_str
+            "/token_security/{chain_id}?contract_addresses={addresses_str}"
         );
 
         let body: Response<TokenSecurityResponse> = self.get(&path).await?;
@@ -473,7 +479,7 @@ impl Client {
     /// * `address` - The address to check
     pub async fn address_security(&self, chain_id: u64, address: &str) -> Result<AddressSecurity> {
         let address = address.to_lowercase();
-        let path = format!("/address_security/{}?chain_id={}", address, chain_id);
+        let path = format!("/address_security/{address}?chain_id={chain_id}");
 
         let body: Response<AddressSecurity> = self.get(&path).await?;
 
@@ -493,7 +499,7 @@ impl Client {
     /// * `address` - The NFT contract address
     pub async fn nft_security(&self, chain_id: u64, address: &str) -> Result<NftSecurity> {
         let address = address.to_lowercase();
-        let path = format!("/nft_security/{}?contract_addresses={}", chain_id, address);
+        let path = format!("/nft_security/{chain_id}?contract_addresses={address}");
 
         let body: Response<NftSecurity> = self.get(&path).await?;
 
@@ -514,8 +520,7 @@ impl Client {
     pub async fn approval_security(&self, chain_id: u64, address: &str) -> Result<ApprovalSecurity> {
         let address = address.to_lowercase();
         let path = format!(
-            "/approval_security/{}?contract_addresses={}",
-            chain_id, address
+            "/approval_security/{chain_id}?contract_addresses={address}"
         );
 
         let body: Response<ApprovalSecurity> = self.get(&path).await?;

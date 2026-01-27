@@ -1,12 +1,12 @@
-//! Error types for the DefiLlama API client
+//! Error types for the `DefiLlama` API client
 //!
-//! This module provides the error types for the DefiLlama API client,
+//! This module provides the error types for the `DefiLlama` API client,
 //! built on top of the shared `ApiError` infrastructure.
 
 use thiserror::Error;
 pub use yldfi_common::api::ApiError;
 
-/// Domain-specific errors for DefiLlama API
+/// Domain-specific errors for `DefiLlama` API
 #[derive(Error, Debug)]
 pub enum DomainError {
     /// Resource not found
@@ -22,10 +22,10 @@ pub enum DomainError {
     UrlParse(#[from] url::ParseError),
 }
 
-/// Error type for DefiLlama API operations
+/// Error type for `DefiLlama` API operations
 pub type Error = ApiError<DomainError>;
 
-/// Result type for DefiLlama API operations
+/// Result type for `DefiLlama` API operations
 pub type Result<T> = std::result::Result<T, Error>;
 
 // Convenience constructors for domain errors
@@ -41,7 +41,8 @@ pub fn invalid_param(message: impl Into<String>) -> Error {
 
 /// Create from HTTP response status and body
 ///
-/// Handles DefiLlama-specific error patterns (404 as NotFound)
+/// Handles DefiLlama-specific error patterns (404 as `NotFound`)
+#[must_use] 
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
     if status == 404 {
         return not_found(body);

@@ -1,4 +1,4 @@
-//! DeFi API - pair prices, reserves, positions, protocols
+//! `DeFi` API - pair prices, reserves, positions, protocols
 
 mod api;
 mod types;

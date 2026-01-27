@@ -22,6 +22,7 @@ impl CandidateRoute {
 }
 
 /// Find all routes between two tokens
+#[must_use] 
 pub fn find_routes(graph: &RouteGraph, from: &str, to: &str) -> Vec<Route> {
     let from_lower = from.to_lowercase();
     let to_lower = to.to_lowercase();
@@ -88,9 +89,7 @@ fn dfs(
             // Build complete route
             let mut route = Route::new(
                 current_path
-                    .first()
-                    .map(|s| s.input_coin.clone())
-                    .unwrap_or_else(|| current.to_string()),
+                    .first().map_or_else(|| current.to_string(), |s| s.input_coin.clone()),
                 target.to_string(),
             );
 
@@ -147,9 +146,9 @@ fn try_add_to_best(best: &mut Vec<CandidateRoute>, candidate: CandidateRoute, by
     } else {
         // Check if better than worst
         let dominated = if by_tvl {
-            candidate.tvl_score > best.last().map(|r| r.tvl_score).unwrap_or(0.0)
+            candidate.tvl_score > best.last().map_or(0.0, |r| r.tvl_score)
         } else {
-            candidate.route.len() < best.last().map(|r| r.route.len()).unwrap_or(usize::MAX)
+            candidate.route.len() < best.last().map_or(usize::MAX, |r| r.route.len())
         };
 
         if dominated {
@@ -195,7 +194,7 @@ fn should_prune(
     let potential_min_tvl = path_min_tvl.min(next_step.tvl_usd);
 
     // Get worst TVL in best routes
-    let worst_best_tvl = best_by_tvl.last().map(|r| r.tvl_score).unwrap_or(0.0);
+    let worst_best_tvl = best_by_tvl.last().map_or(0.0, |r| r.tvl_score);
 
     // Prune if we can't beat the worst best route and we're already deep
     if depth >= 2 && potential_min_tvl < worst_best_tvl * 0.1 {
@@ -249,6 +248,7 @@ fn routes_equal(a: &Route, b: &Route) -> bool {
 }
 
 /// Find the single best route between two tokens
+#[must_use] 
 pub fn find_best_route(graph: &RouteGraph, from: &str, to: &str) -> Option<Route> {
     let routes = find_routes(graph, from, to);
     routes.into_iter().next()

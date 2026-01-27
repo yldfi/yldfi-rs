@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{DatInstitutionsResponse, InstitutionDetail};
 
 /// DAT (Digital Asset Treasury) API client (Pro only)
 pub struct DatApi<'a> {
@@ -12,6 +12,7 @@ pub struct DatApi<'a> {
 
 impl<'a> DatApi<'a> {
     /// Create a new DAT API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -48,7 +49,7 @@ impl<'a> DatApi<'a> {
     ///
     /// # Arguments
     ///
-    /// * `symbol` - Institution ticker symbol (e.g., "MSTR" for MicroStrategy)
+    /// * `symbol` - Institution ticker symbol (e.g., "MSTR" for `MicroStrategy`)
     ///
     /// # Example
     ///
@@ -66,7 +67,7 @@ impl<'a> DatApi<'a> {
     /// # }
     /// ```
     pub async fn institution(&self, symbol: &str) -> Result<InstitutionDetail> {
-        let path = format!("/dat/institutions/{}", symbol);
+        let path = format!("/dat/institutions/{symbol}");
         self.client.get_pro(&path).await
     }
 }

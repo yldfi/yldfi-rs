@@ -1,6 +1,6 @@
 //! Web3 Actions API operations
 
-use super::types::*;
+use super::types::{CreateActionRequest, Action, ListActionsResponse, InvokeActionRequest, InvokeActionResponse, ListActionLogsResponse, ActionLog, StopResumeActionsRequest, ActionCallsQuery, ActionCallsResponse, ActionCall};
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
 
@@ -11,6 +11,7 @@ pub struct ActionsApi<'a> {
 
 impl<'a> ActionsApi<'a> {
     /// Create a new Actions API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -279,6 +280,7 @@ impl<'a> ActionsApi<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actions::{ActionTrigger, TriggerConfig};
 
     #[test]
     fn test_create_action_request() {

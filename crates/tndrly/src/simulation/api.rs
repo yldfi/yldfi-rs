@@ -1,6 +1,6 @@
 //! Simulation API operations
 
-use super::types::*;
+use super::types::{SimulationRequest, SimulationResponse, BundleSimulationRequest, BundleSimulationResponse, SimulationListResponse};
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
 
@@ -11,6 +11,7 @@ pub struct SimulationApi<'a> {
 
 impl<'a> SimulationApi<'a> {
     /// Create a new simulation API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -134,6 +135,7 @@ struct SimulationListQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::simulation::AccessListEntry;
 
     #[test]
     fn test_simulation_request_builder() {

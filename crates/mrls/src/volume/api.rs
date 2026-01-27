@@ -1,6 +1,6 @@
 //! Volume API client
 
-use super::types::*;
+use super::types::{ChainVolume, CategoryVolume, VolumeTimeseries};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -19,6 +19,7 @@ pub struct VolumeQuery {
 }
 
 impl VolumeQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -54,6 +55,7 @@ pub struct VolumeApi<'a> {
 }
 
 impl<'a> VolumeApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -83,7 +85,7 @@ impl<'a> VolumeApi<'a> {
         category_id: &str,
         query: Option<&VolumeQuery>,
     ) -> Result<VolumeTimeseries> {
-        let path = format!("/volume/timeseries/{}", category_id);
+        let path = format!("/volume/timeseries/{category_id}");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {

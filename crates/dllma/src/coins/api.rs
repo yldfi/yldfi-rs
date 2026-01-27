@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::*;
+use super::types::{Token, PricesResponse, BatchHistoricalRequest, ChartResponse, PercentageResponse, FirstPriceResponse, BlockResponse};
 
 /// Coins/Prices API client
 pub struct CoinsApi<'a> {
@@ -12,6 +12,7 @@ pub struct CoinsApi<'a> {
 
 impl<'a> CoinsApi<'a> {
     /// Create a new Coins API client
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -43,10 +44,10 @@ impl<'a> CoinsApi<'a> {
     pub async fn current(&self, tokens: &[Token]) -> Result<PricesResponse> {
         let coins_param = tokens
             .iter()
-            .map(|t| t.format())
+            .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
-        let path = format!("/prices/current/{}", coins_param);
+        let path = format!("/prices/current/{coins_param}");
         self.client.get_coins(&path).await
     }
 
@@ -76,12 +77,11 @@ impl<'a> CoinsApi<'a> {
     ) -> Result<PricesResponse> {
         let coins_param = tokens
             .iter()
-            .map(|t| t.format())
+            .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
         let path = format!(
-            "/prices/current/{}?searchWidth={}",
-            coins_param, search_width
+            "/prices/current/{coins_param}?searchWidth={search_width}"
         );
         self.client.get_coins(&path).await
     }
@@ -109,10 +109,10 @@ impl<'a> CoinsApi<'a> {
     pub async fn historical(&self, timestamp: u64, tokens: &[Token]) -> Result<PricesResponse> {
         let coins_param = tokens
             .iter()
-            .map(|t| t.format())
+            .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
-        let path = format!("/prices/historical/{}/{}", timestamp, coins_param);
+        let path = format!("/prices/historical/{timestamp}/{coins_param}");
         self.client.get_coins(&path).await
     }
 
@@ -145,12 +145,11 @@ impl<'a> CoinsApi<'a> {
     ) -> Result<PricesResponse> {
         let coins_param = tokens
             .iter()
-            .map(|t| t.format())
+            .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
         let path = format!(
-            "/prices/historical/{}/{}?searchWidth={}",
-            timestamp, coins_param, search_width
+            "/prices/historical/{timestamp}/{coins_param}?searchWidth={search_width}"
         );
         self.client.get_coins(&path).await
     }
@@ -219,21 +218,21 @@ impl<'a> CoinsApi<'a> {
     ) -> Result<ChartResponse> {
         let coins_param = tokens
             .iter()
-            .map(|t| t.format())
+            .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
 
-        let mut path = format!("/chart/{}", coins_param);
+        let mut path = format!("/chart/{coins_param}");
         let mut params = Vec::new();
 
         if let Some(s) = span {
-            params.push(format!("span={}", s));
+            params.push(format!("span={s}"));
         }
         if let Some(p) = period {
-            params.push(format!("period={}", p));
+            params.push(format!("period={p}"));
         }
         if let Some(w) = search_width {
-            params.push(format!("searchWidth={}", w));
+            params.push(format!("searchWidth={w}"));
         }
 
         if !params.is_empty() {
@@ -265,10 +264,10 @@ impl<'a> CoinsApi<'a> {
     pub async fn percentage(&self, tokens: &[Token]) -> Result<PercentageResponse> {
         let coins_param = tokens
             .iter()
-            .map(|t| t.format())
+            .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
-        let path = format!("/percentage/{}", coins_param);
+        let path = format!("/percentage/{coins_param}");
         self.client.get_coins(&path).await
     }
 
@@ -293,10 +292,10 @@ impl<'a> CoinsApi<'a> {
     pub async fn first_price(&self, tokens: &[Token]) -> Result<FirstPriceResponse> {
         let coins_param = tokens
             .iter()
-            .map(|t| t.format())
+            .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
-        let path = format!("/prices/first/{}", coins_param);
+        let path = format!("/prices/first/{coins_param}");
         self.client.get_coins(&path).await
     }
 
@@ -318,7 +317,7 @@ impl<'a> CoinsApi<'a> {
     /// # }
     /// ```
     pub async fn block(&self, chain: &str, timestamp: u64) -> Result<BlockResponse> {
-        let path = format!("/block/{}/{}", chain, timestamp);
+        let path = format!("/block/{chain}/{timestamp}");
         self.client.get_coins(&path).await
     }
 }

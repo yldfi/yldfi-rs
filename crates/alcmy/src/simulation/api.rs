@@ -1,6 +1,6 @@
 //! Transaction Simulation API implementation
 
-use super::types::*;
+use super::types::{SimulationTransaction, SimulateAssetChangesResponse, ExecutionFormat, SimulateExecutionResponse};
 use crate::client::Client;
 use crate::error::Result;
 

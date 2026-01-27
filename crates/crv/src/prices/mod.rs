@@ -69,19 +69,19 @@ impl PricesClient {
 
     /// Get USD prices for all tokens on a chain
     pub async fn get_usd_prices(&self, chain: &str) -> Result<serde_json::Value> {
-        let path = format!("/usd_price/{}", chain);
+        let path = format!("/usd_price/{chain}");
         self.get(&path).await
     }
 
     /// Get USD price for a specific token
     pub async fn get_usd_price(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/usd_price/{}/{}", chain, address);
+        let path = format!("/usd_price/{chain}/{address}");
         self.get(&path).await
     }
 
     /// Get price history for a token
     pub async fn get_price_history(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/usd_price/{}/{}/history", chain, address);
+        let path = format!("/usd_price/{chain}/{address}/history");
         self.get(&path).await
     }
 
@@ -89,13 +89,13 @@ impl PricesClient {
 
     /// Get pool data (TVL, volume, fees)
     pub async fn get_pool(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/pools/{}/{}", chain, address);
+        let path = format!("/pools/{chain}/{address}");
         self.get(&path).await
     }
 
     /// Get pool metadata
     pub async fn get_pool_metadata(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/pools/{}/{}/metadata", chain, address);
+        let path = format!("/pools/{chain}/{address}/metadata");
         self.get(&path).await
     }
 
@@ -103,13 +103,13 @@ impl PricesClient {
 
     /// Get OHLC data for a pool
     pub async fn get_ohlc(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/ohlc/{}/{}", chain, address);
+        let path = format!("/ohlc/{chain}/{address}");
         self.get(&path).await
     }
 
     /// Get LP token OHLC data
     pub async fn get_lp_ohlc(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/lp_ohlc/{}/{}", chain, address);
+        let path = format!("/lp_ohlc/{chain}/{address}");
         self.get(&path).await
     }
 
@@ -117,7 +117,7 @@ impl PricesClient {
 
     /// Get trades for a contract
     pub async fn get_trades(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/trades/{}/{}", chain, address);
+        let path = format!("/trades/{chain}/{address}");
         self.get(&path).await
     }
 
@@ -125,7 +125,7 @@ impl PricesClient {
 
     /// Get volume for a chain
     pub async fn get_chain_volume(&self, chain: &str) -> Result<serde_json::Value> {
-        let path = format!("/volume/{}", chain);
+        let path = format!("/volume/{chain}");
         self.get(&path).await
     }
 
@@ -143,7 +143,7 @@ impl PricesClient {
 
     /// Get crvUSD markets on a chain
     pub async fn get_crvusd_markets_on_chain(&self, chain: &str) -> Result<serde_json::Value> {
-        let path = format!("/crvusd/markets/{}", chain);
+        let path = format!("/crvusd/markets/{chain}");
         self.get(&path).await
     }
 
@@ -161,7 +161,7 @@ impl PricesClient {
 
     /// Get lending markets on a chain
     pub async fn get_lending_markets_on_chain(&self, chain: &str) -> Result<serde_json::Value> {
-        let path = format!("/lending/markets/{}", chain);
+        let path = format!("/lending/markets/{chain}");
         self.get(&path).await
     }
 
@@ -179,7 +179,7 @@ impl PricesClient {
 
     /// Get top CRV lockers
     pub async fn get_top_lockers(&self, top: u32) -> Result<serde_json::Value> {
-        let path = format!("/dao/lockers/{}", top);
+        let path = format!("/dao/lockers/{top}");
         self.get(&path).await
     }
 

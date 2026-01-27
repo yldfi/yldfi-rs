@@ -55,7 +55,7 @@ struct RateLimiterInner {
     window: Duration,
     /// Fixed start time for computing elapsed time (CRIT-001 fix)
     start_time: Instant,
-    /// Timestamp of last reset (as nanos since start_time)
+    /// Timestamp of last reset (as nanos since `start_time`)
     last_reset: AtomicU64,
     /// Number of requests in current window
     request_count: AtomicU64,
@@ -138,7 +138,7 @@ impl RateLimiter {
 
             // Try to acquire a slot
             let count = inner.request_count.fetch_add(1, Ordering::Relaxed);
-            if count < inner.max_requests as u64 {
+            if count < u64::from(inner.max_requests) {
                 // We got a slot, try to acquire semaphore permit
                 if let Ok(permit) = inner.semaphore.try_acquire() {
                     // Forget the permit so it gets returned when the window resets
@@ -206,7 +206,7 @@ impl RateLimiter {
         loop {
             let count = inner.request_count.load(Ordering::Relaxed);
 
-            if count >= inner.max_requests as u64 {
+            if count >= u64::from(inner.max_requests) {
                 return false;
             }
 
@@ -217,7 +217,7 @@ impl RateLimiter {
                 .is_ok()
             {
                 // Successfully incremented, try to acquire semaphore permit
-                return inner.semaphore.try_acquire().map(|p| p.forget()).is_ok();
+                return inner.semaphore.try_acquire().map(tokio::sync::SemaphorePermit::forget).is_ok();
             }
             // CAS failed - another thread modified count, retry
         }

@@ -137,9 +137,8 @@ pub fn handle(action: &CastCommands) -> anyhow::Result<()> {
         }
 
         CastCommands::Keccak { data } => {
-            let bytes = if data.starts_with("0x") {
-                hex::decode(data.strip_prefix("0x").unwrap())
-                    .map_err(|e| anyhow::anyhow!("Invalid hex: {}", e))?
+            let bytes = if let Some(stripped) = data.strip_prefix("0x") {
+                hex::decode(stripped).map_err(|e| anyhow::anyhow!("Invalid hex: {}", e))?
             } else {
                 data.as_bytes().to_vec()
             };

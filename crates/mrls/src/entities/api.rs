@@ -1,6 +1,6 @@
 //! Entities API client
 
-use super::types::*;
+use super::types::{EntitySearchResult, Entity, CategoriesResponse};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -17,6 +17,7 @@ pub struct EntityQuery {
 }
 
 impl EntityQuery {
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -46,6 +47,7 @@ pub struct EntitiesApi<'a> {
 }
 
 impl<'a> EntitiesApi<'a> {
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -57,7 +59,7 @@ impl<'a> EntitiesApi<'a> {
 
     /// Get entity by ID
     pub async fn get_entity(&self, entity_id: &str) -> Result<Entity> {
-        let path = format!("/entities/{}", entity_id);
+        let path = format!("/entities/{entity_id}");
         self.client.get(&path).await
     }
 
@@ -72,7 +74,7 @@ impl<'a> EntitiesApi<'a> {
         category_id: &str,
         query: Option<&EntityQuery>,
     ) -> Result<EntitySearchResult> {
-        let path = format!("/entities/categories/{}", category_id);
+        let path = format!("/entities/categories/{category_id}");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {

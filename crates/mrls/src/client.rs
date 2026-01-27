@@ -102,7 +102,7 @@ impl Client {
         Self::with_config(Config::new(api_key))
     }
 
-    /// Create a new client from environment variable MORALIS_API_KEY
+    /// Create a new client from environment variable `MORALIS_API_KEY`
     pub fn from_env() -> Result<Self> {
         let api_key = std::env::var("MORALIS_API_KEY").map_err(|_| error::missing_api_key())?;
         Self::new(api_key)
@@ -121,8 +121,7 @@ impl Client {
         let is_localhost = if let Ok(parsed_url) = reqwest::Url::parse(&config.base_url) {
             parsed_url
                 .host_str()
-                .map(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
-                .unwrap_or(false)
+                .is_some_and(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
         } else {
             false
         };
@@ -154,7 +153,7 @@ impl Client {
     fn join_url(&self, path: &str) -> String {
         let base = self.base_url.trim_end_matches('/');
         let path = path.trim_start_matches('/');
-        format!("{}/{}", base, path)
+        format!("{base}/{path}")
     }
 
     /// Handle error response and convert to appropriate Error type
@@ -287,66 +286,79 @@ impl Client {
     }
 
     /// Access the Wallet API
+    #[must_use] 
     pub fn wallet(&self) -> WalletApi<'_> {
         WalletApi::new(self)
     }
 
     /// Access the Token API
+    #[must_use] 
     pub fn token(&self) -> TokenApi<'_> {
         TokenApi::new(self)
     }
 
     /// Access the NFT API
+    #[must_use] 
     pub fn nft(&self) -> NftApi<'_> {
         NftApi::new(self)
     }
 
     /// Access the Block API
+    #[must_use] 
     pub fn block(&self) -> BlockApi<'_> {
         BlockApi::new(self)
     }
 
     /// Access the Transaction API
+    #[must_use] 
     pub fn transaction(&self) -> TransactionApi<'_> {
         TransactionApi::new(self)
     }
 
-    /// Access the DeFi API
+    /// Access the `DeFi` API
+    #[must_use] 
     pub fn defi(&self) -> DefiApi<'_> {
         DefiApi::new(self)
     }
 
     /// Access the Resolve API (ENS, domains)
+    #[must_use] 
     pub fn resolve(&self) -> ResolveApi<'_> {
         ResolveApi::new(self)
     }
 
     /// Access the Market Data API
+    #[must_use] 
     pub fn market(&self) -> MarketApi<'_> {
         MarketApi::new(self)
     }
 
     /// Access the Discovery API
+    #[must_use] 
     pub fn discovery(&self) -> DiscoveryApi<'_> {
         DiscoveryApi::new(self)
     }
 
     /// Access the Entities API
+    #[must_use] 
     pub fn entities(&self) -> EntitiesApi<'_> {
         EntitiesApi::new(self)
     }
 
     /// Access the Utils/Contract API
+    #[must_use] 
     pub fn utils(&self) -> UtilsApi<'_> {
         UtilsApi::new(self)
     }
 
     /// Access the Volume API
+    #[must_use] 
     pub fn volume(&self) -> VolumeApi<'_> {
         VolumeApi::new(self)
     }
 
     /// Access the Analytics API
+    #[must_use] 
     pub fn analytics(&self) -> AnalyticsApi<'_> {
         AnalyticsApi::new(self)
     }

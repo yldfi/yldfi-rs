@@ -12,6 +12,7 @@ pub struct ReportsApi<'a> {
 
 impl<'a> ReportsApi<'a> {
     /// Create a new reports API instance
+    #[must_use] 
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -37,7 +38,7 @@ impl<'a> ReportsApi<'a> {
     pub async fn vault_reports(&self, chain_id: u64, address: &str) -> Result<Vec<VaultReport>> {
         let query = format!(
             r#"{{
-                vaultReports(chainId: {}, address: "{}") {{
+                vaultReports(chainId: {chain_id}, address: "{address}") {{
                     chainId
                     address
                     eventName
@@ -73,8 +74,7 @@ impl<'a> ReportsApi<'a> {
                     logIndex
                     transactionHash
                 }}
-            }}"#,
-            chain_id, address
+            }}"#
         );
 
         #[derive(Deserialize)]
@@ -112,7 +112,7 @@ impl<'a> ReportsApi<'a> {
     ) -> Result<Vec<StrategyReport>> {
         let query = format!(
             r#"{{
-                strategyReports(chainId: {}, address: "{}") {{
+                strategyReports(chainId: {chain_id}, address: "{address}") {{
                     chainId
                     address
                     eventName
@@ -136,8 +136,7 @@ impl<'a> ReportsApi<'a> {
                     logIndex
                     transactionHash
                 }}
-            }}"#,
-            chain_id, address
+            }}"#
         );
 
         #[derive(Deserialize)]

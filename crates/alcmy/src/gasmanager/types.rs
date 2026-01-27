@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Partial UserOperation for gas sponsorship (v0.6)
+/// Partial `UserOperation` for gas sponsorship (v0.6)
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PartialUserOperationV06 {
@@ -27,7 +27,7 @@ pub struct PartialUserOperationV06 {
     pub signature: Option<String>,
 }
 
-/// Partial UserOperation for gas sponsorship (v0.7)
+/// Partial `UserOperation` for gas sponsorship (v0.7)
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PartialUserOperationV07 {
@@ -278,7 +278,7 @@ pub struct PolicyStats {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Sponsorship {
-    /// UserOperation hash
+    /// `UserOperation` hash
     pub user_op_hash: String,
     /// Sender address
     pub sender: String,
