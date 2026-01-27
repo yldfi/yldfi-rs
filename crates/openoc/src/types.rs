@@ -44,7 +44,7 @@ pub enum Chain {
 
 impl Chain {
     /// Convert from EVM chain ID (returns None for non-EVM chains like Solana/Sui)
-    #[must_use] 
+    #[must_use]
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
         match chain_id {
             1 => Some(Chain::Eth),
@@ -67,7 +67,7 @@ impl Chain {
     }
 
     /// Get the chain ID for API requests
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Chain::Eth => "eth",
@@ -90,7 +90,7 @@ impl Chain {
     }
 
     /// Parse chain from string (returns Option for backward compatibility)
-    #[must_use] 
+    #[must_use]
     pub fn try_from_str(s: &str) -> Option<Self> {
         s.parse().ok()
     }

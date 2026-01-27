@@ -1,6 +1,11 @@
 //! Gas Manager API implementation
 
-use super::types::{PartialUserOperationV06, GasSponsorshipResponseV06, PartialUserOperationV07, GasSponsorshipResponseV07, RequestPaymasterAndDataResponse, PaymasterStubDataResponse, Erc20Context, TokenQuoteResponse, CreatePolicyRequest, GasPolicy, UpdatePolicyRequest, ListPoliciesResponse, PolicyStatus, PolicyStats, ListSponsorshipsResponse};
+use super::types::{
+    CreatePolicyRequest, Erc20Context, GasPolicy, GasSponsorshipResponseV06,
+    GasSponsorshipResponseV07, ListPoliciesResponse, ListSponsorshipsResponse,
+    PartialUserOperationV06, PartialUserOperationV07, PaymasterStubDataResponse, PolicyStats,
+    PolicyStatus, RequestPaymasterAndDataResponse, TokenQuoteResponse, UpdatePolicyRequest,
+};
 use crate::client::Client;
 use crate::error::{self, Error, Result};
 

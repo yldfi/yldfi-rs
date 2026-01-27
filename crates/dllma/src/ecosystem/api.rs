@@ -3,7 +3,10 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::{Category, Fork, Oracle, Entity, Treasury, Hack, Raise, LiquidityData, TokenProtocols, ProtocolInflows, ChainAssets};
+use super::types::{
+    Category, ChainAssets, Entity, Fork, Hack, LiquidityData, Oracle, ProtocolInflows, Raise,
+    TokenProtocols, Treasury,
+};
 
 /// Ecosystem API client (mostly Pro)
 pub struct EcosystemApi<'a> {
@@ -12,7 +15,7 @@ pub struct EcosystemApi<'a> {
 
 impl<'a> EcosystemApi<'a> {
     /// Create a new Ecosystem API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

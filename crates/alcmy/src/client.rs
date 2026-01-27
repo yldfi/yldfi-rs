@@ -49,7 +49,7 @@ pub enum Network {
 
 impl Network {
     /// Get the network slug used in URLs
-    #[must_use] 
+    #[must_use]
     pub fn slug(&self) -> &'static str {
         match self {
             // Ethereum
@@ -91,7 +91,7 @@ impl Network {
     }
 
     /// Get the network name for the Data/Prices API
-    #[must_use] 
+    #[must_use]
     pub fn data_api_name(&self) -> &'static str {
         match self {
             Network::EthMainnet => "eth-mainnet",
@@ -227,25 +227,25 @@ impl Client {
     ///
     /// # Warning
     /// This exposes the secret API key. Only use when necessary (e.g., URL construction).
-    #[must_use] 
+    #[must_use]
     pub fn api_key(&self) -> &str {
         self.api_key.expose()
     }
 
     /// Get the current network
-    #[must_use] 
+    #[must_use]
     pub fn network(&self) -> Network {
         self.network
     }
 
     /// Get the HTTP client
-    #[must_use] 
+    #[must_use]
     pub fn http(&self) -> &reqwest::Client {
         &self.http
     }
 
     /// Get the base URL for JSON-RPC requests
-    #[must_use] 
+    #[must_use]
     pub fn rpc_url(&self) -> String {
         format!(
             "https://{}.g.alchemy.com/v2/{}",
@@ -255,7 +255,7 @@ impl Client {
     }
 
     /// Get the base URL for NFT API requests
-    #[must_use] 
+    #[must_use]
     pub fn nft_url(&self) -> String {
         format!(
             "https://{}.g.alchemy.com/nft/v3/{}",
@@ -265,7 +265,7 @@ impl Client {
     }
 
     /// Get the base URL for Prices API requests
-    #[must_use] 
+    #[must_use]
     pub fn prices_url(&self) -> String {
         format!(
             "https://api.g.alchemy.com/prices/v1/{}",
@@ -274,7 +274,7 @@ impl Client {
     }
 
     /// Get the base URL for Data/Portfolio API requests
-    #[must_use] 
+    #[must_use]
     pub fn data_url(&self) -> String {
         format!(
             "https://api.g.alchemy.com/data/v1/{}",
@@ -314,7 +314,10 @@ impl Client {
         let result: serde_json::Value = response.json().await?;
 
         if let Some(error) = result.get("error") {
-            let code = error.get("code").and_then(serde_json::Value::as_i64).unwrap_or(-1);
+            let code = error
+                .get("code")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(-1);
             let message = error
                 .get("message")
                 .and_then(|m| m.as_str())

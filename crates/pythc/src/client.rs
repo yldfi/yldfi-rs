@@ -42,13 +42,13 @@ impl Default for Config {
 
 impl Config {
     /// Create a mainnet config
-    #[must_use] 
+    #[must_use]
     pub fn mainnet() -> Self {
         Self::default()
     }
 
     /// Create a testnet config
-    #[must_use] 
+    #[must_use]
     pub fn testnet() -> Self {
         Self {
             inner: ApiConfig::new(base_urls::TESTNET),
@@ -345,7 +345,7 @@ pub mod feed_ids {
 ///
 /// Returns `None` for unknown symbols. Use `search_feeds()` to find
 /// feed IDs for tokens not in this mapping.
-#[must_use] 
+#[must_use]
 pub fn symbol_to_feed_id(symbol: &str) -> Option<&'static str> {
     match symbol.to_uppercase().as_str() {
         // Major tokens

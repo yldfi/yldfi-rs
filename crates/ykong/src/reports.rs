@@ -12,7 +12,7 @@ pub struct ReportsApi<'a> {
 
 impl<'a> ReportsApi<'a> {
     /// Create a new reports API instance
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

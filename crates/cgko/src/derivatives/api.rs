@@ -1,6 +1,9 @@
 //! Derivatives API endpoints
 
-use super::types::{DerivativeTicker, DerivativesOptions, DerivativeExchange, DerivativeExchangesOptions, DerivativeExchangeDetail, DerivativeExchangeListItem};
+use super::types::{
+    DerivativeExchange, DerivativeExchangeDetail, DerivativeExchangeListItem,
+    DerivativeExchangesOptions, DerivativeTicker, DerivativesOptions,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +13,7 @@ pub struct DerivativesApi<'a> {
 }
 
 impl<'a> DerivativesApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -55,9 +58,7 @@ impl<'a> DerivativesApi<'a> {
         id: &str,
         include_tickers: &str,
     ) -> Result<DerivativeExchangeDetail> {
-        let path = format!(
-            "/derivatives/exchanges/{id}?include_tickers={include_tickers}"
-        );
+        let path = format!("/derivatives/exchanges/{id}?include_tickers={include_tickers}");
         self.client.get(&path).await
     }
 

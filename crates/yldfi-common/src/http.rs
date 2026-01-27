@@ -138,7 +138,7 @@ impl Default for HttpClientConfig {
 
 impl HttpClientConfig {
     /// Create a new config with default settings
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

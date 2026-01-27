@@ -10,7 +10,7 @@ pub struct ExchangesApi<'a> {
 }
 
 impl<'a> ExchangesApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -60,9 +60,7 @@ impl<'a> ExchangesApi<'a> {
     /// * `from` - Unix timestamp start
     /// * `to` - Unix timestamp end
     pub async fn volume_chart_range(&self, id: &str, from: u64, to: u64) -> Result<VolumeChart> {
-        let path = format!(
-            "/exchanges/{id}/volume_chart/range?from={from}&to={to}"
-        );
+        let path = format!("/exchanges/{id}/volume_chart/range?from={from}&to={to}");
         self.client.get(&path).await
     }
 }

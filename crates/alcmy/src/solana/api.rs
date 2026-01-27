@@ -1,6 +1,9 @@
 //! Solana DAS API implementation
 
-use super::types::{Asset, DisplayOptions, AssetProof, GetAssetsResponse, PaginationOptions, SearchAssetsRequest, GetTokenAccountsResponse, GetNftEditionsResponse, GetAssetSignaturesResponse};
+use super::types::{
+    Asset, AssetProof, DisplayOptions, GetAssetSignaturesResponse, GetAssetsResponse,
+    GetNftEditionsResponse, GetTokenAccountsResponse, PaginationOptions, SearchAssetsRequest,
+};
 use crate::client::Client;
 use crate::error::Result;
 

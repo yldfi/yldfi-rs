@@ -1,6 +1,11 @@
 //! Onchain/GeckoTerminal API endpoints
 
-use super::types::{NetworksResponse, DexesResponse, PoolsResponse, PoolResponse, TokenResponse, TokenPriceResponse, OhlcvResponse, TradesResponse, TokensResponse, TokenInfoResponse, PoolInfoResponse, TokenHoldersResponse, TokenTradersResponse, HoldersChartResponse, TokenOhlcvResponse, TokenTradesResponse, MegafilterOptions, OnchainCategoriesResponse};
+use super::types::{
+    DexesResponse, HoldersChartResponse, MegafilterOptions, NetworksResponse, OhlcvResponse,
+    OnchainCategoriesResponse, PoolInfoResponse, PoolResponse, PoolsResponse, TokenHoldersResponse,
+    TokenInfoResponse, TokenOhlcvResponse, TokenPriceResponse, TokenResponse, TokenTradersResponse,
+    TokenTradesResponse, TokensResponse, TradesResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +15,7 @@ pub struct OnchainApi<'a> {
 }
 
 impl<'a> OnchainApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -77,9 +82,7 @@ impl<'a> OnchainApi<'a> {
 
     /// Get pools for a token
     pub async fn token_pools(&self, network: &str, token_address: &str) -> Result<PoolsResponse> {
-        let path = format!(
-            "/onchain/networks/{network}/tokens/{token_address}/pools"
-        );
+        let path = format!("/onchain/networks/{network}/tokens/{token_address}/pools");
         self.client.get(&path).await
     }
 
@@ -95,17 +98,13 @@ impl<'a> OnchainApi<'a> {
         pool_address: &str,
         timeframe: &str,
     ) -> Result<OhlcvResponse> {
-        let path = format!(
-            "/onchain/networks/{network}/pools/{pool_address}/ohlcv/{timeframe}"
-        );
+        let path = format!("/onchain/networks/{network}/pools/{pool_address}/ohlcv/{timeframe}");
         self.client.get(&path).await
     }
 
     /// Get pool trades
     pub async fn pool_trades(&self, network: &str, pool_address: &str) -> Result<TradesResponse> {
-        let path = format!(
-            "/onchain/networks/{network}/pools/{pool_address}/trades"
-        );
+        let path = format!("/onchain/networks/{network}/pools/{pool_address}/trades");
         self.client.get(&path).await
     }
 
@@ -176,9 +175,7 @@ impl<'a> OnchainApi<'a> {
         network: &str,
         token_address: &str,
     ) -> Result<TokenHoldersResponse> {
-        let path = format!(
-            "/onchain/networks/{network}/tokens/{token_address}/top_holders"
-        );
+        let path = format!("/onchain/networks/{network}/tokens/{token_address}/top_holders");
         self.client.get(&path).await
     }
 
@@ -188,9 +185,7 @@ impl<'a> OnchainApi<'a> {
         network: &str,
         token_address: &str,
     ) -> Result<TokenTradersResponse> {
-        let path = format!(
-            "/onchain/networks/{network}/tokens/{token_address}/top_traders"
-        );
+        let path = format!("/onchain/networks/{network}/tokens/{token_address}/top_traders");
         self.client.get(&path).await
     }
 
@@ -200,9 +195,7 @@ impl<'a> OnchainApi<'a> {
         network: &str,
         token_address: &str,
     ) -> Result<HoldersChartResponse> {
-        let path = format!(
-            "/onchain/networks/{network}/tokens/{token_address}/holders_chart"
-        );
+        let path = format!("/onchain/networks/{network}/tokens/{token_address}/holders_chart");
         self.client.get(&path).await
     }
 
@@ -218,9 +211,7 @@ impl<'a> OnchainApi<'a> {
         token_address: &str,
         timeframe: &str,
     ) -> Result<TokenOhlcvResponse> {
-        let path = format!(
-            "/onchain/networks/{network}/tokens/{token_address}/ohlcv/{timeframe}"
-        );
+        let path = format!("/onchain/networks/{network}/tokens/{token_address}/ohlcv/{timeframe}");
         self.client.get(&path).await
     }
 
@@ -230,9 +221,7 @@ impl<'a> OnchainApi<'a> {
         network: &str,
         token_address: &str,
     ) -> Result<TokenTradesResponse> {
-        let path = format!(
-            "/onchain/networks/{network}/tokens/{token_address}/trades"
-        );
+        let path = format!("/onchain/networks/{network}/tokens/{token_address}/trades");
         self.client.get(&path).await
     }
 

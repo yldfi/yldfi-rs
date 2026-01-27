@@ -40,7 +40,7 @@ pub struct UpsertMatviewRequest {
 
 impl UpsertMatviewRequest {
     /// Create a new materialized view request
-    #[must_use] 
+    #[must_use]
     pub fn new(name: &str, query_id: i64) -> Self {
         Self {
             name: name.to_string(),
@@ -53,21 +53,21 @@ impl UpsertMatviewRequest {
     }
 
     /// Set the cron expression for refresh schedule
-    #[must_use] 
+    #[must_use]
     pub fn cron(mut self, cron_expression: &str) -> Self {
         self.cron_expression = Some(cron_expression.to_string());
         self
     }
 
     /// Set as private
-    #[must_use] 
+    #[must_use]
     pub fn private(mut self, is_private: bool) -> Self {
         self.is_private = Some(is_private);
         self
     }
 
     /// Set performance tier to large
-    #[must_use] 
+    #[must_use]
     pub fn large(mut self) -> Self {
         self.performance = Some("large".to_string());
         self
@@ -125,7 +125,7 @@ pub struct ListMatviewsOptions {
 }
 
 impl ListMatviewsOptions {
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {

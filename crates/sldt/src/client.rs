@@ -151,7 +151,11 @@ impl Client {
 
         // Impact levels
         if !filter.impacts.is_empty() {
-            let impacts: Vec<&str> = filter.impacts.iter().map(super::types::Impact::as_str).collect();
+            let impacts: Vec<&str> = filter
+                .impacts
+                .iter()
+                .map(super::types::Impact::as_str)
+                .collect();
             filters["impact"] = json!(impacts);
         }
 
@@ -340,7 +344,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn paginate(&self, filter: SearchFilter) -> FindingPaginator {
         FindingPaginator {
             client: self.clone(),
@@ -406,13 +410,13 @@ impl FindingPaginator {
     }
 
     /// Get the total number of results (available after first page fetch)
-    #[must_use] 
+    #[must_use]
     pub fn total_pages(&self) -> Option<u32> {
         self.total_pages
     }
 
     /// Check if pagination is complete
-    #[must_use] 
+    #[must_use]
     pub fn is_done(&self) -> bool {
         self.done
     }
@@ -486,9 +490,7 @@ mod tests {
     #[test]
     fn test_build_request_body_with_firms() {
         let client = Client::new("test_key").unwrap();
-        let filter = SearchFilter::new("test")
-            .firm("Cyfrin")
-            .firm("Sherlock");
+        let filter = SearchFilter::new("test").firm("Cyfrin").firm("Sherlock");
         let body = client.build_request_body(&filter);
 
         let firms = body["filters"]["firms"].as_array().unwrap();

@@ -131,12 +131,12 @@ pub struct DefiPositionsOptions {
 }
 
 impl DefiPositionsOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         if let Some(ref chain_ids) = self.chain_ids {
             format!("?chain_ids={chain_ids}")

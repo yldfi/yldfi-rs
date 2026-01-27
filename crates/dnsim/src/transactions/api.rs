@@ -1,6 +1,6 @@
 //! Transactions API endpoints
 
-use super::types::{TransactionsResponse, TransactionsOptions};
+use super::types::{TransactionsOptions, TransactionsResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +10,7 @@ pub struct TransactionsApi<'a> {
 }
 
 impl<'a> TransactionsApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

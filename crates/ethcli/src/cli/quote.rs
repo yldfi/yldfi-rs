@@ -405,9 +405,13 @@ fn resolve_amount(amount: &str, decimals: Option<u8>) -> anyhow::Result<String> 
         let frac_multiplier = 10u128.pow((dec as usize - frac_digits) as u32);
 
         // Use checked arithmetic to prevent overflow
-        let whole_scaled = whole
-            .checked_mul(multiplier)
-            .ok_or_else(|| anyhow::anyhow!("Amount overflow: {} is too large for {} decimals", whole, dec))?;
+        let whole_scaled = whole.checked_mul(multiplier).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Amount overflow: {} is too large for {} decimals",
+                whole,
+                dec
+            )
+        })?;
 
         let frac_scaled = frac_val
             .checked_mul(frac_multiplier)

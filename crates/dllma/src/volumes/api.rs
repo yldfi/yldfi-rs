@@ -3,7 +3,9 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::{VolumeOverview, VolumeOverviewOptions, ProtocolVolumeSummary, OpenInterestOverview};
+use super::types::{
+    OpenInterestOverview, ProtocolVolumeSummary, VolumeOverview, VolumeOverviewOptions,
+};
 
 /// Volumes API client
 pub struct VolumesApi<'a> {
@@ -12,7 +14,7 @@ pub struct VolumesApi<'a> {
 
 impl<'a> VolumesApi<'a> {
     /// Create a new Volumes API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

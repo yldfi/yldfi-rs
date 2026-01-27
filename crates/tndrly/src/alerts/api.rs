@@ -1,6 +1,10 @@
 //! Alerts API operations
 
-use super::types::{CreateAlertRequest, Alert, ListAlertsResponse, AddDestinationRequest, AlertDestination, CreateWebhookRequest, Webhook, ListWebhooksResponse, AlertHistoryQuery, AlertHistoryResponse, TestAlertRequest};
+use super::types::{
+    AddDestinationRequest, Alert, AlertDestination, AlertHistoryQuery, AlertHistoryResponse,
+    CreateAlertRequest, CreateWebhookRequest, ListAlertsResponse, ListWebhooksResponse,
+    TestAlertRequest, Webhook,
+};
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
 
@@ -11,7 +15,7 @@ pub struct AlertsApi<'a> {
 
 impl<'a> AlertsApi<'a> {
     /// Create a new Alerts API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

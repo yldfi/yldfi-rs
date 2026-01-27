@@ -5,7 +5,10 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::{YieldPool, YieldsResponse, YieldChartPoint, LegacyPool, BorrowPool, LendBorrowChartPoint, PerpRate, LsdRate};
+use super::types::{
+    BorrowPool, LegacyPool, LendBorrowChartPoint, LsdRate, PerpRate, YieldChartPoint, YieldPool,
+    YieldsResponse,
+};
 
 /// Yields API client
 pub struct YieldsApi<'a> {
@@ -14,7 +17,7 @@ pub struct YieldsApi<'a> {
 
 impl<'a> YieldsApi<'a> {
     /// Create a new Yields API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

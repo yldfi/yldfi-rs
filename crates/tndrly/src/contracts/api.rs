@@ -1,6 +1,10 @@
 //! Contract API operations
 
-use super::types::{AddContractRequest, Contract, ListContractsQuery, UpdateContractRequest, VerifyContractRequest, VerificationResult, EncodeStateRequest, EncodeStateResponse, RenameContractRequest, BulkTagResponse, BulkTagRequest, DeleteTagRequest};
+use super::types::{
+    AddContractRequest, BulkTagRequest, BulkTagResponse, Contract, DeleteTagRequest,
+    EncodeStateRequest, EncodeStateResponse, ListContractsQuery, RenameContractRequest,
+    UpdateContractRequest, VerificationResult, VerifyContractRequest,
+};
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
 
@@ -11,7 +15,7 @@ pub struct ContractsApi<'a> {
 
 impl<'a> ContractsApi<'a> {
     /// Create a new Contract API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

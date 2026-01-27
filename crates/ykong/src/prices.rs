@@ -12,7 +12,7 @@ pub struct PricesApi<'a> {
 
 impl<'a> PricesApi<'a> {
     /// Create a new prices API instance
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

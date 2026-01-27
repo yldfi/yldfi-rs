@@ -52,7 +52,7 @@ impl Token {
     }
 
     /// Format as `chain:address` string
-    #[must_use] 
+    #[must_use]
     pub fn format(&self) -> String {
         format!("{}:{}", self.chain, self.address)
     }

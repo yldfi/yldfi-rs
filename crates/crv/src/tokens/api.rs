@@ -11,7 +11,7 @@ pub struct TokensApi<'a> {
 
 impl<'a> TokensApi<'a> {
     /// Create a new tokens API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

@@ -10,7 +10,7 @@ pub struct ChainsApi<'a> {
 }
 
 impl<'a> ChainsApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

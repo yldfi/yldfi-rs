@@ -9,7 +9,7 @@ use super::types::{
 use crate::pools::Pool;
 
 /// Build a route graph from a list of pools
-#[must_use] 
+#[must_use]
 pub fn build_graph(chain: &str, pools: &[Pool]) -> RouteGraph {
     let mut graph = RouteGraph::new(chain);
 

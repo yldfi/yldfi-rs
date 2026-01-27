@@ -1,6 +1,6 @@
 //! `DeFi` API client
 
-use super::types::{PairPrice, PairReserves, PairAddress, DefiSummary, DefiPositionsResponse};
+use super::types::{DefiPositionsResponse, DefiSummary, PairAddress, PairPrice, PairReserves};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -21,7 +21,7 @@ pub struct DefiQuery {
 }
 
 impl DefiQuery {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -57,7 +57,7 @@ pub struct DefiApi<'a> {
 }
 
 impl<'a> DefiApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

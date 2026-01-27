@@ -1,6 +1,10 @@
 //! Portfolio/Data API implementation
 
-use super::types::{TokenBalancesResponse, TokenBalancesRequest, AddressNetwork, TokenInfoResponse, TokenInfoRequest, TokenAddressInfo, NftsByAddressResponse, NftsByAddressRequest, NftContractsByAddressResponse, NftContractsByAddressRequest};
+use super::types::{
+    AddressNetwork, NftContractsByAddressRequest, NftContractsByAddressResponse,
+    NftsByAddressRequest, NftsByAddressResponse, TokenAddressInfo, TokenBalancesRequest,
+    TokenBalancesResponse, TokenInfoRequest, TokenInfoResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -34,7 +38,10 @@ impl<'a> PortfolioApi<'a> {
                 .iter()
                 .map(|(addr, networks)| AddressNetwork {
                     address: addr.to_string(),
-                    networks: networks.iter().map(std::string::ToString::to_string).collect(),
+                    networks: networks
+                        .iter()
+                        .map(std::string::ToString::to_string)
+                        .collect(),
                 })
                 .collect(),
         };
@@ -89,7 +96,10 @@ impl<'a> PortfolioApi<'a> {
                 .iter()
                 .map(|(addr, networks)| AddressNetwork {
                     address: addr.to_string(),
-                    networks: networks.iter().map(std::string::ToString::to_string).collect(),
+                    networks: networks
+                        .iter()
+                        .map(std::string::ToString::to_string)
+                        .collect(),
                 })
                 .collect(),
             with_metadata: Some(with_metadata),
@@ -123,7 +133,10 @@ impl<'a> PortfolioApi<'a> {
                 .iter()
                 .map(|(addr, networks)| AddressNetwork {
                     address: addr.to_string(),
-                    networks: networks.iter().map(std::string::ToString::to_string).collect(),
+                    networks: networks
+                        .iter()
+                        .map(std::string::ToString::to_string)
+                        .collect(),
                 })
                 .collect(),
             page_size,

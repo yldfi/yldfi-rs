@@ -1,6 +1,9 @@
 //! Accounts/Signer API implementation
 
-use super::types::{SignupRequest, SignupResponse, AuthRequest, WhoamiResponse, LookupResponse, LookupRequest, OtpRequest, JwtAuthRequest, SignPayloadRequest, SignPayloadResponse};
+use super::types::{
+    AuthRequest, JwtAuthRequest, LookupRequest, LookupResponse, OtpRequest, SignPayloadRequest,
+    SignPayloadResponse, SignupRequest, SignupResponse, WhoamiResponse,
+};
 use crate::client::Client;
 use crate::error::{Error, Result};
 

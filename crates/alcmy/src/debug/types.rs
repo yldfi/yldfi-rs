@@ -46,7 +46,7 @@ pub struct TracerOptions {
 
 impl TracerOptions {
     /// Create call tracer options
-    #[must_use] 
+    #[must_use]
     pub fn call_tracer() -> Self {
         Self {
             tracer: Some(TracerType::CallTracer),
@@ -59,7 +59,7 @@ impl TracerOptions {
     }
 
     /// Create prestate tracer options
-    #[must_use] 
+    #[must_use]
     pub fn prestate_tracer() -> Self {
         Self {
             tracer: Some(TracerType::PrestateTracer),

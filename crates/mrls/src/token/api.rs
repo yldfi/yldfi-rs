@@ -1,6 +1,11 @@
 //! Token API client
 
-use super::types::{TokenMetadata, TokenPrice, TokenTransfer, TokenPair, TokenHoldersResponse, TokenResponse, TokenSwap, TokenStats, TokenSearchResult, TrendingToken, TokenCategory, PairOhlcv, PairStats, NewToken, GetMultiplePricesRequest, TokenHoldersSummary, HistoricalHolders, AggregatedPairStats, TopTrader, PairSniper, TokenBondingStatus};
+use super::types::{
+    AggregatedPairStats, GetMultiplePricesRequest, HistoricalHolders, NewToken, PairOhlcv,
+    PairSniper, PairStats, TokenBondingStatus, TokenCategory, TokenHoldersResponse,
+    TokenHoldersSummary, TokenMetadata, TokenPair, TokenPrice, TokenResponse, TokenSearchResult,
+    TokenStats, TokenSwap, TokenTransfer, TopTrader, TrendingToken,
+};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -45,7 +50,7 @@ pub struct TokenApi<'a> {
 
 impl<'a> TokenApi<'a> {
     /// Create a new token API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -331,7 +336,10 @@ impl<'a> TokenApi<'a> {
         }
 
         let query = SymbolsQuery {
-            symbols: symbols.iter().map(std::string::ToString::to_string).collect(),
+            symbols: symbols
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
             chain: chain.map(std::string::ToString::to_string),
         };
 

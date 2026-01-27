@@ -42,7 +42,7 @@ pub fn invalid_param(message: impl Into<String>) -> Error {
 /// Create from HTTP response status and body
 ///
 /// Handles DefiLlama-specific error patterns (404 as `NotFound`)
-#[must_use] 
+#[must_use]
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
     if status == 404 {
         return not_found(body);

@@ -1,6 +1,8 @@
 //! Bundler API implementation (ERC-4337)
 
-use super::types::{UserOperation, GasEstimation, BundlerStateOverride, UserOperationByHash, UserOperationReceipt};
+use super::types::{
+    BundlerStateOverride, GasEstimation, UserOperation, UserOperationByHash, UserOperationReceipt,
+};
 use crate::client::Client;
 use crate::error::Result;
 

@@ -57,7 +57,7 @@ pub fn strategy_not_found(address: impl Into<String>) -> Error {
 }
 
 /// Create from HTTP response status and body
-#[must_use] 
+#[must_use]
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
     // Check for GraphQL errors in JSON response
     if let Ok(json) = serde_json::from_str::<serde_json::Value>(body) {

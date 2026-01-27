@@ -52,19 +52,19 @@ pub fn unsupported_chain(chain: impl Into<String>) -> Error {
 }
 
 /// Create a no route found error
-#[must_use] 
+#[must_use]
 pub fn no_route_found() -> Error {
     ApiError::domain(DomainError::NoRouteFound)
 }
 
 /// Create a missing API key error
-#[must_use] 
+#[must_use]
 pub fn missing_api_key() -> Error {
     ApiError::domain(DomainError::MissingApiKey)
 }
 
 /// Create an insufficient liquidity error
-#[must_use] 
+#[must_use]
 pub fn insufficient_liquidity() -> Error {
     ApiError::domain(DomainError::InsufficientLiquidity)
 }

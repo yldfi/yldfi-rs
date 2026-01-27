@@ -3,7 +3,7 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::{EmissionsSummary, EmissionDetail};
+use super::types::{EmissionDetail, EmissionsSummary};
 
 /// Emissions API client (Pro only)
 pub struct EmissionsApi<'a> {
@@ -12,7 +12,7 @@ pub struct EmissionsApi<'a> {
 
 impl<'a> EmissionsApi<'a> {
     /// Create a new Emissions API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

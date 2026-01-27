@@ -407,7 +407,10 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
             if let Some(content) = &finding.content {
                 // Truncate long content for display
                 let display_content = if content.len() > 2000 {
-                    format!("{}...\n\n[Content truncated. Use --format json for full content]", &content[..2000])
+                    format!(
+                        "{}...\n\n[Content truncated. Use --format json for full content]",
+                        &content[..2000]
+                    )
                 } else {
                     content.clone()
                 };

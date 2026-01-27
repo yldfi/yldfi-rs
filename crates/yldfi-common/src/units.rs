@@ -340,7 +340,7 @@ pub fn to_wei(value: &str, decimals: u8) -> Result<String, UnitsError> {
 /// // 100 USDC
 /// assert_eq!(from_wei("100000000", 6), "100");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn from_wei(wei: &str, decimals: u8) -> String {
     format_units(wei, decimals)
 }
@@ -369,7 +369,7 @@ pub fn ether_to_wei(ether: &str) -> Result<String, UnitsError> {
 /// assert_eq!(wei_to_ether("1000000000000000000"), "1");
 /// assert_eq!(wei_to_ether("500000000000000000"), "0.5");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn wei_to_ether(wei: &str) -> String {
     from_wei(wei, ETHER_DECIMALS)
 }
@@ -398,7 +398,7 @@ pub fn gwei_to_wei(gwei: &str) -> Result<String, UnitsError> {
 /// assert_eq!(wei_to_gwei("1000000000"), "1");
 /// assert_eq!(wei_to_gwei("30500000000"), "30.5");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn wei_to_gwei(wei: &str) -> String {
     from_wei(wei, GWEI_DECIMALS)
 }
@@ -432,7 +432,7 @@ pub fn ether_to_gwei(ether: &str) -> Result<String, UnitsError> {
 /// assert_eq!(gwei_to_ether("1000000000"), "1");
 /// assert_eq!(gwei_to_ether("1000000"), "0.001");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn gwei_to_ether(gwei: &str) -> String {
     // gwei has 9 decimals relative to ether
     format_units(gwei, GWEI_DECIMALS)
@@ -538,7 +538,7 @@ pub fn parse_units(value: &str, decimals: u8) -> Result<String, UnitsError> {
 /// // Zero
 /// assert_eq!(format_units("0", 18), "0");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn format_units(value: &str, decimals: u8) -> String {
     let value = value.trim();
 
@@ -606,7 +606,7 @@ pub fn format_units(value: &str, decimals: u8) -> String {
 /// assert_eq!(format_wei_human("30000000000"), "30 Gwei");
 /// assert_eq!(format_wei_human("1000"), "1000 Wei");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn format_wei_human(wei: &str) -> String {
     let wei = wei.trim();
 

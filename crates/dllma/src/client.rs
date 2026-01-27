@@ -38,7 +38,7 @@ pub struct Config {
 
 impl Config {
     /// Create a new free-tier config
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             api_key: None,
@@ -153,37 +153,37 @@ impl Client {
     }
 
     /// Check if this client has a Pro API key configured
-    #[must_use] 
+    #[must_use]
     pub fn has_pro_access(&self) -> bool {
         self.api_key.is_some()
     }
 
     /// Get the underlying HTTP client
-    #[must_use] 
+    #[must_use]
     pub fn http(&self) -> &HttpClient {
         &self.http
     }
 
     /// Get the main API base URL
-    #[must_use] 
+    #[must_use]
     pub fn main_url(&self) -> &Url {
         &self.main_url
     }
 
     /// Get the coins API base URL
-    #[must_use] 
+    #[must_use]
     pub fn coins_url(&self) -> &Url {
         &self.coins_url
     }
 
     /// Get the stablecoins API base URL
-    #[must_use] 
+    #[must_use]
     pub fn stablecoins_url(&self) -> &Url {
         &self.stablecoins_url
     }
 
     /// Get the yields API base URL
-    #[must_use] 
+    #[must_use]
     pub fn yields_url(&self) -> &Url {
         &self.yields_url
     }

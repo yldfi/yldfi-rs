@@ -548,8 +548,7 @@ pub struct LatestBlock {
 #[allow(dead_code)]
 fn parse_hex_u64(s: &str) -> Result<u64> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    u64::from_str_radix(s, 16)
-        .map_err(|e| error::invalid_param(format!("Invalid hex number: {e}")))
+    u64::from_str_radix(s, 16).map_err(|e| error::invalid_param(format!("Invalid hex number: {e}")))
 }
 
 /// Convert a decimal or hex string to hex wei format

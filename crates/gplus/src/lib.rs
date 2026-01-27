@@ -78,7 +78,7 @@ pub fn client_from_env() -> Result<Client> {
 }
 
 /// Check if a chain ID is supported by `GoPlus`
-#[must_use] 
+#[must_use]
 pub fn is_chain_supported(chain_id: u64) -> bool {
     Chain::is_supported(chain_id)
 }

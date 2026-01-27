@@ -39,19 +39,19 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 // Convenience constructors for domain errors
 /// Create a no route found error
-#[must_use] 
+#[must_use]
 pub fn no_route_found() -> Error {
     ApiError::domain(DomainError::NoRouteFound)
 }
 
 /// Create a no transaction error
-#[must_use] 
+#[must_use]
 pub fn no_transaction() -> Error {
     ApiError::domain(DomainError::NoTransaction)
 }
 
 /// Create an invalid chain ID error
-#[must_use] 
+#[must_use]
 pub fn invalid_chain_id(chain_id: u64) -> Error {
     ApiError::domain(DomainError::InvalidChainId(chain_id))
 }
@@ -62,7 +62,7 @@ pub fn invalid_token_address(address: impl Into<String>) -> Error {
 }
 
 /// Create a slippage exceeded error
-#[must_use] 
+#[must_use]
 pub fn slippage_exceeded(slippage: f64) -> Error {
     ApiError::domain(DomainError::SlippageExceeded(slippage))
 }

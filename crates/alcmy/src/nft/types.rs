@@ -393,7 +393,7 @@ pub struct GetNftsForOwnerOptions {
 }
 
 impl GetNftsForOwnerOptions {
-    #[must_use] 
+    #[must_use]
     pub fn to_query_params(&self) -> Vec<(&'static str, String)> {
         let mut params = Vec::new();
         if let Some(ref key) = self.page_key {

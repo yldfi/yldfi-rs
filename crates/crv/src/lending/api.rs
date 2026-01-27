@@ -11,7 +11,7 @@ pub struct LendingApi<'a> {
 
 impl<'a> LendingApi<'a> {
     /// Create a new lending API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

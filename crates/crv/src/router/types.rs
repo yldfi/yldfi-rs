@@ -47,7 +47,7 @@ pub enum SwapType {
 
 impl SwapType {
     /// Convert from u8
-    #[must_use] 
+    #[must_use]
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             1 => Some(Self::Exchange),
@@ -64,7 +64,7 @@ impl SwapType {
     }
 
     /// Convert to u8
-    #[must_use] 
+    #[must_use]
     pub fn as_u8(self) -> u8 {
         self as u8
     }
@@ -89,7 +89,7 @@ pub enum PoolType {
 
 impl PoolType {
     /// Convert from u8
-    #[must_use] 
+    #[must_use]
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             1 => Some(Self::Main),
@@ -102,7 +102,7 @@ impl PoolType {
     }
 
     /// Convert to u8
-    #[must_use] 
+    #[must_use]
     pub fn as_u8(self) -> u8 {
         self as u8
     }
@@ -125,7 +125,7 @@ pub struct SwapParams {
 
 impl SwapParams {
     /// Create new swap parameters
-    #[must_use] 
+    #[must_use]
     pub fn new(i: u8, j: u8, swap_type: SwapType, pool_type: PoolType, n_coins: u8) -> Self {
         Self {
             i,
@@ -137,7 +137,7 @@ impl SwapParams {
     }
 
     /// Convert to array format [i, j, `swap_type`, `pool_type`, `n_coins`]
-    #[must_use] 
+    #[must_use]
     pub fn to_array(&self) -> [u8; 5] {
         [
             self.i,
@@ -149,7 +149,7 @@ impl SwapParams {
     }
 
     /// Create from array format
-    #[must_use] 
+    #[must_use]
     pub fn from_array(arr: [u8; 5]) -> Option<Self> {
         Some(Self {
             i: arr[0],
@@ -234,20 +234,20 @@ impl Route {
     }
 
     /// Get number of steps (hops)
-    #[must_use] 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.steps.len()
     }
 
     /// Check if route is empty
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.steps.is_empty()
     }
 
     /// Convert to router contract format
     /// Returns (route[11], `swap_params`[5][5])
-    #[must_use] 
+    #[must_use]
     pub fn to_contract_format(&self) -> ([String; 11], [[u8; 5]; 5]) {
         // Route format: [input, pool, output, pool, output, ...]
         // Alternating: token, pool/zap, token, pool/zap, token...
@@ -370,7 +370,7 @@ impl RouteGraph {
     }
 
     /// Get edges from a token
-    #[must_use] 
+    #[must_use]
     pub fn get_edges(&self, from: &str) -> Option<&[GraphEdge]> {
         self.nodes
             .get(&from.to_lowercase())
@@ -378,19 +378,19 @@ impl RouteGraph {
     }
 
     /// Check if a token exists in the graph
-    #[must_use] 
+    #[must_use]
     pub fn has_token(&self, address: &str) -> bool {
         self.nodes.contains_key(&address.to_lowercase())
     }
 
     /// Get number of tokens in the graph
-    #[must_use] 
+    #[must_use]
     pub fn token_count(&self) -> usize {
         self.nodes.len()
     }
 
     /// Get total number of edges
-    #[must_use] 
+    #[must_use]
     pub fn edge_count(&self) -> usize {
         self.nodes.values().map(|n| n.edges.len()).sum()
     }
@@ -410,7 +410,7 @@ pub struct WrapperPair {
 }
 
 /// Ethereum mainnet wrapper pairs
-#[must_use] 
+#[must_use]
 pub fn eth_wrapper_pairs() -> Vec<WrapperPair> {
     vec![
         WrapperPair {
@@ -435,7 +435,7 @@ pub fn eth_wrapper_pairs() -> Vec<WrapperPair> {
 }
 
 /// Router contract addresses by chain
-#[must_use] 
+#[must_use]
 pub fn router_address(chain: &str) -> Option<&'static str> {
     match chain.to_lowercase().as_str() {
         "ethereum" | "eth" | "mainnet" => Some("0x16C6521Dff6baB339122a0FE25a9116693265353"),

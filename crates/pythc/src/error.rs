@@ -49,13 +49,13 @@ pub fn invalid_feed_id(feed_id: impl Into<String>) -> Error {
 }
 
 /// Create a stale price error
-#[must_use] 
+#[must_use]
 pub fn stale_price() -> Error {
     ApiError::domain(DomainError::StalePrice)
 }
 
 /// Create an insecure scheme error
-#[must_use] 
+#[must_use]
 pub fn insecure_scheme() -> Error {
     ApiError::domain(DomainError::InsecureScheme)
 }

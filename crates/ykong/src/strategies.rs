@@ -16,7 +16,7 @@ pub struct StrategyFilter {
 
 impl StrategyFilter {
     /// Create a new filter
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -82,7 +82,7 @@ pub struct StrategiesApi<'a> {
 
 impl<'a> StrategiesApi<'a> {
     /// Create a new strategies API instance
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

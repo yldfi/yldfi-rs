@@ -12,7 +12,7 @@ pub struct DatApi<'a> {
 
 impl<'a> DatApi<'a> {
     /// Create a new DAT API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

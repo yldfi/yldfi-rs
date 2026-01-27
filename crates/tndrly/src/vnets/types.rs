@@ -272,7 +272,7 @@ pub struct ListVNetsQuery {
 
 impl ListVNetsQuery {
     /// Create a new query
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -315,7 +315,7 @@ impl DeleteVNetsRequest {
     }
 
     /// Create a delete request for multiple `VNets`
-    #[must_use] 
+    #[must_use]
     pub fn multiple(ids: Vec<String>) -> Self {
         Self { vnet_ids: ids }
     }
@@ -548,7 +548,7 @@ pub struct ListVNetTransactionsQuery {
 
 impl ListVNetTransactionsQuery {
     /// Create a new query
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -725,7 +725,7 @@ pub struct UpdateVNetRequest {
 
 impl UpdateVNetRequest {
     /// Create a new update request
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

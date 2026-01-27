@@ -35,7 +35,7 @@ pub fn token_not_found(address: impl Into<String>) -> Error {
 }
 
 /// Create an unsupported chain error
-#[must_use] 
+#[must_use]
 pub fn unsupported_chain(chain_id: u64) -> Error {
     ApiError::domain(DomainError::UnsupportedChain(chain_id))
 }

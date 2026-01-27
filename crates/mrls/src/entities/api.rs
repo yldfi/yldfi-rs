@@ -1,6 +1,6 @@
 //! Entities API client
 
-use super::types::{EntitySearchResult, Entity, CategoriesResponse};
+use super::types::{CategoriesResponse, Entity, EntitySearchResult};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -17,7 +17,7 @@ pub struct EntityQuery {
 }
 
 impl EntityQuery {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -47,7 +47,7 @@ pub struct EntitiesApi<'a> {
 }
 
 impl<'a> EntitiesApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

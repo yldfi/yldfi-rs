@@ -1,7 +1,11 @@
 //! Virtual `TestNets` API operations
 
 use super::admin_rpc::AdminRpc;
-use super::types::{CreateVNetRequest, VNet, ListVNetsQuery, DeleteVNetsRequest, ForkVNetRequest, ListVNetTransactionsQuery, VNetTransaction, VNetSimulationRequest, VNetRpcs, UpdateVNetRequest, SendVNetTransactionRequest};
+use super::types::{
+    CreateVNetRequest, DeleteVNetsRequest, ForkVNetRequest, ListVNetTransactionsQuery,
+    ListVNetsQuery, SendVNetTransactionRequest, UpdateVNetRequest, VNet, VNetRpcs,
+    VNetSimulationRequest, VNetTransaction,
+};
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
 
@@ -12,7 +16,7 @@ pub struct VNetsApi<'a> {
 
 impl<'a> VNetsApi<'a> {
     /// Create a new `VNets` API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

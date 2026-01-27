@@ -22,7 +22,7 @@ impl CandidateRoute {
 }
 
 /// Find all routes between two tokens
-#[must_use] 
+#[must_use]
 pub fn find_routes(graph: &RouteGraph, from: &str, to: &str) -> Vec<Route> {
     let from_lower = from.to_lowercase();
     let to_lower = to.to_lowercase();
@@ -89,7 +89,8 @@ fn dfs(
             // Build complete route
             let mut route = Route::new(
                 current_path
-                    .first().map_or_else(|| current.to_string(), |s| s.input_coin.clone()),
+                    .first()
+                    .map_or_else(|| current.to_string(), |s| s.input_coin.clone()),
                 target.to_string(),
             );
 
@@ -248,7 +249,7 @@ fn routes_equal(a: &Route, b: &Route) -> bool {
 }
 
 /// Find the single best route between two tokens
-#[must_use] 
+#[must_use]
 pub fn find_best_route(graph: &RouteGraph, from: &str, to: &str) -> Option<Route> {
     let routes = find_routes(graph, from, to);
     routes.into_iter().next()

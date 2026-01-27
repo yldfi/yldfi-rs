@@ -20,7 +20,7 @@ pub struct VaultFilter {
 
 impl VaultFilter {
     /// Create a new filter
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -126,7 +126,7 @@ pub struct VaultsApi<'a> {
 
 impl<'a> VaultsApi<'a> {
     /// Create a new vaults API instance
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -317,9 +317,12 @@ impl<'a> VaultsApi<'a> {
         // - accountVaults(chainId, account) returns vaults where user has ROLES, not deposits
         //
         // User position/balance data must now be fetched on-chain via balanceOf() calls.
-        Err(crate::Error::Domain(crate::error::DomainError::ApiEndpointRemoved {
-            endpoint: "vaultAccounts".to_string(),
-            alternative: "Use on-chain balanceOf() calls or ethcli portfolio command".to_string(),
-        }))
+        Err(crate::Error::Domain(
+            crate::error::DomainError::ApiEndpointRemoved {
+                endpoint: "vaultAccounts".to_string(),
+                alternative: "Use on-chain balanceOf() calls or ethcli portfolio command"
+                    .to_string(),
+            },
+        ))
     }
 }

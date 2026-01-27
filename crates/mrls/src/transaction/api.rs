@@ -16,7 +16,7 @@ pub struct TransactionQuery {
 }
 
 impl TransactionQuery {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -40,7 +40,7 @@ pub struct TransactionApi<'a> {
 }
 
 impl<'a> TransactionApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

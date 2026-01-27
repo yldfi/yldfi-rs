@@ -87,19 +87,19 @@ pub struct Contract {
 
 impl Contract {
     /// Get the contract address
-    #[must_use] 
+    #[must_use]
     pub fn address(&self) -> Option<&str> {
         self.contract.as_ref().map(|c| c.address.as_str())
     }
 
     /// Get the network ID
-    #[must_use] 
+    #[must_use]
     pub fn network_id(&self) -> Option<&str> {
         self.contract.as_ref().and_then(|c| c.network_id.as_deref())
     }
 
     /// Get the contract name (from verification)
-    #[must_use] 
+    #[must_use]
     pub fn contract_name(&self) -> Option<&str> {
         self.contract
             .as_ref()
@@ -107,7 +107,7 @@ impl Contract {
     }
 
     /// Check if the contract is verified
-    #[must_use] 
+    #[must_use]
     pub fn is_verified(&self) -> bool {
         self.contract
             .as_ref()
@@ -115,7 +115,7 @@ impl Contract {
     }
 
     /// Get tags from contract details
-    #[must_use] 
+    #[must_use]
     pub fn tags(&self) -> Vec<String> {
         // Tags may be stored at different levels depending on API version
         Vec::new()
@@ -126,7 +126,7 @@ impl Contract {
     /// The `/contracts` list endpoint returns both contracts and wallets.
     /// Use this to filter for actual contracts, especially before calling
     /// `contracts().get()` which only works for contracts.
-    #[must_use] 
+    #[must_use]
     pub fn is_contract(&self) -> bool {
         self.account_type
             .as_ref()
@@ -136,7 +136,7 @@ impl Contract {
     /// Check if this is a wallet (EOA)
     ///
     /// The `/contracts` list endpoint returns both contracts and wallets.
-    #[must_use] 
+    #[must_use]
     pub fn is_wallet(&self) -> bool {
         self.account_type.as_ref().is_some_and(|t| t == "wallet")
     }
@@ -231,7 +231,7 @@ pub struct UpdateContractRequest {
 
 impl UpdateContractRequest {
     /// Create a new update request
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             display_name: None,
@@ -404,7 +404,7 @@ pub struct StateOverrideInput {
 
 impl StateOverrideInput {
     /// Create empty state override
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             storage: None,
@@ -484,7 +484,7 @@ pub struct ListContractsQuery {
 
 impl ListContractsQuery {
     /// Create a new query
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

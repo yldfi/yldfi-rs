@@ -1,6 +1,10 @@
 //! Webhooks API endpoints (Beta)
 
-use super::types::{WebhooksListResponse, WebhooksListOptions, CreateWebhookRequest, Webhook, UpdateWebhookRequest, AddressesListResponse, AddressesListOptions, ReplaceAddressesRequest, UpdateAddressesRequest};
+use super::types::{
+    AddressesListOptions, AddressesListResponse, CreateWebhookRequest, ReplaceAddressesRequest,
+    UpdateAddressesRequest, UpdateWebhookRequest, Webhook, WebhooksListOptions,
+    WebhooksListResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +14,7 @@ pub struct WebhooksApi<'a> {
 }
 
 impl<'a> WebhooksApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

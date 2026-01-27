@@ -1,6 +1,13 @@
 //! NFT API implementation
 
-use super::types::{OwnedNftsResponse, GetNftsForOwnerOptions, OwnersForNftResponse, OwnersForContractResponse, ContractsForOwnerResponse, IsHolderResponse, Nft, NftsForContractResponse, ContractMetadataResponse, ContractMetadataBatchResponse, CollectionMetadata, ContractMetadata, NftRarityResponse, AttributeSummaryResponse, RefreshMetadataResponse, NftSalesResponse, FloorPriceResponse, SpamContractsResponse, IsSpamResponse, IsAirdropResponse, CollectionsForOwnerResponse, InvalidateContractResponse};
+use super::types::{
+    AttributeSummaryResponse, CollectionMetadata, CollectionsForOwnerResponse, ContractMetadata,
+    ContractMetadataBatchResponse, ContractMetadataResponse, ContractsForOwnerResponse,
+    FloorPriceResponse, GetNftsForOwnerOptions, InvalidateContractResponse, IsAirdropResponse,
+    IsHolderResponse, IsSpamResponse, Nft, NftRarityResponse, NftSalesResponse,
+    NftsForContractResponse, OwnedNftsResponse, OwnersForContractResponse, OwnersForNftResponse,
+    RefreshMetadataResponse, SpamContractsResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 

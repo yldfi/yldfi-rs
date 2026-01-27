@@ -3,7 +3,10 @@
 use crate::client::Client;
 use crate::error::Result;
 
-use super::types::{Token, PricesResponse, BatchHistoricalRequest, ChartResponse, PercentageResponse, FirstPriceResponse, BlockResponse};
+use super::types::{
+    BatchHistoricalRequest, BlockResponse, ChartResponse, FirstPriceResponse, PercentageResponse,
+    PricesResponse, Token,
+};
 
 /// Coins/Prices API client
 pub struct CoinsApi<'a> {
@@ -12,7 +15,7 @@ pub struct CoinsApi<'a> {
 
 impl<'a> CoinsApi<'a> {
     /// Create a new Coins API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -80,9 +83,7 @@ impl<'a> CoinsApi<'a> {
             .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
-        let path = format!(
-            "/prices/current/{coins_param}?searchWidth={search_width}"
-        );
+        let path = format!("/prices/current/{coins_param}?searchWidth={search_width}");
         self.client.get_coins(&path).await
     }
 
@@ -148,9 +149,8 @@ impl<'a> CoinsApi<'a> {
             .map(super::types::Token::format)
             .collect::<Vec<_>>()
             .join(",");
-        let path = format!(
-            "/prices/historical/{timestamp}/{coins_param}?searchWidth={search_width}"
-        );
+        let path =
+            format!("/prices/historical/{timestamp}/{coins_param}?searchWidth={search_width}");
         self.client.get_coins(&path).await
     }
 

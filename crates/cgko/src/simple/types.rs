@@ -32,12 +32,12 @@ pub struct PriceOptions {
 }
 
 impl PriceOptions {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn full() -> Self {
         Self {
             include_market_cap: true,
@@ -48,7 +48,7 @@ impl PriceOptions {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn to_query_string(&self) -> String {
         let mut params = Vec::new();
         if self.include_market_cap {

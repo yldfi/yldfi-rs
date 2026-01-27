@@ -217,7 +217,11 @@ impl RateLimiter {
                 .is_ok()
             {
                 // Successfully incremented, try to acquire semaphore permit
-                return inner.semaphore.try_acquire().map(tokio::sync::SemaphorePermit::forget).is_ok();
+                return inner
+                    .semaphore
+                    .try_acquire()
+                    .map(tokio::sync::SemaphorePermit::forget)
+                    .is_ok();
             }
             // CAS failed - another thread modified count, retry
         }

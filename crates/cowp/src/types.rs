@@ -34,7 +34,7 @@ pub enum Chain {
 
 impl Chain {
     /// Convert from EVM chain ID
-    #[must_use] 
+    #[must_use]
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
         match chain_id {
             1 => Some(Chain::Mainnet),
@@ -46,7 +46,7 @@ impl Chain {
     }
 
     /// Get the API base URL for this chain
-    #[must_use] 
+    #[must_use]
     pub fn api_url(&self) -> &'static str {
         match self {
             Chain::Mainnet => "https://api.cow.fi/mainnet",
@@ -57,7 +57,7 @@ impl Chain {
     }
 
     /// Get the chain ID
-    #[must_use] 
+    #[must_use]
     pub fn chain_id(&self) -> u64 {
         match self {
             Chain::Mainnet => 1,
@@ -68,13 +68,13 @@ impl Chain {
     }
 
     /// Parse chain from string (returns Option for backward compatibility)
-    #[must_use] 
+    #[must_use]
     pub fn try_from_str(s: &str) -> Option<Self> {
         s.parse().ok()
     }
 
     /// Get chain name
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Chain::Mainnet => "mainnet",

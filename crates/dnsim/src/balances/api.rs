@@ -1,6 +1,8 @@
 //! Balances API endpoints
 
-use super::types::{BalancesResponse, BalancesOptions, SingleBalanceOptions, SingleBalanceResponse};
+use super::types::{
+    BalancesOptions, BalancesResponse, SingleBalanceOptions, SingleBalanceResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +12,7 @@ pub struct BalancesApi<'a> {
 }
 
 impl<'a> BalancesApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

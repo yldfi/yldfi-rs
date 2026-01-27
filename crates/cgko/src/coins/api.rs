@@ -1,6 +1,9 @@
 //! Coins API endpoints
 
-use super::types::{CoinListItem, CoinMarket, MarketsOptions, CoinData, CoinTickers, MarketChart, OhlcData, CoinHistory, TopMoversResponse, RecentlyAddedCoin, CoinContractData, SupplyChart};
+use super::types::{
+    CoinContractData, CoinData, CoinHistory, CoinListItem, CoinMarket, CoinTickers, MarketChart,
+    MarketsOptions, OhlcData, RecentlyAddedCoin, SupplyChart, TopMoversResponse,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +13,7 @@ pub struct CoinsApi<'a> {
 }
 
 impl<'a> CoinsApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }
@@ -81,9 +84,7 @@ impl<'a> CoinsApi<'a> {
         vs_currency: &str,
         days: &str,
     ) -> Result<MarketChart> {
-        let path = format!(
-            "/coins/{id}/market_chart?vs_currency={vs_currency}&days={days}"
-        );
+        let path = format!("/coins/{id}/market_chart?vs_currency={vs_currency}&days={days}");
         self.client.get(&path).await
     }
 
@@ -95,9 +96,8 @@ impl<'a> CoinsApi<'a> {
         from: u64,
         to: u64,
     ) -> Result<MarketChart> {
-        let path = format!(
-            "/coins/{id}/market_chart/range?vs_currency={vs_currency}&from={from}&to={to}"
-        );
+        let path =
+            format!("/coins/{id}/market_chart/range?vs_currency={vs_currency}&from={from}&to={to}");
         self.client.get(&path).await
     }
 
@@ -108,9 +108,7 @@ impl<'a> CoinsApi<'a> {
     /// * `vs_currency` - Target currency
     /// * `days` - Data range (1, 7, 14, 30, 90, 180, 365)
     pub async fn ohlc(&self, id: &str, vs_currency: &str, days: u32) -> Result<OhlcData> {
-        let path = format!(
-            "/coins/{id}/ohlc?vs_currency={vs_currency}&days={days}"
-        );
+        let path = format!("/coins/{id}/ohlc?vs_currency={vs_currency}&days={days}");
         self.client.get(&path).await
     }
 
@@ -131,9 +129,7 @@ impl<'a> CoinsApi<'a> {
         date: &str,
         localization: bool,
     ) -> Result<CoinHistory> {
-        let path = format!(
-            "/coins/{id}/history?date={date}&localization={localization}"
-        );
+        let path = format!("/coins/{id}/history?date={date}&localization={localization}");
         self.client.get(&path).await
     }
 
@@ -147,9 +143,8 @@ impl<'a> CoinsApi<'a> {
         vs_currency: &str,
         duration: &str,
     ) -> Result<TopMoversResponse> {
-        let path = format!(
-            "/coins/top_gainers_losers?vs_currency={vs_currency}&duration={duration}"
-        );
+        let path =
+            format!("/coins/top_gainers_losers?vs_currency={vs_currency}&duration={duration}");
         self.client.get(&path).await
     }
 
@@ -172,9 +167,7 @@ impl<'a> CoinsApi<'a> {
         from: u64,
         to: u64,
     ) -> Result<OhlcData> {
-        let path = format!(
-            "/coins/{id}/ohlc/range?vs_currency={vs_currency}&from={from}&to={to}"
-        );
+        let path = format!("/coins/{id}/ohlc/range?vs_currency={vs_currency}&from={from}&to={to}");
         self.client.get(&path).await
     }
 
@@ -234,9 +227,7 @@ impl<'a> CoinsApi<'a> {
         from: u64,
         to: u64,
     ) -> Result<SupplyChart> {
-        let path = format!(
-            "/coins/{id}/circulating_supply_chart/range?from={from}&to={to}"
-        );
+        let path = format!("/coins/{id}/circulating_supply_chart/range?from={from}&to={to}");
         self.client.get(&path).await
     }
 
@@ -257,9 +248,7 @@ impl<'a> CoinsApi<'a> {
         from: u64,
         to: u64,
     ) -> Result<SupplyChart> {
-        let path = format!(
-            "/coins/{id}/total_supply_chart/range?from={from}&to={to}"
-        );
+        let path = format!("/coins/{id}/total_supply_chart/range?from={from}&to={to}");
         self.client.get(&path).await
     }
 }

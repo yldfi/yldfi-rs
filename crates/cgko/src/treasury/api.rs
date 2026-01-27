@@ -1,6 +1,8 @@
 //! Treasury API endpoints
 
-use super::types::{EntityListItem, PublicTreasuryByCoin, PublicTreasuryByEntity, HoldingChart, TransactionHistory};
+use super::types::{
+    EntityListItem, HoldingChart, PublicTreasuryByCoin, PublicTreasuryByEntity, TransactionHistory,
+};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +12,7 @@ pub struct TreasuryApi<'a> {
 }
 
 impl<'a> TreasuryApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

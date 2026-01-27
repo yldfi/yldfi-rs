@@ -395,7 +395,7 @@ pub struct RoutesOptions {
 
 impl RoutesOptions {
     /// Create new route options
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -1065,7 +1065,7 @@ pub struct ConnectionsRequest {
 
 impl ConnectionsRequest {
     /// Create a new connections request
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -1136,7 +1136,7 @@ pub struct TokensRequest {
 
 impl TokensRequest {
     /// Create a new tokens request
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

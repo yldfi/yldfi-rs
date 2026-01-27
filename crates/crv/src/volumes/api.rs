@@ -1,6 +1,6 @@
 //! Volumes and APYs API client
 
-use super::types::{GaugesResponse, BaseApysResponse, VolumesResponse};
+use super::types::{BaseApysResponse, GaugesResponse, VolumesResponse};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -11,7 +11,7 @@ pub struct VolumesApi<'a> {
 
 impl<'a> VolumesApi<'a> {
     /// Create a new volumes API client
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

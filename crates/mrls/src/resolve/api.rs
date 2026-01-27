@@ -1,6 +1,6 @@
 //! Resolve API client
 
-use super::types::{ResolvedDomain, ReverseResolution, DomainLookup, EnsDomain};
+use super::types::{DomainLookup, EnsDomain, ResolvedDomain, ReverseResolution};
 use crate::client::Client;
 use crate::error::Result;
 
@@ -10,7 +10,7 @@ pub struct ResolveApi<'a> {
 }
 
 impl<'a> ResolveApi<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(client: &'a Client) -> Self {
         Self { client }
     }

@@ -201,7 +201,7 @@ impl SubgraphClient {
     }
 
     /// Get the Uniswap version this client is configured for
-    #[must_use] 
+    #[must_use]
     pub fn version(&self) -> UniswapVersion {
         self.version
     }
