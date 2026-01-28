@@ -478,6 +478,181 @@ ethcli kong reports strategy --chain-id 1 0x...
 - **Alias**: `ethcli yearn` works as an alias for `ethcli kong`
 - **No API key**: Kong API is free and public
 
+## Alchemy Commands
+
+Direct access to Alchemy API. Requires `ALCHEMY_API_KEY` environment variable.
+
+```bash
+# NFT queries
+ethcli alchemy nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli alchemy nft-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+
+# Token data
+ethcli alchemy balances 0x...
+ethcli alchemy token-metadata 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+
+# Transfers
+ethcli alchemy transfers 0x... --category erc20
+
+# Debug traces
+ethcli alchemy trace-tx 0x...
+```
+
+## Gecko (CoinGecko) Commands
+
+Direct access to CoinGecko API. Optional `COINGECKO_API_KEY` for Pro API (higher rate limits).
+
+```bash
+# Coin data
+ethcli gecko coin bitcoin
+ethcli gecko coin ethereum --format json
+
+# Price queries
+ethcli gecko price bitcoin,ethereum --vs usd,eur
+ethcli gecko price-history bitcoin --days 30
+
+# Market data
+ethcli gecko markets --vs usd --per-page 100
+ethcli gecko trending
+
+# NFT data
+ethcli gecko nft-collection boredapeyachtclub
+
+# Exchanges
+ethcli gecko exchanges
+ethcli gecko exchange binance
+```
+
+## Llama (DefiLlama) Commands
+
+Direct access to DefiLlama API. Optional `DEFILLAMA_API_KEY` for Pro endpoints.
+
+```bash
+# TVL data
+ethcli llama tvl aave
+ethcli llama protocols
+ethcli llama chains
+
+# Prices
+ethcli llama price ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli llama prices ethereum:0x...,ethereum:0x...
+ethcli llama price-history ethereum:0x... --period 1d
+
+# Yields
+ethcli llama yields
+ethcli llama yields --chain ethereum --project aave
+
+# Stablecoins
+ethcli llama stablecoins
+ethcli llama stablecoin-history tether
+```
+
+## Moralis Commands
+
+Direct access to Moralis API. Requires `MORALIS_API_KEY` environment variable.
+
+```bash
+# Wallet data
+ethcli moralis balance 0x...
+ethcli moralis tokens 0x...
+ethcli moralis transactions 0x...
+ethcli moralis transfers 0x...
+
+# NFT data
+ethcli moralis nfts 0x...
+ethcli moralis nft-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+
+# Token data
+ethcli moralis token-price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli moralis token-metadata 0x...
+
+# DeFi positions
+ethcli moralis defi-positions 0x...
+```
+
+## Dsim (Dune SIM) Commands
+
+Direct access to Dune SIM API. Requires `DUNE_SIM_API_KEY` environment variable.
+
+```bash
+# Wallet simulation
+ethcli dsim balances 0x...
+ethcli dsim activity 0x...
+ethcli dsim collectibles 0x...
+ethcli dsim defi 0x...
+```
+
+## Dune Commands
+
+Direct access to Dune Analytics API. Requires `DUNE_API_KEY` environment variable.
+
+```bash
+# Run queries
+ethcli dune query 1234567
+ethcli dune query 1234567 --params '{"address": "0x..."}'
+
+# Get results
+ethcli dune results 1234567
+ethcli dune results 1234567 --format csv
+
+# Executions
+ethcli dune execute 1234567
+ethcli dune status <execution-id>
+
+# Tables
+ethcli dune tables --namespace dune
+```
+
+## Curve Commands
+
+Direct access to Curve Finance API. No API key required.
+
+```bash
+# Pool data
+ethcli curve pools
+ethcli curve pools --chain ethereum
+ethcli curve pool 0x...
+
+# Volume and TVL
+ethcli curve volumes
+ethcli curve tvl
+
+# Lending
+ethcli curve lending-pools
+ethcli curve lending-pool 0x...
+
+# Token data
+ethcli curve tokens
+ethcli curve token 0x...
+```
+
+## CCXT Commands
+
+Query cryptocurrency exchanges via CCXT. No API key required for public data.
+
+```bash
+# Ticker data
+ethcli ccxt ticker binance BTC/USDT
+ethcli ccxt ticker okx ETH/USDT
+
+# Order book
+ethcli ccxt orderbook binance BTC/USDT --limit 10
+
+# OHLCV candles
+ethcli ccxt ohlcv binance BTC/USDT --timeframe 1h --limit 100
+
+# Exchange info
+ethcli ccxt exchanges
+ethcli ccxt markets binance
+
+# Multiple exchanges
+ethcli ccxt ticker bitget,hyperliquid BTC/USDT
+```
+
+### Supported Exchanges
+
+Binance, Bitget, OKX, Hyperliquid, and many more via CCXT library.
+
 ## Uniswap Commands
 
 Query Uniswap V2, V3, and V4 pools via on-chain lens queries and The Graph subgraph.
@@ -633,7 +808,9 @@ src/
 - **crv**: Curve Finance API client
 - **ykong**: Yearn Kong GraphQL API client
 - **unswp**: Uniswap V2/V3/V4 client (on-chain lens + subgraph)
+- **gplus**: GoPlus Security API client
 - **sldt**: Solodit vulnerability database client
+- **ccxt-rust**: Cryptocurrency exchange data via CCXT
 - **tokio**: Async runtime
 - **clap**: CLI parsing
 - **serde/serde_json**: Serialization
