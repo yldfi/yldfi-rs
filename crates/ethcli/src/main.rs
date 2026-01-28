@@ -1,7 +1,7 @@
 //! ethcli - Comprehensive Ethereum CLI
 
 use alloy::providers::Provider;
-use clap::{CommandFactory, Parser};
+use clap::Parser;
 use ethcli::cli::{
     config::ConfigCommands,
     endpoints::EndpointCommands,

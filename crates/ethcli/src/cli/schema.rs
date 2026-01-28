@@ -81,10 +81,7 @@ impl ArgSchema {
 
         let short = arg.get_short();
 
-        let description = arg
-            .get_help()
-            .map(|s| s.to_string())
-            .unwrap_or_default();
+        let description = arg.get_help().map(|s| s.to_string()).unwrap_or_default();
 
         let required = arg.is_required_set();
 
@@ -143,15 +140,9 @@ impl CommandSchema {
     fn from_clap_command(cmd: &Command) -> Self {
         let name = cmd.get_name().to_string();
 
-        let description = cmd
-            .get_about()
-            .map(|s| s.to_string())
-            .unwrap_or_default();
+        let description = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
 
-        let aliases: Vec<String> = cmd
-            .get_visible_aliases()
-            .map(|s| s.to_string())
-            .collect();
+        let aliases: Vec<String> = cmd.get_visible_aliases().map(|s| s.to_string()).collect();
 
         let mut positional_args = Vec::new();
         let mut options = Vec::new();
@@ -199,18 +190,13 @@ impl CliSchema {
             .get_version()
             .map(|s| s.to_string())
             .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
-        let description = cmd
-            .get_about()
-            .map(|s| s.to_string())
-            .unwrap_or_default();
+        let description = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
 
         // Collect global options
         let global_options: Vec<ArgSchema> = cmd
             .get_arguments()
             .filter(|arg| {
-                arg.is_global_set()
-                    && arg.get_id() != "help"
-                    && arg.get_id() != "version"
+                arg.is_global_set() && arg.get_id() != "help" && arg.get_id() != "version"
             })
             .map(ArgSchema::from_clap_arg)
             .collect();
@@ -248,7 +234,9 @@ pub fn get_subcommand_schema<T: CommandFactory>(path: &[&str]) -> Option<Command
 
     let mut current = &cmd;
     for name in path {
-        current = current.get_subcommands().find(|sc| sc.get_name() == *name)?;
+        current = current
+            .get_subcommands()
+            .find(|sc| sc.get_name() == *name)?;
     }
 
     Some(CommandSchema::from_clap_command(current))

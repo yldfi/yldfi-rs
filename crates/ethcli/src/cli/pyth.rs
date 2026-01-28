@@ -49,7 +49,11 @@ pub async fn run(args: PythArgs, _chain: &str) -> anyhow::Result<()> {
             // Convert symbols to feed IDs where needed
             let feed_ids: Vec<String> = feeds
                 .iter()
-                .map(|f| symbol_to_feed_id(f).map(|s| s.to_string()).unwrap_or_else(|| f.clone()))
+                .map(|f| {
+                    symbol_to_feed_id(f)
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| f.clone())
+                })
                 .collect();
 
             let feed_refs: Vec<&str> = feed_ids.iter().map(|s| s.as_str()).collect();

@@ -574,7 +574,10 @@ impl Client {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_gas_prices(&self, chain_id: ChainId) -> Result<Option<crate::types::GasPrice>> {
+    pub async fn get_gas_prices(
+        &self,
+        chain_id: ChainId,
+    ) -> Result<Option<crate::types::GasPrice>> {
         let all_prices = self.get_all_gas_prices().await?;
         Ok(all_prices.get(&chain_id.to_string()).cloned())
     }

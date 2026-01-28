@@ -513,7 +513,9 @@ where
 }
 
 /// Deserialize a value that can be a string, number (int or float), or null into Option<String>
-fn deserialize_optional_string_or_number<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+fn deserialize_optional_string_or_number<'de, D>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

@@ -196,7 +196,7 @@ impl Client {
     ///     let client = Client::new()?;
     ///     let dexs = client.get_dex_list(Chain::Eth).await?;
     ///     for dex in &dexs {
-    ///         println!("{}: {}", dex.id, dex.name);
+    ///         println!("{}: {}", dex.code, dex.name);
     ///     }
     ///     Ok(())
     /// }

@@ -307,12 +307,13 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
                 let connections = client.get_all_connections().await?;
                 output_json(&connections, args.format)?;
             } else {
-                let mut request = lfi::ConnectionsRequest::default();
-                request.from_chain = from_chain;
-                request.to_chain = to_chain;
-                request.from_token = from_token;
-                request.to_token = to_token;
-
+                let request = lfi::ConnectionsRequest {
+                    from_chain,
+                    to_chain,
+                    from_token,
+                    to_token,
+                    ..Default::default()
+                };
                 let connections = client.get_connections(&request).await?;
                 output_json(&connections, args.format)?;
             }
