@@ -278,7 +278,7 @@ impl PriceRequest {
 }
 
 /// Price response with routing information
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PriceResponse {
     /// Price route containing all swap details
@@ -475,7 +475,7 @@ impl TransactionRequest {
 }
 
 /// Transaction response ready for signing
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionResponse {
     /// Sender address
@@ -497,15 +497,16 @@ pub struct TransactionResponse {
 }
 
 /// Token information
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Token {
     /// Token contract address
     pub address: String,
     /// Token symbol
     pub symbol: String,
-    /// Token name
-    pub name: String,
+    /// Token name (optional, not always returned by API)
+    #[serde(default)]
+    pub name: Option<String>,
     /// Token decimals
     pub decimals: u8,
     /// Token logo URL
@@ -517,7 +518,7 @@ pub struct Token {
 }
 
 /// Token list response
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenListResponse {
     /// List of tokens
     pub tokens: Vec<Token>,

@@ -416,6 +416,9 @@ pub struct SwapData {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenInfo {
+    /// Token ID from API (can be integer or string)
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_int")]
+    pub id: Option<String>,
     /// Token address
     pub address: String,
     /// Token symbol
@@ -425,9 +428,18 @@ pub struct TokenInfo {
     pub name: Option<String>,
     /// Token decimals
     pub decimals: u8,
-    /// USD price
-    #[serde(default)]
+    /// USD price (can be number or string in API)
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_number")]
     pub usd: Option<String>,
+    /// Token code identifier
+    #[serde(default)]
+    pub code: Option<String>,
+    /// Token icon URL
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Chain name
+    #[serde(default)]
+    pub chain: Option<String>,
 }
 
 /// Routing path
@@ -472,12 +484,54 @@ pub struct SubRoute {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DexInfo {
-    /// DEX ID
-    pub id: String,
+    /// DEX index (position in list)
+    pub index: i32,
+    /// DEX code identifier
+    pub code: String,
     /// DEX name
     pub name: String,
-    /// Whether enabled
-    pub enabled: bool,
+}
+
+/// Deserialize a value that can be either a string, integer, or null into Option<String>
+fn deserialize_optional_string_or_int<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrIntOrNull {
+        Null,
+        String(String),
+        Int(i64),
+    }
+
+    match StringOrIntOrNull::deserialize(deserializer)? {
+        StringOrIntOrNull::Null => Ok(None),
+        StringOrIntOrNull::String(s) => Ok(Some(s)),
+        StringOrIntOrNull::Int(i) => Ok(Some(i.to_string())),
+    }
+}
+
+/// Deserialize a value that can be a string, number (int or float), or null into Option<String>
+fn deserialize_optional_string_or_number<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNumberOrNull {
+        Null,
+        String(String),
+        Int(i64),
+        Float(f64),
+    }
+
+    match StringOrNumberOrNull::deserialize(deserializer)? {
+        StringOrNumberOrNull::Null => Ok(None),
+        StringOrNumberOrNull::String(s) => Ok(Some(s)),
+        StringOrNumberOrNull::Int(i) => Ok(Some(i.to_string())),
+        StringOrNumberOrNull::Float(f) => Ok(Some(f.to_string())),
+    }
 }
 
 /// Token list response

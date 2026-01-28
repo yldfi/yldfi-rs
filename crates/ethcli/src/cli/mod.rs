@@ -11,24 +11,32 @@ pub mod ccxt;
 pub mod chainlink;
 pub mod config;
 pub mod contract;
+pub mod cowswap;
 pub mod curve;
 pub mod doctor;
 pub mod dsim;
 pub mod dune_cli;
 pub mod endpoints;
 pub mod ens;
+pub mod enso;
 pub mod gas;
 pub mod gecko;
 pub mod goplus;
 pub mod kong;
+pub mod kyber;
+pub mod lifi;
 pub mod llama;
 pub mod logs;
 pub mod moralis;
 pub mod nfts;
+pub mod oneinch;
+pub mod openocean;
 pub mod portfolio;
 pub mod price;
+pub mod pyth;
 pub mod quote;
 pub mod rpc;
+pub mod schema;
 pub mod sig;
 pub mod simulate;
 pub mod solodit;
@@ -37,7 +45,9 @@ pub mod token;
 pub mod tx;
 pub mod uniswap;
 pub mod update;
+pub mod velora;
 pub mod yields;
+pub mod zerox;
 
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
@@ -375,6 +385,67 @@ pub enum Commands {
         #[command(subcommand)]
         action: kong::KongCommands,
     },
+
+    /// Direct 1inch DEX Aggregator API access
+    ///
+    /// Get swap quotes, prices, and liquidity sources from 1inch.
+    /// Requires 1INCH_API_KEY environment variable.
+    #[command(name = "1inch", visible_alias = "oneinch")]
+    OneInch(oneinch::OneInchArgs),
+
+    /// Direct OpenOcean DEX Aggregator API access
+    ///
+    /// Get swap quotes and routes from OpenOcean.
+    /// No API key required.
+    #[command(visible_alias = "oo")]
+    OpenOcean(openocean::OpenOceanArgs),
+
+    /// Direct KyberSwap DEX Aggregator API access
+    ///
+    /// Get swap routes and build transactions via KyberSwap.
+    /// No API key required.
+    #[command(visible_alias = "kyber")]
+    KyberSwap(kyber::KyberArgs),
+
+    /// Direct 0x Protocol DEX Aggregator API access
+    ///
+    /// Get swap quotes and prices from 0x.
+    /// Requires ZEROX_API_KEY environment variable.
+    #[command(name = "0x", visible_alias = "zerox")]
+    ZeroX(zerox::ZeroXArgs),
+
+    /// Direct CowSwap (CoW Protocol) API access
+    ///
+    /// MEV-protected trading via CoW Protocol batch auctions.
+    /// No API key required.
+    #[command(visible_alias = "cow")]
+    CowSwap(cowswap::CowSwapArgs),
+
+    /// Direct LI.FI Cross-Chain DEX Aggregator API access
+    ///
+    /// Cross-chain swaps and bridges via LI.FI.
+    /// Optional LIFI_INTEGRATOR for analytics.
+    #[command(name = "lifi", visible_alias = "li.fi")]
+    LiFi(lifi::LiFiArgs),
+
+    /// Direct Velora (ParaSwap) DEX Aggregator API access
+    ///
+    /// Get swap prices and build transactions via ParaSwap.
+    /// Optional PARASWAP_API_KEY or VELORA_API_KEY for higher rate limits.
+    #[command(visible_alias = "paraswap")]
+    Velora(velora::VeloraArgs),
+
+    /// Direct Enso Finance DeFi Aggregator API access
+    ///
+    /// DeFi shortcuts and bundled actions via Enso.
+    /// Requires ENSO_API_KEY environment variable.
+    Enso(enso::EnsoArgs),
+
+    /// Direct Pyth Network Price Feeds API access
+    ///
+    /// Real-time and historical price data from Pyth Network.
+    /// No API key required.
+    Pyth(pyth::PythArgs),
 
     /// Generate shell completions
     #[command(after_help = r#"EXAMPLES:

@@ -239,6 +239,7 @@ pub use types::{
     FeeCost,
     GasCost,
     GasPrice,
+    GasPricesResponse,
     Insurance,
     // Quote types
     Quote,

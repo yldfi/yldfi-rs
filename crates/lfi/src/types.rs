@@ -697,6 +697,15 @@ pub struct Estimate {
     /// Data
     #[serde(default)]
     pub data: Option<EstimateData>,
+    /// Whether approval needs to be reset (for tokens with non-standard approval)
+    #[serde(default)]
+    pub approval_reset: Option<bool>,
+    /// Whether to skip the approval step
+    #[serde(default)]
+    pub skip_approval: Option<bool>,
+    /// Whether to skip permit signing
+    #[serde(default)]
+    pub skip_permit: Option<bool>,
 }
 
 /// Fee cost
@@ -1161,6 +1170,26 @@ pub struct TokensResponse {
 // Tools Types (Bridges and Exchanges)
 // ============================================================================
 
+/// Supported chain pair for a tool (from -> to)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SupportedChainPair {
+    /// Source chain ID
+    pub from_chain_id: ChainId,
+    /// Destination chain ID
+    pub to_chain_id: ChainId,
+}
+
+/// Supported chain entry - can be either a pair or a single chain ID
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SupportedChainEntry {
+    /// A pair of chain IDs (from -> to) for bridges
+    Pair(SupportedChainPair),
+    /// A single chain ID for exchanges
+    Single(ChainId),
+}
+
 /// Tool information (bridge or exchange)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1169,15 +1198,15 @@ pub struct Tool {
     pub key: String,
     /// Tool name
     pub name: String,
-    /// Tool type
-    #[serde(rename = "type")]
-    pub tool_type: ToolType,
+    /// Tool type (optional, not always present in API response)
+    #[serde(rename = "type", default)]
+    pub tool_type: Option<ToolType>,
     /// Logo URI
     #[serde(default)]
     pub logo_uri: Option<String>,
-    /// Supported chains
+    /// Supported chains (can be chain pairs for bridges or single IDs for exchanges)
     #[serde(default)]
-    pub supported_chains: Vec<ChainId>,
+    pub supported_chains: Vec<SupportedChainEntry>,
 }
 
 /// Tool type
@@ -1206,25 +1235,30 @@ pub struct ToolsResponse {
 // Gas Prices Types
 // ============================================================================
 
-/// Gas price information
+/// Gas price information for a single chain
+///
+/// Gas prices are returned as integers in wei.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GasPrice {
-    /// Chain ID
-    pub chain_id: ChainId,
-    /// Slow gas price (wei)
+    /// Standard gas price (wei)
     #[serde(default)]
-    pub slow: Option<String>,
-    /// Average gas price (wei)
-    #[serde(default)]
-    pub average: Option<String>,
+    pub standard: Option<u64>,
     /// Fast gas price (wei)
     #[serde(default)]
-    pub fast: Option<String>,
-    /// Instant gas price (wei)
+    pub fast: Option<u64>,
+    /// Fastest gas price (wei)
     #[serde(default)]
-    pub instant: Option<String>,
+    pub fastest: Option<u64>,
+    /// Last updated timestamp (unix seconds)
+    #[serde(default)]
+    pub last_updated: Option<u64>,
 }
+
+/// Gas prices response - map of chain ID to gas price
+///
+/// The keys are chain IDs as strings (e.g., "1" for Ethereum, "10" for Optimism).
+pub type GasPricesResponse = std::collections::HashMap<String, GasPrice>;
 
 // ============================================================================
 // Error Types

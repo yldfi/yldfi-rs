@@ -530,7 +530,32 @@ impl Client {
     // Gas API
     // ========================================================================
 
-    /// Get gas prices for a chain
+    /// Get gas prices for all supported chains
+    ///
+    /// Returns a map of chain ID strings to gas prices.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use lfi::{Client, chains};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), lfi::Error> {
+    ///     let client = Client::new()?;
+    ///     let gas_prices = client.get_all_gas_prices().await?;
+    ///
+    ///     if let Some(eth_gas) = gas_prices.get("1") {
+    ///         println!("Ethereum fast gas: {:?} wei", eth_gas.fast);
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_all_gas_prices(&self) -> Result<crate::types::GasPricesResponse> {
+        self.get("/gas/prices").await
+    }
+
+    /// Get gas prices for a specific chain
     ///
     /// # Example
     ///
@@ -542,15 +567,16 @@ impl Client {
     ///     let client = Client::new()?;
     ///     let gas = client.get_gas_prices(chains::ETHEREUM).await?;
     ///
-    ///     if let Some(fast) = &gas.fast {
-    ///         println!("Fast gas price: {} wei", fast);
+    ///     if let Some(gas) = gas {
+    ///         println!("Fast gas price: {:?} wei", gas.fast);
     ///     }
     ///
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_gas_prices(&self, chain_id: ChainId) -> Result<crate::types::GasPrice> {
-        self.get(&format!("/gas?chainId={chain_id}")).await
+    pub async fn get_gas_prices(&self, chain_id: ChainId) -> Result<Option<crate::types::GasPrice>> {
+        let all_prices = self.get_all_gas_prices().await?;
+        Ok(all_prices.get(&chain_id.to_string()).cloned())
     }
 
     // ========================================================================

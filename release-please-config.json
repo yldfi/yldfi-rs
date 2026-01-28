@@ -111,6 +111,17 @@
       "draft": false,
       "prerelease": false
     },
+    "crates/ethcli-mcp": {
+      "release-type": "rust",
+      "component": "ethcli-mcp",
+      "tag-separator": "-",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "draft": false,
+      "prerelease": false
+    },
     "crates/kybr": {
       "release-type": "rust",
       "component": "kybr",

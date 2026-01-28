@@ -1,11 +1,12 @@
 //! ethcli - Comprehensive Ethereum CLI
 
 use alloy::providers::Provider;
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use ethcli::cli::{
     config::ConfigCommands,
     endpoints::EndpointCommands,
     logs::{LogsArgs, ProxyArgs, RpcArgs},
+    schema::{get_subcommand_schema, CliSchema},
     tx::TxArgs,
     Cli, Commands,
 };
@@ -85,6 +86,13 @@ fn should_show_progress() -> bool {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Handle --help-json before clap parsing
+    // This allows us to output JSON schema without normal argument validation
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--help-json") {
+        return handle_help_json(&args);
+    }
+
     let cli = Cli::parse();
 
     // Set up logging
@@ -244,6 +252,42 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Kong { action } => {
             return ethcli::cli::kong::handle(action, cli.quiet).await;
+        }
+
+        Commands::OneInch(args) => {
+            return ethcli::cli::oneinch::run(args.clone(), &cli.chain).await;
+        }
+
+        Commands::OpenOcean(args) => {
+            return ethcli::cli::openocean::run(args.clone(), &cli.chain).await;
+        }
+
+        Commands::KyberSwap(args) => {
+            return ethcli::cli::kyber::run(args.clone(), &cli.chain).await;
+        }
+
+        Commands::ZeroX(args) => {
+            return ethcli::cli::zerox::run(args.clone(), &cli.chain).await;
+        }
+
+        Commands::CowSwap(args) => {
+            return ethcli::cli::cowswap::run(args.clone(), &cli.chain).await;
+        }
+
+        Commands::LiFi(args) => {
+            return ethcli::cli::lifi::run(args.clone(), &cli.chain).await;
+        }
+
+        Commands::Velora(args) => {
+            return ethcli::cli::velora::run(args.clone(), &cli.chain).await;
+        }
+
+        Commands::Enso(args) => {
+            return ethcli::cli::enso::run(args.clone(), &cli.chain).await;
+        }
+
+        Commands::Pyth(args) => {
+            return ethcli::cli::pyth::run(args.clone(), &cli.chain).await;
         }
 
         Commands::Completions { shell } => {
@@ -2108,6 +2152,42 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
                 "Throughput: {:.1} tx/s",
                 analyses.len() as f64 / elapsed.as_secs_f64()
             );
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle --help-json flag
+///
+/// Outputs JSON schema for the CLI or a specific subcommand.
+/// Usage:
+///   ethcli --help-json          # Full CLI schema
+///   ethcli tx --help-json       # Schema for 'tx' subcommand
+///   ethcli account balance --help-json  # Schema for nested subcommand
+fn handle_help_json(args: &[String]) -> anyhow::Result<()> {
+    // Collect subcommand path (everything before --help-json that isn't a flag)
+    let subcommand_path: Vec<&str> = args
+        .iter()
+        .skip(1) // Skip program name
+        .filter(|a| *a != "--help-json" && !a.starts_with('-'))
+        .map(|s| s.as_str())
+        .collect();
+
+    if subcommand_path.is_empty() {
+        // Full CLI schema
+        let schema = CliSchema::from_cli::<Cli>();
+        println!("{}", schema.to_json()?);
+    } else {
+        // Subcommand schema
+        match get_subcommand_schema::<Cli>(&subcommand_path) {
+            Some(schema) => {
+                println!("{}", serde_json::to_string_pretty(&schema)?);
+            }
+            None => {
+                let path_str = subcommand_path.join(" ");
+                return Err(anyhow::anyhow!("Unknown subcommand: {}", path_str));
+            }
         }
     }
 

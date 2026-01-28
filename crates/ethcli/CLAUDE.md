@@ -80,6 +80,19 @@ ethcli goplus     # GoPlus Security API (token/address/NFT/approval security)
 ethcli solodit    # Solodit vulnerability database (smart contract security findings)
 ```
 
+### Direct DEX Aggregator Commands
+```
+ethcli 1inch      # 1inch API (quote, swap, tokens, sources, approvals) - requires API key
+ethcli openocean  # OpenOcean API (quote, swap, reverse-quote, tokens, dexes)
+ethcli kyberswap  # KyberSwap API (routes, route-data, build)
+ethcli 0x         # 0x Protocol API (quote, price, sources)
+ethcli cowswap    # CowSwap API (quote, orders, trades, auctions) - MEV protected
+ethcli lifi       # LI.FI API (quote, routes, status, chains, tokens, bridges)
+ethcli velora     # Velora/ParaSwap API (price, transaction, tokens)
+ethcli enso       # Enso Finance API (route, price, balances) - requires API key
+ethcli pyth       # Pyth Network API (price feeds, search, known-feeds)
+```
+
 ### Security & Token Analysis
 ```
 ethcli blacklist  # Token blacklist management (spam/scam filtering)
@@ -653,6 +666,192 @@ ethcli ccxt ticker bitget,hyperliquid BTC/USDT
 
 Binance, Bitget, OKX, Hyperliquid, and many more via CCXT library.
 
+## Direct DEX Aggregator Commands
+
+### 1inch Commands
+
+Direct access to 1inch DEX Aggregator API. Requires `ONEINCH_API_KEY` or `1INCH_API_KEY`.
+
+```bash
+# Get swap quote
+ethcli 1inch quote <src> <dst> <amount> --chain-id 1 --include-gas
+
+# Get swap transaction data
+ethcli 1inch swap <src> <dst> <amount> <from> --chain-id 1 --slippage 1
+
+# Get supported tokens and sources
+ethcli 1inch tokens --chain-id 1
+ethcli 1inch sources --chain-id 1
+
+# Approvals
+ethcli 1inch spender --chain-id 1
+ethcli 1inch allowance <token> <wallet> --chain-id 1
+ethcli 1inch approve <token> --chain-id 1
+```
+
+**Alias**: `ethcli oneinch`
+
+### OpenOcean Commands
+
+Direct access to OpenOcean DEX Aggregator API. No API key required.
+
+```bash
+# Get swap quote
+ethcli openocean quote <in_token> <out_token> <amount> --chain ethereum --slippage 1
+
+# Get swap transaction
+ethcli openocean swap <in_token> <out_token> <amount> <account> --chain ethereum
+
+# Get reverse quote
+ethcli openocean reverse-quote <in_token> <out_token> <out_amount> --chain ethereum
+
+# List tokens and DEXes
+ethcli openocean tokens --chain ethereum
+ethcli openocean dexes --chain ethereum
+```
+
+**Alias**: `ethcli oo`
+
+### KyberSwap Commands
+
+Direct access to KyberSwap Aggregator API. No API key required.
+
+```bash
+# Get optimal routes
+ethcli kyberswap routes <token_in> <token_out> <amount_in> --chain ethereum
+
+# Get route with full data
+ethcli kyberswap route-data <token_in> <token_out> <amount_in> --chain ethereum
+
+# Build swap transaction
+ethcli kyberswap build <token_in> <token_out> <amount_in> <sender> <recipient> \
+  --chain ethereum --slippage-bps 50 --route-summary '<json>'
+```
+
+**Alias**: `ethcli kyber`
+
+### 0x Protocol Commands
+
+Direct access to 0x API. Optional `ZEROX_API_KEY` or `0X_API_KEY` for higher limits.
+
+```bash
+# Get swap quote with tx data
+ethcli 0x quote <sell_token> <buy_token> <sell_amount> <taker> --chain ethereum --slippage-bps 100
+
+# Get price estimate (lighter)
+ethcli 0x price <sell_token> <buy_token> <sell_amount> <taker> --chain ethereum
+
+# Get liquidity sources
+ethcli 0x sources --chain ethereum
+```
+
+**Alias**: `ethcli zerox`
+
+### CowSwap Commands
+
+Direct access to CoW Protocol API for MEV-protected trading. No API key required.
+
+```bash
+# Get MEV-protected quote
+ethcli cowswap quote <sell_token> <buy_token> <amount> <from> --chain ethereum --kind sell
+
+# Order and trade queries
+ethcli cowswap order <uid> --chain ethereum
+ethcli cowswap orders <owner> --chain ethereum
+ethcli cowswap trades <owner> --chain ethereum
+ethcli cowswap order-trades <uid> --chain ethereum
+
+# Auction data
+ethcli cowswap auction --chain ethereum
+ethcli cowswap competition <auction_id> --chain ethereum
+
+# Get native token price
+ethcli cowswap native-price <token> --chain ethereum
+```
+
+**Alias**: `ethcli cow`
+
+### LI.FI Commands
+
+Direct access to LI.FI cross-chain aggregator API. Optional `LIFI_INTEGRATOR` for analytics.
+
+```bash
+# Cross-chain quote
+ethcli lifi quote <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
+
+# Routes
+ethcli lifi routes <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
+ethcli lifi best-route <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
+
+# Transaction status
+ethcli lifi status <tx_hash> --from-chain 1 --to-chain 137
+
+# Discovery
+ethcli lifi chains
+ethcli lifi chain <chain_id>
+ethcli lifi tokens --chain-id 1
+ethcli lifi tools
+ethcli lifi bridges
+ethcli lifi exchanges
+ethcli lifi gas <chain_id>
+ethcli lifi connections --from-chain 1 --to-chain 137
+```
+
+**Alias**: `ethcli li.fi`
+
+### Velora (ParaSwap) Commands
+
+Direct access to ParaSwap API. Optional `PARASWAP_API_KEY` or `VELORA_API_KEY` for higher limits.
+
+```bash
+# Get swap price/route
+ethcli velora price <src_token> <dest_token> <amount> --chain ethereum --side SELL
+
+# Build swap transaction
+ethcli velora transaction <user_address> --chain ethereum --slippage 100 --price-route '<json>'
+
+# List tokens
+ethcli velora tokens --chain ethereum
+```
+
+**Alias**: `ethcli paraswap`
+
+### Enso Finance Commands
+
+Direct access to Enso Finance DeFi aggregator API. Requires `ENSO_API_KEY`.
+
+```bash
+# Get DeFi route
+ethcli enso route <token_in> <token_out> <amount_in> <from_address> --chain-id 1 --slippage 50
+
+# Get token price
+ethcli enso price <token> --chain-id 1
+
+# Get balances
+ethcli enso balances <address> --chain-id 1
+```
+
+### Pyth Network Commands
+
+Direct access to Pyth Network Hermes API. No API key required.
+
+```bash
+# Get latest prices
+ethcli pyth price BTC/USD
+ethcli pyth price ETH SOL AVAX
+
+# Search for feeds
+ethcli pyth search "BTC"
+
+# List feeds
+ethcli pyth feeds
+ethcli pyth feeds --asset-type crypto
+ethcli pyth known-feeds
+```
+
+**Notes**:
+- Supports common symbols: BTC, ETH, SOL, USDC, USDT, DAI, AVAX, ARB, OP, LINK, UNI, AAVE, CRV, CVX, etc.
+
 ## Uniswap Commands
 
 Query Uniswap V2, V3, and V4 pools via on-chain lens queries and The Graph subgraph.
@@ -789,7 +988,16 @@ src/
     ├── uniswap.rs    # Uniswap V2/V3/V4 queries
     ├── goplus.rs     # GoPlus Security API (token/address/NFT/approval)
     ├── solodit.rs    # Solodit vulnerability database
-    └── blacklist.rs  # Token blacklist management
+    ├── blacklist.rs  # Token blacklist management
+    ├── oneinch.rs    # Direct 1inch DEX Aggregator API
+    ├── openocean.rs  # Direct OpenOcean DEX Aggregator API
+    ├── kyber.rs      # Direct KyberSwap Aggregator API
+    ├── zerox.rs      # Direct 0x Protocol API
+    ├── cowswap.rs    # Direct CowSwap/CoW Protocol API
+    ├── lifi.rs       # Direct LI.FI Cross-Chain API
+    ├── velora.rs     # Direct Velora/ParaSwap API
+    ├── enso.rs       # Direct Enso Finance API
+    └── pyth.rs       # Direct Pyth Network Price Feeds API
 ```
 
 ## Key Dependencies
@@ -896,6 +1104,11 @@ ethcli chainlink oracles --chain arbitrum
 | `GOPLUS_APP_KEY` | Optional | GoPlus batch queries (>1 token) |
 | `GOPLUS_APP_SECRET` | Optional | GoPlus batch queries (>1 token) |
 | `SOLODIT_API_KEY` | `ethcli solodit` | Solodit vulnerability database |
+| `ONEINCH_API_KEY` / `1INCH_API_KEY` | `ethcli 1inch` | 1inch DEX Aggregator (required) |
+| `ZEROX_API_KEY` / `0X_API_KEY` | Optional | 0x Protocol (higher rate limits) |
+| `LIFI_INTEGRATOR` | Optional | LI.FI analytics tracking |
+| `PARASWAP_API_KEY` / `VELORA_API_KEY` | Optional | Velora/ParaSwap (higher rate limits) |
+| `ENSO_API_KEY` | `ethcli enso` | Enso Finance (required) |
 
 ## Release Process
 

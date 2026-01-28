@@ -17,6 +17,8 @@ on:
       - 'dnapi-v*'
       - 'dnsim-v*'
       - 'ensof-v*'
+      - 'ethcli-v*'
+      - 'ethcli-mcp-v*'
       - 'gplus-v*'
       - 'kybr-v*'
       - 'lfi-v*'

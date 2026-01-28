@@ -24,7 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace
+      # Build ethcli first so ethcli-mcp tests can use it
+      - run: cargo build -p ethcli --release
+      - name: Run tests
+        run: cargo test --workspace
+        env:
+          ETHCLI_PATH: ${{ github.workspace }}/target/release/ethcli
 
   fmt:
     name: Format

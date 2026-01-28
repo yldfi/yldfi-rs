@@ -244,13 +244,22 @@ impl TxAnalyzer {
             return;
         }
 
+        // Clone what we need to avoid lifetime issues with async closures
+        let abi_fetcher = Arc::clone(&self.abi_fetcher);
+        let chain = self.chain;
+
+        // Collect addresses before async to avoid borrowing contracts in closures
+        let lookup_data: Vec<(usize, Address)> = lookup_indices
+            .iter()
+            .map(|&i| (i, contracts[i].address))
+            .collect();
+
         // Fetch metadata with bounded concurrency
-        let results: Vec<_> = stream::iter(lookup_indices.iter().map(|&i| {
-            let address = contracts[i].address;
+        let results: Vec<_> = stream::iter(lookup_data.into_iter().map(|(i, address)| {
+            let fetcher = Arc::clone(&abi_fetcher);
             async move {
-                let result = self
-                    .abi_fetcher
-                    .get_contract_metadata(self.chain, &format!("{:#x}", address))
+                let result = fetcher
+                    .get_contract_metadata(chain, &format!("{:#x}", address))
                     .await;
                 (i, result)
             }
@@ -292,14 +301,20 @@ impl TxAnalyzer {
             return;
         }
 
+        // Clone what we need to avoid lifetime issues with async closures
+        let abi_fetcher = Arc::clone(&self.abi_fetcher);
+        let chain = self.chain;
+
         // Lookup token metadata with bounded concurrency
         let tokens: Vec<Address> = tokens_to_lookup.into_iter().collect();
-        let results: Vec<_> = stream::iter(tokens.iter().map(|&token| async move {
-            let result = self
-                .abi_fetcher
-                .get_token_metadata_rpc(self.chain, &format!("{:#x}", token))
-                .await;
-            (token, result)
+        let results: Vec<_> = stream::iter(tokens.into_iter().map(|token| {
+            let fetcher = Arc::clone(&abi_fetcher);
+            async move {
+                let result = fetcher
+                    .get_token_metadata_rpc(chain, &format!("{:#x}", token))
+                    .await;
+                (token, result)
+            }
         }))
         .buffer_unordered(MAX_CONCURRENT_REQUESTS)
         .collect()

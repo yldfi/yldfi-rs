@@ -9,6 +9,7 @@
   "crates/ensof": "0.1.1",
   "crates/gplus": "0.1.1",
   "crates/ethcli": "0.21.9",
+  "crates/ethcli-mcp": "0.1.0",
   "crates/kybr": "0.1.3",
   "crates/lfi": "0.1.2",
   "crates/mrls": "0.1.3",

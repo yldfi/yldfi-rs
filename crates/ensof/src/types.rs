@@ -227,7 +227,7 @@ impl RouteRequest {
 }
 
 /// Route response with transaction data
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RouteResponse {
     /// Estimated output amount
@@ -307,7 +307,7 @@ where
 }
 
 /// Transaction data for execution
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionData {
     /// Target contract address
@@ -321,7 +321,7 @@ pub struct TransactionData {
 }
 
 /// Route step in the swap path
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RouteStep {
     /// Protocol/DEX name
@@ -445,7 +445,7 @@ pub struct BundleResponse {
 }
 
 /// Token price information
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenPrice {
     /// Token address
@@ -461,7 +461,7 @@ pub struct TokenPrice {
 }
 
 /// Token balance information
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenBalance {
     /// Token address
