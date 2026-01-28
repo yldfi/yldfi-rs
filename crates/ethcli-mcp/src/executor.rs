@@ -22,9 +22,7 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const FAST_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Commands that use fast timeout (pure computation, no network)
-const FAST_COMMANDS: &[&str] = &[
-    "cast", "ens", "config", "address", "blacklist", "endpoints",
-];
+const FAST_COMMANDS: &[&str] = &["cast", "ens", "config", "address", "blacklist", "endpoints"];
 
 /// Maximum argument length to prevent memory exhaustion
 const MAX_ARG_LENGTH: usize = 10_000;
@@ -324,9 +322,8 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
 fn verify_binary(path: &std::path::Path) -> Result<(), ExecutionError> {
     use std::os::unix::fs::PermissionsExt;
 
-    let metadata = std::fs::metadata(path).map_err(|e| {
-        ExecutionError::BinaryNotFound(format!("{}: {}", path.display(), e))
-    })?;
+    let metadata = std::fs::metadata(path)
+        .map_err(|e| ExecutionError::BinaryNotFound(format!("{}: {}", path.display(), e)))?;
 
     // Check it's a file
     if !metadata.is_file() {
@@ -545,7 +542,8 @@ mod tests {
     #[test]
     fn test_validate_eth_address_invalid_length() {
         assert!(validate_eth_address("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA9604").is_err()); // 41 chars
-        assert!(validate_eth_address("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA960455").is_err()); // 43 chars
+        assert!(validate_eth_address("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA960455").is_err());
+        // 43 chars
     }
 
     #[test]

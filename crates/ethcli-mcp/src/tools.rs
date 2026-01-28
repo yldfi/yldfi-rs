@@ -2865,7 +2865,7 @@ pub async fn health() -> String {
 
     // Get metrics
     let m = metrics().snapshot();
-    status.push_str(&format!("\nMetrics:\n"));
+    status.push_str("\nMetrics:\n");
     status.push_str(&format!("  commands_total: {}\n", m.commands_total));
     status.push_str(&format!("  commands_success: {}\n", m.commands_success));
     status.push_str(&format!("  commands_failed: {}\n", m.commands_failed));

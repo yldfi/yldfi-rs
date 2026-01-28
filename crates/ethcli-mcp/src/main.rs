@@ -69,7 +69,9 @@ impl EthcliMcpServer {
             input.to_block.as_deref(),
             input.topics,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -80,7 +82,9 @@ impl EthcliMcpServer {
         description = "Analyze an Ethereum transaction including decoded events, token transfers, and method calls"
     )]
     async fn tx_analyze(&self, Parameters(input): Parameters<TxAnalyzeInput>) -> String {
-        tools::tx_analyze(&input.hash, Some(&input.chain), input.trace).await.to_response()
+        tools::tx_analyze(&input.hash, Some(&input.chain), input.trace)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -91,17 +95,23 @@ impl EthcliMcpServer {
         description = "Get comprehensive account information including balance and transaction count"
     )]
     async fn account_info(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_info(&input.address, Some(&input.chain)).await.to_response()
+        tools::account_info(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get the native token (ETH) balance for an address")]
     async fn account_balance(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_balance(&input.address, Some(&input.chain)).await.to_response()
+        tools::account_balance(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "List transactions for an address")]
     async fn account_txs(&self, Parameters(input): Parameters<AccountTxsInput>) -> String {
-        tools::account_txs(&input.address, Some(&input.chain), input.limit).await.to_response()
+        tools::account_txs(&input.address, Some(&input.chain), input.limit)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get internal transactions for an address")]
@@ -109,22 +119,30 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AccountAddressInput>,
     ) -> String {
-        tools::account_internal_txs(&input.address, Some(&input.chain)).await.to_response()
+        tools::account_internal_txs(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get ERC20 token transfers for an address")]
     async fn account_erc20(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_erc20(&input.address, Some(&input.chain)).await.to_response()
+        tools::account_erc20(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get ERC721 NFT transfers for an address")]
     async fn account_erc721(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_erc721(&input.address, Some(&input.chain)).await.to_response()
+        tools::account_erc721(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get ERC1155 token transfers for an address")]
     async fn account_erc1155(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_erc1155(&input.address, Some(&input.chain)).await.to_response()
+        tools::account_erc1155(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -133,12 +151,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "Fetch the ABI for a verified contract from Etherscan")]
     async fn contract_abi(&self, Parameters(input): Parameters<ContractAddressInput>) -> String {
-        tools::contract_abi(&input.address, Some(&input.chain)).await.to_response()
+        tools::contract_abi(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Download verified source code for a contract")]
     async fn contract_source(&self, Parameters(input): Parameters<ContractAddressInput>) -> String {
-        tools::contract_source(&input.address, Some(&input.chain)).await.to_response()
+        tools::contract_source(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get contract creation transaction and creator address")]
@@ -146,7 +168,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ContractAddressInput>,
     ) -> String {
-        tools::contract_creation(&input.address, Some(&input.chain)).await.to_response()
+        tools::contract_creation(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -155,17 +179,23 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get token metadata (name, symbol, decimals, total supply)")]
     async fn token_info(&self, Parameters(input): Parameters<TokenInfoInput>) -> String {
-        tools::token_info(&input.address, Some(&input.chain)).await.to_response()
+        tools::token_info(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get top token holders")]
     async fn token_holders(&self, Parameters(input): Parameters<TokenHoldersInput>) -> String {
-        tools::token_holders(&input.address, Some(&input.chain), input.limit).await.to_response()
+        tools::token_holders(&input.address, Some(&input.chain), input.limit)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token balance for a specific address")]
     async fn token_balance(&self, Parameters(input): Parameters<TokenBalanceInput>) -> String {
-        tools::token_balance(&input.token, &input.address, Some(&input.chain)).await.to_response()
+        tools::token_balance(&input.token, &input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -184,7 +214,9 @@ impl EthcliMcpServer {
             input.value.as_deref(),
             input.data.as_deref(),
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -207,12 +239,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "Convert amount to wei")]
     async fn cast_to_wei(&self, Parameters(input): Parameters<CastToWeiInput>) -> String {
-        tools::cast_to_wei(&input.amount, Some(&input.unit)).await.to_response()
+        tools::cast_to_wei(&input.amount, Some(&input.unit))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Convert wei to ether or gwei")]
     async fn cast_from_wei(&self, Parameters(input): Parameters<CastFromWeiInput>) -> String {
-        tools::cast_from_wei(&input.wei, Some(&input.unit)).await.to_response()
+        tools::cast_from_wei(&input.wei, Some(&input.unit))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Convert decimal to hex")]
@@ -247,12 +283,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "ABI encode function arguments")]
     async fn cast_abi_encode(&self, Parameters(input): Parameters<CastAbiEncodeInput>) -> String {
-        tools::cast_abi_encode(&input.sig, input.args).await.to_response()
+        tools::cast_abi_encode(&input.sig, input.args)
+            .await
+            .to_response()
     }
 
     #[tool(description = "ABI decode function return data")]
     async fn cast_abi_decode(&self, Parameters(input): Parameters<CastAbiDecodeInput>) -> String {
-        tools::cast_abi_decode(&input.sig, &input.data).await.to_response()
+        tools::cast_abi_decode(&input.sig, &input.data)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -266,37 +306,51 @@ impl EthcliMcpServer {
             &input.data,
             Some(&input.chain),
             input.block.as_deref(),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get block information")]
     async fn rpc_block(&self, Parameters(input): Parameters<RpcBlockInput>) -> String {
-        tools::rpc_block(&input.block, Some(&input.chain)).await.to_response()
+        tools::rpc_block(&input.block, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get storage value at a slot")]
     async fn rpc_storage(&self, Parameters(input): Parameters<RpcStorageInput>) -> String {
-        tools::rpc_storage(&input.address, &input.slot, Some(&input.chain)).await.to_response()
+        tools::rpc_storage(&input.address, &input.slot, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get contract bytecode")]
     async fn rpc_code(&self, Parameters(input): Parameters<RpcAddressInput>) -> String {
-        tools::rpc_code(&input.address, Some(&input.chain)).await.to_response()
+        tools::rpc_code(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get account nonce (transaction count)")]
     async fn rpc_nonce(&self, Parameters(input): Parameters<RpcAddressInput>) -> String {
-        tools::rpc_nonce(&input.address, Some(&input.chain)).await.to_response()
+        tools::rpc_nonce(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get transaction receipt")]
     async fn rpc_receipt(&self, Parameters(input): Parameters<RpcHashInput>) -> String {
-        tools::rpc_receipt(&input.hash, Some(&input.chain)).await.to_response()
+        tools::rpc_receipt(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get latest block number")]
     async fn rpc_block_number(&self, Parameters(input): Parameters<RpcChainInput>) -> String {
-        tools::rpc_block_number(Some(&input.chain)).await.to_response()
+        tools::rpc_block_number(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get chain ID")]
@@ -334,7 +388,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get token price from multiple aggregated sources")]
     async fn price(&self, Parameters(input): Parameters<PriceInput>) -> String {
-        tools::price(&input.token, Some(&input.chain)).await.to_response()
+        tools::price(&input.token, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -343,7 +399,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get portfolio holdings for an address across tokens")]
     async fn portfolio(&self, Parameters(input): Parameters<PortfolioInput>) -> String {
-        tools::portfolio(&input.address, input.chain.as_deref()).await.to_response()
+        tools::portfolio(&input.address, input.chain.as_deref())
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -352,7 +410,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get NFTs owned by an address")]
     async fn nfts(&self, Parameters(input): Parameters<NftsInput>) -> String {
-        tools::nfts(&input.address, Some(&input.chain)).await.to_response()
+        tools::nfts(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -361,7 +421,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get DeFi yield opportunities")]
     async fn yields(&self, Parameters(input): Parameters<YieldsInput>) -> String {
-        tools::yields(input.protocol.as_deref(), input.chain.as_deref()).await.to_response()
+        tools::yields(input.protocol.as_deref(), input.chain.as_deref())
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -376,7 +438,9 @@ impl EthcliMcpServer {
             &input.amount,
             Some(&input.chain),
             input.slippage,
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Compare quotes across DEX aggregators")]
@@ -386,7 +450,9 @@ impl EthcliMcpServer {
             &input.to_token,
             &input.amount,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -395,12 +461,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get Chainlink oracle price")]
     async fn chainlink_price(&self, Parameters(input): Parameters<ChainlinkPriceInput>) -> String {
-        tools::chainlink_price(&input.token, Some(&input.chain), input.block.as_deref()).await.to_response()
+        tools::chainlink_price(&input.token, Some(&input.chain), input.block.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Chainlink feed address for a token")]
     async fn chainlink_feed(&self, Parameters(input): Parameters<ChainlinkFeedInput>) -> String {
-        tools::chainlink_feed(&input.token, Some(&input.chain)).await.to_response()
+        tools::chainlink_feed(&input.token, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "List available Chainlink oracles")]
@@ -408,7 +478,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ChainlinkOraclesInput>,
     ) -> String {
-        tools::chainlink_oracles(Some(&input.chain)).await.to_response()
+        tools::chainlink_oracles(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -417,22 +489,30 @@ impl EthcliMcpServer {
 
     #[tool(description = "Check token security info via GoPlus")]
     async fn goplus_token(&self, Parameters(input): Parameters<GoplusInput>) -> String {
-        tools::goplus_token(&input.address, input.chain_id).await.to_response()
+        tools::goplus_token(&input.address, input.chain_id)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Check address security info via GoPlus")]
     async fn goplus_address(&self, Parameters(input): Parameters<GoplusInput>) -> String {
-        tools::goplus_address(&input.address, input.chain_id).await.to_response()
+        tools::goplus_address(&input.address, input.chain_id)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Check NFT security info via GoPlus")]
     async fn goplus_nft(&self, Parameters(input): Parameters<GoplusInput>) -> String {
-        tools::goplus_nft(&input.address, input.chain_id).await.to_response()
+        tools::goplus_nft(&input.address, input.chain_id)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Check token approval security via GoPlus")]
     async fn goplus_approval(&self, Parameters(input): Parameters<GoplusInput>) -> String {
-        tools::goplus_approval(&input.address, input.chain_id).await.to_response()
+        tools::goplus_approval(&input.address, input.chain_id)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -441,7 +521,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Search security findings in Solodit database")]
     async fn solodit_search(&self, Parameters(input): Parameters<SoloditSearchInput>) -> String {
-        tools::solodit_search(&input.query, input.impact.as_deref(), input.limit).await.to_response()
+        tools::solodit_search(&input.query, input.impact.as_deref(), input.limit)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get details of a specific Solodit finding")]
@@ -455,7 +537,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get Uniswap pool information")]
     async fn uniswap_pool(&self, Parameters(input): Parameters<UniswapPoolInput>) -> String {
-        tools::uniswap_pool(&input.address, Some(&input.chain)).await.to_response()
+        tools::uniswap_pool(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get ETH price from Uniswap")]
@@ -463,7 +547,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<UniswapEthPriceInput>,
     ) -> String {
-        tools::uniswap_eth_price(Some(&input.chain), input.version.as_deref()).await.to_response()
+        tools::uniswap_eth_price(Some(&input.chain), input.version.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get top Uniswap pools by TVL")]
@@ -471,7 +557,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<UniswapTopPoolsInput>,
     ) -> String {
-        tools::uniswap_top_pools(input.limit, Some(&input.chain), input.version.as_deref()).await.to_response()
+        tools::uniswap_top_pools(input.limit, Some(&input.chain), input.version.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Uniswap LP positions for an address")]
@@ -479,7 +567,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<UniswapPositionsInput>,
     ) -> String {
-        tools::uniswap_positions(&input.address, Some(&input.chain), input.version.as_deref()).await.to_response()
+        tools::uniswap_positions(&input.address, Some(&input.chain), input.version.as_deref())
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -493,7 +583,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get Curve router route for a swap")]
     async fn curve_router_route(&self, Parameters(input): Parameters<CurveRouteInput>) -> String {
-        tools::curve_router_route(&input.from_token, &input.to_token, Some(&input.chain)).await.to_response()
+        tools::curve_router_route(&input.from_token, &input.to_token, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -505,7 +597,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioInput>,
     ) -> String {
-        tools::alchemy_portfolio(&input.address, Some(&input.chain)).await.to_response()
+        tools::alchemy_portfolio(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token transfers via Alchemy API")]
@@ -517,7 +611,9 @@ impl EthcliMcpServer {
             &input.address,
             Some(&input.chain),
             input.category.as_deref(),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -531,7 +627,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get simple price from CoinGecko")]
     async fn gecko_simple_price(&self, Parameters(input): Parameters<GeckoPriceInput>) -> String {
-        tools::gecko_simple_price(&input.ids, input.vs_currencies.as_deref()).await.to_response()
+        tools::gecko_simple_price(&input.ids, input.vs_currencies.as_deref())
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -545,7 +643,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get yield pools from DefiLlama")]
     async fn llama_yields(&self, Parameters(input): Parameters<LlamaYieldsInput>) -> String {
-        tools::llama_yields(input.chain.as_deref(), input.protocol.as_deref()).await.to_response()
+        tools::llama_yields(input.chain.as_deref(), input.protocol.as_deref())
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -554,7 +654,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get quote from 1inch DEX aggregator")]
     async fn oneinch_quote(&self, Parameters(input): Parameters<OneinchQuoteInput>) -> String {
-        tools::oneinch_quote(&input.src, &input.dst, &input.amount, input.chain_id).await.to_response()
+        tools::oneinch_quote(&input.src, &input.dst, &input.amount, input.chain_id)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get quote from 0x DEX aggregator")]
@@ -565,7 +667,9 @@ impl EthcliMcpServer {
             &input.sell_amount,
             &input.taker,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get quote from OpenOcean DEX aggregator")]
@@ -575,7 +679,9 @@ impl EthcliMcpServer {
             &input.out_token,
             &input.amount,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get quote from CoW Swap DEX aggregator")]
@@ -586,7 +692,9 @@ impl EthcliMcpServer {
             &input.amount,
             &input.from,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get cross-chain quote from LI.FI")]
@@ -598,7 +706,9 @@ impl EthcliMcpServer {
             &input.to_token,
             &input.amount,
             &input.from_address,
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -621,12 +731,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get ticker from centralized exchange via CCXT")]
     async fn ccxt_ticker(&self, Parameters(input): Parameters<CcxtTickerInput>) -> String {
-        tools::ccxt_ticker(&input.exchange, &input.symbol).await.to_response()
+        tools::ccxt_ticker(&input.exchange, &input.symbol)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get order book from centralized exchange via CCXT")]
     async fn ccxt_orderbook(&self, Parameters(input): Parameters<CcxtOrderbookInput>) -> String {
-        tools::ccxt_orderbook(&input.exchange, &input.symbol, input.limit).await.to_response()
+        tools::ccxt_orderbook(&input.exchange, &input.symbol, input.limit)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -641,12 +755,16 @@ impl EthcliMcpServer {
             input.args,
             Some(&input.chain),
             input.via.as_deref(),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Simulate a historical transaction")]
     async fn simulate_tx(&self, Parameters(input): Parameters<SimulateTxInput>) -> String {
-        tools::simulate_tx(&input.hash, Some(&input.chain)).await.to_response()
+        tools::simulate_tx(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -667,7 +785,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AccountAddressInput>,
     ) -> String {
-        tools::account_mined_blocks(&input.address, Some(&input.chain)).await.to_response()
+        tools::account_mined_blocks(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -676,7 +796,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Add an address to the local address book")]
     async fn address_add(&self, Parameters(input): Parameters<AddressAddInput>) -> String {
-        tools::address_add(&input.name, &input.address).await.to_response()
+        tools::address_add(&input.name, &input.address)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Remove an address from the local address book")]
@@ -715,7 +837,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Add an address to the local blacklist")]
     async fn blacklist_add(&self, Parameters(input): Parameters<BlacklistAddInput>) -> String {
-        tools::blacklist_add(&input.address, input.reason.as_deref()).await.to_response()
+        tools::blacklist_add(&input.address, input.reason.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Remove an address from the local blacklist")]
@@ -741,7 +865,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Scan an address against OFAC sanctions and known blacklists")]
     async fn blacklist_scan(&self, Parameters(input): Parameters<BlacklistScanInput>) -> String {
-        tools::blacklist_scan(&input.address, Some(&input.chain)).await.to_response()
+        tools::blacklist_scan(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Scan a portfolio for sanctioned/blacklisted addresses")]
@@ -749,12 +875,16 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<BlacklistScanInput>,
     ) -> String {
-        tools::blacklist_scan_portfolio(&input.address, Some(&input.chain)).await.to_response()
+        tools::blacklist_scan_portfolio(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Find transaction path between two addresses for compliance")]
     async fn blacklist_path(&self, Parameters(input): Parameters<BlacklistPathInput>) -> String {
-        tools::blacklist_path(&input.from, &input.to, Some(&input.chain)).await.to_response()
+        tools::blacklist_path(&input.from, &input.to, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -763,7 +893,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Call a contract function (read-only)")]
     async fn contract_call(&self, Parameters(input): Parameters<ContractCallInput>) -> String {
-        tools::contract_call(&input.address, &input.sig, input.args, Some(&input.chain)).await.to_response()
+        tools::contract_call(&input.address, &input.sig, input.args, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -789,12 +921,16 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CastComputeAddressInput>,
     ) -> String {
-        tools::cast_compute_address(&input.deployer, &input.nonce).await.to_response()
+        tools::cast_compute_address(&input.deployer, &input.nonce)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Compute the CREATE2 address")]
     async fn cast_create2(&self, Parameters(input): Parameters<CastCreate2Input>) -> String {
-        tools::cast_create2(&input.deployer, &input.salt, &input.init_code_hash).await.to_response()
+        tools::cast_create2(&input.deployer, &input.salt, &input.init_code_hash)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Concatenate hex values")]
@@ -822,7 +958,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Simulate a bundle of transactions")]
     async fn simulate_bundle(&self, Parameters(input): Parameters<SimulateBundleInput>) -> String {
-        tools::simulate_bundle(input.txs, Some(&input.chain)).await.to_response()
+        tools::simulate_bundle(input.txs, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "List saved simulations")]
@@ -859,7 +997,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<TenderlySimulateInput>,
     ) -> String {
-        tools::tenderly_simulate(&input.contract, &input.data, Some(&input.chain)).await.to_response()
+        tools::tenderly_simulate(&input.contract, &input.data, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "List Tenderly virtual networks")]
@@ -903,22 +1043,30 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get NFTs for an address via Alchemy")]
     async fn alchemy_nft(&self, Parameters(input): Parameters<AlchemyPortfolioInput>) -> String {
-        tools::alchemy_nft(&input.address, Some(&input.chain)).await.to_response()
+        tools::alchemy_nft(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token info via Alchemy")]
     async fn alchemy_token(&self, Parameters(input): Parameters<AlchemyPortfolioInput>) -> String {
-        tools::alchemy_token(&input.address, Some(&input.chain)).await.to_response()
+        tools::alchemy_token(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token prices via Alchemy")]
     async fn alchemy_prices(&self, Parameters(input): Parameters<AlchemyPricesInput>) -> String {
-        tools::alchemy_prices(&input.tokens, Some(&input.chain)).await.to_response()
+        tools::alchemy_prices(&input.tokens, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Debug a transaction via Alchemy")]
     async fn alchemy_debug(&self, Parameters(input): Parameters<AlchemyDebugInput>) -> String {
-        tools::alchemy_debug(&input.hash, Some(&input.chain)).await.to_response()
+        tools::alchemy_debug(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -937,7 +1085,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get on-chain token info from CoinGecko")]
     async fn gecko_onchain(&self, Parameters(input): Parameters<GeckoOnchainInput>) -> String {
-        tools::gecko_onchain(&input.network, &input.address).await.to_response()
+        tools::gecko_onchain(&input.network, &input.address)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -946,7 +1096,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Batch check multiple token addresses via GoPlus")]
     async fn goplus_token_batch(&self, Parameters(input): Parameters<GoplusBatchInput>) -> String {
-        tools::goplus_token_batch(&input.addresses, input.chain_id).await.to_response()
+        tools::goplus_token_batch(&input.addresses, input.chain_id)
+            .await
+            .to_response()
     }
 
     #[tool(description = "List supported chains for GoPlus")]
@@ -984,12 +1136,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get DEX volumes from DefiLlama")]
     async fn llama_volumes(&self, Parameters(input): Parameters<LlamaProtocolInput>) -> String {
-        tools::llama_volumes(input.protocol.as_deref()).await.to_response()
+        tools::llama_volumes(input.protocol.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get protocol fees from DefiLlama")]
     async fn llama_fees(&self, Parameters(input): Parameters<LlamaProtocolInput>) -> String {
-        tools::llama_fees(input.protocol.as_deref()).await.to_response()
+        tools::llama_fees(input.protocol.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get stablecoin data from DefiLlama")]
@@ -1003,17 +1159,23 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get wallet data via Moralis")]
     async fn moralis_wallet(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
-        tools::moralis_wallet(&input.address, Some(&input.chain)).await.to_response()
+        tools::moralis_wallet(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token data via Moralis")]
     async fn moralis_token(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
-        tools::moralis_token(&input.address, Some(&input.chain)).await.to_response()
+        tools::moralis_token(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get NFT data via Moralis")]
     async fn moralis_nft(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
-        tools::moralis_nft(&input.address, Some(&input.chain)).await.to_response()
+        tools::moralis_nft(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Resolve domain name via Moralis")]
@@ -1037,32 +1199,44 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get token balances via Dune Simulator")]
     async fn dsim_balances(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_balances(&input.address, Some(&input.chain)).await.to_response()
+        tools::dsim_balances(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get NFT collectibles via Dune Simulator")]
     async fn dsim_collectibles(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_collectibles(&input.address, Some(&input.chain)).await.to_response()
+        tools::dsim_collectibles(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get wallet activity via Dune Simulator")]
     async fn dsim_activity(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_activity(&input.address, Some(&input.chain)).await.to_response()
+        tools::dsim_activity(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token info via Dune Simulator")]
     async fn dsim_token(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_token(&input.address, Some(&input.chain)).await.to_response()
+        tools::dsim_token(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token holders via Dune Simulator")]
     async fn dsim_holders(&self, Parameters(input): Parameters<DsimTokenInput>) -> String {
-        tools::dsim_holders(&input.token, Some(&input.chain)).await.to_response()
+        tools::dsim_holders(&input.token, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get DeFi positions via Dune Simulator")]
     async fn dsim_defi(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_defi(&input.address, Some(&input.chain)).await.to_response()
+        tools::dsim_defi(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1081,7 +1255,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get Dune query execution results")]
     async fn dune_execution(&self, Parameters(input): Parameters<DuneExecutionInput>) -> String {
-        tools::dune_execution(&input.execution_id).await.to_response()
+        tools::dune_execution(&input.execution_id)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1115,12 +1291,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get Curve pool OHLC data")]
     async fn curve_ohlc(&self, Parameters(input): Parameters<CurvePoolInput>) -> String {
-        tools::curve_ohlc(&input.pool, Some(&input.chain)).await.to_response()
+        tools::curve_ohlc(&input.pool, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Curve pool trades")]
     async fn curve_trades(&self, Parameters(input): Parameters<CurvePoolInput>) -> String {
-        tools::curve_trades(&input.pool, Some(&input.chain)).await.to_response()
+        tools::curve_trades(&input.pool, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Curve DAO data")]
@@ -1141,7 +1321,9 @@ impl EthcliMcpServer {
             &input.amount,
             "", // empty for this signature
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -1159,17 +1341,23 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get all tickers from an exchange")]
     async fn ccxt_tickers(&self, Parameters(input): Parameters<CcxtExchangeInput>) -> String {
-        tools::ccxt_tickers(&input.exchange, None).await.to_response()
+        tools::ccxt_tickers(&input.exchange, None)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get OHLCV candlestick data from an exchange")]
     async fn ccxt_ohlcv(&self, Parameters(input): Parameters<CcxtOhlcvInput>) -> String {
-        tools::ccxt_ohlcv(&input.exchange, &input.symbol, input.timeframe.as_deref()).await.to_response()
+        tools::ccxt_ohlcv(&input.exchange, &input.symbol, input.timeframe.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get recent trades from an exchange")]
     async fn ccxt_trades(&self, Parameters(input): Parameters<CcxtTradesInput>) -> String {
-        tools::ccxt_trades(&input.exchange, &input.symbol).await.to_response()
+        tools::ccxt_trades(&input.exchange, &input.symbol)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get market info from an exchange")]
@@ -1179,7 +1367,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Compare prices across exchanges")]
     async fn ccxt_compare(&self, Parameters(input): Parameters<CcxtCompareInput>) -> String {
-        tools::ccxt_compare(&input.symbol, input.exchanges.as_deref()).await.to_response()
+        tools::ccxt_compare(&input.symbol, input.exchanges.as_deref())
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1191,7 +1381,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<UniswapPoolAddressInput>,
     ) -> String {
-        tools::uniswap_liquidity(&input.pool, Some(&input.chain)).await.to_response()
+        tools::uniswap_liquidity(&input.pool, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get recent swaps for a Uniswap pool")]
@@ -1199,7 +1391,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<UniswapPoolAddressInput>,
     ) -> String {
-        tools::uniswap_swaps(&input.pool, Some(&input.chain)).await.to_response()
+        tools::uniswap_swaps(&input.pool, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Uniswap pool daily data")]
@@ -1207,12 +1401,16 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<UniswapPoolAddressInput>,
     ) -> String {
-        tools::uniswap_day_data(&input.pool, Some(&input.chain)).await.to_response()
+        tools::uniswap_day_data(&input.pool, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token balance from Uniswap")]
     async fn uniswap_balance(&self, Parameters(input): Parameters<UniswapBalanceInput>) -> String {
-        tools::uniswap_balance(&input.address, &input.token, Some(&input.chain)).await.to_response()
+        tools::uniswap_balance(&input.address, &input.token, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Uniswap contract addresses for a chain")]
@@ -1220,7 +1418,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<UniswapEthPriceInput>,
     ) -> String {
-        tools::uniswap_addresses(Some(&input.chain)).await.to_response()
+        tools::uniswap_addresses(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1234,12 +1434,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "List all strategies via Kong")]
     async fn kong_strategies(&self, Parameters(input): Parameters<KongChainInput>) -> String {
-        tools::kong_strategies(Some(&input.chain)).await.to_response()
+        tools::kong_strategies(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token prices via Kong")]
     async fn kong_prices(&self, Parameters(input): Parameters<KongPricesInput>) -> String {
-        tools::kong_prices(&input.tokens, Some(&input.chain)).await.to_response()
+        tools::kong_prices(&input.tokens, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Yearn TVL via Kong")]
@@ -1249,7 +1453,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get vault reports via Kong")]
     async fn kong_reports(&self, Parameters(input): Parameters<KongVaultInput>) -> String {
-        tools::kong_reports(&input.vault, Some(&input.chain)).await.to_response()
+        tools::kong_reports(&input.vault, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1264,7 +1470,9 @@ impl EthcliMcpServer {
             &input.amount,
             &input.from,
             input.chain_id,
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get supported tokens from 1inch")]
@@ -1287,12 +1495,16 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<OneinchAllowanceInput>,
     ) -> String {
-        tools::oneinch_allowance(&input.token, &input.owner, input.chain_id).await.to_response()
+        tools::oneinch_allowance(&input.token, &input.owner, input.chain_id)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get approve calldata for 1inch")]
     async fn oneinch_approve(&self, Parameters(input): Parameters<OneinchApproveInput>) -> String {
-        tools::oneinch_approve(&input.token, input.amount.as_deref(), input.chain_id).await.to_response()
+        tools::oneinch_approve(&input.token, input.amount.as_deref(), input.chain_id)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1307,7 +1519,9 @@ impl EthcliMcpServer {
             &input.amount,
             &input.account,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get reverse quote from OpenOcean")]
@@ -1320,17 +1534,23 @@ impl EthcliMcpServer {
             &input.out_token,
             &input.amount,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get supported tokens from OpenOcean")]
     async fn openocean_tokens(&self, Parameters(input): Parameters<OpenoceanChainInput>) -> String {
-        tools::openocean_tokens(Some(&input.chain)).await.to_response()
+        tools::openocean_tokens(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get supported DEXes from OpenOcean")]
     async fn openocean_dexes(&self, Parameters(input): Parameters<OpenoceanChainInput>) -> String {
-        tools::openocean_dexes(Some(&input.chain)).await.to_response()
+        tools::openocean_dexes(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1344,7 +1564,9 @@ impl EthcliMcpServer {
             &input.token_out,
             &input.amount_in,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get route data from KyberSwap")]
@@ -1357,7 +1579,9 @@ impl EthcliMcpServer {
             &input.token_out,
             &input.amount_in,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Build swap transaction from KyberSwap")]
@@ -1367,7 +1591,9 @@ impl EthcliMcpServer {
             &input.sender,
             &input.recipient,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -1381,7 +1607,9 @@ impl EthcliMcpServer {
             &input.buy_token,
             &input.sell_amount,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get liquidity sources from 0x")]
@@ -1395,17 +1623,23 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get order details from CoW Swap")]
     async fn cowswap_order(&self, Parameters(input): Parameters<CowswapOrderInput>) -> String {
-        tools::cowswap_order(&input.order_uid, Some(&input.chain)).await.to_response()
+        tools::cowswap_order(&input.order_uid, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get orders for an address from CoW Swap")]
     async fn cowswap_orders(&self, Parameters(input): Parameters<CowswapOwnerInput>) -> String {
-        tools::cowswap_orders(&input.owner, Some(&input.chain)).await.to_response()
+        tools::cowswap_orders(&input.owner, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get trades for an address from CoW Swap")]
     async fn cowswap_trades(&self, Parameters(input): Parameters<CowswapOwnerInput>) -> String {
-        tools::cowswap_trades(&input.owner, Some(&input.chain)).await.to_response()
+        tools::cowswap_trades(&input.owner, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get trades for an order from CoW Swap")]
@@ -1413,12 +1647,16 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CowswapOrderInput>,
     ) -> String {
-        tools::cowswap_order_trades(&input.order_uid, Some(&input.chain)).await.to_response()
+        tools::cowswap_order_trades(&input.order_uid, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get current auction from CoW Swap")]
     async fn cowswap_auction(&self, Parameters(input): Parameters<CowswapChainInput>) -> String {
-        tools::cowswap_auction(Some(&input.chain)).await.to_response()
+        tools::cowswap_auction(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get solver competition data from CoW Swap")]
@@ -1426,7 +1664,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CowswapAuctionInput>,
     ) -> String {
-        tools::cowswap_competition(&input.auction_id, Some(&input.chain)).await.to_response()
+        tools::cowswap_competition(&input.auction_id, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get native token price from CoW Swap")]
@@ -1434,7 +1674,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CowswapTokenInput>,
     ) -> String {
-        tools::cowswap_native_price(&input.token, Some(&input.chain)).await.to_response()
+        tools::cowswap_native_price(&input.token, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1450,7 +1692,9 @@ impl EthcliMcpServer {
             &input.to_token,
             &input.amount,
             &input.from_address,
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get best route from LI.FI")]
@@ -1462,12 +1706,16 @@ impl EthcliMcpServer {
             &input.to_token,
             &input.amount,
             &input.from_address,
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get transaction status from LI.FI")]
     async fn lifi_status(&self, Parameters(input): Parameters<LifiStatusInput>) -> String {
-        tools::lifi_status(&input.tx_hash, input.bridge.as_deref()).await.to_response()
+        tools::lifi_status(&input.tx_hash, input.bridge.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get supported chains from LI.FI")]
@@ -1510,7 +1758,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<LifiConnectionsInput>,
     ) -> String {
-        tools::lifi_connections(&input.from_chain, &input.to_chain).await.to_response()
+        tools::lifi_connections(&input.from_chain, &input.to_chain)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1519,12 +1769,16 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get token price from Velora")]
     async fn velora_price(&self, Parameters(input): Parameters<VeloraTokenInput>) -> String {
-        tools::velora_price(&input.token, Some(&input.chain)).await.to_response()
+        tools::velora_price(&input.token, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get transaction details from Velora")]
     async fn velora_transaction(&self, Parameters(input): Parameters<VeloraTxInput>) -> String {
-        tools::velora_transaction(&input.hash, Some(&input.chain)).await.to_response()
+        tools::velora_transaction(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get supported tokens from Velora")]
@@ -1543,17 +1797,23 @@ impl EthcliMcpServer {
             &input.to_token,
             &input.amount,
             Some(&input.chain),
-        ).await.to_response()
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get token price from Enso")]
     async fn enso_price(&self, Parameters(input): Parameters<EnsoPriceInput>) -> String {
-        tools::enso_price(&input.token, Some(&input.chain)).await.to_response()
+        tools::enso_price(&input.token, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get token balances from Enso")]
     async fn enso_balances(&self, Parameters(input): Parameters<EnsoBalancesInput>) -> String {
-        tools::enso_balances(&input.address, Some(&input.chain)).await.to_response()
+        tools::enso_balances(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1562,7 +1822,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "List Pyth price feeds")]
     async fn pyth_feeds(&self, Parameters(input): Parameters<PythFeedsInput>) -> String {
-        tools::pyth_feeds(input.asset_type.as_deref()).await.to_response()
+        tools::pyth_feeds(input.asset_type.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get known Pyth price feeds")]
@@ -1599,7 +1861,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ConfigKeyInput>,
     ) -> String {
-        tools::config_set_etherscan_key(&input.key).await.to_response()
+        tools::config_set_etherscan_key(&input.key)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Set Tenderly credentials in config")]
@@ -1607,7 +1871,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ConfigTenderlyInput>,
     ) -> String {
-        tools::config_set_tenderly(&input.account, &input.project, &input.key).await.to_response()
+        tools::config_set_tenderly(&input.account, &input.project, &input.key)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Set Moralis API key in config")]
@@ -1640,7 +1906,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ConfigChainlinkInput>,
     ) -> String {
-        tools::config_set_chainlink(&input.key, &input.secret).await.to_response()
+        tools::config_set_chainlink(&input.key, &input.secret)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Add debug RPC endpoint")]
@@ -1648,7 +1916,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ConfigDebugRpcInput>,
     ) -> String {
-        tools::config_add_debug_rpc(&input.url, Some(&input.chain)).await.to_response()
+        tools::config_add_debug_rpc(&input.url, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Remove debug RPC endpoint")]
@@ -1656,7 +1926,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ConfigDebugRpcInput>,
     ) -> String {
-        tools::config_remove_debug_rpc(&input.url, Some(&input.chain)).await.to_response()
+        tools::config_remove_debug_rpc(&input.url, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1665,32 +1937,44 @@ impl EthcliMcpServer {
 
     #[tool(description = "List configured RPC endpoints")]
     async fn endpoints_list(&self, Parameters(input): Parameters<EndpointsChainInput>) -> String {
-        tools::endpoints_list(Some(&input.chain)).await.to_response()
+        tools::endpoints_list(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Add a new RPC endpoint")]
     async fn endpoints_add(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_add(&input.url, Some(&input.chain)).await.to_response()
+        tools::endpoints_add(&input.url, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Remove an RPC endpoint")]
     async fn endpoints_remove(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_remove(&input.url, Some(&input.chain)).await.to_response()
+        tools::endpoints_remove(&input.url, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Check health of RPC endpoints")]
     async fn endpoints_health(&self, Parameters(input): Parameters<EndpointsChainInput>) -> String {
-        tools::endpoints_health(Some(&input.chain)).await.to_response()
+        tools::endpoints_health(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Enable a disabled RPC endpoint")]
     async fn endpoints_enable(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_enable(&input.url, Some(&input.chain)).await.to_response()
+        tools::endpoints_enable(&input.url, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Disable an RPC endpoint")]
     async fn endpoints_disable(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_disable(&input.url, Some(&input.chain)).await.to_response()
+        tools::endpoints_disable(&input.url, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Optimize/rank RPC endpoints by performance")]
@@ -1698,12 +1982,16 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<EndpointsOptimizeInput>,
     ) -> String {
-        tools::endpoints_optimize(input.url.as_deref(), Some(&input.chain)).await.to_response()
+        tools::endpoints_optimize(input.url.as_deref(), Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Test RPC endpoint for archive support")]
     async fn endpoints_test(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_test(&input.url, Some(&input.chain)).await.to_response()
+        tools::endpoints_test(&input.url, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
