@@ -1,0 +1,49 @@
+[package]
+name = "ethcli-mcp"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "MCP server exposing ethcli functionality as tools"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/ethcli-mcp"
+homepage = "https://github.com/yldfi/yldfi-rs"
+documentation = "https://docs.rs/ethcli-mcp"
+keywords = ["ethereum", "mcp", "cli", "blockchain", "web3"]
+categories = ["command-line-utilities", "web-programming"]
+
+[[bin]]
+name = "ethcli-mcp"
+path = "src/main.rs"
+
+[dependencies]
+# MCP server SDK
+rmcp = { version = "0.14", features = ["server", "macros", "transport-io"] }
+
+# Async runtime (minimal features for subprocess wrapper)
+tokio = { version = "1", features = ["rt-multi-thread", "process", "sync", "time", "io-util", "macros"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# JSON Schema for tool parameters
+schemars = "1"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging (to stderr only!)
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Note: ethcli-mcp spawns ethcli as a subprocess, not as a library dependency.
+# Users must install ethcli separately: cargo install ethcli
+# We intentionally don't depend on alloy, hex, etc. to keep the binary small.
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+serde_json = "1"
+assert_cmd = "2"
+predicates = "3"

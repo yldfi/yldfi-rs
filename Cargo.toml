@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/yldfi-common",
     "crates/ethcli",
+    "crates/ethcli-mcp",
     "crates/tndrly",
     "crates/crv",
     "crates/mrls",
