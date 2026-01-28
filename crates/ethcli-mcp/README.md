@@ -165,7 +165,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 ## Development
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](https://github.com/yldfi/yldfi-rs/blob/main/CONTRIBUTING.md) for guidelines.
 
 ```bash
 cargo build -p ethcli-mcp

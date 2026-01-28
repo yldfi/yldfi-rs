@@ -5,7 +5,11 @@
 <h1 align="center">ethcli</h1>
 
 <p align="center">
-  Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts
+  <strong>The Swiss Army Knife for Blockchain</strong>
+</p>
+
+<p align="center">
+  One CLI for everything: transactions, contracts, DeFi, DEX aggregators, oracles, security analysis, and 50+ data sources across all major chains.
 </p>
 
 <p align="center">
@@ -49,6 +53,17 @@
 - **Uniswap**: V2/V3/V4 pool queries (on-chain + subgraph)
 - **Yearn Kong**: Vaults, strategies, prices, TVL, reports
 
+### Direct DEX Aggregator Access
+- **1inch**: Quote, swap, tokens, liquidity sources, approvals
+- **OpenOcean**: Quote, swap, reverse quote, tokens, DEX sources
+- **KyberSwap**: Routes, route data, transaction building
+- **0x Protocol**: Quote, price, liquidity sources
+- **CowSwap**: MEV-protected quotes, orders, trades, auctions
+- **LI.FI**: Cross-chain quotes, routes, bridges, chains, tokens
+- **Velora/ParaSwap**: Price, transaction building, tokens
+- **Enso Finance**: DeFi routes, prices, balances
+- **Pyth Network**: Real-time price feeds, feed search
+
 ### Security & Analysis
 - **GoPlus Security**: Token, address, NFT, and approval security analysis
 - **Solodit**: Smart contract vulnerability database search
@@ -82,6 +97,37 @@ Or from source:
 ```bash
 cargo install --git https://github.com/yldfi/yldfi-rs.git ethcli
 ```
+
+## MCP Server (AI Integration)
+
+For AI assistants and LLMs, use **ethcli-mcp** - a companion MCP (Model Context Protocol) server that exposes ethcli functionality as tools.
+
+```bash
+# Install
+cargo install ethcli-mcp
+
+# Run (communicates via STDIO)
+ethcli-mcp
+```
+
+**Features:**
+- 80+ tools covering all ethcli functionality
+- JSON Schema validation for all inputs
+- Rate limiting and timeout protection
+- Works with Claude, GPT, and other MCP-compatible AI assistants
+
+**Configuration (Claude Desktop):**
+```json
+{
+  "mcpServers": {
+    "ethcli": {
+      "command": "ethcli-mcp"
+    }
+  }
+}
+```
+
+See [ethcli-mcp](https://crates.io/crates/ethcli-mcp) for full documentation.
 
 ## Quick Start
 
@@ -911,6 +957,244 @@ ethcli config set-etherscan-key YOUR_KEY
 | `GOPLUS_APP_KEY` | Optional | GoPlus batch queries (higher rate limits) |
 | `GOPLUS_APP_SECRET` | Optional | GoPlus batch queries (higher rate limits) |
 | `SOLODIT_API_KEY` | `ethcli solodit` | Solodit vulnerability database |
+| `ONEINCH_API_KEY` / `1INCH_API_KEY` | `ethcli 1inch` | 1inch DEX Aggregator (required) |
+| `ZEROX_API_KEY` / `0X_API_KEY` | `ethcli 0x` | 0x Protocol (optional, higher limits) |
+| `LIFI_INTEGRATOR` | `ethcli lifi` | LI.FI analytics tracking (optional) |
+| `PARASWAP_API_KEY` / `VELORA_API_KEY` | `ethcli velora` | ParaSwap (optional, higher limits) |
+| `ENSO_API_KEY` | `ethcli enso` | Enso Finance (required) |
+
+---
+
+## Direct DEX Aggregator Commands
+
+### 1inch - DEX Aggregator
+
+Direct access to 1inch API. Requires `ONEINCH_API_KEY` or `1INCH_API_KEY` environment variable.
+
+```bash
+# Get swap quote (price estimation)
+ethcli 1inch quote <src_token> <dst_token> <amount> --chain-id 1
+ethcli 1inch quote 0xEee...EEeE 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1000000000000000000 --include-gas
+
+# Get swap transaction data
+ethcli 1inch swap <src> <dst> <amount> <from_address> --chain-id 1 --slippage 1
+ethcli 1inch swap 0xEee...EEeE 0xA0b8... 1000000000000000000 0xYourAddress --receiver 0x...
+
+# Get supported tokens
+ethcli 1inch tokens --chain-id 1
+
+# Get liquidity sources
+ethcli 1inch sources --chain-id 1
+
+# Get approval spender address
+ethcli 1inch spender --chain-id 1
+
+# Check token allowance
+ethcli 1inch allowance <token> <wallet> --chain-id 1
+
+# Get approval transaction
+ethcli 1inch approve <token> --chain-id 1 --amount 1000000
+```
+
+**Alias**: `ethcli oneinch`
+
+### OpenOcean - DEX Aggregator
+
+Direct access to OpenOcean API. No API key required.
+
+```bash
+# Get swap quote
+ethcli openocean quote <in_token> <out_token> <amount> --chain ethereum
+ethcli openocean quote 0xEee...EEeE 0xA0b8... 1000000000000000000 --slippage 1
+
+# Get swap transaction data
+ethcli openocean swap <in_token> <out_token> <amount> <account> --chain ethereum
+
+# Get reverse quote (specify output amount)
+ethcli openocean reverse-quote <in_token> <out_token> <out_amount> --chain ethereum
+
+# Get supported tokens
+ethcli openocean tokens --chain ethereum
+
+# Get DEX sources
+ethcli openocean dexes --chain ethereum
+```
+
+**Alias**: `ethcli oo`
+
+### KyberSwap - DEX Aggregator
+
+Direct access to KyberSwap API. No API key required.
+
+```bash
+# Get optimal swap routes
+ethcli kyberswap routes <token_in> <token_out> <amount_in> --chain ethereum
+ethcli kyberswap routes 0xC02...Cc2 0xA0b8... 1000000000000000000 --save-gas
+
+# Get route with full data
+ethcli kyberswap route-data <token_in> <token_out> <amount_in> --chain ethereum
+
+# Build swap transaction from route
+ethcli kyberswap build <token_in> <token_out> <amount_in> <sender> <recipient> \
+  --chain ethereum --slippage-bps 50 --route-summary '<json>'
+```
+
+**Alias**: `ethcli kyber`
+
+### 0x Protocol - DEX Aggregator
+
+Direct access to 0x API. Optional `ZEROX_API_KEY` or `0X_API_KEY` for higher rate limits.
+
+```bash
+# Get swap quote with transaction data
+ethcli 0x quote <sell_token> <buy_token> <sell_amount> <taker> --chain ethereum
+ethcli 0x quote 0xEee...EEeE 0xA0b8... 1000000000000000000 0xYourAddress --slippage-bps 100
+
+# Get price estimate (lighter, no tx data)
+ethcli 0x price <sell_token> <buy_token> <sell_amount> <taker> --chain ethereum
+
+# Get liquidity sources
+ethcli 0x sources --chain ethereum
+```
+
+**Alias**: `ethcli zerox`
+
+### CowSwap - MEV-Protected Trading
+
+Direct access to CoW Protocol API. No API key required.
+
+```bash
+# Get MEV-protected swap quote
+ethcli cowswap quote <sell_token> <buy_token> <amount> <from> --chain ethereum
+ethcli cowswap quote 0xC02...Cc2 0xA0b8... 1000000000000000000 0xYourAddress --kind sell
+
+# Get order by UID
+ethcli cowswap order <uid> --chain ethereum
+
+# Get orders for an address
+ethcli cowswap orders <owner> --chain ethereum
+
+# Get trades for an address
+ethcli cowswap trades <owner> --chain ethereum
+
+# Get trades for an order
+ethcli cowswap order-trades <uid> --chain ethereum
+
+# Get current auction
+ethcli cowswap auction --chain ethereum
+
+# Get solver competition
+ethcli cowswap competition <auction_id> --chain ethereum
+
+# Get native token price
+ethcli cowswap native-price <token> --chain ethereum
+```
+
+**Alias**: `ethcli cow`
+
+### LI.FI - Cross-Chain Aggregator
+
+Direct access to LI.FI API for cross-chain swaps and bridges. Optional `LIFI_INTEGRATOR` for analytics.
+
+```bash
+# Get swap/bridge quote
+ethcli lifi quote <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
+ethcli lifi quote 1 0xA0b8... 137 0x2791... 1000000000 0xYourAddress --slippage 0.5
+
+# Get multiple routes
+ethcli lifi routes <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
+
+# Get best route
+ethcli lifi best-route <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
+
+# Get transaction status
+ethcli lifi status <tx_hash> --from-chain 1 --to-chain 137
+
+# List supported chains
+ethcli lifi chains
+
+# Get chain details
+ethcli lifi chain <chain_id>
+
+# List tokens for a chain
+ethcli lifi tokens --chain-id 1
+
+# List available tools (bridges/exchanges)
+ethcli lifi tools
+
+# List bridges
+ethcli lifi bridges
+
+# List exchanges
+ethcli lifi exchanges
+
+# Get gas prices
+ethcli lifi gas <chain_id>
+
+# List connections (available routes)
+ethcli lifi connections --from-chain 1 --to-chain 137
+```
+
+**Alias**: `ethcli li.fi`
+
+### Velora - ParaSwap DEX Aggregator
+
+Direct access to ParaSwap API. Optional `PARASWAP_API_KEY` or `VELORA_API_KEY` for higher rate limits.
+
+```bash
+# Get swap price/route
+ethcli velora price <src_token> <dest_token> <amount> --chain ethereum --side SELL
+ethcli velora price 0xC02...Cc2 0xA0b8... 1000000000000000000 --src-decimals 18 --dest-decimals 6
+
+# Build swap transaction
+ethcli velora transaction <user_address> --chain ethereum --slippage 100 --price-route '<json>'
+
+# List supported tokens
+ethcli velora tokens --chain ethereum
+```
+
+**Alias**: `ethcli paraswap`
+
+### Enso Finance - DeFi Aggregator
+
+Direct access to Enso Finance API. Requires `ENSO_API_KEY` environment variable.
+
+```bash
+# Get swap/DeFi route
+ethcli enso route <token_in> <token_out> <amount_in> <from_address> --chain-id 1
+ethcli enso route 0xC02...Cc2 0xA0b8... 1000000000000000000 0xYourAddress --slippage 50
+
+# Get token price in USD
+ethcli enso price <token> --chain-id 1
+
+# Get token balances for an address
+ethcli enso balances <address> --chain-id 1
+```
+
+### Pyth Network - Price Feeds
+
+Direct access to Pyth Network Hermes API. No API key required.
+
+```bash
+# Get latest price for one or more feeds
+ethcli pyth price BTC/USD
+ethcli pyth price ETH SOL AVAX
+
+# Search for price feeds
+ethcli pyth search "BTC"
+ethcli pyth search "ETH/USD"
+
+# List all available price feed IDs
+ethcli pyth feeds
+ethcli pyth feeds --asset-type crypto
+
+# Get well-known feed IDs
+ethcli pyth known-feeds
+```
+
+**Notes**:
+- Supports common symbols: BTC, ETH, SOL, USDC, USDT, DAI, AVAX, ARB, OP, LINK, UNI, AAVE, CRV, CVX, etc.
+- Use `ethcli pyth search` to find additional feeds by name
 
 ## License
 
