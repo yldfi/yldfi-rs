@@ -1,6 +1,6 @@
 [package]
 name = "vlra"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Unofficial Rust client for the Velora (ParaSwap) API (vlra)"
 license = "MIT"
