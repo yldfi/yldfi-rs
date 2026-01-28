@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.1.2...lfi-v0.1.3) (2026-01-28)
+
+
+### Features
+
+* **ethcli:** add direct DEX aggregator CLI commands ([f7ead70](https://github.com/yldfi/yldfi-rs/commit/f7ead7094e9f9e2ebad9ef93010f5e5a14b2aa73))
+
+
+### Bug Fixes
+
+* resolve clippy warnings and doc test failure ([09ce397](https://github.com/yldfi/yldfi-rs/commit/09ce39721be834c176ce28229765752d722249a9))
+
 ## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.1.1...lfi-v0.1.2) (2026-01-27)
 
 

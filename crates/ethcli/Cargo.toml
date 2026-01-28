@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.21.9"
+version = "0.21.10"
 edition = "2021"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
 license = "MIT"

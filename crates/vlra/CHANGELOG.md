@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.1.1...vlra-v0.1.2) (2026-01-28)
+
+
+### Features
+
+* **ethcli:** add direct DEX aggregator CLI commands ([f7ead70](https://github.com/yldfi/yldfi-rs/commit/f7ead7094e9f9e2ebad9ef93010f5e5a14b2aa73))
+
 ## [0.1.1](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.1.0...vlra-v0.1.1) (2026-01-27)
 
 

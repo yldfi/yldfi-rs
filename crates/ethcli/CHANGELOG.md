@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.21.10](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.9...ethcli-v0.21.10) (2026-01-28)
+
+
+### Features
+
+* **ethcli:** add direct DEX aggregator CLI commands ([f7ead70](https://github.com/yldfi/yldfi-rs/commit/f7ead7094e9f9e2ebad9ef93010f5e5a14b2aa73))
+
+
+### Bug Fixes
+
+* resolve clippy warnings and doc test failure ([09ce397](https://github.com/yldfi/yldfi-rs/commit/09ce39721be834c176ce28229765752d722249a9))
+
 ## [0.21.9](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.8...ethcli-v0.21.9) (2026-01-27)
 
 
