@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.1...ethcli-mcp-v0.1.2) (2026-01-29)
+
+
+### Features
+
+* **ethcli-mcp:** full feature parity with CLI ([1e5f704](https://github.com/yldfi/yldfi-rs/commit/1e5f704892550f5d95ec9d785964b89bd18ac657))
+
+
+### Bug Fixes
+
+* add clippy allow for too_many_arguments ([926fab1](https://github.com/yldfi/yldfi-rs/commit/926fab171926c54bd88d104daf18f6b60f65db67))
+
 ## [0.1.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.0...ethcli-mcp-v0.1.1) (2026-01-29)
 
 
