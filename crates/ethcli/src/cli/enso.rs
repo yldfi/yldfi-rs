@@ -2,9 +2,11 @@
 //!
 //! Provides 1:1 access to Enso Finance DeFi Aggregator API endpoints.
 
+use crate::aggregator::get_cached_config;
 use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
 use ensof::{Client, RouteRequest};
+use secrecy::ExposeSecret;
 
 #[derive(Args, Clone)]
 pub struct EnsoArgs {
@@ -65,13 +67,19 @@ pub enum EnsoCommands {
 }
 
 pub async fn run(args: EnsoArgs, _chain: &str) -> anyhow::Result<()> {
-    let api_key = std::env::var("ENSO_API_KEY").ok();
+    // Get API key from config first, then fall back to env var
+    let config = get_cached_config();
+    let api_key = config
+        .as_ref()
+        .and_then(|c| c.enso.as_ref())
+        .map(|e| e.api_key.expose_secret().to_string())
+        .or_else(|| std::env::var("ENSO_API_KEY").ok());
 
     let client = if let Some(key) = api_key {
         Client::with_api_key(&key)?
     } else {
         anyhow::bail!(
-            "Enso API key required. Set ENSO_API_KEY environment variable.\n\
+            "Enso API key required. Set ENSO_API_KEY environment variable or use `ethcli config set-enso <key>`.\n\
              Get an API key at: https://enso.finance"
         );
     };

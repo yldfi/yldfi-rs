@@ -272,21 +272,22 @@ async fn fetch_alchemy_portfolio(
     match client.portfolio().get_token_balances(&addr_networks).await {
         Ok(response) => {
             let mut balances = Vec::new();
-            for wallet in &response.data {
-                for token in &wallet.token_balances {
-                    let balance = PortfolioBalance::new(
-                        &token.address,
-                        token.symbol.as_deref().unwrap_or("???"),
-                        &token.network,
-                        &token.balance,
-                        token.decimals.unwrap_or(18),
-                    )
-                    .with_name(token.name.clone())
-                    .with_usd_value(token.usd_value)
-                    .with_price_usd(token.token_price_usd)
-                    .with_logo(token.logo.clone());
-                    balances.push(balance);
-                }
+            for token in &response.data.tokens {
+                // Use token_address for ERC20s, or "ETH" for native token
+                let token_addr = token
+                    .token_address
+                    .as_deref()
+                    .unwrap_or("0x0000000000000000000000000000000000000000");
+                let balance = PortfolioBalance::new(
+                    token_addr,
+                    token.symbol.as_deref().unwrap_or("???"),
+                    &token.network,
+                    &token.token_balance,
+                    token.decimals.unwrap_or(18),
+                )
+                .with_name(token.name.clone())
+                .with_logo(token.logo.clone());
+                balances.push(balance);
             }
             SourceResult::success("alchemy", balances, measure.elapsed_ms())
         }

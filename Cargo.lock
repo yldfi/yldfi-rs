@@ -2242,7 +2242,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.21.10"
+version = "0.21.11"
 dependencies = [
  "alcmy",
  "alloy",
@@ -2307,7 +2307,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli-mcp"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "assert_cmd",

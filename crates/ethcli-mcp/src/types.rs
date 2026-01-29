@@ -604,8 +604,6 @@ pub struct AlchemyTransfersInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
-    /// Transfer category (external, internal, erc20, erc721, erc1155)
-    pub category: Option<String>,
 }
 
 // --- CoinGecko ---
@@ -634,8 +632,6 @@ pub struct LlamaTvlInput {
 pub struct LlamaYieldsInput {
     /// Chain name (optional)
     pub chain: Option<String>,
-    /// Protocol name (optional)
-    pub protocol: Option<String>,
 }
 
 // --- DEX Aggregators ---
@@ -677,6 +673,13 @@ pub struct OpenoceanQuoteInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+    /// Gas price in Gwei (default: 30)
+    #[serde(default = "default_gas_price")]
+    pub gas_price: String,
+}
+
+fn default_gas_price() -> String {
+    "30".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -924,13 +927,11 @@ pub struct LlamaProtocolInput {
 }
 
 // --- Moralis ---
+// Note: Moralis CLI doesn't support --chain flag - chain is handled internally
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisAddressInput {
     /// Wallet or contract address
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -1,7 +1,17 @@
 //! Types for TVL and protocol data
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
+
+/// Deserialize null as empty vec
+fn null_to_empty_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
+}
 
 /// Protocol summary with TVL data
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -71,17 +81,18 @@ pub struct ProtocolDetail {
     pub id: String,
     /// Protocol name
     pub name: String,
-    /// URL-friendly slug
-    pub slug: String,
+    /// URL-friendly slug (may be null for some protocols)
+    pub slug: Option<String>,
     /// Protocol symbol/ticker
     pub symbol: Option<String>,
     /// Chain the protocol is deployed on
     pub chain: Option<String>,
     /// All chains the protocol is deployed on
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub chains: Vec<String>,
-    /// Current total TVL in USD
-    pub tvl: Option<f64>,
+    /// Historical TVL data points (API returns this as `tvl` array)
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
+    pub tvl: Vec<TvlDataPoint>,
     /// Protocol category
     pub category: Option<String>,
     /// Protocol logo URL
@@ -93,14 +104,11 @@ pub struct ProtocolDetail {
     /// Twitter handle
     pub twitter: Option<String>,
     /// GitHub organization
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub github: Vec<String>,
     /// Audit links
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub audit_links: Vec<String>,
-    /// Historical TVL data points
-    #[serde(default)]
-    pub tvl_list: Vec<TvlDataPoint>,
     /// Chain-specific TVL breakdown
     #[serde(default, rename = "chainTvls")]
     pub chain_tvls: HashMap<String, ChainTvl>,
@@ -108,7 +116,7 @@ pub struct ProtocolDetail {
     #[serde(default, rename = "currentChainTvls")]
     pub current_chain_tvls: HashMap<String, f64>,
     /// Token breakdown
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub tokens: Vec<TokenBreakdown>,
     /// Methodology description
     pub methodology: Option<String>,
@@ -135,13 +143,13 @@ pub struct TvlDataPoint {
 #[serde(rename_all = "camelCase")]
 pub struct ChainTvl {
     /// Historical TVL data for this chain
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub tvl: Vec<TvlDataPoint>,
     /// Token breakdown for this chain
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub tokens: Vec<TokenBreakdown>,
     /// Tokens in USD
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub tokens_in_usd: Vec<TokenBreakdown>,
 }
 

@@ -139,7 +139,7 @@ async fn test_get_token_holders() {
     for holder in holders.result.iter().take(5) {
         println!(
             "  {} - {} ({:.4}%)",
-            holder.owner,
+            holder.owner_address,
             holder
                 .balance_formatted
                 .as_deref()

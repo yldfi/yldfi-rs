@@ -1,6 +1,42 @@
 //! Types for the Token API
 
+use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
+
+/// Deserialize a value that could be either a float or a string containing a float.
+/// Moralis API sometimes returns numeric values as strings.
+fn string_or_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct StringOrF64Visitor;
+
+    impl<'de> Visitor<'de> for StringOrF64Visitor {
+        type Value = Option<f64>;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a float or string containing a float")
+        }
+
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
+            Ok(Some(v))
+        }
+
+        fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+            v.parse().map(Some).map_err(de::Error::custom)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+    }
+
+    deserializer.deserialize_any(StringOrF64Visitor)
+}
 
 /// Token metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,16 +149,24 @@ pub struct TokenPair {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenHolder {
     /// Holder address
-    pub owner: String,
-    /// Balance
+    pub owner_address: String,
+    /// Holder address label
+    pub owner_address_label: Option<String>,
+    /// Entity name
+    pub entity: Option<String>,
+    /// Entity logo URL
+    pub entity_logo: Option<String>,
+    /// Balance (raw)
     pub balance: String,
     /// Balance formatted
     pub balance_formatted: Option<String>,
     /// Is contract
     pub is_contract: Option<bool>,
-    /// USD value
+    /// USD value (Moralis returns as string)
+    #[serde(default, deserialize_with = "string_or_f64")]
     pub usd_value: Option<f64>,
     /// Percentage of total supply
+    #[serde(default, deserialize_with = "string_or_f64")]
     pub percentage_relative_to_total_supply: Option<f64>,
 }
 

@@ -52,7 +52,7 @@ pub use yldfi_common::api::{ApiConfig, BaseClient};
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
 /// Default base URL for the Enso Finance API
-pub const DEFAULT_BASE_URL: &str = "https://api.enso.finance";
+pub const DEFAULT_BASE_URL: &str = "https://api.enso.build";
 
 /// Native token address (used for ETH and other native tokens)
 pub const NATIVE_TOKEN_ADDRESS: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -199,12 +199,26 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `chain_id` - Chain ID
-    /// * `address` - Wallet address
-    pub async fn get_balances(&self, chain_id: u64, address: &str) -> Result<Vec<TokenBalance>> {
-        let path = format!("/api/v1/balances/{chain_id}/{address}");
+    /// * `chain_id` - Chain ID (optional - if None, returns balances across all chains)
+    /// * `address` - Wallet address (EOA address)
+    pub async fn get_balances(
+        &self,
+        chain_id: u64,
+        address: &str,
+    ) -> Result<Vec<TokenBalance>> {
+        let mut params = vec![
+            ("eoaAddress", address.to_string()),
+            ("useEoa", "true".to_string()),
+        ];
+        if chain_id != 0 {
+            params.push(("chainId", chain_id.to_string()));
+        }
+        let params_refs: Vec<(&str, &str)> = params
+            .iter()
+            .map(|(k, v)| (*k, v.as_str()))
+            .collect();
         self.base
-            .get::<Vec<TokenBalance>, _>(&path, &[] as &[(&str, &str)])
+            .get::<Vec<TokenBalance>, _>("/api/v1/wallet/balances", &params_refs)
             .await
     }
 }

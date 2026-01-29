@@ -19,40 +19,47 @@ pub struct TokenBalancesRequest {
     pub addresses: Vec<AddressNetwork>,
 }
 
-/// Token balance entry
+/// Token balance entry from the API
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenBalanceEntry {
-    /// Token contract address
+    /// Wallet address
     pub address: String,
     /// Network name
     pub network: String,
-    /// Token name
+    /// Token contract address (null for native token)
+    pub token_address: Option<String>,
+    /// Raw balance (hex string)
+    pub token_balance: String,
+    /// Token name (from metadata)
+    #[serde(default)]
     pub name: Option<String>,
-    /// Token symbol
+    /// Token symbol (from metadata)
+    #[serde(default)]
     pub symbol: Option<String>,
-    /// Token decimals
+    /// Token decimals (from metadata)
+    #[serde(default)]
     pub decimals: Option<u8>,
-    /// Raw balance (hex or decimal string)
-    pub balance: String,
-    /// Token type (native, erc20, etc.)
-    pub token_type: Option<String>,
-    /// Token logo URL
+    /// Token logo URL (from metadata)
+    #[serde(default)]
     pub logo: Option<String>,
-    /// USD value (if available)
-    pub usd_value: Option<f64>,
-    /// Token price in USD
-    pub token_price_usd: Option<f64>,
+}
+
+/// Inner data structure for token balances
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenBalancesData {
+    pub tokens: Vec<TokenBalanceEntry>,
 }
 
 /// Response for token balances
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenBalancesResponse {
-    pub data: Vec<WalletTokenBalances>,
+    pub data: TokenBalancesData,
 }
 
-/// Token balances for a wallet
+/// Token balances for a wallet (legacy, kept for backward compatibility)
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletTokenBalances {

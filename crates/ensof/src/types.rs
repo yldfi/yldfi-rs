@@ -465,18 +465,29 @@ pub struct TokenPrice {
 #[serde(rename_all = "camelCase")]
 pub struct TokenBalance {
     /// Token address
+    #[serde(alias = "token")]
     pub address: String,
     /// Balance in smallest units
+    #[serde(alias = "amount")]
     pub balance: String,
     /// Token symbol
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Token name
+    #[serde(default)]
+    pub name: Option<String>,
     /// Token decimals
     #[serde(default)]
     pub decimals: Option<u8>,
-    /// USD value
+    /// Chain ID
     #[serde(default)]
+    pub chain_id: Option<u64>,
+    /// USD price
+    #[serde(default, alias = "price")]
     pub usd_value: Option<f64>,
+    /// Logo URI
+    #[serde(default)]
+    pub logo_uri: Option<String>,
 }
 
 /// API error response

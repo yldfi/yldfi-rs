@@ -665,13 +665,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTransfersInput>,
     ) -> String {
-        tools::alchemy_transfers(
-            &input.address,
-            Some(&input.chain),
-            input.category.as_deref(),
-        )
-        .await
-        .to_response()
+        tools::alchemy_transfers(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -701,7 +697,7 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get yield pools from DefiLlama")]
     async fn llama_yields(&self, Parameters(input): Parameters<LlamaYieldsInput>) -> String {
-        tools::llama_yields(input.chain.as_deref(), input.protocol.as_deref())
+        tools::llama_yields(input.chain.as_deref(), None)
             .await
             .to_response()
     }
@@ -737,6 +733,7 @@ impl EthcliMcpServer {
             &input.out_token,
             &input.amount,
             Some(&input.chain),
+            Some(&input.gas_price),
         )
         .await
         .to_response()
@@ -1262,38 +1259,139 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
-    // MORALIS
+    // MORALIS TOKEN
     // =========================================================================
 
-    #[tool(description = "Get wallet data via Moralis")]
-    async fn moralis_wallet(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
-        tools::moralis_wallet(&input.address, Some(&input.chain))
+    #[tool(description = "Get token metadata via Moralis (name, symbol, decimals, supply)")]
+    async fn moralis_token_metadata(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_metadata(&input.address)
             .await
             .to_response()
     }
 
-    #[tool(description = "Get token data via Moralis")]
-    async fn moralis_token(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
-        tools::moralis_token(&input.address, Some(&input.chain))
+    #[tool(description = "Get token price via Moralis")]
+    async fn moralis_token_price(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_price(&input.address)
             .await
             .to_response()
     }
 
-    #[tool(description = "Get NFT data via Moralis")]
-    async fn moralis_nft(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
-        tools::moralis_nft(&input.address, Some(&input.chain))
+    #[tool(description = "Get top token holders via Moralis")]
+    async fn moralis_token_holders(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_holders(&input.address)
             .await
             .to_response()
     }
 
-    #[tool(description = "Resolve domain name via Moralis")]
-    async fn moralis_resolve(&self, Parameters(input): Parameters<MoralisDomainInput>) -> String {
-        tools::moralis_resolve(&input.domain).await.to_response()
+    #[tool(description = "Get token DEX pairs via Moralis")]
+    async fn moralis_token_pairs(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_pairs(&input.address)
+            .await
+            .to_response()
     }
 
-    #[tool(description = "Get market data via Moralis")]
-    async fn moralis_market(&self) -> String {
-        tools::moralis_market().await.to_response()
+    #[tool(description = "Get token transfers via Moralis")]
+    async fn moralis_token_transfers(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_transfers(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS WALLET
+    // =========================================================================
+
+    #[tool(description = "Get native token balance (ETH, MATIC, etc.) via Moralis")]
+    async fn moralis_wallet_balance(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_balance(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get ERC20 token balances for a wallet via Moralis")]
+    async fn moralis_wallet_tokens(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_tokens(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get decoded wallet transaction history via Moralis")]
+    async fn moralis_wallet_history(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_history(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get wallet net worth across all chains via Moralis")]
+    async fn moralis_wallet_net_worth(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_net_worth(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS RESOLVE
+    // =========================================================================
+
+    #[tool(description = "Resolve ENS/domain name to address via Moralis")]
+    async fn moralis_resolve_domain(
+        &self,
+        Parameters(input): Parameters<MoralisDomainInput>,
+    ) -> String {
+        tools::moralis_resolve_domain(&input.domain)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Reverse lookup address to ENS/domain via Moralis")]
+    async fn moralis_resolve_address(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_resolve_address(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS MARKET
+    // =========================================================================
+
+    #[tool(description = "Get top ERC20 tokens by market cap via Moralis")]
+    async fn moralis_market_top_tokens(&self) -> String {
+        tools::moralis_market_top_tokens().await.to_response()
+    }
+
+    #[tool(description = "Get top price movers (gainers/losers) via Moralis")]
+    async fn moralis_market_top_movers(&self) -> String {
+        tools::moralis_market_top_movers().await.to_response()
     }
 
     // =========================================================================
