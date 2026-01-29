@@ -1196,6 +1196,7 @@ pub async fn price(token: &str, chain: Option<&str>) -> Result<String, ToolError
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn portfolio(
     addresses: &[String],
     tag: Option<&str>,
@@ -1822,6 +1823,7 @@ pub async fn curve_dao() -> Result<String, ToolError> {
 // QUOTE (3 subcommands)
 // =============================================================================
 
+#[allow(clippy::too_many_arguments)]
 pub async fn quote_best(
     from_token: &str,
     to_token: &str,
@@ -1851,6 +1853,7 @@ pub async fn quote_best(
     builder.execute().await.map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn quote_from(
     source: &str,
     from_token: &str,
@@ -1882,6 +1885,7 @@ pub async fn quote_from(
     builder.execute().await.map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn quote_compare(
     from_token: &str,
     to_token: &str,
