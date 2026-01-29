@@ -100,49 +100,78 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get the native token (ETH) balance for an address")]
-    async fn account_balance(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_balance(&input.address, Some(&input.chain))
+    #[tool(description = "Get the native token (ETH) balance for one or more addresses")]
+    async fn account_balance(&self, Parameters(input): Parameters<AccountBalanceInput>) -> String {
+        tools::account_balance(&input.addresses, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "List transactions for an address")]
+    #[tool(description = "List transactions for an address with pagination")]
     async fn account_txs(&self, Parameters(input): Parameters<AccountTxsInput>) -> String {
-        tools::account_txs(&input.address, Some(&input.chain), input.limit)
-            .await
-            .to_response()
+        tools::account_txs(
+            &input.address,
+            Some(&input.chain),
+            input.page,
+            input.limit,
+            input.sort.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
-    #[tool(description = "Get internal transactions for an address")]
+    #[tool(description = "Get internal transactions for an address with pagination")]
     async fn account_internal_txs(
         &self,
-        Parameters(input): Parameters<AccountAddressInput>,
+        Parameters(input): Parameters<AccountInternalTxsInput>,
     ) -> String {
-        tools::account_internal_txs(&input.address, Some(&input.chain))
-            .await
-            .to_response()
+        tools::account_internal_txs(
+            &input.address,
+            Some(&input.chain),
+            input.page,
+            input.limit,
+        )
+        .await
+        .to_response()
     }
 
-    #[tool(description = "Get ERC20 token transfers for an address")]
-    async fn account_erc20(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_erc20(&input.address, Some(&input.chain))
-            .await
-            .to_response()
+    #[tool(description = "Get ERC20 token transfers for an address with optional token filter and pagination")]
+    async fn account_erc20(&self, Parameters(input): Parameters<AccountErc20Input>) -> String {
+        tools::account_erc20(
+            &input.address,
+            Some(&input.chain),
+            input.token.as_deref(),
+            input.page,
+            input.limit,
+        )
+        .await
+        .to_response()
     }
 
-    #[tool(description = "Get ERC721 NFT transfers for an address")]
-    async fn account_erc721(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_erc721(&input.address, Some(&input.chain))
-            .await
-            .to_response()
+    #[tool(description = "Get ERC721 NFT transfers for an address with optional token filter and pagination")]
+    async fn account_erc721(&self, Parameters(input): Parameters<AccountErc721Input>) -> String {
+        tools::account_erc721(
+            &input.address,
+            Some(&input.chain),
+            input.token.as_deref(),
+            input.page,
+            input.limit,
+        )
+        .await
+        .to_response()
     }
 
-    #[tool(description = "Get ERC1155 token transfers for an address")]
-    async fn account_erc1155(&self, Parameters(input): Parameters<AccountAddressInput>) -> String {
-        tools::account_erc1155(&input.address, Some(&input.chain))
-            .await
-            .to_response()
+    #[tool(description = "Get ERC1155 token transfers for an address with optional token filter and pagination")]
+    async fn account_erc1155(&self, Parameters(input): Parameters<AccountErc1155Input>) -> String {
+        tools::account_erc1155(
+            &input.address,
+            Some(&input.chain),
+            input.token.as_deref(),
+            input.page,
+            input.limit,
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -191,11 +220,17 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token balance for a specific address")]
+    #[tool(description = "Get token balance for one or more tokens and holders, with optional tag filtering")]
     async fn token_balance(&self, Parameters(input): Parameters<TokenBalanceInput>) -> String {
-        tools::token_balance(&input.token, &input.address, Some(&input.chain))
-            .await
-            .to_response()
+        tools::token_balance(
+            &input.tokens,
+            &input.holders,
+            input.tag.as_deref(),
+            input.show_zero,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -397,11 +432,20 @@ impl EthcliMcpServer {
     // PORTFOLIO
     // =========================================================================
 
-    #[tool(description = "Get portfolio holdings for an address across tokens")]
+    #[tool(description = "Get aggregated portfolio/balances from multiple sources. Supports multiple addresses, tag filtering, aggregation, and min-value filtering.")]
     async fn portfolio(&self, Parameters(input): Parameters<PortfolioInput>) -> String {
-        tools::portfolio(&input.address, input.chain.as_deref())
-            .await
-            .to_response()
+        tools::portfolio(
+            &input.addresses,
+            input.tag.as_deref(),
+            input.aggregate,
+            input.chain.as_deref(),
+            input.source.as_deref(),
+            input.min_value,
+            input.show_sources,
+            input.show_blacklisted,
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -430,26 +474,33 @@ impl EthcliMcpServer {
     // QUOTE (DEX Aggregated)
     // =========================================================================
 
-    #[tool(description = "Get best swap quote across DEX aggregators")]
+    #[tool(description = "Get best swap quote across DEX aggregators. Supports human-readable amounts with decimals param.")]
     async fn quote_best(&self, Parameters(input): Parameters<QuoteBestInput>) -> String {
         tools::quote_best(
             &input.from_token,
             &input.to_token,
             &input.amount,
             Some(&input.chain),
+            input.decimals,
+            input.sender.as_deref(),
             input.slippage,
+            input.show_tx,
         )
         .await
         .to_response()
     }
 
-    #[tool(description = "Compare quotes across DEX aggregators")]
+    #[tool(description = "Compare quotes across DEX aggregators side-by-side")]
     async fn quote_compare(&self, Parameters(input): Parameters<QuoteCompareInput>) -> String {
         tools::quote_compare(
             &input.from_token,
             &input.to_token,
             &input.amount,
             Some(&input.chain),
+            input.decimals,
+            input.sender.as_deref(),
+            input.slippage,
+            input.show_tx,
         )
         .await
         .to_response()
@@ -747,24 +798,74 @@ impl EthcliMcpServer {
     // SIMULATE
     // =========================================================================
 
-    #[tool(description = "Simulate a contract call")]
+    #[tool(description = "Simulate a contract call with full state/block override support")]
     async fn simulate_call(&self, Parameters(input): Parameters<SimulateCallInput>) -> String {
         tools::simulate_call(
             &input.contract,
-            &input.sig,
+            input.sig.as_deref(),
+            input.data.as_deref(),
             input.args,
             Some(&input.chain),
+            // Transaction params
+            input.from.as_deref(),
+            input.value.as_deref(),
+            input.block.as_deref(),
+            input.gas.as_deref(),
+            input.gas_price.as_deref(),
+            // State overrides
+            &input.balance_overrides,
+            &input.storage_overrides,
+            &input.code_overrides,
+            &input.nonce_overrides,
+            // Block overrides
+            input.block_timestamp,
+            input.block_number_override,
+            input.block_gas_limit.as_deref(),
+            input.block_coinbase.as_deref(),
+            input.block_difficulty.as_deref(),
+            input.block_base_fee.as_deref(),
+            input.transaction_index,
+            // L2 options
+            input.l1_block_number,
+            input.l1_timestamp,
+            input.l1_message_sender.as_deref(),
+            input.deposit_tx,
+            input.system_tx,
+            // Simulation options
             input.via.as_deref(),
+            input.rpc_url.as_deref(),
+            input.trace,
+            input.estimate_gas,
+            input.generate_access_list,
+            input.access_list.as_deref(),
+            input.simulation_type.as_deref(),
+            input.network_id,
+            input.save,
+            // Tenderly options
+            input.tenderly_key.as_deref(),
+            input.tenderly_account.as_deref(),
+            input.tenderly_project.as_deref(),
+            // Alchemy options
+            input.alchemy_key.as_deref(),
+            input.alchemy_network.as_deref(),
+            // Debug options
+            input.dry_run.as_deref(),
+            input.show_secrets,
         )
         .await
         .to_response()
     }
 
-    #[tool(description = "Simulate a historical transaction")]
+    #[tool(description = "Simulate/trace a historical transaction")]
     async fn simulate_tx(&self, Parameters(input): Parameters<SimulateTxInput>) -> String {
-        tools::simulate_tx(&input.hash, Some(&input.chain))
-            .await
-            .to_response()
+        tools::simulate_tx(
+            &input.hash,
+            Some(&input.chain),
+            input.via.as_deref(),
+            input.trace,
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -1312,15 +1413,18 @@ impl EthcliMcpServer {
     // QUOTE (additional)
     // =========================================================================
 
-    #[tool(description = "Get quote from a specific aggregator")]
-    async fn quote_from(&self, Parameters(input): Parameters<QuoteCompareInput>) -> String {
-        // Uses same input as compare but with from_token as aggregator name
+    #[tool(description = "Get quote from a specific aggregator (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)")]
+    async fn quote_from(&self, Parameters(input): Parameters<QuoteFromInput>) -> String {
         tools::quote_from(
+            &input.source,
             &input.from_token,
             &input.to_token,
             &input.amount,
-            "", // empty for this signature
             Some(&input.chain),
+            input.decimals,
+            input.sender.as_deref(),
+            input.slippage,
+            input.show_tx,
         )
         .await
         .to_response()

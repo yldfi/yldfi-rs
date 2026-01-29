@@ -66,13 +66,84 @@ pub struct AccountAddressInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AccountBalanceInput {
+    /// Ethereum address(es) - supports multiple addresses
+    pub addresses: Vec<String>,
+    /// Chain name (ethereum, polygon, arbitrum, etc.)
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AccountTxsInput {
     /// Ethereum address
     pub address: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
-    /// Maximum number of transactions to return
+    /// Page number (1-indexed)
+    pub page: Option<u32>,
+    /// Number of results per page (default: 50)
+    pub limit: Option<u32>,
+    /// Sort order: "asc" or "desc" (default: desc)
+    pub sort: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AccountErc20Input {
+    /// Ethereum address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Filter by token contract address
+    pub token: Option<String>,
+    /// Page number (1-indexed)
+    pub page: Option<u32>,
+    /// Number of results per page (default: 50)
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AccountErc721Input {
+    /// Ethereum address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Filter by token contract address
+    pub token: Option<String>,
+    /// Page number (1-indexed)
+    pub page: Option<u32>,
+    /// Number of results per page (default: 50)
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AccountErc1155Input {
+    /// Ethereum address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Filter by token contract address
+    pub token: Option<String>,
+    /// Page number (1-indexed)
+    pub page: Option<u32>,
+    /// Number of results per page (default: 50)
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AccountInternalTxsInput {
+    /// Ethereum address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Page number (1-indexed)
+    pub page: Option<u32>,
+    /// Number of results per page (default: 50)
     pub limit: Option<u32>,
 }
 
@@ -109,10 +180,16 @@ pub struct TokenHoldersInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TokenBalanceInput {
-    /// Token contract address
-    pub token: String,
-    /// Wallet address to check balance for
-    pub address: String,
+    /// Token contract address(es) or labels. Use "eth" for native ETH balance.
+    pub tokens: Vec<String>,
+    /// Holder address(es) to check balance for
+    #[serde(default)]
+    pub holders: Vec<String>,
+    /// Get balances for all addresses with this tag (can combine with holders)
+    pub tag: Option<String>,
+    /// Show zero balances (hidden by default when multiple holders)
+    #[serde(default)]
+    pub show_zero: bool,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -284,10 +361,27 @@ pub struct PriceInput {
 // --- Portfolio ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PortfolioInput {
-    /// Wallet address
-    pub address: String,
-    /// Chain name (optional, all chains if omitted)
+    /// Wallet address(es) to query. Can specify multiple.
+    /// If empty/omitted, uses "me" from address book.
+    #[serde(default)]
+    pub addresses: Vec<String>,
+    /// Query all addresses with this tag from address book
+    pub tag: Option<String>,
+    /// Aggregate all wallets into a single combined view
+    #[serde(default)]
+    pub aggregate: bool,
+    /// Chain(s) to query (default: ethereum)
     pub chain: Option<String>,
+    /// Source to query: all, alchemy, moralis, dsim, uniswap, yearn
+    pub source: Option<String>,
+    /// Minimum USD value to show (filter small balances)
+    pub min_value: Option<f64>,
+    /// Show per-source breakdown
+    #[serde(default)]
+    pub show_sources: bool,
+    /// Include blacklisted tokens (normally filtered out)
+    #[serde(default)]
+    pub show_blacklisted: bool,
 }
 
 // --- NFTs ---
@@ -312,30 +406,71 @@ pub struct YieldsInput {
 // --- Quote ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct QuoteBestInput {
-    /// Source token address
+    /// Source token address (or symbol like ETH, USDC)
     pub from_token: String,
-    /// Destination token address
+    /// Destination token address (or symbol like ETH, USDC)
     pub to_token: String,
-    /// Amount to swap (in source token units)
+    /// Amount to swap. Use raw units or human format with decimals param.
     pub amount: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
-    /// Slippage tolerance in basis points (optional)
+    /// Number of decimals for input amount (converts human amount to raw).
+    /// E.g., decimals=18 converts "1.5" to "1500000000000000000"
+    pub decimals: Option<u8>,
+    /// Sender address (required by some aggregators for accurate quotes)
+    pub sender: Option<String>,
+    /// Slippage tolerance in basis points (e.g., 50 = 0.5%)
     pub slippage: Option<u32>,
+    /// Show transaction data in output
+    #[serde(default)]
+    pub show_tx: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct QuoteCompareInput {
-    /// Source token address
+    /// Source token address (or symbol like ETH, USDC)
     pub from_token: String,
-    /// Destination token address
+    /// Destination token address (or symbol like ETH, USDC)
     pub to_token: String,
-    /// Amount to swap
+    /// Amount to swap. Use raw units or human format with decimals param.
     pub amount: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+    /// Number of decimals for input amount (converts human amount to raw)
+    pub decimals: Option<u8>,
+    /// Sender address (required by some aggregators for accurate quotes)
+    pub sender: Option<String>,
+    /// Slippage tolerance in basis points (e.g., 50 = 0.5%)
+    pub slippage: Option<u32>,
+    /// Show transaction data in output
+    #[serde(default)]
+    pub show_tx: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct QuoteFromInput {
+    /// The aggregator to use (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)
+    pub source: String,
+    /// Source token address (or symbol like ETH, USDC)
+    pub from_token: String,
+    /// Destination token address (or symbol like ETH, USDC)
+    pub to_token: String,
+    /// Amount to swap. Use raw units or human format with decimals param.
+    pub amount: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Number of decimals for input amount (converts human amount to raw)
+    pub decimals: Option<u8>,
+    /// Sender address (required by some aggregators for accurate quotes)
+    pub sender: Option<String>,
+    /// Slippage tolerance in basis points (e.g., 50 = 0.5%)
+    pub slippage: Option<u32>,
+    /// Show transaction data in output
+    #[serde(default)]
+    pub show_tx: bool,
 }
 
 // --- Chainlink ---
@@ -1197,17 +1332,119 @@ pub struct CcxtOrderbookInput {
 // --- Simulate ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SimulateCallInput {
-    /// Contract address
+    /// Target contract address
     pub contract: String,
-    /// Function signature
-    pub sig: String,
-    /// Function arguments
+    /// Function signature (e.g., "transfer(address,uint256)")
+    pub sig: Option<String>,
+    /// Raw calldata (hex encoded, alternative to sig)
+    pub data: Option<String>,
+    /// Function arguments (used with sig)
+    #[serde(default)]
     pub args: Vec<String>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
-    /// Simulation provider (tenderly, alchemy)
+
+    // === Transaction parameters ===
+    /// Sender address (default: zero address)
+    pub from: Option<String>,
+    /// Value to send in wei (default: 0)
+    pub value: Option<String>,
+    /// Block number or tag (latest, pending, etc.)
+    pub block: Option<String>,
+    /// Gas limit
+    pub gas: Option<String>,
+    /// Gas price in wei
+    pub gas_price: Option<String>,
+
+    // === State overrides (format: "address=value" or "address:slot=value") ===
+    /// Set balance overrides (format: address=wei, can specify multiple)
+    #[serde(default)]
+    pub balance_overrides: Vec<String>,
+    /// Set storage overrides (format: address:slot=value, can specify multiple)
+    #[serde(default)]
+    pub storage_overrides: Vec<String>,
+    /// Set code overrides (format: address=bytecode, can specify multiple)
+    #[serde(default)]
+    pub code_overrides: Vec<String>,
+    /// Set nonce overrides (format: address=nonce, can specify multiple)
+    #[serde(default)]
+    pub nonce_overrides: Vec<String>,
+
+    // === Block overrides ===
+    /// Override block timestamp (unix seconds)
+    pub block_timestamp: Option<u64>,
+    /// Override block number
+    pub block_number_override: Option<u64>,
+    /// Override block gas limit
+    pub block_gas_limit: Option<String>,
+    /// Override block coinbase/miner address
+    pub block_coinbase: Option<String>,
+    /// Override block difficulty
+    pub block_difficulty: Option<String>,
+    /// Override block base fee per gas (wei)
+    pub block_base_fee: Option<String>,
+    /// Transaction index within the block
+    pub transaction_index: Option<u32>,
+
+    // === L2 options (Optimism, etc.) ===
+    /// L1 block number (for L2 simulations)
+    pub l1_block_number: Option<u64>,
+    /// L1 timestamp (for L2 simulations)
+    pub l1_timestamp: Option<u64>,
+    /// L1 message sender (for L2 cross-chain simulations)
+    pub l1_message_sender: Option<String>,
+    /// Mark as deposit transaction (Optimism Bedrock)
+    #[serde(default)]
+    pub deposit_tx: bool,
+    /// Mark as system transaction (Optimism Bedrock)
+    #[serde(default)]
+    pub system_tx: bool,
+
+    // === Simulation options ===
+    /// Simulation backend (cast, anvil, tenderly, debug, trace, alchemy)
     pub via: Option<String>,
+    /// RPC URL (for debug backend)
+    pub rpc_url: Option<String>,
+    /// Show execution trace
+    #[serde(default)]
+    pub trace: bool,
+    /// Enable precise gas estimation (Tenderly)
+    #[serde(default)]
+    pub estimate_gas: bool,
+    /// Generate EIP-2930 access list in response (Tenderly)
+    #[serde(default)]
+    pub generate_access_list: bool,
+    /// Provide access list (JSON format)
+    pub access_list: Option<String>,
+    /// Simulation type: full, quick, or abi
+    pub simulation_type: Option<String>,
+    /// Network ID to simulate on
+    pub network_id: Option<u64>,
+    /// Save simulation to Tenderly (returns simulation ID)
+    #[serde(default)]
+    pub save: bool,
+
+    // === Tenderly options ===
+    /// Tenderly API key (or use TENDERLY_ACCESS_KEY env)
+    pub tenderly_key: Option<String>,
+    /// Tenderly account slug (or use TENDERLY_ACCOUNT env)
+    pub tenderly_account: Option<String>,
+    /// Tenderly project slug (or use TENDERLY_PROJECT env)
+    pub tenderly_project: Option<String>,
+
+    // === Alchemy options ===
+    /// Alchemy API key (or use ALCHEMY_API_KEY env)
+    pub alchemy_key: Option<String>,
+    /// Alchemy network (e.g., eth-mainnet, polygon-mainnet, arb-mainnet)
+    pub alchemy_network: Option<String>,
+
+    // === Debug options ===
+    /// Dry run - output request without executing (json, curl, fetch, powershell, url, python, httpie, wget, go, rust, axios)
+    pub dry_run: Option<String>,
+    /// Show API keys in dry-run output (default: masked with env var placeholders)
+    #[serde(default)]
+    pub show_secrets: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1217,6 +1454,11 @@ pub struct SimulateTxInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+    /// Simulation backend (cast, tenderly, debug, trace, alchemy)
+    pub via: Option<String>,
+    /// Show full opcode trace
+    #[serde(default)]
+    pub trace: bool,
 }
 
 // --- Config ---

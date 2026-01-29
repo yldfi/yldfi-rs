@@ -134,10 +134,16 @@ pub async fn account_info(address: &str, chain: Option<&str>) -> Result<String, 
         .map_err(ToolError::from)
 }
 
-pub async fn account_balance(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("account")
-        .subcommand("balance")
-        .arg(address)
+pub async fn account_balance(addresses: &[String], chain: Option<&str>) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("account")
+        .subcommand("balance");
+
+    // Add addresses as positional arguments
+    for addr in addresses {
+        builder = builder.arg(addr);
+    }
+
+    builder
         .chain(chain)
         .format_json()
         .execute()
@@ -148,7 +154,9 @@ pub async fn account_balance(address: &str, chain: Option<&str>) -> Result<Strin
 pub async fn account_txs(
     address: &str,
     chain: Option<&str>,
+    page: Option<u32>,
     limit: Option<u32>,
+    sort: Option<&str>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("account")
         .subcommand("txs")
@@ -156,6 +164,34 @@ pub async fn account_txs(
         .chain(chain)
         .format_json();
 
+    if let Some(p) = page {
+        builder = builder.opt("--page", Some(&p.to_string()));
+    }
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+    if let Some(s) = sort {
+        builder = builder.opt("--sort", Some(s));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn account_internal_txs(
+    address: &str,
+    chain: Option<&str>,
+    page: Option<u32>,
+    limit: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("account")
+        .subcommand("internal-txs")
+        .arg(address)
+        .chain(chain)
+        .format_json();
+
+    if let Some(p) = page {
+        builder = builder.opt("--page", Some(&p.to_string()));
+    }
     if let Some(l) = limit {
         builder = builder.opt("--limit", Some(&l.to_string()));
     }
@@ -163,48 +199,76 @@ pub async fn account_txs(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn account_internal_txs(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("account")
-        .subcommand("internal-txs")
-        .arg(address)
-        .chain(chain)
-        .format_json()
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn account_erc20(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("account")
+pub async fn account_erc20(
+    address: &str,
+    chain: Option<&str>,
+    token: Option<&str>,
+    page: Option<u32>,
+    limit: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("account")
         .subcommand("erc20")
         .arg(address)
         .chain(chain)
-        .format_json()
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("--token", token)
+        .format_json();
+
+    if let Some(p) = page {
+        builder = builder.opt("--page", Some(&p.to_string()));
+    }
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn account_erc721(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("account")
+pub async fn account_erc721(
+    address: &str,
+    chain: Option<&str>,
+    token: Option<&str>,
+    page: Option<u32>,
+    limit: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("account")
         .subcommand("erc721")
         .arg(address)
         .chain(chain)
-        .format_json()
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("--token", token)
+        .format_json();
+
+    if let Some(p) = page {
+        builder = builder.opt("--page", Some(&p.to_string()));
+    }
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn account_erc1155(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("account")
+pub async fn account_erc1155(
+    address: &str,
+    chain: Option<&str>,
+    token: Option<&str>,
+    page: Option<u32>,
+    limit: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("account")
         .subcommand("erc1155")
         .arg(address)
         .chain(chain)
-        .format_json()
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("--token", token)
+        .format_json();
+
+    if let Some(p) = page {
+        builder = builder.opt("--page", Some(&p.to_string()));
+    }
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn account_mined_blocks(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
@@ -454,18 +518,30 @@ pub async fn token_holders(
 }
 
 pub async fn token_balance(
-    token: &str,
-    holder: &str,
+    tokens: &[String],
+    holders: &[String],
+    tag: Option<&str>,
+    show_zero: bool,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
-    ArgsBuilder::new("token")
-        .subcommand("balance")
-        .arg(token)
-        .opt("--holder", Some(holder))
-        .chain(chain)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+    let mut builder = ArgsBuilder::new("token").subcommand("balance");
+
+    // Add tokens as positional arguments
+    for token in tokens {
+        builder = builder.arg(token);
+    }
+
+    // Add holders with --holder flag (can be specified multiple times)
+    for holder in holders {
+        builder = builder.opt("--holder", Some(holder));
+    }
+
+    builder = builder
+        .opt("--tag", tag)
+        .opt_flag("--show-zero", show_zero)
+        .chain(chain);
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 // =============================================================================
@@ -820,20 +896,135 @@ pub async fn ens_namehash(name: &str) -> Result<String, ToolError> {
 // SIMULATE (8 subcommands)
 // =============================================================================
 
+#[allow(clippy::too_many_arguments)]
 pub async fn simulate_call(
     contract: &str,
-    sig: &str,
+    sig: Option<&str>,
+    data: Option<&str>,
     args: Vec<String>,
     chain: Option<&str>,
+    // Transaction params
+    from: Option<&str>,
+    value: Option<&str>,
+    block: Option<&str>,
+    gas: Option<&str>,
+    gas_price: Option<&str>,
+    // State overrides
+    balance_overrides: &[String],
+    storage_overrides: &[String],
+    code_overrides: &[String],
+    nonce_overrides: &[String],
+    // Block overrides
+    block_timestamp: Option<u64>,
+    block_number_override: Option<u64>,
+    block_gas_limit: Option<&str>,
+    block_coinbase: Option<&str>,
+    block_difficulty: Option<&str>,
+    block_base_fee: Option<&str>,
+    transaction_index: Option<u32>,
+    // L2 options
+    l1_block_number: Option<u64>,
+    l1_timestamp: Option<u64>,
+    l1_message_sender: Option<&str>,
+    deposit_tx: bool,
+    system_tx: bool,
+    // Simulation options
     via: Option<&str>,
+    rpc_url: Option<&str>,
+    trace: bool,
+    estimate_gas: bool,
+    generate_access_list: bool,
+    access_list: Option<&str>,
+    simulation_type: Option<&str>,
+    network_id: Option<u64>,
+    save: bool,
+    // Tenderly options
+    tenderly_key: Option<&str>,
+    tenderly_account: Option<&str>,
+    tenderly_project: Option<&str>,
+    // Alchemy options
+    alchemy_key: Option<&str>,
+    alchemy_network: Option<&str>,
+    // Debug options
+    dry_run: Option<&str>,
+    show_secrets: bool,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("simulate")
         .subcommand("call")
         .arg(contract)
-        .opt("--sig", Some(sig))
+        .opt("--sig", sig)
+        .opt("--data", data)
         .chain(chain)
-        .opt("--via", via);
+        // Transaction params
+        .opt("--from", from)
+        .opt("--value", value)
+        .opt("--block", block)
+        .opt("--gas", gas)
+        .opt("--gas-price", gas_price)
+        // Block overrides
+        .opt("--block-gas-limit", block_gas_limit)
+        .opt("--block-coinbase", block_coinbase)
+        .opt("--block-difficulty", block_difficulty)
+        .opt("--block-base-fee", block_base_fee)
+        // L2 options
+        .opt("--l1-message-sender", l1_message_sender)
+        .opt_flag("--deposit-tx", deposit_tx)
+        .opt_flag("--system-tx", system_tx)
+        // Simulation options
+        .opt("--via", via)
+        .opt("--rpc-url", rpc_url)
+        .opt_flag("--trace", trace)
+        .opt_flag("--estimate-gas", estimate_gas)
+        .opt_flag("--generate-access-list", generate_access_list)
+        .opt("--access-list", access_list)
+        .opt("--simulation-type", simulation_type)
+        .opt_flag("--save", save)
+        // Tenderly options
+        .opt("--tenderly-key", tenderly_key)
+        .opt("--tenderly-account", tenderly_account)
+        .opt("--tenderly-project", tenderly_project)
+        // Alchemy options
+        .opt("--alchemy-key", alchemy_key)
+        .opt("--alchemy-network", alchemy_network)
+        // Debug options
+        .opt("--dry-run", dry_run)
+        .opt_flag("--show-secrets", show_secrets);
 
+    // Numeric options
+    if let Some(ts) = block_timestamp {
+        builder = builder.opt("--block-timestamp", Some(&ts.to_string()));
+    }
+    if let Some(bn) = block_number_override {
+        builder = builder.opt("--block-number-override", Some(&bn.to_string()));
+    }
+    if let Some(ti) = transaction_index {
+        builder = builder.opt("--transaction-index", Some(&ti.to_string()));
+    }
+    if let Some(l1bn) = l1_block_number {
+        builder = builder.opt("--l1-block-number", Some(&l1bn.to_string()));
+    }
+    if let Some(l1ts) = l1_timestamp {
+        builder = builder.opt("--l1-timestamp", Some(&l1ts.to_string()));
+    }
+    if let Some(nid) = network_id {
+        builder = builder.opt("--network-id", Some(&nid.to_string()));
+    }
+
+    // State overrides (repeatable)
+    for bo in balance_overrides {
+        builder = builder.opt("--balance-override", Some(bo));
+    }
+    for so in storage_overrides {
+        builder = builder.opt("--storage-override", Some(so));
+    }
+    for co in code_overrides {
+        builder = builder.opt("--code-override", Some(co));
+    }
+    for no in nonce_overrides {
+        builder = builder.opt("--nonce-override", Some(no));
+    }
+
+    // Function arguments
     for arg in args {
         builder = builder.arg(&arg);
     }
@@ -841,11 +1032,18 @@ pub async fn simulate_call(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn simulate_tx(hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn simulate_tx(
+    hash: &str,
+    chain: Option<&str>,
+    via: Option<&str>,
+    trace: bool,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("simulate")
         .subcommand("tx")
         .arg(hash)
         .chain(chain)
+        .opt("--via", via)
+        .opt_flag("--trace", trace)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -996,14 +1194,37 @@ pub async fn price(token: &str, chain: Option<&str>) -> Result<String, ToolError
         .map_err(ToolError::from)
 }
 
-pub async fn portfolio(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("portfolio")
-        .arg(address)
+pub async fn portfolio(
+    addresses: &[String],
+    tag: Option<&str>,
+    aggregate: bool,
+    chain: Option<&str>,
+    source: Option<&str>,
+    min_value: Option<f64>,
+    show_sources: bool,
+    show_blacklisted: bool,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("portfolio");
+
+    // Add addresses as positional arguments
+    for addr in addresses {
+        builder = builder.arg(addr);
+    }
+
+    builder = builder
+        .opt("--tag", tag)
+        .opt_flag("--aggregate", aggregate)
         .chain(chain)
-        .format_json()
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("--source", source)
+        .opt_flag("--show-sources", show_sources)
+        .opt_flag("--show-blacklisted", show_blacklisted)
+        .format_json();
+
+    if let Some(mv) = min_value {
+        builder = builder.opt("--min-value", Some(&mv.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn nfts(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
@@ -1604,15 +1825,23 @@ pub async fn quote_best(
     to_token: &str,
     amount: &str,
     chain: Option<&str>,
+    decimals: Option<u8>,
+    sender: Option<&str>,
     slippage: Option<u32>,
+    show_tx: bool,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("quote")
         .subcommand("best")
         .arg(from_token)
         .arg(to_token)
         .arg(amount)
-        .chain(chain);
+        .chain(chain)
+        .opt("--sender", sender)
+        .opt_flag("--show-tx", show_tx);
 
+    if let Some(d) = decimals {
+        builder = builder.opt("--decimals", Some(&d.to_string()));
+    }
     if let Some(s) = slippage {
         builder = builder.opt("--slippage", Some(&s.to_string()));
     }
@@ -1621,22 +1850,34 @@ pub async fn quote_best(
 }
 
 pub async fn quote_from(
-    aggregator: &str,
+    source: &str,
     from_token: &str,
     to_token: &str,
     amount: &str,
     chain: Option<&str>,
+    decimals: Option<u8>,
+    sender: Option<&str>,
+    slippage: Option<u32>,
+    show_tx: bool,
 ) -> Result<String, ToolError> {
-    ArgsBuilder::new("quote")
+    let mut builder = ArgsBuilder::new("quote")
         .subcommand("from")
-        .arg(aggregator)
+        .arg(source)
         .arg(from_token)
         .arg(to_token)
         .arg(amount)
         .chain(chain)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("--sender", sender)
+        .opt_flag("--show-tx", show_tx);
+
+    if let Some(d) = decimals {
+        builder = builder.opt("--decimals", Some(&d.to_string()));
+    }
+    if let Some(s) = slippage {
+        builder = builder.opt("--slippage", Some(&s.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn quote_compare(
@@ -1644,16 +1885,28 @@ pub async fn quote_compare(
     to_token: &str,
     amount: &str,
     chain: Option<&str>,
+    decimals: Option<u8>,
+    sender: Option<&str>,
+    slippage: Option<u32>,
+    show_tx: bool,
 ) -> Result<String, ToolError> {
-    ArgsBuilder::new("quote")
+    let mut builder = ArgsBuilder::new("quote")
         .subcommand("compare")
         .arg(from_token)
         .arg(to_token)
         .arg(amount)
         .chain(chain)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("--sender", sender)
+        .opt_flag("--show-tx", show_tx);
+
+    if let Some(d) = decimals {
+        builder = builder.opt("--decimals", Some(&d.to_string()));
+    }
+    if let Some(s) = slippage {
+        builder = builder.opt("--slippage", Some(&s.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 // =============================================================================
