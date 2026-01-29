@@ -53,6 +53,7 @@ jobs:
           cd target/${{ matrix.target }}/release
           tar czvf ../../../ethcli-${{ matrix.name }}.tar.gz ethcli
           cd ../../..
+          shasum -a 256 ethcli-${{ matrix.name }}.tar.gz > ethcli-${{ matrix.name }}.tar.gz.sha256
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -60,6 +61,7 @@ jobs:
           cd target/${{ matrix.target }}/release
           7z a ../../../ethcli-${{ matrix.name }}.zip ethcli.exe
           cd ../../..
+          (Get-FileHash ethcli-${{ matrix.name }}.zip -Algorithm SHA256).Hash.ToLower() + "  ethcli-${{ matrix.name }}.zip" | Out-File -Encoding ASCII ethcli-${{ matrix.name }}.zip.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -67,7 +69,9 @@ jobs:
           name: ethcli-${{ matrix.name }}
           path: |
             ethcli-*.tar.gz
+            ethcli-*.tar.gz.sha256
             ethcli-*.zip
+            ethcli-*.zip.sha256
 
   release:
     name: Create Release
