@@ -201,11 +201,7 @@ impl Client {
     ///
     /// * `chain_id` - Chain ID (optional - if None, returns balances across all chains)
     /// * `address` - Wallet address (EOA address)
-    pub async fn get_balances(
-        &self,
-        chain_id: u64,
-        address: &str,
-    ) -> Result<Vec<TokenBalance>> {
+    pub async fn get_balances(&self, chain_id: u64, address: &str) -> Result<Vec<TokenBalance>> {
         let mut params = vec![
             ("eoaAddress", address.to_string()),
             ("useEoa", "true".to_string()),
@@ -213,10 +209,7 @@ impl Client {
         if chain_id != 0 {
             params.push(("chainId", chain_id.to_string()));
         }
-        let params_refs: Vec<(&str, &str)> = params
-            .iter()
-            .map(|(k, v)| (*k, v.as_str()))
-            .collect();
+        let params_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         self.base
             .get::<Vec<TokenBalance>, _>("/api/v1/wallet/balances", &params_refs)
             .await
