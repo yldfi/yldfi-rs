@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.11](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.10...ethcli-v0.21.11) (2026-01-29)
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** prevent data truncation in MCP tool outputs ([12da461](https://github.com/yldfi/yldfi-rs/commit/12da4612be2f9826971498a3c7a0c7a1c475e5f4))
+* resolve clippy warnings in tx analyzer ([cd283d2](https://github.com/yldfi/yldfi-rs/commit/cd283d2446b7e9c670357e1af14e5ec6ea20dfaf))
+
 ## [0.21.10](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.9...ethcli-v0.21.10) (2026-01-28)
 
 
