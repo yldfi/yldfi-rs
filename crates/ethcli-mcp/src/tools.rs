@@ -134,9 +134,11 @@ pub async fn account_info(address: &str, chain: Option<&str>) -> Result<String, 
         .map_err(ToolError::from)
 }
 
-pub async fn account_balance(addresses: &[String], chain: Option<&str>) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("account")
-        .subcommand("balance");
+pub async fn account_balance(
+    addresses: &[String],
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("account").subcommand("balance");
 
     // Add addresses as positional arguments
     for addr in addresses {

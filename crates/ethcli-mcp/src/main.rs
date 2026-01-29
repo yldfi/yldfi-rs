@@ -125,17 +125,14 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AccountInternalTxsInput>,
     ) -> String {
-        tools::account_internal_txs(
-            &input.address,
-            Some(&input.chain),
-            input.page,
-            input.limit,
-        )
-        .await
-        .to_response()
+        tools::account_internal_txs(&input.address, Some(&input.chain), input.page, input.limit)
+            .await
+            .to_response()
     }
 
-    #[tool(description = "Get ERC20 token transfers for an address with optional token filter and pagination")]
+    #[tool(
+        description = "Get ERC20 token transfers for an address with optional token filter and pagination"
+    )]
     async fn account_erc20(&self, Parameters(input): Parameters<AccountErc20Input>) -> String {
         tools::account_erc20(
             &input.address,
@@ -148,7 +145,9 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get ERC721 NFT transfers for an address with optional token filter and pagination")]
+    #[tool(
+        description = "Get ERC721 NFT transfers for an address with optional token filter and pagination"
+    )]
     async fn account_erc721(&self, Parameters(input): Parameters<AccountErc721Input>) -> String {
         tools::account_erc721(
             &input.address,
@@ -161,7 +160,9 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get ERC1155 token transfers for an address with optional token filter and pagination")]
+    #[tool(
+        description = "Get ERC1155 token transfers for an address with optional token filter and pagination"
+    )]
     async fn account_erc1155(&self, Parameters(input): Parameters<AccountErc1155Input>) -> String {
         tools::account_erc1155(
             &input.address,
@@ -220,7 +221,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token balance for one or more tokens and holders, with optional tag filtering")]
+    #[tool(
+        description = "Get token balance for one or more tokens and holders, with optional tag filtering"
+    )]
     async fn token_balance(&self, Parameters(input): Parameters<TokenBalanceInput>) -> String {
         tools::token_balance(
             &input.tokens,
@@ -432,7 +435,9 @@ impl EthcliMcpServer {
     // PORTFOLIO
     // =========================================================================
 
-    #[tool(description = "Get aggregated portfolio/balances from multiple sources. Supports multiple addresses, tag filtering, aggregation, and min-value filtering.")]
+    #[tool(
+        description = "Get aggregated portfolio/balances from multiple sources. Supports multiple addresses, tag filtering, aggregation, and min-value filtering."
+    )]
     async fn portfolio(&self, Parameters(input): Parameters<PortfolioInput>) -> String {
         tools::portfolio(
             &input.addresses,
@@ -474,7 +479,9 @@ impl EthcliMcpServer {
     // QUOTE (DEX Aggregated)
     // =========================================================================
 
-    #[tool(description = "Get best swap quote across DEX aggregators. Supports human-readable amounts with decimals param.")]
+    #[tool(
+        description = "Get best swap quote across DEX aggregators. Supports human-readable amounts with decimals param."
+    )]
     async fn quote_best(&self, Parameters(input): Parameters<QuoteBestInput>) -> String {
         tools::quote_best(
             &input.from_token,
@@ -1413,7 +1420,9 @@ impl EthcliMcpServer {
     // QUOTE (additional)
     // =========================================================================
 
-    #[tool(description = "Get quote from a specific aggregator (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)")]
+    #[tool(
+        description = "Get quote from a specific aggregator (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)"
+    )]
     async fn quote_from(&self, Parameters(input): Parameters<QuoteFromInput>) -> String {
         tools::quote_from(
             &input.source,
