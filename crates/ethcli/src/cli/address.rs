@@ -45,7 +45,13 @@ pub enum AddressCommands {
         tag: Option<String>,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
+        #[arg(
+            long,
+            short,
+            visible_alias = "format",
+            value_enum,
+            default_value = "table"
+        )]
         output: OutputFormat,
     },
 
@@ -56,7 +62,13 @@ pub enum AddressCommands {
         label: String,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
+        #[arg(
+            long,
+            short,
+            visible_alias = "format",
+            value_enum,
+            default_value = "table"
+        )]
         output: OutputFormat,
     },
 
@@ -67,7 +79,13 @@ pub enum AddressCommands {
         query: String,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
+        #[arg(
+            long,
+            short,
+            visible_alias = "format",
+            value_enum,
+            default_value = "table"
+        )]
         output: OutputFormat,
     },
 

@@ -134,7 +134,13 @@ pub enum ContractCommands {
         address: String,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short = 'o', visible_alias = "output", value_enum, default_value = "table")]
+        #[arg(
+            long,
+            short = 'o',
+            visible_alias = "output",
+            value_enum,
+            default_value = "table"
+        )]
         format: OutputFormat,
     },
 

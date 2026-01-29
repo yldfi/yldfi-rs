@@ -26,7 +26,13 @@ pub struct TxArgs {
     pub block: Option<u64>,
 
     /// Output format (json, table/pretty, ndjson)
-    #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
+    #[arg(
+        long,
+        short,
+        visible_alias = "format",
+        value_enum,
+        default_value = "table"
+    )]
     pub output: OutputFormat,
 
     /// Process transactions in parallel batches

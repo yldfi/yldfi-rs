@@ -150,11 +150,7 @@ impl TxAnalyzer {
         block_number: u64,
     ) -> Result<B256> {
         let prefix = partial_hash.to_lowercase();
-        let prefix = if prefix.starts_with("0x") {
-            &prefix[2..]
-        } else {
-            &prefix
-        };
+        let prefix = prefix.strip_prefix("0x").unwrap_or(&prefix);
 
         // Minimum 8 characters (4 bytes) for reasonable matching
         if prefix.len() < 8 {
@@ -186,15 +182,20 @@ impl TxAnalyzer {
             0 => Err(format!(
                 "No transaction in block {} matches prefix '{}'",
                 block_number, partial_hash
-            ).into()),
+            )
+            .into()),
             1 => Ok(matches[0]),
             n => Err(format!(
                 "Ambiguous: {} transactions in block {} match prefix '{}': {:?}",
                 n,
                 block_number,
                 partial_hash,
-                matches.iter().map(|h| format!("{:#x}", h)).collect::<Vec<_>>()
-            ).into()),
+                matches
+                    .iter()
+                    .map(|h| format!("{:#x}", h))
+                    .collect::<Vec<_>>()
+            )
+            .into()),
         }
     }
 
@@ -206,9 +207,9 @@ impl TxAnalyzer {
         block_number: Option<u64>,
     ) -> Result<TransactionAnalysis> {
         // Check if this is a partial hash that needs resolution
-        let hash = if hash.len() < 66 && block_number.is_some() {
+        let hash = if let (true, Some(block)) = (hash.len() < 66, block_number) {
             // Partial hash with block number - resolve it
-            self.resolve_partial_hash(hash, block_number.unwrap()).await?
+            self.resolve_partial_hash(hash, block).await?
         } else {
             // Full hash or no block number - parse directly
             B256::from_str(hash)

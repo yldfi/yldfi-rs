@@ -12,7 +12,13 @@ pub struct OneInchArgs {
     pub action: OneInchCommands,
 
     /// Output format
-    #[arg(long, short = 'o', visible_alias = "output", default_value = "json", global = true)]
+    #[arg(
+        long,
+        short = 'o',
+        visible_alias = "output",
+        default_value = "json",
+        global = true
+    )]
     pub format: OutputFormat,
 }
 

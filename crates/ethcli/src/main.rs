@@ -2060,7 +2060,9 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
 
                 async move {
                     let result = if enrich {
-                        analyzer.analyze_enriched_with_block(&hash, block_number).await
+                        analyzer
+                            .analyze_enriched_with_block(&hash, block_number)
+                            .await
                     } else {
                         analyzer.analyze_with_block(&hash, block_number).await
                     };

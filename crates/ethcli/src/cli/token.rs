@@ -31,7 +31,13 @@ pub enum TokenCommands {
         address: String,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
+        #[arg(
+            long,
+            short,
+            visible_alias = "format",
+            value_enum,
+            default_value = "table"
+        )]
         output: OutputFormat,
     },
 
@@ -46,7 +52,13 @@ pub enum TokenCommands {
         limit: u32,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
+        #[arg(
+            long,
+            short,
+            visible_alias = "format",
+            value_enum,
+            default_value = "table"
+        )]
         output: OutputFormat,
     },
 
@@ -69,7 +81,13 @@ pub enum TokenCommands {
         show_zero: bool,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
+        #[arg(
+            long,
+            short,
+            visible_alias = "format",
+            value_enum,
+            default_value = "table"
+        )]
         output: OutputFormat,
     },
 }
