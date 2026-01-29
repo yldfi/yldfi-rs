@@ -71,7 +71,7 @@ pub enum RpcCommands {
         full: bool,
 
         /// Output format
-        #[arg(long, short = 'o', default_value = "table")]
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
         format: OutputFormat,
     },
 
@@ -119,7 +119,7 @@ pub enum RpcCommands {
         hash: String,
 
         /// Output format
-        #[arg(long, short = 'o', default_value = "table")]
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
         format: OutputFormat,
     },
 

@@ -43,7 +43,7 @@ pub struct YieldsArgs {
     pub show_sources: bool,
 
     /// Output format
-    #[arg(long, short = 'o', default_value = "table")]
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
     pub format: OutputFormat,
 }
 

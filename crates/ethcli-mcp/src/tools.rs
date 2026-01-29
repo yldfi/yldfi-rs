@@ -100,10 +100,19 @@ pub async fn logs(
 // TX (Transaction Analysis)
 // =============================================================================
 
-pub async fn tx_analyze(hash: &str, chain: Option<&str>, trace: bool) -> Result<String, ToolError> {
-    ArgsBuilder::new("tx")
-        .arg(hash)
-        .chain(chain)
+pub async fn tx_analyze(
+    hash: &str,
+    chain: Option<&str>,
+    block: Option<u64>,
+    trace: bool,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tx").arg(hash).chain(chain);
+
+    if let Some(b) = block {
+        builder = builder.opt("-b", Some(&b.to_string()));
+    }
+
+    builder
         .opt_flag("--trace", trace)
         .execute()
         .await
@@ -119,6 +128,7 @@ pub async fn account_info(address: &str, chain: Option<&str>) -> Result<String, 
         .subcommand("info")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -129,6 +139,7 @@ pub async fn account_balance(address: &str, chain: Option<&str>) -> Result<Strin
         .subcommand("balance")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -142,7 +153,8 @@ pub async fn account_txs(
     let mut builder = ArgsBuilder::new("account")
         .subcommand("txs")
         .arg(address)
-        .chain(chain);
+        .chain(chain)
+        .format_json();
 
     if let Some(l) = limit {
         builder = builder.opt("--limit", Some(&l.to_string()));
@@ -156,6 +168,7 @@ pub async fn account_internal_txs(address: &str, chain: Option<&str>) -> Result<
         .subcommand("internal-txs")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -166,6 +179,7 @@ pub async fn account_erc20(address: &str, chain: Option<&str>) -> Result<String,
         .subcommand("erc20")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -176,6 +190,7 @@ pub async fn account_erc721(address: &str, chain: Option<&str>) -> Result<String
         .subcommand("erc721")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -186,6 +201,7 @@ pub async fn account_erc1155(address: &str, chain: Option<&str>) -> Result<Strin
         .subcommand("erc1155")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -196,6 +212,7 @@ pub async fn account_mined_blocks(address: &str, chain: Option<&str>) -> Result<
         .subcommand("mined-blocks")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -237,6 +254,7 @@ pub async fn address_get(name: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("address")
         .subcommand("get")
         .arg(name)
+        .opt("-o", Some("json"))
         .execute()
         .await
         .map_err(ToolError::from)
@@ -377,6 +395,7 @@ pub async fn contract_creation(address: &str, chain: Option<&str>) -> Result<Str
         .subcommand("creation")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -410,6 +429,7 @@ pub async fn token_info(address: &str, chain: Option<&str>) -> Result<String, To
         .subcommand("info")
         .arg(address)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -423,7 +443,8 @@ pub async fn token_holders(
     let mut builder = ArgsBuilder::new("token")
         .subcommand("holders")
         .arg(address)
-        .chain(chain);
+        .chain(chain)
+        .format_json();
 
     if let Some(l) = limit {
         builder = builder.opt("--limit", Some(&l.to_string()));
@@ -455,6 +476,7 @@ pub async fn gas_oracle(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("gas")
         .subcommand("oracle")
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)

@@ -2045,6 +2045,7 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
 
         // Process batch in parallel
         let enrich = args.enrich;
+        let block_number = args.block;
         let futures: Vec<_> = batch
             .iter()
             .enumerate()
@@ -2059,9 +2060,9 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
 
                 async move {
                     let result = if enrich {
-                        analyzer.analyze_enriched(&hash).await
+                        analyzer.analyze_enriched_with_block(&hash, block_number).await
                     } else {
-                        analyzer.analyze(&hash).await
+                        analyzer.analyze_with_block(&hash, block_number).await
                     };
                     (idx, hash.clone(), result)
                 }

@@ -20,7 +20,7 @@ use crate::config::EndpointConfig;
 use crate::error::{Result, RpcError};
 use alloy::primitives::B256;
 use alloy::providers::{Provider, ProviderBuilder};
-use alloy::rpc::types::{Filter, Log, Transaction, TransactionReceipt};
+use alloy::rpc::types::{Block, Filter, Log, Transaction, TransactionReceipt};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -218,6 +218,26 @@ impl Endpoint {
 
         match result {
             Ok(Ok(receipt)) => Ok(receipt),
+            Ok(Err(e)) => Err(RpcError::Provider(
+                crate::error::sanitize_error_message(&e.to_string()).into_owned(),
+            )
+            .into()),
+            Err(_) => Err(RpcError::Timeout(self.timeout.as_millis() as u64).into()),
+        }
+    }
+
+    /// Get a block by number with full transaction objects
+    pub async fn get_block_with_txs(&self, block_number: u64) -> Result<Option<Block>> {
+        let result = tokio::time::timeout(
+            self.timeout,
+            self.provider
+                .get_block_by_number(block_number.into())
+                .full(),
+        )
+        .await;
+
+        match result {
+            Ok(Ok(block)) => Ok(block),
             Ok(Err(e)) => Err(RpcError::Provider(
                 crate::error::sanitize_error_message(&e.to_string()).into_owned(),
             )

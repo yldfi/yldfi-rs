@@ -70,7 +70,7 @@ pub struct NftsArgs {
     pub limit: Option<usize>,
 
     /// Output format
-    #[arg(long, short = 'o', default_value = "table")]
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
     pub format: OutputFormat,
 }
 

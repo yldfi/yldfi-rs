@@ -52,7 +52,7 @@ fn validate_chain_id(chain_id: u64) -> anyhow::Result<()> {
 #[derive(Args)]
 pub struct KongArgs {
     /// Output format
-    #[arg(long, short = 'o', default_value = "json")]
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "json")]
     pub format: OutputFormat,
 }
 

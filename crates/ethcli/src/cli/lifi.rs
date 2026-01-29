@@ -12,7 +12,7 @@ pub struct LiFiArgs {
     pub action: LiFiCommands,
 
     /// Output format
-    #[arg(long, short = 'o', default_value = "json", global = true)]
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "json", global = true)]
     pub format: OutputFormat,
 }
 

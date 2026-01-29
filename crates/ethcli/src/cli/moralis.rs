@@ -13,7 +13,7 @@ pub struct MoralisArgs {
     pub chain: String,
 
     /// Output format
-    #[arg(long, short = 'o', default_value = "json")]
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "json")]
     pub format: OutputFormat,
 }
 

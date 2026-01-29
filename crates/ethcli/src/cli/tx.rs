@@ -6,7 +6,8 @@ use std::path::PathBuf;
 
 #[derive(Args)]
 pub struct TxArgs {
-    /// Transaction hash(es) (with or without 0x prefix)
+    /// Transaction hash(es) (with or without 0x prefix).
+    /// Partial hashes are supported when --block is specified.
     #[arg(value_name = "TX_HASH")]
     pub hashes: Vec<String>,
 
@@ -18,8 +19,14 @@ pub struct TxArgs {
     #[arg(long)]
     pub stdin: bool,
 
+    /// Block number for partial hash resolution.
+    /// When provided with a partial tx hash (e.g. from `account txs` output),
+    /// the transaction will be looked up by matching the prefix within this block.
+    #[arg(long, short = 'b', value_name = "BLOCK")]
+    pub block: Option<u64>,
+
     /// Output format (json, table/pretty, ndjson)
-    #[arg(long, short, value_enum, default_value = "table")]
+    #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
     pub output: OutputFormat,
 
     /// Process transactions in parallel batches

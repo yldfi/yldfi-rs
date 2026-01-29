@@ -497,7 +497,9 @@ impl ArgsBuilder {
     }
 
     pub fn format_json(mut self) -> Self {
-        self.args.push("--format".to_string());
+        // Use -o (short flag) because ethcli commands inconsistently use
+        // --format or --output for the long flag, but all use -o for short
+        self.args.push("-o".to_string());
         self.args.push("json".to_string());
         self
     }
@@ -718,7 +720,7 @@ mod tests {
     #[test]
     fn test_args_builder_format_json() {
         let builder = ArgsBuilder::new("test").format_json();
-        assert_eq!(builder.args, vec!["test", "--format", "json"]);
+        assert_eq!(builder.args, vec!["test", "-o", "json"]);
     }
 
     // -------------------------------------------------------------------------

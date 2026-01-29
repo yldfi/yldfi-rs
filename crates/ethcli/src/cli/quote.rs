@@ -123,7 +123,7 @@ pub struct QuoteArgs {
     pub slippage: u32,
 
     /// Output format
-    #[arg(long, short = 'o', default_value = "table")]
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
     pub format: OutputFormat,
 
     /// Show transaction data in output

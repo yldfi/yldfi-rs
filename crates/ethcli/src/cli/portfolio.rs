@@ -98,7 +98,7 @@ pub struct PortfolioArgs {
     pub min_value: Option<f64>,
 
     /// Output format
-    #[arg(long, short = 'o', default_value = "table")]
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
     pub format: OutputFormat,
 }
 

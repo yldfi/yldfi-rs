@@ -32,7 +32,7 @@ use std::str::FromStr;
 #[derive(Args)]
 pub struct ChainlinkArgs {
     /// Output format
-    #[arg(long, short = 'o', default_value = "table")]
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
     pub format: OutputFormat,
 }
 

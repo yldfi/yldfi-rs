@@ -79,10 +79,10 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Analyze an Ethereum transaction including decoded events, token transfers, and method calls"
+        description = "Analyze an Ethereum transaction including decoded events, token transfers, and method calls. Supports partial tx hashes when block number is provided."
     )]
     async fn tx_analyze(&self, Parameters(input): Parameters<TxAnalyzeInput>) -> String {
-        tools::tx_analyze(&input.hash, Some(&input.chain), input.trace)
+        tools::tx_analyze(&input.hash, Some(&input.chain), input.block, input.trace)
             .await
             .to_response()
     }

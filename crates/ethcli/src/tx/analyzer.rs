@@ -113,19 +113,107 @@ impl TxAnalyzer {
 
     /// Analyze a transaction by hash (basic analysis)
     pub async fn analyze(&self, hash: &str) -> Result<TransactionAnalysis> {
-        self.analyze_internal(hash, false).await
+        self.analyze_internal(hash, false, None).await
     }
 
     /// Analyze a transaction with enrichment from Etherscan (slower but more detailed)
     pub async fn analyze_enriched(&self, hash: &str) -> Result<TransactionAnalysis> {
-        self.analyze_internal(hash, true).await
+        self.analyze_internal(hash, true, None).await
+    }
+
+    /// Analyze a transaction by hash with optional block number for partial hash resolution
+    pub async fn analyze_with_block(
+        &self,
+        hash: &str,
+        block_number: Option<u64>,
+    ) -> Result<TransactionAnalysis> {
+        self.analyze_internal(hash, false, block_number).await
+    }
+
+    /// Analyze a transaction with enrichment and optional block number for partial hash resolution
+    pub async fn analyze_enriched_with_block(
+        &self,
+        hash: &str,
+        block_number: Option<u64>,
+    ) -> Result<TransactionAnalysis> {
+        self.analyze_internal(hash, true, block_number).await
+    }
+
+    /// Resolve a partial transaction hash using a block number
+    ///
+    /// If the hash is less than 66 characters (full hash length with 0x prefix),
+    /// and a block number is provided, fetch the block and find the transaction
+    /// that matches the prefix.
+    pub async fn resolve_partial_hash(
+        &self,
+        partial_hash: &str,
+        block_number: u64,
+    ) -> Result<B256> {
+        let prefix = partial_hash.to_lowercase();
+        let prefix = if prefix.starts_with("0x") {
+            &prefix[2..]
+        } else {
+            &prefix
+        };
+
+        // Minimum 8 characters (4 bytes) for reasonable matching
+        if prefix.len() < 8 {
+            return Err(format!(
+                "Partial hash '{}' is too short. Need at least 8 hex characters for reliable matching.",
+                partial_hash
+            ).into());
+        }
+
+        // Fetch block with full transactions
+        let block = self
+            .pool
+            .get_block_with_txs(block_number)
+            .await?
+            .ok_or_else(|| format!("Block {} not found", block_number))?;
+
+        // Search for matching transaction
+        let mut matches = Vec::new();
+        if let alloy::rpc::types::BlockTransactions::Full(txs) = block.transactions {
+            for tx in txs {
+                let tx_hash = format!("{:x}", tx.inner.tx_hash());
+                if tx_hash.starts_with(prefix) {
+                    matches.push(*tx.inner.tx_hash());
+                }
+            }
+        }
+
+        match matches.len() {
+            0 => Err(format!(
+                "No transaction in block {} matches prefix '{}'",
+                block_number, partial_hash
+            ).into()),
+            1 => Ok(matches[0]),
+            n => Err(format!(
+                "Ambiguous: {} transactions in block {} match prefix '{}': {:?}",
+                n,
+                block_number,
+                partial_hash,
+                matches.iter().map(|h| format!("{:#x}", h)).collect::<Vec<_>>()
+            ).into()),
+        }
     }
 
     /// Internal analyze method
-    async fn analyze_internal(&self, hash: &str, enrich: bool) -> Result<TransactionAnalysis> {
-        // Parse transaction hash
-        let hash = B256::from_str(hash)
-            .map_err(|e| format!("Invalid transaction hash '{}': {}", hash, e))?;
+    async fn analyze_internal(
+        &self,
+        hash: &str,
+        enrich: bool,
+        block_number: Option<u64>,
+    ) -> Result<TransactionAnalysis> {
+        // Check if this is a partial hash that needs resolution
+        let hash = if hash.len() < 66 && block_number.is_some() {
+            // Partial hash with block number - resolve it
+            self.resolve_partial_hash(hash, block_number.unwrap()).await?
+        } else {
+            // Full hash or no block number - parse directly
+            B256::from_str(hash)
+                .map_err(|e| format!("Invalid transaction hash '{}': {}", hash, e))?
+        };
 
         // Fetch raw data
         let raw = self.fetch_raw_data(hash).await?;

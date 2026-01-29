@@ -39,11 +39,17 @@ pub struct LogsInput {
 // --- Transaction ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TxAnalyzeInput {
-    /// Transaction hash (with or without 0x prefix)
+    /// Transaction hash (with or without 0x prefix).
+    /// Partial hashes are supported when block is specified.
     pub hash: String,
     /// Chain name (ethereum, polygon, arbitrum, etc.)
     #[serde(default = "default_chain")]
     pub chain: String,
+    /// Block number for partial hash resolution.
+    /// When provided with a partial tx hash (e.g. from account_txs output),
+    /// the transaction will be looked up by matching the prefix within this block.
+    #[serde(default)]
+    pub block: Option<u64>,
     /// Include execution trace
     #[serde(default)]
     pub trace: bool,

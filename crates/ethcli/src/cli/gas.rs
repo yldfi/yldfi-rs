@@ -11,7 +11,7 @@ pub enum GasCommands {
     /// Get current gas prices from the gas oracle
     Oracle {
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 

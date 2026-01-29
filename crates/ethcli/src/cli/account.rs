@@ -59,7 +59,7 @@ pub enum AccountCommands {
         address: String,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 
@@ -71,7 +71,7 @@ pub enum AccountCommands {
         addresses: Vec<String>,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 
@@ -94,7 +94,7 @@ pub enum AccountCommands {
         sort: String,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 
@@ -112,7 +112,7 @@ pub enum AccountCommands {
         limit: u64,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 
@@ -134,7 +134,7 @@ pub enum AccountCommands {
         limit: u64,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 
@@ -156,7 +156,7 @@ pub enum AccountCommands {
         limit: u64,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 
@@ -178,7 +178,7 @@ pub enum AccountCommands {
         limit: u64,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 
@@ -196,7 +196,7 @@ pub enum AccountCommands {
         limit: u64,
 
         /// Output format (json, table/pretty)
-        #[arg(long, short, value_enum, default_value = "table")]
+        #[arg(long, short, visible_alias = "format", value_enum, default_value = "table")]
         output: OutputFormat,
     },
 }

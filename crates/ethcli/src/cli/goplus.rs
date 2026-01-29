@@ -32,7 +32,7 @@ pub enum GoPlusCommands {
         chain_id: u64,
 
         /// Output format
-        #[arg(long, short = 'o', default_value = "table")]
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
         format: OutputFormat,
     },
 
@@ -46,7 +46,7 @@ pub enum GoPlusCommands {
         chain_id: u64,
 
         /// Output format
-        #[arg(long, short = 'o', default_value = "table")]
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
         format: OutputFormat,
     },
 
@@ -60,7 +60,7 @@ pub enum GoPlusCommands {
         chain_id: u64,
 
         /// Output format
-        #[arg(long, short = 'o', default_value = "table")]
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
         format: OutputFormat,
     },
 
@@ -74,7 +74,7 @@ pub enum GoPlusCommands {
         chain_id: u64,
 
         /// Output format
-        #[arg(long, short = 'o', default_value = "table")]
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
         format: OutputFormat,
     },
 
@@ -88,7 +88,7 @@ pub enum GoPlusCommands {
         chain_id: u64,
 
         /// Output format
-        #[arg(long, short = 'o', default_value = "table")]
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
         format: OutputFormat,
     },
 

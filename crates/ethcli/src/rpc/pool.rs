@@ -45,7 +45,7 @@ use crate::config::{
 use crate::error::{sanitize_error_message, Error, Result, RpcError};
 use crate::rpc::{Endpoint, EndpointHealth, HealthTracker};
 use alloy::primitives::B256;
-use alloy::rpc::types::{Filter, Log, Transaction, TransactionReceipt};
+use alloy::rpc::types::{Block, Filter, Log, Transaction, TransactionReceipt};
 use futures::future::join_all;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
@@ -365,6 +365,39 @@ impl RpcPool {
         }
 
         // No endpoint had the receipt
+        Ok(None)
+    }
+
+    /// Get a block by number with full transaction objects (tries multiple endpoints)
+    pub async fn get_block_with_txs(&self, block_number: u64) -> Result<Option<Block>> {
+        let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
+
+        for endpoint in endpoints {
+            match endpoint.get_block_with_txs(block_number).await {
+                Ok(Some(block)) => {
+                    self.health
+                        .record_success(endpoint.url(), Duration::from_millis(100));
+                    return Ok(Some(block));
+                }
+                Ok(None) => {
+                    tracing::debug!(
+                        "Block {} not found on {}, trying next endpoint",
+                        block_number,
+                        sanitize_error_message(endpoint.url())
+                    );
+                }
+                Err(e) => {
+                    self.health.record_failure(endpoint.url(), false, false);
+                    tracing::debug!(
+                        "Failed to get block {} from {}: {}",
+                        block_number,
+                        sanitize_error_message(endpoint.url()),
+                        e
+                    );
+                }
+            }
+        }
+
         Ok(None)
     }
 
