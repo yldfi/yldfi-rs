@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.0...ethcli-mcp-v0.1.1) (2026-01-29)
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** prevent data truncation in MCP tool outputs ([12da461](https://github.com/yldfi/yldfi-rs/commit/12da4612be2f9826971498a3c7a0c7a1c475e5f4))
+
 ## [0.1.0](https://github.com/yldfi/yldfi-rs/releases/tag/ethcli-mcp-v0.1.0) (Unreleased)
 
 ### Features
