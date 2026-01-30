@@ -186,8 +186,12 @@ async fn main() -> anyhow::Result<()> {
             return ethcli::cli::nfts::execute(args, cli.quiet).await;
         }
 
-        Commands::Update { install } => {
-            return ethcli::cli::update::handle(*install, cli.quiet).await;
+        Commands::Update => {
+            return ethcli::cli::update::handle(false, cli.quiet).await;
+        }
+
+        Commands::Upgrade => {
+            return ethcli::cli::update::handle(true, cli.quiet).await;
         }
 
         Commands::Doctor => {

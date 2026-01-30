@@ -86,7 +86,7 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
         println!("\nUpdate available!");
         println!("Download from: {}", release.html_url);
         if asset.is_some() {
-            println!("\nOr run: ethcli update --install");
+            println!("\nOr run: ethcli upgrade");
         }
         return Ok(());
     }

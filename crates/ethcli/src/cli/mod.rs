@@ -273,12 +273,11 @@ pub enum Commands {
     #[command(visible_alias = "nft")]
     Nfts(nfts::NftsArgs),
 
-    /// Check for updates and optionally install latest version
-    Update {
-        /// Automatically download and install the update
-        #[arg(long)]
-        install: bool,
-    },
+    /// Check for available updates
+    Update,
+
+    /// Download and install the latest version
+    Upgrade,
 
     /// Check configuration and endpoint health
     Doctor,
