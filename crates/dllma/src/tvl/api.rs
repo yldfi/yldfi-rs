@@ -50,7 +50,8 @@ impl<'a> TvlApi<'a> {
     /// # async fn example() -> dllma::error::Result<()> {
     /// let client = dllma::Client::new()?;
     /// let aave = client.tvl().protocol("aave").await?;
-    /// println!("{}: ${:.0}M TVL", aave.name, aave.tvl.unwrap_or(0.0) / 1_000_000.0);
+    /// let latest_tvl = aave.tvl.last().map(|p| p.total_liquidity_usd).unwrap_or(0.0);
+    /// println!("{}: ${:.0}M TVL", aave.name, latest_tvl / 1_000_000.0);
     /// # Ok(())
     /// # }
     /// ```
