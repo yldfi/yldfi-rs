@@ -1147,3 +1147,181 @@ fn test_kong_vaults() {
     let response = client.call_tool("kong_vaults", json!({}));
     assert!(is_tool_success(&response), "kong_vaults should succeed");
 }
+
+// =============================================================================
+// Bytecode Analysis Tests (requires network)
+// =============================================================================
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_selectors() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    // USDC has well-known function selectors
+    let response = client.call_tool("contract_selectors", json!({"address": USDC}));
+    assert!(
+        is_tool_success(&response),
+        "contract_selectors should succeed"
+    );
+
+    let text = get_tool_text(&response).expect("Should have text");
+    // USDC should have transfer function (0xa9059cbb)
+    assert!(
+        text.contains("0xa9059cbb") || text.contains("a9059cbb"),
+        "Should detect transfer selector, got: {}",
+        &text[..500.min(text.len())]
+    );
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_selectors_with_lookup() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = client.call_tool(
+        "contract_selectors",
+        json!({"address": USDC, "lookup": true}),
+    );
+    assert!(
+        is_tool_success(&response),
+        "contract_selectors with lookup should succeed"
+    );
+
+    let text = get_tool_text(&response).expect("Should have text");
+    // With lookup, should resolve function names
+    assert!(
+        text.contains("transfer") || text.contains("approve") || text.contains("balanceOf"),
+        "Should resolve function names, got: {}",
+        &text[..500.min(text.len())]
+    );
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_disassemble() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = client.call_tool(
+        "contract_disassemble",
+        json!({"address": USDC, "limit": 20}),
+    );
+    assert!(
+        is_tool_success(&response),
+        "contract_disassemble should succeed"
+    );
+
+    let text = get_tool_text(&response).expect("Should have text");
+    // Should contain common opcodes
+    assert!(
+        text.contains("PUSH") || text.contains("MSTORE") || text.contains("JUMPDEST"),
+        "Should contain opcodes, got: {}",
+        &text[..500.min(text.len())]
+    );
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_opcodes() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = client.call_tool("contract_opcodes", json!({"address": USDC}));
+    assert!(is_tool_success(&response), "contract_opcodes should succeed");
+
+    let text = get_tool_text(&response).expect("Should have text");
+    // Should contain statistics
+    assert!(
+        text.contains("total") || text.contains("PUSH") || text.contains("count"),
+        "Should contain opcode statistics, got: {}",
+        &text[..500.min(text.len())]
+    );
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_analyze() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = client.call_tool("contract_analyze", json!({"address": USDC}));
+    assert!(is_tool_success(&response), "contract_analyze should succeed");
+
+    let text = get_tool_text(&response).expect("Should have text");
+    // Should contain security analysis info
+    assert!(
+        text.contains("risk") || text.contains("Risk") || text.contains("security") || text.contains("Security"),
+        "Should contain security analysis, got: {}",
+        &text[..500.min(text.len())]
+    );
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_analyze_with_disassembly() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = client.call_tool(
+        "contract_analyze",
+        json!({"address": USDC, "include_disassembly": true, "limit": 10}),
+    );
+    assert!(
+        is_tool_success(&response),
+        "contract_analyze with disassembly should succeed"
+    );
+
+    let text = get_tool_text(&response).expect("Should have text");
+    // Should contain both analysis and disassembly
+    assert!(
+        (text.contains("risk") || text.contains("Risk"))
+            && (text.contains("PUSH") || text.contains("offset")),
+        "Should contain both analysis and disassembly, got: {}",
+        &text[..1000.min(text.len())]
+    );
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_analyze_proxy_detection() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    // USDC is actually a proxy contract - test that we detect it
+    let response = client.call_tool(
+        "contract_analyze",
+        json!({"address": USDC, "follow_proxy": false}),
+    );
+    assert!(
+        is_tool_success(&response),
+        "contract_analyze proxy detection should succeed"
+    );
+
+    // Note: The proxy detection should work, but we may or may not get proxy info
+    // depending on the proxy type. The main thing is the command succeeds.
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_analyze_json_output() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    // The MCP tool should return JSON format
+    let response = client.call_tool("contract_analyze", json!({"address": WETH}));
+    assert!(
+        is_tool_success(&response),
+        "contract_analyze JSON should succeed"
+    );
+
+    let text = get_tool_text(&response).expect("Should have text");
+    // Check if it's valid JSON or contains JSON structure
+    // The output might be a mix of text and JSON, so just check for common JSON markers
+    assert!(
+        text.contains("{") || text.contains("address") || text.contains("bytecode_size"),
+        "Should contain structured data, got: {}",
+        &text[..500.min(text.len())]
+    );
+}

@@ -3,8 +3,8 @@
 use super::types::{
     AggregatedPairStats, GetMultiplePricesRequest, HistoricalHolders, NewToken, PairOhlcv,
     PairSniper, PairStats, TokenBondingStatus, TokenCategory, TokenHoldersResponse,
-    TokenHoldersSummary, TokenMetadata, TokenPair, TokenPrice, TokenResponse, TokenSearchResult,
-    TokenStats, TokenSwap, TokenTransfer, TopTrader, TrendingToken,
+    TokenHoldersSummary, TokenMetadata, TokenPair, TokenPairsResponse, TokenPrice, TokenResponse,
+    TokenSearchResult, TokenStats, TokenSwap, TokenTransfer, TopTrader, TrendingToken,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -116,12 +116,13 @@ impl<'a> TokenApi<'a> {
     /// Get token pairs (DEX liquidity pools)
     pub async fn get_pairs(&self, address: &str, chain: Option<&str>) -> Result<Vec<TokenPair>> {
         let path = format!("/erc20/{address}/pairs");
-        if let Some(chain) = chain {
+        let response: TokenPairsResponse = if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
+            self.client.get_with_query(&path, &query).await?
         } else {
-            self.client.get(&path).await
-        }
+            self.client.get(&path).await?
+        };
+        Ok(response.pairs)
     }
 
     /// Get top token holders

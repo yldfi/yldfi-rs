@@ -28,7 +28,6 @@ cargo clippy
 
 - Debug: `./target/debug/ethcli`
 - Release: `./target/release/ethcli`
-- Legacy alias: `./target/release/eth-log-fetch`
 
 ## Available Commands
 
@@ -38,7 +37,7 @@ ethcli logs       # Fetch historical logs from contracts
 ethcli tx         # Analyze transaction(s)
 ethcli account    # Account operations (balance, transactions, transfers)
 ethcli address    # Address book (save and lookup addresses by label)
-ethcli contract   # Contract operations (ABI, source, creation)
+ethcli contract   # Contract operations (ABI, source, creation, bytecode analysis)
 ethcli token      # Token operations (info, holders, balance)
 ethcli gas        # Gas price oracle and estimates
 ethcli sig        # Signature lookup (function selectors, event topics)
@@ -97,6 +96,70 @@ ethcli pyth       # Pyth Network API (price feeds, search, known-feeds)
 ```
 ethcli blacklist  # Token blacklist management (spam/scam filtering)
 ```
+
+## Bytecode Analysis Commands
+
+Analyze contract bytecode without requiring source code or ABI. Uses evmole for function extraction and evm-disassembler for opcode analysis.
+
+```bash
+# Extract function selectors, arguments, and state mutability
+ethcli contract selectors 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory
+
+# Disassemble bytecode into opcodes
+ethcli contract disassemble 0x... --limit 50
+ethcli contract dis 0x...
+
+# Get opcode frequency statistics
+ethcli contract opcodes 0x...
+ethcli contract ops 0x...
+
+# Full security analysis (combines all above)
+ethcli contract analyze 0x...
+ethcli contract az 0x... --include-disassembly --lookup
+
+# Analyze proxy's implementation contract instead of proxy bytecode
+ethcli contract analyze 0x... --follow-proxy
+
+# JSON output
+ethcli contract analyze 0x... --format json
+```
+
+### Proxy Detection
+
+The analyze command automatically detects proxy contracts:
+- **EIP-1167**: Minimal proxy clones (implementation embedded in bytecode)
+- **EIP-1967**: Transparent proxies (implementation in storage slot)
+- **EIP-1822**: UUPS proxies
+- **OpenZeppelin Legacy**: Pre-EIP-1967 patterns
+
+Use `--follow-proxy` to analyze the implementation contract instead of the proxy bytecode.
+
+### Security Patterns Detected
+
+| Opcode | Risk | Description |
+|--------|------|-------------|
+| SELFDESTRUCT | Critical | Contract can be destroyed, potentially locking user funds |
+| DELEGATECALL | High | Arbitrary code execution - can modify contract state via external code |
+| CALLCODE | High | Deprecated opcode with similar risks to DELEGATECALL |
+| ORIGIN | Medium | Uses tx.origin for authorization - honeypot indicator |
+| CREATE | Medium | Dynamically creates contracts |
+| CREATE2 | Medium | Deterministic contract creation |
+
+### Output Includes
+
+- **Functions**: Selectors, arguments, state mutability (pure/view/nonpayable/payable)
+- **Risk Level**: LOW, MEDIUM, HIGH, or CRITICAL based on detected patterns
+- **Dangerous Opcodes**: Count of SELFDESTRUCT, DELEGATECALL, CALLCODE
+- **Hardcoded Addresses**: Count of PUSH20 operations (embedded addresses)
+- **Opcode Statistics**: Frequency of each opcode type
+- **Proxy Info**: Detected proxy type and implementation address (if applicable)
+
+### Notes
+
+- No API key required - works directly with RPC bytecode
+- Aliases: `sel`, `dis`, `ops`, `az`, `an`
+- Works on unverified contracts (no source/ABI needed)
 
 ## GoPlus Security Commands
 
@@ -930,6 +993,13 @@ src/
 │   ├── json.rs       # JSON/NDJSON output
 │   ├── csv.rs        # CSV output
 │   └── sqlite.rs     # SQLite output
+├── bytecode/         # Bytecode analysis (evmole, evm-disassembler)
+│   ├── mod.rs        # Module exports
+│   ├── types.rs      # ExtractedFunction, OpcodeStats, SecurityAnalysis, etc.
+│   ├── selectors.rs  # Function selector extraction (evmole wrapper)
+│   ├── disassemble.rs # Opcode disassembly (evm-disassembler wrapper)
+│   ├── security.rs   # Security pattern detection (SELFDESTRUCT, DELEGATECALL, etc.)
+│   └── analyze.rs    # Combined bytecode analysis
 ├── chainlink/        # Chainlink price feed queries
 │   ├── mod.rs        # Public exports, fetch_price(), fetch_price_at_block()
 │   ├── types.rs      # PriceData, ChainlinkError
@@ -1003,6 +1073,8 @@ src/
 ## Key Dependencies
 
 - **alloy 1.0**: Ethereum provider, types, ABI decoding
+- **evmole**: Function selector extraction from bytecode
+- **evm-disassembler**: EVM opcode disassembly
 - **foundry-block-explorers**: Etherscan API client
 - **chainlink-data-streams-sdk**: Chainlink Data Streams API (optional, requires API key)
 - **pyth**: Pyth Network Hermes API client (no API key needed)

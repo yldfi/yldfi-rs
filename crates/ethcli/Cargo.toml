@@ -13,11 +13,6 @@ readme = "README.md"
 name = "ethcli"
 path = "src/main.rs"
 
-# Legacy alias for backward compatibility
-[[bin]]
-name = "eth-log-fetch"
-path = "src/bin/eth-log-fetch.rs"
-
 [lib]
 name = "ethcli"
 path = "src/lib.rs"
@@ -117,6 +112,10 @@ gplus = { version = "0.1", path = "../gplus" }
 
 # Solodit vulnerability database client
 sldt = { version = "0.1", path = "../sldt" }
+
+# Bytecode analysis
+evmole = { version = "0.8", features = ["serde"] }
+evm-disassembler = "0.5"
 
 # Chainlink Data Streams
 chainlink-data-streams-sdk = { version = "1.2", features = ["full"] }

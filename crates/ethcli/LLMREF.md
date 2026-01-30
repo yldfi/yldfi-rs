@@ -39,6 +39,17 @@ ethcli contract creation <addr>     # Creation tx & deployer
 ethcli contract verify-status <addr> # Verification status
 ```
 
+### Bytecode Analysis
+```bash
+ethcli contract selectors <addr>    # Extract function selectors (evmole)
+ethcli contract sel <addr> --lookup # With 4byte.directory lookup
+ethcli contract disassemble <addr>  # Full opcode disassembly
+ethcli contract dis <addr> --limit 50 # Limit output
+ethcli contract opcodes <addr>      # Opcode frequency stats
+ethcli contract analyze <addr>      # Combined security analysis
+ethcli contract az <addr> --lookup  # With signature lookup
+```
+
 ### ENS Resolution
 ```bash
 ethcli ens resolve <name>           # ENS to address
@@ -130,6 +141,12 @@ ethcli yields --protocol aave       # Filter by protocol
 ethcli yields --chain ethereum      # Filter by chain
 ```
 
+### NFTs (multi-source)
+```bash
+ethcli nfts <wallet>                # NFT holdings
+ethcli nfts <wallet> --chain ethereum
+```
+
 ## Direct API Commands
 
 ### Alchemy (requires ALCHEMY_API_KEY)
@@ -199,6 +216,39 @@ ethcli goplus address <addr> --chain-id 1 # Address security
 ```bash
 ethcli solodit search "reentrancy" --impact HIGH
 ethcli solodit get <slug>
+```
+
+### Dune SIM (requires DUNE_SIM_API_KEY)
+```bash
+ethcli dsim balances <addr>         # Wallet balances
+ethcli dsim activity <addr>         # Wallet activity
+ethcli dsim collectibles <addr>     # NFTs
+ethcli dsim defi <addr>             # DeFi positions
+```
+
+### Curve
+```bash
+ethcli curve pools                  # List pools
+ethcli curve pool <addr>            # Pool details
+ethcli curve volumes                # Volume data
+ethcli curve router route <from> <to> # Find swap route
+```
+
+### CCXT (Exchange Data)
+```bash
+ethcli ccxt ticker binance BTC/USDT # Get ticker
+ethcli ccxt orderbook binance BTC/USDT # Order book
+ethcli ccxt ohlcv binance BTC/USDT --timeframe 1h # Candles
+ethcli ccxt exchanges               # List exchanges
+```
+
+### Blacklist (Spam Token Filtering)
+```bash
+ethcli blacklist scan <token>       # Scan token security
+ethcli blacklist scan-portfolio <wallet> --auto-blacklist
+ethcli blacklist list               # List blacklisted tokens
+ethcli blacklist add <token> --reason "Scam"
+ethcli blacklist check <token>      # Check if blacklisted
 ```
 
 ## DEX Aggregator Commands
@@ -300,6 +350,8 @@ ethcli doctor                       # Diagnose issues
 | DUNE_SIM_API_KEY | dsim commands | Dune SIM |
 | TENDERLY_ACCESS_KEY | tenderly commands | Tenderly API |
 | THEGRAPH_API_KEY | uniswap subgraph | The Graph |
+| GOPLUS_APP_KEY | Optional | GoPlus batch queries |
+| GOPLUS_APP_SECRET | Optional | GoPlus batch queries |
 | 1INCH_API_KEY | 1inch commands | 1inch API |
 | ZEROX_API_KEY | Optional | 0x higher limits |
 | ENSO_API_KEY | enso commands | Enso Finance |

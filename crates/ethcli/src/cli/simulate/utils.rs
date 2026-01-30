@@ -352,7 +352,28 @@ pub fn build_calldata(
         }
         let output = cmd.output()?;
         if !output.status.success() {
-            return Err(anyhow::anyhow!("Failed to encode calldata"));
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr_trimmed = stderr.trim();
+
+            // Provide helpful hints for common array encoding issues
+            let hint = if s.contains("[]") {
+                "\n\nHint: For array parameters, pass the array in brackets WITHOUT quotes around elements:\n  \
+                 Example: '[0x1234...,0x5678...]' for address[]\n  \
+                 Example: '[1,2,3]' for uint256[]\n  \
+                 Note: No spaces or quotes inside the brackets!"
+            } else {
+                ""
+            };
+
+            if stderr_trimmed.is_empty() {
+                return Err(anyhow::anyhow!("Failed to encode calldata{}", hint));
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Failed to encode calldata: {}{}",
+                    stderr_trimmed,
+                    hint
+                ));
+            }
         }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {

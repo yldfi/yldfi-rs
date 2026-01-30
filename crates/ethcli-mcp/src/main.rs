@@ -203,6 +203,61 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(
+        description = "Extract function selectors from bytecode using evmole. Returns selectors, arguments, and state mutability without requiring ABI or source code."
+    )]
+    async fn contract_selectors(
+        &self,
+        Parameters(input): Parameters<ContractSelectorsInput>,
+    ) -> String {
+        tools::contract_selectors(&input.address, Some(&input.chain), input.lookup)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Disassemble contract bytecode into EVM opcodes. Shows offset, opcode name, and operands."
+    )]
+    async fn contract_disassemble(
+        &self,
+        Parameters(input): Parameters<ContractDisassembleInput>,
+    ) -> String {
+        tools::contract_disassemble(&input.address, Some(&input.chain), input.limit)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get opcode frequency statistics for contract bytecode. Shows category totals and top opcodes by frequency."
+    )]
+    async fn contract_opcodes(
+        &self,
+        Parameters(input): Parameters<ContractOpcodesInput>,
+    ) -> String {
+        tools::contract_opcodes(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Comprehensive bytecode security analysis. Detects dangerous patterns like SELFDESTRUCT, DELEGATECALL, tx.origin auth (honeypot indicator), and dynamic contract creation. Combines function extraction, security scanning, and opcode statistics. Use follow_proxy to analyze implementation contracts."
+    )]
+    async fn contract_analyze(
+        &self,
+        Parameters(input): Parameters<ContractAnalyzeInput>,
+    ) -> String {
+        tools::contract_analyze(
+            &input.address,
+            Some(&input.chain),
+            input.include_disassembly,
+            input.limit,
+            input.lookup,
+            input.follow_proxy,
+        )
+        .await
+        .to_response()
+    }
+
     // =========================================================================
     // TOKEN
     // =========================================================================

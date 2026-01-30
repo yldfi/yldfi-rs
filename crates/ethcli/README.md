@@ -22,7 +22,7 @@
 - **Log Fetching**: Parallel RPC requests across multiple endpoints
 - **Transaction Analysis**: Decode transactions with signature lookup
 - **Account Operations**: Balance, transactions, token transfers
-- **Contract Tools**: ABI fetching, source code, verification status
+- **Contract Tools**: ABI fetching, source code, bytecode analysis, security patterns
 - **Type Conversions**: Wei/Gwei/Eth, hex/dec, checksums, hashing
 - **RPC Commands**: Direct blockchain calls (call, block, storage, etc.)
 - **ENS Resolution**: Resolve names to addresses and reverse lookup
@@ -65,6 +65,7 @@
 - **Pyth Network**: Real-time price feeds, feed search
 
 ### Security & Analysis
+- **Bytecode Analysis**: Function selector extraction (evmole), opcode disassembly, security pattern detection
 - **GoPlus Security**: Token, address, NFT, and approval security analysis
 - **Solodit**: Smart contract vulnerability database search
 - **Blacklist**: Token blacklist management for spam/scam filtering
@@ -203,7 +204,7 @@ ethcli account txlist 0x...
 ethcli account tokentx 0x...
 ```
 
-### Contract - ABI and Source Code
+### Contract - ABI, Source Code, and Bytecode Analysis
 
 ```bash
 # Get contract ABI
@@ -214,6 +215,21 @@ ethcli contract source 0x...
 
 # Get creation transaction
 ethcli contract creation 0x...
+
+# Extract function selectors from bytecode (no ABI needed)
+ethcli contract selectors 0x...
+ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory
+
+# Disassemble bytecode into opcodes
+ethcli contract disassemble 0x... --limit 50
+ethcli contract dis 0x...
+
+# Get opcode frequency statistics
+ethcli contract opcodes 0x...
+
+# Security analysis (detects dangerous patterns)
+ethcli contract analyze 0x...
+ethcli contract az 0x... --include-disassembly
 ```
 
 ### Cast - Type Conversions and Hashing
@@ -810,6 +826,42 @@ ethcli kong reports strategy --chain-id 1 0x...
 ---
 
 ## Security & Analysis Commands
+
+### Bytecode Analysis - Function Selectors & Security Patterns
+
+Analyze contract bytecode without requiring source code or ABI. Uses evmole for function extraction and evm-disassembler for opcode analysis.
+
+```bash
+# Extract function selectors, arguments, and state mutability
+ethcli contract selectors 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory
+
+# Disassemble bytecode into opcodes
+ethcli contract disassemble 0x... --limit 50
+ethcli contract dis 0x...
+
+# Get opcode frequency statistics
+ethcli contract opcodes 0x...
+ethcli contract ops 0x...
+
+# Full security analysis
+ethcli contract analyze 0x...
+ethcli contract az 0x... --include-disassembly --lookup
+```
+
+**Security patterns detected**:
+- **SELFDESTRUCT** (Critical) - Contract can be destroyed
+- **DELEGATECALL** (High) - Arbitrary code execution risk
+- **CALLCODE** (High) - Deprecated dangerous call
+- **ORIGIN** (Medium) - tx.origin auth, honeypot indicator
+- **CREATE/CREATE2** (Medium) - Dynamic contract creation
+
+**Output includes**:
+- Function selectors with arguments and mutability
+- Risk level (LOW, MEDIUM, HIGH, CRITICAL)
+- Dangerous opcode counts
+- Hardcoded address detection
+- Opcode frequency statistics
 
 ### GoPlus - Security API
 

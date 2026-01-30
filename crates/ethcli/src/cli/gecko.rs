@@ -591,6 +591,22 @@ async fn handle_nfts(
     Ok(())
 }
 
+/// Helper to convert cgko errors to more helpful messages
+fn enhance_api_error(err: cgko::error::Error) -> anyhow::Error {
+    let err_str = err.to_string();
+    // Check for 401/unauthorized errors
+    if err_str.contains("401") || err_str.to_lowercase().contains("unauthorized") {
+        anyhow::anyhow!(
+            "API authentication failed (401 Unauthorized). \
+            The CoinGecko onchain API requires a Pro API key. \
+            Set COINGECKO_API_KEY environment variable or configure via: \
+            ethcli config set-gecko-key <your-pro-key>"
+        )
+    } else {
+        anyhow::Error::from(err)
+    }
+}
+
 async fn handle_onchain(
     client: &cgko::Client,
     action: &OnchainCommands,
@@ -656,7 +672,11 @@ async fn handle_onchain(
             if !quiet {
                 eprintln!("Fetching token {} on {}...", address, network);
             }
-            let response = client.onchain().token(network, address).await?;
+            let response = client
+                .onchain()
+                .token(network, address)
+                .await
+                .map_err(enhance_api_error)?;
             print_output(&response, args.format)?;
         }
         OnchainCommands::TokenPrice { network, addresses } => {

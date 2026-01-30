@@ -145,6 +145,14 @@ pub struct TokenPair {
     pub liquidity_usd: Option<f64>,
 }
 
+/// Token pairs response (Moralis API returns pairs in an object wrapper)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenPairsResponse {
+    /// The pairs array
+    pub pairs: Vec<TokenPair>,
+}
+
 /// Top token holder
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenHolder {

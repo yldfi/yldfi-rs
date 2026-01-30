@@ -24,7 +24,7 @@ Exposes 200+ Ethereum tools via the [Model Context Protocol](https://modelcontex
 - **Multi-chain support** - Ethereum, Polygon, Arbitrum, Optimism, Base, and more
 - **DEX aggregators** - 1inch, CowSwap, LI.FI, KyberSwap, OpenOcean, 0x, Velora, Enso
 - **Data sources** - CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, Dune
-- **Security tools** - GoPlus token analysis, Solodit vulnerability search
+- **Security tools** - GoPlus token analysis, Solodit vulnerability search, bytecode security analysis
 
 ## Installation
 
@@ -79,7 +79,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `account_*` | 8 | Balance, transactions |
 | `oneinch_*` | 7 | DEX aggregator |
 | `goplus_*` | 6 | Security analysis |
-| Other | 145 | See full list below |
+| Other | 149 | See full list below |
 
 <details>
 <summary>All 42 tool categories</summary>
@@ -113,7 +113,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | sig_* | 4 |
 | pyth_* | 4 |
 | ens_* | 4 |
-| contract_* | 4 |
+| contract_* | 8 |
 | chainlink_* | 4 |
 | zerox_* | 3 |
 | velora_* | 3 |

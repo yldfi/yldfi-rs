@@ -42,7 +42,7 @@ dependencies = [
 
 [[package]]
 name = "alcmy"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",
@@ -2010,7 +2010,7 @@ dependencies = [
 
 [[package]]
 name = "dllma"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",
@@ -2173,7 +2173,7 @@ dependencies = [
 
 [[package]]
 name = "ensof"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -2242,7 +2242,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.21.11"
+version = "0.21.12"
 dependencies = [
  "alcmy",
  "alloy",
@@ -2264,6 +2264,8 @@ dependencies = [
  "dnapi",
  "dnsim",
  "ensof",
+ "evm-disassembler",
+ "evmole",
  "foundry-block-explorers",
  "fs2",
  "futures",
@@ -2307,7 +2309,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli-mcp"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -2320,6 +2322,38 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "evm-disassembler"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ded685d9f07315ff689ba56e7d84e6f1e782db19b531a46c34061a733bba7258"
+dependencies = [
+ "eyre",
+ "hex",
+]
+
+[[package]]
+name = "evmole"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc83a05bd5d83b886d1aa5b725649d42172532c6f6243da9cd4a3c25fbda20f6"
+dependencies = [
+ "alloy-dyn-abi",
+ "alloy-primitives",
+ "indexmap 2.13.0",
+ "serde",
+]
+
+[[package]]
+name = "eyre"
+version = "0.6.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cd915d99f24784cdc19fd37ef22b97e3ff0ae756c7e492e9fbfe897d61e2aec"
+dependencies = [
+ "indenter",
+ "once_cell",
 ]
 
 [[package]]
@@ -3175,6 +3209,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indenter"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "964de6e86d545b246d84badc0fef527924ace5134f30641c203ef52ba83f58d5"
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3492,7 +3532,7 @@ dependencies = [
 
 [[package]]
 name = "mrls"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",

@@ -390,7 +390,7 @@ impl ConfigBuilder {
             resume: self.resume,
             checkpoint_path: self
                 .checkpoint_path
-                .unwrap_or_else(|| PathBuf::from(".eth-log-fetch.checkpoint")),
+                .unwrap_or_else(|| PathBuf::from(".ethcli.checkpoint")),
             verbosity: self.verbosity,
             quiet: self.quiet,
             raw: self.raw,

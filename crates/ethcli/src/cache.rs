@@ -62,7 +62,7 @@ pub struct SignatureCache {
 }
 
 impl SignatureCache {
-    /// Create a new cache with default path (~/.cache/eth-log-fetch/signatures.json)
+    /// Create a new cache with default path (~/.cache/ethcli/signatures.json)
     pub fn new() -> Self {
         let path = Self::default_cache_path();
         Self::with_path(path)
@@ -85,14 +85,14 @@ impl SignatureCache {
     pub fn default_cache_path() -> PathBuf {
         // Try XDG cache dir first, then fallback to home dir
         if let Some(cache_dir) = dirs::cache_dir() {
-            cache_dir.join("eth-log-fetch").join("signatures.json")
+            cache_dir.join("ethcli").join("signatures.json")
         } else if let Some(home) = dirs::home_dir() {
             home.join(".cache")
-                .join("eth-log-fetch")
+                .join("ethcli")
                 .join("signatures.json")
         } else {
             // Fallback to current directory
-            PathBuf::from(".eth-log-fetch-cache.json")
+            PathBuf::from(".ethcli-cache.json")
         }
     }
 

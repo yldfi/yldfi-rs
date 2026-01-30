@@ -157,6 +157,58 @@ pub struct ContractAddressInput {
     pub chain: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractSelectorsInput {
+    /// Contract address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Lookup function signatures from 4byte.directory
+    #[serde(default)]
+    pub lookup: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractDisassembleInput {
+    /// Contract address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Maximum number of opcodes to show
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractOpcodesInput {
+    /// Contract address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractAnalyzeInput {
+    /// Contract address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Include full opcode disassembly in output
+    #[serde(default)]
+    pub include_disassembly: bool,
+    /// Limit number of opcodes in disassembly (requires include_disassembly)
+    pub limit: Option<u32>,
+    /// Lookup function signatures from 4byte.directory
+    #[serde(default)]
+    pub lookup: bool,
+    /// If proxy detected, analyze the implementation contract instead
+    #[serde(default)]
+    pub follow_proxy: bool,
+}
+
 // --- Token ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TokenInfoInput {
@@ -1339,7 +1391,12 @@ pub struct SimulateCallInput {
     pub sig: Option<String>,
     /// Raw calldata (hex encoded, alternative to sig)
     pub data: Option<String>,
-    /// Function arguments (used with sig)
+    /// Function arguments (used with sig).
+    /// For array types (e.g., address[], uint256[]), pass the array in brackets WITHOUT quotes:
+    ///   - address[]: `[0x1234...,0x5678...]` (no quotes, no spaces)
+    ///   - uint256[]: `[1,2,3]`
+    /// Example for swapExactETHForTokens(uint256,address[],address,uint256):
+    ///   args: ["0", "[0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48]", "0xRecipient", "999999999"]
     #[serde(default)]
     pub args: Vec<String>,
     /// Chain name

@@ -486,6 +486,75 @@ pub async fn contract_call(
     builder.execute().await.map_err(ToolError::from)
 }
 
+pub async fn contract_selectors(
+    address: &str,
+    chain: Option<&str>,
+    lookup: bool,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("contract")
+        .subcommand("selectors")
+        .arg(address)
+        .chain(chain)
+        .opt_flag("--lookup", lookup)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn contract_disassemble(
+    address: &str,
+    chain: Option<&str>,
+    limit: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("contract")
+        .subcommand("disassemble")
+        .arg(address)
+        .chain(chain)
+        .format_json();
+
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn contract_opcodes(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("contract")
+        .subcommand("opcodes")
+        .arg(address)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn contract_analyze(
+    address: &str,
+    chain: Option<&str>,
+    include_disassembly: bool,
+    limit: Option<u32>,
+    lookup: bool,
+    follow_proxy: bool,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("contract")
+        .subcommand("analyze")
+        .arg(address)
+        .chain(chain)
+        .opt_flag("--include-disassembly", include_disassembly)
+        .opt_flag("--lookup", lookup)
+        .opt_flag("--follow-proxy", follow_proxy)
+        .format_json();
+
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
+}
+
 // =============================================================================
 // TOKEN (3 subcommands)
 // =============================================================================
@@ -1516,6 +1585,7 @@ pub async fn llama_tvl(protocol: &str) -> Result<String, ToolError> {
 pub async fn llama_coins(addresses: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("llama")
         .subcommand("coins")
+        .subcommand("current")
         .arg(addresses)
         .execute()
         .await
@@ -1750,6 +1820,7 @@ pub async fn dsim_activity(address: &str, chain: Option<&str>) -> Result<String,
 pub async fn dsim_token(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("dsim")
         .subcommand("token")
+        .subcommand("info")
         .arg(address)
         .chain(chain)
         .execute()
@@ -1760,6 +1831,7 @@ pub async fn dsim_token(address: &str, chain: Option<&str>) -> Result<String, To
 pub async fn dsim_holders(token: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("dsim")
         .subcommand("holders")
+        .subcommand("get")
         .arg(token)
         .chain(chain)
         .execute()

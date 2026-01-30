@@ -630,7 +630,7 @@ async fn run_streaming_fetch(
     // Enable checkpointing if path specified or use default
     let checkpoint_path = args.checkpoint.clone().unwrap_or_else(|| {
         PathBuf::from(format!(
-            ".eth-log-fetch-{}.checkpoint",
+            ".ethcli-{}.checkpoint",
             &args.contract[..8.min(args.contract.len())]
         ))
     });

@@ -1,8 +1,12 @@
 //! Contract-related commands
 //!
-//! Fetch ABI, source code, and creation info for contracts
+//! Fetch ABI, source code, creation info, and bytecode analysis for contracts
 
 use super::OutputFormat;
+use crate::bytecode::{
+    analyze_bytecode, disassemble_bytecode, extract_selectors, opcode_stats, BytecodeAnalysis,
+    RiskLevel, MAX_BYTECODE_SIZE,
+};
 use crate::config::{Chain, ConfigFile, EndpointConfig};
 use crate::etherscan::{Client, SignatureCache};
 use crate::rpc::Endpoint;
@@ -103,7 +107,6 @@ async fn detect_proxy_implementation<P: Provider>(
 #[derive(Subcommand)]
 pub enum ContractCommands {
     /// Get verified contract ABI
-    #[command(visible_alias = "abi")]
     Abi {
         /// Contract address
         #[arg(value_name = "ADDRESS")]
@@ -174,6 +177,150 @@ pub enum ContractCommands {
         /// Format output for human readability (commas in numbers, token decimals)
         #[arg(long, short = 'H')]
         human: bool,
+    },
+
+    /// Extract function selectors from bytecode (uses evmole)
+    ///
+    /// Extracts function selectors, arguments, and state mutability
+    /// from contract bytecode without needing source code or ABI.
+    ///
+    /// Examples:
+    ///   ethcli contract selectors 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    ///   ethcli contract sel 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --lookup
+    #[command(visible_alias = "sel")]
+    Selectors {
+        /// Contract address
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Lookup function signatures from 4byte.directory
+        #[arg(long, short)]
+        lookup: bool,
+
+        /// Custom RPC URL (overrides config)
+        #[arg(long, value_name = "URL")]
+        rpc_url: Option<String>,
+
+        /// Output format (json, table/pretty)
+        #[arg(
+            long,
+            short = 'o',
+            visible_alias = "output",
+            value_enum,
+            default_value = "table"
+        )]
+        format: OutputFormat,
+    },
+
+    /// Disassemble contract bytecode into opcodes
+    ///
+    /// Shows the raw EVM opcodes in the contract bytecode.
+    ///
+    /// Examples:
+    ///   ethcli contract disassemble 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    ///   ethcli contract dis 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --limit 50
+    #[command(visible_alias = "dis")]
+    Disassemble {
+        /// Contract address
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Maximum number of opcodes to show (default: unlimited)
+        #[arg(long, short, value_name = "N")]
+        limit: Option<usize>,
+
+        /// Custom RPC URL (overrides config)
+        #[arg(long, value_name = "URL")]
+        rpc_url: Option<String>,
+
+        /// Output format (json, table/pretty)
+        #[arg(
+            long,
+            short = 'o',
+            visible_alias = "output",
+            value_enum,
+            default_value = "table"
+        )]
+        format: OutputFormat,
+    },
+
+    /// Show opcode frequency statistics
+    ///
+    /// Analyzes bytecode and shows frequency of each opcode type.
+    ///
+    /// Examples:
+    ///   ethcli contract opcodes 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    ///   ethcli contract ops 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    #[command(visible_alias = "ops")]
+    Opcodes {
+        /// Contract address
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Custom RPC URL (overrides config)
+        #[arg(long, value_name = "URL")]
+        rpc_url: Option<String>,
+
+        /// Output format (json, table/pretty)
+        #[arg(
+            long,
+            short = 'o',
+            visible_alias = "output",
+            value_enum,
+            default_value = "table"
+        )]
+        format: OutputFormat,
+    },
+
+    /// Comprehensive bytecode security analysis
+    ///
+    /// Combines function selector extraction, security pattern detection,
+    /// and opcode analysis to identify potential risks in contract bytecode.
+    ///
+    /// Detects dangerous patterns like:
+    ///   - SELFDESTRUCT (contract can be destroyed)
+    ///   - DELEGATECALL (arbitrary code execution)
+    ///   - ORIGIN (tx.origin auth, honeypot indicator)
+    ///   - CREATE/CREATE2 (dynamic contract creation)
+    ///
+    /// Examples:
+    ///   ethcli contract analyze 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    ///   ethcli contract az 0x... --include-disassembly --limit 100
+    #[command(visible_aliases = ["az", "an"])]
+    Analyze {
+        /// Contract address
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Include full opcode disassembly in output
+        #[arg(long)]
+        include_disassembly: bool,
+
+        /// Limit number of opcodes in disassembly (requires --include-disassembly)
+        #[arg(long, value_name = "N", requires = "include_disassembly")]
+        limit: Option<usize>,
+
+        /// Lookup function signatures from 4byte.directory
+        #[arg(long, short)]
+        lookup: bool,
+
+        /// If proxy detected, analyze the implementation contract instead
+        #[arg(long)]
+        follow_proxy: bool,
+
+        /// Custom RPC URL (overrides config)
+        #[arg(long, value_name = "URL")]
+        rpc_url: Option<String>,
+
+        /// Output format (json, table/pretty)
+        #[arg(
+            long,
+            short = 'o',
+            visible_alias = "output",
+            value_enum,
+            default_value = "table"
+        )]
+        format: OutputFormat,
     },
 }
 
@@ -587,9 +734,550 @@ pub async fn handle(
                 }
             }
         }
+
+        ContractCommands::Selectors {
+            address,
+            lookup,
+            rpc_url,
+            format,
+        } => {
+            let addr = Address::from_str(address)
+                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+
+            if !quiet {
+                eprintln!("Fetching bytecode for {}...", address);
+            }
+
+            let bytecode = get_bytecode(&chain, rpc_url.as_deref(), addr).await?;
+
+            if bytecode.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "No bytecode found at {} (not a contract or empty)",
+                    address
+                ));
+            }
+
+            let mut functions = extract_selectors(&bytecode);
+
+            // Optionally lookup signatures from 4byte.directory
+            if *lookup {
+                if !quiet {
+                    eprintln!("Looking up function signatures from 4byte.directory...");
+                }
+                // Use Client to fetch from 4byte.directory (with cache fallback)
+                for func in &mut functions {
+                    // Strip 0x prefix for lookup
+                    let selector = func.selector.trim_start_matches("0x");
+                    if let Some(sig) = client.lookup_selector(selector).await {
+                        func.signature = Some(sig);
+                    }
+                }
+            }
+
+            if format.is_json() {
+                println!("{}", serde_json::to_string_pretty(&functions)?);
+            } else {
+                println!("Function Selectors: {}", address);
+                println!("{}", "═".repeat(70));
+                println!();
+                println!(
+                    "{:<12} {:<40} {:<12}",
+                    "Selector", "Signature/Arguments", "Mutability"
+                );
+                println!("{}", "─".repeat(70));
+
+                for func in &functions {
+                    let sig_or_args = func
+                        .signature
+                        .as_ref()
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            if func.arguments.is_empty() {
+                                "()".to_string()
+                            } else {
+                                format!("({})", func.arguments.join(", "))
+                            }
+                        });
+                    println!(
+                        "{:<12} {:<40} {:<12}",
+                        func.selector, sig_or_args, func.state_mutability
+                    );
+                }
+
+                println!();
+                println!("Total: {} functions", functions.len());
+            }
+        }
+
+        ContractCommands::Disassemble {
+            address,
+            limit,
+            rpc_url,
+            format,
+        } => {
+            let addr = Address::from_str(address)
+                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+
+            if !quiet {
+                eprintln!("Fetching bytecode for {}...", address);
+            }
+
+            let bytecode = get_bytecode(&chain, rpc_url.as_deref(), addr).await?;
+
+            if bytecode.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "No bytecode found at {} (not a contract or empty)",
+                    address
+                ));
+            }
+
+            // Check bytecode size
+            if bytecode.len() > MAX_BYTECODE_SIZE {
+                return Err(anyhow::anyhow!(
+                    "Bytecode too large: {} bytes (max: {} bytes)",
+                    bytecode.len(),
+                    MAX_BYTECODE_SIZE
+                ));
+            }
+
+            let mut ops = disassemble_bytecode(&bytecode)
+                .map_err(|e| anyhow::anyhow!("Failed to disassemble bytecode: {}", e))?;
+            if let Some(n) = limit {
+                ops.truncate(*n);
+            }
+
+            if format.is_json() {
+                println!("{}", serde_json::to_string_pretty(&ops)?);
+            } else {
+                println!("Disassembly: {}", address);
+                println!("{}", "═".repeat(60));
+                println!();
+                println!("{:<10} {:<15} {}", "Offset", "Opcode", "Operand");
+                println!("{}", "─".repeat(60));
+
+                for op in &ops {
+                    let operand = op.operand.as_deref().unwrap_or("");
+                    println!("{:08x}   {:<15} {}", op.offset, op.opcode, operand);
+                }
+
+                println!();
+                println!("Total: {} opcodes shown", ops.len());
+                if limit.is_some() {
+                    println!("(limited output, bytecode size: {} bytes)", bytecode.len());
+                }
+            }
+        }
+
+        ContractCommands::Opcodes {
+            address,
+            rpc_url,
+            format,
+        } => {
+            let addr = Address::from_str(address)
+                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+
+            if !quiet {
+                eprintln!("Fetching bytecode for {}...", address);
+            }
+
+            let bytecode = get_bytecode(&chain, rpc_url.as_deref(), addr).await?;
+
+            if bytecode.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "No bytecode found at {} (not a contract or empty)",
+                    address
+                ));
+            }
+
+            // Check bytecode size
+            if bytecode.len() > MAX_BYTECODE_SIZE {
+                return Err(anyhow::anyhow!(
+                    "Bytecode too large: {} bytes (max: {} bytes)",
+                    bytecode.len(),
+                    MAX_BYTECODE_SIZE
+                ));
+            }
+
+            let stats = opcode_stats(&bytecode)
+                .map_err(|e| anyhow::anyhow!("Failed to analyze opcodes: {}", e))?;
+
+            if format.is_json() {
+                println!("{}", serde_json::to_string_pretty(&stats)?);
+            } else {
+                println!("Opcode Statistics: {}", address);
+                println!("{}", "═".repeat(50));
+                println!();
+                println!("Bytecode Size:    {} bytes", with_thousands_sep(&stats.bytecode_size.to_string()));
+                println!("Total Opcodes:    {}", with_thousands_sep(&stats.total_opcodes.to_string()));
+                println!();
+                println!("Category Summary");
+                println!("{}", "─".repeat(50));
+                println!("  PUSH operations:    {}", stats.push_count);
+                println!("  JUMP operations:    {}", stats.jump_count);
+                println!("  CALL operations:    {}", stats.call_count);
+                println!("  Storage ops:        {}", stats.storage_count);
+                println!();
+                println!("Top Opcodes by Frequency");
+                println!("{}", "─".repeat(50));
+
+                // Sort by frequency descending
+                let mut freq_vec: Vec<_> = stats.frequencies.iter().collect();
+                freq_vec.sort_by(|a, b| b.1.cmp(a.1));
+
+                for (opcode, count) in freq_vec.iter().take(15) {
+                    // Guard against division by zero
+                    let pct = if stats.total_opcodes > 0 {
+                        **count as f64 / stats.total_opcodes as f64 * 100.0
+                    } else {
+                        0.0
+                    };
+                    println!("  {:<15} {:>6} ({:>5.1}%)", opcode, count, pct);
+                }
+
+                if freq_vec.len() > 15 {
+                    println!("  ... and {} more", freq_vec.len() - 15);
+                }
+            }
+        }
+
+        ContractCommands::Analyze {
+            address,
+            include_disassembly,
+            limit,
+            lookup,
+            follow_proxy,
+            rpc_url,
+            format,
+        } => {
+            let addr = Address::from_str(address)
+                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+
+            if !quiet {
+                eprintln!("Fetching bytecode for {}...", address);
+            }
+
+            let bytecode = get_bytecode(&chain, rpc_url.as_deref(), addr).await?;
+
+            if bytecode.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "No bytecode found at {} (not a contract or empty)",
+                    address
+                ));
+            }
+
+            // Check for proxy patterns
+            let proxy_info = crate::bytecode::detect_proxy(&bytecode);
+            let (analysis_address, analysis_bytecode, proxy_detected) = if proxy_info.is_proxy {
+                if !quiet {
+                    if let Some(ref proxy_type) = proxy_info.proxy_type {
+                        eprintln!("Detected: {} contract", proxy_type.name());
+                    }
+                }
+
+                if *follow_proxy {
+                    // Try to get implementation address
+                    let impl_addr = if let Some(impl_addr) = proxy_info.implementation {
+                        // EIP-1167: implementation embedded in bytecode
+                        Some(impl_addr)
+                    } else {
+                        // Storage-based proxy: try EIP-1967 slot
+                        get_implementation_from_storage(&chain, rpc_url.as_deref(), addr).await
+                    };
+
+                    if let Some(impl_addr) = impl_addr {
+                        if !quiet {
+                            eprintln!(
+                                "Following proxy to implementation: {:#x}",
+                                impl_addr
+                            );
+                        }
+                        let impl_bytecode =
+                            get_bytecode(&chain, rpc_url.as_deref(), impl_addr).await?;
+                        if impl_bytecode.is_empty() {
+                            if !quiet {
+                                eprintln!(
+                                    "Warning: Implementation at {:#x} has no bytecode",
+                                    impl_addr
+                                );
+                            }
+                            (address.clone(), bytecode, Some(proxy_info))
+                        } else {
+                            (format!("{:#x}", impl_addr), impl_bytecode, Some(proxy_info))
+                        }
+                    } else {
+                        if !quiet {
+                            eprintln!(
+                                "Warning: Could not determine implementation address, analyzing proxy bytecode"
+                            );
+                        }
+                        (address.clone(), bytecode, Some(proxy_info))
+                    }
+                } else {
+                    if !quiet && proxy_info.implementation.is_some() {
+                        eprintln!(
+                            "Hint: Use --follow-proxy to analyze the implementation contract"
+                        );
+                    }
+                    (address.clone(), bytecode, Some(proxy_info))
+                }
+            } else {
+                (address.clone(), bytecode, None)
+            };
+
+            if !quiet {
+                eprintln!("Analyzing bytecode...");
+            }
+
+            let mut analysis = analyze_bytecode(
+                &analysis_address,
+                &analysis_bytecode,
+                true, // include stats
+                *include_disassembly,
+                *limit,
+            );
+
+            // Add proxy info to analysis output
+            if let Some(ref proxy) = proxy_detected {
+                analysis.proxy_info = Some(proxy.clone());
+            }
+
+            // Optionally lookup signatures from 4byte.directory
+            if *lookup {
+                if !quiet {
+                    eprintln!("Looking up function signatures from 4byte.directory...");
+                }
+                // Use Client to fetch from 4byte.directory (with cache fallback)
+                for func in &mut analysis.functions {
+                    let selector = func.selector.trim_start_matches("0x");
+                    if let Some(sig) = client.lookup_selector(selector).await {
+                        func.signature = Some(sig);
+                    }
+                }
+            }
+
+            if format.is_json() {
+                println!("{}", serde_json::to_string_pretty(&analysis)?);
+            } else {
+                print_analysis_table(&analysis);
+            }
+        }
     }
 
     Ok(())
+}
+
+/// Get bytecode for an address via RPC
+async fn get_bytecode(
+    chain: &Chain,
+    rpc_url: Option<&str>,
+    address: Address,
+) -> anyhow::Result<Vec<u8>> {
+    let endpoint = if let Some(url) = rpc_url {
+        Endpoint::new(EndpointConfig::new(url.to_string()), 30, None)?
+    } else {
+        let config = ConfigFile::load_default()
+            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
+            .unwrap_or_default();
+
+        let chain_endpoints: Vec<_> = config
+            .endpoints
+            .into_iter()
+            .filter(|e| e.enabled && e.chain == *chain)
+            .collect();
+
+        if chain_endpoints.is_empty() {
+            return Err(anyhow::anyhow!(
+                "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
+                chain.display_name()
+            ));
+        }
+        Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+    };
+
+    let provider = endpoint.provider();
+    let code = provider
+        .get_code_at(address)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to fetch bytecode: {}", e))?;
+
+    Ok(code.to_vec())
+}
+
+/// Try to get implementation address from EIP-1967 storage slot
+async fn get_implementation_from_storage(
+    chain: &Chain,
+    rpc_url: Option<&str>,
+    proxy_address: Address,
+) -> Option<Address> {
+    use crate::bytecode::{address_from_storage, proxy_slots, u256_to_b256};
+
+    let endpoint = if let Some(url) = rpc_url {
+        Endpoint::new(EndpointConfig::new(url.to_string()), 30, None).ok()?
+    } else {
+        let config = ConfigFile::load_default().ok()?.unwrap_or_default();
+        let chain_endpoints: Vec<_> = config
+            .endpoints
+            .into_iter()
+            .filter(|e| e.enabled && e.chain == *chain)
+            .collect();
+        if chain_endpoints.is_empty() {
+            return None;
+        }
+        Endpoint::new(chain_endpoints[0].clone(), 30, None).ok()?
+    };
+
+    let provider = endpoint.provider();
+
+    // Try EIP-1967 implementation slot first
+    if let Ok(value) = provider
+        .get_storage_at(proxy_address, proxy_slots::EIP1967_IMPLEMENTATION.into())
+        .await
+    {
+        if let Some(addr) = address_from_storage(u256_to_b256(value)) {
+            return Some(addr);
+        }
+    }
+
+    // Try OpenZeppelin legacy slot
+    if let Ok(value) = provider
+        .get_storage_at(proxy_address, proxy_slots::OZ_LEGACY_IMPLEMENTATION.into())
+        .await
+    {
+        if let Some(addr) = address_from_storage(u256_to_b256(value)) {
+            return Some(addr);
+        }
+    }
+
+    None
+}
+
+/// Print a nicely formatted analysis table
+fn print_analysis_table(analysis: &BytecodeAnalysis) {
+    println!();
+    println!("Bytecode Analysis: {}", analysis.address);
+    println!("{}", "═".repeat(65));
+    println!();
+
+    // Contract info
+    println!("Contract Info");
+    println!("{}", "─".repeat(65));
+    println!(
+        "  Bytecode Size:  {} bytes",
+        with_thousands_sep(&analysis.bytecode_size.to_string())
+    );
+    println!("  Functions:      {}", analysis.function_count);
+
+    // Proxy info (if detected)
+    if let Some(ref proxy) = analysis.proxy_info {
+        if proxy.is_proxy {
+            if let Some(ref proxy_type) = proxy.proxy_type {
+                println!("  Proxy Type:     {}", proxy_type.name());
+            }
+            if let Some(impl_addr) = proxy.implementation {
+                println!("  Implementation: {:#x}", impl_addr);
+            }
+        }
+    }
+    println!();
+
+    // Functions (top 10)
+    if !analysis.functions.is_empty() {
+        println!("Functions (top {})", std::cmp::min(10, analysis.functions.len()));
+        println!("{}", "─".repeat(65));
+        println!(
+            "  {:<12} {:<35} {:<12}",
+            "Selector", "Signature", "Mutability"
+        );
+
+        for func in analysis.functions.iter().take(10) {
+            let sig = func
+                .signature
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| {
+                    if func.arguments.is_empty() {
+                        "()".to_string()
+                    } else {
+                        format!("({})", func.arguments.join(", "))
+                    }
+                });
+            // Truncate signature if too long
+            let sig_display = if sig.len() > 33 {
+                format!("{}...", &sig[..30])
+            } else {
+                sig
+            };
+            println!(
+                "  {:<12} {:<35} {:<12}",
+                func.selector, sig_display, func.state_mutability
+            );
+        }
+        if analysis.functions.len() > 10 {
+            println!("  ... and {} more functions", analysis.functions.len() - 10);
+        }
+        println!();
+    }
+
+    // Security analysis
+    println!("Security Analysis");
+    println!("{}", "─".repeat(65));
+
+    let risk_indicator = match analysis.security.risk_level {
+        RiskLevel::Low => "✓ LOW",
+        RiskLevel::Medium => "⚠ MEDIUM",
+        RiskLevel::High => "⚠ HIGH",
+        RiskLevel::Critical => "✗ CRITICAL",
+        RiskLevel::Unknown => "? UNKNOWN (parse failed)",
+    };
+    println!("  Risk Level: {}", risk_indicator);
+    println!();
+    println!(
+        "  Dangerous Opcodes:    {}",
+        analysis.security.dangerous_opcode_count
+    );
+    println!(
+        "  Hardcoded Addresses:  {}",
+        analysis.security.hardcoded_address_count
+    );
+
+    if analysis.security.issues.is_empty() {
+        println!();
+        println!("  ✓ No security issues detected");
+    } else {
+        println!();
+        println!("  Issues Found:");
+        for issue in &analysis.security.issues {
+            let risk_str = match issue.risk {
+                RiskLevel::Critical => "[CRITICAL]",
+                RiskLevel::High => "[HIGH]",
+                RiskLevel::Medium => "[MEDIUM]",
+                RiskLevel::Low => "[LOW]",
+                RiskLevel::Unknown => "[UNKNOWN]",
+            };
+            println!(
+                "    {} {} (×{})",
+                risk_str, issue.pattern, issue.count
+            );
+            println!("       {}", issue.description);
+        }
+    }
+
+    // Opcode stats summary
+    if let Some(ref stats) = analysis.opcode_stats {
+        println!();
+        println!("Opcode Summary");
+        println!("{}", "─".repeat(65));
+        println!(
+            "  Total Opcodes:      {}",
+            with_thousands_sep(&stats.total_opcodes.to_string())
+        );
+        println!("  PUSH operations:    {}", stats.push_count);
+        println!("  JUMP operations:    {}", stats.jump_count);
+        println!("  CALL operations:    {}", stats.call_count);
+        println!("  Storage ops:        {}", stats.storage_count);
+    }
+
+    println!();
 }
 
 /// Try to get token decimals by calling decimals() on the contract

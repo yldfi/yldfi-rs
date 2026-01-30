@@ -29,6 +29,7 @@
 
 pub mod abi;
 pub mod aggregator;
+pub mod bytecode;
 pub mod chainlink;
 pub mod checkpoint;
 pub mod cli;
