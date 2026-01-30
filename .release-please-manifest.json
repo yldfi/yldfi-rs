@@ -8,7 +8,7 @@
   "crates/dnsim": "0.1.2",
   "crates/ensof": "0.1.3",
   "crates/gplus": "0.1.1",
-  "crates/ethcli": "0.21.13",
+  "crates/ethcli": "0.21.14",
   "crates/ethcli-mcp": "0.1.4",
   "crates/kybr": "0.1.3",
   "crates/lfi": "0.1.3",
