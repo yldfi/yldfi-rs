@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.3...ethcli-mcp-v0.1.4) (2026-01-30)
+
+
+### Features
+
+* **ethcli:** add bytecode analysis and fix MCP bugs ([b74a17c](https://github.com/yldfi/yldfi-rs/commit/b74a17c2c0865fd335506f19fe4711a7c828ac4e))
+
+
+### Bug Fixes
+
+* resolve clippy warnings ([3dcea82](https://github.com/yldfi/yldfi-rs/commit/3dcea82e8af3dcfe0f077365b90098e88f16a75b))
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.2...ethcli-mcp-v0.1.3) (2026-01-30)
 
 

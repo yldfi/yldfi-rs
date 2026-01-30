@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.21.13](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.12...ethcli-v0.21.13) (2026-01-30)
+
+
+### Features
+
+* add 'upgrade' command, keep 'update' for checking only ([e40ee32](https://github.com/yldfi/yldfi-rs/commit/e40ee325fefab3cb3795c05276bf362ede2a5ce7))
+* **ethcli:** add bytecode analysis and fix MCP bugs ([b74a17c](https://github.com/yldfi/yldfi-rs/commit/b74a17c2c0865fd335506f19fe4711a7c828ac4e))
+
+
+### Bug Fixes
+
+* resolve clippy warnings ([3dcea82](https://github.com/yldfi/yldfi-rs/commit/3dcea82e8af3dcfe0f077365b90098e88f16a75b))
+
 ## [0.21.12](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.11...ethcli-v0.21.12) (2026-01-30)
 
 
