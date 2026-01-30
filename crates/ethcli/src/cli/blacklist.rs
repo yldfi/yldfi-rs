@@ -583,7 +583,20 @@ pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
 /// Print token analysis section
 fn print_token_analysis(result: &ScanResult, chain_str: &str) {
     println!();
-    println!("Token Analysis:");
+
+    // Determine if this looks like a token or just a generic address/contract
+    let has_token_info = result.symbol.is_some() || result.name.is_some();
+    let header = if has_token_info {
+        "Token Analysis:"
+    } else if result.contract_name.is_some() || result.is_proxy {
+        "Contract Analysis:"
+    } else if !result.is_verified {
+        "Address Analysis:"
+    } else {
+        "Token Analysis:"
+    };
+    println!("{}", header);
+
     println!("  Address:    {}", result.address);
     if let Some(sym) = &result.symbol {
         println!("  Symbol:     {}", sym);
@@ -717,7 +730,7 @@ async fn execute_scan(address: &str, chain_str: &str, auto_blacklist: bool) -> a
     let chain = chain_str.parse::<Chain>().unwrap_or(Chain::Ethereum);
     let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
 
-    println!("Scanning token {}...", address);
+    eprintln!("Scanning {}...", address);
 
     let result = scan_token(chain, address, api_key).await?;
 

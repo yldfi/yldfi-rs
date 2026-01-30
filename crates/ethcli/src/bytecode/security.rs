@@ -86,6 +86,7 @@ fn create_issue(pattern: SecurityPattern, offsets: Vec<usize>) -> Option<Securit
 /// - Precompiles (0x01-0x09)
 /// - Dead/burn addresses (0xdead, 0x000...dead)
 /// - ETH indicator address (0xEeee...eeee used by some protocols for native ETH)
+/// - Address mask (0xffff...ffff used for address masking operations)
 fn is_known_address(addr: &[u8]) -> bool {
     if addr.len() != 20 {
         return false;
@@ -93,6 +94,12 @@ fn is_known_address(addr: &[u8]) -> bool {
 
     // Zero address
     if addr.iter().all(|&b| b == 0) {
+        return true;
+    }
+
+    // Address mask (0xffffffffffffffffffffffffffffffffffffffff)
+    // Used for masking operations like `addr & 0xfff...fff`
+    if addr.iter().all(|&b| b == 0xff) {
         return true;
     }
 
@@ -125,6 +132,10 @@ fn is_known_address(addr: &[u8]) -> bool {
 ///
 /// This is the optimized version that takes pre-disassembled operations
 /// to avoid redundant disassembly when used with analyze_bytecode.
+///
+/// Note: We stop scanning after encountering INVALID opcodes followed by
+/// non-executable patterns, as this typically marks the start of the
+/// contract metadata section (CBOR-encoded compiler info, etc.)
 #[must_use]
 pub fn detect_security_issues_from_operations(operations: &[Operation]) -> SecurityAnalysis {
     let mut dangerous_count = 0;
@@ -138,7 +149,33 @@ pub fn detect_security_issues_from_operations(operations: &[Operation]) -> Secur
     let mut create_offsets = Vec::new();
     let mut create2_offsets = Vec::new();
 
+    // Track when we've entered the metadata section (after runtime code ends)
+    // Heuristic: After INVALID opcode, if next opcode is not JUMPDEST, we're in metadata
+    // (INVALID followed by JUMPDEST is a normal revert handler pattern)
+    let mut saw_invalid = false;
+    let mut in_metadata_section = false;
+
     for op in operations {
+        // Check if we've entered metadata section
+        if saw_invalid {
+            // INVALID followed by JUMPDEST is a revert handler - still in code
+            // INVALID followed by anything else likely means metadata section
+            if op.opcode != Opcode::JUMPDEST {
+                in_metadata_section = true;
+            }
+            saw_invalid = false;
+        }
+
+        if op.opcode == Opcode::INVALID {
+            saw_invalid = true;
+            continue;
+        }
+
+        // Skip scanning if we're in the metadata section
+        if in_metadata_section {
+            continue;
+        }
+
         match op.opcode {
             Opcode::SELFDESTRUCT => {
                 selfdestruct_offsets.push(op.offset as usize);
@@ -330,6 +367,10 @@ mod tests {
         let zero = [0u8; 20];
         assert!(is_known_address(&zero));
 
+        // Address mask (0xfff...fff) - used for masking operations
+        let mask = [0xff; 20];
+        assert!(is_known_address(&mask));
+
         // Precompile 0x01 (ecrecover)
         let mut precompile = [0u8; 20];
         precompile[19] = 1;
@@ -356,5 +397,145 @@ mod tests {
             0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
         ];
         assert!(!is_known_address(&random));
+    }
+
+    #[test]
+    fn test_metadata_section_filtering() {
+        // Simulate bytecode with ORIGIN in metadata section
+        // Normal code: PUSH1 0x60, PUSH1 0x40, MSTORE
+        // End of code: INVALID followed by non-JUMPDEST (metadata starts)
+        // Metadata (should be ignored): GASLIMIT, NUMBER, ORIGIN, PUSH20
+        //
+        // Heuristic: INVALID followed by anything other than JUMPDEST = metadata
+        let operations = vec![
+            Operation {
+                opcode: Opcode::PUSH1,
+                offset: 0,
+                input: vec![0x60],
+            },
+            Operation {
+                opcode: Opcode::PUSH1,
+                offset: 2,
+                input: vec![0x40],
+            },
+            Operation {
+                opcode: Opcode::MSTORE,
+                offset: 4,
+                input: vec![],
+            },
+            // End of runtime code marker - INVALID followed by non-JUMPDEST
+            Operation {
+                opcode: Opcode::INVALID,
+                offset: 5,
+                input: vec![],
+            },
+            // Metadata section starts here (GASLIMIT after INVALID, not JUMPDEST)
+            Operation {
+                opcode: Opcode::GASLIMIT,
+                offset: 6,
+                input: vec![],
+            },
+            Operation {
+                opcode: Opcode::NUMBER,
+                offset: 7,
+                input: vec![],
+            },
+            // ORIGIN in metadata - should be ignored
+            Operation {
+                opcode: Opcode::ORIGIN,
+                offset: 8,
+                input: vec![],
+            },
+            Operation {
+                opcode: Opcode::PUSH20,
+                offset: 9,
+                input: vec![
+                    0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
+                    0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
+                ],
+            },
+        ];
+
+        let analysis = detect_security_issues_from_operations(&operations);
+
+        // ORIGIN in metadata should NOT be flagged
+        assert!(
+            !analysis.issues.iter().any(|i| i.pattern == "ORIGIN"),
+            "ORIGIN in metadata section should not be flagged"
+        );
+
+        // PUSH20 in metadata should NOT be counted
+        assert_eq!(
+            analysis.hardcoded_address_count, 0,
+            "Addresses in metadata section should not be counted"
+        );
+    }
+
+    #[test]
+    fn test_origin_in_runtime_code_is_flagged() {
+        // ORIGIN in actual runtime code (before any INVALID) should be flagged
+        let operations = vec![
+            Operation {
+                opcode: Opcode::PUSH1,
+                offset: 0,
+                input: vec![0x60],
+            },
+            Operation {
+                opcode: Opcode::ORIGIN,
+                offset: 2,
+                input: vec![],
+            },
+            Operation {
+                opcode: Opcode::PUSH1,
+                offset: 3,
+                input: vec![0x40],
+            },
+        ];
+
+        let analysis = detect_security_issues_from_operations(&operations);
+
+        // ORIGIN in runtime code SHOULD be flagged
+        assert!(
+            analysis.issues.iter().any(|i| i.pattern == "ORIGIN"),
+            "ORIGIN in runtime code should be flagged"
+        );
+    }
+
+    #[test]
+    fn test_invalid_followed_by_jumpdest_is_not_metadata() {
+        // INVALID followed by JUMPDEST is a normal revert handler pattern
+        // Code after this should still be scanned
+        let operations = vec![
+            Operation {
+                opcode: Opcode::PUSH1,
+                offset: 0,
+                input: vec![0x60],
+            },
+            // Revert handler pattern
+            Operation {
+                opcode: Opcode::INVALID,
+                offset: 2,
+                input: vec![],
+            },
+            Operation {
+                opcode: Opcode::JUMPDEST,
+                offset: 3,
+                input: vec![],
+            },
+            // This ORIGIN should still be flagged (it's after INVALID+JUMPDEST, still in code)
+            Operation {
+                opcode: Opcode::ORIGIN,
+                offset: 4,
+                input: vec![],
+            },
+        ];
+
+        let analysis = detect_security_issues_from_operations(&operations);
+
+        // ORIGIN after INVALID+JUMPDEST should still be flagged
+        assert!(
+            analysis.issues.iter().any(|i| i.pattern == "ORIGIN"),
+            "ORIGIN after INVALID+JUMPDEST (revert handler) should still be flagged"
+        );
     }
 }
