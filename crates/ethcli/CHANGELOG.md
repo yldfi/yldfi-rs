@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.14](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.13...ethcli-v0.21.14) (2026-01-30)
+
+
+### Bug Fixes
+
+* **ethcli:** reduce false positives in bytecode security analysis ([2ca9421](https://github.com/yldfi/yldfi-rs/commit/2ca9421918fe27dbe32818834c3226138e539e31))
+
 ## [0.21.13](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.12...ethcli-v0.21.13) (2026-01-30)
 
 
