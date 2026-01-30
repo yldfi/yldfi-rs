@@ -1,7 +1,7 @@
 //! Security pattern detection in bytecode
 
 use super::types::{RiskLevel, SecurityAnalysis, SecurityIssue, MAX_BYTECODE_SIZE};
-use evm_disassembler::{Operation, Opcode};
+use evm_disassembler::{Opcode, Operation};
 
 /// Security patterns to detect
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -230,7 +230,10 @@ pub fn detect_security_issues(bytecode: &[u8]) -> SecurityAnalysis {
         Ok(ops) => ops,
         Err(e) => {
             // Log the error but return Unknown risk instead of clean
-            eprintln!("Warning: Failed to parse bytecode for security analysis: {}", e);
+            eprintln!(
+                "Warning: Failed to parse bytecode for security analysis: {}",
+                e
+            );
             return SecurityAnalysis::parse_failed();
         }
     };
@@ -248,9 +251,7 @@ fn calculate_risk_level(issues: &[SecurityIssue]) -> RiskLevel {
             RiskLevel::High if max_risk != RiskLevel::Critical => {
                 max_risk = RiskLevel::High;
             }
-            RiskLevel::Medium
-                if max_risk != RiskLevel::Critical && max_risk != RiskLevel::High =>
-            {
+            RiskLevel::Medium if max_risk != RiskLevel::Critical && max_risk != RiskLevel::High => {
                 max_risk = RiskLevel::Medium;
             }
             _ => {}
@@ -349,8 +350,10 @@ mod tests {
         assert!(is_known_address(&eth_indicator));
 
         // Random address should NOT be known
-        let random = [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34,
-                      0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78];
+        let random = [
+            0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc,
+            0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
+        ];
         assert!(!is_known_address(&random));
     }
 }

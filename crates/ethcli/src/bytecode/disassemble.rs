@@ -1,7 +1,7 @@
 //! Bytecode disassembly using evm-disassembler
 
 use super::types::{DisassembledOp, OpcodeStats, MAX_BYTECODE_SIZE};
-use evm_disassembler::{disassemble_bytes, Operation, Opcode};
+use evm_disassembler::{disassemble_bytes, Opcode, Operation};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -24,7 +24,10 @@ pub fn disassemble_bytecode(bytecode: &[u8]) -> Result<Vec<DisassembledOp>, Disa
     }
 
     if bytecode.len() > MAX_BYTECODE_SIZE {
-        return Err(DisassemblyError::BytecodeTooLarge(bytecode.len(), MAX_BYTECODE_SIZE));
+        return Err(DisassemblyError::BytecodeTooLarge(
+            bytecode.len(),
+            MAX_BYTECODE_SIZE,
+        ));
     }
 
     let operations = disassemble_bytes(bytecode.to_vec())
@@ -325,7 +328,10 @@ pub fn opcode_stats(bytecode: &[u8]) -> Result<OpcodeStats, DisassemblyError> {
     }
 
     if bytecode.len() > MAX_BYTECODE_SIZE {
-        return Err(DisassemblyError::BytecodeTooLarge(bytecode.len(), MAX_BYTECODE_SIZE));
+        return Err(DisassemblyError::BytecodeTooLarge(
+            bytecode.len(),
+            MAX_BYTECODE_SIZE,
+        ));
     }
 
     let operations = disassemble_bytes(bytecode.to_vec())
@@ -344,11 +350,13 @@ pub fn disassemble_raw(bytecode: &[u8]) -> Result<Vec<Operation>, DisassemblyErr
     }
 
     if bytecode.len() > MAX_BYTECODE_SIZE {
-        return Err(DisassemblyError::BytecodeTooLarge(bytecode.len(), MAX_BYTECODE_SIZE));
+        return Err(DisassemblyError::BytecodeTooLarge(
+            bytecode.len(),
+            MAX_BYTECODE_SIZE,
+        ));
     }
 
-    disassemble_bytes(bytecode.to_vec())
-        .map_err(|e| DisassemblyError::ParseError(e.to_string()))
+    disassemble_bytes(bytecode.to_vec()).map_err(|e| DisassemblyError::ParseError(e.to_string()))
 }
 
 #[cfg(test)]
@@ -388,6 +396,9 @@ mod tests {
     fn test_bytecode_too_large() {
         let large_bytecode = vec![0u8; MAX_BYTECODE_SIZE + 1];
         let result = disassemble_bytecode(&large_bytecode);
-        assert!(matches!(result, Err(DisassemblyError::BytecodeTooLarge(_, _))));
+        assert!(matches!(
+            result,
+            Err(DisassemblyError::BytecodeTooLarge(_, _))
+        ));
     }
 }

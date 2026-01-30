@@ -76,18 +76,12 @@ impl ProxyType {
             ProxyType::Eip1167 { .. } => {
                 "Minimal proxy clone with implementation address embedded in bytecode"
             }
-            ProxyType::Eip1967 => {
-                "Transparent proxy with implementation stored at EIP-1967 slot"
-            }
+            ProxyType::Eip1967 => "Transparent proxy with implementation stored at EIP-1967 slot",
             ProxyType::Eip1822 => {
                 "Universal Upgradeable Proxy Standard with upgrade logic in implementation"
             }
-            ProxyType::OpenZeppelinLegacy => {
-                "Legacy OpenZeppelin proxy pattern (pre-EIP-1967)"
-            }
-            ProxyType::Generic => {
-                "Proxy detected via DELEGATECALL but pattern not recognized"
-            }
+            ProxyType::OpenZeppelinLegacy => "Legacy OpenZeppelin proxy pattern (pre-EIP-1967)",
+            ProxyType::Generic => "Proxy detected via DELEGATECALL but pattern not recognized",
         }
     }
 }

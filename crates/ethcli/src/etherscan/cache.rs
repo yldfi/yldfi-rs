@@ -111,9 +111,7 @@ impl SignatureCache {
         if let Some(cache_dir) = dirs::cache_dir() {
             cache_dir.join("ethcli").join("signatures.json")
         } else if let Some(home) = dirs::home_dir() {
-            home.join(".cache")
-                .join("ethcli")
-                .join("signatures.json")
+            home.join(".cache").join("ethcli").join("signatures.json")
         } else {
             // Fallback to current directory
             PathBuf::from(".ethcli-cache.json")

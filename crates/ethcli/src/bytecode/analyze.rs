@@ -33,8 +33,12 @@ pub fn analyze_bytecode(
 
     // Single-pass disassembly for security + stats + disassembly
     // This avoids parsing the bytecode 3 separate times
-    let (security, stats, disassembly) =
-        analyze_with_single_pass(bytecode, include_stats, include_disassembly, disassembly_limit);
+    let (security, stats, disassembly) = analyze_with_single_pass(
+        bytecode,
+        include_stats,
+        include_disassembly,
+        disassembly_limit,
+    );
 
     BytecodeAnalysis {
         address: address.to_string(),
@@ -121,7 +125,11 @@ fn analyze_with_single_pass(
             (
                 SecurityAnalysis::parse_failed(),
                 None,
-                if include_disassembly { Some(Vec::new()) } else { None },
+                if include_disassembly {
+                    Some(Vec::new())
+                } else {
+                    None
+                },
             )
         }
     }

@@ -1229,7 +1229,10 @@ fn test_contract_opcodes() {
     assert!(client.initialize());
 
     let response = client.call_tool("contract_opcodes", json!({"address": USDC}));
-    assert!(is_tool_success(&response), "contract_opcodes should succeed");
+    assert!(
+        is_tool_success(&response),
+        "contract_opcodes should succeed"
+    );
 
     let text = get_tool_text(&response).expect("Should have text");
     // Should contain statistics
@@ -1247,12 +1250,18 @@ fn test_contract_analyze() {
     assert!(client.initialize());
 
     let response = client.call_tool("contract_analyze", json!({"address": USDC}));
-    assert!(is_tool_success(&response), "contract_analyze should succeed");
+    assert!(
+        is_tool_success(&response),
+        "contract_analyze should succeed"
+    );
 
     let text = get_tool_text(&response).expect("Should have text");
     // Should contain security analysis info
     assert!(
-        text.contains("risk") || text.contains("Risk") || text.contains("security") || text.contains("Security"),
+        text.contains("risk")
+            || text.contains("Risk")
+            || text.contains("security")
+            || text.contains("Security"),
         "Should contain security analysis, got: {}",
         &text[..500.min(text.len())]
     );

@@ -787,17 +787,13 @@ pub async fn handle(
                 println!("{}", "─".repeat(70));
 
                 for func in &functions {
-                    let sig_or_args = func
-                        .signature
-                        .as_ref()
-                        .cloned()
-                        .unwrap_or_else(|| {
-                            if func.arguments.is_empty() {
-                                "()".to_string()
-                            } else {
-                                format!("({})", func.arguments.join(", "))
-                            }
-                        });
+                    let sig_or_args = func.signature.as_ref().cloned().unwrap_or_else(|| {
+                        if func.arguments.is_empty() {
+                            "()".to_string()
+                        } else {
+                            format!("({})", func.arguments.join(", "))
+                        }
+                    });
                     println!(
                         "{:<12} {:<40} {:<12}",
                         func.selector, sig_or_args, func.state_mutability
@@ -907,8 +903,14 @@ pub async fn handle(
                 println!("Opcode Statistics: {}", address);
                 println!("{}", "═".repeat(50));
                 println!();
-                println!("Bytecode Size:    {} bytes", with_thousands_sep(&stats.bytecode_size.to_string()));
-                println!("Total Opcodes:    {}", with_thousands_sep(&stats.total_opcodes.to_string()));
+                println!(
+                    "Bytecode Size:    {} bytes",
+                    with_thousands_sep(&stats.bytecode_size.to_string())
+                );
+                println!(
+                    "Total Opcodes:    {}",
+                    with_thousands_sep(&stats.total_opcodes.to_string())
+                );
                 println!();
                 println!("Category Summary");
                 println!("{}", "─".repeat(50));
@@ -986,10 +988,7 @@ pub async fn handle(
 
                     if let Some(impl_addr) = impl_addr {
                         if !quiet {
-                            eprintln!(
-                                "Following proxy to implementation: {:#x}",
-                                impl_addr
-                            );
+                            eprintln!("Following proxy to implementation: {:#x}", impl_addr);
                         }
                         let impl_bytecode =
                             get_bytecode(&chain, rpc_url.as_deref(), impl_addr).await?;
@@ -1182,7 +1181,10 @@ fn print_analysis_table(analysis: &BytecodeAnalysis) {
 
     // Functions (top 10)
     if !analysis.functions.is_empty() {
-        println!("Functions (top {})", std::cmp::min(10, analysis.functions.len()));
+        println!(
+            "Functions (top {})",
+            std::cmp::min(10, analysis.functions.len())
+        );
         println!("{}", "─".repeat(65));
         println!(
             "  {:<12} {:<35} {:<12}",
@@ -1190,17 +1192,13 @@ fn print_analysis_table(analysis: &BytecodeAnalysis) {
         );
 
         for func in analysis.functions.iter().take(10) {
-            let sig = func
-                .signature
-                .as_ref()
-                .cloned()
-                .unwrap_or_else(|| {
-                    if func.arguments.is_empty() {
-                        "()".to_string()
-                    } else {
-                        format!("({})", func.arguments.join(", "))
-                    }
-                });
+            let sig = func.signature.as_ref().cloned().unwrap_or_else(|| {
+                if func.arguments.is_empty() {
+                    "()".to_string()
+                } else {
+                    format!("({})", func.arguments.join(", "))
+                }
+            });
             // Truncate signature if too long
             let sig_display = if sig.len() > 33 {
                 format!("{}...", &sig[..30])
@@ -1254,10 +1252,7 @@ fn print_analysis_table(analysis: &BytecodeAnalysis) {
                 RiskLevel::Low => "[LOW]",
                 RiskLevel::Unknown => "[UNKNOWN]",
             };
-            println!(
-                "    {} {} (×{})",
-                risk_str, issue.pattern, issue.count
-            );
+            println!("    {} {} (×{})", risk_str, issue.pattern, issue.count);
             println!("       {}", issue.description);
         }
     }
