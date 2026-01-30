@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.1.3...alcmy-v0.1.4) (2026-01-30)
+
+
+### Bug Fixes
+
+* update Enso API client for new endpoints ([1c631e9](https://github.com/yldfi/yldfi-rs/commit/1c631e9eacc6d43813cd5d8160f37a0eb27706f1))
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.1.2...alcmy-v0.1.3) (2026-01-27)
 
 

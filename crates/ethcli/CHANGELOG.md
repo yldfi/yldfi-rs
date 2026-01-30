@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.12](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.11...ethcli-v0.21.12) (2026-01-30)
+
+
+### Bug Fixes
+
+* update Enso API client for new endpoints ([1c631e9](https://github.com/yldfi/yldfi-rs/commit/1c631e9eacc6d43813cd5d8160f37a0eb27706f1))
+
 ## [0.21.11](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.10...ethcli-v0.21.11) (2026-01-29)
 
 
