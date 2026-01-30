@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.4...mrls-v0.1.5) (2026-01-30)
+
+
+### Features
+
+* **ethcli:** add bytecode analysis and fix MCP bugs ([b74a17c](https://github.com/yldfi/yldfi-rs/commit/b74a17c2c0865fd335506f19fe4711a7c828ac4e))
+
 ## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.3...mrls-v0.1.4) (2026-01-30)
 
 
