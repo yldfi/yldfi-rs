@@ -17,7 +17,6 @@ pub enum DisassemblyError {
 /// Disassemble bytecode into individual opcodes
 ///
 /// Returns a list of operations with offset, opcode name, and operand
-#[must_use]
 pub fn disassemble_bytecode(bytecode: &[u8]) -> Result<Vec<DisassembledOp>, DisassemblyError> {
     if bytecode.is_empty() {
         return Ok(Vec::new());
@@ -313,7 +312,6 @@ pub fn opcode_stats_from_operations(operations: &[Operation], bytecode_size: usi
 ///
 /// For better performance when also needing disassembly or security analysis,
 /// use `disassemble_raw` and pass the result to `opcode_stats_from_operations`.
-#[must_use]
 pub fn opcode_stats(bytecode: &[u8]) -> Result<OpcodeStats, DisassemblyError> {
     if bytecode.is_empty() {
         return Ok(OpcodeStats {

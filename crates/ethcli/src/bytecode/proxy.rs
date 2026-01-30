@@ -87,7 +87,7 @@ impl ProxyType {
 }
 
 /// Result of proxy detection
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ProxyInfo {
     /// Whether this contract is a proxy
     pub is_proxy: bool,
@@ -96,16 +96,6 @@ pub struct ProxyInfo {
     /// Implementation address if known (embedded in bytecode for EIP-1167,
     /// or fetched from storage slot for EIP-1967/etc.)
     pub implementation: Option<Address>,
-}
-
-impl Default for ProxyInfo {
-    fn default() -> Self {
-        Self {
-            is_proxy: false,
-            proxy_type: None,
-            implementation: None,
-        }
-    }
 }
 
 /// Detect if bytecode is an EIP-1167 minimal proxy

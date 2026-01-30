@@ -1395,8 +1395,9 @@ pub struct SimulateCallInput {
     /// For array types (e.g., address[], uint256[]), pass the array in brackets WITHOUT quotes:
     ///   - address[]: `[0x1234...,0x5678...]` (no quotes, no spaces)
     ///   - uint256[]: `[1,2,3]`
+    ///
     /// Example for swapExactETHForTokens(uint256,address[],address,uint256):
-    ///   args: ["0", "[0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48]", "0xRecipient", "999999999"]
+    /// `args: ["0", "[0xC02aaA39...,0xA0b86991...]", "0xRecipient", "999999999"]`
     #[serde(default)]
     pub args: Vec<String>,
     /// Chain name

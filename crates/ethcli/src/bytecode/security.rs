@@ -113,7 +113,8 @@ fn is_known_address(addr: &[u8]) -> bool {
     }
 
     // ETH indicator (0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)
-    if addr.iter().all(|&b| b == 0xee || b == 0xEE) {
+    // Note: 0xee and 0xEE are the same byte value
+    if addr.iter().all(|&b| b == 0xee) {
         return true;
     }
 

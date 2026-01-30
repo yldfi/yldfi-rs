@@ -848,7 +848,7 @@ pub async fn handle(
                 println!("Disassembly: {}", address);
                 println!("{}", "═".repeat(60));
                 println!();
-                println!("{:<10} {:<15} {}", "Offset", "Opcode", "Operand");
+                println!("{:<10} {:<15} Operand", "Offset", "Opcode");
                 println!("{}", "─".repeat(60));
 
                 for op in &ops {

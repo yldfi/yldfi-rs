@@ -7,13 +7,14 @@ use std::collections::HashMap;
 pub const MAX_BYTECODE_SIZE: usize = 256 * 1024;
 
 /// State mutability of a function
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StateMutability {
     Pure,
     View,
     NonPayable,
     Payable,
+    #[default]
     Unknown,
 }
 
@@ -32,12 +33,6 @@ impl StateMutability {
 impl std::fmt::Display for StateMutability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
-    }
-}
-
-impl Default for StateMutability {
-    fn default() -> Self {
-        StateMutability::Unknown
     }
 }
 
@@ -87,10 +82,11 @@ pub struct OpcodeStats {
 }
 
 /// Security risk level
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RiskLevel {
     /// No significant risks detected
+    #[default]
     Low,
     /// Some potentially risky patterns
     Medium,
@@ -111,12 +107,6 @@ impl RiskLevel {
             RiskLevel::Critical => "CRITICAL",
             RiskLevel::Unknown => "UNKNOWN",
         }
-    }
-}
-
-impl Default for RiskLevel {
-    fn default() -> Self {
-        RiskLevel::Low
     }
 }
 
