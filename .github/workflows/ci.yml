@@ -19,6 +19,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
@@ -81,10 +84,6 @@ jobs:
           cache-on-failure: true
           # Share cache with lint job
           shared-key: ubuntu-stable
-
-      # Check compiles first (faster feedback)
-      - name: Check
-        run: cargo check --workspace
 
       # Build ethcli for MCP tests
       - name: Build ethcli
