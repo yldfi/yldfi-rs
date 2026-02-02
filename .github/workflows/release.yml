@@ -11,9 +11,9 @@ on:
         required: true
         type: string
 
-# Only one release at a time
+# P2-3: Fix concurrency group to use actual tag for workflow_dispatch
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -27,7 +27,8 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # P3-2: Increased timeout for Windows builds
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -47,43 +48,68 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.tag || github.ref }}
 
+      # P1-3: Validate tag format
+      - name: Validate tag format
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if ! [[ "$TAG" =~ ^ethcli-v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid tag format: $TAG (expected: ethcli-vX.Y.Z)"
+            exit 1
+          fi
+          echo "Tag format valid: $TAG"
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
           key: release-${{ matrix.target }}
 
       - name: Build
         run: cargo build --release --locked --package ethcli --target ${{ matrix.target }}
 
+      # P2-2: Portable SHA256 checksum generation
       - name: Package (Unix)
         if: runner.os != 'Windows'
+        shell: bash
         run: |
+          set -e
           cd target/${{ matrix.target }}/release
           tar czvf ../../../ethcli-${{ matrix.name }}.tar.gz ethcli
           cd ../../..
-          shasum -a 256 ethcli-${{ matrix.name }}.tar.gz > ethcli-${{ matrix.name }}.tar.gz.sha256
+          # Use sha256sum (Linux) or shasum (macOS)
+          if command -v sha256sum &> /dev/null; then
+            sha256sum ethcli-${{ matrix.name }}.tar.gz > ethcli-${{ matrix.name }}.tar.gz.sha256
+          else
+            shasum -a 256 ethcli-${{ matrix.name }}.tar.gz > ethcli-${{ matrix.name }}.tar.gz.sha256
+          fi
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           cd target/${{ matrix.target }}/release
           7z a ../../../ethcli-${{ matrix.name }}.zip ethcli.exe
           cd ../../..
-          (Get-FileHash ethcli-${{ matrix.name }}.zip -Algorithm SHA256).Hash.ToLower() + "  ethcli-${{ matrix.name }}.zip" | Out-File -Encoding ASCII ethcli-${{ matrix.name }}.zip.sha256
+          $hash = (Get-FileHash ethcli-${{ matrix.name }}.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  ethcli-${{ matrix.name }}.zip" | Out-File -Encoding ASCII ethcli-${{ matrix.name }}.zip.sha256
 
+      # P3-5: Add artifact retention policy
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ethcli-${{ matrix.name }}
+          retention-days: 30
           path: |
             ethcli-*.tar.gz
             ethcli-*.tar.gz.sha256
@@ -94,35 +120,46 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
+    # P3-1: Add timeout to release job
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.tag || github.ref }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
           merge-multiple: true
 
+      # P0-1: Safe output using heredoc to prevent injection
       - name: Get tag name
         id: tag
+        shell: bash
         env:
           INPUT_TAG: ${{ inputs.tag }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "tag=$INPUT_TAG" >> $GITHUB_OUTPUT
+            TAG_VALUE="$INPUT_TAG"
           else
-            echo "tag=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
+            TAG_VALUE="$GITHUB_REF_NAME"
           fi
+          # Safe output using heredoc (prevents newline injection)
+          {
+            echo "tag<<GITHUB_OUTPUT_EOF"
+            printf '%s' "$TAG_VALUE"
+            echo ""
+            echo "GITHUB_OUTPUT_EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: ethcli ${{ steps.tag.outputs.tag }}
@@ -159,20 +196,39 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # P1-1: Environment protection for publishing
+    environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.tag || github.ref }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # stable
 
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          key: publish
+
+      # P0-1: Safe output using heredoc
       - name: Check if version already published
         id: check
+        shell: bash
         run: |
           VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "ethcli") | .version')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not extract version for ethcli"
+            exit 1
+          fi
+          # Safe output using heredoc
+          {
+            echo "version<<GITHUB_OUTPUT_EOF"
+            printf '%s' "$VERSION"
+            echo ""
+            echo "GITHUB_OUTPUT_EOF"
+          } >> $GITHUB_OUTPUT
           if curl -sf "https://crates.io/api/v1/crates/ethcli/$VERSION" > /dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
             echo "::warning::ethcli@$VERSION already exists on crates.io, skipping publish"

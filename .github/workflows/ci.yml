@@ -13,6 +13,9 @@ on:
       - '**.md'
       - 'LICENSE'
       - '.gitignore'
+  # P3-4: Weekly scheduled security audit to catch new CVEs
+  schedule:
+    - cron: '0 6 * * 1'  # Monday at 6am UTC
 
 # Cancel in-progress runs for the same branch
 concurrency:
@@ -34,23 +37,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # stable
         with:
           components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
           cache-on-failure: true
+          shared-key: ubuntu-stable
 
       # Run fmt first (fastest)
       - name: Check formatting
         run: cargo fmt --all -- --check
 
       # Then clippy (needs to compile, but cached)
+      # P2-1: Add --locked for reproducibility
       - name: Clippy
-        run: cargo clippy --workspace --all-targets
+        run: cargo clippy --workspace --all-targets --locked
 
   # Security checks - can run in parallel with lint
   security:
@@ -58,39 +63,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Security audit
-        uses: rustsec/audit-check@v2
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cargo deny
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@34899fc7ba81ca6268d5947a7a16b4649013fea1 # v2.0.11
 
-  # Main build and test - depends on lint passing
+  # Main build and test - runs in parallel with lint (P2-4)
   test:
     name: Test
-    needs: lint
+    # P2-4: Removed 'needs: lint' for parallel execution
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
           cache-on-failure: true
-          # Share cache with lint job
           shared-key: ubuntu-stable
 
       # Build ethcli for MCP tests
       - name: Build ethcli
-        run: cargo build -p ethcli --release
+        run: cargo build -p ethcli --release --locked
 
       # Run all tests
+      # P2-1: Add --locked for reproducibility
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
         env:
           ETHCLI_PATH: ${{ github.workspace }}/target/release/ethcli

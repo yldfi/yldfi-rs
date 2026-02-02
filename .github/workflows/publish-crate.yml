@@ -50,26 +50,46 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
 
+# P2-5: Explicit shell declaration for all bash scripts
+defaults:
+  run:
+    shell: bash
+
 jobs:
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # P1-1: Environment protection for publishing
+    environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref || github.ref }}
 
+      # P1-3: Validate ref exists (for workflow_dispatch)
+      - name: Validate ref
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          if ! git rev-parse --verify "$REF" >/dev/null 2>&1; then
+            echo "::error::Invalid ref: $REF does not exist"
+            exit 1
+          fi
+          echo "Ref valid: $REF ($(git rev-parse --short "$REF"))"
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@56f84321dbccf38fb67ce29ab63e4754056677e0 # stable
 
       - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
           key: publish
 
-      - name: Determine crate name
+      # P0-2: Validate crate name and use safe output
+      - name: Determine and validate crate name
         id: crate
         env:
           TAG_NAME: ${{ github.ref_name }}
@@ -82,16 +102,40 @@ jobs:
             # Extract crate name (everything before -v)
             CRATE_NAME="${TAG_NAME%-v*}"
           fi
-          echo "name=$CRATE_NAME" >> $GITHUB_OUTPUT
+
+          # P0-2: Validate crate name (alphanumeric, hyphens, underscores only)
+          if ! [[ "$CRATE_NAME" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]]; then
+            echo "::error::Invalid crate name: $CRATE_NAME (must be alphanumeric with hyphens/underscores)"
+            exit 1
+          fi
+
+          # P0-1: Safe output using heredoc (prevents newline injection)
+          {
+            echo "name<<GITHUB_OUTPUT_EOF"
+            printf '%s' "$CRATE_NAME"
+            echo ""
+            echo "GITHUB_OUTPUT_EOF"
+          } >> $GITHUB_OUTPUT
           echo "Publishing crate: $CRATE_NAME"
 
+      # P0-1: Safe output using heredoc
       - name: Check if version already published
         id: check
         env:
           CRATE_NAME: ${{ steps.crate.outputs.name }}
         run: |
           VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r --arg name "$CRATE_NAME" '.packages[] | select(.name == $name) | .version')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not extract version for $CRATE_NAME"
+            exit 1
+          fi
+          # Safe output using heredoc
+          {
+            echo "version<<GITHUB_OUTPUT_EOF"
+            printf '%s' "$VERSION"
+            echo ""
+            echo "GITHUB_OUTPUT_EOF"
+          } >> $GITHUB_OUTPUT
           if curl -sf "https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION" > /dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
             echo "::warning::$CRATE_NAME@$VERSION already exists on crates.io, skipping publish"

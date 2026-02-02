@@ -13,9 +13,14 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # P1-1: Environment protection (optional - remove if approval not desired for PRs)
+    # environment: production
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@a02a34c4d625f9be7cb89f5e3915ecf68e918afd # v4.2.0
         with:
+          # P3-3: Using GH_PAT is required to trigger other workflows on tag push
+          # Ensure this PAT has minimal scopes: contents:write, pull-requests:write
+          # Consider using a GitHub App token for better security and auditability
           token: ${{ secrets.GH_PAT }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
