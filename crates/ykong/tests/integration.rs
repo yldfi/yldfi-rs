@@ -31,9 +31,8 @@ fn test_client_cloneable() {
     let cloned = client.clone();
 
     // Both should have the same base URL (verifies Arc sharing works)
-    assert_eq!(
+    assert!(
         std::ptr::eq(client.http(), cloned.http()),
-        true,
         "Cloned clients should share the same HTTP client"
     );
 }
