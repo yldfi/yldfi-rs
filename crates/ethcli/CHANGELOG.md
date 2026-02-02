@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.15](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.14...ethcli-v0.21.15) (2026-02-02)
+
+
+### Bug Fixes
+
+* resolve clippy warnings in tests ([3da0cb0](https://github.com/yldfi/yldfi-rs/commit/3da0cb07d2dd1ba2d5febde875252dcab7efcf46))
+
 ## [0.21.14](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.13...ethcli-v0.21.14) (2026-01-30)
 
 
