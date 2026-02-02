@@ -508,7 +508,7 @@ pub async fn contract_call(
     let mut builder = ArgsBuilder::new("contract")
         .subcommand("call")
         .arg(address)
-        .opt("--sig", Some(sig))
+        .arg(sig)
         .chain(chain)
         .opt("-b", block)
         .opt("--rpc-url", rpc_url);
