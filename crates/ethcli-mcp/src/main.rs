@@ -179,16 +179,20 @@ impl EthcliMcpServer {
     // CONTRACT
     // =========================================================================
 
-    #[tool(description = "Fetch the ABI for a verified contract from Etherscan")]
-    async fn contract_abi(&self, Parameters(input): Parameters<ContractAddressInput>) -> String {
-        tools::contract_abi(&input.address, Some(&input.chain))
+    #[tool(
+        description = "Fetch the ABI for a verified contract from Etherscan (optionally save to file)"
+    )]
+    async fn contract_abi(&self, Parameters(input): Parameters<ContractAbiInput>) -> String {
+        tools::contract_abi(&input.address, Some(&input.chain), input.output.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(description = "Download verified source code for a contract")]
-    async fn contract_source(&self, Parameters(input): Parameters<ContractAddressInput>) -> String {
-        tools::contract_source(&input.address, Some(&input.chain))
+    #[tool(
+        description = "Download verified source code for a contract (optionally save to directory)"
+    )]
+    async fn contract_source(&self, Parameters(input): Parameters<ContractSourceInput>) -> String {
+        tools::contract_source(&input.address, Some(&input.chain), input.output.as_deref())
             .await
             .to_response()
     }
@@ -404,11 +408,16 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get block information")]
+    #[tool(description = "Get block information with optional full transactions")]
     async fn rpc_block(&self, Parameters(input): Parameters<RpcBlockInput>) -> String {
-        tools::rpc_block(&input.block, Some(&input.chain))
-            .await
-            .to_response()
+        tools::rpc_block(
+            &input.block,
+            Some(&input.chain),
+            input.full,
+            input.rpc_url.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get storage value at a slot")]
@@ -954,11 +963,19 @@ impl EthcliMcpServer {
     // ADDRESS BOOK
     // =========================================================================
 
-    #[tool(description = "Add an address to the local address book")]
+    #[tool(
+        description = "Add an address to the local address book with optional description, tags, and chain"
+    )]
     async fn address_add(&self, Parameters(input): Parameters<AddressAddInput>) -> String {
-        tools::address_add(&input.name, &input.address)
-            .await
-            .to_response()
+        tools::address_add(
+            &input.name,
+            &input.address,
+            input.description.as_deref(),
+            &input.tags,
+            input.for_chain.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Remove an address from the local address book")]
@@ -981,25 +998,36 @@ impl EthcliMcpServer {
         tools::address_search(&input.query).await.to_response()
     }
 
-    #[tool(description = "Import addresses from a file")]
-    async fn address_import(&self, Parameters(input): Parameters<AddressFileInput>) -> String {
-        tools::address_import(&input.file).await.to_response()
+    #[tool(description = "Import addresses from a JSON file with optional overwrite")]
+    async fn address_import(&self, Parameters(input): Parameters<AddressImportInput>) -> String {
+        tools::address_import(&input.file, input.overwrite)
+            .await
+            .to_response()
     }
 
-    #[tool(description = "Export addresses to a file")]
-    async fn address_export(&self, Parameters(input): Parameters<AddressFileInput>) -> String {
-        tools::address_export(&input.file).await.to_response()
+    #[tool(description = "Export addresses to JSON (file or stdout)")]
+    async fn address_export(&self, Parameters(input): Parameters<AddressExportInput>) -> String {
+        tools::address_export(input.output.as_deref())
+            .await
+            .to_response()
     }
 
     // =========================================================================
     // BLACKLIST
     // =========================================================================
 
-    #[tool(description = "Add an address to the local blacklist")]
+    #[tool(
+        description = "Add a token to the local blacklist with optional symbol, reason, and chain"
+    )]
     async fn blacklist_add(&self, Parameters(input): Parameters<BlacklistAddInput>) -> String {
-        tools::blacklist_add(&input.address, input.reason.as_deref())
-            .await
-            .to_response()
+        tools::blacklist_add(
+            &input.address,
+            input.symbol.as_deref(),
+            input.reason.as_deref(),
+            input.chain.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Remove an address from the local blacklist")]
@@ -1051,11 +1079,21 @@ impl EthcliMcpServer {
     // CONTRACT (additional)
     // =========================================================================
 
-    #[tool(description = "Call a contract function (read-only)")]
+    #[tool(
+        description = "Call a contract function (read-only) with optional block, RPC URL, and human-readable output"
+    )]
     async fn contract_call(&self, Parameters(input): Parameters<ContractCallInput>) -> String {
-        tools::contract_call(&input.address, &input.sig, input.args, Some(&input.chain))
-            .await
-            .to_response()
+        tools::contract_call(
+            &input.address,
+            &input.sig,
+            input.args,
+            Some(&input.chain),
+            input.block.as_deref(),
+            input.rpc_url.as_deref(),
+            input.human,
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -2208,9 +2246,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Add a new RPC endpoint")]
-    async fn endpoints_add(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_add(&input.url, Some(&input.chain))
+    #[tool(description = "Add a new RPC endpoint with optional auto-optimization")]
+    async fn endpoints_add(&self, Parameters(input): Parameters<EndpointsAddInput>) -> String {
+        tools::endpoints_add(&input.url, input.chain.as_deref(), input.no_optimize)
             .await
             .to_response()
     }

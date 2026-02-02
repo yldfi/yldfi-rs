@@ -158,6 +158,28 @@ pub struct ContractAddressInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractAbiInput {
+    /// Contract address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Save to file instead of returning in response
+    pub output: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractSourceInput {
+    /// Contract address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Save to directory instead of returning in response
+    pub output: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ContractSelectorsInput {
     /// Contract address
     pub address: String,
@@ -343,6 +365,11 @@ pub struct RpcBlockInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+    /// Show full transactions (not just hashes)
+    #[serde(default)]
+    pub full: bool,
+    /// Custom RPC URL (overrides default)
+    pub rpc_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -791,6 +818,13 @@ pub struct AddressAddInput {
     pub name: String,
     /// Ethereum address
     pub address: String,
+    /// Description or notes (optional)
+    pub description: Option<String>,
+    /// Tags for categorization (optional, can specify multiple)
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Mark address as chain-specific (e.g., "polygon", "arbitrum")
+    pub for_chain: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -800,9 +834,18 @@ pub struct AddressNameInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AddressFileInput {
-    /// File path for import/export
+pub struct AddressImportInput {
+    /// Path to JSON file to import
     pub file: String,
+    /// Overwrite existing entries with same label
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AddressExportInput {
+    /// Output file path (returns JSON to stdout if not specified)
+    pub output: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -814,10 +857,14 @@ pub struct AddressSearchInput {
 // --- Blacklist ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BlacklistAddInput {
-    /// Address to blacklist
+    /// Token contract address to blacklist
     pub address: String,
+    /// Token symbol for display (optional)
+    pub symbol: Option<String>,
     /// Reason for blacklisting (optional)
     pub reason: Option<String>,
+    /// Chain where this token exists (optional)
+    pub chain: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -859,6 +906,13 @@ pub struct ContractCallInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+    /// Block number or "latest" (default: latest)
+    pub block: Option<String>,
+    /// Custom RPC URL (overrides config)
+    pub rpc_url: Option<String>,
+    /// Format output for human readability (commas in numbers, token decimals)
+    #[serde(default)]
+    pub human: bool,
 }
 
 // --- Cast Extra ---
@@ -1569,6 +1623,17 @@ pub struct EndpointsUrlInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EndpointsAddInput {
+    /// RPC URL to add
+    pub url: String,
+    /// Chain this endpoint serves (auto-detected if not specified)
+    pub chain: Option<String>,
+    /// Skip optimization (just add with defaults)
+    #[serde(default)]
+    pub no_optimize: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

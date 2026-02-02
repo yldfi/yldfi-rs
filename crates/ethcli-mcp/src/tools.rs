@@ -288,14 +288,25 @@ pub async fn account_mined_blocks(address: &str, chain: Option<&str>) -> Result<
 // ADDRESS (7 subcommands) - Address book management
 // =============================================================================
 
-pub async fn address_add(name: &str, address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("address")
+pub async fn address_add(
+    name: &str,
+    address: &str,
+    description: Option<&str>,
+    tags: &[String],
+    for_chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("address")
         .subcommand("add")
         .arg(name)
         .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("-d", description)
+        .opt("--for-chain", for_chain);
+
+    for tag in tags {
+        builder = builder.opt("-t", Some(tag.as_str()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn address_remove(name: &str) -> Result<String, ToolError> {
@@ -336,19 +347,20 @@ pub async fn address_search(query: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn address_import(file: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("address")
-        .subcommand("import")
-        .arg(file)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+pub async fn address_import(file: &str, overwrite: bool) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("address").subcommand("import").arg(file);
+
+    if overwrite {
+        builder = builder.arg("--overwrite");
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn address_export(file: &str) -> Result<String, ToolError> {
+pub async fn address_export(output: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("address")
         .subcommand("export")
-        .arg(file)
+        .opt("-o", output)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -358,11 +370,18 @@ pub async fn address_export(file: &str) -> Result<String, ToolError> {
 // BLACKLIST (7 subcommands) - Sanctions/blacklist checking
 // =============================================================================
 
-pub async fn blacklist_add(address: &str, reason: Option<&str>) -> Result<String, ToolError> {
+pub async fn blacklist_add(
+    address: &str,
+    symbol: Option<&str>,
+    reason: Option<&str>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("blacklist")
         .subcommand("add")
         .arg(address)
-        .opt("--reason", reason)
+        .opt("-s", symbol)
+        .opt("-r", reason)
+        .opt("-c", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -436,21 +455,31 @@ pub async fn blacklist_path(
 // CONTRACT (4 subcommands)
 // =============================================================================
 
-pub async fn contract_abi(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn contract_abi(
+    address: &str,
+    chain: Option<&str>,
+    output: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("contract")
         .subcommand("abi")
         .arg(address)
         .chain(chain)
+        .opt("-o", output)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn contract_source(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn contract_source(
+    address: &str,
+    chain: Option<&str>,
+    output: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("contract")
         .subcommand("source")
         .arg(address)
         .chain(chain)
+        .opt("-o", output)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -472,12 +501,21 @@ pub async fn contract_call(
     sig: &str,
     args: Vec<String>,
     chain: Option<&str>,
+    block: Option<&str>,
+    rpc_url: Option<&str>,
+    human: bool,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("contract")
         .subcommand("call")
         .arg(address)
         .opt("--sig", Some(sig))
-        .chain(chain);
+        .chain(chain)
+        .opt("-b", block)
+        .opt("--rpc-url", rpc_url);
+
+    if human {
+        builder = builder.arg("-H");
+    }
 
     for arg in args {
         builder = builder.arg(&arg);
@@ -839,15 +877,24 @@ pub async fn rpc_call(
         .map_err(ToolError::from)
 }
 
-pub async fn rpc_block(block: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("rpc")
+pub async fn rpc_block(
+    block: &str,
+    chain: Option<&str>,
+    full: bool,
+    rpc_url: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("rpc")
         .subcommand("block")
         .arg(block)
         .chain(chain)
-        .format_json()
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("--rpc-url", rpc_url)
+        .format_json();
+
+    if full {
+        builder = builder.arg("-f");
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn rpc_storage(
@@ -3221,14 +3268,21 @@ pub async fn endpoints_list(chain: Option<&str>) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn endpoints_add(url: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("endpoints")
+pub async fn endpoints_add(
+    url: &str,
+    chain: Option<&str>,
+    no_optimize: bool,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("endpoints")
         .subcommand("add")
         .arg(url)
-        .chain(chain)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .chain(chain);
+
+    if no_optimize {
+        builder = builder.arg("--no-optimize");
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn endpoints_remove(url: &str, chain: Option<&str>) -> Result<String, ToolError> {
