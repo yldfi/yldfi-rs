@@ -3,68 +3,95 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: -D warnings
 
 jobs:
-  check:
-    name: Check
+  # Fast checks that don't need dependencies compiled
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --workspace
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      # Build ethcli first so ethcli-mcp tests can use it
-      - run: cargo build -p ethcli --release
-      - name: Run tests
-        run: cargo test --workspace
-        env:
-          ETHCLI_PATH: ${{ github.workspace }}/target/release/ethcli
-
-  fmt:
-    name: Format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
-      - run: cargo fmt --all -- --check
+          components: rustfmt, clippy
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
-          components: clippy
-      - run: cargo clippy --workspace -- -D warnings
+          cache-on-failure: true
 
-  # INFO-001: Security audit for known vulnerabilities
-  audit:
-    name: Security Audit
+      # Run fmt first (fastest)
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      # Then clippy (needs to compile, but cached)
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets
+
+  # Security checks - can run in parallel with lint
+  security:
+    name: Security
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: rustsec/audit-check@v2
+
+      - name: Security audit
+        uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # INFO-002: License and security policy enforcement
-  deny:
-    name: Cargo Deny
+      - name: Cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+
+  # Main build and test - depends on lint passing
+  test:
+    name: Test
+    needs: lint
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          # Share cache with lint job
+          shared-key: ubuntu-stable
+
+      # Check compiles first (faster feedback)
+      - name: Check
+        run: cargo check --workspace
+
+      # Build ethcli for MCP tests
+      - name: Build ethcli
+        run: cargo build -p ethcli --release
+
+      # Run all tests
+      - name: Test
+        run: cargo test --workspace
+        env:
+          ETHCLI_PATH: ${{ github.workspace }}/target/release/ethcli
