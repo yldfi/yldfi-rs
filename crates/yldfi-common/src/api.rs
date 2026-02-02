@@ -1242,8 +1242,6 @@ mod tests {
     enum TestDomainError {
         #[error("No route found")]
         NoRouteFound,
-        #[error("Insufficient liquidity")]
-        InsufficientLiquidity,
     }
 
     #[test]

@@ -2,6 +2,8 @@
 //!
 //! Tests the ethcli binary end-to-end for offline commands
 
+#![allow(deprecated)] // Command::cargo_bin deprecation - still functional
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;

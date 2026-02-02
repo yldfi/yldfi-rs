@@ -386,7 +386,7 @@ async fn test_all_known_feed_ids() {
     let mut failures = Vec::new();
 
     for (symbol, feed_id) in &known_feeds {
-        match client.get_latest_price(*feed_id).await {
+        match client.get_latest_price(feed_id).await {
             Ok(Some(feed)) => {
                 if let Some(price) = feed.price_f64() {
                     println!("{}: ${:.4}", symbol, price);

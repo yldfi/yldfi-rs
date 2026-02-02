@@ -931,6 +931,7 @@ concurrency = 20
     }
 
     #[test]
+    #[allow(clippy::field_reassign_with_default)]
     fn test_save_and_load_roundtrip() {
         let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
         let config_path = temp_dir.path().join("config.toml");

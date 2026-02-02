@@ -405,6 +405,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::field_reassign_with_default)]
     fn test_error_rate() {
         let mut health = EndpointHealth::default();
         health.total_requests = 10;
