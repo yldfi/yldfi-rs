@@ -162,7 +162,11 @@ pub fn get_rpc_endpoint_for_block(chain: Chain, target_block: u64) -> anyhow::Re
         .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
         .unwrap_or_default();
 
-    get_rpc_endpoint_from_config_with_options(&config, chain, &SelectionOptions::for_block(target_block))
+    get_rpc_endpoint_from_config_with_options(
+        &config,
+        chain,
+        &SelectionOptions::for_block(target_block),
+    )
 }
 
 /// Get an RPC endpoint that is guaranteed to be an archive node
@@ -217,7 +221,11 @@ pub fn get_rpc_url_for_block(chain: Chain, target_block: u64) -> anyhow::Result<
         .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
         .unwrap_or_default();
 
-    let selected = select_endpoint_config_with_options(&config, chain, &SelectionOptions::for_block(target_block))?;
+    let selected = select_endpoint_config_with_options(
+        &config,
+        chain,
+        &SelectionOptions::for_block(target_block),
+    )?;
     Ok(selected.url)
 }
 

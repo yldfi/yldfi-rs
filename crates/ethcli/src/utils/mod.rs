@@ -449,7 +449,10 @@ mod tests {
         // Decimal numbers
         assert_eq!(parse_block_number("0").unwrap(), 0);
         assert_eq!(parse_block_number("17382257").unwrap(), 17382257);
-        assert_eq!(parse_block_number("18446744073709551615").unwrap(), u64::MAX);
+        assert_eq!(
+            parse_block_number("18446744073709551615").unwrap(),
+            u64::MAX
+        );
 
         // Hex numbers with 0x prefix
         assert_eq!(parse_block_number("0x0").unwrap(), 0);

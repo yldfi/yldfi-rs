@@ -534,10 +534,7 @@ mod tests {
         let padded = "0x0000000000000000000000000000000000000000000000000000000001093b71";
         assert_eq!(padded.len(), 66); // 0x + 64 hex chars
         let result = parse_block_id(padded).unwrap();
-        assert_eq!(
-            result,
-            BlockId::Number(BlockNumberOrTag::Number(17382257))
-        );
+        assert_eq!(result, BlockId::Number(BlockNumberOrTag::Number(17382257)));
     }
 
     #[test]
