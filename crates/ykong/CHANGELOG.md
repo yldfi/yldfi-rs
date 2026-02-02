@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/ykong-v0.1.2...ykong-v0.1.3) (2026-02-02)
+
+
+### Bug Fixes
+
+* use assert! instead of assert_eq! with literal bool ([9712503](https://github.com/yldfi/yldfi-rs/commit/97125034e229b815e38f6dea8e061ac174104793))
+
 ## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/ykong-v0.1.1...ykong-v0.1.2) (2026-01-27)
 
 

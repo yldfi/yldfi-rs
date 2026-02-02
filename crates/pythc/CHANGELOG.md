@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/pythc-v0.1.2...pythc-v0.1.3) (2026-02-02)
+
+
+### Bug Fixes
+
+* resolve clippy warnings in tests ([3da0cb0](https://github.com/yldfi/yldfi-rs/commit/3da0cb07d2dd1ba2d5febde875252dcab7efcf46))
+
 ## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/pythc-v0.1.1...pythc-v0.1.2) (2026-01-27)
 
 

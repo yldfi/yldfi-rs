@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.4...ethcli-mcp-v0.1.5) (2026-02-02)
+
+
+### Features
+
+* **ethcli-mcp:** expose missing CLI parameters for feature parity ([fb85ffe](https://github.com/yldfi/yldfi-rs/commit/fb85ffe9ad6252119de3c65e92b11b1fe26db3d0))
+
 ## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.3...ethcli-mcp-v0.1.4) (2026-01-30)
 
 

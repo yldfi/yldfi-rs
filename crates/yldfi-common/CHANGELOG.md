@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/yldfi-common-v0.1.4...yldfi-common-v0.1.5) (2026-02-02)
+
+
+### Bug Fixes
+
+* resolve clippy warnings in tests ([3da0cb0](https://github.com/yldfi/yldfi-rs/commit/3da0cb07d2dd1ba2d5febde875252dcab7efcf46))
+
 ## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/yldfi-common-v0.1.3...yldfi-common-v0.1.4) (2026-01-27)
 
 
