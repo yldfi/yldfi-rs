@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.5...ethcli-mcp-v0.1.6) (2026-02-02)
+
+
+### Bug Fixes
+
+* **mcp:** pass function signature as positional arg in contract_call ([1a2b72a](https://github.com/yldfi/yldfi-rs/commit/1a2b72a81073b9bdd99874eeb5de65271dc72e59)), closes [#15](https://github.com/yldfi/yldfi-rs/issues/15)
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.4...ethcli-mcp-v0.1.5) (2026-02-02)
 
 
