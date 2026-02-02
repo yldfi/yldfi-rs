@@ -238,4 +238,12 @@ jobs:
         if: steps.check.outputs.exists != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --locked --package ethcli
+        run: |
+          if ! cargo publish --locked --package ethcli 2>&1 | tee /tmp/publish.log; then
+            if grep -q "already exists" /tmp/publish.log; then
+              echo "::warning::ethcli@${{ steps.check.outputs.version }} already exists on crates.io, skipping"
+            else
+              cat /tmp/publish.log
+              exit 1
+            fi
+          fi
