@@ -405,15 +405,24 @@ pub fn parse_block_id(block: &str) -> anyhow::Result<alloy::eips::BlockId> {
         "safe" => Ok(BlockId::Number(BlockNumberOrTag::Safe)),
         _ => {
             if block.starts_with("0x") && block.len() == 66 {
-                // Block hash
+                // Could be a block hash (66 chars = 0x + 64 hex digits) or a padded hex number.
+                // Try parsing as a number first - if it's a reasonable block number, use that.
+                // Block numbers are currently ~20M, so anything that fits in u64 and is < 2^48
+                // is likely a number, not a hash.
+                if let Ok(num) = crate::utils::parse_block_number(block) {
+                    // 2^48 = 281 trillion - far beyond any realistic block number
+                    if num < (1u64 << 48) {
+                        return Ok(BlockId::Number(BlockNumberOrTag::Number(num)));
+                    }
+                }
+                // Otherwise treat as hash
                 let hash = B256::from_str(block)
                     .map_err(|e| anyhow::anyhow!("Invalid block hash: {}", e))?;
                 Ok(BlockId::Hash(hash.into()))
             } else {
-                // Block number
-                let num: u64 = block
-                    .parse()
-                    .map_err(|e| anyhow::anyhow!("Invalid block number: {}", e))?;
+                // Block number (decimal or hex)
+                let num = crate::utils::parse_block_number(block)
+                    .map_err(|e| anyhow::anyhow!("Invalid block number '{}': {}", block, e))?;
                 Ok(BlockId::Number(BlockNumberOrTag::Number(num)))
             }
         }
@@ -511,8 +520,34 @@ mod tests {
     fn test_parse_block_invalid_hash_length() {
         // Hash that's too short (not 66 chars)
         let result = parse_block_id("0x1234");
-        // This should try to parse as a number and fail
-        assert!(result.is_err());
+        // This should try to parse as a number and succeed (0x1234 = 4660)
+        assert_eq!(
+            result.unwrap(),
+            BlockId::Number(BlockNumberOrTag::Number(0x1234))
+        );
+    }
+
+    #[test]
+    fn test_parse_block_padded_hex_number() {
+        // 64-char hex that represents a small block number should be treated as number, not hash
+        // Block 17382257 = 0x1093b71 padded to 64 hex digits
+        let padded = "0x0000000000000000000000000000000000000000000000000000000001093b71";
+        assert_eq!(padded.len(), 66); // 0x + 64 hex chars
+        let result = parse_block_id(padded).unwrap();
+        assert_eq!(
+            result,
+            BlockId::Number(BlockNumberOrTag::Number(17382257))
+        );
+    }
+
+    #[test]
+    fn test_parse_block_real_hash() {
+        // A real block hash has high entropy and will have a large numeric value (> 2^48)
+        // This is a real mainnet block hash
+        let hash = "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3";
+        let result = parse_block_id(hash).unwrap();
+        // Should be parsed as hash, not number
+        assert!(matches!(result, BlockId::Hash(_)));
     }
 
     // ==================== decode_output tests ====================

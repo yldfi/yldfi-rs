@@ -51,11 +51,11 @@ pub async fn simulate_via_tenderly(
         .clone()
         .unwrap_or_else(|| "0x0000000000000000000000000000000000000000".to_string());
 
-    // Parse block number
+    // Parse block number (supports decimal or hex)
     let block_number = if block == "latest" {
         None
     } else {
-        Some(block.parse::<u64>()?)
+        Some(crate::utils::parse_block_number(block)?)
     };
 
     let value_wei = value_to_hex(value)?;
@@ -305,11 +305,11 @@ pub async fn simulate_bundle_tenderly(
     tenderly_args: &TenderlyArgs,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    // Parse block number
+    // Parse block number (supports decimal or hex)
     let block_number = if block == "latest" {
         None
     } else {
-        Some(block.parse::<u64>()?)
+        Some(crate::utils::parse_block_number(block)?)
     };
 
     // Load transactions from JSON string or file

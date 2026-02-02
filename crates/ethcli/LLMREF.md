@@ -96,7 +96,8 @@ ethcli cast concat-hex 0x1 0x2      # Concatenate hex
 ### RPC Direct Calls
 ```bash
 ethcli rpc block latest             # Get latest block
-ethcli rpc block <num>              # Get block by number
+ethcli rpc block <num>              # Get block by number (decimal or hex)
+ethcli rpc block 0x1406f40          # Hex block numbers supported
 ethcli rpc call <to> <data>         # eth_call
 ethcli rpc code <addr>              # Contract bytecode
 ethcli rpc storage <addr> <slot>    # Storage slot
@@ -331,8 +332,11 @@ ethcli config show                  # Display config
 ethcli config validate              # Validate config
 ethcli config set-etherscan-key <k> # Set API key
 ethcli config set-tenderly --key <k> --account <a> --project <p>
-ethcli endpoints add <url>          # Add RPC endpoint
+ethcli endpoints add <url>          # Add RPC endpoint (auto-detects)
+ethcli endpoints add <url> --node-type archive  # Mark as archive node
+ethcli endpoints add <url> --node-type full --has-debug --priority 10
 ethcli endpoints list               # List endpoints
+ethcli endpoints list --archive     # Filter archive nodes only
 ethcli endpoints optimize --all     # Optimize all
 ethcli endpoints health             # Check health
 ethcli doctor                       # Diagnose issues

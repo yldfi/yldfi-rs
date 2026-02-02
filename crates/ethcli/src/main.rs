@@ -311,11 +311,11 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
     // Parse output format
     let format: OutputFormat = args.format.parse()?;
 
-    // Parse to_block
+    // Parse to_block (supports decimal or hex)
     let to_block = if args.to_block.to_lowercase() == "latest" {
         ethcli::BlockNumber::Latest
     } else {
-        ethcli::BlockNumber::Number(args.to_block.parse()?)
+        ethcli::BlockNumber::Number(ethcli::utils::parse_block_number(&args.to_block)?)
     };
 
     // Load config file for additional settings
@@ -365,7 +365,7 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
     } else {
         match &args.from_block {
             Some(s) if s.to_lowercase() == "auto" => (0, true),
-            Some(s) => (s.parse::<u64>()?, false),
+            Some(s) => (ethcli::utils::parse_block_number(s)?, false),
             None => (0, true), // Default to auto-detect from contract creation
         }
     };
@@ -954,6 +954,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
         EndpointCommands::Add {
             url,
             chain: chain_override,
+            node_type,
+            has_debug,
+            has_trace,
+            priority,
             no_optimize,
         } => {
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
@@ -964,7 +968,21 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 return Ok(());
             }
 
-            let endpoint = if *no_optimize {
+            // Parse node_type if provided
+            let parsed_node_type: Option<NodeType> = node_type
+                .as_ref()
+                .map(|s| match s.to_lowercase().as_str() {
+                    "archive" => Ok(NodeType::Archive),
+                    "full" => Ok(NodeType::Full),
+                    "unknown" => Ok(NodeType::Unknown),
+                    other => Err(anyhow::anyhow!(
+                        "Invalid node type '{}'. Valid values: archive, full, unknown",
+                        other
+                    )),
+                })
+                .transpose()?;
+
+            let mut endpoint = if *no_optimize {
                 // Just add with defaults
                 let chain: Chain = if let Some(c) = chain_override {
                     c.parse()?
@@ -1011,6 +1029,20 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
                 result.config
             };
+
+            // Apply CLI overrides (these take precedence over auto-detection)
+            if let Some(nt) = parsed_node_type {
+                endpoint.node_type = nt;
+            }
+            if *has_debug {
+                endpoint.has_debug = true;
+            }
+            if *has_trace {
+                endpoint.has_trace = true;
+            }
+            if let Some(p) = priority {
+                endpoint.priority = *p;
+            }
 
             config.endpoints.push(endpoint);
             config.save_default()?;

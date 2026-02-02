@@ -46,6 +46,30 @@ pub fn get_shared_http_client() -> Result<&'static reqwest::Client, String> {
 pub use progress::{is_tty, ProgressBar, Spinner};
 pub use table::{format_address, format_number, format_usd, Alignment, Table};
 
+/// Parse a block number from a string that may be decimal or hex
+///
+/// Supports:
+/// - Decimal numbers: "17382257"
+/// - Hex numbers with 0x prefix: "0x1093b71"
+///
+/// # Errors
+/// Returns an error if the string cannot be parsed as a valid u64.
+///
+/// # Examples
+/// ```
+/// use ethcli::utils::parse_block_number;
+/// assert_eq!(parse_block_number("17382257").unwrap(), 17382257);
+/// assert_eq!(parse_block_number("0x1093b71").unwrap(), 17382257);
+/// assert_eq!(parse_block_number("0x0").unwrap(), 0);
+/// ```
+pub fn parse_block_number(s: &str) -> Result<u64, std::num::ParseIntError> {
+    if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        u64::from_str_radix(hex, 16)
+    } else {
+        s.parse()
+    }
+}
+
 /// Get the current Unix timestamp in seconds
 ///
 /// Returns 0 if the system time is before Unix epoch (shouldn't happen)
@@ -418,6 +442,31 @@ mod tests {
             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdeg"
         )); // Invalid hex
         assert!(!is_valid_tx_hash("")); // Empty
+    }
+
+    #[test]
+    fn test_parse_block_number() {
+        // Decimal numbers
+        assert_eq!(parse_block_number("0").unwrap(), 0);
+        assert_eq!(parse_block_number("17382257").unwrap(), 17382257);
+        assert_eq!(parse_block_number("18446744073709551615").unwrap(), u64::MAX);
+
+        // Hex numbers with 0x prefix
+        assert_eq!(parse_block_number("0x0").unwrap(), 0);
+        assert_eq!(parse_block_number("0x1093b71").unwrap(), 17382257);
+        assert_eq!(parse_block_number("0x1").unwrap(), 1);
+        assert_eq!(parse_block_number("0xff").unwrap(), 255);
+        assert_eq!(parse_block_number("0xFFFFFFFFFFFFFFFF").unwrap(), u64::MAX);
+
+        // Hex numbers with 0X prefix (uppercase)
+        assert_eq!(parse_block_number("0X1093b71").unwrap(), 17382257);
+        assert_eq!(parse_block_number("0XFF").unwrap(), 255);
+
+        // Invalid inputs
+        assert!(parse_block_number("").is_err());
+        assert!(parse_block_number("abc").is_err());
+        assert!(parse_block_number("0xGGGG").is_err());
+        assert!(parse_block_number("-1").is_err());
     }
 
     #[test]

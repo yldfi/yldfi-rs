@@ -393,7 +393,9 @@ pub fn block_to_param(block: &str) -> anyhow::Result<String> {
     if block == "latest" || block == "pending" || block == "earliest" {
         Ok(block.to_string())
     } else {
-        Ok(format!("0x{:x}", block.parse::<u64>()?))
+        // Parse block number (supports decimal or hex input)
+        let num = crate::utils::parse_block_number(block)?;
+        Ok(format!("0x{:x}", num))
     }
 }
 

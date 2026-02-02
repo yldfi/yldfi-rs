@@ -263,9 +263,10 @@ ethcli cast abi-decode "(address,uint256)" 0x...
 # Call a contract (read-only)
 ethcli rpc call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 0x18160ddd --decode uint256
 
-# Get block info
+# Get block info (supports decimal or hex block numbers)
 ethcli rpc block latest
 ethcli rpc block 21000000 --json
+ethcli rpc block 0x1406f40 --json    # Hex format also works
 
 # Read storage slot
 ethcli rpc storage 0x... 0
@@ -397,9 +398,15 @@ ethcli tenderly alerts list --project <slug> --account <slug>
 ```bash
 # List configured endpoints
 ethcli endpoints list
+ethcli endpoints list --archive     # Show only archive nodes
+ethcli endpoints list --detailed    # Show full config details
 
-# Add an endpoint
+# Add an endpoint (auto-detects capabilities)
 ethcli endpoints add https://eth.llamarpc.com
+
+# Add with explicit node type (archive nodes preferred for historical queries)
+ethcli endpoints add https://my-archive.com --node-type archive
+ethcli endpoints add https://my-node.com --node-type full --has-debug --priority 10
 
 # Test an endpoint
 ethcli endpoints test https://eth.llamarpc.com
@@ -407,6 +414,13 @@ ethcli endpoints test https://eth.llamarpc.com
 # Remove an endpoint
 ethcli endpoints remove https://eth.llamarpc.com
 ```
+
+**Node Types:**
+- `archive` - Full historical state, required for queries at old blocks
+- `full` - Only recent state (~128 blocks), cheaper to run
+- `unknown` - Default, capabilities not yet tested
+
+When querying historical blocks, ethcli automatically prefers archive nodes if configured.
 
 ### Config - Configuration Management
 

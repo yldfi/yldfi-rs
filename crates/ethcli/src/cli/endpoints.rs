@@ -33,6 +33,22 @@ pub enum EndpointCommands {
         #[arg(long, value_name = "CHAIN")]
         chain: Option<String>,
 
+        /// Node type: archive, full, or unknown (auto-detected if not specified)
+        #[arg(long, value_name = "TYPE")]
+        node_type: Option<String>,
+
+        /// Mark endpoint as having debug namespace (debug_traceCall, etc.)
+        #[arg(long)]
+        has_debug: bool,
+
+        /// Mark endpoint as having trace namespace (trace_call, etc.)
+        #[arg(long)]
+        has_trace: bool,
+
+        /// Set endpoint priority (higher = preferred, default: 5, max: 255)
+        #[arg(long, value_name = "NUM")]
+        priority: Option<u8>,
+
         /// Skip optimization (just add with defaults)
         #[arg(long)]
         no_optimize: bool,

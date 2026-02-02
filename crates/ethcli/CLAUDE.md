@@ -1207,8 +1207,21 @@ Installed hooks run automatically on commit:
 ## Architecture Notes
 
 - Uses user-configured RPC endpoints (add with `ethcli endpoints add <url>`)
+- **Archive node routing**: Historical queries prefer archive nodes when configured
 - Parallel requests with automatic failover on errors
 - Health tracking disables failing endpoints temporarily
 - Checkpoint system allows resuming interrupted fetches
 - Etherscan API v2 for ABI fetching (works without API key, rate limited)
 - foundry-block-explorers for account, contract, token, and gas commands
+- **Block numbers**: Accept both decimal (`17382257`) and hex (`0x1093b71`) format
+
+### Endpoint Management
+
+```bash
+# Add endpoints with node type for proper archive routing
+ethcli endpoints add https://my-archive.com --node-type archive
+ethcli endpoints add https://my-node.com --node-type full --has-debug --priority 10
+
+# Node types: archive (full history), full (recent only), unknown (default)
+# Historical queries (old blocks) automatically prefer archive nodes if configured
+```
