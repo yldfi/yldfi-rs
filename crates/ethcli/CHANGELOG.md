@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.21.16](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.15...ethcli-v0.21.16) (2026-02-02)
+
+
+### Features
+
+* add 'upgrade' command, keep 'update' for checking only ([e40ee32](https://github.com/yldfi/yldfi-rs/commit/e40ee325fefab3cb3795c05276bf362ede2a5ce7))
+* **ethcli:** add bytecode analysis and fix MCP bugs ([b74a17c](https://github.com/yldfi/yldfi-rs/commit/b74a17c2c0865fd335506f19fe4711a7c828ac4e))
+* **ethcli:** add direct DEX aggregator CLI commands ([f7ead70](https://github.com/yldfi/yldfi-rs/commit/f7ead7094e9f9e2ebad9ef93010f5e5a14b2aa73))
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** prevent data truncation in MCP tool outputs ([12da461](https://github.com/yldfi/yldfi-rs/commit/12da4612be2f9826971498a3c7a0c7a1c475e5f4))
+* **ethcli:** reduce false positives in bytecode security analysis ([2ca9421](https://github.com/yldfi/yldfi-rs/commit/2ca9421918fe27dbe32818834c3226138e539e31))
+* resolve clippy warnings ([3dcea82](https://github.com/yldfi/yldfi-rs/commit/3dcea82e8af3dcfe0f077365b90098e88f16a75b))
+* resolve clippy warnings and doc test failure ([09ce397](https://github.com/yldfi/yldfi-rs/commit/09ce39721be834c176ce28229765752d722249a9))
+* resolve clippy warnings in tests ([3da0cb0](https://github.com/yldfi/yldfi-rs/commit/3da0cb07d2dd1ba2d5febde875252dcab7efcf46))
+* resolve clippy warnings in tx analyzer ([cd283d2](https://github.com/yldfi/yldfi-rs/commit/cd283d2446b7e9c670357e1af14e5ec6ea20dfaf))
+* update Enso API client for new endpoints ([1c631e9](https://github.com/yldfi/yldfi-rs/commit/1c631e9eacc6d43813cd5d8160f37a0eb27706f1))
+
 ## [0.21.15](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.14...ethcli-v0.21.15) (2026-02-02)
 
 
