@@ -89,12 +89,12 @@ fn select_endpoint_config_with_options(
                  Add an archive node with: ethcli endpoints add <url> --node-type archive",
                 chain.display_name()
             ));
-        } else if options.target_block.is_some() {
+        } else if let Some(target_block) = options.target_block {
             // Warn user that we're falling back - historical queries may fail
             eprintln!(
                 "Warning: No archive nodes configured for {}. Historical query at block {} may fail.",
                 chain.display_name(),
-                options.target_block.unwrap()
+                target_block
             );
         }
     }
