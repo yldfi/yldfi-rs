@@ -749,16 +749,22 @@ async fn fetch_curve_lending_yields(chain: &str) -> SourceResult<Vec<NormalizedL
                     address: v.address,
                     name: v.name,
                     chain: chain.to_string(),
-                    collateral_symbol: v.assets.as_ref().and_then(|a| a.collateral.as_ref()).and_then(|t| t.symbol.clone()),
-                    borrowed_symbol: v.assets.as_ref().and_then(|a| a.borrowed.as_ref()).and_then(|t| t.symbol.clone()),
+                    collateral_symbol: v
+                        .assets
+                        .as_ref()
+                        .and_then(|a| a.collateral.as_ref())
+                        .and_then(|t| t.symbol.clone()),
+                    borrowed_symbol: v
+                        .assets
+                        .as_ref()
+                        .and_then(|a| a.borrowed.as_ref())
+                        .and_then(|t| t.symbol.clone()),
                     lend_apy: v.rates.as_ref().and_then(|r| r.lend_apy),
                     borrow_apy: v.rates.as_ref().and_then(|r| r.borrow_apy),
                     utilization: v.total_supplied.as_ref().and_then(|s| {
-                        v.borrowed.as_ref().and_then(|b| {
-                            match (s.total, b.total) {
-                                (Some(supply), Some(borrow)) if supply > 0.0 => Some(borrow / supply),
-                                _ => None,
-                            }
+                        v.borrowed.as_ref().and_then(|b| match (s.total, b.total) {
+                            (Some(supply), Some(borrow)) if supply > 0.0 => Some(borrow / supply),
+                            _ => None,
                         })
                     }),
                     total_assets_usd: v.total_supplied.and_then(|s| s.usd_total),
