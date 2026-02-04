@@ -119,8 +119,8 @@ pub struct NormalizedLendingYield {
     pub borrow_apy: Option<f64>,
     /// Utilization rate
     pub utilization: Option<f64>,
-    /// Total assets in vault
-    pub total_assets: Option<String>,
+    /// Total assets in vault (USD)
+    pub total_assets_usd: Option<f64>,
 }
 
 /// Fetch yields from Curve (pool APYs from volumes API)
@@ -749,12 +749,25 @@ async fn fetch_curve_lending_yields(chain: &str) -> SourceResult<Vec<NormalizedL
                     address: v.address,
                     name: v.name,
                     chain: chain.to_string(),
-                    collateral_symbol: v.collateral_token.and_then(|t| t.symbol),
-                    borrowed_symbol: v.borrowed_token.and_then(|t| t.symbol),
-                    lend_apy: v.lend_apy,
-                    borrow_apy: v.borrow_apy,
-                    utilization: v.utilization,
-                    total_assets: v.total_assets,
+                    collateral_symbol: v
+                        .assets
+                        .as_ref()
+                        .and_then(|a| a.collateral.as_ref())
+                        .and_then(|t| t.symbol.clone()),
+                    borrowed_symbol: v
+                        .assets
+                        .as_ref()
+                        .and_then(|a| a.borrowed.as_ref())
+                        .and_then(|t| t.symbol.clone()),
+                    lend_apy: v.rates.as_ref().and_then(|r| r.lend_apy),
+                    borrow_apy: v.rates.as_ref().and_then(|r| r.borrow_apy),
+                    utilization: v.total_supplied.as_ref().and_then(|s| {
+                        v.borrowed.as_ref().and_then(|b| match (s.total, b.total) {
+                            (Some(supply), Some(borrow)) if supply > 0.0 => Some(borrow / supply),
+                            _ => None,
+                        })
+                    }),
+                    total_assets_usd: v.total_supplied.and_then(|s| s.usd_total),
                 })
                 .collect();
 

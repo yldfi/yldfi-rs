@@ -1,0 +1,22 @@
+# cargo-audit configuration
+# https://rustsec.org/
+
+[advisories]
+# Ignore unmaintained crate warnings from transitive dependencies
+# These are outside our control and come from upstream crates
+ignore = [
+    # derivative - used by ark-ff (transitive via alloy)
+    # https://rustsec.org/advisories/RUSTSEC-2024-0388
+    "RUSTSEC-2024-0388",
+
+    # paste - used by multiple crates including ark-ff, syn-solidity (transitive)
+    # https://rustsec.org/advisories/RUSTSEC-2024-0436
+    "RUSTSEC-2024-0436",
+
+    # rustls-pemfile - used by rustls-native-certs 0.6 via chainlink-data-streams-sdk
+    # https://rustsec.org/advisories/RUSTSEC-2025-0134
+    "RUSTSEC-2025-0134",
+]
+
+# Warn on unmaintained (informational) instead of failing
+informational_warnings = ["unmaintained"]
