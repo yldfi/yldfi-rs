@@ -26,7 +26,7 @@ uniswap-v4-sdk = { version = "1.0", features = ["extensions", "std"] }
 uniswap-lens = { version = "0.15", features = ["std"] }
 
 # Ethereum (version aligned with uniswap-v3-sdk)
-alloy = { version = "1.1", features = ["providers", "transports", "transport-http", "rpc-types"] }
+alloy = { version = "1.6", features = ["providers", "transports", "transport-http", "rpc-types"] }
 
 [dev-dependencies]
 wiremock = "0.6"
