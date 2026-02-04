@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.2...unswp-v0.1.3) (2026-02-04)
+
+
+### Bug Fixes
+
+* **crv:** update LendingVault struct to match Curve API response ([#19](https://github.com/yldfi/yldfi-rs/issues/19)) ([38a0bac](https://github.com/yldfi/yldfi-rs/commit/38a0bac6bdcae0772db212d5eae550ec25a8ec94))
+
 ## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.1...unswp-v0.1.2) (2026-01-27)
 
 

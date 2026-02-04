@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.17](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.16...ethcli-v0.21.17) (2026-02-04)
+
+
+### Bug Fixes
+
+* **crv:** update LendingVault struct to match Curve API response ([#19](https://github.com/yldfi/yldfi-rs/issues/19)) ([38a0bac](https://github.com/yldfi/yldfi-rs/commit/38a0bac6bdcae0772db212d5eae550ec25a8ec94))
+
 ## [0.21.16](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.15...ethcli-v0.21.16) (2026-02-02)
 
 
