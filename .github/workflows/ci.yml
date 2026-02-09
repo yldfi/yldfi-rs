@@ -65,6 +65,7 @@ jobs:
     permissions:
       contents: read
       checks: write  # Required for rustsec/audit-check to create check runs
+      issues: write  # Required for rustsec/audit-check to auto-create issues for new advisories
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
