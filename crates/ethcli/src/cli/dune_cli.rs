@@ -659,9 +659,10 @@ async fn handle_queries(
                 eprintln!("Listing queries...");
             }
             if limit.is_some() || offset.is_some() {
-                let mut opts = dnapi::queries::ListQueriesOptions::default();
-                opts.limit = *limit;
-                opts.offset = *offset;
+                let opts = dnapi::queries::ListQueriesOptions {
+                    limit: *limit,
+                    offset: *offset,
+                };
                 let response = client.queries().list_with_options(&opts).await?;
                 print_output(&response, args.format)?;
             } else {
@@ -770,9 +771,10 @@ async fn handle_tables(
                 eprintln!("Listing tables...");
             }
             if limit.is_some() || offset.is_some() {
-                let mut opts = dnapi::tables::ListTablesOptions::default();
-                opts.limit = *limit;
-                opts.offset = *offset;
+                let opts = dnapi::tables::ListTablesOptions {
+                    limit: *limit,
+                    offset: *offset,
+                };
                 let response = client.tables().list_with_options(&opts).await?;
                 print_output(&response, args.format)?;
             } else {
@@ -881,9 +883,10 @@ async fn handle_matviews(
                 eprintln!("Listing materialized views...");
             }
             if limit.is_some() || offset.is_some() {
-                let mut opts = dnapi::matviews::ListMatviewsOptions::default();
-                opts.limit = *limit;
-                opts.offset = *offset;
+                let opts = dnapi::matviews::ListMatviewsOptions {
+                    limit: *limit,
+                    offset: *offset,
+                };
                 let response = client.matviews().list_with_options(&opts).await?;
                 print_output(&response, args.format)?;
             } else {
