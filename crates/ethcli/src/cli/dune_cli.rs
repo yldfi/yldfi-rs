@@ -449,9 +449,7 @@ pub async fn handle(command: &DuneCommands, quiet: bool) -> anyhow::Result<()> {
         DuneCommands::Queries { action, args } => {
             handle_queries(&client, action, args, quiet).await
         }
-        DuneCommands::Tables { action, args } => {
-            handle_tables(&client, action, args, quiet).await
-        }
+        DuneCommands::Tables { action, args } => handle_tables(&client, action, args, quiet).await,
         DuneCommands::Matviews { action, args } => {
             handle_matviews(&client, action, args, quiet).await
         }
@@ -728,9 +726,8 @@ async fn handle_tables(
             if !quiet {
                 eprintln!("Creating table {}.{}...", namespace, table_name);
             }
-            let columns: Vec<dnapi::tables::TableColumn> =
-                serde_json::from_str(schema)
-                    .map_err(|e| anyhow::anyhow!("Invalid schema JSON: {}", e))?;
+            let columns: Vec<dnapi::tables::TableColumn> = serde_json::from_str(schema)
+                .map_err(|e| anyhow::anyhow!("Invalid schema JSON: {}", e))?;
             let request = dnapi::tables::CreateTableRequest {
                 namespace: namespace.clone(),
                 table_name: table_name.clone(),
@@ -903,7 +900,10 @@ async fn handle_matviews(
                 let request = dnapi::matviews::RefreshMatviewRequest {
                     performance: Some(perf.clone()),
                 };
-                let response = client.matviews().refresh_with_options(name, &request).await?;
+                let response = client
+                    .matviews()
+                    .refresh_with_options(name, &request)
+                    .await?;
                 print_output(&response, args.format)?;
             } else {
                 let response = client.matviews().refresh(name).await?;
@@ -975,11 +975,7 @@ async fn handle_pipelines(
 // Usage Handler
 // ============================================================================
 
-async fn handle_usage(
-    client: &dnapi::Client,
-    args: &DuneArgs,
-    quiet: bool,
-) -> anyhow::Result<()> {
+async fn handle_usage(client: &dnapi::Client, args: &DuneArgs, quiet: bool) -> anyhow::Result<()> {
     if !quiet {
         eprintln!("Fetching usage information...");
     }

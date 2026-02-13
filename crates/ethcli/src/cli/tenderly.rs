@@ -1598,13 +1598,12 @@ async fn handle_admin(
                 tx = tx.gas(g);
             }
 
-            let so: Option<
-                std::collections::HashMap<String, tndrly::vnets::StateOverride>,
-            > = state_overrides
-                .as_ref()
-                .map(|s| serde_json::from_str(s))
-                .transpose()
-                .context("Invalid --state-overrides JSON")?;
+            let so: Option<std::collections::HashMap<String, tndrly::vnets::StateOverride>> =
+                state_overrides
+                    .as_ref()
+                    .map(|s| serde_json::from_str(s))
+                    .transpose()
+                    .context("Invalid --state-overrides JSON")?;
             let bo: Option<tndrly::vnets::BlockOverride> = block_overrides
                 .as_ref()
                 .map(|s| serde_json::from_str(s))
@@ -1629,13 +1628,12 @@ async fn handle_admin(
             let txs: Vec<tndrly::vnets::SimulateTransactionParams> =
                 serde_json::from_str(txs).context("Invalid --txs JSON array")?;
 
-            let so: Option<
-                std::collections::HashMap<String, tndrly::vnets::StateOverride>,
-            > = state_overrides
-                .as_ref()
-                .map(|s| serde_json::from_str(s))
-                .transpose()
-                .context("Invalid --state-overrides JSON")?;
+            let so: Option<std::collections::HashMap<String, tndrly::vnets::StateOverride>> =
+                state_overrides
+                    .as_ref()
+                    .map(|s| serde_json::from_str(s))
+                    .transpose()
+                    .context("Invalid --state-overrides JSON")?;
             let bo: Option<tndrly::vnets::BlockOverride> = block_overrides
                 .as_ref()
                 .map(|s| serde_json::from_str(s))
@@ -1923,7 +1921,10 @@ async fn handle_contracts(
             if !tags.is_empty() {
                 request.tags = Some(tags.clone());
             }
-            let result = client.contracts().update(network, address, &request).await?;
+            let result = client
+                .contracts()
+                .update(network, address, &request)
+                .await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
@@ -1949,10 +1950,7 @@ async fn handle_contracts(
             if !quiet {
                 eprintln!("Deleting tag '{}' from contract {}...", tag, address);
             }
-            client
-                .contracts()
-                .delete_tag(network, address, tag)
-                .await?;
+            client.contracts().delete_tag(network, address, tag).await?;
             println!("Tag '{}' deleted from contract {}.", tag, address);
         }
 
@@ -1981,8 +1979,7 @@ async fn handle_contracts(
             let state_overrides: std::collections::HashMap<
                 String,
                 tndrly::contracts::StateOverrideInput,
-            > = serde_json::from_str(state_json)
-                .context("Invalid state overrides JSON")?;
+            > = serde_json::from_str(state_json).context("Invalid state overrides JSON")?;
             let request = tndrly::contracts::EncodeStateRequest {
                 network_id: network.clone(),
                 state_overrides,
@@ -2110,16 +2107,14 @@ async fn handle_alerts(
             if !quiet {
                 eprintln!("Updating alert {}...", id);
             }
-            let at: tndrly::alerts::AlertType = alert_type
-                .parse()
-                .map_err(|e: String| anyhow::anyhow!(e))?;
+            let at: tndrly::alerts::AlertType =
+                alert_type.parse().map_err(|e: String| anyhow::anyhow!(e))?;
             let target = if addresses.is_empty() {
                 tndrly::alerts::AlertTarget::Project
             } else {
                 tndrly::alerts::AlertTarget::Address
             };
-            let mut request =
-                tndrly::alerts::CreateAlertRequest::new(name, at, network, target);
+            let mut request = tndrly::alerts::CreateAlertRequest::new(name, at, network, target);
             if !addresses.is_empty() {
                 request.addresses = Some(addresses.clone());
             }
@@ -2146,12 +2141,12 @@ async fn handle_alerts(
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
-        AlertsCommands::RemoveDestination {
-            id,
-            destination_id,
-        } => {
+        AlertsCommands::RemoveDestination { id, destination_id } => {
             if !quiet {
-                eprintln!("Removing destination {} from alert {}...", destination_id, id);
+                eprintln!(
+                    "Removing destination {} from alert {}...",
+                    destination_id, id
+                );
             }
             client
                 .alerts()

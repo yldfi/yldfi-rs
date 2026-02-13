@@ -134,7 +134,10 @@ pub enum CowSwapCommands {
         #[arg(long, default_value = "0")]
         fee_amount: String,
         /// App data hash
-        #[arg(long, default_value = "0x0000000000000000000000000000000000000000000000000000000000000000")]
+        #[arg(
+            long,
+            default_value = "0x0000000000000000000000000000000000000000000000000000000000000000"
+        )]
         app_data: String,
         /// Allow partial fills
         #[arg(long)]

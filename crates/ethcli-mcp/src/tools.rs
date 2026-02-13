@@ -1417,10 +1417,7 @@ pub async fn tenderly_vnets_transactions(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn tenderly_vnets_get_transaction(
-    vnet: &str,
-    hash: &str,
-) -> Result<String, ToolError> {
+pub async fn tenderly_vnets_get_transaction(vnet: &str, hash: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("tenderly")
         .subcommand("vnets")
         .subcommand("get-transaction")
@@ -1773,10 +1770,7 @@ pub async fn tenderly_actions_resume_many(ids: &[String]) -> Result<String, Tool
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn tenderly_actions_get_call(
-    id: &str,
-    execution_id: &str,
-) -> Result<String, ToolError> {
+pub async fn tenderly_actions_get_call(id: &str, execution_id: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("tenderly")
         .subcommand("actions")
         .subcommand("get-call")
@@ -2406,10 +2400,7 @@ pub async fn gecko_coins_new() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn gecko_coins_by_contract(
-    platform: &str,
-    address: &str,
-) -> Result<String, ToolError> {
+pub async fn gecko_coins_by_contract(platform: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("gecko")
         .subcommand("coins")
         .subcommand("by-contract")
@@ -2488,10 +2479,7 @@ pub async fn gecko_nfts_list() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn gecko_nfts_by_contract(
-    platform: &str,
-    address: &str,
-) -> Result<String, ToolError> {
+pub async fn gecko_nfts_by_contract(platform: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("gecko")
         .subcommand("nfts")
         .subcommand("by-contract")
@@ -2572,10 +2560,7 @@ pub async fn gecko_onchain_new_pools(network: Option<&str>) -> Result<String, To
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn gecko_onchain_token_info(
-    network: &str,
-    address: &str,
-) -> Result<String, ToolError> {
+pub async fn gecko_onchain_token_info(network: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("gecko")
         .subcommand("onchain")
         .subcommand("token")
@@ -2600,10 +2585,7 @@ pub async fn gecko_onchain_token_price(
         .map_err(ToolError::from)
 }
 
-pub async fn gecko_onchain_token_pools(
-    network: &str,
-    address: &str,
-) -> Result<String, ToolError> {
+pub async fn gecko_onchain_token_pools(network: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("gecko")
         .subcommand("onchain")
         .subcommand("token-pools")
@@ -3759,10 +3741,7 @@ pub async fn curve_router_address(chain: Option<&str>) -> Result<String, ToolErr
 
 // --- Pools additional ---
 
-pub async fn curve_pools_registry(
-    chain: &str,
-    registry: &str,
-) -> Result<String, ToolError> {
+pub async fn curve_pools_registry(chain: &str, registry: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("pools")
         .subcommand("registry")
@@ -3882,10 +3861,7 @@ pub async fn curve_lending_all() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn curve_lending_registry(
-    chain: &str,
-    registry: &str,
-) -> Result<String, ToolError> {
+pub async fn curve_lending_registry(chain: &str, registry: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("lending")
         .subcommand("registry")
@@ -3955,10 +3931,7 @@ pub async fn curve_prices_chain_stats() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn curve_prices_token(
-    chain: &str,
-    address: &str,
-) -> Result<String, ToolError> {
+pub async fn curve_prices_token(chain: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("prices")
         .subcommand("token")
@@ -3969,10 +3942,7 @@ pub async fn curve_prices_token(
         .map_err(ToolError::from)
 }
 
-pub async fn curve_prices_history(
-    chain: &str,
-    address: &str,
-) -> Result<String, ToolError> {
+pub async fn curve_prices_history(chain: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("prices")
         .subcommand("history")
@@ -3994,10 +3964,7 @@ pub async fn curve_prices_top_volume() -> Result<String, ToolError> {
 
 // --- OHLC additional ---
 
-pub async fn curve_ohlc_lp_token(
-    chain: &str,
-    address: &str,
-) -> Result<String, ToolError> {
+pub async fn curve_ohlc_lp_token(chain: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("ohlc")
         .subcommand("lp-token")
@@ -4182,10 +4149,7 @@ pub async fn chainlink_streams_latest(feed_id: &str) -> Result<String, ToolError
         .map_err(ToolError::from)
 }
 
-pub async fn chainlink_streams_report(
-    feed_id: &str,
-    timestamp: u64,
-) -> Result<String, ToolError> {
+pub async fn chainlink_streams_report(feed_id: &str, timestamp: u64) -> Result<String, ToolError> {
     ArgsBuilder::new("chainlink")
         .subcommand("streams")
         .subcommand("report")
@@ -4196,10 +4160,7 @@ pub async fn chainlink_streams_report(
         .map_err(ToolError::from)
 }
 
-pub async fn chainlink_streams_bulk(
-    feed_ids: &str,
-    timestamp: u64,
-) -> Result<String, ToolError> {
+pub async fn chainlink_streams_bulk(feed_ids: &str, timestamp: u64) -> Result<String, ToolError> {
     ArgsBuilder::new("chainlink")
         .subcommand("streams")
         .subcommand("bulk")

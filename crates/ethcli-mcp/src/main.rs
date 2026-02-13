@@ -1294,14 +1294,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<TenderlyVnetsForkInput>,
     ) -> String {
-        tools::tenderly_vnets_fork(
-            &input.source,
-            &input.slug,
-            &input.name,
-            input.block_number,
-        )
-        .await
-        .to_response()
+        tools::tenderly_vnets_fork(&input.source, &input.slug, &input.name, input.block_number)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get RPC URLs (public and admin) for a Virtual TestNet")]
@@ -1413,13 +1408,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
     ) -> String {
-        tools::tenderly_vnets_admin_set_max_erc20_balance(
-            &input.vnet,
-            &input.token,
-            &input.wallet,
-        )
-        .await
-        .to_response()
+        tools::tenderly_vnets_admin_set_max_erc20_balance(&input.vnet, &input.token, &input.wallet)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Advance blockchain time by seconds on a Virtual TestNet")]
@@ -1607,9 +1598,7 @@ impl EthcliMcpServer {
 
     // --- Tenderly Alerts Batch ---
 
-    #[tool(
-        description = "Update a Tenderly alert configuration (name, type, network, addresses)"
-    )]
+    #[tool(description = "Update a Tenderly alert configuration (name, type, network, addresses)")]
     async fn tenderly_alerts_update(
         &self,
         Parameters(input): Parameters<TenderlyAlertsUpdateInput>,
@@ -1671,13 +1660,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<TenderlyContractsRemoveTagInput>,
     ) -> String {
-        tools::tenderly_contracts_remove_tag(
-            &input.address,
-            input.network.as_deref(),
-            &input.tag,
-        )
-        .await
-        .to_response()
+        tools::tenderly_contracts_remove_tag(&input.address, input.network.as_deref(), &input.tag)
+            .await
+            .to_response()
     }
 
     #[tool(description = "Apply a tag to multiple Tenderly contracts at once")]
@@ -1702,9 +1687,7 @@ impl EthcliMcpServer {
 
     // --- Tenderly VNets Admin Batch ---
 
-    #[tool(
-        description = "Set ETH balance for multiple addresses on a Virtual TestNet"
-    )]
+    #[tool(description = "Set ETH balance for multiple addresses on a Virtual TestNet")]
     async fn tenderly_vnets_admin_set_balances(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminBatchBalanceInput>,
@@ -1714,9 +1697,7 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(
-        description = "Add ETH to balances for multiple addresses on a Virtual TestNet"
-    )]
+    #[tool(description = "Add ETH to balances for multiple addresses on a Virtual TestNet")]
     async fn tenderly_vnets_admin_add_balances(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminBatchBalanceInput>,
@@ -1726,9 +1707,7 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(
-        description = "Create an EIP-2930 access list for a transaction on a Virtual TestNet"
-    )]
+    #[tool(description = "Create an EIP-2930 access list for a transaction on a Virtual TestNet")]
     async fn tenderly_vnets_admin_create_access_list(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminCreateAccessListInput>,
@@ -1904,10 +1883,7 @@ impl EthcliMcpServer {
     // --- Gecko Coins (additional) ---
 
     #[tool(description = "List all coins from CoinGecko")]
-    async fn gecko_coins_list(
-        &self,
-        Parameters(input): Parameters<GeckoCoinsListInput>,
-    ) -> String {
+    async fn gecko_coins_list(&self, Parameters(input): Parameters<GeckoCoinsListInput>) -> String {
         tools::gecko_coins_list(input.with_platforms)
             .await
             .to_response()
@@ -1924,10 +1900,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get coin exchange tickers from CoinGecko")]
-    async fn gecko_coins_tickers(
-        &self,
-        Parameters(input): Parameters<GeckoCoinInput>,
-    ) -> String {
+    async fn gecko_coins_tickers(&self, Parameters(input): Parameters<GeckoCoinInput>) -> String {
         tools::gecko_coins_tickers(&input.id).await.to_response()
     }
 
@@ -1942,10 +1915,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get coin OHLC candlestick data from CoinGecko")]
-    async fn gecko_coins_ohlc(
-        &self,
-        Parameters(input): Parameters<GeckoCoinsOhlcInput>,
-    ) -> String {
+    async fn gecko_coins_ohlc(&self, Parameters(input): Parameters<GeckoCoinsOhlcInput>) -> String {
         tools::gecko_coins_ohlc(&input.id, input.vs.as_deref(), input.days.as_deref())
             .await
             .to_response()
@@ -2004,13 +1974,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Search coins, exchanges, categories, and NFTs on CoinGecko")]
-    async fn gecko_global_search(
-        &self,
-        Parameters(input): Parameters<GeckoSearchInput>,
-    ) -> String {
-        tools::gecko_global_search(&input.query)
-            .await
-            .to_response()
+    async fn gecko_global_search(&self, Parameters(input): Parameters<GeckoSearchInput>) -> String {
+        tools::gecko_global_search(&input.query).await.to_response()
     }
 
     #[tool(description = "Get BTC exchange rates from CoinGecko")]
@@ -2046,10 +2011,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get NFT collection tickers from CoinGecko")]
-    async fn gecko_nfts_tickers(
-        &self,
-        Parameters(input): Parameters<GeckoNftInput>,
-    ) -> String {
+    async fn gecko_nfts_tickers(&self, Parameters(input): Parameters<GeckoNftInput>) -> String {
         tools::gecko_nfts_tickers(&input.id).await.to_response()
     }
 
@@ -2135,13 +2097,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<GeckoOnchainPoolOhlcvInput>,
     ) -> String {
-        tools::gecko_onchain_pool_ohlcv(
-            &input.network,
-            &input.address,
-            input.timeframe.as_deref(),
-        )
-        .await
-        .to_response()
+        tools::gecko_onchain_pool_ohlcv(&input.network, &input.address, input.timeframe.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Search pools on CoinGecko onchain")]
@@ -2476,13 +2434,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(description = "Get NFTs owned by a wallet via Moralis")]
-    async fn moralis_nft_list(
-        &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
-    ) -> String {
-        tools::moralis_nft_list(&input.address)
-            .await
-            .to_response()
+    async fn moralis_nft_list(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
+        tools::moralis_nft_list(&input.address).await.to_response()
     }
 
     #[tool(description = "Get NFT metadata (name, image, attributes) via Moralis")]
@@ -2646,13 +2599,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get details of a saved Dune query")]
-    async fn dune_queries_get(
-        &self,
-        Parameters(input): Parameters<DuneQueriesGetInput>,
-    ) -> String {
-        tools::dune_queries_get(&input.query_id)
-            .await
-            .to_response()
+    async fn dune_queries_get(&self, Parameters(input): Parameters<DuneQueriesGetInput>) -> String {
+        tools::dune_queries_get(&input.query_id).await.to_response()
     }
 
     #[tool(description = "Update an existing Dune query")]
@@ -2755,20 +2703,14 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "List Dune tables")]
-    async fn dune_tables_list(
-        &self,
-        Parameters(input): Parameters<DuneTablesListInput>,
-    ) -> String {
+    async fn dune_tables_list(&self, Parameters(input): Parameters<DuneTablesListInput>) -> String {
         tools::dune_tables_list(input.limit, input.offset)
             .await
             .to_response()
     }
 
     #[tool(description = "Get details of a Dune table")]
-    async fn dune_tables_get(
-        &self,
-        Parameters(input): Parameters<DuneTablesGetInput>,
-    ) -> String {
+    async fn dune_tables_get(&self, Parameters(input): Parameters<DuneTablesGetInput>) -> String {
         tools::dune_tables_get(&input.namespace, &input.table_name)
             .await
             .to_response()
@@ -2959,19 +2901,17 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get Curve router graph statistics (token count, edge count)")]
-    async fn curve_router_stats(
-        &self,
-        Parameters(input): Parameters<CurvePoolsInput>,
-    ) -> String {
-        tools::curve_router_stats(Some(&input.chain)).await.to_response()
+    async fn curve_router_stats(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
+        tools::curve_router_stats(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Curve router contract address for a chain")]
-    async fn curve_router_address(
-        &self,
-        Parameters(input): Parameters<CurvePoolsInput>,
-    ) -> String {
-        tools::curve_router_address(Some(&input.chain)).await.to_response()
+    async fn curve_router_address(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
+        tools::curve_router_address(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // --- Pools additional ---
@@ -2996,7 +2936,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CurveOptionalChainInput>,
     ) -> String {
-        tools::curve_pools_big(input.chain.as_deref()).await.to_response()
+        tools::curve_pools_big(input.chain.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Curve pools with TVL < $10k (optionally filtered by chain)")]
@@ -3004,7 +2946,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CurveOptionalChainInput>,
     ) -> String {
-        tools::curve_pools_small(input.chain.as_deref()).await.to_response()
+        tools::curve_pools_small(input.chain.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Curve pools with $0 TVL (optionally filtered by chain)")]
@@ -3012,7 +2956,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CurveOptionalChainInput>,
     ) -> String {
-        tools::curve_pools_empty(input.chain.as_deref()).await.to_response()
+        tools::curve_pools_empty(input.chain.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Curve pool addresses on a chain")]
@@ -3020,7 +2966,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CurvePoolsInput>,
     ) -> String {
-        tools::curve_pools_addresses(Some(&input.chain)).await.to_response()
+        tools::curve_pools_addresses(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get hidden/dysfunctional Curve pools")]
@@ -3036,19 +2984,17 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get total 24h Curve volume for a chain")]
-    async fn curve_volumes_total(
-        &self,
-        Parameters(input): Parameters<CurvePoolsInput>,
-    ) -> String {
-        tools::curve_volumes_total(Some(&input.chain)).await.to_response()
+    async fn curve_volumes_total(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
+        tools::curve_volumes_total(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get Curve base APYs for pools on a chain")]
-    async fn curve_volumes_apys(
-        &self,
-        Parameters(input): Parameters<CurvePoolsInput>,
-    ) -> String {
-        tools::curve_volumes_apys(Some(&input.chain)).await.to_response()
+    async fn curve_volumes_apys(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
+        tools::curve_volumes_apys(Some(&input.chain))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get crvUSD AMM volumes")]
@@ -3090,7 +3036,9 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<CurveOptionalChainInput>,
     ) -> String {
-        tools::curve_crvusd_markets(input.chain.as_deref()).await.to_response()
+        tools::curve_crvusd_markets(input.chain.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get crvUSD savings stats")]
@@ -3214,7 +3162,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get bulk Chainlink Data Streams reports for multiple feeds at a timestamp")]
+    #[tool(
+        description = "Get bulk Chainlink Data Streams reports for multiple feeds at a timestamp"
+    )]
     async fn chainlink_streams_bulk(
         &self,
         Parameters(input): Parameters<ChainlinkStreamsBulkInput>,
@@ -3699,10 +3649,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get just the transaction data from a LI.FI quote (convenience wrapper)")]
-    async fn lifi_get_transaction(
-        &self,
-        Parameters(input): Parameters<LifiQuoteInput>,
-    ) -> String {
+    async fn lifi_get_transaction(&self, Parameters(input): Parameters<LifiQuoteInput>) -> String {
         tools::lifi_get_transaction(
             &input.from_chain,
             &input.from_token,

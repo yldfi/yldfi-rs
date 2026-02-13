@@ -48,8 +48,8 @@ mod api;
 mod types;
 
 pub use admin_rpc::{
-    AccessListEntry, AccessListResult, AdminRpc, BlockOverride, LatestBlock,
-    SendTransactionParams, SimulateTransactionParams, StateOverride,
+    AccessListEntry, AccessListResult, AdminRpc, BlockOverride, LatestBlock, SendTransactionParams,
+    SimulateTransactionParams, StateOverride,
 };
 pub use api::VNetsApi;
 pub use types::*;
