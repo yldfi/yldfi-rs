@@ -135,8 +135,8 @@ pub struct PoolListResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PoolListData {
-    /// Pool addresses by registry
-    pub pool_list: Vec<String>,
+    /// Pool addresses by registry (can be strings or objects depending on endpoint)
+    pub pool_list: Vec<serde_json::Value>,
 }
 
 /// Hidden pools response

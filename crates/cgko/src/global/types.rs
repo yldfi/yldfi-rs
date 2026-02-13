@@ -86,7 +86,7 @@ pub struct TrendingNft {
 /// Trending category
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TrendingCategory {
-    pub id: Option<u64>,
+    pub id: Option<String>,
     pub name: Option<String>,
     pub market_cap_1h_change: Option<f64>,
     pub slug: Option<String>,
@@ -126,7 +126,7 @@ pub struct SearchExchange {
 /// Search category result
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SearchCategory {
-    pub id: Option<u64>,
+    pub id: Option<String>,
     pub name: Option<String>,
 }
 

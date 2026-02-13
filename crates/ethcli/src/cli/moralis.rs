@@ -254,6 +254,22 @@ pub enum TokenCommands {
     PairOhlcv {
         /// Pair address
         address: String,
+
+        /// Timeframe (e.g., 1h, 4h, 1d, 1w)
+        #[arg(long, default_value = "1d")]
+        timeframe: String,
+
+        /// From date (ISO 8601, e.g. 2024-01-01T00:00:00Z)
+        #[arg(long)]
+        from_date: Option<String>,
+
+        /// To date (ISO 8601)
+        #[arg(long)]
+        to_date: Option<String>,
+
+        /// Limit number of results
+        #[arg(long)]
+        limit: Option<i32>,
     },
 
     /// Get pair stats
@@ -1100,14 +1116,29 @@ async fn handle_token(
             let response = client.token().get_trending(Some(&args.chain)).await?;
             print_output(&response, args.format)?;
         }
-        TokenCommands::PairOhlcv { address } => {
+        TokenCommands::PairOhlcv {
+            address,
+            timeframe,
+            from_date,
+            to_date,
+            limit,
+        } => {
             if !quiet {
                 eprintln!("Fetching OHLCV for pair {}...", address);
             }
-            let response = client
-                .token()
-                .get_pair_ohlcv(address, Some(&args.chain))
-                .await?;
+            let mut query = mrls::token::PairOhlcvQuery::new()
+                .chain(&args.chain)
+                .timeframe(timeframe);
+            if let Some(fd) = from_date {
+                query = query.from_date(fd);
+            }
+            if let Some(td) = to_date {
+                query = query.to_date(td);
+            }
+            if let Some(l) = limit {
+                query = query.limit(*l);
+            }
+            let response = client.token().get_pair_ohlcv(address, Some(&query)).await?;
             print_output(&response, args.format)?;
         }
         TokenCommands::PairStats { address } => {

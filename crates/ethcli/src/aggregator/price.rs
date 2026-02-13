@@ -906,7 +906,7 @@ async fn fetch_curve_lp_price(lp_token: &str, chain: &str) -> SourceResult<Norma
         }
         Err(e) => {
             // If direct price lookup fails, try OHLC data for the LP token
-            match client.get_lp_ohlc(&chain_name, lp_token).await {
+            match client.get_lp_ohlc(&chain_name, lp_token, None, None).await {
                 Ok(ohlc_response) => {
                     // Extract latest close price from OHLC data
                     if let Some(data) = ohlc_response.get("data").and_then(|d| d.as_array()) {

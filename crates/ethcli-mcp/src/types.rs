@@ -1543,6 +1543,544 @@ pub struct AlchemyPricesByAddressInput {
     pub chain: String,
 }
 
+// --- Alchemy NFT (additional) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftContractOwnerInput {
+    /// NFT contract address
+    pub contract: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftAddressInput {
+    /// Wallet address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftForContractInput {
+    /// Contract address
+    pub contract: String,
+    /// Starting token for pagination
+    pub start_token: Option<String>,
+    /// Maximum number of NFTs to return
+    pub limit: Option<u32>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftSlugInput {
+    /// OpenSea collection slug
+    pub slug: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftSearchInput {
+    /// Search query
+    pub query: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftSalesInput {
+    /// Contract address
+    pub contract: String,
+    /// Optional token ID
+    pub token_id: Option<String>,
+    /// Optional from block number
+    pub from_block: Option<u64>,
+    /// Optional to block number
+    pub to_block: Option<u64>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftForCollectionInput {
+    /// Collection slug
+    pub slug: String,
+    /// Starting token for pagination
+    pub start_token: Option<String>,
+    /// Maximum number of NFTs to return
+    pub limit: Option<u32>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyChainOnlyInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Token (additional) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTokenBalancesForTokensInput {
+    /// Wallet address to query
+    pub address: String,
+    /// Comma-separated token contract addresses
+    pub tokens: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Transfers (additional) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTransfersAllInput {
+    /// Address to query (both sent and received)
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Portfolio (additional) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyPortfolioTokenInfoInput {
+    /// Comma-separated tokens in network:address format (e.g., eth-mainnet:0x...)
+    pub tokens: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyPortfolioNftsInput {
+    /// Address to query
+    pub address: String,
+    /// Include NFT metadata (default: true)
+    #[serde(default = "default_true")]
+    pub with_metadata: bool,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyPortfolioNftContractsInput {
+    /// Address to query
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Prices (additional) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyPricesBySymbolInput {
+    /// Comma-separated token symbols
+    pub symbols: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyPricesHistoricalBySymbolInput {
+    /// Token symbol (e.g., "ETH")
+    pub symbol: String,
+    /// Start time (ISO 8601 or Unix timestamp)
+    pub start_time: String,
+    /// End time (ISO 8601 or Unix timestamp)
+    pub end_time: String,
+    /// Time interval: 5m, 1h, 1d (default: 1h)
+    pub interval: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyPricesHistoricalByAddressInput {
+    /// Token contract address
+    pub address: String,
+    /// Start time (ISO 8601 or Unix timestamp)
+    pub start_time: String,
+    /// End time (ISO 8601 or Unix timestamp)
+    pub end_time: String,
+    /// Time interval: 5m, 1h, 1d (default: 1h)
+    pub interval: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Debug (additional) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyDebugTraceCallInput {
+    /// Recipient address
+    pub to: String,
+    /// Block number or tag (default: "latest")
+    pub block: Option<String>,
+    /// Sender address
+    pub from: Option<String>,
+    /// Call data (hex)
+    pub data: Option<String>,
+    /// Value to send (hex)
+    pub value: Option<String>,
+    /// Gas limit (hex)
+    pub gas: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyDebugBlockHashInput {
+    /// Block hash
+    pub hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyDebugBlockInput {
+    /// Block number (hex or decimal) or tag
+    pub block: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Trace ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTraceBlockInput {
+    /// Block number (hex or tag)
+    pub block: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTraceCallInput {
+    /// Recipient address
+    pub to: String,
+    /// Block number or tag (default: "latest")
+    pub block: Option<String>,
+    /// Sender address
+    pub from: Option<String>,
+    /// Call data (hex)
+    pub data: Option<String>,
+    /// Value to send (hex)
+    pub value: Option<String>,
+    /// Gas limit (hex)
+    pub gas: Option<String>,
+    /// Trace types (comma-separated: trace,stateDiff,vmTrace; default: trace)
+    pub trace_types: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTraceGetInput {
+    /// Transaction hash
+    pub hash: String,
+    /// Trace indices (comma-separated, e.g., "0,1")
+    pub indices: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTraceRawTxInput {
+    /// Raw signed transaction (hex)
+    pub raw_tx: String,
+    /// Trace types (comma-separated: trace,stateDiff,vmTrace; default: trace)
+    pub trace_types: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTraceReplayBlockInput {
+    /// Block number (hex or tag)
+    pub block: String,
+    /// Trace types (comma-separated: trace,stateDiff,vmTrace; default: trace)
+    pub trace_types: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTraceReplayTxInput {
+    /// Transaction hash
+    pub hash: String,
+    /// Trace types (comma-separated: trace,stateDiff,vmTrace; default: trace)
+    pub trace_types: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTraceTxInput {
+    /// Transaction hash
+    pub hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTraceFilterInput {
+    /// From block (hex or tag)
+    pub from_block: Option<String>,
+    /// To block (hex or tag)
+    pub to_block: Option<String>,
+    /// Filter by sender addresses (comma-separated)
+    pub from_address: Option<String>,
+    /// Filter by recipient addresses (comma-separated)
+    pub to_address: Option<String>,
+    /// Skip first N traces
+    pub after: Option<u32>,
+    /// Maximum traces to return
+    pub count: Option<u32>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Simulation ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySimAssetChangesInput {
+    /// Recipient address
+    pub to: String,
+    /// Sender address
+    pub from: Option<String>,
+    /// Call data (hex)
+    pub data: Option<String>,
+    /// Value to send (hex)
+    pub value: Option<String>,
+    /// Gas limit (hex)
+    pub gas: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySimExecutionInput {
+    /// Recipient address
+    pub to: String,
+    /// Sender address
+    pub from: Option<String>,
+    /// Call data (hex)
+    pub data: Option<String>,
+    /// Value to send (hex)
+    pub value: Option<String>,
+    /// Gas limit (hex)
+    pub gas: Option<String>,
+    /// Block tag (e.g., "latest")
+    pub block: Option<String>,
+    /// Output format: nested or flat (default: nested)
+    pub trace_format: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Bundler ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBundlerEstimateGasInput {
+    /// UserOperation as JSON string
+    pub user_op_json: String,
+    /// Entry point address (default: 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789)
+    pub entry_point: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBundlerHashInput {
+    /// UserOperation hash
+    pub hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Gas Manager ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyGasManagerPolicyInput {
+    /// Policy ID
+    pub policy_id: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Notify ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNotifyWebhookInput {
+    /// Webhook ID
+    pub webhook_id: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Beacon ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconBlockIdInput {
+    /// Block ID (slot number, "head", "finalized", "justified", or block root hash)
+    pub block_id: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconStateIdInput {
+    /// State ID (slot number, "head", "finalized", "justified", or state root hash)
+    pub state_id: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconValidatorInput {
+    /// State ID
+    pub state_id: String,
+    /// Validator ID (index or pubkey)
+    pub validator_id: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconDutiesInput {
+    /// Epoch number
+    pub epoch: String,
+    /// Comma-separated validator indices
+    pub validators: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconEpochInput {
+    /// Epoch number
+    pub epoch: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+// --- Alchemy Solana ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySolanaAssetInput {
+    /// Asset ID (mint address)
+    pub id: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySolanaAssetsInput {
+    /// Comma-separated asset IDs
+    pub ids: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySolanaOwnerInput {
+    /// Owner address
+    pub owner: String,
+    /// Page number (default: 1)
+    pub page: Option<u32>,
+    /// Results per page (default: 100)
+    pub limit: Option<u32>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySolanaAddressInput {
+    /// Address (creator, authority, etc.)
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySolanaGroupInput {
+    /// Group key (e.g., "collection")
+    pub group_key: String,
+    /// Group value (e.g., collection address)
+    pub group_value: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySolanaTokenAccountsInput {
+    /// Owner address
+    pub owner: Option<String>,
+    /// Mint address
+    pub mint: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemySolanaMintInput {
+    /// Mint address
+    pub mint: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 // --- Gecko Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GeckoNftInput {
@@ -1727,6 +2265,177 @@ pub struct MoralisNftMetadataInput {
     pub contract: String,
     /// Token ID
     pub token_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisAddressesInput {
+    /// Comma-separated addresses
+    pub addresses: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisExchangeInput {
+    /// Exchange name (e.g., uniswapv2, uniswapv3, pancakeswap)
+    pub exchange: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisSymbolsInput {
+    /// Comma-separated token symbols (e.g., USDC,WETH,DAI)
+    pub symbols: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisNftContractInput {
+    /// NFT contract address
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisNftTokenInput {
+    /// NFT contract address
+    pub contract: String,
+    /// Token ID
+    pub token_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisMultipleNftsInput {
+    /// Comma-separated token_address:token_id pairs
+    pub tokens: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisTxHashInput {
+    /// Transaction hash
+    pub tx_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisTxVerboseInput {
+    /// Transaction hash
+    pub tx_hash: String,
+    /// Include internal transactions
+    #[serde(default)]
+    pub include_internal: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisWalletVerboseInput {
+    /// Wallet address
+    pub address: String,
+    /// Include internal transactions
+    #[serde(default)]
+    pub include_internal: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisBlockInput {
+    /// Block number or hash
+    pub block_number_or_hash: String,
+    /// Include transactions in the response
+    #[serde(default)]
+    pub include_transactions: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisDateInput {
+    /// Date in ISO 8601 format (e.g. 2023-01-01T00:00:00Z)
+    pub date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisDefiPairPriceInput {
+    /// Token 0 address
+    pub token0: String,
+    /// Token 1 address
+    pub token1: String,
+    /// DEX exchange name (e.g., uniswapv2, sushiswap)
+    pub exchange: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisDefiPairAddressInput {
+    /// Token 0 address
+    pub token0: String,
+    /// Token 1 address
+    pub token1: String,
+    /// DEX exchange name
+    pub exchange: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisProtocolPositionsInput {
+    /// Wallet address
+    pub address: String,
+    /// Protocol name (e.g., aave, uniswap-v3)
+    pub protocol: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisDiscoveryFilterInput {
+    /// Minimum market cap
+    pub min_market_cap: Option<f64>,
+    /// Maximum market cap
+    pub max_market_cap: Option<f64>,
+    /// Minimum liquidity
+    pub min_liquidity: Option<f64>,
+    /// Maximum liquidity
+    pub max_liquidity: Option<f64>,
+    /// Minimum 24h volume
+    pub min_volume_24h: Option<f64>,
+    /// Maximum 24h volume
+    pub max_volume_24h: Option<f64>,
+    /// Minimum holders
+    pub min_holders: Option<i64>,
+    /// Minimum security score
+    pub min_security_score: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisAnalyticsTimeseriesInput {
+    /// Comma-separated token addresses
+    pub addresses: String,
+    /// Timeframe (e.g., 1h, 4h, 1d)
+    pub timeframe: Option<String>,
+    /// From date (ISO 8601)
+    pub from_date: Option<String>,
+    /// To date (ISO 8601)
+    pub to_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisEntityIdInput {
+    /// Entity ID
+    pub entity_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisCategoryIdInput {
+    /// Category ID
+    pub category_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisVolumeTimeseriesInput {
+    /// Timeframe (e.g., 1h, 4h, 1d)
+    pub timeframe: Option<String>,
+    /// From date (ISO 8601)
+    pub from_date: Option<String>,
+    /// To date (ISO 8601)
+    pub to_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisVolumeCategoryTimeseriesInput {
+    /// Category ID
+    pub category_id: String,
+    /// Timeframe (e.g., 1h, 4h, 1d)
+    pub timeframe: Option<String>,
+    /// From date (ISO 8601)
+    pub from_date: Option<String>,
+    /// To date (ISO 8601)
+    pub to_date: Option<String>,
 }
 
 // --- Dsim ---
@@ -1984,6 +2693,19 @@ pub struct CurveChainAddressInput {
     pub chain: String,
     /// Token or contract address
     pub address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveChainAddressTimeRangeInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Token or contract address
+    pub address: String,
+    /// Start timestamp (unix seconds)
+    pub start: Option<u64>,
+    /// End timestamp (unix seconds)
+    pub end: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

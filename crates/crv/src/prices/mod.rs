@@ -80,8 +80,31 @@ impl PricesClient {
     }
 
     /// Get price history for a token
-    pub async fn get_price_history(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/usd_price/{chain}/{address}/history");
+    ///
+    /// # Arguments
+    /// * `chain` - Chain name (e.g., "ethereum")
+    /// * `address` - Token contract address
+    /// * `start` - Optional start timestamp (unix seconds)
+    /// * `end` - Optional end timestamp (unix seconds)
+    pub async fn get_price_history(
+        &self,
+        chain: &str,
+        address: &str,
+        start: Option<u64>,
+        end: Option<u64>,
+    ) -> Result<serde_json::Value> {
+        let mut path = format!("/usd_price/{chain}/{address}/history");
+        let mut params = Vec::new();
+        if let Some(s) = start {
+            params.push(format!("start={s}"));
+        }
+        if let Some(e) = end {
+            params.push(format!("end={e}"));
+        }
+        if !params.is_empty() {
+            path.push('?');
+            path.push_str(&params.join("&"));
+        }
         self.get(&path).await
     }
 
@@ -102,14 +125,60 @@ impl PricesClient {
     // === OHLC ===
 
     /// Get OHLC data for a pool
-    pub async fn get_ohlc(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/ohlc/{chain}/{address}");
+    ///
+    /// # Arguments
+    /// * `chain` - Chain name (e.g., "ethereum")
+    /// * `address` - Pool contract address
+    /// * `start` - Optional start timestamp (unix seconds)
+    /// * `end` - Optional end timestamp (unix seconds)
+    pub async fn get_ohlc(
+        &self,
+        chain: &str,
+        address: &str,
+        start: Option<u64>,
+        end: Option<u64>,
+    ) -> Result<serde_json::Value> {
+        let mut path = format!("/ohlc/{chain}/{address}");
+        let mut params = Vec::new();
+        if let Some(s) = start {
+            params.push(format!("start={s}"));
+        }
+        if let Some(e) = end {
+            params.push(format!("end={e}"));
+        }
+        if !params.is_empty() {
+            path.push('?');
+            path.push_str(&params.join("&"));
+        }
         self.get(&path).await
     }
 
     /// Get LP token OHLC data
-    pub async fn get_lp_ohlc(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/lp_ohlc/{chain}/{address}");
+    ///
+    /// # Arguments
+    /// * `chain` - Chain name (e.g., "ethereum")
+    /// * `address` - LP token contract address
+    /// * `start` - Optional start timestamp (unix seconds)
+    /// * `end` - Optional end timestamp (unix seconds)
+    pub async fn get_lp_ohlc(
+        &self,
+        chain: &str,
+        address: &str,
+        start: Option<u64>,
+        end: Option<u64>,
+    ) -> Result<serde_json::Value> {
+        let mut path = format!("/lp_ohlc/{chain}/{address}");
+        let mut params = Vec::new();
+        if let Some(s) = start {
+            params.push(format!("start={s}"));
+        }
+        if let Some(e) = end {
+            params.push(format!("end={e}"));
+        }
+        if !params.is_empty() {
+            path.push('?');
+            path.push_str(&params.join("&"));
+        }
         self.get(&path).await
     }
 
