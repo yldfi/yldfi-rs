@@ -1395,11 +1395,14 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
     ) -> String {
+        let Some(amount) = input.amount.as_deref() else {
+            return "Error: 'amount' is required for set_erc20_balance".to_string();
+        };
         tools::tenderly_vnets_admin_set_erc20_balance(
             &input.vnet,
             &input.token,
             &input.wallet,
-            input.amount.as_deref().unwrap_or("0"),
+            amount,
         )
         .await
         .to_response()
