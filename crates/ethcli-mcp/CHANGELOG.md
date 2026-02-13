@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.6...ethcli-mcp-v0.1.7) (2026-02-13)
+
+
+### Features
+
+* add 130+ CLI commands for Alchemy & Moralis, fix formatting ([b580a6e](https://github.com/yldfi/yldfi-rs/commit/b580a6edb67179787771d854bc44dcec5ddfc8c0))
+* add 169 MCP tools, fix deserialization bugs across Moralis/CoinGecko/Curve ([92085a1](https://github.com/yldfi/yldfi-rs/commit/92085a1fa7639eb1e2d62f8a0f2a836af264a257))
+* add 87 large-effort MCP tools — Curve, CoinGecko, Alchemy, Moralis ([380f7b9](https://github.com/yldfi/yldfi-rs/commit/380f7b9053292570a5e3b3321071d60fc938bcb4))
+* add medium-effort API coverage — Tenderly batch, Dune CRUD, CowSwap orders ([5cdcf89](https://github.com/yldfi/yldfi-rs/commit/5cdcf892aab53199aa061021bac41d963be593ce))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([dac43e2](https://github.com/yldfi/yldfi-rs/commit/dac43e202028861fcb80474bf3b807560b6722bd))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([bb6d849](https://github.com/yldfi/yldfi-rs/commit/bb6d84985bf33a126c71fbcc0176c9605b219a85))
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** require amount for set_erc20_balance tool ([47e2528](https://github.com/yldfi/yldfi-rs/commit/47e252830b47a8cea0963e3c75d270a9742e2f45))
+* resolve clippy warnings for too_many_arguments and useless_format ([68ac6d0](https://github.com/yldfi/yldfi-rs/commit/68ac6d035360d87061507928db95dcaf346648ac))
+
 ## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.5...ethcli-mcp-v0.1.6) (2026-02-02)
 
 

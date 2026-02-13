@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6](https://github.com/yldfi/yldfi-rs/compare/tndrly-v0.3.5...tndrly-v0.3.6) (2026-02-13)
+
+
+### Features
+
+* add 130+ CLI commands for Alchemy & Moralis, fix formatting ([b580a6e](https://github.com/yldfi/yldfi-rs/commit/b580a6edb67179787771d854bc44dcec5ddfc8c0))
+* add medium-effort API coverage — Tenderly batch, Dune CRUD, CowSwap orders ([5cdcf89](https://github.com/yldfi/yldfi-rs/commit/5cdcf892aab53199aa061021bac41d963be593ce))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([dac43e2](https://github.com/yldfi/yldfi-rs/commit/dac43e202028861fcb80474bf3b807560b6722bd))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([bb6d849](https://github.com/yldfi/yldfi-rs/commit/bb6d84985bf33a126c71fbcc0176c9605b219a85))
+
 ## [0.3.5](https://github.com/yldfi/yldfi-rs/compare/tndrly-v0.3.4...tndrly-v0.3.5) (2026-01-27)
 
 
