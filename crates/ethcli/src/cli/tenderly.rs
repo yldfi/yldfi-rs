@@ -494,6 +494,55 @@ pub enum AdminCommands {
         #[arg(long)]
         block_overrides: Option<String>,
     },
+
+    /// Set the same balance for multiple addresses at once
+    SetBalances {
+        /// Addresses (space-separated)
+        #[arg(required = true)]
+        addresses: Vec<String>,
+
+        /// Amount (e.g., "10eth", "100gwei", or raw hex)
+        #[arg(long)]
+        amount: String,
+    },
+
+    /// Add the same amount to multiple addresses at once
+    AddBalances {
+        /// Addresses (space-separated)
+        #[arg(required = true)]
+        addresses: Vec<String>,
+
+        /// Amount to add (e.g., "1eth", "100gwei", or raw hex)
+        #[arg(long)]
+        amount: String,
+    },
+
+    /// Create an EIP-2930 access list for a transaction
+    CreateAccessList {
+        /// From address
+        #[arg(long)]
+        from: String,
+
+        /// To address
+        #[arg(long)]
+        to: Option<String>,
+
+        /// Transaction data (hex)
+        #[arg(long)]
+        data: Option<String>,
+
+        /// Value in wei
+        #[arg(long)]
+        value: Option<String>,
+
+        /// Gas limit
+        #[arg(long)]
+        gas: Option<String>,
+
+        /// Block tag or number (default: "latest")
+        #[arg(long, default_value = "latest")]
+        block: String,
+    },
 }
 
 // ============================================================================
@@ -636,6 +685,70 @@ pub enum ContractsCommands {
         #[arg(long)]
         name: String,
     },
+
+    /// Update contract metadata (display name and/or tags)
+    Update {
+        /// Contract address
+        address: String,
+
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// Display name
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Tags (can be repeated)
+        #[arg(long = "tag", action = clap::ArgAction::Append)]
+        tags: Vec<String>,
+    },
+
+    /// Remove a tag from a contract
+    RemoveTag {
+        /// Contract address
+        address: String,
+
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// Tag to remove
+        tag: String,
+    },
+
+    /// Delete a tag from a contract (alias for remove-tag)
+    DeleteTag {
+        /// Contract address
+        address: String,
+
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// Tag to delete
+        tag: String,
+    },
+
+    /// Add a tag to multiple contracts at once
+    BulkTag {
+        /// Tag to apply
+        tag: String,
+
+        /// Contract IDs in format "eth:1:0xAddress" (can be repeated)
+        #[arg(required = true)]
+        contract_ids: Vec<String>,
+    },
+
+    /// Encode contract state for simulation overrides
+    EncodeState {
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// State overrides as JSON: {"0xAddr": {"balance": "0x...", "storage": {"0x0": "0x1"}}}
+        state_json: String,
+    },
 }
 
 // ============================================================================
@@ -719,6 +832,51 @@ pub enum AlertsCommands {
         /// Network ID
         #[arg(long, default_value = "1")]
         network: String,
+    },
+
+    /// Update an alert
+    Update {
+        /// Alert ID
+        id: String,
+
+        /// Alert name
+        #[arg(long)]
+        name: String,
+
+        /// Alert type
+        #[arg(long)]
+        alert_type: String,
+
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// Target addresses (can be repeated)
+        #[arg(long = "address", action = clap::ArgAction::Append)]
+        addresses: Vec<String>,
+    },
+
+    /// Add a delivery destination to an alert
+    AddDestination {
+        /// Alert ID
+        id: String,
+
+        /// Destination type: webhook, slack, email, telegram, discord, pagerduty
+        #[arg(long)]
+        destination_type: String,
+
+        /// Destination ID (webhook/channel ID)
+        #[arg(long)]
+        destination_id: String,
+    },
+
+    /// Remove a delivery destination from an alert
+    RemoveDestination {
+        /// Alert ID
+        id: String,
+
+        /// Destination ID to remove
+        destination_id: String,
     },
 
     /// Manage webhooks
@@ -861,6 +1019,26 @@ pub enum ActionsCommands {
     Resume {
         /// Action ID
         id: String,
+    },
+
+    /// Stop multiple Actions (pass IDs, or none to stop all)
+    StopMany {
+        /// Action IDs (if empty, stops all actions in project)
+        ids: Vec<String>,
+    },
+
+    /// Resume multiple Actions (pass IDs, or none to resume all)
+    ResumeMany {
+        /// Action IDs (if empty, resumes all actions in project)
+        ids: Vec<String>,
+    },
+
+    /// Get execution details for an Action call
+    GetCall {
+        /// Action ID
+        id: String,
+        /// Execution/call ID
+        execution_id: String,
     },
 }
 
@@ -1469,6 +1647,54 @@ async fn handle_admin(
                 .await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
+
+        AdminCommands::SetBalances { addresses, amount } => {
+            if !quiet {
+                eprintln!("Setting balance for {} addresses...", addresses.len());
+            }
+            let parsed = parse_eth_amount(amount)?;
+            let addr_refs: Vec<&str> = addresses.iter().map(|s| s.as_str()).collect();
+            let result = admin.set_balances(&addr_refs, &parsed).await?;
+            println!("{}", result);
+        }
+
+        AdminCommands::AddBalances { addresses, amount } => {
+            if !quiet {
+                eprintln!("Adding balance to {} addresses...", addresses.len());
+            }
+            let parsed = parse_eth_amount(amount)?;
+            let addr_refs: Vec<&str> = addresses.iter().map(|s| s.as_str()).collect();
+            let result = admin.add_balances(&addr_refs, &parsed).await?;
+            println!("{}", result);
+        }
+
+        AdminCommands::CreateAccessList {
+            from,
+            to,
+            data,
+            value,
+            gas,
+            block,
+        } => {
+            if !quiet {
+                eprintln!("Creating access list...");
+            }
+            let mut tx = tndrly::vnets::SendTransactionParams::new(from);
+            if let Some(t) = to {
+                tx.to = Some(t.clone());
+            }
+            if let Some(d) = data {
+                tx.data = Some(d.clone());
+            }
+            if let Some(v) = value {
+                tx.value = Some(v.clone());
+            }
+            if let Some(g) = gas {
+                tx.gas = Some(g.clone());
+            }
+            let result = admin.create_access_list(&tx, block).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
     }
 
     Ok(())
@@ -1679,6 +1905,91 @@ async fn handle_contracts(
             client.contracts().rename(network, address, name).await?;
             println!("Contract renamed successfully");
         }
+
+        ContractsCommands::Update {
+            address,
+            network,
+            name,
+            tags,
+        } => {
+            validate_address(address)?;
+            if !quiet {
+                eprintln!("Updating contract {}...", address);
+            }
+            let mut request = tndrly::contracts::UpdateContractRequest::default();
+            if let Some(n) = name {
+                request.display_name = Some(n.clone());
+            }
+            if !tags.is_empty() {
+                request.tags = Some(tags.clone());
+            }
+            let result = client.contracts().update(network, address, &request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        ContractsCommands::RemoveTag {
+            address,
+            network,
+            tag,
+        } => {
+            validate_address(address)?;
+            if !quiet {
+                eprintln!("Removing tag '{}' from contract {}...", tag, address);
+            }
+            client.contracts().remove_tag(network, address, tag).await?;
+            println!("Tag '{}' removed from contract {}.", tag, address);
+        }
+
+        ContractsCommands::DeleteTag {
+            address,
+            network,
+            tag,
+        } => {
+            validate_address(address)?;
+            if !quiet {
+                eprintln!("Deleting tag '{}' from contract {}...", tag, address);
+            }
+            client
+                .contracts()
+                .delete_tag(network, address, tag)
+                .await?;
+            println!("Tag '{}' deleted from contract {}.", tag, address);
+        }
+
+        ContractsCommands::BulkTag { tag, contract_ids } => {
+            if !quiet {
+                eprintln!(
+                    "Applying tag '{}' to {} contracts...",
+                    tag,
+                    contract_ids.len()
+                );
+            }
+            let result = client
+                .contracts()
+                .bulk_tag(tag, contract_ids.clone())
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        ContractsCommands::EncodeState {
+            network,
+            state_json,
+        } => {
+            if !quiet {
+                eprintln!("Encoding state overrides...");
+            }
+            let state_overrides: std::collections::HashMap<
+                String,
+                tndrly::contracts::StateOverrideInput,
+            > = serde_json::from_str(state_json)
+                .context("Invalid state overrides JSON")?;
+            let request = tndrly::contracts::EncodeStateRequest {
+                network_id: network.clone(),
+                state_overrides,
+            };
+            let result = client.contracts().encode_state(&request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
     }
 
     Ok(())
@@ -1787,6 +2098,66 @@ async fn handle_alerts(
             let request = tndrly::alerts::TestAlertRequest::new(id, tx_hash, network);
             client.alerts().test_alert(&request).await?;
             println!("Alert test triggered for {}.", id);
+        }
+
+        AlertsCommands::Update {
+            id,
+            name,
+            alert_type,
+            network,
+            addresses,
+        } => {
+            if !quiet {
+                eprintln!("Updating alert {}...", id);
+            }
+            let at: tndrly::alerts::AlertType = alert_type
+                .parse()
+                .map_err(|e: String| anyhow::anyhow!(e))?;
+            let target = if addresses.is_empty() {
+                tndrly::alerts::AlertTarget::Project
+            } else {
+                tndrly::alerts::AlertTarget::Address
+            };
+            let mut request =
+                tndrly::alerts::CreateAlertRequest::new(name, at, network, target);
+            if !addresses.is_empty() {
+                request.addresses = Some(addresses.clone());
+            }
+            let result = client.alerts().update(id, &request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        AlertsCommands::AddDestination {
+            id,
+            destination_type,
+            destination_id,
+        } => {
+            if !quiet {
+                eprintln!("Adding destination to alert {}...", id);
+            }
+            let dest_type: tndrly::alerts::DestinationType = destination_type
+                .parse()
+                .map_err(|e: String| anyhow::anyhow!(e))?;
+            let request = tndrly::alerts::AddDestinationRequest {
+                destination_type: dest_type,
+                destination_id: destination_id.clone(),
+            };
+            let result = client.alerts().add_destination(id, &request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        AlertsCommands::RemoveDestination {
+            id,
+            destination_id,
+        } => {
+            if !quiet {
+                eprintln!("Removing destination {} from alert {}...", destination_id, id);
+            }
+            client
+                .alerts()
+                .remove_destination(id, destination_id)
+                .await?;
+            println!("Destination removed from alert {}.", id);
         }
 
         AlertsCommands::Webhooks { action } => {
@@ -1982,6 +2353,38 @@ async fn handle_actions(
             }
             client.actions().resume(id).await?;
             println!("Action {} resumed.", id);
+        }
+
+        ActionsCommands::StopMany { ids } => {
+            if !quiet {
+                if ids.is_empty() {
+                    eprintln!("Stopping all Actions...");
+                } else {
+                    eprintln!("Stopping {} Actions...", ids.len());
+                }
+            }
+            client.actions().stop_many(ids.clone()).await?;
+            println!("Actions stopped.");
+        }
+
+        ActionsCommands::ResumeMany { ids } => {
+            if !quiet {
+                if ids.is_empty() {
+                    eprintln!("Resuming all Actions...");
+                } else {
+                    eprintln!("Resuming {} Actions...", ids.len());
+                }
+            }
+            client.actions().resume_many(ids.clone()).await?;
+            println!("Actions resumed.");
+        }
+
+        ActionsCommands::GetCall { id, execution_id } => {
+            if !quiet {
+                eprintln!("Getting call {} for Action {}...", execution_id, id);
+            }
+            let call = client.actions().get_call(id, execution_id).await?;
+            println!("{}", serde_json::to_string_pretty(&call)?);
         }
     }
 

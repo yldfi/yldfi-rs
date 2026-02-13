@@ -580,6 +580,43 @@ pub struct ChainlinkOraclesInput {
     pub chain: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainlinkStreamsFeedInput {
+    /// Feed ID (hex string, e.g., "0x00036...")
+    pub feed_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainlinkStreamsReportInput {
+    /// Feed ID (hex string)
+    pub feed_id: String,
+    /// Unix timestamp in seconds
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainlinkStreamsBulkInput {
+    /// Comma-separated feed IDs (hex strings)
+    pub feed_ids: String,
+    /// Unix timestamp in seconds
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainlinkStreamsHistoryInput {
+    /// Feed ID (hex string)
+    pub feed_id: String,
+    /// Start timestamp in seconds
+    pub timestamp: u64,
+    /// Number of reports to fetch
+    #[serde(default = "default_streams_limit")]
+    pub limit: u32,
+}
+
+fn default_streams_limit() -> u32 {
+    10
+}
+
 // --- GoPlus Security ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GoplusInput {
@@ -1268,6 +1305,150 @@ pub struct TenderlyVnetsAdminSimulateBundleInput {
     pub block_overrides: Option<String>,
 }
 
+// --- Tenderly Actions Batch ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyActionsIdsInput")]
+pub struct TenderlyActionsIdsInput {
+    /// Action ID(s)
+    pub ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyActionsGetCallInput")]
+pub struct TenderlyActionsGetCallInput {
+    /// Action ID
+    pub id: String,
+    /// Execution ID
+    pub execution_id: String,
+}
+
+// --- Tenderly Alerts Batch ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyAlertsUpdateInput")]
+pub struct TenderlyAlertsUpdateInput {
+    /// Alert ID
+    pub id: String,
+    /// New alert name
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Alert type
+    #[serde(default)]
+    pub alert_type: Option<String>,
+    /// Network name
+    #[serde(default)]
+    pub network: Option<String>,
+    /// Comma-separated contract addresses
+    #[serde(default)]
+    pub addresses: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyAlertsAddDestinationInput")]
+pub struct TenderlyAlertsAddDestinationInput {
+    /// Alert ID
+    pub id: String,
+    /// Destination type (e.g., "webhook", "email", "slack", "telegram")
+    pub destination_type: String,
+    /// Destination ID
+    pub destination_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyAlertsRemoveDestinationInput")]
+pub struct TenderlyAlertsRemoveDestinationInput {
+    /// Alert ID
+    pub id: String,
+    /// Destination ID to remove
+    pub destination_id: String,
+}
+
+// --- Tenderly Contracts Batch ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyContractsUpdateInput")]
+pub struct TenderlyContractsUpdateInput {
+    /// Contract address
+    pub address: String,
+    /// Network name
+    #[serde(default)]
+    pub network: Option<String>,
+    /// New display name
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Tags to set on the contract
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyContractsRemoveTagInput")]
+pub struct TenderlyContractsRemoveTagInput {
+    /// Contract address
+    pub address: String,
+    /// Network name
+    #[serde(default)]
+    pub network: Option<String>,
+    /// Tag to remove
+    pub tag: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyContractsBulkTagInput")]
+pub struct TenderlyContractsBulkTagInput {
+    /// Tag to apply
+    pub tag: String,
+    /// Contract IDs to tag
+    pub contract_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyContractsEncodeStateInput")]
+pub struct TenderlyContractsEncodeStateInput {
+    /// Network name
+    #[serde(default)]
+    pub network: Option<String>,
+    /// State overrides as JSON string
+    pub state_json: String,
+}
+
+// --- Tenderly VNets Admin Batch ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminBatchBalanceInput")]
+pub struct TenderlyVnetsAdminBatchBalanceInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Addresses to set/add balances for
+    pub addresses: Vec<String>,
+    /// Amount (wei, or use suffix: 10eth, 100gwei)
+    pub amount: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminCreateAccessListInput")]
+pub struct TenderlyVnetsAdminCreateAccessListInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Sender address
+    pub from: String,
+    /// Recipient address
+    pub to: String,
+    /// Transaction data (hex calldata)
+    #[serde(default)]
+    pub data: Option<String>,
+    /// Value in wei
+    #[serde(default)]
+    pub value: Option<String>,
+    /// Gas limit
+    #[serde(default)]
+    pub gas: Option<String>,
+    /// Block tag or hex number (default: "latest")
+    #[serde(default)]
+    pub block: Option<String>,
+}
+
 // --- Alchemy Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyPricesInput {
@@ -1381,6 +1562,176 @@ pub struct DuneSqlInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DuneExecutionInput {
     /// Execution ID
+    pub execution_id: String,
+}
+
+// --- Dune Queries CRUD ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneQueriesCreateInput {
+    /// Query name
+    pub name: String,
+    /// SQL query body
+    pub sql: String,
+    /// Query description
+    pub description: Option<String>,
+    /// Make query private
+    #[serde(default)]
+    pub private: bool,
+    /// Comma-separated tags
+    pub tags: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneQueriesGetInput {
+    /// Query ID
+    pub query_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneQueriesUpdateInput {
+    /// Query ID to update
+    pub query_id: String,
+    /// New query name
+    pub name: Option<String>,
+    /// New SQL query body
+    pub sql: Option<String>,
+    /// New description
+    pub description: Option<String>,
+    /// New comma-separated tags
+    pub tags: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneQueriesListInput {
+    /// Maximum number of results to return
+    pub limit: Option<u32>,
+    /// Offset for pagination
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneQueriesIdInput {
+    /// Query ID
+    pub query_id: String,
+}
+
+// --- Dune Tables CRUD ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneTablesCreateInput {
+    /// Namespace (e.g., your Dune username)
+    pub namespace: String,
+    /// Table name
+    pub table_name: String,
+    /// JSON schema definition for the table columns
+    pub schema_json: String,
+    /// Table description
+    pub description: Option<String>,
+    /// Make table private
+    #[serde(default)]
+    pub private: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneTablesUploadCsvInput {
+    /// Table name
+    pub table_name: String,
+    /// CSV data content (or file path if --file is used)
+    pub data: String,
+    /// Table description
+    pub description: Option<String>,
+    /// Make table private
+    #[serde(default)]
+    pub private: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneTablesListInput {
+    /// Maximum number of results to return
+    pub limit: Option<u32>,
+    /// Offset for pagination
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneTablesGetInput {
+    /// Namespace (e.g., your Dune username)
+    pub namespace: String,
+    /// Table name
+    pub table_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneTablesInsertInput {
+    /// Namespace (e.g., your Dune username)
+    pub namespace: String,
+    /// Table name
+    pub table_name: String,
+    /// JSON data to insert (array of row objects)
+    pub data_json: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneTablesNamespaceTableInput {
+    /// Namespace (e.g., your Dune username)
+    pub namespace: String,
+    /// Table name
+    pub table_name: String,
+}
+
+// --- Dune Materialized Views ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneMatviewsUpsertInput {
+    /// Materialized view name
+    pub name: String,
+    /// Source query ID
+    pub query_id: String,
+    /// Cron schedule expression (e.g., "0 */6 * * *")
+    pub cron: Option<String>,
+    /// Expiration timestamp (ISO 8601)
+    pub expires_at: Option<String>,
+    /// Make materialized view private
+    #[serde(default)]
+    pub private: bool,
+    /// Performance tier (medium, large)
+    pub performance: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneMatviewsNameInput {
+    /// Materialized view name
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneMatviewsListInput {
+    /// Maximum number of results to return
+    pub limit: Option<u32>,
+    /// Offset for pagination
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DuneMatviewsRefreshInput {
+    /// Materialized view name
+    pub name: String,
+    /// Performance tier (medium, large)
+    pub performance: Option<String>,
+}
+
+// --- Dune Pipelines ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DunePipelinesExecuteInput {
+    /// Pipeline definition as JSON
+    pub pipeline_json: String,
+    /// Parameters as JSON string
+    pub params: Option<String>,
+    /// Performance tier (medium, large)
+    pub performance: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DunePipelinesStatusInput {
+    /// Pipeline execution ID
     pub execution_id: String,
 }
 
@@ -1630,6 +1981,66 @@ pub struct CowswapTokenInput {
     pub chain: String,
 }
 
+// --- CowSwap Order Management ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapCreateOrderInput {
+    /// Source token address
+    pub sell_token: String,
+    /// Destination token address
+    pub buy_token: String,
+    /// Sell amount in smallest units (wei)
+    pub sell_amount: String,
+    /// Buy amount in smallest units (wei)
+    pub buy_amount: String,
+    /// Order expiration (Unix timestamp)
+    pub valid_to: u64,
+    /// Order creator address
+    pub from: String,
+    /// Receiver address
+    pub receiver: String,
+    /// Signed order data (hex)
+    pub signature: String,
+    /// Order kind: "sell" or "buy"
+    #[serde(default = "default_order_kind")]
+    pub kind: String,
+    /// Signing scheme: "eip712", "eip1271", or "presign"
+    #[serde(default = "default_signing_scheme")]
+    pub signing_scheme: String,
+    /// Fee amount in sell token (smallest units)
+    #[serde(default)]
+    pub fee_amount: Option<String>,
+    /// App data hash (32 bytes hex)
+    #[serde(default)]
+    pub app_data: Option<String>,
+    /// Allow partial fills
+    #[serde(default)]
+    pub partially_fillable: bool,
+    /// Quote ID reference
+    pub quote_id: Option<i64>,
+    /// Chain name (ethereum, gnosis, arbitrum)
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+fn default_order_kind() -> String {
+    "sell".to_string()
+}
+
+fn default_signing_scheme() -> String {
+    "eip712".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapCancelOrderInput {
+    /// Order UID to cancel
+    pub uid: String,
+    /// EIP-712 signature proving ownership
+    pub signature: String,
+    /// Chain name (ethereum, gnosis, arbitrum)
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 // --- LiFi Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiStatusInput {
@@ -1657,6 +2068,12 @@ pub struct LifiConnectionsInput {
     pub from_chain: String,
     /// Destination chain
     pub to_chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LifiStepTransactionInput {
+    /// Step JSON from a route response
+    pub step_json: String,
 }
 
 // --- Velora ---
@@ -1715,6 +2132,23 @@ pub struct EnsoBalancesInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EnsoBundleInput {
+    /// Sender address
+    pub from_address: String,
+    /// Actions JSON array: [{"protocol":"...","action":"...","args":{...}}]
+    pub actions_json: String,
+    /// Chain ID (e.g., "1" for Ethereum)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
+    /// Routing strategy: router, delegate, ensowallet
+    pub routing_strategy: Option<String>,
+}
+
+fn default_chain_id() -> String {
+    "1".to_string()
 }
 
 // --- CCXT ---

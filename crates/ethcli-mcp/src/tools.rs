@@ -1751,6 +1751,212 @@ pub async fn tenderly_vnets_admin_simulate_bundle(
     builder.execute().await.map_err(ToolError::from)
 }
 
+// --- Tenderly Actions Batch ---
+
+pub async fn tenderly_actions_stop_many(ids: &[String]) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("actions")
+        .subcommand("stop-many");
+    for id in ids {
+        builder = builder.arg(id);
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_actions_resume_many(ids: &[String]) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("actions")
+        .subcommand("resume-many");
+    for id in ids {
+        builder = builder.arg(id);
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_actions_get_call(
+    id: &str,
+    execution_id: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("actions")
+        .subcommand("get-call")
+        .arg(id)
+        .arg(execution_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Tenderly Alerts Batch ---
+
+pub async fn tenderly_alerts_update(
+    id: &str,
+    name: Option<&str>,
+    alert_type: Option<&str>,
+    network: Option<&str>,
+    addresses: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("alerts")
+        .subcommand("update")
+        .arg(id);
+    builder = builder.opt("--name", name);
+    builder = builder.opt("--alert-type", alert_type);
+    builder = builder.opt("--network", network);
+    builder = builder.opt("--addresses", addresses);
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_alerts_add_destination(
+    id: &str,
+    destination_type: &str,
+    destination_id: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("alerts")
+        .subcommand("add-destination")
+        .arg(id)
+        .opt("--destination-type", Some(destination_type))
+        .opt("--destination-id", Some(destination_id))
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_alerts_remove_destination(
+    id: &str,
+    destination_id: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("alerts")
+        .subcommand("remove-destination")
+        .arg(id)
+        .arg(destination_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Tenderly Contracts Batch ---
+
+pub async fn tenderly_contracts_update(
+    address: &str,
+    network: Option<&str>,
+    name: Option<&str>,
+    tags: &[String],
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("contracts")
+        .subcommand("update")
+        .arg(address);
+    builder = builder.opt("--network", network);
+    builder = builder.opt("--name", name);
+    for tag in tags {
+        builder = builder.opt("--tag", Some(tag));
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_contracts_remove_tag(
+    address: &str,
+    network: Option<&str>,
+    tag: &str,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("contracts")
+        .subcommand("remove-tag")
+        .arg(address);
+    builder = builder.opt("--network", network);
+    builder = builder.arg(tag);
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_contracts_bulk_tag(
+    tag: &str,
+    contract_ids: &[String],
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("contracts")
+        .subcommand("bulk-tag")
+        .arg(tag);
+    for id in contract_ids {
+        builder = builder.arg(id);
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_contracts_encode_state(
+    network: Option<&str>,
+    state_json: &str,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("contracts")
+        .subcommand("encode-state");
+    builder = builder.opt("--network", network);
+    builder = builder.arg(state_json);
+    builder.execute().await.map_err(ToolError::from)
+}
+
+// --- Tenderly VNets Admin Batch ---
+
+pub async fn tenderly_vnets_admin_set_balances(
+    vnet: &str,
+    addresses: &[String],
+    amount: &str,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("set-balances");
+    for addr in addresses {
+        builder = builder.arg(addr);
+    }
+    builder = builder.opt("--amount", Some(amount));
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_add_balances(
+    vnet: &str,
+    addresses: &[String],
+    amount: &str,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("add-balances");
+    for addr in addresses {
+        builder = builder.arg(addr);
+    }
+    builder = builder.opt("--amount", Some(amount));
+    builder.execute().await.map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn tenderly_vnets_admin_create_access_list(
+    vnet: &str,
+    from: &str,
+    to: &str,
+    data: Option<&str>,
+    value: Option<&str>,
+    gas: Option<&str>,
+    block: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("create-access-list")
+        .opt("--from", Some(from))
+        .opt("--to", Some(to));
+    builder = builder.opt("--data", data);
+    builder = builder.opt("--value", value);
+    builder = builder.opt("--gas", gas);
+    builder = builder.opt("--block", block);
+    builder.execute().await.map_err(ToolError::from)
+}
+
 // =============================================================================
 // PRICE, PORTFOLIO, NFTS, YIELDS, DOCTOR (standalone commands)
 // =============================================================================
@@ -2382,6 +2588,337 @@ pub async fn dune_execution(execution_id: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
+// --- Dune Queries CRUD ---
+
+pub async fn dune_queries_create(
+    name: &str,
+    sql: &str,
+    description: Option<&str>,
+    private: bool,
+    tags: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("queries")
+        .subcommand("create")
+        .opt("--name", Some(name))
+        .opt("--sql", Some(sql))
+        .opt("--description", description)
+        .opt_flag("--private", private)
+        .opt("--tags", tags)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_queries_get(query_id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("queries")
+        .subcommand("get")
+        .arg(query_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_queries_update(
+    query_id: &str,
+    name: Option<&str>,
+    sql: Option<&str>,
+    description: Option<&str>,
+    tags: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("queries")
+        .subcommand("update")
+        .arg(query_id)
+        .opt("--name", name)
+        .opt("--sql", sql)
+        .opt("--description", description)
+        .opt("--tags", tags)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_queries_list(
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("dune")
+        .subcommand("queries")
+        .subcommand("list");
+
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+    if let Some(o) = offset {
+        builder = builder.opt("--offset", Some(&o.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn dune_queries_archive(query_id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("queries")
+        .subcommand("archive")
+        .arg(query_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_queries_unarchive(query_id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("queries")
+        .subcommand("unarchive")
+        .arg(query_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_queries_make_private(query_id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("queries")
+        .subcommand("make-private")
+        .arg(query_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_queries_make_public(query_id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("queries")
+        .subcommand("make-public")
+        .arg(query_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Dune Tables CRUD ---
+
+pub async fn dune_tables_create(
+    namespace: &str,
+    table_name: &str,
+    schema_json: &str,
+    description: Option<&str>,
+    private: bool,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("tables")
+        .subcommand("create")
+        .arg(namespace)
+        .arg(table_name)
+        .opt("--schema", Some(schema_json))
+        .opt("--description", description)
+        .opt_flag("--private", private)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_tables_upload_csv(
+    table_name: &str,
+    data: &str,
+    description: Option<&str>,
+    private: bool,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("tables")
+        .subcommand("upload-csv")
+        .arg(table_name)
+        .arg(data)
+        .opt("--description", description)
+        .opt_flag("--private", private)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_tables_list(
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("dune")
+        .subcommand("tables")
+        .subcommand("list");
+
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+    if let Some(o) = offset {
+        builder = builder.opt("--offset", Some(&o.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn dune_tables_get(namespace: &str, table_name: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("tables")
+        .subcommand("get")
+        .arg(namespace)
+        .arg(table_name)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_tables_insert(
+    namespace: &str,
+    table_name: &str,
+    data_json: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("tables")
+        .subcommand("insert")
+        .arg(namespace)
+        .arg(table_name)
+        .arg(data_json)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_tables_clear(namespace: &str, table_name: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("tables")
+        .subcommand("clear")
+        .arg(namespace)
+        .arg(table_name)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_tables_delete(namespace: &str, table_name: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("tables")
+        .subcommand("delete")
+        .arg(namespace)
+        .arg(table_name)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Dune Materialized Views ---
+
+pub async fn dune_matviews_upsert(
+    name: &str,
+    query_id: &str,
+    cron: Option<&str>,
+    expires_at: Option<&str>,
+    private: bool,
+    performance: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("matviews")
+        .subcommand("upsert")
+        .arg(name)
+        .opt("--query-id", Some(query_id))
+        .opt("--cron", cron)
+        .opt("--expires-at", expires_at)
+        .opt_flag("--private", private)
+        .opt("--performance", performance)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_matviews_get(name: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("matviews")
+        .subcommand("get")
+        .arg(name)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_matviews_list(
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("dune")
+        .subcommand("matviews")
+        .subcommand("list");
+
+    if let Some(l) = limit {
+        builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+    if let Some(o) = offset {
+        builder = builder.opt("--offset", Some(&o.to_string()));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn dune_matviews_refresh(
+    name: &str,
+    performance: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("matviews")
+        .subcommand("refresh")
+        .arg(name)
+        .opt("--performance", performance)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_matviews_delete(name: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("matviews")
+        .subcommand("delete")
+        .arg(name)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Dune Pipelines ---
+
+pub async fn dune_pipelines_execute(
+    pipeline_json: &str,
+    params: Option<&str>,
+    performance: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("pipelines")
+        .subcommand("execute")
+        .arg(pipeline_json)
+        .opt("--params", params)
+        .opt("--performance", performance)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn dune_pipelines_status(execution_id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("pipelines")
+        .subcommand("status")
+        .arg(execution_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Dune Usage ---
+
+pub async fn dune_usage() -> Result<String, ToolError> {
+    ArgsBuilder::new("dune")
+        .subcommand("usage")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 // =============================================================================
 // CURVE (10 subcommands)
 // =============================================================================
@@ -2624,10 +3161,64 @@ pub async fn chainlink_oracles(chain: Option<&str>) -> Result<String, ToolError>
         .map_err(ToolError::from)
 }
 
-pub async fn chainlink_streams() -> Result<String, ToolError> {
+pub async fn chainlink_streams_feeds() -> Result<String, ToolError> {
     ArgsBuilder::new("chainlink")
         .subcommand("streams")
         .subcommand("feeds")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn chainlink_streams_latest(feed_id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("chainlink")
+        .subcommand("streams")
+        .subcommand("latest")
+        .arg(feed_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn chainlink_streams_report(
+    feed_id: &str,
+    timestamp: u64,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("chainlink")
+        .subcommand("streams")
+        .subcommand("report")
+        .arg(feed_id)
+        .arg(&timestamp.to_string())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn chainlink_streams_bulk(
+    feed_ids: &str,
+    timestamp: u64,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("chainlink")
+        .subcommand("streams")
+        .subcommand("bulk")
+        .arg(feed_ids)
+        .arg(&timestamp.to_string())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn chainlink_streams_history(
+    feed_id: &str,
+    timestamp: u64,
+    limit: u32,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("chainlink")
+        .subcommand("streams")
+        .subcommand("history")
+        .arg(feed_id)
+        .arg(&timestamp.to_string())
+        .opt("--limit", Some(&limit.to_string()))
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3288,6 +3879,67 @@ pub async fn cowswap_native_price(token: &str, chain: Option<&str>) -> Result<St
         .map_err(ToolError::from)
 }
 
+pub async fn cowswap_create_order(
+    sell_token: &str,
+    buy_token: &str,
+    sell_amount: &str,
+    buy_amount: &str,
+    valid_to: u64,
+    from: &str,
+    receiver: &str,
+    signature: &str,
+    kind: &str,
+    signing_scheme: &str,
+    fee_amount: Option<&str>,
+    app_data: Option<&str>,
+    partially_fillable: bool,
+    quote_id: Option<i64>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("cow-swap")
+        .subcommand("create-order")
+        .arg(sell_token)
+        .arg(buy_token)
+        .arg(sell_amount)
+        .arg(buy_amount)
+        .arg(&valid_to.to_string())
+        .arg(from)
+        .arg(receiver)
+        .arg(signature)
+        .opt("--kind", Some(kind))
+        .opt("--signing-scheme", Some(signing_scheme));
+
+    builder = builder.opt("--fee-amount", fee_amount);
+    builder = builder.opt("--app-data", app_data);
+    builder = builder.opt_flag("--partially-fillable", partially_fillable);
+    if let Some(qid) = quote_id {
+        builder = builder.opt("--quote-id", Some(&qid.to_string()));
+    }
+    builder = builder.chain(chain);
+
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn cowswap_cancel_order(
+    uid: &str,
+    signature: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("cow-swap")
+        .subcommand("cancel-order")
+        .arg(uid)
+        .arg(signature)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 // =============================================================================
 // LIFI (12 subcommands)
 // =============================================================================
@@ -3446,6 +4098,38 @@ pub async fn lifi_connections(from_chain: &str, to_chain: &str) -> Result<String
         .map_err(ToolError::from)
 }
 
+pub async fn lifi_get_transaction(
+    from_chain: &str,
+    from_token: &str,
+    to_chain: &str,
+    to_token: &str,
+    amount: &str,
+    from_address: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("lifi")
+        .subcommand("get-transaction")
+        .arg(from_chain)
+        .arg(from_token)
+        .arg(to_chain)
+        .arg(to_token)
+        .arg(amount)
+        .arg(from_address)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn lifi_step_transaction(step_json: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("lifi")
+        .subcommand("step-transaction")
+        .arg(step_json)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 // =============================================================================
 // VELORA (3 subcommands)
 // =============================================================================
@@ -3520,6 +4204,29 @@ pub async fn enso_balances(address: &str, chain: Option<&str>) -> Result<String,
         .subcommand("balances")
         .arg(address)
         .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn enso_bundle(
+    from_address: &str,
+    actions_json: &str,
+    chain_id: Option<&str>,
+    routing_strategy: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("enso")
+        .subcommand("bundle")
+        .arg(from_address)
+        .arg(actions_json);
+    if let Some(cid) = chain_id {
+        builder = builder.opt("--chain-id", Some(cid));
+    }
+    if let Some(rs) = routing_strategy {
+        builder = builder.opt("--routing-strategy", Some(rs));
+    }
+    builder
         .format_json()
         .execute()
         .await

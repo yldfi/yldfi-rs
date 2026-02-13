@@ -4,7 +4,7 @@
 
 use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
-use cowp::{Client, OrderKind, QuoteRequest};
+use cowp::{Client, OrderCreation, OrderKind, QuoteRequest, SigningScheme};
 
 #[derive(Args, Clone)]
 pub struct CowSwapArgs {
@@ -105,6 +105,58 @@ pub enum CowSwapCommands {
         #[arg(long, default_value = "ethereum")]
         chain: String,
     },
+
+    /// Create an order (requires pre-signed order data)
+    CreateOrder {
+        /// Source token address
+        sell_token: String,
+        /// Destination token address
+        buy_token: String,
+        /// Sell amount in smallest units
+        sell_amount: String,
+        /// Buy amount in smallest units
+        buy_amount: String,
+        /// Order expiration (Unix timestamp)
+        valid_to: u64,
+        /// Order creator address
+        from: String,
+        /// Receiver address
+        receiver: String,
+        /// Signed order data (hex)
+        signature: String,
+        /// Order kind: sell or buy
+        #[arg(long, default_value = "sell")]
+        kind: String,
+        /// Signing scheme: eip712, eip1271, presign
+        #[arg(long, default_value = "eip712")]
+        signing_scheme: String,
+        /// Fee amount in sell token (smallest units)
+        #[arg(long, default_value = "0")]
+        fee_amount: String,
+        /// App data hash
+        #[arg(long, default_value = "0x0000000000000000000000000000000000000000000000000000000000000000")]
+        app_data: String,
+        /// Allow partial fills
+        #[arg(long)]
+        partially_fillable: bool,
+        /// Quote ID reference
+        #[arg(long)]
+        quote_id: Option<i64>,
+        /// Chain
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+
+    /// Cancel an order (requires EIP-712 signature)
+    CancelOrder {
+        /// Order UID to cancel
+        uid: String,
+        /// EIP-712 signature proving ownership
+        signature: String,
+        /// Chain
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
 }
 
 pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
@@ -179,6 +231,70 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
             let cow_chain = chain_name_to_cow_chain(&chain)?;
             let price = client.get_native_price(Some(cow_chain), &token).await?;
             output_json(&price, args.format)?;
+        }
+
+        CowSwapCommands::CreateOrder {
+            sell_token,
+            buy_token,
+            sell_amount,
+            buy_amount,
+            valid_to,
+            from,
+            receiver,
+            signature,
+            kind,
+            signing_scheme,
+            fee_amount,
+            app_data,
+            partially_fillable,
+            quote_id,
+            chain,
+        } => {
+            let cow_chain = chain_name_to_cow_chain(&chain)?;
+            let order_kind = match kind.to_lowercase().as_str() {
+                "sell" => OrderKind::Sell,
+                "buy" => OrderKind::Buy,
+                _ => anyhow::bail!("Invalid order kind: {}. Use 'sell' or 'buy'", kind),
+            };
+            let scheme = match signing_scheme.to_lowercase().as_str() {
+                "eip712" => SigningScheme::Eip712,
+                "eip1271" => SigningScheme::Eip1271,
+                "presign" => SigningScheme::PreSign,
+                _ => anyhow::bail!(
+                    "Invalid signing scheme: {}. Use 'eip712', 'eip1271', or 'presign'",
+                    signing_scheme
+                ),
+            };
+            let order = OrderCreation {
+                sell_token,
+                buy_token,
+                sell_amount,
+                buy_amount,
+                valid_to,
+                app_data,
+                fee_amount,
+                kind: order_kind,
+                partially_fillable,
+                receiver,
+                signature,
+                signing_scheme: scheme,
+                from,
+                quote_id,
+            };
+            let uid = client.create_order(Some(cow_chain), &order).await?;
+            output_json(&uid, args.format)?;
+        }
+
+        CowSwapCommands::CancelOrder {
+            uid,
+            signature,
+            chain,
+        } => {
+            let cow_chain = chain_name_to_cow_chain(&chain)?;
+            client
+                .cancel_order(Some(cow_chain), &uid, &signature)
+                .await?;
+            println!("Order {} cancelled successfully", uid);
         }
     }
 

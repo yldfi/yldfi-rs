@@ -41,6 +41,49 @@ pub enum DuneCommands {
         #[command(flatten)]
         args: DuneArgs,
     },
+
+    /// Query management (CRUD)
+    Queries {
+        #[command(subcommand)]
+        action: QueriesCommands,
+
+        #[command(flatten)]
+        args: DuneArgs,
+    },
+
+    /// User table management
+    Tables {
+        #[command(subcommand)]
+        action: TablesCommands,
+
+        #[command(flatten)]
+        args: DuneArgs,
+    },
+
+    /// Materialized views management
+    #[command(visible_alias = "mv")]
+    Matviews {
+        #[command(subcommand)]
+        action: MatviewsCommands,
+
+        #[command(flatten)]
+        args: DuneArgs,
+    },
+
+    /// Pipeline execution
+    Pipelines {
+        #[command(subcommand)]
+        action: PipelinesCommands,
+
+        #[command(flatten)]
+        args: DuneArgs,
+    },
+
+    /// Usage and billing information
+    Usage {
+        #[command(flatten)]
+        args: DuneArgs,
+    },
 }
 
 #[derive(Subcommand)]
@@ -121,6 +164,263 @@ pub enum ExecutionCommands {
     },
 }
 
+// ============================================================================
+// Queries CRUD Commands
+// ============================================================================
+
+#[derive(Subcommand)]
+pub enum QueriesCommands {
+    /// Create a new saved query
+    Create {
+        /// Query name
+        #[arg(long)]
+        name: String,
+        /// SQL query text
+        #[arg(long)]
+        sql: String,
+        /// Description
+        #[arg(long)]
+        description: Option<String>,
+        /// Make query private
+        #[arg(long)]
+        private: bool,
+        /// Tags (comma-separated)
+        #[arg(long)]
+        tags: Option<String>,
+    },
+
+    /// Get query details by ID
+    Get {
+        /// Query ID
+        query_id: i64,
+    },
+
+    /// Update an existing query
+    Update {
+        /// Query ID
+        query_id: i64,
+        /// New name
+        #[arg(long)]
+        name: Option<String>,
+        /// New SQL
+        #[arg(long)]
+        sql: Option<String>,
+        /// New description
+        #[arg(long)]
+        description: Option<String>,
+        /// Tags (comma-separated)
+        #[arg(long)]
+        tags: Option<String>,
+    },
+
+    /// List all queries
+    List {
+        /// Limit results
+        #[arg(long)]
+        limit: Option<u32>,
+        /// Offset for pagination
+        #[arg(long)]
+        offset: Option<i64>,
+    },
+
+    /// Archive a query
+    Archive {
+        /// Query ID
+        query_id: i64,
+    },
+
+    /// Unarchive a query
+    Unarchive {
+        /// Query ID
+        query_id: i64,
+    },
+
+    /// Make a query private
+    MakePrivate {
+        /// Query ID
+        query_id: i64,
+    },
+
+    /// Make a query public
+    MakePublic {
+        /// Query ID
+        query_id: i64,
+    },
+}
+
+// ============================================================================
+// Tables Commands
+// ============================================================================
+
+#[derive(Subcommand)]
+pub enum TablesCommands {
+    /// Create a new table
+    Create {
+        /// Namespace (your username or team handle)
+        namespace: String,
+        /// Table name
+        table_name: String,
+        /// Schema as JSON array: [{"name":"col1","column_type":"varchar","nullable":false}]
+        #[arg(long)]
+        schema: String,
+        /// Description
+        #[arg(long)]
+        description: Option<String>,
+        /// Make table private
+        #[arg(long)]
+        private: bool,
+    },
+
+    /// Upload CSV data to a table
+    UploadCsv {
+        /// Table name (namespace.table_name)
+        table_name: String,
+        /// CSV file path or inline CSV data
+        data: String,
+        /// Description
+        #[arg(long)]
+        description: Option<String>,
+        /// Make table private
+        #[arg(long)]
+        private: bool,
+        /// Read data from file instead of inline
+        #[arg(long)]
+        file: bool,
+    },
+
+    /// List all tables
+    List {
+        /// Limit results
+        #[arg(long)]
+        limit: Option<u32>,
+        /// Offset for pagination
+        #[arg(long)]
+        offset: Option<i64>,
+    },
+
+    /// Get table details
+    Get {
+        /// Namespace
+        namespace: String,
+        /// Table name
+        table_name: String,
+    },
+
+    /// Insert rows into a table
+    Insert {
+        /// Namespace
+        namespace: String,
+        /// Table name
+        table_name: String,
+        /// Data as JSON array: [{"col1":"val1","col2":123}]
+        data: String,
+    },
+
+    /// Clear all data from a table
+    Clear {
+        /// Namespace
+        namespace: String,
+        /// Table name
+        table_name: String,
+    },
+
+    /// Delete a table entirely
+    Delete {
+        /// Namespace
+        namespace: String,
+        /// Table name
+        table_name: String,
+    },
+}
+
+// ============================================================================
+// Materialized Views Commands
+// ============================================================================
+
+#[derive(Subcommand)]
+pub enum MatviewsCommands {
+    /// Create or update a materialized view
+    Upsert {
+        /// View name
+        name: String,
+        /// Query ID to materialize
+        #[arg(long)]
+        query_id: i64,
+        /// Cron expression for refresh schedule (e.g., "0 */6 * * *")
+        #[arg(long)]
+        cron: Option<String>,
+        /// Expiration time (ISO timestamp)
+        #[arg(long)]
+        expires_at: Option<String>,
+        /// Make view private
+        #[arg(long)]
+        private: bool,
+        /// Performance tier: medium or large
+        #[arg(long)]
+        performance: Option<String>,
+    },
+
+    /// Get materialized view details
+    Get {
+        /// View name
+        name: String,
+    },
+
+    /// List materialized views
+    List {
+        /// Limit results
+        #[arg(long)]
+        limit: Option<u32>,
+        /// Offset for pagination
+        #[arg(long)]
+        offset: Option<i64>,
+    },
+
+    /// Refresh a materialized view
+    Refresh {
+        /// View name
+        name: String,
+        /// Performance tier: medium or large
+        #[arg(long)]
+        performance: Option<String>,
+    },
+
+    /// Delete a materialized view
+    Delete {
+        /// View name
+        name: String,
+    },
+}
+
+// ============================================================================
+// Pipelines Commands
+// ============================================================================
+
+#[derive(Subcommand)]
+pub enum PipelinesCommands {
+    /// Execute a pipeline of queries/matviews
+    Execute {
+        /// Pipeline definition as JSON: {"nodes":[{"node_type":"query_execution","query_id":123}]}
+        pipeline_json: String,
+        /// Query parameters as JSON: {"key":"value"}
+        #[arg(long)]
+        params: Option<String>,
+        /// Performance tier: medium or large
+        #[arg(long)]
+        performance: Option<String>,
+    },
+
+    /// Get pipeline execution status
+    Status {
+        /// Pipeline execution ID
+        execution_id: String,
+    },
+}
+
+// ============================================================================
+// Handler
+// ============================================================================
+
 /// Handle Dune Analytics commands
 pub async fn handle(command: &DuneCommands, quiet: bool) -> anyhow::Result<()> {
     use secrecy::ExposeSecret;
@@ -146,6 +446,19 @@ pub async fn handle(command: &DuneCommands, quiet: bool) -> anyhow::Result<()> {
         DuneCommands::Execution { action, args } => {
             handle_execution(&client, action, args, quiet).await
         }
+        DuneCommands::Queries { action, args } => {
+            handle_queries(&client, action, args, quiet).await
+        }
+        DuneCommands::Tables { action, args } => {
+            handle_tables(&client, action, args, quiet).await
+        }
+        DuneCommands::Matviews { action, args } => {
+            handle_matviews(&client, action, args, quiet).await
+        }
+        DuneCommands::Pipelines { action, args } => {
+            handle_pipelines(&client, action, args, quiet).await
+        }
+        DuneCommands::Usage { args } => handle_usage(&client, args, quiet).await,
     }
 }
 
@@ -273,6 +586,405 @@ async fn handle_execution(
             print_output(&response, args.format)?;
         }
     }
+    Ok(())
+}
+
+// ============================================================================
+// Queries CRUD Handler
+// ============================================================================
+
+async fn handle_queries(
+    client: &dnapi::Client,
+    action: &QueriesCommands,
+    args: &DuneArgs,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    match action {
+        QueriesCommands::Create {
+            name,
+            sql,
+            description,
+            private,
+            tags,
+        } => {
+            if !quiet {
+                eprintln!("Creating query '{}'...", name);
+            }
+            let mut request = dnapi::queries::CreateQueryRequest {
+                name: name.clone(),
+                query_sql: sql.clone(),
+                description: description.clone(),
+                parameters: None,
+                is_private: if *private { Some(true) } else { None },
+                tags: tags
+                    .as_ref()
+                    .map(|t| t.split(',').map(|s| s.trim().to_string()).collect()),
+            };
+            let _ = &mut request; // suppress unused mut warning if needed
+            let response = client.queries().create(&request).await?;
+            print_output(&response, args.format)?;
+        }
+
+        QueriesCommands::Get { query_id } => {
+            if !quiet {
+                eprintln!("Getting query {}...", query_id);
+            }
+            let response = client.queries().get(*query_id).await?;
+            print_output(&response, args.format)?;
+        }
+
+        QueriesCommands::Update {
+            query_id,
+            name,
+            sql,
+            description,
+            tags,
+        } => {
+            if !quiet {
+                eprintln!("Updating query {}...", query_id);
+            }
+            let request = dnapi::queries::UpdateQueryRequest {
+                name: name.clone(),
+                query_sql: sql.clone(),
+                description: description.clone(),
+                parameters: None,
+                tags: tags
+                    .as_ref()
+                    .map(|t| t.split(',').map(|s| s.trim().to_string()).collect()),
+            };
+            let response = client.queries().update(*query_id, &request).await?;
+            print_output(&response, args.format)?;
+        }
+
+        QueriesCommands::List { limit, offset } => {
+            if !quiet {
+                eprintln!("Listing queries...");
+            }
+            if limit.is_some() || offset.is_some() {
+                let mut opts = dnapi::queries::ListQueriesOptions::default();
+                opts.limit = *limit;
+                opts.offset = *offset;
+                let response = client.queries().list_with_options(&opts).await?;
+                print_output(&response, args.format)?;
+            } else {
+                let response = client.queries().list().await?;
+                print_output(&response, args.format)?;
+            }
+        }
+
+        QueriesCommands::Archive { query_id } => {
+            if !quiet {
+                eprintln!("Archiving query {}...", query_id);
+            }
+            client.queries().archive(*query_id).await?;
+            println!("Query {} archived.", query_id);
+        }
+
+        QueriesCommands::Unarchive { query_id } => {
+            if !quiet {
+                eprintln!("Unarchiving query {}...", query_id);
+            }
+            client.queries().unarchive(*query_id).await?;
+            println!("Query {} unarchived.", query_id);
+        }
+
+        QueriesCommands::MakePrivate { query_id } => {
+            if !quiet {
+                eprintln!("Making query {} private...", query_id);
+            }
+            client.queries().make_private(*query_id).await?;
+            println!("Query {} is now private.", query_id);
+        }
+
+        QueriesCommands::MakePublic { query_id } => {
+            if !quiet {
+                eprintln!("Making query {} public...", query_id);
+            }
+            client.queries().make_public(*query_id).await?;
+            println!("Query {} is now public.", query_id);
+        }
+    }
+    Ok(())
+}
+
+// ============================================================================
+// Tables Handler
+// ============================================================================
+
+async fn handle_tables(
+    client: &dnapi::Client,
+    action: &TablesCommands,
+    args: &DuneArgs,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    match action {
+        TablesCommands::Create {
+            namespace,
+            table_name,
+            schema,
+            description,
+            private,
+        } => {
+            if !quiet {
+                eprintln!("Creating table {}.{}...", namespace, table_name);
+            }
+            let columns: Vec<dnapi::tables::TableColumn> =
+                serde_json::from_str(schema)
+                    .map_err(|e| anyhow::anyhow!("Invalid schema JSON: {}", e))?;
+            let request = dnapi::tables::CreateTableRequest {
+                namespace: namespace.clone(),
+                table_name: table_name.clone(),
+                schema: columns,
+                description: description.clone(),
+                is_private: if *private { Some(true) } else { None },
+            };
+            let response = client.tables().create(&request).await?;
+            print_output(&response, args.format)?;
+        }
+
+        TablesCommands::UploadCsv {
+            table_name,
+            data,
+            description,
+            private,
+            file,
+        } => {
+            if !quiet {
+                eprintln!("Uploading CSV to {}...", table_name);
+            }
+            let csv_data = if *file {
+                std::fs::read_to_string(data)
+                    .map_err(|e| anyhow::anyhow!("Failed to read file '{}': {}", data, e))?
+            } else {
+                data.clone()
+            };
+            let request = dnapi::tables::UploadCsvRequest {
+                table_name: table_name.clone(),
+                data: csv_data,
+                description: description.clone(),
+                is_private: if *private { Some(true) } else { None },
+            };
+            let response = client.tables().upload_csv(&request).await?;
+            print_output(&response, args.format)?;
+        }
+
+        TablesCommands::List { limit, offset } => {
+            if !quiet {
+                eprintln!("Listing tables...");
+            }
+            if limit.is_some() || offset.is_some() {
+                let mut opts = dnapi::tables::ListTablesOptions::default();
+                opts.limit = *limit;
+                opts.offset = *offset;
+                let response = client.tables().list_with_options(&opts).await?;
+                print_output(&response, args.format)?;
+            } else {
+                let response = client.tables().list().await?;
+                print_output(&response, args.format)?;
+            }
+        }
+
+        TablesCommands::Get {
+            namespace,
+            table_name,
+        } => {
+            if !quiet {
+                eprintln!("Getting table {}.{}...", namespace, table_name);
+            }
+            let response = client.tables().get(namespace, table_name).await?;
+            print_output(&response, args.format)?;
+        }
+
+        TablesCommands::Insert {
+            namespace,
+            table_name,
+            data,
+        } => {
+            if !quiet {
+                eprintln!("Inserting data into {}.{}...", namespace, table_name);
+            }
+            let json_data: serde_json::Value = serde_json::from_str(data)
+                .map_err(|e| anyhow::anyhow!("Invalid data JSON: {}", e))?;
+            let response = client
+                .tables()
+                .insert(namespace, table_name, &json_data)
+                .await?;
+            print_output(&response, args.format)?;
+        }
+
+        TablesCommands::Clear {
+            namespace,
+            table_name,
+        } => {
+            if !quiet {
+                eprintln!("Clearing table {}.{}...", namespace, table_name);
+            }
+            let response = client.tables().clear(namespace, table_name).await?;
+            print_output(&response, args.format)?;
+        }
+
+        TablesCommands::Delete {
+            namespace,
+            table_name,
+        } => {
+            if !quiet {
+                eprintln!("Deleting table {}.{}...", namespace, table_name);
+            }
+            let response = client.tables().delete(namespace, table_name).await?;
+            print_output(&response, args.format)?;
+        }
+    }
+    Ok(())
+}
+
+// ============================================================================
+// Materialized Views Handler
+// ============================================================================
+
+async fn handle_matviews(
+    client: &dnapi::Client,
+    action: &MatviewsCommands,
+    args: &DuneArgs,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    match action {
+        MatviewsCommands::Upsert {
+            name,
+            query_id,
+            cron,
+            expires_at,
+            private,
+            performance,
+        } => {
+            if !quiet {
+                eprintln!("Creating/updating materialized view '{}'...", name);
+            }
+            let request = dnapi::matviews::UpsertMatviewRequest {
+                name: name.clone(),
+                query_id: *query_id,
+                cron_expression: cron.clone(),
+                expires_at: expires_at.clone(),
+                is_private: if *private { Some(true) } else { None },
+                performance: performance.clone(),
+            };
+            let response = client.matviews().upsert(&request).await?;
+            print_output(&response, args.format)?;
+        }
+
+        MatviewsCommands::Get { name } => {
+            if !quiet {
+                eprintln!("Getting materialized view '{}'...", name);
+            }
+            let response = client.matviews().get(name).await?;
+            print_output(&response, args.format)?;
+        }
+
+        MatviewsCommands::List { limit, offset } => {
+            if !quiet {
+                eprintln!("Listing materialized views...");
+            }
+            if limit.is_some() || offset.is_some() {
+                let mut opts = dnapi::matviews::ListMatviewsOptions::default();
+                opts.limit = *limit;
+                opts.offset = *offset;
+                let response = client.matviews().list_with_options(&opts).await?;
+                print_output(&response, args.format)?;
+            } else {
+                let response = client.matviews().list().await?;
+                print_output(&response, args.format)?;
+            }
+        }
+
+        MatviewsCommands::Refresh { name, performance } => {
+            if !quiet {
+                eprintln!("Refreshing materialized view '{}'...", name);
+            }
+            if let Some(perf) = performance {
+                let request = dnapi::matviews::RefreshMatviewRequest {
+                    performance: Some(perf.clone()),
+                };
+                let response = client.matviews().refresh_with_options(name, &request).await?;
+                print_output(&response, args.format)?;
+            } else {
+                let response = client.matviews().refresh(name).await?;
+                print_output(&response, args.format)?;
+            }
+        }
+
+        MatviewsCommands::Delete { name } => {
+            if !quiet {
+                eprintln!("Deleting materialized view '{}'...", name);
+            }
+            let response = client.matviews().delete(name).await?;
+            print_output(&response, args.format)?;
+        }
+    }
+    Ok(())
+}
+
+// ============================================================================
+// Pipelines Handler
+// ============================================================================
+
+async fn handle_pipelines(
+    client: &dnapi::Client,
+    action: &PipelinesCommands,
+    args: &DuneArgs,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    match action {
+        PipelinesCommands::Execute {
+            pipeline_json,
+            params,
+            performance,
+        } => {
+            if !quiet {
+                eprintln!("Executing pipeline...");
+            }
+            let pipeline: dnapi::pipelines::Pipeline = serde_json::from_str(pipeline_json)
+                .map_err(|e| anyhow::anyhow!("Invalid pipeline JSON: {}", e))?;
+            let query_parameters = if let Some(p) = params {
+                Some(
+                    serde_json::from_str(p)
+                        .map_err(|e| anyhow::anyhow!("Invalid params JSON: {}", e))?,
+                )
+            } else {
+                None
+            };
+            let request = dnapi::pipelines::ExecutePipelineRequest {
+                pipeline,
+                query_parameters,
+                performance: performance.clone(),
+            };
+            let response = client.pipelines().execute(&request).await?;
+            print_output(&response, args.format)?;
+        }
+
+        PipelinesCommands::Status { execution_id } => {
+            if !quiet {
+                eprintln!("Getting pipeline status {}...", execution_id);
+            }
+            let response = client.pipelines().status(execution_id).await?;
+            print_output(&response, args.format)?;
+        }
+    }
+    Ok(())
+}
+
+// ============================================================================
+// Usage Handler
+// ============================================================================
+
+async fn handle_usage(
+    client: &dnapi::Client,
+    args: &DuneArgs,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    if !quiet {
+        eprintln!("Fetching usage information...");
+    }
+    let response = client.usage().get().await?;
+    print_output(&response, args.format)?;
     Ok(())
 }
 

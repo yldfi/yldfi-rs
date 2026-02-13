@@ -750,7 +750,7 @@ pub struct BlockOverride {
 }
 
 /// Result from creating an access list
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessListResult {
     /// The access list
     #[serde(rename = "accessList")]
@@ -762,7 +762,7 @@ pub struct AccessListResult {
 }
 
 /// Entry in an access list
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessListEntry {
     /// Address being accessed
     pub address: String,

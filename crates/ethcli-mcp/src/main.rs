@@ -1573,6 +1573,179 @@ impl EthcliMcpServer {
         .to_response()
     }
 
+    // --- Tenderly Actions Batch ---
+
+    #[tool(description = "Stop multiple Tenderly web3 actions by ID")]
+    async fn tenderly_actions_stop_many(
+        &self,
+        Parameters(input): Parameters<TenderlyActionsIdsInput>,
+    ) -> String {
+        tools::tenderly_actions_stop_many(&input.ids)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Resume multiple Tenderly web3 actions by ID")]
+    async fn tenderly_actions_resume_many(
+        &self,
+        Parameters(input): Parameters<TenderlyActionsIdsInput>,
+    ) -> String {
+        tools::tenderly_actions_resume_many(&input.ids)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get execution details for a Tenderly web3 action call")]
+    async fn tenderly_actions_get_call(
+        &self,
+        Parameters(input): Parameters<TenderlyActionsGetCallInput>,
+    ) -> String {
+        tools::tenderly_actions_get_call(&input.id, &input.execution_id)
+            .await
+            .to_response()
+    }
+
+    // --- Tenderly Alerts Batch ---
+
+    #[tool(
+        description = "Update a Tenderly alert configuration (name, type, network, addresses)"
+    )]
+    async fn tenderly_alerts_update(
+        &self,
+        Parameters(input): Parameters<TenderlyAlertsUpdateInput>,
+    ) -> String {
+        tools::tenderly_alerts_update(
+            &input.id,
+            input.name.as_deref(),
+            input.alert_type.as_deref(),
+            input.network.as_deref(),
+            input.addresses.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Add a notification destination to a Tenderly alert")]
+    async fn tenderly_alerts_add_destination(
+        &self,
+        Parameters(input): Parameters<TenderlyAlertsAddDestinationInput>,
+    ) -> String {
+        tools::tenderly_alerts_add_destination(
+            &input.id,
+            &input.destination_type,
+            &input.destination_id,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Remove a notification destination from a Tenderly alert")]
+    async fn tenderly_alerts_remove_destination(
+        &self,
+        Parameters(input): Parameters<TenderlyAlertsRemoveDestinationInput>,
+    ) -> String {
+        tools::tenderly_alerts_remove_destination(&input.id, &input.destination_id)
+            .await
+            .to_response()
+    }
+
+    // --- Tenderly Contracts Batch ---
+
+    #[tool(description = "Update a Tenderly contract (name, network, tags)")]
+    async fn tenderly_contracts_update(
+        &self,
+        Parameters(input): Parameters<TenderlyContractsUpdateInput>,
+    ) -> String {
+        tools::tenderly_contracts_update(
+            &input.address,
+            input.network.as_deref(),
+            input.name.as_deref(),
+            &input.tags,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Remove a tag from a Tenderly contract")]
+    async fn tenderly_contracts_remove_tag(
+        &self,
+        Parameters(input): Parameters<TenderlyContractsRemoveTagInput>,
+    ) -> String {
+        tools::tenderly_contracts_remove_tag(
+            &input.address,
+            input.network.as_deref(),
+            &input.tag,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Apply a tag to multiple Tenderly contracts at once")]
+    async fn tenderly_contracts_bulk_tag(
+        &self,
+        Parameters(input): Parameters<TenderlyContractsBulkTagInput>,
+    ) -> String {
+        tools::tenderly_contracts_bulk_tag(&input.tag, &input.contract_ids)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Encode state overrides for Tenderly contract simulation")]
+    async fn tenderly_contracts_encode_state(
+        &self,
+        Parameters(input): Parameters<TenderlyContractsEncodeStateInput>,
+    ) -> String {
+        tools::tenderly_contracts_encode_state(input.network.as_deref(), &input.state_json)
+            .await
+            .to_response()
+    }
+
+    // --- Tenderly VNets Admin Batch ---
+
+    #[tool(
+        description = "Set ETH balance for multiple addresses on a Virtual TestNet"
+    )]
+    async fn tenderly_vnets_admin_set_balances(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBatchBalanceInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_balances(&input.vnet, &input.addresses, &input.amount)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Add ETH to balances for multiple addresses on a Virtual TestNet"
+    )]
+    async fn tenderly_vnets_admin_add_balances(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBatchBalanceInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_add_balances(&input.vnet, &input.addresses, &input.amount)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Create an EIP-2930 access list for a transaction on a Virtual TestNet"
+    )]
+    async fn tenderly_vnets_admin_create_access_list(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminCreateAccessListInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_create_access_list(
+            &input.vnet,
+            &input.from,
+            &input.to,
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+            input.block.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
     // =========================================================================
     // ALCHEMY (additional)
     // =========================================================================
@@ -1897,6 +2070,271 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    // --- Dune Queries CRUD ---
+
+    #[tool(description = "Create a saved Dune Analytics query")]
+    async fn dune_queries_create(
+        &self,
+        Parameters(input): Parameters<DuneQueriesCreateInput>,
+    ) -> String {
+        tools::dune_queries_create(
+            &input.name,
+            &input.sql,
+            input.description.as_deref(),
+            input.private,
+            input.tags.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get details of a saved Dune query")]
+    async fn dune_queries_get(
+        &self,
+        Parameters(input): Parameters<DuneQueriesGetInput>,
+    ) -> String {
+        tools::dune_queries_get(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Update an existing Dune query")]
+    async fn dune_queries_update(
+        &self,
+        Parameters(input): Parameters<DuneQueriesUpdateInput>,
+    ) -> String {
+        tools::dune_queries_update(
+            &input.query_id,
+            input.name.as_deref(),
+            input.sql.as_deref(),
+            input.description.as_deref(),
+            input.tags.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "List all saved Dune queries")]
+    async fn dune_queries_list(
+        &self,
+        Parameters(input): Parameters<DuneQueriesListInput>,
+    ) -> String {
+        tools::dune_queries_list(input.limit, input.offset)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Archive a Dune query")]
+    async fn dune_queries_archive(
+        &self,
+        Parameters(input): Parameters<DuneQueriesIdInput>,
+    ) -> String {
+        tools::dune_queries_archive(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Unarchive a Dune query")]
+    async fn dune_queries_unarchive(
+        &self,
+        Parameters(input): Parameters<DuneQueriesIdInput>,
+    ) -> String {
+        tools::dune_queries_unarchive(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Make a Dune query private")]
+    async fn dune_queries_make_private(
+        &self,
+        Parameters(input): Parameters<DuneQueriesIdInput>,
+    ) -> String {
+        tools::dune_queries_make_private(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Make a Dune query public")]
+    async fn dune_queries_make_public(
+        &self,
+        Parameters(input): Parameters<DuneQueriesIdInput>,
+    ) -> String {
+        tools::dune_queries_make_public(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    // --- Dune Tables CRUD ---
+
+    #[tool(description = "Create a Dune table with a JSON schema definition")]
+    async fn dune_tables_create(
+        &self,
+        Parameters(input): Parameters<DuneTablesCreateInput>,
+    ) -> String {
+        tools::dune_tables_create(
+            &input.namespace,
+            &input.table_name,
+            &input.schema_json,
+            input.description.as_deref(),
+            input.private,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Upload CSV data to a Dune table")]
+    async fn dune_tables_upload_csv(
+        &self,
+        Parameters(input): Parameters<DuneTablesUploadCsvInput>,
+    ) -> String {
+        tools::dune_tables_upload_csv(
+            &input.table_name,
+            &input.data,
+            input.description.as_deref(),
+            input.private,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "List Dune tables")]
+    async fn dune_tables_list(
+        &self,
+        Parameters(input): Parameters<DuneTablesListInput>,
+    ) -> String {
+        tools::dune_tables_list(input.limit, input.offset)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get details of a Dune table")]
+    async fn dune_tables_get(
+        &self,
+        Parameters(input): Parameters<DuneTablesGetInput>,
+    ) -> String {
+        tools::dune_tables_get(&input.namespace, &input.table_name)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Insert rows into a Dune table")]
+    async fn dune_tables_insert(
+        &self,
+        Parameters(input): Parameters<DuneTablesInsertInput>,
+    ) -> String {
+        tools::dune_tables_insert(&input.namespace, &input.table_name, &input.data_json)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Clear all data from a Dune table")]
+    async fn dune_tables_clear(
+        &self,
+        Parameters(input): Parameters<DuneTablesNamespaceTableInput>,
+    ) -> String {
+        tools::dune_tables_clear(&input.namespace, &input.table_name)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Delete a Dune table")]
+    async fn dune_tables_delete(
+        &self,
+        Parameters(input): Parameters<DuneTablesNamespaceTableInput>,
+    ) -> String {
+        tools::dune_tables_delete(&input.namespace, &input.table_name)
+            .await
+            .to_response()
+    }
+
+    // --- Dune Materialized Views ---
+
+    #[tool(description = "Create or update a Dune materialized view")]
+    async fn dune_matviews_upsert(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsUpsertInput>,
+    ) -> String {
+        tools::dune_matviews_upsert(
+            &input.name,
+            &input.query_id,
+            input.cron.as_deref(),
+            input.expires_at.as_deref(),
+            input.private,
+            input.performance.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get details of a Dune materialized view")]
+    async fn dune_matviews_get(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsNameInput>,
+    ) -> String {
+        tools::dune_matviews_get(&input.name).await.to_response()
+    }
+
+    #[tool(description = "List Dune materialized views")]
+    async fn dune_matviews_list(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsListInput>,
+    ) -> String {
+        tools::dune_matviews_list(input.limit, input.offset)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Refresh a Dune materialized view")]
+    async fn dune_matviews_refresh(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsRefreshInput>,
+    ) -> String {
+        tools::dune_matviews_refresh(&input.name, input.performance.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Delete a Dune materialized view")]
+    async fn dune_matviews_delete(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsNameInput>,
+    ) -> String {
+        tools::dune_matviews_delete(&input.name).await.to_response()
+    }
+
+    // --- Dune Pipelines ---
+
+    #[tool(description = "Execute a Dune pipeline")]
+    async fn dune_pipelines_execute(
+        &self,
+        Parameters(input): Parameters<DunePipelinesExecuteInput>,
+    ) -> String {
+        tools::dune_pipelines_execute(
+            &input.pipeline_json,
+            input.params.as_deref(),
+            input.performance.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get Dune pipeline execution status")]
+    async fn dune_pipelines_status(
+        &self,
+        Parameters(input): Parameters<DunePipelinesStatusInput>,
+    ) -> String {
+        tools::dune_pipelines_status(&input.execution_id)
+            .await
+            .to_response()
+    }
+
+    // --- Dune Usage ---
+
+    #[tool(description = "Get Dune Analytics usage and billing information")]
+    async fn dune_usage(&self) -> String {
+        tools::dune_usage().await.to_response()
+    }
+
     // =========================================================================
     // CURVE (additional)
     // =========================================================================
@@ -1972,9 +2410,49 @@ impl EthcliMcpServer {
     // CHAINLINK (additional)
     // =========================================================================
 
-    #[tool(description = "Get Chainlink data streams info")]
-    async fn chainlink_streams(&self) -> String {
-        tools::chainlink_streams().await.to_response()
+    #[tool(description = "List available Chainlink Data Streams feeds")]
+    async fn chainlink_streams_feeds(&self) -> String {
+        tools::chainlink_streams_feeds().await.to_response()
+    }
+
+    #[tool(description = "Get latest report for a Chainlink Data Streams feed")]
+    async fn chainlink_streams_latest(
+        &self,
+        Parameters(input): Parameters<ChainlinkStreamsFeedInput>,
+    ) -> String {
+        tools::chainlink_streams_latest(&input.feed_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Chainlink Data Streams report at a specific timestamp")]
+    async fn chainlink_streams_report(
+        &self,
+        Parameters(input): Parameters<ChainlinkStreamsReportInput>,
+    ) -> String {
+        tools::chainlink_streams_report(&input.feed_id, input.timestamp)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get bulk Chainlink Data Streams reports for multiple feeds at a timestamp")]
+    async fn chainlink_streams_bulk(
+        &self,
+        Parameters(input): Parameters<ChainlinkStreamsBulkInput>,
+    ) -> String {
+        tools::chainlink_streams_bulk(&input.feed_ids, input.timestamp)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get paginated Chainlink Data Streams report history for a feed")]
+    async fn chainlink_streams_history(
+        &self,
+        Parameters(input): Parameters<ChainlinkStreamsHistoryInput>,
+    ) -> String {
+        tools::chainlink_streams_history(&input.feed_id, input.timestamp, input.limit)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -2321,6 +2799,42 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(description = "Create a new order on CoW Swap (MEV-protected)")]
+    async fn cowswap_create_order(
+        &self,
+        Parameters(input): Parameters<CowswapCreateOrderInput>,
+    ) -> String {
+        tools::cowswap_create_order(
+            &input.sell_token,
+            &input.buy_token,
+            &input.sell_amount,
+            &input.buy_amount,
+            input.valid_to,
+            &input.from,
+            &input.receiver,
+            &input.signature,
+            &input.kind,
+            &input.signing_scheme,
+            input.fee_amount.as_deref(),
+            input.app_data.as_deref(),
+            input.partially_fillable,
+            input.quote_id,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Cancel an existing CoW Swap order")]
+    async fn cowswap_cancel_order(
+        &self,
+        Parameters(input): Parameters<CowswapCancelOrderInput>,
+    ) -> String {
+        tools::cowswap_cancel_order(&input.uid, &input.signature, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
     // =========================================================================
     // LIFI (additional)
     // =========================================================================
@@ -2405,6 +2919,35 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(description = "Get just the transaction data from a LI.FI quote (convenience wrapper)")]
+    async fn lifi_get_transaction(
+        &self,
+        Parameters(input): Parameters<LifiQuoteInput>,
+    ) -> String {
+        tools::lifi_get_transaction(
+            &input.from_chain,
+            &input.from_token,
+            &input.to_chain,
+            &input.to_token,
+            &input.amount,
+            &input.from_address,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get updated transaction data for a route step from LI.FI (pass step JSON from a route response)"
+    )]
+    async fn lifi_step_transaction(
+        &self,
+        Parameters(input): Parameters<LifiStepTransactionInput>,
+    ) -> String {
+        tools::lifi_step_transaction(&input.step_json)
+            .await
+            .to_response()
+    }
+
     // =========================================================================
     // VELORA
     // =========================================================================
@@ -2456,6 +2999,20 @@ impl EthcliMcpServer {
         tools::enso_balances(&input.address, Some(&input.chain))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Bundle multiple DeFi actions into one transaction via Enso. Actions format: [{\"protocol\":\"...\",\"action\":\"...\",\"args\":{...}}]"
+    )]
+    async fn enso_bundle(&self, Parameters(input): Parameters<EnsoBundleInput>) -> String {
+        tools::enso_bundle(
+            &input.from_address,
+            &input.actions_json,
+            Some(&input.chain_id),
+            input.routing_strategy.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================

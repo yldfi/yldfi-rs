@@ -133,6 +133,31 @@ pub enum LiFiCommands {
         chain_id: Option<u64>,
     },
 
+    /// Get just the transaction data from a quote (convenience wrapper)
+    GetTransaction {
+        /// Source chain ID
+        from_chain: u64,
+        /// Source token address
+        from_token: String,
+        /// Destination chain ID
+        to_chain: u64,
+        /// Destination token address
+        to_token: String,
+        /// Amount in smallest units (wei)
+        from_amount: String,
+        /// Sender address
+        from_address: String,
+        /// Slippage in percent
+        #[arg(long, default_value = "0.5")]
+        slippage: f64,
+    },
+
+    /// Get updated transaction data for a route step (pass step JSON)
+    StepTransaction {
+        /// Step JSON (from a route response)
+        step_json: String,
+    },
+
     /// List all connections (available routes)
     Connections {
         /// Source chain ID
@@ -297,6 +322,39 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
                 let gas = client.get_all_gas_prices().await?;
                 output_json(&gas, args.format)?;
             }
+        }
+
+        LiFiCommands::GetTransaction {
+            from_chain,
+            from_token,
+            to_chain,
+            to_token,
+            from_amount,
+            from_address,
+            slippage,
+        } => {
+            let mut request = QuoteRequest::new(
+                from_chain,
+                to_chain,
+                &from_token,
+                &to_token,
+                &from_amount,
+                &from_address,
+            );
+            request.slippage = Some(slippage);
+            if let Some(int) = integrator {
+                request.integrator = Some(int);
+            }
+
+            let tx = client.get_transaction(&request).await?;
+            output_json(&tx, args.format)?;
+        }
+
+        LiFiCommands::StepTransaction { step_json } => {
+            let step: lfi::Step = serde_json::from_str(&step_json)
+                .map_err(|e| anyhow::anyhow!("Invalid step JSON: {}", e))?;
+            let updated_step = client.get_step_transaction(&step).await?;
+            output_json(&updated_step, args.format)?;
         }
 
         LiFiCommands::Connections {

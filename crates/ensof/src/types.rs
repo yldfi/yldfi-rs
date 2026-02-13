@@ -350,7 +350,7 @@ pub struct RouteStep {
 }
 
 /// Bundle action for multi-step transactions
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BundleAction {
     /// Protocol to interact with
@@ -431,7 +431,7 @@ impl BundleRequest {
 }
 
 /// Bundle response
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BundleResponse {
     /// Transaction data

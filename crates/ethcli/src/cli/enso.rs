@@ -5,7 +5,7 @@
 use crate::aggregator::get_cached_config;
 use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
-use ensof::{Client, RouteRequest};
+use ensof::{BundleAction, BundleRequest, Client, RouteRequest};
 use secrecy::ExposeSecret;
 
 #[derive(Args, Clone)]
@@ -64,6 +64,20 @@ pub enum EnsoCommands {
         #[arg(long, default_value = "1")]
         chain_id: u64,
     },
+
+    /// Bundle multiple DeFi actions into one transaction
+    Bundle {
+        /// Sender address
+        from_address: String,
+        /// Actions as JSON array: [{"protocol":"...","action":"...","args":{...}}]
+        actions_json: String,
+        /// Chain ID
+        #[arg(long, default_value = "1")]
+        chain_id: u64,
+        /// Routing strategy (router, delegate, ensowallet)
+        #[arg(long)]
+        routing_strategy: Option<String>,
+    },
 }
 
 pub async fn run(args: EnsoArgs, _chain: &str) -> anyhow::Result<()> {
@@ -118,6 +132,22 @@ pub async fn run(args: EnsoArgs, _chain: &str) -> anyhow::Result<()> {
         EnsoCommands::Balances { address, chain_id } => {
             let balances = client.get_balances(chain_id, &address).await?;
             output_json(&balances, args.format)?;
+        }
+
+        EnsoCommands::Bundle {
+            from_address,
+            actions_json,
+            chain_id,
+            routing_strategy,
+        } => {
+            let actions: Vec<BundleAction> = serde_json::from_str(&actions_json)
+                .map_err(|e| anyhow::anyhow!("Invalid actions JSON: {}", e))?;
+            let mut request = BundleRequest::new(chain_id, &from_address, actions);
+            if let Some(strategy) = routing_strategy {
+                request = request.with_routing_strategy(parse_routing_strategy(&strategy)?);
+            }
+            let result = client.bundle(&request).await?;
+            output_json(&result, args.format)?;
         }
     }
 
