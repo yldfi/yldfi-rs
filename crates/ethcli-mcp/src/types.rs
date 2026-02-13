@@ -968,6 +968,306 @@ pub struct TenderlySimulateInput {
     pub chain: String,
 }
 
+// --- Tenderly VNets ---
+
+fn default_network_id() -> u64 {
+    1
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsCreateInput")]
+pub struct TenderlyVnetsCreateInput {
+    /// Unique slug identifier for the VNet
+    pub slug: String,
+    /// Display name for the VNet
+    pub name: String,
+    /// Network ID to fork from (1 = mainnet, 137 = polygon, etc.)
+    #[serde(default = "default_network_id")]
+    pub network_id: u64,
+    /// Block number to fork from (latest if not specified)
+    #[serde(default)]
+    pub block_number: Option<u64>,
+    /// Custom chain ID for the VNet
+    #[serde(default)]
+    pub chain_id: Option<u64>,
+    /// Enable state sync with parent network
+    #[serde(default)]
+    pub sync_state: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsIdInput")]
+pub struct TenderlyVnetsIdInput {
+    /// VNet ID (UUID)
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsDeleteInput")]
+pub struct TenderlyVnetsDeleteInput {
+    /// VNet ID(s) to delete (provide one or more IDs)
+    #[serde(default)]
+    pub ids: Vec<String>,
+    /// Delete all Virtual TestNets
+    #[serde(default)]
+    pub all: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsUpdateInput")]
+pub struct TenderlyVnetsUpdateInput {
+    /// VNet ID (UUID)
+    pub id: String,
+    /// New display name
+    #[serde(default)]
+    pub name: Option<String>,
+    /// New slug
+    #[serde(default)]
+    pub slug: Option<String>,
+    /// Enable/disable state sync
+    #[serde(default)]
+    pub sync_state: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsForkInput")]
+pub struct TenderlyVnetsForkInput {
+    /// Source VNet ID to fork from
+    pub source: String,
+    /// New slug identifier for the fork
+    pub slug: String,
+    /// Display name for the fork
+    pub name: String,
+    /// Block number to fork at (latest if not specified)
+    #[serde(default)]
+    pub block_number: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsTransactionsInput")]
+pub struct TenderlyVnetsTransactionsInput {
+    /// VNet ID (UUID)
+    pub id: String,
+    /// Page number
+    #[serde(default)]
+    pub page: Option<u32>,
+    /// Results per page
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsSendInput")]
+pub struct TenderlyVnetsSendInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Sender address
+    pub from: String,
+    /// Recipient address
+    pub to: String,
+    /// Transaction data (hex encoded)
+    #[serde(default)]
+    pub data: Option<String>,
+    /// Value in wei (default: 0)
+    #[serde(default)]
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsGetTransactionInput")]
+pub struct TenderlyVnetsGetTransactionInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Transaction hash
+    pub hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsSimulateInput")]
+pub struct TenderlyVnetsSimulateInput {
+    /// VNet ID to simulate against
+    pub vnet: String,
+    /// Sender address
+    pub from: String,
+    /// Recipient/contract address
+    pub to: String,
+    /// Calldata (hex encoded)
+    #[serde(default)]
+    pub data: Option<String>,
+    /// Value in wei (default: 0)
+    #[serde(default)]
+    pub value: Option<String>,
+    /// Gas limit
+    #[serde(default)]
+    pub gas: Option<u64>,
+    /// Gas price (legacy transactions, in wei)
+    #[serde(default)]
+    pub gas_price: Option<String>,
+    /// Max fee per gas (EIP-1559, in wei)
+    #[serde(default)]
+    pub max_fee_per_gas: Option<String>,
+    /// Max priority fee per gas (EIP-1559, in wei)
+    #[serde(default)]
+    pub max_priority_fee_per_gas: Option<String>,
+}
+
+// --- Tenderly VNets Admin ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminBalanceInput")]
+pub struct TenderlyVnetsAdminBalanceInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Account address
+    pub address: String,
+    /// Amount (wei, or use suffix: 1eth, 100gwei)
+    pub amount: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminErc20Input")]
+pub struct TenderlyVnetsAdminErc20Input {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// ERC20 token contract address
+    pub token: String,
+    /// Wallet address
+    pub wallet: String,
+    /// Token amount in smallest unit (only for set-erc20-balance, omit for set-max)
+    #[serde(default)]
+    pub amount: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminTimeInput")]
+pub struct TenderlyVnetsAdminTimeInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Seconds to advance (increase-time) or Unix timestamp (set-timestamp)
+    pub value: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminBlocksInput")]
+pub struct TenderlyVnetsAdminBlocksInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Number of blocks to skip
+    pub blocks: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminVnetInput")]
+pub struct TenderlyVnetsAdminVnetInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminRevertInput")]
+pub struct TenderlyVnetsAdminRevertInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Snapshot ID to revert to
+    pub snapshot_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminStorageInput")]
+pub struct TenderlyVnetsAdminStorageInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Contract address
+    pub address: String,
+    /// Storage slot (32-byte hex or decimal, auto-padded)
+    pub slot: String,
+    /// Value to set (32-byte hex or decimal, auto-padded)
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminCodeInput")]
+pub struct TenderlyVnetsAdminCodeInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Address to set code at
+    pub address: String,
+    /// Bytecode (hex string)
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminSendTxInput")]
+pub struct TenderlyVnetsAdminSendTxInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Sender address
+    pub from: String,
+    /// Recipient address (optional for contract creation)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// Transaction data (hex)
+    #[serde(default)]
+    pub data: Option<String>,
+    /// Value in wei
+    #[serde(default)]
+    pub value: Option<String>,
+    /// Gas limit
+    #[serde(default)]
+    pub gas: Option<String>,
+}
+
+// --- Tenderly VNet Admin RPC Simulation ---
+
+fn default_block_tag() -> String {
+    "latest".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminSimulateTxInput")]
+pub struct TenderlyVnetsAdminSimulateTxInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Sender address
+    pub from: String,
+    /// Recipient address (optional for contract creation)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// Transaction data (hex calldata)
+    #[serde(default)]
+    pub data: Option<String>,
+    /// Value in wei (hex or decimal)
+    #[serde(default)]
+    pub value: Option<String>,
+    /// Gas limit (hex or decimal)
+    #[serde(default)]
+    pub gas: Option<String>,
+    /// Block tag or hex number (default: "latest")
+    #[serde(default = "default_block_tag")]
+    pub block: String,
+    /// State overrides as JSON string: {"0xaddr": {"balance": "0x...", "stateDiff": {"0x0": "0x1"}}}
+    #[serde(default)]
+    pub state_overrides: Option<String>,
+    /// Block overrides as JSON string: {"time": "0x...", "baseFee": "0x..."}
+    #[serde(default)]
+    pub block_overrides: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(title = "TenderlyVnetsAdminSimulateBundleInput")]
+pub struct TenderlyVnetsAdminSimulateBundleInput {
+    /// VNet ID (UUID)
+    pub vnet: String,
+    /// Array of transactions as JSON string: [{"from":"0x...","to":"0x...","data":"0x..."}]
+    pub txs: String,
+    /// State overrides as JSON string
+    #[serde(default)]
+    pub state_overrides: Option<String>,
+    /// Block overrides as JSON string
+    #[serde(default)]
+    pub block_overrides: Option<String>,
+}
+
 // --- Alchemy Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyPricesInput {

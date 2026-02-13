@@ -253,6 +253,46 @@ pub enum VnetsCommands {
         value: String,
     },
 
+    /// Simulate a transaction against a VNet's state (without persisting)
+    #[command(visible_alias = "sim")]
+    Simulate {
+        /// VNet ID
+        #[arg(long)]
+        vnet: String,
+
+        /// From address (sender)
+        #[arg(long)]
+        from: String,
+
+        /// To address (recipient/contract)
+        #[arg(long)]
+        to: String,
+
+        /// Transaction data (hex)
+        #[arg(long)]
+        data: Option<String>,
+
+        /// Value in wei
+        #[arg(long, default_value = "0")]
+        value: String,
+
+        /// Gas limit
+        #[arg(long)]
+        gas: Option<u64>,
+
+        /// Gas price (legacy)
+        #[arg(long)]
+        gas_price: Option<String>,
+
+        /// Max fee per gas (EIP-1559)
+        #[arg(long)]
+        max_fee_per_gas: Option<String>,
+
+        /// Max priority fee per gas (EIP-1559)
+        #[arg(long)]
+        max_priority_fee_per_gas: Option<String>,
+    },
+
     /// Admin RPC commands (balance, time, storage, snapshots)
     Admin {
         #[command(subcommand)]
@@ -397,6 +437,63 @@ pub enum AdminCommands {
 
     /// Get the latest transaction ID
     GetLatest,
+
+    /// Simulate a transaction via RPC (tenderly_simulateTransaction)
+    ///
+    /// Uses the JSON-RPC method which supports state and block overrides.
+    /// Returns rich decoded results including logs, traces, and asset changes.
+    #[command(visible_alias = "sim-tx")]
+    SimulateTx {
+        /// From address (sender)
+        #[arg(long)]
+        from: String,
+
+        /// To address (recipient/contract)
+        #[arg(long)]
+        to: Option<String>,
+
+        /// Transaction data (hex calldata)
+        #[arg(long)]
+        data: Option<String>,
+
+        /// Value in wei (hex or decimal)
+        #[arg(long)]
+        value: Option<String>,
+
+        /// Gas limit (hex or decimal)
+        #[arg(long)]
+        gas: Option<String>,
+
+        /// Block tag or number (default: "latest")
+        #[arg(long, default_value = "latest")]
+        block: String,
+
+        /// State overrides as JSON: {"0xaddr": {"balance": "0x...", "stateDiff": {"0x0": "0x1"}}}
+        #[arg(long)]
+        state_overrides: Option<String>,
+
+        /// Block overrides as JSON: {"time": "0x...", "baseFee": "0x..."}
+        #[arg(long)]
+        block_overrides: Option<String>,
+    },
+
+    /// Simulate a bundle of transactions via RPC (tenderly_simulateBundle)
+    ///
+    /// Executes multiple transactions sequentially, each seeing state changes
+    /// from previous transactions. Supports state and block overrides.
+    #[command(visible_alias = "sim-bundle")]
+    SimulateBundle {
+        /// Transactions as JSON array: [{"from":"0x...","to":"0x...","data":"0x..."}]
+        txs: String,
+
+        /// State overrides as JSON
+        #[arg(long)]
+        state_overrides: Option<String>,
+
+        /// Block overrides as JSON
+        #[arg(long)]
+        block_overrides: Option<String>,
+    },
 }
 
 // ============================================================================
@@ -1049,6 +1146,50 @@ async fn handle_vnets(
             println!("{}", serde_json::to_string_pretty(&tx)?);
         }
 
+        VnetsCommands::Simulate {
+            vnet,
+            from,
+            to,
+            data,
+            value,
+            gas,
+            gas_price,
+            max_fee_per_gas,
+            max_priority_fee_per_gas,
+        } => {
+            validate_address(from)?;
+            validate_address(to)?;
+
+            if !quiet {
+                eprintln!("Simulating transaction on VNet {}...", vnet);
+            }
+
+            let mut request = tndrly::vnets::VNetSimulationRequest::new(
+                from,
+                to,
+                data.as_deref().unwrap_or("0x"),
+            );
+
+            if value != "0" {
+                request = request.value(value);
+            }
+            if let Some(g) = gas {
+                request = request.gas(*g);
+            }
+            if let Some(gp) = gas_price {
+                request.gas_price = Some(gp.clone());
+            }
+            if let Some(mfpg) = max_fee_per_gas {
+                request = request.max_fee_per_gas(mfpg);
+            }
+            if let Some(mpfpg) = max_priority_fee_per_gas {
+                request = request.max_priority_fee_per_gas(mpfpg);
+            }
+
+            let result = client.vnets().simulate(vnet, &request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
         VnetsCommands::Admin { action, vnet } => {
             handle_admin(action, vnet, &client, quiet).await?;
         }
@@ -1245,6 +1386,88 @@ async fn handle_admin(
                 json.insert(k.clone(), v.clone());
             }
             println!("{}", serde_json::to_string_pretty(&json)?);
+        }
+
+        AdminCommands::SimulateTx {
+            from,
+            to,
+            data,
+            value,
+            gas,
+            block,
+            state_overrides,
+            block_overrides,
+        } => {
+            validate_address(from)?;
+            if let Some(to_addr) = to {
+                validate_address(to_addr)?;
+            }
+            if !quiet {
+                eprintln!("Simulating transaction via RPC (tenderly_simulateTransaction)...");
+            }
+
+            let mut tx = tndrly::vnets::SimulateTransactionParams::new(from);
+            if let Some(t) = to {
+                tx = tx.to(t);
+            }
+            if let Some(d) = data {
+                tx = tx.data(d);
+            }
+            if let Some(v) = value {
+                tx = tx.value(v);
+            }
+            if let Some(g) = gas {
+                tx = tx.gas(g);
+            }
+
+            let so: Option<
+                std::collections::HashMap<String, tndrly::vnets::StateOverride>,
+            > = state_overrides
+                .as_ref()
+                .map(|s| serde_json::from_str(s))
+                .transpose()
+                .context("Invalid --state-overrides JSON")?;
+            let bo: Option<tndrly::vnets::BlockOverride> = block_overrides
+                .as_ref()
+                .map(|s| serde_json::from_str(s))
+                .transpose()
+                .context("Invalid --block-overrides JSON")?;
+
+            let result = admin
+                .simulate_transaction(&tx, block, so.as_ref(), bo.as_ref())
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        AdminCommands::SimulateBundle {
+            txs,
+            state_overrides,
+            block_overrides,
+        } => {
+            if !quiet {
+                eprintln!("Simulating transaction bundle via RPC (tenderly_simulateBundle)...");
+            }
+
+            let txs: Vec<tndrly::vnets::SimulateTransactionParams> =
+                serde_json::from_str(txs).context("Invalid --txs JSON array")?;
+
+            let so: Option<
+                std::collections::HashMap<String, tndrly::vnets::StateOverride>,
+            > = state_overrides
+                .as_ref()
+                .map(|s| serde_json::from_str(s))
+                .transpose()
+                .context("Invalid --state-overrides JSON")?;
+            let bo: Option<tndrly::vnets::BlockOverride> = block_overrides
+                .as_ref()
+                .map(|s| serde_json::from_str(s))
+                .transpose()
+                .context("Invalid --block-overrides JSON")?;
+
+            let result = admin
+                .simulate_bundle(&txs, so.as_ref(), bo.as_ref())
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
         }
     }
 

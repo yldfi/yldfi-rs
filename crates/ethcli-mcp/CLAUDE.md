@@ -130,6 +130,7 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 | `account_*` | 8 | Balance, transactions |
 | `lifi_*` | 12 | Cross-chain aggregator |
 | `cowswap_*` | 8 | MEV-protected swaps |
+| `tenderly_*` | 34 | VNets, wallets, contracts, alerts, simulation |
 | ... | ... | See README for full list |
 
 ## Important Notes

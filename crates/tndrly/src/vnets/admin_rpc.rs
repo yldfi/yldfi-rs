@@ -417,6 +417,101 @@ impl AdminRpc {
     ) -> Result<AccessListResult> {
         self.call("eth_createAccessList", (tx, block)).await
     }
+
+    // =========================================================================
+    // Simulation (RPC-based)
+    // =========================================================================
+
+    /// Simulate a transaction via `tenderly_simulateTransaction` JSON-RPC
+    ///
+    /// This is Tenderly's recommended simulation method. Unlike the REST API,
+    /// it supports `stateDiff` overrides and block overrides.
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - Transaction parameters to simulate
+    /// * `block` - Block tag ("latest", "pending") or hex block number
+    /// * `state_overrides` - Optional per-account state overrides (balance, nonce, code, storage)
+    /// * `block_overrides` - Optional block-level overrides (number, timestamp, baseFee, etc.)
+    ///
+    /// # Returns
+    ///
+    /// Rich simulation result including decoded logs, call trace, asset changes, state changes
+    pub async fn simulate_transaction(
+        &self,
+        tx: &SimulateTransactionParams,
+        block: &str,
+        state_overrides: Option<&std::collections::HashMap<String, StateOverride>>,
+        block_overrides: Option<&BlockOverride>,
+    ) -> Result<serde_json::Value> {
+        let mut params = vec![
+            serde_json::to_value(tx)
+                .map_err(|e| error::invalid_param(format!("Invalid tx params: {e}")))?,
+            serde_json::Value::String(block.to_string()),
+        ];
+
+        // State overrides at position 2 (must be present if block overrides follow)
+        if state_overrides.is_some() || block_overrides.is_some() {
+            params.push(match state_overrides {
+                Some(so) => serde_json::to_value(so)
+                    .map_err(|e| error::invalid_param(format!("Invalid state overrides: {e}")))?,
+                None => serde_json::Value::Object(Default::default()),
+            });
+        }
+
+        // Block overrides at position 3
+        if let Some(bo) = block_overrides {
+            params.push(
+                serde_json::to_value(bo)
+                    .map_err(|e| error::invalid_param(format!("Invalid block overrides: {e}")))?,
+            );
+        }
+
+        self.call("tenderly_simulateTransaction", params).await
+    }
+
+    /// Simulate a bundle of transactions via `tenderly_simulateBundle` JSON-RPC
+    ///
+    /// Executes multiple transactions sequentially, each seeing the state changes
+    /// from previous transactions in the bundle.
+    ///
+    /// # Arguments
+    ///
+    /// * `txs` - Array of transaction parameters to simulate
+    /// * `state_overrides` - Optional per-account state overrides
+    /// * `block_overrides` - Optional block-level overrides
+    ///
+    /// # Returns
+    ///
+    /// Array of simulation results, one per transaction
+    pub async fn simulate_bundle(
+        &self,
+        txs: &[SimulateTransactionParams],
+        state_overrides: Option<&std::collections::HashMap<String, StateOverride>>,
+        block_overrides: Option<&BlockOverride>,
+    ) -> Result<serde_json::Value> {
+        let mut params: Vec<serde_json::Value> = vec![serde_json::to_value(txs)
+            .map_err(|e| error::invalid_param(format!("Invalid tx params: {e}")))?];
+
+        // State overrides at position 1 (must be present if block overrides follow)
+        if state_overrides.is_some() || block_overrides.is_some() {
+            params.push(match state_overrides {
+                Some(so) => serde_json::to_value(so)
+                    .map_err(|e| error::invalid_param(format!("Invalid state overrides: {e}")))?,
+                None => serde_json::Value::Object(Default::default()),
+            });
+        }
+
+        // Block overrides at position 2
+        if let Some(bo) = block_overrides {
+            params.push(
+                serde_json::to_value(bo)
+                    .map_err(|e| error::invalid_param(format!("Invalid block overrides: {e}")))?,
+            );
+        }
+
+        self.call("tenderly_simulateBundle", params).await
+    }
 }
 
 impl std::fmt::Debug for AdminRpc {
@@ -495,6 +590,163 @@ impl SendTransactionParams {
         self.data = Some(data.into());
         self
     }
+}
+
+/// Parameters for simulating a transaction via `tenderly_simulateTransaction` RPC
+///
+/// Similar to `SendTransactionParams` but used specifically for the RPC
+/// simulation method which returns rich decoded results.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SimulateTransactionParams {
+    /// Sender address
+    pub from: String,
+
+    /// Recipient address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<String>,
+
+    /// Gas limit (hex)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas: Option<String>,
+
+    /// Gas price (hex)
+    #[serde(rename = "gasPrice", skip_serializing_if = "Option::is_none")]
+    pub gas_price: Option<String>,
+
+    /// Value in wei (hex)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+
+    /// Transaction data / calldata (hex)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,
+
+    /// Max fee per gas (EIP-1559, hex)
+    #[serde(rename = "maxFeePerGas", skip_serializing_if = "Option::is_none")]
+    pub max_fee_per_gas: Option<String>,
+
+    /// Max priority fee per gas (EIP-1559, hex)
+    #[serde(
+        rename = "maxPriorityFeePerGas",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_priority_fee_per_gas: Option<String>,
+}
+
+impl SimulateTransactionParams {
+    /// Create new simulation parameters
+    pub fn new(from: impl Into<String>) -> Self {
+        Self {
+            from: from.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Set the recipient address
+    #[must_use]
+    pub fn to(mut self, to: impl Into<String>) -> Self {
+        self.to = Some(to.into());
+        self
+    }
+
+    /// Set the gas limit
+    #[must_use]
+    pub fn gas(mut self, gas: impl Into<String>) -> Self {
+        self.gas = Some(gas.into());
+        self
+    }
+
+    /// Set the gas price
+    #[must_use]
+    pub fn gas_price(mut self, price: impl Into<String>) -> Self {
+        self.gas_price = Some(price.into());
+        self
+    }
+
+    /// Set the value in wei
+    #[must_use]
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    /// Set the transaction data
+    #[must_use]
+    pub fn data(mut self, data: impl Into<String>) -> Self {
+        self.data = Some(data.into());
+        self
+    }
+
+    /// Set max fee per gas (EIP-1559)
+    #[must_use]
+    pub fn max_fee_per_gas(mut self, fee: impl Into<String>) -> Self {
+        self.max_fee_per_gas = Some(fee.into());
+        self
+    }
+
+    /// Set max priority fee per gas (EIP-1559)
+    #[must_use]
+    pub fn max_priority_fee_per_gas(mut self, fee: impl Into<String>) -> Self {
+        self.max_priority_fee_per_gas = Some(fee.into());
+        self
+    }
+}
+
+/// Per-account state override for simulation
+///
+/// Allows overriding balance, nonce, code, and storage for any account
+/// before the simulation executes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StateOverride {
+    /// Override the account nonce (hex)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<String>,
+
+    /// Override the contract code (hex bytecode)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+
+    /// Override the ETH balance (hex)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance: Option<String>,
+
+    /// Override specific storage slots (slot -> value, both hex)
+    #[serde(rename = "stateDiff", skip_serializing_if = "Option::is_none")]
+    pub state_diff: Option<std::collections::HashMap<String, String>>,
+}
+
+/// Block-level overrides for simulation
+///
+/// Allows overriding block parameters like number, timestamp, and gas limit.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BlockOverride {
+    /// Block number (hex)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub number: Option<String>,
+
+    /// Block difficulty (hex)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub difficulty: Option<String>,
+
+    /// Block timestamp (hex, unix epoch seconds)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time: Option<String>,
+
+    /// Block gas limit (hex)
+    #[serde(rename = "gasLimit", skip_serializing_if = "Option::is_none")]
+    pub gas_limit: Option<String>,
+
+    /// Coinbase / block producer address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coinbase: Option<String>,
+
+    /// PREVRANDAO / random value (hex)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub random: Option<String>,
+
+    /// Base fee per gas (hex, EIP-1559)
+    #[serde(rename = "baseFee", skip_serializing_if = "Option::is_none")]
+    pub base_fee: Option<String>,
 }
 
 /// Result from creating an access list

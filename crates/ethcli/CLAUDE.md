@@ -359,6 +359,12 @@ ethcli tenderly vnets admin --vnet <id> set-code --address <addr> --code <byteco
 ethcli tenderly vnets admin --vnet <id> send-tx --from <addr> --to <addr> --value 0x1 --project <slug> --account <slug>
 ethcli tenderly vnets admin --vnet <id> get-latest --project <slug> --account <slug>
 
+# VNet Admin RPC - Simulation (tenderly_simulateTransaction / tenderly_simulateBundle)
+ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --data 0x... --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --value 0x1 --block latest --state-overrides '{"0x...":{"balance":"0x..."}}' --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> simulate-bundle '[{"from":"0x...","to":"0x...","data":"0x..."}]' --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> simulate-bundle '[...]' --state-overrides '{"0x...":{"balance":"0x..."}}' --block-overrides '{"number":"0x..."}' --project <slug> --account <slug>
+
 # Virtual Wallets
 ethcli tenderly wallets list --project <slug> --account <slug>
 ethcli tenderly wallets add <address> --project <slug> --account <slug>

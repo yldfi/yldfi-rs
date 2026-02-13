@@ -1300,6 +1300,458 @@ pub async fn tenderly_channels() -> Result<String, ToolError> {
 }
 
 // =============================================================================
+// TENDERLY VNETS - Full CRUD + Simulate + Admin
+// =============================================================================
+
+pub async fn tenderly_vnets_create(
+    slug: &str,
+    name: &str,
+    network_id: u64,
+    block_number: Option<u64>,
+    chain_id: Option<u64>,
+    sync_state: bool,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("create")
+        .opt("--slug", Some(slug))
+        .opt("--name", Some(name))
+        .opt("--network-id", Some(&network_id.to_string()));
+    if let Some(bn) = block_number {
+        builder = builder.opt("--block-number", Some(&bn.to_string()));
+    }
+    if let Some(cid) = chain_id {
+        builder = builder.opt("--chain-id", Some(&cid.to_string()));
+    }
+    if sync_state {
+        builder = builder.arg("--sync-state");
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_get(id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("get")
+        .arg(id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_delete(ids: &[String], all: bool) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("delete");
+    if all {
+        builder = builder.arg("--all");
+    } else {
+        for id in ids {
+            builder = builder.arg(id);
+        }
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_update(
+    id: &str,
+    name: Option<&str>,
+    slug: Option<&str>,
+    sync_state: Option<bool>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("update")
+        .arg(id);
+    builder = builder.opt("--name", name);
+    builder = builder.opt("--slug", slug);
+    if let Some(ss) = sync_state {
+        builder = builder.opt("--sync-state", Some(&ss.to_string()));
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_fork(
+    source: &str,
+    slug: &str,
+    name: &str,
+    block_number: Option<u64>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("fork")
+        .opt("--source", Some(source))
+        .opt("--slug", Some(slug))
+        .opt("--name", Some(name));
+    if let Some(bn) = block_number {
+        builder = builder.opt("--block-number", Some(&bn.to_string()));
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_rpc(id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("rpc")
+        .arg(id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_transactions(
+    id: &str,
+    page: Option<u32>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("transactions")
+        .arg(id);
+    if let Some(p) = page {
+        builder = builder.opt("--page", Some(&p.to_string()));
+    }
+    if let Some(pp) = per_page {
+        builder = builder.opt("--per-page", Some(&pp.to_string()));
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_get_transaction(
+    vnet: &str,
+    hash: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("get-transaction")
+        .opt("--vnet", Some(vnet))
+        .arg(hash)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_send(
+    vnet: &str,
+    from: &str,
+    to: &str,
+    data: Option<&str>,
+    value: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("send")
+        .opt("--vnet", Some(vnet))
+        .opt("--from", Some(from))
+        .opt("--to", Some(to));
+    builder = builder.opt("--data", data);
+    if let Some(v) = value {
+        builder = builder.opt("--value", Some(v));
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_simulate(
+    vnet: &str,
+    from: &str,
+    to: &str,
+    data: Option<&str>,
+    value: Option<&str>,
+    gas: Option<u64>,
+    gas_price: Option<&str>,
+    max_fee_per_gas: Option<&str>,
+    max_priority_fee_per_gas: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("simulate")
+        .opt("--vnet", Some(vnet))
+        .opt("--from", Some(from))
+        .opt("--to", Some(to));
+    builder = builder.opt("--data", data);
+    if let Some(v) = value {
+        builder = builder.opt("--value", Some(v));
+    }
+    if let Some(g) = gas {
+        builder = builder.opt("--gas", Some(&g.to_string()));
+    }
+    builder = builder.opt("--gas-price", gas_price);
+    builder = builder.opt("--max-fee-per-gas", max_fee_per_gas);
+    builder = builder.opt("--max-priority-fee-per-gas", max_priority_fee_per_gas);
+    builder.execute().await.map_err(ToolError::from)
+}
+
+// --- VNet Admin operations ---
+
+pub async fn tenderly_vnets_admin_set_balance(
+    vnet: &str,
+    address: &str,
+    amount: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("set-balance")
+        .arg(address)
+        .arg(amount)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_add_balance(
+    vnet: &str,
+    address: &str,
+    amount: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("add-balance")
+        .arg(address)
+        .arg(amount)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_set_erc20_balance(
+    vnet: &str,
+    token: &str,
+    wallet: &str,
+    amount: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("set-erc20-balance")
+        .opt("--token", Some(token))
+        .opt("--wallet", Some(wallet))
+        .arg(amount)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_set_max_erc20_balance(
+    vnet: &str,
+    token: &str,
+    wallet: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("set-max-erc20-balance")
+        .opt("--token", Some(token))
+        .opt("--wallet", Some(wallet))
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_increase_time(
+    vnet: &str,
+    seconds: u64,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("increase-time")
+        .arg(&seconds.to_string())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_set_timestamp(
+    vnet: &str,
+    timestamp: u64,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("set-timestamp")
+        .arg(&timestamp.to_string())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_set_timestamp_no_mine(
+    vnet: &str,
+    timestamp: u64,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("set-timestamp-no-mine")
+        .arg(&timestamp.to_string())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_increase_blocks(
+    vnet: &str,
+    blocks: u64,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("increase-blocks")
+        .arg(&blocks.to_string())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_snapshot(vnet: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("snapshot")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_revert(
+    vnet: &str,
+    snapshot_id: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("revert")
+        .arg(snapshot_id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_set_storage(
+    vnet: &str,
+    address: &str,
+    slot: &str,
+    value: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("set-storage")
+        .opt("--address", Some(address))
+        .opt("--slot", Some(slot))
+        .opt("--value", Some(value))
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_set_code(
+    vnet: &str,
+    address: &str,
+    code: &str,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("set-code")
+        .opt("--address", Some(address))
+        .opt("--code", Some(code))
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_send_tx(
+    vnet: &str,
+    from: &str,
+    to: Option<&str>,
+    data: Option<&str>,
+    value: Option<&str>,
+    gas: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("send-tx")
+        .opt("--from", Some(from));
+    builder = builder.opt("--to", to);
+    builder = builder.opt("--data", data);
+    builder = builder.opt("--value", value);
+    builder = builder.opt("--gas", gas);
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_get_latest(vnet: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("get-latest")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_simulate_tx(
+    vnet: &str,
+    from: &str,
+    to: Option<&str>,
+    data: Option<&str>,
+    value: Option<&str>,
+    gas: Option<&str>,
+    block: &str,
+    state_overrides: Option<&str>,
+    block_overrides: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("simulate-tx")
+        .opt("--from", Some(from));
+    builder = builder.opt("--to", to);
+    builder = builder.opt("--data", data);
+    builder = builder.opt("--value", value);
+    builder = builder.opt("--gas", gas);
+    builder = builder.opt("--block", Some(block));
+    builder = builder.opt("--state-overrides", state_overrides);
+    builder = builder.opt("--block-overrides", block_overrides);
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn tenderly_vnets_admin_simulate_bundle(
+    vnet: &str,
+    txs: &str,
+    state_overrides: Option<&str>,
+    block_overrides: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("tenderly")
+        .subcommand("vnets")
+        .subcommand("admin")
+        .opt("--vnet", Some(vnet))
+        .subcommand("simulate-bundle")
+        .arg(txs);
+    builder = builder.opt("--state-overrides", state_overrides);
+    builder = builder.opt("--block-overrides", block_overrides);
+    builder.execute().await.map_err(ToolError::from)
+}
+
+// =============================================================================
 // PRICE, PORTFOLIO, NFTS, YIELDS, DOCTOR (standalone commands)
 // =============================================================================
 

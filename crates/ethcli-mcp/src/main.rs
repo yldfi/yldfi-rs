@@ -1236,6 +1236,341 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
+    // TENDERLY VNETS - Full CRUD + Simulate + Admin
+    // =========================================================================
+
+    #[tool(description = "Create a new Tenderly Virtual TestNet forked from a network")]
+    async fn tenderly_vnets_create(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsCreateInput>,
+    ) -> String {
+        tools::tenderly_vnets_create(
+            &input.slug,
+            &input.name,
+            input.network_id,
+            input.block_number,
+            input.chain_id,
+            input.sync_state,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get details of a Tenderly Virtual TestNet by ID")]
+    async fn tenderly_vnets_get(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsIdInput>,
+    ) -> String {
+        tools::tenderly_vnets_get(&input.id).await.to_response()
+    }
+
+    #[tool(description = "Delete one or more Tenderly Virtual TestNets")]
+    async fn tenderly_vnets_delete(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsDeleteInput>,
+    ) -> String {
+        tools::tenderly_vnets_delete(&input.ids, input.all)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Update a Tenderly Virtual TestNet (name, slug, sync state)")]
+    async fn tenderly_vnets_update(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsUpdateInput>,
+    ) -> String {
+        tools::tenderly_vnets_update(
+            &input.id,
+            input.name.as_deref(),
+            input.slug.as_deref(),
+            input.sync_state,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Fork an existing Tenderly Virtual TestNet")]
+    async fn tenderly_vnets_fork(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsForkInput>,
+    ) -> String {
+        tools::tenderly_vnets_fork(
+            &input.source,
+            &input.slug,
+            &input.name,
+            input.block_number,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get RPC URLs (public and admin) for a Virtual TestNet")]
+    async fn tenderly_vnets_rpc(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsIdInput>,
+    ) -> String {
+        tools::tenderly_vnets_rpc(&input.id).await.to_response()
+    }
+
+    #[tool(description = "List transactions on a Virtual TestNet")]
+    async fn tenderly_vnets_transactions(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsTransactionsInput>,
+    ) -> String {
+        tools::tenderly_vnets_transactions(&input.id, input.page, input.per_page)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get a specific transaction from a Virtual TestNet")]
+    async fn tenderly_vnets_get_transaction(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsGetTransactionInput>,
+    ) -> String {
+        tools::tenderly_vnets_get_transaction(&input.vnet, &input.hash)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Send a transaction to a Virtual TestNet (persists state)")]
+    async fn tenderly_vnets_send(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsSendInput>,
+    ) -> String {
+        tools::tenderly_vnets_send(
+            &input.vnet,
+            &input.from,
+            &input.to,
+            input.data.as_deref(),
+            input.value.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Simulate a transaction against a VNet's state without persisting")]
+    async fn tenderly_vnets_simulate(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsSimulateInput>,
+    ) -> String {
+        tools::tenderly_vnets_simulate(
+            &input.vnet,
+            &input.from,
+            &input.to,
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas,
+            input.gas_price.as_deref(),
+            input.max_fee_per_gas.as_deref(),
+            input.max_priority_fee_per_gas.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    // --- VNet Admin tools ---
+
+    #[tool(description = "Set ETH balance for an address on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_balance(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBalanceInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_balance(&input.vnet, &input.address, &input.amount)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Add ETH to an address balance on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_add_balance(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBalanceInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_add_balance(&input.vnet, &input.address, &input.amount)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Set ERC20 token balance for a wallet on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_erc20_balance(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_erc20_balance(
+            &input.vnet,
+            &input.token,
+            &input.wallet,
+            input.amount.as_deref().unwrap_or("0"),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Set maximum possible ERC20 token balance on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_max_erc20_balance(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_max_erc20_balance(
+            &input.vnet,
+            &input.token,
+            &input.wallet,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Advance blockchain time by seconds on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_increase_time(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_increase_time(&input.vnet, input.value)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Set timestamp for the next block on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_timestamp(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_timestamp(&input.vnet, input.value)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Set next block timestamp without mining on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_timestamp_no_mine(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_timestamp_no_mine(&input.vnet, input.value)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Skip a number of blocks on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_increase_blocks(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBlocksInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_increase_blocks(&input.vnet, input.blocks)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Create a state snapshot on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_snapshot(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminVnetInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_snapshot(&input.vnet)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Revert to a previous snapshot on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_revert(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminRevertInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_revert(&input.vnet, &input.snapshot_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Set storage at a specific slot on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_storage(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminStorageInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_storage(
+            &input.vnet,
+            &input.address,
+            &input.slot,
+            &input.value,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Set bytecode at an address on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_code(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminCodeInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_code(&input.vnet, &input.address, &input.code)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Send an unsigned transaction via Admin RPC on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_send_tx(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminSendTxInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_send_tx(
+            &input.vnet,
+            &input.from,
+            input.to.as_deref(),
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get the latest block/transaction info on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_get_latest(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminVnetInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_get_latest(&input.vnet)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Simulate a transaction via tenderly_simulateTransaction RPC. Supports state overrides (balance, nonce, code, storage) and block overrides. Returns rich decoded results including logs, traces, asset changes, and state changes."
+    )]
+    async fn tenderly_vnets_admin_simulate_tx(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminSimulateTxInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_simulate_tx(
+            &input.vnet,
+            &input.from,
+            input.to.as_deref(),
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+            &input.block,
+            input.state_overrides.as_deref(),
+            input.block_overrides.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Simulate a bundle of transactions via tenderly_simulateBundle RPC. Executes multiple transactions sequentially, each seeing state changes from previous ones. Supports state and block overrides."
+    )]
+    async fn tenderly_vnets_admin_simulate_bundle(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminSimulateBundleInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_simulate_bundle(
+            &input.vnet,
+            &input.txs,
+            input.state_overrides.as_deref(),
+            input.block_overrides.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    // =========================================================================
     // ALCHEMY (additional)
     // =========================================================================
 

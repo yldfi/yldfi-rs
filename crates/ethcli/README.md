@@ -386,6 +386,14 @@ ethcli tenderly vnets rpc <vnet-id> --project <slug> --account <slug>
 ethcli tenderly vnets admin --vnet <id> set-balance 0x... 10eth \
   --project <slug> --account <slug>
 
+# Simulate transaction via RPC (tenderly_simulateTransaction)
+ethcli tenderly vnets admin --vnet <id> simulate-tx --from 0x... --to 0x... --data 0x... \
+  --project <slug> --account <slug>
+
+# Simulate bundle via RPC (tenderly_simulateBundle)
+ethcli tenderly vnets admin --vnet <id> simulate-bundle '[{"from":"0x...","to":"0x...","data":"0x..."}]' \
+  --project <slug> --account <slug>
+
 # List contracts
 ethcli tenderly contracts list --project <slug> --account <slug>
 
