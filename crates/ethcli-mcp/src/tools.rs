@@ -1448,6 +1448,7 @@ pub async fn tenderly_vnets_send(
     builder.execute().await.map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn tenderly_vnets_simulate(
     vnet: &str,
     from: &str,
@@ -1704,6 +1705,7 @@ pub async fn tenderly_vnets_admin_get_latest(vnet: &str) -> Result<String, ToolE
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn tenderly_vnets_admin_simulate_tx(
     vnet: &str,
     from: &str,
@@ -2740,6 +2742,7 @@ pub async fn alchemy_trace_block(block: &str, chain: Option<&str>) -> Result<Str
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn alchemy_trace_call(
     to: &str,
     block: Option<&str>,
@@ -2896,6 +2899,7 @@ pub async fn alchemy_sim_asset_changes(
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn alchemy_sim_execution(
     to: &str,
     from: Option<&str>,
@@ -5206,6 +5210,7 @@ pub async fn moralis_discovery_token_score(address: &str) -> Result<String, Tool
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn moralis_discovery_filter(
     min_market_cap: Option<f64>,
     max_market_cap: Option<f64>,
@@ -7094,6 +7099,7 @@ pub async fn cowswap_native_price(token: &str, chain: Option<&str>) -> Result<St
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn cowswap_create_order(
     sell_token: &str,
     buy_token: &str,

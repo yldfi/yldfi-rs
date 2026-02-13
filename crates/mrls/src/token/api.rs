@@ -122,7 +122,7 @@ impl<'a> TokenApi<'a> {
 
     /// Get token metadata
     pub async fn get_metadata(&self, address: &str, chain: Option<&str>) -> Result<TokenMetadata> {
-        let path = format!("/erc20/metadata");
+        let path = "/erc20/metadata".to_string();
 
         // Moralis expects `addresses` as repeated query params or comma-separated
         // Using a struct with a single string field to avoid array serialization issues
