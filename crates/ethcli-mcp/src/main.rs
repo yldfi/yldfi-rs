@@ -1778,6 +1778,91 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(description = "Get NFT metadata by contract and token ID via Alchemy")]
+    async fn alchemy_nft_metadata(
+        &self,
+        Parameters(input): Parameters<AlchemyNftMetadataInput>,
+    ) -> String {
+        tools::alchemy_nft_metadata(&input.contract, &input.token_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get floor price for an NFT collection via Alchemy")]
+    async fn alchemy_nft_floor_price(
+        &self,
+        Parameters(input): Parameters<AlchemyNftContractInput>,
+    ) -> String {
+        tools::alchemy_nft_floor_price(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get owners of a specific NFT via Alchemy")]
+    async fn alchemy_nft_owners(
+        &self,
+        Parameters(input): Parameters<AlchemyNftMetadataInput>,
+    ) -> String {
+        tools::alchemy_nft_owners(&input.contract, &input.token_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Check if an address holds an NFT from a contract via Alchemy")]
+    async fn alchemy_nft_is_holder(
+        &self,
+        Parameters(input): Parameters<AlchemyNftIsHolderInput>,
+    ) -> String {
+        tools::alchemy_nft_is_holder(&input.address, &input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token metadata by contract address via Alchemy")]
+    async fn alchemy_token_metadata(
+        &self,
+        Parameters(input): Parameters<AlchemyTokenMetadataInput>,
+    ) -> String {
+        tools::alchemy_token_metadata(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token allowance for owner/spender pair via Alchemy")]
+    async fn alchemy_token_allowances(
+        &self,
+        Parameters(input): Parameters<AlchemyTokenAllowancesInput>,
+    ) -> String {
+        tools::alchemy_token_allowances(&input.owner, &input.spender, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token transfers TO an address via Alchemy")]
+    async fn alchemy_transfers_to(
+        &self,
+        Parameters(input): Parameters<AlchemyTransfersToInput>,
+    ) -> String {
+        tools::alchemy_transfers_to(
+            &input.address,
+            input.from_block.as_deref(),
+            input.to_block.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get token prices by contract address via Alchemy")]
+    async fn alchemy_prices_by_address(
+        &self,
+        Parameters(input): Parameters<AlchemyPricesByAddressInput>,
+    ) -> String {
+        tools::alchemy_prices_by_address(&input.addresses, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
     // =========================================================================
     // COINGECKO (additional)
     // =========================================================================
@@ -1795,6 +1880,276 @@ impl EthcliMcpServer {
     #[tool(description = "Get on-chain token info from CoinGecko")]
     async fn gecko_onchain(&self, Parameters(input): Parameters<GeckoOnchainInput>) -> String {
         tools::gecko_onchain(&input.network, &input.address)
+            .await
+            .to_response()
+    }
+
+    // --- Gecko Simple (additional) ---
+
+    #[tool(description = "Get token price by contract address from CoinGecko")]
+    async fn gecko_simple_token_price(
+        &self,
+        Parameters(input): Parameters<GeckoTokenPriceInput>,
+    ) -> String {
+        tools::gecko_simple_token_price(&input.platform, &input.addresses, input.vs.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "List supported vs currencies from CoinGecko")]
+    async fn gecko_simple_currencies(&self) -> String {
+        tools::gecko_simple_currencies().await.to_response()
+    }
+
+    // --- Gecko Coins (additional) ---
+
+    #[tool(description = "List all coins from CoinGecko")]
+    async fn gecko_coins_list(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsListInput>,
+    ) -> String {
+        tools::gecko_coins_list(input.with_platforms)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get coin market data from CoinGecko")]
+    async fn gecko_coins_markets(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsMarketsInput>,
+    ) -> String {
+        tools::gecko_coins_markets(input.vs_currency.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get coin exchange tickers from CoinGecko")]
+    async fn gecko_coins_tickers(
+        &self,
+        Parameters(input): Parameters<GeckoCoinInput>,
+    ) -> String {
+        tools::gecko_coins_tickers(&input.id).await.to_response()
+    }
+
+    #[tool(description = "Get coin market chart data from CoinGecko")]
+    async fn gecko_coins_chart(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsChartInput>,
+    ) -> String {
+        tools::gecko_coins_chart(&input.id, input.vs.as_deref(), input.days.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get coin OHLC candlestick data from CoinGecko")]
+    async fn gecko_coins_ohlc(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsOhlcInput>,
+    ) -> String {
+        tools::gecko_coins_ohlc(&input.id, input.vs.as_deref(), input.days.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get coin historical data for a specific date from CoinGecko")]
+    async fn gecko_coins_history(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsHistoryInput>,
+    ) -> String {
+        tools::gecko_coins_history(&input.id, &input.date)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get top gainers and losers from CoinGecko")]
+    async fn gecko_coins_top_movers(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsTopMoversInput>,
+    ) -> String {
+        tools::gecko_coins_top_movers(input.vs.as_deref(), input.duration.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get recently added coins from CoinGecko")]
+    async fn gecko_coins_new(&self) -> String {
+        tools::gecko_coins_new().await.to_response()
+    }
+
+    #[tool(description = "Get coin data by contract address from CoinGecko")]
+    async fn gecko_coins_by_contract(
+        &self,
+        Parameters(input): Parameters<GeckoContractInput>,
+    ) -> String {
+        tools::gecko_coins_by_contract(&input.platform, &input.address)
+            .await
+            .to_response()
+    }
+
+    // --- Gecko Global (additional) ---
+
+    #[tool(description = "Ping CoinGecko API status")]
+    async fn gecko_global_ping(&self) -> String {
+        tools::gecko_global_ping().await.to_response()
+    }
+
+    #[tool(description = "Get global DeFi market data from CoinGecko")]
+    async fn gecko_global_defi(&self) -> String {
+        tools::gecko_global_defi().await.to_response()
+    }
+
+    #[tool(description = "Get trending coins, NFTs, and categories from CoinGecko")]
+    async fn gecko_global_trending(&self) -> String {
+        tools::gecko_global_trending().await.to_response()
+    }
+
+    #[tool(description = "Search coins, exchanges, categories, and NFTs on CoinGecko")]
+    async fn gecko_global_search(
+        &self,
+        Parameters(input): Parameters<GeckoSearchInput>,
+    ) -> String {
+        tools::gecko_global_search(&input.query)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get BTC exchange rates from CoinGecko")]
+    async fn gecko_global_exchange_rates(&self) -> String {
+        tools::gecko_global_exchange_rates().await.to_response()
+    }
+
+    #[tool(description = "List asset platforms (blockchains) from CoinGecko")]
+    async fn gecko_global_platforms(&self) -> String {
+        tools::gecko_global_platforms().await.to_response()
+    }
+
+    // --- Gecko NFTs (additional) ---
+
+    #[tool(description = "List NFT collections from CoinGecko")]
+    async fn gecko_nfts_list(&self) -> String {
+        tools::gecko_nfts_list().await.to_response()
+    }
+
+    #[tool(description = "Get NFT collection by contract address from CoinGecko")]
+    async fn gecko_nfts_by_contract(
+        &self,
+        Parameters(input): Parameters<GeckoContractInput>,
+    ) -> String {
+        tools::gecko_nfts_by_contract(&input.platform, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT markets data from CoinGecko")]
+    async fn gecko_nfts_markets(&self) -> String {
+        tools::gecko_nfts_markets().await.to_response()
+    }
+
+    #[tool(description = "Get NFT collection tickers from CoinGecko")]
+    async fn gecko_nfts_tickers(
+        &self,
+        Parameters(input): Parameters<GeckoNftInput>,
+    ) -> String {
+        tools::gecko_nfts_tickers(&input.id).await.to_response()
+    }
+
+    // --- Gecko Onchain (additional) ---
+
+    #[tool(description = "List supported onchain networks from CoinGecko")]
+    async fn gecko_onchain_networks(&self) -> String {
+        tools::gecko_onchain_networks().await.to_response()
+    }
+
+    #[tool(description = "List DEXes on a network from CoinGecko")]
+    async fn gecko_onchain_dexes(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainNetworkInput>,
+    ) -> String {
+        tools::gecko_onchain_dexes(&input.network)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get trending pools from CoinGecko onchain data")]
+    async fn gecko_onchain_trending_pools(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
+    ) -> String {
+        tools::gecko_onchain_trending_pools(input.network.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get top pools from CoinGecko onchain data")]
+    async fn gecko_onchain_top_pools(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
+    ) -> String {
+        tools::gecko_onchain_top_pools(input.network.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get new pools from CoinGecko onchain data")]
+    async fn gecko_onchain_new_pools(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
+    ) -> String {
+        tools::gecko_onchain_new_pools(input.network.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get onchain token data from CoinGecko")]
+    async fn gecko_onchain_token(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainInput>,
+    ) -> String {
+        tools::gecko_onchain_token_info(&input.network, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get onchain token prices from CoinGecko")]
+    async fn gecko_onchain_token_price(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainTokenPriceInput>,
+    ) -> String {
+        tools::gecko_onchain_token_price(&input.network, &input.addresses)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get pools for a token from CoinGecko onchain data")]
+    async fn gecko_onchain_token_pools(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainInput>,
+    ) -> String {
+        tools::gecko_onchain_token_pools(&input.network, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get pool OHLCV candlestick data from CoinGecko onchain")]
+    async fn gecko_onchain_pool_ohlcv(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainPoolOhlcvInput>,
+    ) -> String {
+        tools::gecko_onchain_pool_ohlcv(
+            &input.network,
+            &input.address,
+            input.timeframe.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Search pools on CoinGecko onchain")]
+    async fn gecko_onchain_search_pools(
+        &self,
+        Parameters(input): Parameters<GeckoSearchInput>,
+    ) -> String {
+        tools::gecko_onchain_search_pools(&input.query)
             .await
             .to_response()
     }
@@ -1996,6 +2351,208 @@ impl EthcliMcpServer {
     #[tool(description = "Get top price movers (gainers/losers) via Moralis")]
     async fn moralis_market_top_movers(&self) -> String {
         tools::moralis_market_top_movers().await.to_response()
+    }
+
+    #[tool(description = "Get top NFT collections by market cap via Moralis")]
+    async fn moralis_market_top_nfts(&self) -> String {
+        tools::moralis_market_top_nfts().await.to_response()
+    }
+
+    // =========================================================================
+    // MORALIS WALLET (additional)
+    // =========================================================================
+
+    #[tool(description = "Get wallet transactions via Moralis")]
+    async fn moralis_wallet_transactions(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_transactions(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get chains where a wallet has been active via Moralis")]
+    async fn moralis_wallet_active_chains(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_active_chains(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token approvals for a wallet via Moralis")]
+    async fn moralis_wallet_approvals(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_approvals(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get wallet stats (transaction counts, volumes) via Moralis")]
+    async fn moralis_wallet_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get wallet profitability summary via Moralis")]
+    async fn moralis_wallet_profitability(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_profitability(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS TOKEN (additional)
+    // =========================================================================
+
+    #[tool(description = "Get token swaps/trades via Moralis")]
+    async fn moralis_token_swaps(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_swaps(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token stats (holders, transactions, liquidity) via Moralis")]
+    async fn moralis_token_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Search for tokens by name or symbol via Moralis")]
+    async fn moralis_token_search(
+        &self,
+        Parameters(input): Parameters<MoralisSearchInput>,
+    ) -> String {
+        tools::moralis_token_search(&input.query)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get trending tokens via Moralis")]
+    async fn moralis_token_trending(&self) -> String {
+        tools::moralis_token_trending().await.to_response()
+    }
+
+    #[tool(description = "Get OHLCV candlestick data for a token pair via Moralis")]
+    async fn moralis_token_pair_ohlcv(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_pair_ohlcv(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get pair stats (volume, liquidity, price change) via Moralis")]
+    async fn moralis_token_pair_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_pair_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS NFT
+    // =========================================================================
+
+    #[tool(description = "Get NFTs owned by a wallet via Moralis")]
+    async fn moralis_nft_list(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_list(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT metadata (name, image, attributes) via Moralis")]
+    async fn moralis_nft_metadata(
+        &self,
+        Parameters(input): Parameters<MoralisNftMetadataInput>,
+    ) -> String {
+        tools::moralis_nft_metadata(&input.contract, &input.token_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT transfers for a wallet or contract via Moralis")]
+    async fn moralis_nft_transfers(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_transfers(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT collection metadata via Moralis")]
+    async fn moralis_nft_collection(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_collection(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT collection stats (volume, sales, floor price) via Moralis")]
+    async fn moralis_nft_collection_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_collection_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get owners of an NFT collection via Moralis")]
+    async fn moralis_nft_owners(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_owners(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT trades/sales history via Moralis")]
+    async fn moralis_nft_trades(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_trades(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT collection floor price via Moralis")]
+    async fn moralis_nft_floor_price(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_floor_price(&input.address)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -2381,6 +2938,228 @@ impl EthcliMcpServer {
     #[tool(description = "Get Curve DAO data")]
     async fn curve_dao(&self) -> String {
         tools::curve_dao().await.to_response()
+    }
+
+    // --- Router additional ---
+
+    #[tool(description = "Get calldata for a Curve swap (encode route into transaction data)")]
+    async fn curve_router_encode(
+        &self,
+        Parameters(input): Parameters<CurveRouterEncodeInput>,
+    ) -> String {
+        tools::curve_router_encode(
+            &input.from,
+            &input.to,
+            &input.amount,
+            &input.min_out,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get Curve router graph statistics (token count, edge count)")]
+    async fn curve_router_stats(
+        &self,
+        Parameters(input): Parameters<CurvePoolsInput>,
+    ) -> String {
+        tools::curve_router_stats(Some(&input.chain)).await.to_response()
+    }
+
+    #[tool(description = "Get Curve router contract address for a chain")]
+    async fn curve_router_address(
+        &self,
+        Parameters(input): Parameters<CurvePoolsInput>,
+    ) -> String {
+        tools::curve_router_address(Some(&input.chain)).await.to_response()
+    }
+
+    // --- Pools additional ---
+
+    #[tool(description = "Get Curve pools from a specific registry on a chain")]
+    async fn curve_pools_registry(
+        &self,
+        Parameters(input): Parameters<CurveChainRegistryInput>,
+    ) -> String {
+        tools::curve_pools_registry(&input.chain, &input.registry)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get all Curve pools across all chains")]
+    async fn curve_pools_all(&self) -> String {
+        tools::curve_pools_all().await.to_response()
+    }
+
+    #[tool(description = "Get Curve pools with TVL >= $10k (optionally filtered by chain)")]
+    async fn curve_pools_big(
+        &self,
+        Parameters(input): Parameters<CurveOptionalChainInput>,
+    ) -> String {
+        tools::curve_pools_big(input.chain.as_deref()).await.to_response()
+    }
+
+    #[tool(description = "Get Curve pools with TVL < $10k (optionally filtered by chain)")]
+    async fn curve_pools_small(
+        &self,
+        Parameters(input): Parameters<CurveOptionalChainInput>,
+    ) -> String {
+        tools::curve_pools_small(input.chain.as_deref()).await.to_response()
+    }
+
+    #[tool(description = "Get Curve pools with $0 TVL (optionally filtered by chain)")]
+    async fn curve_pools_empty(
+        &self,
+        Parameters(input): Parameters<CurveOptionalChainInput>,
+    ) -> String {
+        tools::curve_pools_empty(input.chain.as_deref()).await.to_response()
+    }
+
+    #[tool(description = "Get Curve pool addresses on a chain")]
+    async fn curve_pools_addresses(
+        &self,
+        Parameters(input): Parameters<CurvePoolsInput>,
+    ) -> String {
+        tools::curve_pools_addresses(Some(&input.chain)).await.to_response()
+    }
+
+    #[tool(description = "Get hidden/dysfunctional Curve pools")]
+    async fn curve_pools_hidden(&self) -> String {
+        tools::curve_pools_hidden().await.to_response()
+    }
+
+    // --- Volumes additional ---
+
+    #[tool(description = "Get all Curve gauge data")]
+    async fn curve_volumes_gauges(&self) -> String {
+        tools::curve_volumes_gauges().await.to_response()
+    }
+
+    #[tool(description = "Get total 24h Curve volume for a chain")]
+    async fn curve_volumes_total(
+        &self,
+        Parameters(input): Parameters<CurvePoolsInput>,
+    ) -> String {
+        tools::curve_volumes_total(Some(&input.chain)).await.to_response()
+    }
+
+    #[tool(description = "Get Curve base APYs for pools on a chain")]
+    async fn curve_volumes_apys(
+        &self,
+        Parameters(input): Parameters<CurvePoolsInput>,
+    ) -> String {
+        tools::curve_volumes_apys(Some(&input.chain)).await.to_response()
+    }
+
+    #[tool(description = "Get crvUSD AMM volumes")]
+    async fn curve_volumes_crvusd(&self) -> String {
+        tools::curve_volumes_crvusd().await.to_response()
+    }
+
+    // --- Lending additional ---
+
+    #[tool(description = "Get all Curve lending vaults across all chains")]
+    async fn curve_lending_all(&self) -> String {
+        tools::curve_lending_all().await.to_response()
+    }
+
+    #[tool(description = "Get Curve lending vaults from a specific registry on a chain")]
+    async fn curve_lending_registry(
+        &self,
+        Parameters(input): Parameters<CurveChainRegistryInput>,
+    ) -> String {
+        tools::curve_lending_registry(&input.chain, &input.registry)
+            .await
+            .to_response()
+    }
+
+    // --- CrvUSD additional ---
+
+    #[tool(description = "Get crvUSD circulating supply")]
+    async fn curve_crvusd_circulating_supply(&self) -> String {
+        tools::curve_crvusd_circulating_supply().await.to_response()
+    }
+
+    #[tool(description = "Get scrvUSD total supply")]
+    async fn curve_crvusd_scrvusd_supply(&self) -> String {
+        tools::curve_crvusd_scrvusd_supply().await.to_response()
+    }
+
+    #[tool(description = "Get crvUSD markets (optionally filtered by chain)")]
+    async fn curve_crvusd_markets(
+        &self,
+        Parameters(input): Parameters<CurveOptionalChainInput>,
+    ) -> String {
+        tools::curve_crvusd_markets(input.chain.as_deref()).await.to_response()
+    }
+
+    #[tool(description = "Get crvUSD savings stats")]
+    async fn curve_crvusd_savings(&self) -> String {
+        tools::curve_crvusd_savings().await.to_response()
+    }
+
+    // --- Prices additional ---
+
+    #[tool(description = "Get Curve supported chains for prices")]
+    async fn curve_prices_chains(&self) -> String {
+        tools::curve_prices_chains().await.to_response()
+    }
+
+    #[tool(description = "Get Curve chain stats")]
+    async fn curve_prices_chain_stats(&self) -> String {
+        tools::curve_prices_chain_stats().await.to_response()
+    }
+
+    #[tool(description = "Get USD price for a specific token on Curve")]
+    async fn curve_prices_token(
+        &self,
+        Parameters(input): Parameters<CurveChainAddressInput>,
+    ) -> String {
+        tools::curve_prices_token(&input.chain, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get price history for a token on Curve")]
+    async fn curve_prices_history(
+        &self,
+        Parameters(input): Parameters<CurveChainAddressInput>,
+    ) -> String {
+        tools::curve_prices_history(&input.chain, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get top tokens by volume on Curve")]
+    async fn curve_prices_top_volume(&self) -> String {
+        tools::curve_prices_top_volume().await.to_response()
+    }
+
+    // --- OHLC additional ---
+
+    #[tool(description = "Get LP token OHLC data on Curve")]
+    async fn curve_ohlc_lp_token(
+        &self,
+        Parameters(input): Parameters<CurveChainAddressInput>,
+    ) -> String {
+        tools::curve_ohlc_lp_token(&input.chain, &input.address)
+            .await
+            .to_response()
+    }
+
+    // --- DAO additional ---
+
+    #[tool(description = "Get Curve DAO proposals")]
+    async fn curve_dao_proposals(&self) -> String {
+        tools::curve_dao_proposals().await.to_response()
+    }
+
+    #[tool(description = "Get top CRV lockers")]
+    async fn curve_dao_lockers(
+        &self,
+        Parameters(input): Parameters<CurveDaoLockersInput>,
+    ) -> String {
+        tools::curve_dao_lockers(input.top).await.to_response()
     }
 
     // =========================================================================

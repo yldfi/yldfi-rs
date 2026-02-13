@@ -1468,6 +1468,81 @@ pub struct AlchemyDebugInput {
     pub chain: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftMetadataInput {
+    /// NFT contract address
+    pub contract: String,
+    /// Token ID
+    pub token_id: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftContractInput {
+    /// NFT contract address
+    pub contract: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyNftIsHolderInput {
+    /// Wallet address to check
+    pub address: String,
+    /// NFT contract address
+    pub contract: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTokenMetadataInput {
+    /// Token contract address
+    pub contract: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTokenAllowancesInput {
+    /// Token owner address
+    pub owner: String,
+    /// Spender address
+    pub spender: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyTransfersToInput {
+    /// Destination address
+    pub address: String,
+    /// Starting block number or tag
+    #[serde(default)]
+    pub from_block: Option<String>,
+    /// Ending block number or tag
+    #[serde(default)]
+    pub to_block: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyPricesByAddressInput {
+    /// Comma-separated token contract addresses
+    pub addresses: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 // --- Gecko Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GeckoNftInput {
@@ -1481,6 +1556,119 @@ pub struct GeckoOnchainInput {
     pub network: String,
     /// Token address
     pub address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoTokenPriceInput {
+    /// Platform ID (e.g., "ethereum", "polygon-pos")
+    pub platform: String,
+    /// Comma-separated contract addresses
+    pub addresses: String,
+    /// Target currencies (comma-separated, default: usd)
+    #[serde(default)]
+    pub vs: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoCoinsListInput {
+    /// Include platform contract addresses
+    #[serde(default)]
+    pub with_platforms: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoCoinsMarketsInput {
+    /// Target currency (e.g., "usd")
+    #[serde(default)]
+    pub vs_currency: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoCoinsChartInput {
+    /// CoinGecko coin ID (e.g., "bitcoin")
+    pub id: String,
+    /// Target currency (default: usd)
+    #[serde(default)]
+    pub vs: Option<String>,
+    /// Days of data (1, 7, 14, 30, 90, 180, 365, max)
+    #[serde(default)]
+    pub days: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoCoinsOhlcInput {
+    /// CoinGecko coin ID (e.g., "bitcoin")
+    pub id: String,
+    /// Target currency (default: usd)
+    #[serde(default)]
+    pub vs: Option<String>,
+    /// Days of data (1, 7, 14, 30, 90, 180, 365)
+    #[serde(default)]
+    pub days: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoCoinsHistoryInput {
+    /// CoinGecko coin ID (e.g., "bitcoin")
+    pub id: String,
+    /// Date in dd-mm-yyyy format
+    pub date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoCoinsTopMoversInput {
+    /// Target currency (default: usd)
+    #[serde(default)]
+    pub vs: Option<String>,
+    /// Duration: 1h, 24h, 7d, 14d, 30d, 60d, 1y
+    #[serde(default)]
+    pub duration: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoContractInput {
+    /// Platform ID (e.g., "ethereum")
+    pub platform: String,
+    /// Contract address
+    pub address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoSearchInput {
+    /// Search query
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoOnchainNetworkInput {
+    /// Network ID (e.g., "eth", "polygon_pos")
+    pub network: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoOnchainOptionalNetworkInput {
+    /// Network ID (optional, all networks if omitted)
+    #[serde(default)]
+    pub network: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoOnchainTokenPriceInput {
+    /// Network ID (e.g., "eth")
+    pub network: String,
+    /// Comma-separated token addresses
+    pub addresses: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoOnchainPoolOhlcvInput {
+    /// Network ID (e.g., "eth")
+    pub network: String,
+    /// Pool address
+    pub address: String,
+    /// Timeframe: minute, hour, day (default: hour)
+    #[serde(default)]
+    pub timeframe: Option<String>,
 }
 
 // --- GoPlus Extra ---
@@ -1525,6 +1713,20 @@ pub struct MoralisAddressInput {
 pub struct MoralisDomainInput {
     /// Domain to resolve (e.g., ENS, Unstoppable)
     pub domain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisSearchInput {
+    /// Search query string
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisNftMetadataInput {
+    /// NFT contract address
+    pub contract: String,
+    /// Token ID
+    pub token_id: String,
 }
 
 // --- Dsim ---
@@ -1743,6 +1945,51 @@ pub struct CurvePoolInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveRouterEncodeInput {
+    /// Input token address
+    pub from: String,
+    /// Output token address
+    pub to: String,
+    /// Input amount (raw, no decimals)
+    pub amount: String,
+    /// Minimum output amount (raw, no decimals)
+    pub min_out: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveChainRegistryInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Registry ID (e.g., "main", "factory", "factory-crypto")
+    pub registry: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveOptionalChainInput {
+    /// Chain name (optional, all chains if omitted)
+    pub chain: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveChainAddressInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Token or contract address
+    pub address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveDaoLockersInput {
+    /// Number of top lockers to return
+    pub top: Option<u32>,
 }
 
 // --- CCXT Extra ---
