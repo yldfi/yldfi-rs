@@ -92,11 +92,7 @@ pub struct TopToken {
     #[serde(default, deserialize_with = "string_or_f64", alias = "volume24hUsd")]
     pub volume_24h_usd: Option<f64>,
     /// Volume change 24h percentage
-    #[serde(
-        default,
-        deserialize_with = "string_or_f64",
-        alias = "volumeChange24h"
-    )]
+    #[serde(default, deserialize_with = "string_or_f64", alias = "volumeChange24h")]
     pub volume_change_24h: Option<f64>,
 }
 
