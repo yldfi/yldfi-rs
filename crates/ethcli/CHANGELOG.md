@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.21.18](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.17...ethcli-v0.21.18) (2026-02-13)
+
+
+### Features
+
+* add 130+ CLI commands for Alchemy & Moralis, fix formatting ([b580a6e](https://github.com/yldfi/yldfi-rs/commit/b580a6edb67179787771d854bc44dcec5ddfc8c0))
+* add 169 MCP tools, fix deserialization bugs across Moralis/CoinGecko/Curve ([92085a1](https://github.com/yldfi/yldfi-rs/commit/92085a1fa7639eb1e2d62f8a0f2a836af264a257))
+* add medium-effort API coverage — Tenderly batch, Dune CRUD, CowSwap orders ([5cdcf89](https://github.com/yldfi/yldfi-rs/commit/5cdcf892aab53199aa061021bac41d963be593ce))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([dac43e2](https://github.com/yldfi/yldfi-rs/commit/dac43e202028861fcb80474bf3b807560b6722bd))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([bb6d849](https://github.com/yldfi/yldfi-rs/commit/bb6d84985bf33a126c71fbcc0176c9605b219a85))
+
+
+### Bug Fixes
+
+* use struct initializer syntax for Dune options (clippy::field_reassign_with_default) ([590551d](https://github.com/yldfi/yldfi-rs/commit/590551d37a6f3ced92086a78af9190952f509cc6))
+
 ## [0.21.17](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.16...ethcli-v0.21.17) (2026-02-04)
 
 

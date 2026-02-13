@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.5...mrls-v0.1.6) (2026-02-13)
+
+
+### Features
+
+* add 169 MCP tools, fix deserialization bugs across Moralis/CoinGecko/Curve ([92085a1](https://github.com/yldfi/yldfi-rs/commit/92085a1fa7639eb1e2d62f8a0f2a836af264a257))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([dac43e2](https://github.com/yldfi/yldfi-rs/commit/dac43e202028861fcb80474bf3b807560b6722bd))
+
+
+### Bug Fixes
+
+* resolve clippy warnings for too_many_arguments and useless_format ([68ac6d0](https://github.com/yldfi/yldfi-rs/commit/68ac6d035360d87061507928db95dcaf346648ac))
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.4...mrls-v0.1.5) (2026-01-30)
 
 

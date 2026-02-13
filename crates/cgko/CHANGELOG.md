@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.1.3...cgko-v0.1.4) (2026-02-13)
+
+
+### Features
+
+* add 169 MCP tools, fix deserialization bugs across Moralis/CoinGecko/Curve ([92085a1](https://github.com/yldfi/yldfi-rs/commit/92085a1fa7639eb1e2d62f8a0f2a836af264a257))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([dac43e2](https://github.com/yldfi/yldfi-rs/commit/dac43e202028861fcb80474bf3b807560b6722bd))
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.1.2...cgko-v0.1.3) (2026-01-27)
 
 
