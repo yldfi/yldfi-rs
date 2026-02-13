@@ -30,7 +30,7 @@ where
         }
 
         fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-            if v.is_empty() {
+            if v.is_empty() || v == "null" {
                 return Ok(None);
             }
             v.parse().map(Some).map_err(de::Error::custom)
@@ -49,52 +49,53 @@ where
 }
 
 /// Top token data
+///
+/// Moralis API returns snake_case fields with `contract_address` for the address.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TopToken {
-    /// Token address
-    #[serde(alias = "token_address")]
-    pub token_address: Option<String>,
+    /// Token address (API returns as `contract_address`)
+    #[serde(alias = "token_address", alias = "tokenAddress")]
+    pub contract_address: Option<String>,
     /// Token name
-    #[serde(alias = "token_name")]
+    #[serde(alias = "tokenName")]
     pub token_name: Option<String>,
     /// Token symbol
-    #[serde(alias = "token_symbol")]
+    #[serde(alias = "tokenSymbol")]
     pub token_symbol: Option<String>,
     /// Token logo
-    #[serde(alias = "token_logo")]
+    #[serde(alias = "tokenLogo")]
     pub token_logo: Option<String>,
-    /// Token decimals
-    #[serde(alias = "token_decimals")]
-    pub token_decimals: Option<u8>,
+    /// Token decimals (API returns as string)
+    #[serde(default, deserialize_with = "string_or_f64", alias = "tokenDecimals")]
+    pub token_decimals: Option<f64>,
     /// Price USD
-    #[serde(default, deserialize_with = "string_or_f64", alias = "price_usd")]
+    #[serde(default, deserialize_with = "string_or_f64", alias = "priceUsd")]
     pub price_usd: Option<f64>,
     /// Price 24h change percentage
     #[serde(
         default,
         deserialize_with = "string_or_f64",
-        alias = "price_24h_percent_change"
+        alias = "price24hPercentChange"
     )]
     pub price_24h_percent_change: Option<f64>,
     /// Price 7d change percentage
     #[serde(
         default,
         deserialize_with = "string_or_f64",
-        alias = "price_7d_percent_change"
+        alias = "price7dPercentChange"
     )]
     pub price_7d_percent_change: Option<f64>,
     /// Market cap USD
-    #[serde(default, deserialize_with = "string_or_f64", alias = "market_cap_usd")]
+    #[serde(default, deserialize_with = "string_or_f64", alias = "marketCapUsd")]
     pub market_cap_usd: Option<f64>,
     /// Volume 24h USD
-    #[serde(default, deserialize_with = "string_or_f64", alias = "volume_24h_usd")]
+    #[serde(default, deserialize_with = "string_or_f64", alias = "volume24hUsd")]
     pub volume_24h_usd: Option<f64>,
     /// Volume change 24h percentage
     #[serde(
         default,
         deserialize_with = "string_or_f64",
-        alias = "volume_change_24h"
+        alias = "volumeChange24h"
     )]
     pub volume_change_24h: Option<f64>,
 }
@@ -241,7 +242,7 @@ mod tests {
             "volume24hUsd": 50000000.0
         }"#;
         let token: TopToken = serde_json::from_str(json).unwrap();
-        assert_eq!(token.token_address, Some("0xtoken".to_string()));
+        assert_eq!(token.contract_address, Some("0xtoken".to_string()));
         assert_eq!(token.token_name, Some("Bitcoin".to_string()));
         assert_eq!(token.token_symbol, Some("BTC".to_string()));
         assert_eq!(token.price_usd, Some(50000.0));
@@ -249,11 +250,35 @@ mod tests {
     }
 
     #[test]
+    fn test_top_token_snake_case() {
+        // Actual Moralis API response format
+        let json = r#"{
+            "contract_address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+            "token_name": "Wrapped Ether",
+            "token_symbol": "WETH",
+            "token_logo": "https://logo.png",
+            "token_decimals": "18",
+            "price_usd": "2059.63",
+            "price_24h_percent_change": "6.55",
+            "price_7d_percent_change": "-0.35",
+            "market_cap_usd": "248582348238"
+        }"#;
+        let token: TopToken = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            token.contract_address,
+            Some("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2".to_string())
+        );
+        assert_eq!(token.token_name, Some("Wrapped Ether".to_string()));
+        assert_eq!(token.token_decimals, Some(18.0));
+        assert_eq!(token.price_usd, Some(2059.63));
+    }
+
+    #[test]
     fn test_top_token_string_numbers() {
         let json = r#"{
-            "tokenAddress": "0xtoken",
-            "priceUsd": "50000.50",
-            "marketCapUsd": "1000000000"
+            "contract_address": "0xtoken",
+            "price_usd": "50000.50",
+            "market_cap_usd": "1000000000"
         }"#;
         let token: TopToken = serde_json::from_str(json).unwrap();
         assert_eq!(token.price_usd, Some(50000.50));
@@ -290,5 +315,21 @@ mod tests {
         let nft: TopNftCollection = serde_json::from_str(json).unwrap();
         assert_eq!(nft.floor_price_usd, Some(19000.50));
         assert_eq!(nft.volume_usd, Some(500000.0));
+    }
+
+    #[test]
+    fn test_top_token_null_string_values() {
+        let json = r#"{
+            "contract_address": "0xtoken",
+            "price_usd": "50000.0",
+            "price_24h_percent_change": "null",
+            "price_7d_percent_change": "null",
+            "market_cap_usd": "null"
+        }"#;
+        let token: TopToken = serde_json::from_str(json).unwrap();
+        assert_eq!(token.price_usd, Some(50000.0));
+        assert_eq!(token.price_24h_percent_change, None);
+        assert_eq!(token.price_7d_percent_change, None);
+        assert_eq!(token.market_cap_usd, None);
     }
 }

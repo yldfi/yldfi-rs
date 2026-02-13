@@ -102,9 +102,9 @@ pub struct TokenMetadata {
     pub name: Option<String>,
     /// Token symbol
     pub symbol: Option<String>,
-    /// Token decimals
-    #[serde(default)]
-    pub decimals: Option<u8>,
+    /// Token decimals (API may return as string or integer)
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub decimals: Option<String>,
     /// Token logo URL
     pub logo: Option<String>,
     /// Token thumbnail URL

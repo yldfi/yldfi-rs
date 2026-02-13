@@ -122,23 +122,15 @@ impl<'a> TokenApi<'a> {
 
     /// Get token metadata
     pub async fn get_metadata(&self, address: &str, chain: Option<&str>) -> Result<TokenMetadata> {
-        let path = "/erc20/metadata".to_string();
-
-        // Moralis expects `addresses` as repeated query params or comma-separated
-        // Using a struct with a single string field to avoid array serialization issues
-        #[derive(Serialize)]
-        struct MetadataQuery {
-            addresses: String,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            chain: Option<String>,
-        }
-
-        let q = MetadataQuery {
-            addresses: address.to_string(),
-            chain: chain.map(std::string::ToString::to_string),
+        // Build query string manually — Moralis expects `addresses` as a query param
+        // and reqwest 0.12's .query() can reject certain serialization patterns
+        let path = if let Some(chain) = chain {
+            format!("/erc20/metadata?addresses={address}&chain={chain}")
+        } else {
+            format!("/erc20/metadata?addresses={address}")
         };
 
-        let results: Vec<TokenMetadata> = self.client.get_with_query(&path, &q).await?;
+        let results: Vec<TokenMetadata> = self.client.get(&path).await?;
         results
             .into_iter()
             .next()

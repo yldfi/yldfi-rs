@@ -596,6 +596,15 @@ impl ListVNetTransactionsQuery {
     }
 }
 
+/// Wrapper for the VNet simulation API (Tenderly expects `{ "callArgs": { ... }, "blockNumber": "latest" }`)
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct VNetSimulationRequestEnvelope<'a> {
+    #[serde(rename = "callArgs")]
+    pub call_args: &'a VNetSimulationRequest,
+    #[serde(rename = "blockNumber")]
+    pub block_number: &'a str,
+}
+
 /// Request to simulate a transaction on a `VNet`
 #[derive(Debug, Clone, Serialize)]
 pub struct VNetSimulationRequest {

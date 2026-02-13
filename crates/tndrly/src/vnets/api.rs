@@ -4,7 +4,7 @@ use super::admin_rpc::AdminRpc;
 use super::types::{
     CreateVNetRequest, DeleteVNetsRequest, ForkVNetRequest, ListVNetTransactionsQuery,
     ListVNetsQuery, SendVNetTransactionRequest, UpdateVNetRequest, VNet, VNetRpcs,
-    VNetSimulationRequest, VNetTransaction,
+    VNetSimulationRequest, VNetSimulationRequestEnvelope, VNetTransaction,
 };
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
@@ -130,13 +130,17 @@ impl<'a> VNetsApi<'a> {
         vnet_id: &str,
         request: &VNetSimulationRequest,
     ) -> Result<serde_json::Value> {
+        let envelope = VNetSimulationRequestEnvelope {
+            call_args: request,
+            block_number: "latest",
+        };
         self.client
             .post(
                 &format!(
                     "/vnets/{}/transactions/simulate",
                     encode_path_segment(vnet_id)
                 ),
-                request,
+                &envelope,
             )
             .await
     }
