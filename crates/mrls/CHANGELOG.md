@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.6...mrls-v0.1.7) (2026-02-13)
+
+
+### Bug Fixes
+
+* moralis API deserialization and tenderly vnet simulate ([37f1431](https://github.com/yldfi/yldfi-rs/commit/37f14315902f9ddb7c59bfa79847656c6969074f))
+
 ## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.5...mrls-v0.1.6) (2026-02-13)
 
 
