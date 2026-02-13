@@ -303,6 +303,12 @@ pub enum PricesCommands {
         chain: String,
         /// Token contract address
         address: String,
+        /// Start timestamp (unix seconds)
+        #[arg(long)]
+        start: Option<u64>,
+        /// End timestamp (unix seconds)
+        #[arg(long)]
+        end: Option<u64>,
     },
 
     /// Get top tokens by volume
@@ -317,6 +323,12 @@ pub enum OhlcCommands {
         chain: String,
         /// Pool contract address
         address: String,
+        /// Start timestamp (unix seconds)
+        #[arg(long)]
+        start: Option<u64>,
+        /// End timestamp (unix seconds)
+        #[arg(long)]
+        end: Option<u64>,
     },
 
     /// Get LP token OHLC data
@@ -325,6 +337,12 @@ pub enum OhlcCommands {
         chain: String,
         /// LP token contract address
         address: String,
+        /// Start timestamp (unix seconds)
+        #[arg(long)]
+        start: Option<u64>,
+        /// End timestamp (unix seconds)
+        #[arg(long)]
+        end: Option<u64>,
     },
 }
 
@@ -834,11 +852,18 @@ async fn handle_prices(
             let response = client.get_usd_price(chain, address).await?;
             print_output(&response, args.format)?;
         }
-        PricesCommands::History { chain, address } => {
+        PricesCommands::History {
+            chain,
+            address,
+            start,
+            end,
+        } => {
             if !quiet {
                 eprintln!("Fetching price history for {} on {}...", address, chain);
             }
-            let response = client.get_price_history(chain, address).await?;
+            let response = client
+                .get_price_history(chain, address, *start, *end)
+                .await?;
             print_output(&response, args.format)?;
         }
         PricesCommands::TopVolume => {
@@ -859,18 +884,28 @@ async fn handle_ohlc(
     quiet: bool,
 ) -> anyhow::Result<()> {
     match action {
-        OhlcCommands::Pool { chain, address } => {
+        OhlcCommands::Pool {
+            chain,
+            address,
+            start,
+            end,
+        } => {
             if !quiet {
                 eprintln!("Fetching OHLC for pool {} on {}...", address, chain);
             }
-            let response = client.get_ohlc(chain, address).await?;
+            let response = client.get_ohlc(chain, address, *start, *end).await?;
             print_output(&response, args.format)?;
         }
-        OhlcCommands::LpToken { chain, address } => {
+        OhlcCommands::LpToken {
+            chain,
+            address,
+            start,
+            end,
+        } => {
             if !quiet {
                 eprintln!("Fetching LP OHLC for {} on {}...", address, chain);
             }
-            let response = client.get_lp_ohlc(chain, address).await?;
+            let response = client.get_lp_ohlc(chain, address, *start, *end).await?;
             print_output(&response, args.format)?;
         }
     }

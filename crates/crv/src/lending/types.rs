@@ -16,6 +16,7 @@ pub struct LendingVaultsResponse {
 #[serde(rename_all = "camelCase")]
 pub struct LendingVaultsData {
     /// List of lending vaults
+    #[serde(default)]
     pub lending_vault_data: Vec<LendingVault>,
 }
 

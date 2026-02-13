@@ -105,6 +105,26 @@ let vnets = client.vnets().list(None).await?;
 
 // Delete VNets (CI cleanup)
 client.vnets().delete_many(vec!["id1".into(), "id2".into()]).await?;
+
+// Admin RPC - Balance management
+let admin = client.vnets().admin_rpc(&vnet).await?;
+admin.set_balance("0xAddress", "0xDE0B6B3A7640000").await?;  // 1 ETH
+admin.set_erc20_balance("0xToken", "0xWallet", "0xAmount").await?;
+
+// Admin RPC - State management
+let snapshot_id = admin.snapshot().await?;
+admin.revert(&snapshot_id).await?;
+
+// Admin RPC - Simulate transaction (tenderly_simulateTransaction)
+use tndrly::vnets::SimulateTransactionParams;
+let tx = SimulateTransactionParams::new("0xFrom".into())
+    .to("0xTo".into())
+    .data("0xCalldata".into());
+let result = admin.simulate_transaction(&tx, "latest", None, None).await?;
+
+// Admin RPC - Simulate bundle (tenderly_simulateBundle)
+let txs = vec![tx1, tx2, tx3];
+let result = admin.simulate_bundle(&txs, None, None).await?;
 ```
 
 ### Alerts

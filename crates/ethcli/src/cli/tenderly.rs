@@ -253,6 +253,46 @@ pub enum VnetsCommands {
         value: String,
     },
 
+    /// Simulate a transaction against a VNet's state (without persisting)
+    #[command(visible_alias = "sim")]
+    Simulate {
+        /// VNet ID
+        #[arg(long)]
+        vnet: String,
+
+        /// From address (sender)
+        #[arg(long)]
+        from: String,
+
+        /// To address (recipient/contract)
+        #[arg(long)]
+        to: String,
+
+        /// Transaction data (hex)
+        #[arg(long)]
+        data: Option<String>,
+
+        /// Value in wei
+        #[arg(long, default_value = "0")]
+        value: String,
+
+        /// Gas limit
+        #[arg(long)]
+        gas: Option<u64>,
+
+        /// Gas price (legacy)
+        #[arg(long)]
+        gas_price: Option<String>,
+
+        /// Max fee per gas (EIP-1559)
+        #[arg(long)]
+        max_fee_per_gas: Option<String>,
+
+        /// Max priority fee per gas (EIP-1559)
+        #[arg(long)]
+        max_priority_fee_per_gas: Option<String>,
+    },
+
     /// Admin RPC commands (balance, time, storage, snapshots)
     Admin {
         #[command(subcommand)]
@@ -397,6 +437,112 @@ pub enum AdminCommands {
 
     /// Get the latest transaction ID
     GetLatest,
+
+    /// Simulate a transaction via RPC (tenderly_simulateTransaction)
+    ///
+    /// Uses the JSON-RPC method which supports state and block overrides.
+    /// Returns rich decoded results including logs, traces, and asset changes.
+    #[command(visible_alias = "sim-tx")]
+    SimulateTx {
+        /// From address (sender)
+        #[arg(long)]
+        from: String,
+
+        /// To address (recipient/contract)
+        #[arg(long)]
+        to: Option<String>,
+
+        /// Transaction data (hex calldata)
+        #[arg(long)]
+        data: Option<String>,
+
+        /// Value in wei (hex or decimal)
+        #[arg(long)]
+        value: Option<String>,
+
+        /// Gas limit (hex or decimal)
+        #[arg(long)]
+        gas: Option<String>,
+
+        /// Block tag or number (default: "latest")
+        #[arg(long, default_value = "latest")]
+        block: String,
+
+        /// State overrides as JSON: {"0xaddr": {"balance": "0x...", "stateDiff": {"0x0": "0x1"}}}
+        #[arg(long)]
+        state_overrides: Option<String>,
+
+        /// Block overrides as JSON: {"time": "0x...", "baseFee": "0x..."}
+        #[arg(long)]
+        block_overrides: Option<String>,
+    },
+
+    /// Simulate a bundle of transactions via RPC (tenderly_simulateBundle)
+    ///
+    /// Executes multiple transactions sequentially, each seeing state changes
+    /// from previous transactions. Supports state and block overrides.
+    #[command(visible_alias = "sim-bundle")]
+    SimulateBundle {
+        /// Transactions as JSON array: [{"from":"0x...","to":"0x...","data":"0x..."}]
+        txs: String,
+
+        /// State overrides as JSON
+        #[arg(long)]
+        state_overrides: Option<String>,
+
+        /// Block overrides as JSON
+        #[arg(long)]
+        block_overrides: Option<String>,
+    },
+
+    /// Set the same balance for multiple addresses at once
+    SetBalances {
+        /// Addresses (space-separated)
+        #[arg(required = true)]
+        addresses: Vec<String>,
+
+        /// Amount (e.g., "10eth", "100gwei", or raw hex)
+        #[arg(long)]
+        amount: String,
+    },
+
+    /// Add the same amount to multiple addresses at once
+    AddBalances {
+        /// Addresses (space-separated)
+        #[arg(required = true)]
+        addresses: Vec<String>,
+
+        /// Amount to add (e.g., "1eth", "100gwei", or raw hex)
+        #[arg(long)]
+        amount: String,
+    },
+
+    /// Create an EIP-2930 access list for a transaction
+    CreateAccessList {
+        /// From address
+        #[arg(long)]
+        from: String,
+
+        /// To address
+        #[arg(long)]
+        to: Option<String>,
+
+        /// Transaction data (hex)
+        #[arg(long)]
+        data: Option<String>,
+
+        /// Value in wei
+        #[arg(long)]
+        value: Option<String>,
+
+        /// Gas limit
+        #[arg(long)]
+        gas: Option<String>,
+
+        /// Block tag or number (default: "latest")
+        #[arg(long, default_value = "latest")]
+        block: String,
+    },
 }
 
 // ============================================================================
@@ -539,6 +685,70 @@ pub enum ContractsCommands {
         #[arg(long)]
         name: String,
     },
+
+    /// Update contract metadata (display name and/or tags)
+    Update {
+        /// Contract address
+        address: String,
+
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// Display name
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Tags (can be repeated)
+        #[arg(long = "tag", action = clap::ArgAction::Append)]
+        tags: Vec<String>,
+    },
+
+    /// Remove a tag from a contract
+    RemoveTag {
+        /// Contract address
+        address: String,
+
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// Tag to remove
+        tag: String,
+    },
+
+    /// Delete a tag from a contract (alias for remove-tag)
+    DeleteTag {
+        /// Contract address
+        address: String,
+
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// Tag to delete
+        tag: String,
+    },
+
+    /// Add a tag to multiple contracts at once
+    BulkTag {
+        /// Tag to apply
+        tag: String,
+
+        /// Contract IDs in format "eth:1:0xAddress" (can be repeated)
+        #[arg(required = true)]
+        contract_ids: Vec<String>,
+    },
+
+    /// Encode contract state for simulation overrides
+    EncodeState {
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// State overrides as JSON: {"0xAddr": {"balance": "0x...", "storage": {"0x0": "0x1"}}}
+        state_json: String,
+    },
 }
 
 // ============================================================================
@@ -622,6 +832,51 @@ pub enum AlertsCommands {
         /// Network ID
         #[arg(long, default_value = "1")]
         network: String,
+    },
+
+    /// Update an alert
+    Update {
+        /// Alert ID
+        id: String,
+
+        /// Alert name
+        #[arg(long)]
+        name: String,
+
+        /// Alert type
+        #[arg(long)]
+        alert_type: String,
+
+        /// Network ID
+        #[arg(long, default_value = "1")]
+        network: String,
+
+        /// Target addresses (can be repeated)
+        #[arg(long = "address", action = clap::ArgAction::Append)]
+        addresses: Vec<String>,
+    },
+
+    /// Add a delivery destination to an alert
+    AddDestination {
+        /// Alert ID
+        id: String,
+
+        /// Destination type: webhook, slack, email, telegram, discord, pagerduty
+        #[arg(long)]
+        destination_type: String,
+
+        /// Destination ID (webhook/channel ID)
+        #[arg(long)]
+        destination_id: String,
+    },
+
+    /// Remove a delivery destination from an alert
+    RemoveDestination {
+        /// Alert ID
+        id: String,
+
+        /// Destination ID to remove
+        destination_id: String,
     },
 
     /// Manage webhooks
@@ -764,6 +1019,26 @@ pub enum ActionsCommands {
     Resume {
         /// Action ID
         id: String,
+    },
+
+    /// Stop multiple Actions (pass IDs, or none to stop all)
+    StopMany {
+        /// Action IDs (if empty, stops all actions in project)
+        ids: Vec<String>,
+    },
+
+    /// Resume multiple Actions (pass IDs, or none to resume all)
+    ResumeMany {
+        /// Action IDs (if empty, resumes all actions in project)
+        ids: Vec<String>,
+    },
+
+    /// Get execution details for an Action call
+    GetCall {
+        /// Action ID
+        id: String,
+        /// Execution/call ID
+        execution_id: String,
     },
 }
 
@@ -1049,6 +1324,50 @@ async fn handle_vnets(
             println!("{}", serde_json::to_string_pretty(&tx)?);
         }
 
+        VnetsCommands::Simulate {
+            vnet,
+            from,
+            to,
+            data,
+            value,
+            gas,
+            gas_price,
+            max_fee_per_gas,
+            max_priority_fee_per_gas,
+        } => {
+            validate_address(from)?;
+            validate_address(to)?;
+
+            if !quiet {
+                eprintln!("Simulating transaction on VNet {}...", vnet);
+            }
+
+            let mut request = tndrly::vnets::VNetSimulationRequest::new(
+                from,
+                to,
+                data.as_deref().unwrap_or("0x"),
+            );
+
+            if value != "0" {
+                request = request.value(value);
+            }
+            if let Some(g) = gas {
+                request = request.gas(*g);
+            }
+            if let Some(gp) = gas_price {
+                request.gas_price = Some(gp.clone());
+            }
+            if let Some(mfpg) = max_fee_per_gas {
+                request = request.max_fee_per_gas(mfpg);
+            }
+            if let Some(mpfpg) = max_priority_fee_per_gas {
+                request = request.max_priority_fee_per_gas(mpfpg);
+            }
+
+            let result = client.vnets().simulate(vnet, &request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
         VnetsCommands::Admin { action, vnet } => {
             handle_admin(action, vnet, &client, quiet).await?;
         }
@@ -1245,6 +1564,134 @@ async fn handle_admin(
                 json.insert(k.clone(), v.clone());
             }
             println!("{}", serde_json::to_string_pretty(&json)?);
+        }
+
+        AdminCommands::SimulateTx {
+            from,
+            to,
+            data,
+            value,
+            gas,
+            block,
+            state_overrides,
+            block_overrides,
+        } => {
+            validate_address(from)?;
+            if let Some(to_addr) = to {
+                validate_address(to_addr)?;
+            }
+            if !quiet {
+                eprintln!("Simulating transaction via RPC (tenderly_simulateTransaction)...");
+            }
+
+            let mut tx = tndrly::vnets::SimulateTransactionParams::new(from);
+            if let Some(t) = to {
+                tx = tx.to(t);
+            }
+            if let Some(d) = data {
+                tx = tx.data(d);
+            }
+            if let Some(v) = value {
+                tx = tx.value(v);
+            }
+            if let Some(g) = gas {
+                tx = tx.gas(g);
+            }
+
+            let so: Option<std::collections::HashMap<String, tndrly::vnets::StateOverride>> =
+                state_overrides
+                    .as_ref()
+                    .map(|s| serde_json::from_str(s))
+                    .transpose()
+                    .context("Invalid --state-overrides JSON")?;
+            let bo: Option<tndrly::vnets::BlockOverride> = block_overrides
+                .as_ref()
+                .map(|s| serde_json::from_str(s))
+                .transpose()
+                .context("Invalid --block-overrides JSON")?;
+
+            let result = admin
+                .simulate_transaction(&tx, block, so.as_ref(), bo.as_ref())
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        AdminCommands::SimulateBundle {
+            txs,
+            state_overrides,
+            block_overrides,
+        } => {
+            if !quiet {
+                eprintln!("Simulating transaction bundle via RPC (tenderly_simulateBundle)...");
+            }
+
+            let txs: Vec<tndrly::vnets::SimulateTransactionParams> =
+                serde_json::from_str(txs).context("Invalid --txs JSON array")?;
+
+            let so: Option<std::collections::HashMap<String, tndrly::vnets::StateOverride>> =
+                state_overrides
+                    .as_ref()
+                    .map(|s| serde_json::from_str(s))
+                    .transpose()
+                    .context("Invalid --state-overrides JSON")?;
+            let bo: Option<tndrly::vnets::BlockOverride> = block_overrides
+                .as_ref()
+                .map(|s| serde_json::from_str(s))
+                .transpose()
+                .context("Invalid --block-overrides JSON")?;
+
+            let result = admin
+                .simulate_bundle(&txs, so.as_ref(), bo.as_ref())
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        AdminCommands::SetBalances { addresses, amount } => {
+            if !quiet {
+                eprintln!("Setting balance for {} addresses...", addresses.len());
+            }
+            let parsed = parse_eth_amount(amount)?;
+            let addr_refs: Vec<&str> = addresses.iter().map(|s| s.as_str()).collect();
+            let result = admin.set_balances(&addr_refs, &parsed).await?;
+            println!("{}", result);
+        }
+
+        AdminCommands::AddBalances { addresses, amount } => {
+            if !quiet {
+                eprintln!("Adding balance to {} addresses...", addresses.len());
+            }
+            let parsed = parse_eth_amount(amount)?;
+            let addr_refs: Vec<&str> = addresses.iter().map(|s| s.as_str()).collect();
+            let result = admin.add_balances(&addr_refs, &parsed).await?;
+            println!("{}", result);
+        }
+
+        AdminCommands::CreateAccessList {
+            from,
+            to,
+            data,
+            value,
+            gas,
+            block,
+        } => {
+            if !quiet {
+                eprintln!("Creating access list...");
+            }
+            let mut tx = tndrly::vnets::SendTransactionParams::new(from);
+            if let Some(t) = to {
+                tx.to = Some(t.clone());
+            }
+            if let Some(d) = data {
+                tx.data = Some(d.clone());
+            }
+            if let Some(v) = value {
+                tx.value = Some(v.clone());
+            }
+            if let Some(g) = gas {
+                tx.gas = Some(g.clone());
+            }
+            let result = admin.create_access_list(&tx, block).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
         }
     }
 
@@ -1456,6 +1903,90 @@ async fn handle_contracts(
             client.contracts().rename(network, address, name).await?;
             println!("Contract renamed successfully");
         }
+
+        ContractsCommands::Update {
+            address,
+            network,
+            name,
+            tags,
+        } => {
+            validate_address(address)?;
+            if !quiet {
+                eprintln!("Updating contract {}...", address);
+            }
+            let mut request = tndrly::contracts::UpdateContractRequest::default();
+            if let Some(n) = name {
+                request.display_name = Some(n.clone());
+            }
+            if !tags.is_empty() {
+                request.tags = Some(tags.clone());
+            }
+            let result = client
+                .contracts()
+                .update(network, address, &request)
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        ContractsCommands::RemoveTag {
+            address,
+            network,
+            tag,
+        } => {
+            validate_address(address)?;
+            if !quiet {
+                eprintln!("Removing tag '{}' from contract {}...", tag, address);
+            }
+            client.contracts().remove_tag(network, address, tag).await?;
+            println!("Tag '{}' removed from contract {}.", tag, address);
+        }
+
+        ContractsCommands::DeleteTag {
+            address,
+            network,
+            tag,
+        } => {
+            validate_address(address)?;
+            if !quiet {
+                eprintln!("Deleting tag '{}' from contract {}...", tag, address);
+            }
+            client.contracts().delete_tag(network, address, tag).await?;
+            println!("Tag '{}' deleted from contract {}.", tag, address);
+        }
+
+        ContractsCommands::BulkTag { tag, contract_ids } => {
+            if !quiet {
+                eprintln!(
+                    "Applying tag '{}' to {} contracts...",
+                    tag,
+                    contract_ids.len()
+                );
+            }
+            let result = client
+                .contracts()
+                .bulk_tag(tag, contract_ids.clone())
+                .await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        ContractsCommands::EncodeState {
+            network,
+            state_json,
+        } => {
+            if !quiet {
+                eprintln!("Encoding state overrides...");
+            }
+            let state_overrides: std::collections::HashMap<
+                String,
+                tndrly::contracts::StateOverrideInput,
+            > = serde_json::from_str(state_json).context("Invalid state overrides JSON")?;
+            let request = tndrly::contracts::EncodeStateRequest {
+                network_id: network.clone(),
+                state_overrides,
+            };
+            let result = client.contracts().encode_state(&request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
     }
 
     Ok(())
@@ -1564,6 +2095,64 @@ async fn handle_alerts(
             let request = tndrly::alerts::TestAlertRequest::new(id, tx_hash, network);
             client.alerts().test_alert(&request).await?;
             println!("Alert test triggered for {}.", id);
+        }
+
+        AlertsCommands::Update {
+            id,
+            name,
+            alert_type,
+            network,
+            addresses,
+        } => {
+            if !quiet {
+                eprintln!("Updating alert {}...", id);
+            }
+            let at: tndrly::alerts::AlertType =
+                alert_type.parse().map_err(|e: String| anyhow::anyhow!(e))?;
+            let target = if addresses.is_empty() {
+                tndrly::alerts::AlertTarget::Project
+            } else {
+                tndrly::alerts::AlertTarget::Address
+            };
+            let mut request = tndrly::alerts::CreateAlertRequest::new(name, at, network, target);
+            if !addresses.is_empty() {
+                request.addresses = Some(addresses.clone());
+            }
+            let result = client.alerts().update(id, &request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        AlertsCommands::AddDestination {
+            id,
+            destination_type,
+            destination_id,
+        } => {
+            if !quiet {
+                eprintln!("Adding destination to alert {}...", id);
+            }
+            let dest_type: tndrly::alerts::DestinationType = destination_type
+                .parse()
+                .map_err(|e: String| anyhow::anyhow!(e))?;
+            let request = tndrly::alerts::AddDestinationRequest {
+                destination_type: dest_type,
+                destination_id: destination_id.clone(),
+            };
+            let result = client.alerts().add_destination(id, &request).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+
+        AlertsCommands::RemoveDestination { id, destination_id } => {
+            if !quiet {
+                eprintln!(
+                    "Removing destination {} from alert {}...",
+                    destination_id, id
+                );
+            }
+            client
+                .alerts()
+                .remove_destination(id, destination_id)
+                .await?;
+            println!("Destination removed from alert {}.", id);
         }
 
         AlertsCommands::Webhooks { action } => {
@@ -1759,6 +2348,38 @@ async fn handle_actions(
             }
             client.actions().resume(id).await?;
             println!("Action {} resumed.", id);
+        }
+
+        ActionsCommands::StopMany { ids } => {
+            if !quiet {
+                if ids.is_empty() {
+                    eprintln!("Stopping all Actions...");
+                } else {
+                    eprintln!("Stopping {} Actions...", ids.len());
+                }
+            }
+            client.actions().stop_many(ids.clone()).await?;
+            println!("Actions stopped.");
+        }
+
+        ActionsCommands::ResumeMany { ids } => {
+            if !quiet {
+                if ids.is_empty() {
+                    eprintln!("Resuming all Actions...");
+                } else {
+                    eprintln!("Resuming {} Actions...", ids.len());
+                }
+            }
+            client.actions().resume_many(ids.clone()).await?;
+            println!("Actions resumed.");
+        }
+
+        ActionsCommands::GetCall { id, execution_id } => {
+            if !quiet {
+                eprintln!("Getting call {} for Action {}...", execution_id, id);
+            }
+            let call = client.actions().get_call(id, execution_id).await?;
+            println!("{}", serde_json::to_string_pretty(&call)?);
         }
     }
 

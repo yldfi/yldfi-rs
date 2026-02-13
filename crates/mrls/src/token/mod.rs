@@ -3,5 +3,5 @@
 mod api;
 mod types;
 
-pub use api::TokenApi;
+pub use api::{PairOhlcvQuery, TokenApi};
 pub use types::*;

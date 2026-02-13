@@ -31,7 +31,7 @@ pub struct NftCollection {
     pub floor_price_24h_percentage_change: Option<NftPercentageChange>,
     pub market_cap_24h_percentage_change: Option<NftPercentageChange>,
     pub volume_24h_percentage_change: Option<NftPercentageChange>,
-    pub number_of_unique_addresses: Option<u64>,
+    pub number_of_unique_addresses: Option<f64>,
     pub number_of_unique_addresses_24h_percentage_change: Option<f64>,
     pub total_supply: Option<f64>,
     pub one_day_sales: Option<f64>,

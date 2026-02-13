@@ -19,7 +19,7 @@ Exposes 200+ Ethereum tools via the [Model Context Protocol](https://modelcontex
 
 ## Features
 
-- **200+ MCP tools** - Full ethcli functionality exposed as typed tools
+- **230+ MCP tools** - Full ethcli functionality exposed as typed tools
 - **JSON Schema validation** - All tool inputs have schemas for LLM structured output
 - **Multi-chain support** - Ethereum, Polygon, Arbitrum, Optimism, Base, and more
 - **DEX aggregators** - 1inch, CowSwap, LI.FI, KyberSwap, OpenOcean, 0x, Velora, Enso
@@ -74,12 +74,12 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `curve_*` | 10 | Pools, routing, lending |
 | `uniswap_*` | 9 | V2/V3/V4 pool queries |
 | `rpc_*` | 9 | Direct blockchain calls |
-| `tenderly_*` | 8 | Simulation, VNets |
+| `tenderly_*` | 34 | Simulation, VNets (CRUD + Admin RPC + RPC Simulation) |
 | `cowswap_*` | 8 | MEV-protected trading |
 | `account_*` | 8 | Balance, transactions |
 | `oneinch_*` | 7 | DEX aggregator |
 | `goplus_*` | 6 | Security analysis |
-| Other | 149 | See full list below |
+| Other | 175 | See full list below |
 
 <details>
 <summary>All 42 tool categories</summary>
@@ -92,7 +92,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | curve_* | 10 |
 | uniswap_* | 9 |
 | rpc_* | 9 |
-| tenderly_* | 8 |
+| tenderly_* | 34 |
 | simulate_* | 8 |
 | endpoints_* | 8 |
 | cowswap_* | 8 |

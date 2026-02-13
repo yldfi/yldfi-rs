@@ -4,7 +4,8 @@ use super::types::{
     AggregatedPairStats, GetMultiplePricesRequest, HistoricalHolders, NewToken, PairOhlcv,
     PairSniper, PairStats, TokenBondingStatus, TokenCategory, TokenHoldersResponse,
     TokenHoldersSummary, TokenMetadata, TokenPair, TokenPairsResponse, TokenPrice, TokenResponse,
-    TokenSearchResult, TokenStats, TokenSwap, TokenTransfer, TopTrader, TrendingToken,
+    TokenSearchResult, TokenStats, TokenSwap, TokenTransfer, TokenTransferResponse, TopTrader,
+    TrendingToken,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -43,6 +44,70 @@ impl TokenQuery {
     }
 }
 
+/// Query parameters for pair OHLCV endpoints
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairOhlcvQuery {
+    /// Chain to query
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain: Option<String>,
+    /// Timeframe (e.g., 1h, 4h, 1d, 1w)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeframe: Option<String>,
+    /// From date (ISO 8601)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_date: Option<String>,
+    /// To date (ISO 8601)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_date: Option<String>,
+    /// Limit
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i32>,
+}
+
+impl PairOhlcvQuery {
+    /// Create a new query
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set chain
+    #[must_use]
+    pub fn chain(mut self, chain: impl Into<String>) -> Self {
+        self.chain = Some(chain.into());
+        self
+    }
+
+    /// Set timeframe
+    #[must_use]
+    pub fn timeframe(mut self, timeframe: impl Into<String>) -> Self {
+        self.timeframe = Some(timeframe.into());
+        self
+    }
+
+    /// Set from_date
+    #[must_use]
+    pub fn from_date(mut self, from_date: impl Into<String>) -> Self {
+        self.from_date = Some(from_date.into());
+        self
+    }
+
+    /// Set to_date
+    #[must_use]
+    pub fn to_date(mut self, to_date: impl Into<String>) -> Self {
+        self.to_date = Some(to_date.into());
+        self
+    }
+
+    /// Set limit
+    #[must_use]
+    pub fn limit(mut self, limit: i32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+}
+
 /// API for token operations
 pub struct TokenApi<'a> {
     client: &'a Client,
@@ -57,27 +122,23 @@ impl<'a> TokenApi<'a> {
 
     /// Get token metadata
     pub async fn get_metadata(&self, address: &str, chain: Option<&str>) -> Result<TokenMetadata> {
-        let path = "/erc20/metadata";
-        let query = TokenQuery::new();
-        let query = if let Some(c) = chain {
-            query.chain(c)
-        } else {
-            query
-        };
+        let path = "/erc20/metadata".to_string();
 
+        // Moralis expects `addresses` as repeated query params or comma-separated
+        // Using a struct with a single string field to avoid array serialization issues
         #[derive(Serialize)]
         struct MetadataQuery {
-            addresses: Vec<String>,
+            addresses: String,
             #[serde(skip_serializing_if = "Option::is_none")]
             chain: Option<String>,
         }
 
         let q = MetadataQuery {
-            addresses: vec![address.to_string()],
-            chain: query.chain,
+            addresses: address.to_string(),
+            chain: chain.map(std::string::ToString::to_string),
         };
 
-        let results: Vec<TokenMetadata> = self.client.get_with_query(path, &q).await?;
+        let results: Vec<TokenMetadata> = self.client.get_with_query(&path, &q).await?;
         results
             .into_iter()
             .next()
@@ -99,18 +160,21 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get token transfers for an address
+    ///
+    /// Moralis API returns transfers wrapped in a paginated response object.
     pub async fn get_transfers(
         &self,
         address: &str,
         chain: Option<&str>,
     ) -> Result<Vec<TokenTransfer>> {
         let path = format!("/{address}/erc20/transfers");
-        if let Some(chain) = chain {
+        let response: TokenTransferResponse = if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
+            self.client.get_with_query(&path, &query).await?
         } else {
-            self.client.get(&path).await
-        }
+            self.client.get(&path).await?
+        };
+        Ok(response.result)
     }
 
     /// Get token pairs (DEX liquidity pools)
@@ -233,17 +297,21 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get pair OHLCV data
+    ///
+    /// The Moralis API requires at minimum a `timeframe` parameter.
+    /// Use `PairOhlcvQuery` to set timeframe, from_date, to_date, and chain.
     pub async fn get_pair_ohlcv(
         &self,
         pair_address: &str,
-        chain: Option<&str>,
+        query: Option<&PairOhlcvQuery>,
     ) -> Result<Vec<PairOhlcv>> {
         let path = format!("/pairs/{pair_address}/ohlcv");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
+        if let Some(q) = query {
+            self.client.get_with_query(&path, q).await
         } else {
-            self.client.get(&path).await
+            // Default to 1d timeframe if no query provided
+            let default_query = PairOhlcvQuery::new().timeframe("1d");
+            self.client.get_with_query(&path, &default_query).await
         }
     }
 

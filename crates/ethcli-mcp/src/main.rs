@@ -1236,6 +1236,496 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
+    // TENDERLY VNETS - Full CRUD + Simulate + Admin
+    // =========================================================================
+
+    #[tool(description = "Create a new Tenderly Virtual TestNet forked from a network")]
+    async fn tenderly_vnets_create(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsCreateInput>,
+    ) -> String {
+        tools::tenderly_vnets_create(
+            &input.slug,
+            &input.name,
+            input.network_id,
+            input.block_number,
+            input.chain_id,
+            input.sync_state,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get details of a Tenderly Virtual TestNet by ID")]
+    async fn tenderly_vnets_get(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsIdInput>,
+    ) -> String {
+        tools::tenderly_vnets_get(&input.id).await.to_response()
+    }
+
+    #[tool(description = "Delete one or more Tenderly Virtual TestNets")]
+    async fn tenderly_vnets_delete(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsDeleteInput>,
+    ) -> String {
+        tools::tenderly_vnets_delete(&input.ids, input.all)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Update a Tenderly Virtual TestNet (name, slug, sync state)")]
+    async fn tenderly_vnets_update(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsUpdateInput>,
+    ) -> String {
+        tools::tenderly_vnets_update(
+            &input.id,
+            input.name.as_deref(),
+            input.slug.as_deref(),
+            input.sync_state,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Fork an existing Tenderly Virtual TestNet")]
+    async fn tenderly_vnets_fork(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsForkInput>,
+    ) -> String {
+        tools::tenderly_vnets_fork(&input.source, &input.slug, &input.name, input.block_number)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get RPC URLs (public and admin) for a Virtual TestNet")]
+    async fn tenderly_vnets_rpc(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsIdInput>,
+    ) -> String {
+        tools::tenderly_vnets_rpc(&input.id).await.to_response()
+    }
+
+    #[tool(description = "List transactions on a Virtual TestNet")]
+    async fn tenderly_vnets_transactions(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsTransactionsInput>,
+    ) -> String {
+        tools::tenderly_vnets_transactions(&input.id, input.page, input.per_page)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get a specific transaction from a Virtual TestNet")]
+    async fn tenderly_vnets_get_transaction(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsGetTransactionInput>,
+    ) -> String {
+        tools::tenderly_vnets_get_transaction(&input.vnet, &input.hash)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Send a transaction to a Virtual TestNet (persists state)")]
+    async fn tenderly_vnets_send(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsSendInput>,
+    ) -> String {
+        tools::tenderly_vnets_send(
+            &input.vnet,
+            &input.from,
+            &input.to,
+            input.data.as_deref(),
+            input.value.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Simulate a transaction against a VNet's state without persisting")]
+    async fn tenderly_vnets_simulate(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsSimulateInput>,
+    ) -> String {
+        tools::tenderly_vnets_simulate(
+            &input.vnet,
+            &input.from,
+            &input.to,
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas,
+            input.gas_price.as_deref(),
+            input.max_fee_per_gas.as_deref(),
+            input.max_priority_fee_per_gas.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    // --- VNet Admin tools ---
+
+    #[tool(description = "Set ETH balance for an address on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_balance(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBalanceInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_balance(&input.vnet, &input.address, &input.amount)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Add ETH to an address balance on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_add_balance(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBalanceInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_add_balance(&input.vnet, &input.address, &input.amount)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Set ERC20 token balance for a wallet on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_erc20_balance(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
+    ) -> String {
+        let Some(amount) = input.amount.as_deref() else {
+            return "Error: 'amount' is required for set_erc20_balance".to_string();
+        };
+        tools::tenderly_vnets_admin_set_erc20_balance(
+            &input.vnet,
+            &input.token,
+            &input.wallet,
+            amount,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Set maximum possible ERC20 token balance on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_max_erc20_balance(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_max_erc20_balance(&input.vnet, &input.token, &input.wallet)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Advance blockchain time by seconds on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_increase_time(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_increase_time(&input.vnet, input.value)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Set timestamp for the next block on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_timestamp(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_timestamp(&input.vnet, input.value)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Set next block timestamp without mining on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_timestamp_no_mine(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_timestamp_no_mine(&input.vnet, input.value)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Skip a number of blocks on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_increase_blocks(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBlocksInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_increase_blocks(&input.vnet, input.blocks)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Create a state snapshot on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_snapshot(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminVnetInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_snapshot(&input.vnet)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Revert to a previous snapshot on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_revert(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminRevertInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_revert(&input.vnet, &input.snapshot_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Set storage at a specific slot on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_storage(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminStorageInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_storage(
+            &input.vnet,
+            &input.address,
+            &input.slot,
+            &input.value,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Set bytecode at an address on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_code(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminCodeInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_code(&input.vnet, &input.address, &input.code)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Send an unsigned transaction via Admin RPC on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_send_tx(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminSendTxInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_send_tx(
+            &input.vnet,
+            &input.from,
+            input.to.as_deref(),
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get the latest block/transaction info on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_get_latest(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminVnetInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_get_latest(&input.vnet)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Simulate a transaction via tenderly_simulateTransaction RPC. Supports state overrides (balance, nonce, code, storage) and block overrides. Returns rich decoded results including logs, traces, asset changes, and state changes."
+    )]
+    async fn tenderly_vnets_admin_simulate_tx(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminSimulateTxInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_simulate_tx(
+            &input.vnet,
+            &input.from,
+            input.to.as_deref(),
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+            &input.block,
+            input.state_overrides.as_deref(),
+            input.block_overrides.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Simulate a bundle of transactions via tenderly_simulateBundle RPC. Executes multiple transactions sequentially, each seeing state changes from previous ones. Supports state and block overrides."
+    )]
+    async fn tenderly_vnets_admin_simulate_bundle(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminSimulateBundleInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_simulate_bundle(
+            &input.vnet,
+            &input.txs,
+            input.state_overrides.as_deref(),
+            input.block_overrides.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    // --- Tenderly Actions Batch ---
+
+    #[tool(description = "Stop multiple Tenderly web3 actions by ID")]
+    async fn tenderly_actions_stop_many(
+        &self,
+        Parameters(input): Parameters<TenderlyActionsIdsInput>,
+    ) -> String {
+        tools::tenderly_actions_stop_many(&input.ids)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Resume multiple Tenderly web3 actions by ID")]
+    async fn tenderly_actions_resume_many(
+        &self,
+        Parameters(input): Parameters<TenderlyActionsIdsInput>,
+    ) -> String {
+        tools::tenderly_actions_resume_many(&input.ids)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get execution details for a Tenderly web3 action call")]
+    async fn tenderly_actions_get_call(
+        &self,
+        Parameters(input): Parameters<TenderlyActionsGetCallInput>,
+    ) -> String {
+        tools::tenderly_actions_get_call(&input.id, &input.execution_id)
+            .await
+            .to_response()
+    }
+
+    // --- Tenderly Alerts Batch ---
+
+    #[tool(description = "Update a Tenderly alert configuration (name, type, network, addresses)")]
+    async fn tenderly_alerts_update(
+        &self,
+        Parameters(input): Parameters<TenderlyAlertsUpdateInput>,
+    ) -> String {
+        tools::tenderly_alerts_update(
+            &input.id,
+            input.name.as_deref(),
+            input.alert_type.as_deref(),
+            input.network.as_deref(),
+            input.addresses.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Add a notification destination to a Tenderly alert")]
+    async fn tenderly_alerts_add_destination(
+        &self,
+        Parameters(input): Parameters<TenderlyAlertsAddDestinationInput>,
+    ) -> String {
+        tools::tenderly_alerts_add_destination(
+            &input.id,
+            &input.destination_type,
+            &input.destination_id,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Remove a notification destination from a Tenderly alert")]
+    async fn tenderly_alerts_remove_destination(
+        &self,
+        Parameters(input): Parameters<TenderlyAlertsRemoveDestinationInput>,
+    ) -> String {
+        tools::tenderly_alerts_remove_destination(&input.id, &input.destination_id)
+            .await
+            .to_response()
+    }
+
+    // --- Tenderly Contracts Batch ---
+
+    #[tool(description = "Update a Tenderly contract (name, network, tags)")]
+    async fn tenderly_contracts_update(
+        &self,
+        Parameters(input): Parameters<TenderlyContractsUpdateInput>,
+    ) -> String {
+        tools::tenderly_contracts_update(
+            &input.address,
+            input.network.as_deref(),
+            input.name.as_deref(),
+            &input.tags,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Remove a tag from a Tenderly contract")]
+    async fn tenderly_contracts_remove_tag(
+        &self,
+        Parameters(input): Parameters<TenderlyContractsRemoveTagInput>,
+    ) -> String {
+        tools::tenderly_contracts_remove_tag(&input.address, input.network.as_deref(), &input.tag)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Apply a tag to multiple Tenderly contracts at once")]
+    async fn tenderly_contracts_bulk_tag(
+        &self,
+        Parameters(input): Parameters<TenderlyContractsBulkTagInput>,
+    ) -> String {
+        tools::tenderly_contracts_bulk_tag(&input.tag, &input.contract_ids)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Encode state overrides for Tenderly contract simulation")]
+    async fn tenderly_contracts_encode_state(
+        &self,
+        Parameters(input): Parameters<TenderlyContractsEncodeStateInput>,
+    ) -> String {
+        tools::tenderly_contracts_encode_state(input.network.as_deref(), &input.state_json)
+            .await
+            .to_response()
+    }
+
+    // --- Tenderly VNets Admin Batch ---
+
+    #[tool(description = "Set ETH balance for multiple addresses on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_set_balances(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBatchBalanceInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_set_balances(&input.vnet, &input.addresses, &input.amount)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Add ETH to balances for multiple addresses on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_add_balances(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminBatchBalanceInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_add_balances(&input.vnet, &input.addresses, &input.amount)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Create an EIP-2930 access list for a transaction on a Virtual TestNet")]
+    async fn tenderly_vnets_admin_create_access_list(
+        &self,
+        Parameters(input): Parameters<TenderlyVnetsAdminCreateAccessListInput>,
+    ) -> String {
+        tools::tenderly_vnets_admin_create_access_list(
+            &input.vnet,
+            &input.from,
+            &input.to,
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+            input.block.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    // =========================================================================
     // ALCHEMY (additional)
     // =========================================================================
 
@@ -1267,6 +1757,1163 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(description = "Get NFT metadata by contract and token ID via Alchemy")]
+    async fn alchemy_nft_metadata(
+        &self,
+        Parameters(input): Parameters<AlchemyNftMetadataInput>,
+    ) -> String {
+        tools::alchemy_nft_metadata(&input.contract, &input.token_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get floor price for an NFT collection via Alchemy")]
+    async fn alchemy_nft_floor_price(
+        &self,
+        Parameters(input): Parameters<AlchemyNftContractInput>,
+    ) -> String {
+        tools::alchemy_nft_floor_price(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get owners of a specific NFT via Alchemy")]
+    async fn alchemy_nft_owners(
+        &self,
+        Parameters(input): Parameters<AlchemyNftMetadataInput>,
+    ) -> String {
+        tools::alchemy_nft_owners(&input.contract, &input.token_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Check if an address holds an NFT from a contract via Alchemy")]
+    async fn alchemy_nft_is_holder(
+        &self,
+        Parameters(input): Parameters<AlchemyNftIsHolderInput>,
+    ) -> String {
+        tools::alchemy_nft_is_holder(&input.address, &input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token metadata by contract address via Alchemy")]
+    async fn alchemy_token_metadata(
+        &self,
+        Parameters(input): Parameters<AlchemyTokenMetadataInput>,
+    ) -> String {
+        tools::alchemy_token_metadata(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token allowance for owner/spender pair via Alchemy")]
+    async fn alchemy_token_allowances(
+        &self,
+        Parameters(input): Parameters<AlchemyTokenAllowancesInput>,
+    ) -> String {
+        tools::alchemy_token_allowances(&input.owner, &input.spender, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token transfers TO an address via Alchemy")]
+    async fn alchemy_transfers_to(
+        &self,
+        Parameters(input): Parameters<AlchemyTransfersToInput>,
+    ) -> String {
+        tools::alchemy_transfers_to(
+            &input.address,
+            input.from_block.as_deref(),
+            input.to_block.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get token prices by contract address via Alchemy")]
+    async fn alchemy_prices_by_address(
+        &self,
+        Parameters(input): Parameters<AlchemyPricesByAddressInput>,
+    ) -> String {
+        tools::alchemy_prices_by_address(&input.addresses, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY NFT (additional)
+    // =========================================================================
+
+    #[tool(description = "Get all owners of an NFT contract via Alchemy")]
+    async fn alchemy_nft_owners_for_contract(
+        &self,
+        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
+    ) -> String {
+        tools::alchemy_nft_owners_for_contract(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT contracts owned by an address via Alchemy")]
+    async fn alchemy_nft_contracts_for_owner(
+        &self,
+        Parameters(input): Parameters<AlchemyNftAddressInput>,
+    ) -> String {
+        tools::alchemy_nft_contracts_for_owner(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get all NFTs for a contract with pagination via Alchemy")]
+    async fn alchemy_nft_nfts_for_contract(
+        &self,
+        Parameters(input): Parameters<AlchemyNftForContractInput>,
+    ) -> String {
+        tools::alchemy_nft_nfts_for_contract(
+            &input.contract,
+            input.start_token.as_deref(),
+            input.limit,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get contract metadata for an NFT contract via Alchemy")]
+    async fn alchemy_nft_contract_metadata(
+        &self,
+        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
+    ) -> String {
+        tools::alchemy_nft_contract_metadata(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get collection metadata by OpenSea slug via Alchemy")]
+    async fn alchemy_nft_collection_metadata(
+        &self,
+        Parameters(input): Parameters<AlchemyNftSlugInput>,
+    ) -> String {
+        tools::alchemy_nft_collection_metadata(&input.slug, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Search NFT contract metadata by keyword via Alchemy")]
+    async fn alchemy_nft_search_contract_metadata(
+        &self,
+        Parameters(input): Parameters<AlchemyNftSearchInput>,
+    ) -> String {
+        tools::alchemy_nft_search_contract_metadata(&input.query, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Compute rarity for an NFT via Alchemy")]
+    async fn alchemy_nft_compute_rarity(
+        &self,
+        Parameters(input): Parameters<AlchemyNftMetadataInput>,
+    ) -> String {
+        tools::alchemy_nft_compute_rarity(&input.contract, &input.token_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Summarize NFT attributes for a contract via Alchemy")]
+    async fn alchemy_nft_summarize_attributes(
+        &self,
+        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
+    ) -> String {
+        tools::alchemy_nft_summarize_attributes(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Refresh metadata for a specific NFT via Alchemy")]
+    async fn alchemy_nft_refresh_metadata(
+        &self,
+        Parameters(input): Parameters<AlchemyNftMetadataInput>,
+    ) -> String {
+        tools::alchemy_nft_refresh_metadata(&input.contract, &input.token_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get NFT sales for a contract with optional token ID and block range via Alchemy"
+    )]
+    async fn alchemy_nft_sales(
+        &self,
+        Parameters(input): Parameters<AlchemyNftSalesInput>,
+    ) -> String {
+        tools::alchemy_nft_sales(
+            &input.contract,
+            input.token_id.as_deref(),
+            input.from_block,
+            input.to_block,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get list of known spam NFT contracts via Alchemy")]
+    async fn alchemy_nft_spam_contracts(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_nft_spam_contracts(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Check if an NFT contract is spam via Alchemy")]
+    async fn alchemy_nft_is_spam(
+        &self,
+        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
+    ) -> String {
+        tools::alchemy_nft_is_spam(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Check if an NFT is an airdrop via Alchemy")]
+    async fn alchemy_nft_is_airdrop(
+        &self,
+        Parameters(input): Parameters<AlchemyNftMetadataInput>,
+    ) -> String {
+        tools::alchemy_nft_is_airdrop(&input.contract, &input.token_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Report an NFT contract as spam via Alchemy")]
+    async fn alchemy_nft_report_spam(
+        &self,
+        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
+    ) -> String {
+        tools::alchemy_nft_report_spam(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get all NFTs for a collection by slug via Alchemy")]
+    async fn alchemy_nft_nfts_for_collection(
+        &self,
+        Parameters(input): Parameters<AlchemyNftForCollectionInput>,
+    ) -> String {
+        tools::alchemy_nft_nfts_for_collection(
+            &input.slug,
+            input.start_token.as_deref(),
+            input.limit,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get collections owned by an address via Alchemy")]
+    async fn alchemy_nft_collections_for_owner(
+        &self,
+        Parameters(input): Parameters<AlchemyNftAddressInput>,
+    ) -> String {
+        tools::alchemy_nft_collections_for_owner(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Invalidate cached metadata for an NFT contract via Alchemy")]
+    async fn alchemy_nft_invalidate_contract(
+        &self,
+        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
+    ) -> String {
+        tools::alchemy_nft_invalidate_contract(&input.contract, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY TOKEN (additional)
+    // =========================================================================
+
+    #[tool(description = "Get token balances for specific tokens at an address via Alchemy")]
+    async fn alchemy_token_balances_for_tokens(
+        &self,
+        Parameters(input): Parameters<AlchemyTokenBalancesForTokensInput>,
+    ) -> String {
+        tools::alchemy_token_balances_for_tokens(&input.address, &input.tokens, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY TRANSFERS (additional)
+    // =========================================================================
+
+    #[tool(description = "Get all transfers (sent and received) for an address via Alchemy")]
+    async fn alchemy_transfers_all(
+        &self,
+        Parameters(input): Parameters<AlchemyTransfersAllInput>,
+    ) -> String {
+        tools::alchemy_transfers_all(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY PORTFOLIO (additional)
+    // =========================================================================
+
+    #[tool(description = "Get token info for multiple tokens via Alchemy Portfolio API")]
+    async fn alchemy_portfolio_token_info(
+        &self,
+        Parameters(input): Parameters<AlchemyPortfolioTokenInfoInput>,
+    ) -> String {
+        tools::alchemy_portfolio_token_info(&input.tokens, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFTs owned by an address via Alchemy Portfolio API")]
+    async fn alchemy_portfolio_nfts(
+        &self,
+        Parameters(input): Parameters<AlchemyPortfolioNftsInput>,
+    ) -> String {
+        tools::alchemy_portfolio_nfts(&input.address, input.with_metadata, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT contracts owned by an address via Alchemy Portfolio API")]
+    async fn alchemy_portfolio_nft_contracts(
+        &self,
+        Parameters(input): Parameters<AlchemyPortfolioNftContractsInput>,
+    ) -> String {
+        tools::alchemy_portfolio_nft_contracts(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY PRICES (additional)
+    // =========================================================================
+
+    #[tool(description = "Get token prices by symbol via Alchemy")]
+    async fn alchemy_prices_by_symbol(
+        &self,
+        Parameters(input): Parameters<AlchemyPricesBySymbolInput>,
+    ) -> String {
+        tools::alchemy_prices_by_symbol(&input.symbols, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get historical token prices by symbol via Alchemy")]
+    async fn alchemy_prices_historical_by_symbol(
+        &self,
+        Parameters(input): Parameters<AlchemyPricesHistoricalBySymbolInput>,
+    ) -> String {
+        tools::alchemy_prices_historical_by_symbol(
+            &input.symbol,
+            &input.start_time,
+            &input.end_time,
+            input.interval.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get historical token prices by contract address via Alchemy")]
+    async fn alchemy_prices_historical_by_address(
+        &self,
+        Parameters(input): Parameters<AlchemyPricesHistoricalByAddressInput>,
+    ) -> String {
+        tools::alchemy_prices_historical_by_address(
+            &input.address,
+            &input.start_time,
+            &input.end_time,
+            input.interval.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY DEBUG (additional)
+    // =========================================================================
+
+    #[tool(description = "Trace a call without executing it on-chain via Alchemy debug API")]
+    async fn alchemy_debug_trace_call(
+        &self,
+        Parameters(input): Parameters<AlchemyDebugTraceCallInput>,
+    ) -> String {
+        tools::alchemy_debug_trace_call(
+            &input.to,
+            input.block.as_deref(),
+            input.from.as_deref(),
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Trace all transactions in a block by hash via Alchemy debug API")]
+    async fn alchemy_debug_trace_block_by_hash(
+        &self,
+        Parameters(input): Parameters<AlchemyDebugBlockHashInput>,
+    ) -> String {
+        tools::alchemy_debug_trace_block_by_hash(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Trace all transactions in a block by number via Alchemy debug API")]
+    async fn alchemy_debug_trace_block_by_number(
+        &self,
+        Parameters(input): Parameters<AlchemyDebugBlockInput>,
+    ) -> String {
+        tools::alchemy_debug_trace_block_by_number(&input.block, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get RLP-encoded block via Alchemy debug API")]
+    async fn alchemy_debug_get_raw_block(
+        &self,
+        Parameters(input): Parameters<AlchemyDebugBlockInput>,
+    ) -> String {
+        tools::alchemy_debug_get_raw_block(&input.block, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get RLP-encoded block header via Alchemy debug API")]
+    async fn alchemy_debug_get_raw_header(
+        &self,
+        Parameters(input): Parameters<AlchemyDebugBlockInput>,
+    ) -> String {
+        tools::alchemy_debug_get_raw_header(&input.block, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get EIP-2718 binary-encoded receipts for a block via Alchemy debug API")]
+    async fn alchemy_debug_get_raw_receipts(
+        &self,
+        Parameters(input): Parameters<AlchemyDebugBlockInput>,
+    ) -> String {
+        tools::alchemy_debug_get_raw_receipts(&input.block, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY TRACE (Parity-style)
+    // =========================================================================
+
+    #[tool(description = "Get Parity-style traces for a block via Alchemy")]
+    async fn alchemy_trace_block(
+        &self,
+        Parameters(input): Parameters<AlchemyTraceBlockInput>,
+    ) -> String {
+        tools::alchemy_trace_block(&input.block, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Execute a call and return Parity-style traces via Alchemy")]
+    async fn alchemy_trace_call(
+        &self,
+        Parameters(input): Parameters<AlchemyTraceCallInput>,
+    ) -> String {
+        tools::alchemy_trace_call(
+            &input.to,
+            input.block.as_deref(),
+            input.from.as_deref(),
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+            input.trace_types.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get a specific trace by position in a transaction via Alchemy")]
+    async fn alchemy_trace_get(
+        &self,
+        Parameters(input): Parameters<AlchemyTraceGetInput>,
+    ) -> String {
+        tools::alchemy_trace_get(&input.hash, &input.indices, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Trace a raw transaction without executing via Alchemy")]
+    async fn alchemy_trace_raw_transaction(
+        &self,
+        Parameters(input): Parameters<AlchemyTraceRawTxInput>,
+    ) -> String {
+        tools::alchemy_trace_raw_transaction(
+            &input.raw_tx,
+            input.trace_types.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Replay all transactions in a block with traces via Alchemy")]
+    async fn alchemy_trace_replay_block_transactions(
+        &self,
+        Parameters(input): Parameters<AlchemyTraceReplayBlockInput>,
+    ) -> String {
+        tools::alchemy_trace_replay_block_transactions(
+            &input.block,
+            input.trace_types.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Replay a transaction with traces via Alchemy")]
+    async fn alchemy_trace_replay_transaction(
+        &self,
+        Parameters(input): Parameters<AlchemyTraceReplayTxInput>,
+    ) -> String {
+        tools::alchemy_trace_replay_transaction(
+            &input.hash,
+            input.trace_types.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get all traces for a transaction via Alchemy")]
+    async fn alchemy_trace_transaction(
+        &self,
+        Parameters(input): Parameters<AlchemyTraceTxInput>,
+    ) -> String {
+        tools::alchemy_trace_transaction(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Filter traces by criteria (block range, addresses) via Alchemy")]
+    async fn alchemy_trace_filter(
+        &self,
+        Parameters(input): Parameters<AlchemyTraceFilterInput>,
+    ) -> String {
+        tools::alchemy_trace_filter(
+            input.from_block.as_deref(),
+            input.to_block.as_deref(),
+            input.from_address.as_deref(),
+            input.to_address.as_deref(),
+            input.after,
+            input.count,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY SIMULATION
+    // =========================================================================
+
+    #[tool(description = "Simulate a transaction and return asset changes via Alchemy")]
+    async fn alchemy_sim_asset_changes(
+        &self,
+        Parameters(input): Parameters<AlchemySimAssetChangesInput>,
+    ) -> String {
+        tools::alchemy_sim_asset_changes(
+            &input.to,
+            input.from.as_deref(),
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Simulate execution with decoded traces and logs via Alchemy")]
+    async fn alchemy_sim_execution(
+        &self,
+        Parameters(input): Parameters<AlchemySimExecutionInput>,
+    ) -> String {
+        tools::alchemy_sim_execution(
+            &input.to,
+            input.from.as_deref(),
+            input.data.as_deref(),
+            input.value.as_deref(),
+            input.gas.as_deref(),
+            input.block.as_deref(),
+            input.trace_format.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY BUNDLER (ERC-4337)
+    // =========================================================================
+
+    #[tool(description = "Get supported ERC-4337 entry points via Alchemy")]
+    async fn alchemy_bundler_supported_entry_points(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_bundler_supported_entry_points(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Estimate gas for an ERC-4337 UserOperation via Alchemy")]
+    async fn alchemy_bundler_estimate_gas(
+        &self,
+        Parameters(input): Parameters<AlchemyBundlerEstimateGasInput>,
+    ) -> String {
+        tools::alchemy_bundler_estimate_gas(
+            &input.user_op_json,
+            input.entry_point.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get a UserOperation by hash via Alchemy")]
+    async fn alchemy_bundler_get_by_hash(
+        &self,
+        Parameters(input): Parameters<AlchemyBundlerHashInput>,
+    ) -> String {
+        tools::alchemy_bundler_get_by_hash(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get a UserOperation receipt via Alchemy")]
+    async fn alchemy_bundler_get_receipt(
+        &self,
+        Parameters(input): Parameters<AlchemyBundlerHashInput>,
+    ) -> String {
+        tools::alchemy_bundler_get_receipt(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get recommended max priority fee per gas via Alchemy Bundler")]
+    async fn alchemy_bundler_max_priority_fee(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_bundler_max_priority_fee(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY GAS MANAGER
+    // =========================================================================
+
+    #[tool(description = "List all gas manager policies via Alchemy")]
+    async fn alchemy_gas_manager_list_policies(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_gas_manager_list_policies(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get a gas manager policy by ID via Alchemy")]
+    async fn alchemy_gas_manager_get_policy(
+        &self,
+        Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
+    ) -> String {
+        tools::alchemy_gas_manager_get_policy(&input.policy_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get gas manager policy statistics via Alchemy")]
+    async fn alchemy_gas_manager_policy_stats(
+        &self,
+        Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
+    ) -> String {
+        tools::alchemy_gas_manager_policy_stats(&input.policy_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "List sponsorships for a gas manager policy via Alchemy")]
+    async fn alchemy_gas_manager_list_sponsorships(
+        &self,
+        Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
+    ) -> String {
+        tools::alchemy_gas_manager_list_sponsorships(&input.policy_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY NOTIFY
+    // =========================================================================
+
+    #[tool(description = "List all webhooks via Alchemy Notify")]
+    async fn alchemy_notify_list_webhooks(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_notify_list_webhooks(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "List addresses tracked by a webhook via Alchemy Notify")]
+    async fn alchemy_notify_list_addresses(
+        &self,
+        Parameters(input): Parameters<AlchemyNotifyWebhookInput>,
+    ) -> String {
+        tools::alchemy_notify_list_addresses(&input.webhook_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "List NFT filters for a webhook via Alchemy Notify")]
+    async fn alchemy_notify_list_nft_filters(
+        &self,
+        Parameters(input): Parameters<AlchemyNotifyWebhookInput>,
+    ) -> String {
+        tools::alchemy_notify_list_nft_filters(&input.webhook_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY BEACON
+    // =========================================================================
+
+    #[tool(description = "Get Ethereum beacon chain genesis info via Alchemy")]
+    async fn alchemy_beacon_genesis(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_genesis(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain fork schedule via Alchemy")]
+    async fn alchemy_beacon_fork_schedule(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_fork_schedule(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain deposit contract info via Alchemy")]
+    async fn alchemy_beacon_deposit_contract(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_deposit_contract(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain spec/config values via Alchemy")]
+    async fn alchemy_beacon_spec(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_spec(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain block headers via Alchemy")]
+    async fn alchemy_beacon_headers(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_headers(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get a beacon chain block header by ID via Alchemy")]
+    async fn alchemy_beacon_header(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_header(&input.block_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get a beacon chain block by ID via Alchemy")]
+    async fn alchemy_beacon_block(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_block(&input.block_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain block root via Alchemy")]
+    async fn alchemy_beacon_block_root(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_block_root(&input.block_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain block attestations via Alchemy")]
+    async fn alchemy_beacon_block_attestations(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_block_attestations(&input.block_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get blob sidecars for a beacon chain block via Alchemy")]
+    async fn alchemy_beacon_blob_sidecars(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_blob_sidecars(&input.block_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain state root via Alchemy")]
+    async fn alchemy_beacon_state_root(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_state_root(&input.state_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain fork info for a state via Alchemy")]
+    async fn alchemy_beacon_state_fork(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_state_fork(&input.state_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain finality checkpoints via Alchemy")]
+    async fn alchemy_beacon_finality_checkpoints(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_finality_checkpoints(&input.state_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain validators for a state via Alchemy")]
+    async fn alchemy_beacon_validators(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_validators(&input.state_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get a specific beacon chain validator via Alchemy")]
+    async fn alchemy_beacon_validator(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconValidatorInput>,
+    ) -> String {
+        tools::alchemy_beacon_validator(&input.state_id, &input.validator_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain validator balances for a state via Alchemy")]
+    async fn alchemy_beacon_validator_balances(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_validator_balances(&input.state_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain sync committees for a state via Alchemy")]
+    async fn alchemy_beacon_sync_committees(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_sync_committees(&input.state_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get RANDAO value for a beacon chain state via Alchemy")]
+    async fn alchemy_beacon_randao(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_randao(&input.state_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain pool attestations via Alchemy")]
+    async fn alchemy_beacon_pool_attestations(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_pool_attestations(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get voluntary exits in the beacon chain pool via Alchemy")]
+    async fn alchemy_beacon_voluntary_exits(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_voluntary_exits(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain block rewards via Alchemy")]
+    async fn alchemy_beacon_block_rewards(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
+    ) -> String {
+        tools::alchemy_beacon_block_rewards(&input.block_id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain node sync status via Alchemy")]
+    async fn alchemy_beacon_syncing(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_syncing(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain node version via Alchemy")]
+    async fn alchemy_beacon_version(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_version(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain peers via Alchemy")]
+    async fn alchemy_beacon_peers(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_peers(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get beacon chain peer count via Alchemy")]
+    async fn alchemy_beacon_peer_count(
+        &self,
+        Parameters(input): Parameters<AlchemyChainOnlyInput>,
+    ) -> String {
+        tools::alchemy_beacon_peer_count(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get attester duties for an epoch via Alchemy beacon API")]
+    async fn alchemy_beacon_attester_duties(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconDutiesInput>,
+    ) -> String {
+        tools::alchemy_beacon_attester_duties(&input.epoch, &input.validators, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get proposer duties for an epoch via Alchemy beacon API")]
+    async fn alchemy_beacon_proposer_duties(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconEpochInput>,
+    ) -> String {
+        tools::alchemy_beacon_proposer_duties(&input.epoch, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get sync duties for an epoch via Alchemy beacon API")]
+    async fn alchemy_beacon_sync_duties(
+        &self,
+        Parameters(input): Parameters<AlchemyBeaconDutiesInput>,
+    ) -> String {
+        tools::alchemy_beacon_sync_duties(&input.epoch, &input.validators, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // ALCHEMY SOLANA
+    // =========================================================================
+
+    #[tool(description = "Get a single Solana asset by ID via Alchemy")]
+    async fn alchemy_solana_get_asset(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaAssetInput>,
+    ) -> String {
+        tools::alchemy_solana_get_asset(&input.id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get multiple Solana assets by IDs via Alchemy")]
+    async fn alchemy_solana_get_assets(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaAssetsInput>,
+    ) -> String {
+        tools::alchemy_solana_get_assets(&input.ids, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get proof for a compressed Solana asset via Alchemy")]
+    async fn alchemy_solana_get_asset_proof(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaAssetInput>,
+    ) -> String {
+        tools::alchemy_solana_get_asset_proof(&input.id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get proofs for multiple compressed Solana assets via Alchemy")]
+    async fn alchemy_solana_get_asset_proofs(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaAssetsInput>,
+    ) -> String {
+        tools::alchemy_solana_get_asset_proofs(&input.ids, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Solana assets owned by an address via Alchemy")]
+    async fn alchemy_solana_get_assets_by_owner(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaOwnerInput>,
+    ) -> String {
+        tools::alchemy_solana_get_assets_by_owner(
+            &input.owner,
+            input.page,
+            input.limit,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get Solana assets by creator address via Alchemy")]
+    async fn alchemy_solana_get_assets_by_creator(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaAddressInput>,
+    ) -> String {
+        tools::alchemy_solana_get_assets_by_creator(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Solana assets by authority address via Alchemy")]
+    async fn alchemy_solana_get_assets_by_authority(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaAddressInput>,
+    ) -> String {
+        tools::alchemy_solana_get_assets_by_authority(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Solana assets by group (e.g., collection) via Alchemy")]
+    async fn alchemy_solana_get_assets_by_group(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaGroupInput>,
+    ) -> String {
+        tools::alchemy_solana_get_assets_by_group(
+            &input.group_key,
+            &input.group_value,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get Solana token accounts via Alchemy")]
+    async fn alchemy_solana_get_token_accounts(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaTokenAccountsInput>,
+    ) -> String {
+        tools::alchemy_solana_get_token_accounts(
+            input.owner.as_deref(),
+            input.mint.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get Solana NFT editions via Alchemy")]
+    async fn alchemy_solana_get_nft_editions(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaMintInput>,
+    ) -> String {
+        tools::alchemy_solana_get_nft_editions(&input.mint, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Solana asset signatures (transactions) via Alchemy")]
+    async fn alchemy_solana_get_asset_signatures(
+        &self,
+        Parameters(input): Parameters<AlchemySolanaAssetInput>,
+    ) -> String {
+        tools::alchemy_solana_get_asset_signatures(&input.id, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
     // =========================================================================
     // COINGECKO (additional)
     // =========================================================================
@@ -1284,6 +2931,255 @@ impl EthcliMcpServer {
     #[tool(description = "Get on-chain token info from CoinGecko")]
     async fn gecko_onchain(&self, Parameters(input): Parameters<GeckoOnchainInput>) -> String {
         tools::gecko_onchain(&input.network, &input.address)
+            .await
+            .to_response()
+    }
+
+    // --- Gecko Simple (additional) ---
+
+    #[tool(description = "Get token price by contract address from CoinGecko")]
+    async fn gecko_simple_token_price(
+        &self,
+        Parameters(input): Parameters<GeckoTokenPriceInput>,
+    ) -> String {
+        tools::gecko_simple_token_price(&input.platform, &input.addresses, input.vs.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "List supported vs currencies from CoinGecko")]
+    async fn gecko_simple_currencies(&self) -> String {
+        tools::gecko_simple_currencies().await.to_response()
+    }
+
+    // --- Gecko Coins (additional) ---
+
+    #[tool(description = "List all coins from CoinGecko")]
+    async fn gecko_coins_list(&self, Parameters(input): Parameters<GeckoCoinsListInput>) -> String {
+        tools::gecko_coins_list(input.with_platforms)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get coin market data from CoinGecko")]
+    async fn gecko_coins_markets(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsMarketsInput>,
+    ) -> String {
+        tools::gecko_coins_markets(input.vs_currency.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get coin exchange tickers from CoinGecko")]
+    async fn gecko_coins_tickers(&self, Parameters(input): Parameters<GeckoCoinInput>) -> String {
+        tools::gecko_coins_tickers(&input.id).await.to_response()
+    }
+
+    #[tool(description = "Get coin market chart data from CoinGecko")]
+    async fn gecko_coins_chart(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsChartInput>,
+    ) -> String {
+        tools::gecko_coins_chart(&input.id, input.vs.as_deref(), input.days.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get coin OHLC candlestick data from CoinGecko")]
+    async fn gecko_coins_ohlc(&self, Parameters(input): Parameters<GeckoCoinsOhlcInput>) -> String {
+        tools::gecko_coins_ohlc(&input.id, input.vs.as_deref(), input.days.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get coin historical data for a specific date from CoinGecko")]
+    async fn gecko_coins_history(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsHistoryInput>,
+    ) -> String {
+        tools::gecko_coins_history(&input.id, &input.date)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get top gainers and losers from CoinGecko")]
+    async fn gecko_coins_top_movers(
+        &self,
+        Parameters(input): Parameters<GeckoCoinsTopMoversInput>,
+    ) -> String {
+        tools::gecko_coins_top_movers(input.vs.as_deref(), input.duration.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get recently added coins from CoinGecko")]
+    async fn gecko_coins_new(&self) -> String {
+        tools::gecko_coins_new().await.to_response()
+    }
+
+    #[tool(description = "Get coin data by contract address from CoinGecko")]
+    async fn gecko_coins_by_contract(
+        &self,
+        Parameters(input): Parameters<GeckoContractInput>,
+    ) -> String {
+        tools::gecko_coins_by_contract(&input.platform, &input.address)
+            .await
+            .to_response()
+    }
+
+    // --- Gecko Global (additional) ---
+
+    #[tool(description = "Ping CoinGecko API status")]
+    async fn gecko_global_ping(&self) -> String {
+        tools::gecko_global_ping().await.to_response()
+    }
+
+    #[tool(description = "Get global DeFi market data from CoinGecko")]
+    async fn gecko_global_defi(&self) -> String {
+        tools::gecko_global_defi().await.to_response()
+    }
+
+    #[tool(description = "Get trending coins, NFTs, and categories from CoinGecko")]
+    async fn gecko_global_trending(&self) -> String {
+        tools::gecko_global_trending().await.to_response()
+    }
+
+    #[tool(description = "Search coins, exchanges, categories, and NFTs on CoinGecko")]
+    async fn gecko_global_search(&self, Parameters(input): Parameters<GeckoSearchInput>) -> String {
+        tools::gecko_global_search(&input.query).await.to_response()
+    }
+
+    #[tool(description = "Get BTC exchange rates from CoinGecko")]
+    async fn gecko_global_exchange_rates(&self) -> String {
+        tools::gecko_global_exchange_rates().await.to_response()
+    }
+
+    #[tool(description = "List asset platforms (blockchains) from CoinGecko")]
+    async fn gecko_global_platforms(&self) -> String {
+        tools::gecko_global_platforms().await.to_response()
+    }
+
+    // --- Gecko NFTs (additional) ---
+
+    #[tool(description = "List NFT collections from CoinGecko")]
+    async fn gecko_nfts_list(&self) -> String {
+        tools::gecko_nfts_list().await.to_response()
+    }
+
+    #[tool(description = "Get NFT collection by contract address from CoinGecko")]
+    async fn gecko_nfts_by_contract(
+        &self,
+        Parameters(input): Parameters<GeckoContractInput>,
+    ) -> String {
+        tools::gecko_nfts_by_contract(&input.platform, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT markets data from CoinGecko")]
+    async fn gecko_nfts_markets(&self) -> String {
+        tools::gecko_nfts_markets().await.to_response()
+    }
+
+    #[tool(description = "Get NFT collection tickers from CoinGecko")]
+    async fn gecko_nfts_tickers(&self, Parameters(input): Parameters<GeckoNftInput>) -> String {
+        tools::gecko_nfts_tickers(&input.id).await.to_response()
+    }
+
+    // --- Gecko Onchain (additional) ---
+
+    #[tool(description = "List supported onchain networks from CoinGecko")]
+    async fn gecko_onchain_networks(&self) -> String {
+        tools::gecko_onchain_networks().await.to_response()
+    }
+
+    #[tool(description = "List DEXes on a network from CoinGecko")]
+    async fn gecko_onchain_dexes(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainNetworkInput>,
+    ) -> String {
+        tools::gecko_onchain_dexes(&input.network)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get trending pools from CoinGecko onchain data")]
+    async fn gecko_onchain_trending_pools(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
+    ) -> String {
+        tools::gecko_onchain_trending_pools(input.network.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get top pools from CoinGecko onchain data")]
+    async fn gecko_onchain_top_pools(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
+    ) -> String {
+        tools::gecko_onchain_top_pools(input.network.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get new pools from CoinGecko onchain data")]
+    async fn gecko_onchain_new_pools(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
+    ) -> String {
+        tools::gecko_onchain_new_pools(input.network.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get onchain token data from CoinGecko")]
+    async fn gecko_onchain_token(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainInput>,
+    ) -> String {
+        tools::gecko_onchain_token_info(&input.network, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get onchain token prices from CoinGecko")]
+    async fn gecko_onchain_token_price(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainTokenPriceInput>,
+    ) -> String {
+        tools::gecko_onchain_token_price(&input.network, &input.addresses)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get pools for a token from CoinGecko onchain data")]
+    async fn gecko_onchain_token_pools(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainInput>,
+    ) -> String {
+        tools::gecko_onchain_token_pools(&input.network, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get pool OHLCV candlestick data from CoinGecko onchain")]
+    async fn gecko_onchain_pool_ohlcv(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainPoolOhlcvInput>,
+    ) -> String {
+        tools::gecko_onchain_pool_ohlcv(&input.network, &input.address, input.timeframe.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Search pools on CoinGecko onchain")]
+    async fn gecko_onchain_search_pools(
+        &self,
+        Parameters(input): Parameters<GeckoSearchInput>,
+    ) -> String {
+        tools::gecko_onchain_search_pools(&input.query)
             .await
             .to_response()
     }
@@ -1487,6 +3383,1000 @@ impl EthcliMcpServer {
         tools::moralis_market_top_movers().await.to_response()
     }
 
+    #[tool(description = "Get top NFT collections by market cap via Moralis")]
+    async fn moralis_market_top_nfts(&self) -> String {
+        tools::moralis_market_top_nfts().await.to_response()
+    }
+
+    // =========================================================================
+    // MORALIS WALLET (additional)
+    // =========================================================================
+
+    #[tool(description = "Get wallet transactions via Moralis")]
+    async fn moralis_wallet_transactions(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_transactions(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get chains where a wallet has been active via Moralis")]
+    async fn moralis_wallet_active_chains(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_active_chains(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token approvals for a wallet via Moralis")]
+    async fn moralis_wallet_approvals(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_approvals(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get wallet stats (transaction counts, volumes) via Moralis")]
+    async fn moralis_wallet_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get wallet profitability summary via Moralis")]
+    async fn moralis_wallet_profitability(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_profitability(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS TOKEN (additional)
+    // =========================================================================
+
+    #[tool(description = "Get token swaps/trades via Moralis")]
+    async fn moralis_token_swaps(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_swaps(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token stats (holders, transactions, liquidity) via Moralis")]
+    async fn moralis_token_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Search for tokens by name or symbol via Moralis")]
+    async fn moralis_token_search(
+        &self,
+        Parameters(input): Parameters<MoralisSearchInput>,
+    ) -> String {
+        tools::moralis_token_search(&input.query)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get trending tokens via Moralis")]
+    async fn moralis_token_trending(&self) -> String {
+        tools::moralis_token_trending().await.to_response()
+    }
+
+    #[tool(description = "Get OHLCV candlestick data for a token pair via Moralis")]
+    async fn moralis_token_pair_ohlcv(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_pair_ohlcv(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get pair stats (volume, liquidity, price change) via Moralis")]
+    async fn moralis_token_pair_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_pair_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS NFT
+    // =========================================================================
+
+    #[tool(description = "Get NFTs owned by a wallet via Moralis")]
+    async fn moralis_nft_list(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
+        tools::moralis_nft_list(&input.address).await.to_response()
+    }
+
+    #[tool(description = "Get NFT metadata (name, image, attributes) via Moralis")]
+    async fn moralis_nft_metadata(
+        &self,
+        Parameters(input): Parameters<MoralisNftMetadataInput>,
+    ) -> String {
+        tools::moralis_nft_metadata(&input.contract, &input.token_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT transfers for a wallet or contract via Moralis")]
+    async fn moralis_nft_transfers(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_transfers(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT collection metadata via Moralis")]
+    async fn moralis_nft_collection(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_collection(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT collection stats (volume, sales, floor price) via Moralis")]
+    async fn moralis_nft_collection_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_collection_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get owners of an NFT collection via Moralis")]
+    async fn moralis_nft_owners(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_owners(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT trades/sales history via Moralis")]
+    async fn moralis_nft_trades(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_trades(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT collection floor price via Moralis")]
+    async fn moralis_nft_floor_price(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_floor_price(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS WALLET (new)
+    // =========================================================================
+
+    #[tool(description = "Get profitability breakdown by token for a wallet via Moralis")]
+    async fn moralis_wallet_profitability_tokens(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_wallet_profitability_tokens(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get native balances for multiple wallets in batch (comma-separated addresses) via Moralis"
+    )]
+    async fn moralis_wallet_multiple_balances(
+        &self,
+        Parameters(input): Parameters<MoralisAddressesInput>,
+    ) -> String {
+        tools::moralis_wallet_multiple_balances(&input.addresses)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS TOKEN (new)
+    // =========================================================================
+
+    #[tool(description = "Get token swaps for a wallet address via Moralis")]
+    async fn moralis_token_wallet_swaps(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_wallet_swaps(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get swaps for a specific token pair via Moralis")]
+    async fn moralis_token_pair_swaps(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_pair_swaps(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get all token categories via Moralis")]
+    async fn moralis_token_categories(&self) -> String {
+        tools::moralis_token_categories().await.to_response()
+    }
+
+    #[tool(
+        description = "Get newly listed tokens on a DEX exchange (e.g., uniswapv2, uniswapv3, pancakeswap) via Moralis"
+    )]
+    async fn moralis_token_exchange_new_tokens(
+        &self,
+        Parameters(input): Parameters<MoralisExchangeInput>,
+    ) -> String {
+        tools::moralis_token_exchange_new_tokens(&input.exchange)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get tokens in bonding phase on an exchange (e.g., pump.fun) via Moralis")]
+    async fn moralis_token_exchange_bonding_tokens(
+        &self,
+        Parameters(input): Parameters<MoralisExchangeInput>,
+    ) -> String {
+        tools::moralis_token_exchange_bonding_tokens(&input.exchange)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get graduated tokens on an exchange via Moralis")]
+    async fn moralis_token_exchange_graduated_tokens(
+        &self,
+        Parameters(input): Parameters<MoralisExchangeInput>,
+    ) -> String {
+        tools::moralis_token_exchange_graduated_tokens(&input.exchange)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get prices for multiple tokens in batch (comma-separated addresses) via Moralis"
+    )]
+    async fn moralis_token_multiple_prices(
+        &self,
+        Parameters(input): Parameters<MoralisAddressesInput>,
+    ) -> String {
+        tools::moralis_token_multiple_prices(&input.addresses)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get tokens by their symbols (comma-separated, e.g., USDC,WETH,DAI) via Moralis"
+    )]
+    async fn moralis_token_by_symbols(
+        &self,
+        Parameters(input): Parameters<MoralisSymbolsInput>,
+    ) -> String {
+        tools::moralis_token_by_symbols(&input.symbols)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get transfers for a token contract (not wallet transfers) via Moralis")]
+    async fn moralis_token_contract_transfers(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_contract_transfers(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get holders summary for a token via Moralis")]
+    async fn moralis_token_holders_summary(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_holders_summary(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get historical holders data for a token via Moralis")]
+    async fn moralis_token_holders_historical(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_holders_historical(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get aggregated pair stats for a token via Moralis")]
+    async fn moralis_token_pairs_stats(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_pairs_stats(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get top gainers/traders for a token via Moralis")]
+    async fn moralis_token_top_gainers(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_top_gainers(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get pair snipers (early buyers) via Moralis")]
+    async fn moralis_token_pair_snipers(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_pair_snipers(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get token bonding status (pump.fun graduation status, etc.) via Moralis")]
+    async fn moralis_token_bonding_status(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_token_bonding_status(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS NFT (new)
+    // =========================================================================
+
+    #[tool(description = "Get NFT collections owned by a wallet via Moralis")]
+    async fn moralis_nft_wallet_collections(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_wallet_collections(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT transfers by contract address via Moralis")]
+    async fn moralis_nft_contract_transfers(
+        &self,
+        Parameters(input): Parameters<MoralisNftContractInput>,
+    ) -> String {
+        tools::moralis_nft_contract_transfers(&input.contract)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get transfers for a specific NFT token via Moralis")]
+    async fn moralis_nft_token_transfers(
+        &self,
+        Parameters(input): Parameters<MoralisNftTokenInput>,
+    ) -> String {
+        tools::moralis_nft_token_transfers(&input.contract, &input.token_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get owners of a specific NFT token via Moralis")]
+    async fn moralis_nft_token_owners(
+        &self,
+        Parameters(input): Parameters<MoralisNftTokenInput>,
+    ) -> String {
+        tools::moralis_nft_token_owners(&input.contract, &input.token_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get floor price for a specific NFT token via Moralis")]
+    async fn moralis_nft_token_floor_price(
+        &self,
+        Parameters(input): Parameters<MoralisNftTokenInput>,
+    ) -> String {
+        tools::moralis_nft_token_floor_price(&input.contract, &input.token_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get trades for a specific NFT token via Moralis")]
+    async fn moralis_nft_token_trades(
+        &self,
+        Parameters(input): Parameters<MoralisNftTokenInput>,
+    ) -> String {
+        tools::moralis_nft_token_trades(&input.contract, &input.token_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT trades for a wallet via Moralis")]
+    async fn moralis_nft_wallet_trades(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_wallet_trades(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT collection traits via Moralis")]
+    async fn moralis_nft_collection_traits(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_collection_traits(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT collection traits with pagination via Moralis")]
+    async fn moralis_nft_collection_traits_paginated(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_collection_traits_paginated(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get unique owners count for an NFT collection via Moralis")]
+    async fn moralis_nft_unique_owners(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_unique_owners(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Resync metadata for a specific NFT token via Moralis")]
+    async fn moralis_nft_resync_metadata(
+        &self,
+        Parameters(input): Parameters<MoralisNftTokenInput>,
+    ) -> String {
+        tools::moralis_nft_resync_metadata(&input.contract, &input.token_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get multiple NFTs by token addresses and IDs in batch (format: addr:id,addr:id) via Moralis"
+    )]
+    async fn moralis_nft_multiple_nfts(
+        &self,
+        Parameters(input): Parameters<MoralisMultipleNftsInput>,
+    ) -> String {
+        tools::moralis_nft_multiple_nfts(&input.tokens)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get historical floor price data for an NFT collection via Moralis")]
+    async fn moralis_nft_floor_price_historical(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_floor_price_historical(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Sync NFT collection metadata via Moralis")]
+    async fn moralis_nft_sync_collection(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_sync_collection(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get all NFTs by contract address via Moralis")]
+    async fn moralis_nft_contract_nfts(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_contract_nfts(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get metadata for multiple NFT contracts in batch (comma-separated addresses) via Moralis"
+    )]
+    async fn moralis_nft_multiple_collections(
+        &self,
+        Parameters(input): Parameters<MoralisAddressesInput>,
+    ) -> String {
+        tools::moralis_nft_multiple_collections(&input.addresses)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Resync NFT collection traits via Moralis")]
+    async fn moralis_nft_resync_traits(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_resync_traits(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT sale prices for a collection via Moralis")]
+    async fn moralis_nft_collection_prices(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_nft_collection_prices(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get NFT sale prices for a specific token via Moralis")]
+    async fn moralis_nft_token_prices(
+        &self,
+        Parameters(input): Parameters<MoralisNftTokenInput>,
+    ) -> String {
+        tools::moralis_nft_token_prices(&input.contract, &input.token_id)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS RESOLVE (new)
+    // =========================================================================
+
+    #[tool(description = "Get all domains for an address via Moralis")]
+    async fn moralis_resolve_address_domains(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_resolve_address_domains(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get ENS domain details via Moralis")]
+    async fn moralis_resolve_ens_domain(
+        &self,
+        Parameters(input): Parameters<MoralisDomainInput>,
+    ) -> String {
+        tools::moralis_resolve_ens_domain(&input.domain)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS MARKET (new)
+    // =========================================================================
+
+    #[tool(description = "Get hottest NFT collections via Moralis")]
+    async fn moralis_market_hottest_nfts(&self) -> String {
+        tools::moralis_market_hottest_nfts().await.to_response()
+    }
+
+    #[tool(description = "Get global crypto market capitalization via Moralis")]
+    async fn moralis_market_global_market_cap(&self) -> String {
+        tools::moralis_market_global_market_cap()
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get global crypto trading volume via Moralis")]
+    async fn moralis_market_global_volume(&self) -> String {
+        tools::moralis_market_global_volume().await.to_response()
+    }
+
+    // =========================================================================
+    // MORALIS TRANSACTION
+    // =========================================================================
+
+    #[tool(description = "Get transaction details by hash via Moralis")]
+    async fn moralis_transaction_get(
+        &self,
+        Parameters(input): Parameters<MoralisTxHashInput>,
+    ) -> String {
+        tools::moralis_transaction_get(&input.tx_hash)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get verbose transaction with decoded data and optional internal transactions via Moralis"
+    )]
+    async fn moralis_transaction_verbose(
+        &self,
+        Parameters(input): Parameters<MoralisTxVerboseInput>,
+    ) -> String {
+        tools::moralis_transaction_verbose(&input.tx_hash, input.include_internal)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get transactions for a wallet address via Moralis transaction API")]
+    async fn moralis_transaction_wallet(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_transaction_wallet(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get verbose transactions for a wallet with decoded data and optional internal transactions via Moralis"
+    )]
+    async fn moralis_transaction_wallet_verbose(
+        &self,
+        Parameters(input): Parameters<MoralisWalletVerboseInput>,
+    ) -> String {
+        tools::moralis_transaction_wallet_verbose(&input.address, input.include_internal)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS BLOCK
+    // =========================================================================
+
+    #[tool(
+        description = "Get block by number or hash with optional transaction details via Moralis"
+    )]
+    async fn moralis_block_get(&self, Parameters(input): Parameters<MoralisBlockInput>) -> String {
+        tools::moralis_block_get(&input.block_number_or_hash, input.include_transactions)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get the latest block number for a chain via Moralis")]
+    async fn moralis_block_latest(&self) -> String {
+        tools::moralis_block_latest().await.to_response()
+    }
+
+    #[tool(
+        description = "Get block number by date (ISO 8601 format, e.g. 2023-01-01T00:00:00Z) via Moralis"
+    )]
+    async fn moralis_block_date_to_block(
+        &self,
+        Parameters(input): Parameters<MoralisDateInput>,
+    ) -> String {
+        tools::moralis_block_date_to_block(&input.date)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS DEFI
+    // =========================================================================
+
+    #[tool(description = "Get price between two tokens in a DEX pair via Moralis")]
+    async fn moralis_defi_pair_price(
+        &self,
+        Parameters(input): Parameters<MoralisDefiPairPriceInput>,
+    ) -> String {
+        tools::moralis_defi_pair_price(&input.token0, &input.token1, input.exchange.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get reserves for a DEX pair via Moralis")]
+    async fn moralis_defi_pair_reserves(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_defi_pair_reserves(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get pair address for two tokens on a DEX via Moralis")]
+    async fn moralis_defi_pair_address(
+        &self,
+        Parameters(input): Parameters<MoralisDefiPairAddressInput>,
+    ) -> String {
+        tools::moralis_defi_pair_address(&input.token0, &input.token1, input.exchange.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get DeFi summary for a wallet via Moralis")]
+    async fn moralis_defi_wallet_summary(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_defi_wallet_summary(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get all DeFi positions for a wallet via Moralis")]
+    async fn moralis_defi_wallet_positions(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_defi_wallet_positions(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get DeFi positions for a specific protocol via Moralis")]
+    async fn moralis_defi_protocol_positions(
+        &self,
+        Parameters(input): Parameters<MoralisProtocolPositionsInput>,
+    ) -> String {
+        tools::moralis_defi_protocol_positions(&input.address, &input.protocol)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS DISCOVERY
+    // =========================================================================
+
+    #[tool(description = "Get tokens with rising liquidity via Moralis discovery")]
+    async fn moralis_discovery_rising_liquidity(&self) -> String {
+        tools::moralis_discovery_rising_liquidity()
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get tokens with buying pressure via Moralis discovery")]
+    async fn moralis_discovery_buying_pressure(&self) -> String {
+        tools::moralis_discovery_buying_pressure()
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get solid performer tokens via Moralis discovery")]
+    async fn moralis_discovery_solid_performers(&self) -> String {
+        tools::moralis_discovery_solid_performers()
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get tokens with experienced buyers via Moralis discovery")]
+    async fn moralis_discovery_experienced_buyers(&self) -> String {
+        tools::moralis_discovery_experienced_buyers()
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get risky bet tokens via Moralis discovery")]
+    async fn moralis_discovery_risky_bets(&self) -> String {
+        tools::moralis_discovery_risky_bets().await.to_response()
+    }
+
+    #[tool(description = "Get blue chip tokens via Moralis discovery")]
+    async fn moralis_discovery_blue_chip(&self) -> String {
+        tools::moralis_discovery_blue_chip().await.to_response()
+    }
+
+    #[tool(description = "Get top gainer tokens via Moralis discovery")]
+    async fn moralis_discovery_top_gainers(&self) -> String {
+        tools::moralis_discovery_top_gainers().await.to_response()
+    }
+
+    #[tool(description = "Get top loser tokens via Moralis discovery")]
+    async fn moralis_discovery_top_losers(&self) -> String {
+        tools::moralis_discovery_top_losers().await.to_response()
+    }
+
+    #[tool(description = "Get trending tokens via Moralis discovery")]
+    async fn moralis_discovery_trending(&self) -> String {
+        tools::moralis_discovery_trending().await.to_response()
+    }
+
+    #[tool(
+        description = "Get token analytics (buyers, sellers, volume) for a specific token via Moralis discovery"
+    )]
+    async fn moralis_discovery_token_analytics(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_discovery_token_analytics(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get token score (security, verification, spam status) via Moralis discovery"
+    )]
+    async fn moralis_discovery_token_score(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_discovery_token_score(&input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Filter tokens by custom criteria (market cap, liquidity, volume, holders, security) via Moralis discovery"
+    )]
+    async fn moralis_discovery_filter(
+        &self,
+        Parameters(input): Parameters<MoralisDiscoveryFilterInput>,
+    ) -> String {
+        tools::moralis_discovery_filter(
+            input.min_market_cap,
+            input.max_market_cap,
+            input.min_liquidity,
+            input.max_liquidity,
+            input.min_volume_24h,
+            input.max_volume_24h,
+            input.min_holders,
+            input.min_security_score,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get single token details from Moralis discovery")]
+    async fn moralis_discovery_token(
+        &self,
+        Parameters(input): Parameters<MoralisAddressInput>,
+    ) -> String {
+        tools::moralis_discovery_token(&input.address)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS ANALYTICS
+    // =========================================================================
+
+    #[tool(
+        description = "Get token analytics timeseries data (comma-separated addresses, optional timeframe and date range) via Moralis"
+    )]
+    async fn moralis_analytics_timeseries(
+        &self,
+        Parameters(input): Parameters<MoralisAnalyticsTimeseriesInput>,
+    ) -> String {
+        tools::moralis_analytics_timeseries(
+            &input.addresses,
+            input.timeframe.as_deref(),
+            input.from_date.as_deref(),
+            input.to_date.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get batch token analytics for multiple tokens (comma-separated addresses) via Moralis"
+    )]
+    async fn moralis_analytics_batch(
+        &self,
+        Parameters(input): Parameters<MoralisAddressesInput>,
+    ) -> String {
+        tools::moralis_analytics_batch(&input.addresses)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS ENTITIES
+    // =========================================================================
+
+    #[tool(description = "Search for entities (wallets, protocols, exchanges) via Moralis")]
+    async fn moralis_entities_search(
+        &self,
+        Parameters(input): Parameters<MoralisSearchInput>,
+    ) -> String {
+        tools::moralis_entities_search(&input.query)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get entity details by ID via Moralis")]
+    async fn moralis_entities_get(
+        &self,
+        Parameters(input): Parameters<MoralisEntityIdInput>,
+    ) -> String {
+        tools::moralis_entities_get(&input.entity_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get all entity categories via Moralis")]
+    async fn moralis_entities_categories(&self) -> String {
+        tools::moralis_entities_categories().await.to_response()
+    }
+
+    #[tool(description = "Get entities in a specific category via Moralis")]
+    async fn moralis_entities_category_entities(
+        &self,
+        Parameters(input): Parameters<MoralisCategoryIdInput>,
+    ) -> String {
+        tools::moralis_entities_category_entities(&input.category_id)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
+    // MORALIS VOLUME
+    // =========================================================================
+
+    #[tool(description = "Get trading volume by chain via Moralis")]
+    async fn moralis_volume_chains(&self) -> String {
+        tools::moralis_volume_chains().await.to_response()
+    }
+
+    #[tool(description = "Get trading volume by category via Moralis")]
+    async fn moralis_volume_categories(&self) -> String {
+        tools::moralis_volume_categories().await.to_response()
+    }
+
+    #[tool(
+        description = "Get overall trading volume timeseries (optional timeframe and date range) via Moralis"
+    )]
+    async fn moralis_volume_timeseries(
+        &self,
+        Parameters(input): Parameters<MoralisVolumeTimeseriesInput>,
+    ) -> String {
+        tools::moralis_volume_timeseries(
+            input.timeframe.as_deref(),
+            input.from_date.as_deref(),
+            input.to_date.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get trading volume timeseries for a specific category (optional timeframe and date range) via Moralis"
+    )]
+    async fn moralis_volume_category_timeseries(
+        &self,
+        Parameters(input): Parameters<MoralisVolumeCategoryTimeseriesInput>,
+    ) -> String {
+        tools::moralis_volume_category_timeseries(
+            &input.category_id,
+            input.timeframe.as_deref(),
+            input.from_date.as_deref(),
+            input.to_date.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
     // =========================================================================
     // DSIM (Dune Simulator)
     // =========================================================================
@@ -1559,6 +4449,260 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    // --- Dune Queries CRUD ---
+
+    #[tool(description = "Create a saved Dune Analytics query")]
+    async fn dune_queries_create(
+        &self,
+        Parameters(input): Parameters<DuneQueriesCreateInput>,
+    ) -> String {
+        tools::dune_queries_create(
+            &input.name,
+            &input.sql,
+            input.description.as_deref(),
+            input.private,
+            input.tags.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get details of a saved Dune query")]
+    async fn dune_queries_get(&self, Parameters(input): Parameters<DuneQueriesGetInput>) -> String {
+        tools::dune_queries_get(&input.query_id).await.to_response()
+    }
+
+    #[tool(description = "Update an existing Dune query")]
+    async fn dune_queries_update(
+        &self,
+        Parameters(input): Parameters<DuneQueriesUpdateInput>,
+    ) -> String {
+        tools::dune_queries_update(
+            &input.query_id,
+            input.name.as_deref(),
+            input.sql.as_deref(),
+            input.description.as_deref(),
+            input.tags.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "List all saved Dune queries")]
+    async fn dune_queries_list(
+        &self,
+        Parameters(input): Parameters<DuneQueriesListInput>,
+    ) -> String {
+        tools::dune_queries_list(input.limit, input.offset)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Archive a Dune query")]
+    async fn dune_queries_archive(
+        &self,
+        Parameters(input): Parameters<DuneQueriesIdInput>,
+    ) -> String {
+        tools::dune_queries_archive(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Unarchive a Dune query")]
+    async fn dune_queries_unarchive(
+        &self,
+        Parameters(input): Parameters<DuneQueriesIdInput>,
+    ) -> String {
+        tools::dune_queries_unarchive(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Make a Dune query private")]
+    async fn dune_queries_make_private(
+        &self,
+        Parameters(input): Parameters<DuneQueriesIdInput>,
+    ) -> String {
+        tools::dune_queries_make_private(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Make a Dune query public")]
+    async fn dune_queries_make_public(
+        &self,
+        Parameters(input): Parameters<DuneQueriesIdInput>,
+    ) -> String {
+        tools::dune_queries_make_public(&input.query_id)
+            .await
+            .to_response()
+    }
+
+    // --- Dune Tables CRUD ---
+
+    #[tool(description = "Create a Dune table with a JSON schema definition")]
+    async fn dune_tables_create(
+        &self,
+        Parameters(input): Parameters<DuneTablesCreateInput>,
+    ) -> String {
+        tools::dune_tables_create(
+            &input.namespace,
+            &input.table_name,
+            &input.schema_json,
+            input.description.as_deref(),
+            input.private,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Upload CSV data to a Dune table")]
+    async fn dune_tables_upload_csv(
+        &self,
+        Parameters(input): Parameters<DuneTablesUploadCsvInput>,
+    ) -> String {
+        tools::dune_tables_upload_csv(
+            &input.table_name,
+            &input.data,
+            input.description.as_deref(),
+            input.private,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "List Dune tables")]
+    async fn dune_tables_list(&self, Parameters(input): Parameters<DuneTablesListInput>) -> String {
+        tools::dune_tables_list(input.limit, input.offset)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get details of a Dune table")]
+    async fn dune_tables_get(&self, Parameters(input): Parameters<DuneTablesGetInput>) -> String {
+        tools::dune_tables_get(&input.namespace, &input.table_name)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Insert rows into a Dune table")]
+    async fn dune_tables_insert(
+        &self,
+        Parameters(input): Parameters<DuneTablesInsertInput>,
+    ) -> String {
+        tools::dune_tables_insert(&input.namespace, &input.table_name, &input.data_json)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Clear all data from a Dune table")]
+    async fn dune_tables_clear(
+        &self,
+        Parameters(input): Parameters<DuneTablesNamespaceTableInput>,
+    ) -> String {
+        tools::dune_tables_clear(&input.namespace, &input.table_name)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Delete a Dune table")]
+    async fn dune_tables_delete(
+        &self,
+        Parameters(input): Parameters<DuneTablesNamespaceTableInput>,
+    ) -> String {
+        tools::dune_tables_delete(&input.namespace, &input.table_name)
+            .await
+            .to_response()
+    }
+
+    // --- Dune Materialized Views ---
+
+    #[tool(description = "Create or update a Dune materialized view")]
+    async fn dune_matviews_upsert(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsUpsertInput>,
+    ) -> String {
+        tools::dune_matviews_upsert(
+            &input.name,
+            &input.query_id,
+            input.cron.as_deref(),
+            input.expires_at.as_deref(),
+            input.private,
+            input.performance.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get details of a Dune materialized view")]
+    async fn dune_matviews_get(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsNameInput>,
+    ) -> String {
+        tools::dune_matviews_get(&input.name).await.to_response()
+    }
+
+    #[tool(description = "List Dune materialized views")]
+    async fn dune_matviews_list(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsListInput>,
+    ) -> String {
+        tools::dune_matviews_list(input.limit, input.offset)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Refresh a Dune materialized view")]
+    async fn dune_matviews_refresh(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsRefreshInput>,
+    ) -> String {
+        tools::dune_matviews_refresh(&input.name, input.performance.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Delete a Dune materialized view")]
+    async fn dune_matviews_delete(
+        &self,
+        Parameters(input): Parameters<DuneMatviewsNameInput>,
+    ) -> String {
+        tools::dune_matviews_delete(&input.name).await.to_response()
+    }
+
+    // --- Dune Pipelines ---
+
+    #[tool(description = "Execute a Dune pipeline")]
+    async fn dune_pipelines_execute(
+        &self,
+        Parameters(input): Parameters<DunePipelinesExecuteInput>,
+    ) -> String {
+        tools::dune_pipelines_execute(
+            &input.pipeline_json,
+            input.params.as_deref(),
+            input.performance.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get Dune pipeline execution status")]
+    async fn dune_pipelines_status(
+        &self,
+        Parameters(input): Parameters<DunePipelinesStatusInput>,
+    ) -> String {
+        tools::dune_pipelines_status(&input.execution_id)
+            .await
+            .to_response()
+    }
+
+    // --- Dune Usage ---
+
+    #[tool(description = "Get Dune Analytics usage and billing information")]
+    async fn dune_usage(&self) -> String {
+        tools::dune_usage().await.to_response()
+    }
+
     // =========================================================================
     // CURVE (additional)
     // =========================================================================
@@ -1607,6 +4751,236 @@ impl EthcliMcpServer {
         tools::curve_dao().await.to_response()
     }
 
+    // --- Router additional ---
+
+    #[tool(description = "Get calldata for a Curve swap (encode route into transaction data)")]
+    async fn curve_router_encode(
+        &self,
+        Parameters(input): Parameters<CurveRouterEncodeInput>,
+    ) -> String {
+        tools::curve_router_encode(
+            &input.from,
+            &input.to,
+            &input.amount,
+            &input.min_out,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Get Curve router graph statistics (token count, edge count)")]
+    async fn curve_router_stats(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
+        tools::curve_router_stats(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Curve router contract address for a chain")]
+    async fn curve_router_address(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
+        tools::curve_router_address(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    // --- Pools additional ---
+
+    #[tool(description = "Get Curve pools from a specific registry on a chain")]
+    async fn curve_pools_registry(
+        &self,
+        Parameters(input): Parameters<CurveChainRegistryInput>,
+    ) -> String {
+        tools::curve_pools_registry(&input.chain, &input.registry)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get all Curve pools across all chains")]
+    async fn curve_pools_all(&self) -> String {
+        tools::curve_pools_all().await.to_response()
+    }
+
+    #[tool(description = "Get Curve pools with TVL >= $10k (optionally filtered by chain)")]
+    async fn curve_pools_big(
+        &self,
+        Parameters(input): Parameters<CurveOptionalChainInput>,
+    ) -> String {
+        tools::curve_pools_big(input.chain.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Curve pools with TVL < $10k (optionally filtered by chain)")]
+    async fn curve_pools_small(
+        &self,
+        Parameters(input): Parameters<CurveOptionalChainInput>,
+    ) -> String {
+        tools::curve_pools_small(input.chain.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Curve pools with $0 TVL (optionally filtered by chain)")]
+    async fn curve_pools_empty(
+        &self,
+        Parameters(input): Parameters<CurveOptionalChainInput>,
+    ) -> String {
+        tools::curve_pools_empty(input.chain.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Curve pool addresses on a chain")]
+    async fn curve_pools_addresses(
+        &self,
+        Parameters(input): Parameters<CurvePoolsInput>,
+    ) -> String {
+        tools::curve_pools_addresses(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get hidden/dysfunctional Curve pools")]
+    async fn curve_pools_hidden(&self) -> String {
+        tools::curve_pools_hidden().await.to_response()
+    }
+
+    // --- Volumes additional ---
+
+    #[tool(description = "Get all Curve gauge data")]
+    async fn curve_volumes_gauges(&self) -> String {
+        tools::curve_volumes_gauges().await.to_response()
+    }
+
+    #[tool(description = "Get total 24h Curve volume for a chain")]
+    async fn curve_volumes_total(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
+        tools::curve_volumes_total(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Curve base APYs for pools on a chain")]
+    async fn curve_volumes_apys(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
+        tools::curve_volumes_apys(Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get crvUSD AMM volumes")]
+    async fn curve_volumes_crvusd(&self) -> String {
+        tools::curve_volumes_crvusd().await.to_response()
+    }
+
+    // --- Lending additional ---
+
+    #[tool(description = "Get all Curve lending vaults across all chains")]
+    async fn curve_lending_all(&self) -> String {
+        tools::curve_lending_all().await.to_response()
+    }
+
+    #[tool(description = "Get Curve lending vaults from a specific registry on a chain")]
+    async fn curve_lending_registry(
+        &self,
+        Parameters(input): Parameters<CurveChainRegistryInput>,
+    ) -> String {
+        tools::curve_lending_registry(&input.chain, &input.registry)
+            .await
+            .to_response()
+    }
+
+    // --- CrvUSD additional ---
+
+    #[tool(description = "Get crvUSD circulating supply")]
+    async fn curve_crvusd_circulating_supply(&self) -> String {
+        tools::curve_crvusd_circulating_supply().await.to_response()
+    }
+
+    #[tool(description = "Get scrvUSD total supply")]
+    async fn curve_crvusd_scrvusd_supply(&self) -> String {
+        tools::curve_crvusd_scrvusd_supply().await.to_response()
+    }
+
+    #[tool(description = "Get crvUSD markets (optionally filtered by chain)")]
+    async fn curve_crvusd_markets(
+        &self,
+        Parameters(input): Parameters<CurveOptionalChainInput>,
+    ) -> String {
+        tools::curve_crvusd_markets(input.chain.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get crvUSD savings stats")]
+    async fn curve_crvusd_savings(&self) -> String {
+        tools::curve_crvusd_savings().await.to_response()
+    }
+
+    // --- Prices additional ---
+
+    #[tool(description = "Get Curve supported chains for prices")]
+    async fn curve_prices_chains(&self) -> String {
+        tools::curve_prices_chains().await.to_response()
+    }
+
+    #[tool(description = "Get Curve chain stats")]
+    async fn curve_prices_chain_stats(&self) -> String {
+        tools::curve_prices_chain_stats().await.to_response()
+    }
+
+    #[tool(description = "Get USD price for a specific token on Curve")]
+    async fn curve_prices_token(
+        &self,
+        Parameters(input): Parameters<CurveChainAddressInput>,
+    ) -> String {
+        tools::curve_prices_token(&input.chain, &input.address)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get price history for a token on Curve. Requires start and end timestamps."
+    )]
+    async fn curve_prices_history(
+        &self,
+        Parameters(input): Parameters<CurveChainAddressTimeRangeInput>,
+    ) -> String {
+        tools::curve_prices_history(&input.chain, &input.address, input.start, input.end)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get top tokens by volume on Curve")]
+    async fn curve_prices_top_volume(&self) -> String {
+        tools::curve_prices_top_volume().await.to_response()
+    }
+
+    // --- OHLC additional ---
+
+    #[tool(description = "Get LP token OHLC data on Curve. Requires start and end timestamps.")]
+    async fn curve_ohlc_lp_token(
+        &self,
+        Parameters(input): Parameters<CurveChainAddressTimeRangeInput>,
+    ) -> String {
+        tools::curve_ohlc_lp_token(&input.chain, &input.address, input.start, input.end)
+            .await
+            .to_response()
+    }
+
+    // --- DAO additional ---
+
+    #[tool(description = "Get Curve DAO proposals")]
+    async fn curve_dao_proposals(&self) -> String {
+        tools::curve_dao_proposals().await.to_response()
+    }
+
+    #[tool(description = "Get top CRV lockers")]
+    async fn curve_dao_lockers(
+        &self,
+        Parameters(input): Parameters<CurveDaoLockersInput>,
+    ) -> String {
+        tools::curve_dao_lockers(input.top).await.to_response()
+    }
+
     // =========================================================================
     // QUOTE (additional)
     // =========================================================================
@@ -1634,9 +5008,51 @@ impl EthcliMcpServer {
     // CHAINLINK (additional)
     // =========================================================================
 
-    #[tool(description = "Get Chainlink data streams info")]
-    async fn chainlink_streams(&self) -> String {
-        tools::chainlink_streams().await.to_response()
+    #[tool(description = "List available Chainlink Data Streams feeds")]
+    async fn chainlink_streams_feeds(&self) -> String {
+        tools::chainlink_streams_feeds().await.to_response()
+    }
+
+    #[tool(description = "Get latest report for a Chainlink Data Streams feed")]
+    async fn chainlink_streams_latest(
+        &self,
+        Parameters(input): Parameters<ChainlinkStreamsFeedInput>,
+    ) -> String {
+        tools::chainlink_streams_latest(&input.feed_id)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get Chainlink Data Streams report at a specific timestamp")]
+    async fn chainlink_streams_report(
+        &self,
+        Parameters(input): Parameters<ChainlinkStreamsReportInput>,
+    ) -> String {
+        tools::chainlink_streams_report(&input.feed_id, input.timestamp)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get bulk Chainlink Data Streams reports for multiple feeds at a timestamp"
+    )]
+    async fn chainlink_streams_bulk(
+        &self,
+        Parameters(input): Parameters<ChainlinkStreamsBulkInput>,
+    ) -> String {
+        tools::chainlink_streams_bulk(&input.feed_ids, input.timestamp)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "Get paginated Chainlink Data Streams report history for a feed")]
+    async fn chainlink_streams_history(
+        &self,
+        Parameters(input): Parameters<ChainlinkStreamsHistoryInput>,
+    ) -> String {
+        tools::chainlink_streams_history(&input.feed_id, input.timestamp, input.limit)
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -1983,6 +5399,42 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(description = "Create a new order on CoW Swap (MEV-protected)")]
+    async fn cowswap_create_order(
+        &self,
+        Parameters(input): Parameters<CowswapCreateOrderInput>,
+    ) -> String {
+        tools::cowswap_create_order(
+            &input.sell_token,
+            &input.buy_token,
+            &input.sell_amount,
+            &input.buy_amount,
+            input.valid_to,
+            &input.from,
+            &input.receiver,
+            &input.signature,
+            &input.kind,
+            &input.signing_scheme,
+            input.fee_amount.as_deref(),
+            input.app_data.as_deref(),
+            input.partially_fillable,
+            input.quote_id,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(description = "Cancel an existing CoW Swap order")]
+    async fn cowswap_cancel_order(
+        &self,
+        Parameters(input): Parameters<CowswapCancelOrderInput>,
+    ) -> String {
+        tools::cowswap_cancel_order(&input.uid, &input.signature, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
     // =========================================================================
     // LIFI (additional)
     // =========================================================================
@@ -2067,6 +5519,32 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(description = "Get just the transaction data from a LI.FI quote (convenience wrapper)")]
+    async fn lifi_get_transaction(&self, Parameters(input): Parameters<LifiQuoteInput>) -> String {
+        tools::lifi_get_transaction(
+            &input.from_chain,
+            &input.from_token,
+            &input.to_chain,
+            &input.to_token,
+            &input.amount,
+            &input.from_address,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get updated transaction data for a route step from LI.FI (pass step JSON from a route response)"
+    )]
+    async fn lifi_step_transaction(
+        &self,
+        Parameters(input): Parameters<LifiStepTransactionInput>,
+    ) -> String {
+        tools::lifi_step_transaction(&input.step_json)
+            .await
+            .to_response()
+    }
+
     // =========================================================================
     // VELORA
     // =========================================================================
@@ -2118,6 +5596,20 @@ impl EthcliMcpServer {
         tools::enso_balances(&input.address, Some(&input.chain))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Bundle multiple DeFi actions into one transaction via Enso. Actions format: [{\"protocol\":\"...\",\"action\":\"...\",\"args\":{...}}]"
+    )]
+    async fn enso_bundle(&self, Parameters(input): Parameters<EnsoBundleInput>) -> String {
+        tools::enso_bundle(
+            &input.from_address,
+            &input.actions_json,
+            Some(&input.chain_id),
+            input.routing_strategy.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================

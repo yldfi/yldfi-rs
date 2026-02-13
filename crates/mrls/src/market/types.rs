@@ -1,32 +1,101 @@
 //! Types for the Market Data API
 
+use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
+
+/// Deserialize a value that could be either a float, integer, or a string containing a number.
+fn string_or_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct StringOrF64Visitor;
+
+    impl<'de> Visitor<'de> for StringOrF64Visitor {
+        type Value = Option<f64>;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a float, integer, or string containing a number")
+        }
+
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
+            Ok(Some(v))
+        }
+
+        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
+            Ok(Some(v as f64))
+        }
+
+        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
+            Ok(Some(v as f64))
+        }
+
+        fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+            if v.is_empty() {
+                return Ok(None);
+            }
+            v.parse().map(Some).map_err(de::Error::custom)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+    }
+
+    deserializer.deserialize_any(StringOrF64Visitor)
+}
 
 /// Top token data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TopToken {
     /// Token address
+    #[serde(alias = "token_address")]
     pub token_address: Option<String>,
     /// Token name
+    #[serde(alias = "token_name")]
     pub token_name: Option<String>,
     /// Token symbol
+    #[serde(alias = "token_symbol")]
     pub token_symbol: Option<String>,
     /// Token logo
+    #[serde(alias = "token_logo")]
     pub token_logo: Option<String>,
     /// Token decimals
+    #[serde(alias = "token_decimals")]
     pub token_decimals: Option<u8>,
     /// Price USD
+    #[serde(default, deserialize_with = "string_or_f64", alias = "price_usd")]
     pub price_usd: Option<f64>,
     /// Price 24h change percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "price_24h_percent_change"
+    )]
     pub price_24h_percent_change: Option<f64>,
     /// Price 7d change percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "price_7d_percent_change"
+    )]
     pub price_7d_percent_change: Option<f64>,
     /// Market cap USD
+    #[serde(default, deserialize_with = "string_or_f64", alias = "market_cap_usd")]
     pub market_cap_usd: Option<f64>,
     /// Volume 24h USD
+    #[serde(default, deserialize_with = "string_or_f64", alias = "volume_24h_usd")]
     pub volume_24h_usd: Option<f64>,
     /// Volume change 24h percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "volume_change_24h"
+    )]
     pub volume_change_24h: Option<f64>,
 }
 
@@ -35,18 +104,29 @@ pub struct TopToken {
 #[serde(rename_all = "camelCase")]
 pub struct TopMover {
     /// Token address
+    #[serde(alias = "token_address")]
     pub token_address: Option<String>,
     /// Token name
+    #[serde(alias = "token_name")]
     pub token_name: Option<String>,
     /// Token symbol
+    #[serde(alias = "token_symbol")]
     pub token_symbol: Option<String>,
     /// Token logo
+    #[serde(alias = "token_logo")]
     pub token_logo: Option<String>,
     /// Price USD
+    #[serde(default, deserialize_with = "string_or_f64", alias = "price_usd")]
     pub price_usd: Option<f64>,
     /// Price change percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "price_percent_change"
+    )]
     pub price_percent_change: Option<f64>,
     /// Volume 24h USD
+    #[serde(default, deserialize_with = "string_or_f64", alias = "volume_24h_usd")]
     pub volume_24h_usd: Option<f64>,
 }
 
@@ -55,20 +135,40 @@ pub struct TopMover {
 #[serde(rename_all = "camelCase")]
 pub struct TopNftCollection {
     /// Collection address
+    #[serde(alias = "collection_address")]
     pub collection_address: Option<String>,
     /// Collection title
+    #[serde(alias = "collection_title")]
     pub collection_title: Option<String>,
     /// Collection image
+    #[serde(alias = "collection_image")]
     pub collection_image: Option<String>,
     /// Floor price USD
+    #[serde(default, deserialize_with = "string_or_f64", alias = "floor_price_usd")]
     pub floor_price_usd: Option<f64>,
     /// Floor price 24h change percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "floor_price_24hr_percent_change"
+    )]
     pub floor_price_24hr_percent_change: Option<f64>,
     /// Volume 24h USD
+    #[serde(default, deserialize_with = "string_or_f64", alias = "volume_usd")]
     pub volume_usd: Option<f64>,
     /// Volume 24h change percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "volume_24hr_percent_change"
+    )]
     pub volume_24hr_percent_change: Option<f64>,
     /// Average price USD
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "average_price_usd"
+    )]
     pub average_price_usd: Option<f64>,
 }
 
@@ -77,8 +177,18 @@ pub struct TopNftCollection {
 #[serde(rename_all = "camelCase")]
 pub struct GlobalMarketCap {
     /// Total market cap USD
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "total_market_cap_usd"
+    )]
     pub total_market_cap_usd: Option<f64>,
     /// Market cap change 24h percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "market_cap_change_24h"
+    )]
     pub market_cap_change_24h: Option<f64>,
 }
 
@@ -87,8 +197,18 @@ pub struct GlobalMarketCap {
 #[serde(rename_all = "camelCase")]
 pub struct GlobalVolume {
     /// Total volume 24h USD
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "total_volume_24h_usd"
+    )]
     pub total_volume_24h_usd: Option<f64>,
     /// Volume change 24h percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "volume_change_24h"
+    )]
     pub volume_change_24h: Option<f64>,
 }
 
@@ -101,4 +221,74 @@ pub struct MarketDataResponse<T> {
     pub page_size: Option<i32>,
     /// Results
     pub result: Vec<T>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_top_token_camel_case() {
+        let json = r#"{
+            "tokenAddress": "0xtoken",
+            "tokenName": "Bitcoin",
+            "tokenSymbol": "BTC",
+            "tokenLogo": "https://logo.png",
+            "tokenDecimals": 8,
+            "priceUsd": 50000.0,
+            "price24hPercentChange": 5.0,
+            "marketCapUsd": 1000000000.0,
+            "volume24hUsd": 50000000.0
+        }"#;
+        let token: TopToken = serde_json::from_str(json).unwrap();
+        assert_eq!(token.token_address, Some("0xtoken".to_string()));
+        assert_eq!(token.token_name, Some("Bitcoin".to_string()));
+        assert_eq!(token.token_symbol, Some("BTC".to_string()));
+        assert_eq!(token.price_usd, Some(50000.0));
+        assert_eq!(token.market_cap_usd, Some(1000000000.0));
+    }
+
+    #[test]
+    fn test_top_token_string_numbers() {
+        let json = r#"{
+            "tokenAddress": "0xtoken",
+            "priceUsd": "50000.50",
+            "marketCapUsd": "1000000000"
+        }"#;
+        let token: TopToken = serde_json::from_str(json).unwrap();
+        assert_eq!(token.price_usd, Some(50000.50));
+        assert_eq!(token.market_cap_usd, Some(1000000000.0));
+    }
+
+    #[test]
+    fn test_top_nft_collection_camel_case() {
+        let json = r#"{
+            "collectionAddress": "0xbayc",
+            "collectionTitle": "Bored Ape Yacht Club",
+            "collectionImage": "https://image.png",
+            "floorPriceUsd": 19000.0,
+            "floorPrice24hrPercentChange": -2.5,
+            "volumeUsd": 500000.0,
+            "averagePriceUsd": 20000.0
+        }"#;
+        let nft: TopNftCollection = serde_json::from_str(json).unwrap();
+        assert_eq!(nft.collection_address, Some("0xbayc".to_string()));
+        assert_eq!(
+            nft.collection_title,
+            Some("Bored Ape Yacht Club".to_string())
+        );
+        assert_eq!(nft.floor_price_usd, Some(19000.0));
+    }
+
+    #[test]
+    fn test_top_nft_collection_string_numbers() {
+        let json = r#"{
+            "collectionAddress": "0xbayc",
+            "floorPriceUsd": "19000.50",
+            "volumeUsd": "500000"
+        }"#;
+        let nft: TopNftCollection = serde_json::from_str(json).unwrap();
+        assert_eq!(nft.floor_price_usd, Some(19000.50));
+        assert_eq!(nft.volume_usd, Some(500000.0));
+    }
 }

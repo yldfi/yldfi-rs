@@ -383,7 +383,7 @@ pub struct EncodeStateRequest {
 }
 
 /// Input format for state overrides
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateOverrideInput {
     /// Storage slot values to override
     #[serde(skip_serializing_if = "Option::is_none")]
