@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.7...ethcli-mcp-v0.1.8) (2026-02-14)
+
+
+### Features
+
+* add multi-chain support and chainlist.org integration ([48c3e09](https://github.com/yldfi/yldfi-rs/commit/48c3e0943105f6680e65ec5743362649165b0f52))
+
 ## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.6...ethcli-mcp-v0.1.7) (2026-02-13)
 
 

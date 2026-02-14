@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.21.19](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.18...ethcli-v0.21.19) (2026-02-14)
+
+
+### Features
+
+* add multi-chain support and chainlist.org integration ([48c3e09](https://github.com/yldfi/yldfi-rs/commit/48c3e0943105f6680e65ec5743362649165b0f52))
+
+
+### Bug Fixes
+
+* resolve clippy print_literal warnings in chainlist output ([937fee1](https://github.com/yldfi/yldfi-rs/commit/937fee13f0466cd831edfb56360629b9ddf4fe2f))
+
 ## [0.21.18](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.17...ethcli-v0.21.18) (2026-02-13)
 
 
