@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.9](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.8...ethcli-mcp-v0.1.9) (2026-02-14)
+
+
+### Bug Fixes
+
+* address Copilot review feedback for merged PRs ([4bec07c](https://github.com/yldfi/yldfi-rs/commit/4bec07cc1974b1ecb841cad2455ebaf7dbb5cf30))
+* address Copilot review feedback for merged PRs ([b497355](https://github.com/yldfi/yldfi-rs/commit/b4973555548a5d2dd7fbcd0cdfcdaa90cdd62a58))
+
 ## [0.1.8](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.7...ethcli-mcp-v0.1.8) (2026-02-14)
 
 
