@@ -5794,9 +5794,7 @@ impl EthcliMcpServer {
     // CHAINLIST
     // =========================================================================
 
-    #[tool(
-        description = "Search EVM chains by name or chain ID from chainlist.org (2500+ chains)"
-    )]
+    #[tool(description = "Search EVM chains by name or chain ID from chainlist.org (2500+ chains)")]
     async fn chainlist_search(
         &self,
         Parameters(input): Parameters<ChainlistSearchInput>,
@@ -5809,35 +5807,22 @@ impl EthcliMcpServer {
     #[tool(
         description = "List public RPC endpoints for a chain from chainlist.org with tracking/privacy info"
     )]
-    async fn chainlist_rpcs(
-        &self,
-        Parameters(input): Parameters<ChainlistChainInput>,
-    ) -> String {
-        tools::chainlist_rpcs(&input.chain)
-            .await
-            .to_response()
+    async fn chainlist_rpcs(&self, Parameters(input): Parameters<ChainlistChainInput>) -> String {
+        tools::chainlist_rpcs(&input.chain).await.to_response()
     }
 
     #[tool(
         description = "Add public RPC endpoints for a chain from chainlist.org to local config (prefers no-tracking endpoints)"
     )]
-    async fn chainlist_add(
-        &self,
-        Parameters(input): Parameters<ChainlistAddInput>,
-    ) -> String {
+    async fn chainlist_add(&self, Parameters(input): Parameters<ChainlistAddInput>) -> String {
         tools::chainlist_add(&input.chain, input.max)
             .await
             .to_response()
     }
 
     #[tool(description = "List all known EVM chains supported by ethcli")]
-    async fn chainlist_list(
-        &self,
-        Parameters(input): Parameters<ChainlistListInput>,
-    ) -> String {
-        tools::chainlist_list(input.testnets)
-            .await
-            .to_response()
+    async fn chainlist_list(&self, Parameters(input): Parameters<ChainlistListInput>) -> String {
+        tools::chainlist_list(input.testnets).await.to_response()
     }
 
     // =========================================================================
