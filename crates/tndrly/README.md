@@ -107,7 +107,7 @@ let vnets = client.vnets().list(None).await?;
 client.vnets().delete_many(vec!["id1".into(), "id2".into()]).await?;
 
 // Admin RPC - Balance management
-let admin = client.vnets().admin_rpc(&vnet).await?;
+let admin = client.vnets().admin_rpc(&vnet.id).await?;
 admin.set_balance("0xAddress", "0xDE0B6B3A7640000").await?;  // 1 ETH
 admin.set_erc20_balance("0xToken", "0xWallet", "0xAmount").await?;
 

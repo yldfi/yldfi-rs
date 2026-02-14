@@ -611,8 +611,9 @@ pub struct VNetSimulationRequest {
     /// Sender address
     pub from: String,
 
-    /// Recipient address
-    pub to: String,
+    /// Recipient address (None for contract deployment)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<String>,
 
     /// Calldata
     pub input: String,
@@ -648,10 +649,10 @@ pub struct VNetSimulationRequest {
 
 impl VNetSimulationRequest {
     /// Create a new simulation request
-    pub fn new(from: impl Into<String>, to: impl Into<String>, input: impl Into<String>) -> Self {
+    pub fn new(from: impl Into<String>, input: impl Into<String>) -> Self {
         Self {
             from: from.into(),
-            to: to.into(),
+            to: None,
             input: input.into(),
             value: None,
             gas: None,
@@ -661,6 +662,13 @@ impl VNetSimulationRequest {
             transaction_type: None,
             nonce: None,
         }
+    }
+
+    /// Set the recipient address (omit for contract deployment)
+    #[must_use]
+    pub fn to(mut self, addr: impl Into<String>) -> Self {
+        self.to = Some(addr.into());
+        self
     }
 
     /// Set value in wei

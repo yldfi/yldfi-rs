@@ -264,9 +264,9 @@ pub enum VnetsCommands {
         #[arg(long)]
         from: String,
 
-        /// To address (recipient/contract)
+        /// To address (recipient/contract, omit for contract deployment)
         #[arg(long)]
-        to: String,
+        to: Option<String>,
 
         /// Transaction data (hex)
         #[arg(long)]
@@ -1336,7 +1336,9 @@ async fn handle_vnets(
             max_priority_fee_per_gas,
         } => {
             validate_address(from)?;
-            validate_address(to)?;
+            if let Some(to_addr) = to {
+                validate_address(to_addr)?;
+            }
 
             if !quiet {
                 eprintln!("Simulating transaction on VNet {}...", vnet);
@@ -1344,9 +1346,11 @@ async fn handle_vnets(
 
             let mut request = tndrly::vnets::VNetSimulationRequest::new(
                 from,
-                to,
                 data.as_deref().unwrap_or("0x"),
             );
+            if let Some(t) = to {
+                request = request.to(t);
+            }
 
             if value != "0" {
                 request = request.value(value);

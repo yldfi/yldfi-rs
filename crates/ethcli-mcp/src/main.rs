@@ -1351,7 +1351,7 @@ impl EthcliMcpServer {
         tools::tenderly_vnets_simulate(
             &input.vnet,
             &input.from,
-            &input.to,
+            input.to.as_deref(),
             input.data.as_deref(),
             input.value.as_deref(),
             input.gas,

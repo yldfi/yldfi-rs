@@ -1452,7 +1452,7 @@ pub async fn tenderly_vnets_send(
 pub async fn tenderly_vnets_simulate(
     vnet: &str,
     from: &str,
-    to: &str,
+    to: Option<&str>,
     data: Option<&str>,
     value: Option<&str>,
     gas: Option<u64>,
@@ -1465,7 +1465,7 @@ pub async fn tenderly_vnets_simulate(
         .subcommand("simulate")
         .opt("--vnet", Some(vnet))
         .opt("--from", Some(from))
-        .opt("--to", Some(to));
+        .opt("--to", to);
     builder = builder.opt("--data", data);
     if let Some(v) = value {
         builder = builder.opt("--value", Some(v));
