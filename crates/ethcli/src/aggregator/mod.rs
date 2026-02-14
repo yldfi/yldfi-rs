@@ -210,6 +210,9 @@ pub enum PriceSource {
     /// Yearn Kong API (DeFi token prices)
     #[value(alias = "yearn", alias = "ykong")]
     Kong,
+    /// Enso Finance DeFi price API (vault tokens, LP tokens)
+    #[value(alias = "enso_finance")]
+    Enso,
 }
 
 impl std::str::FromStr for PriceSource {
@@ -228,6 +231,7 @@ impl std::str::FromStr for PriceSource {
             "pyth" => Ok(PriceSource::Pyth),
             "uniswap" | "uni" => Ok(PriceSource::Uniswap),
             "kong" | "yearn" | "ykong" => Ok(PriceSource::Kong),
+            "enso" | "enso_finance" => Ok(PriceSource::Enso),
             _ => Err(format!("Unknown price source: {}", s)),
         }
     }
@@ -247,6 +251,7 @@ impl std::fmt::Display for PriceSource {
             PriceSource::Pyth => write!(f, "pyth"),
             PriceSource::Uniswap => write!(f, "uniswap"),
             PriceSource::Kong => write!(f, "kong"),
+            PriceSource::Enso => write!(f, "enso"),
         }
     }
 }

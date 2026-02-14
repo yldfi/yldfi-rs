@@ -146,6 +146,9 @@ static GECKO_CLIENT: OnceLock<Option<cgko::Client>> = OnceLock::new();
 /// Cached Yearn Kong client (no API key required)
 static KONG_CLIENT: OnceLock<Result<ykong::Client, String>> = OnceLock::new();
 
+/// Cached Enso Finance client (requires ENSO_API_KEY)
+static ENSO_CLIENT: OnceLock<Result<ensof::Client, String>> = OnceLock::new();
+
 /// Get or create the cached DefiLlama client
 fn get_llama_client() -> Result<&'static dllma::Client, &'static str> {
     LLAMA_CLIENT
@@ -241,6 +244,30 @@ fn get_kong_client() -> Result<&'static ykong::Client, &'static str> {
         .map_err(|_| "Failed to create Kong client")
 }
 
+/// Get or create the cached Enso Finance client
+fn get_enso_client() -> Result<&'static ensof::Client, String> {
+    ENSO_CLIENT
+        .get_or_init(|| {
+            let config = get_cached_config();
+            let api_key = config
+                .as_ref()
+                .and_then(|c| c.enso.as_ref())
+                .map(|e| e.api_key.expose_secret().to_string())
+                .or_else(|| std::env::var("ENSO_API_KEY").ok());
+
+            let api_key = match api_key {
+                Some(key) => key,
+                None => return Err("ENSO_API_KEY not configured".to_string()),
+            };
+
+            let proxy = config.as_ref().and_then(|c| c.proxy_for_source("enso"));
+            ensof::Client::with_config(ensof::config_with_api_key(&api_key).optional_proxy(proxy))
+                .map_err(|e| e.to_string())
+        })
+        .as_ref()
+        .map_err(|e| e.clone())
+}
+
 /// Get or create the cached Uniswap SubgraphClient for a specific chain
 fn get_uniswap_client(chain: &str) -> Result<&'static unswp::SubgraphClient, String> {
     // Get API key from cached config or environment variable
@@ -301,6 +328,7 @@ pub async fn fetch_prices_all(
         PriceSource::Pyth,
         PriceSource::Uniswap,
         PriceSource::Kong,
+        PriceSource::Enso,
     ];
 
     fetch_prices_parallel(token, chain, &sources).await
@@ -367,6 +395,7 @@ pub async fn fetch_price_from_source(
         PriceSource::Pyth => fetch_pyth_price(token, measure).await,
         PriceSource::Uniswap => fetch_uniswap_price(token, chain, measure).await,
         PriceSource::Kong => fetch_kong_price(token, chain, measure).await,
+        PriceSource::Enso => fetch_enso_price(token, chain, measure).await,
         PriceSource::All => SourceResult::error("all", "Use fetch_prices_all instead", 0),
     }
 }
@@ -1790,5 +1819,70 @@ async fn fetch_kong_price(
             measure.elapsed_ms(),
         ),
         Err(e) => SourceResult::error("kong", format!("API error: {}", e), measure.elapsed_ms()),
+    }
+}
+
+/// Fetch price from Enso Finance API
+///
+/// Enso can price DeFi tokens (vault tokens, LP tokens, etc.) that other
+/// sources often can't. Requires ENSO_API_KEY env var or config.
+async fn fetch_enso_price(
+    token: &str,
+    chain: &str,
+    measure: LatencyMeasure,
+) -> SourceResult<NormalizedPrice> {
+    // Enso requires contract addresses
+    if !token.starts_with("0x") {
+        return SourceResult::error(
+            "enso",
+            "Enso requires contract address (0x...)",
+            measure.elapsed_ms(),
+        );
+    }
+
+    // Convert chain name to chain ID
+    let chain_id = match chain.to_lowercase().as_str() {
+        "ethereum" | "eth" | "mainnet" | "eth-mainnet" | "" => 1,
+        "polygon" | "matic" | "polygon-mainnet" => 137,
+        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => 42161,
+        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => 10,
+        "base" | "base-mainnet" => 8453,
+        "bsc" | "binance" | "bnb" => 56,
+        "gnosis" | "xdai" => 100,
+        "avalanche" | "avax" => 43114,
+        _ => {
+            return SourceResult::error(
+                "enso",
+                format!("Unsupported chain for Enso: {}", chain),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    let client = match get_enso_client() {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error(
+                "enso",
+                format!("Client error: {}", e),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    match client.get_token_price(chain_id, token).await {
+        Ok(price_data) => {
+            if price_data.price > 0.0 {
+                let price = NormalizedPrice::new(price_data.price);
+                SourceResult::success("enso", price, measure.elapsed_ms())
+            } else {
+                SourceResult::error(
+                    "enso",
+                    format!("Zero price returned for {}", token),
+                    measure.elapsed_ms(),
+                )
+            }
+        }
+        Err(e) => SourceResult::error("enso", format!("API error: {}", e), measure.elapsed_ms()),
     }
 }
