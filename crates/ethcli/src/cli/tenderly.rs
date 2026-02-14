@@ -1344,10 +1344,8 @@ async fn handle_vnets(
                 eprintln!("Simulating transaction on VNet {}...", vnet);
             }
 
-            let mut request = tndrly::vnets::VNetSimulationRequest::new(
-                from,
-                data.as_deref().unwrap_or("0x"),
-            );
+            let mut request =
+                tndrly::vnets::VNetSimulationRequest::new(from, data.as_deref().unwrap_or("0x"));
             if let Some(t) = to {
                 request = request.to(t);
             }
