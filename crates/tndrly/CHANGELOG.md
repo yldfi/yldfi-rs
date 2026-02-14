@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8](https://github.com/yldfi/yldfi-rs/compare/tndrly-v0.3.7...tndrly-v0.3.8) (2026-02-14)
+
+
+### Bug Fixes
+
+* address Copilot review feedback for merged PRs ([4bec07c](https://github.com/yldfi/yldfi-rs/commit/4bec07cc1974b1ecb841cad2455ebaf7dbb5cf30))
+* address Copilot review feedback for merged PRs ([b497355](https://github.com/yldfi/yldfi-rs/commit/b4973555548a5d2dd7fbcd0cdfcdaa90cdd62a58))
+
 ## [0.3.7](https://github.com/yldfi/yldfi-rs/compare/tndrly-v0.3.6...tndrly-v0.3.7) (2026-02-13)
 
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.21.20](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.19...ethcli-v0.21.20) (2026-02-14)
+
+
+### Features
+
+* **ethcli:** add Enso Finance as price source ([054e689](https://github.com/yldfi/yldfi-rs/commit/054e689b7caf177f747f6ba7f9bde4c3582affee))
+* **ethcli:** add Enso Finance as price source in aggregator ([ff965d1](https://github.com/yldfi/yldfi-rs/commit/ff965d1d27423711e556e3d137936c7432239d4b))
+* **ethcli:** add Kong vault-derived pricing source ([18ba09d](https://github.com/yldfi/yldfi-rs/commit/18ba09d8d9b504fbf234be75f9809816a24b9e4a))
+* **ethcli:** add Kong vault-derived pricing source ([91a1eb4](https://github.com/yldfi/yldfi-rs/commit/91a1eb4fd5e6185c350d86c63807ff8ca7a85f3d))
+
+
+### Bug Fixes
+
+* address Copilot review feedback for merged PRs ([4bec07c](https://github.com/yldfi/yldfi-rs/commit/4bec07cc1974b1ecb841cad2455ebaf7dbb5cf30))
+* address Copilot review feedback for merged PRs ([b497355](https://github.com/yldfi/yldfi-rs/commit/b4973555548a5d2dd7fbcd0cdfcdaa90cdd62a58))
+
 ## [0.21.19](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.18...ethcli-v0.21.19) (2026-02-14)
 
 

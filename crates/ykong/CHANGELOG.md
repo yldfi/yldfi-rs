@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/ykong-v0.1.3...ykong-v0.1.4) (2026-02-14)
+
+
+### Bug Fixes
+
+* **ykong:** deserialize Kong price/tvl block_number and timestamp from strings ([2766f41](https://github.com/yldfi/yldfi-rs/commit/2766f41d3101fcdbc4db65accede40bdc592893b))
+* **ykong:** deserialize Kong price/tvl fields from strings ([4f25e5f](https://github.com/yldfi/yldfi-rs/commit/4f25e5f2e5886284989d45ae4c0d90b337b66b7d))
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/ykong-v0.1.2...ykong-v0.1.3) (2026-02-02)
 
 
