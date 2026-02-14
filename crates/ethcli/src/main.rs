@@ -960,8 +960,8 @@ async fn chainlist_search(query: &str, testnets: bool) -> anyhow::Result<()> {
 
     println!("Found {} chain(s) matching \"{}\":\n", matches.len(), query);
     println!(
-        "{:<10} {:<30} {:<8} {:<8} {}",
-        "Chain ID", "Name", "Symbol", "RPCs", "Explorer"
+        "{:<10} {:<30} {:<8} {:<8} Explorer",
+        "Chain ID", "Name", "Symbol", "RPCs"
     );
     println!("{}", "-".repeat(90));
 
@@ -1126,8 +1126,8 @@ fn chainlist_list(testnets: bool) -> anyhow::Result<()> {
 
     println!("Known EVM chains:\n");
     println!(
-        "{:<10} {:<25} {:<8} {}",
-        "Chain ID", "Name", "Symbol", "Aliases"
+        "{:<10} {:<25} {:<8} Aliases",
+        "Chain ID", "Name", "Symbol"
     );
     println!("{}", "-".repeat(70));
 
