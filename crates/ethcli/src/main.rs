@@ -3,6 +3,7 @@
 use alloy::providers::Provider;
 use clap::Parser;
 use ethcli::cli::{
+    chainlist::ChainlistCommands,
     config::ConfigCommands,
     endpoints::EndpointCommands,
     logs::{LogsArgs, ProxyArgs, RpcArgs},
@@ -196,6 +197,10 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Doctor => {
             return ethcli::cli::doctor::handle(cli.quiet).await;
+        }
+
+        Commands::Chainlist { action } => {
+            return handle_chainlist(action).await;
         }
 
         Commands::Alchemy { action } => {
@@ -843,6 +848,305 @@ fn build_default_rpc_config(config_file: &Option<ConfigFile>) -> anyhow::Result<
     }
 
     Ok(rpc_config)
+}
+
+async fn handle_chainlist(action: &ChainlistCommands) -> anyhow::Result<()> {
+    use ethcli::cli::chainlist::ChainlistCommands::*;
+
+    match action {
+        Search { query, testnets } => {
+            chainlist_search(query, *testnets).await
+        }
+        Rpcs { chain } => {
+            chainlist_rpcs(chain).await
+        }
+        Add { chain, max } => {
+            chainlist_add(chain, *max).await
+        }
+        List { testnets } => {
+            chainlist_list(*testnets)
+        }
+    }
+}
+
+/// Chain info from chainlist.org
+#[derive(serde::Deserialize)]
+struct ChainlistEntry {
+    name: String,
+    chain: String,
+    #[serde(rename = "chainId")]
+    chain_id: u64,
+    #[serde(default)]
+    rpc: Vec<ChainlistRpc>,
+    #[serde(rename = "nativeCurrency")]
+    native_currency: Option<ChainlistCurrency>,
+    #[serde(default)]
+    explorers: Vec<ChainlistExplorer>,
+    #[serde(default)]
+    status: Option<String>,
+}
+
+/// RPC endpoint from chainlist.org (has tracking metadata)
+#[derive(serde::Deserialize)]
+struct ChainlistRpc {
+    url: String,
+    /// Tracking level: "none", "limited", "yes", "unspecified"
+    #[serde(default)]
+    tracking: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct ChainlistCurrency {
+    #[allow(dead_code)]
+    name: String,
+    symbol: String,
+    #[allow(dead_code)]
+    decimals: u8,
+}
+
+#[derive(serde::Deserialize)]
+struct ChainlistExplorer {
+    #[allow(dead_code)]
+    name: String,
+    url: String,
+}
+
+async fn fetch_chainlist() -> anyhow::Result<Vec<ChainlistEntry>> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+    let resp = client
+        .get("https://chainlist.org/rpcs.json")
+        .send()
+        .await?;
+    let chains: Vec<ChainlistEntry> = resp.json().await?;
+    Ok(chains)
+}
+
+async fn chainlist_search(query: &str, testnets: bool) -> anyhow::Result<()> {
+    let query_lower = query.to_lowercase();
+    let query_id: Option<u64> = query.parse().ok();
+
+    let chains = fetch_chainlist().await?;
+    let mut matches: Vec<_> = chains
+        .iter()
+        .filter(|c| {
+            // Filter testnets
+            if !testnets {
+                if let Some(ref status) = c.status {
+                    if status == "deprecated" || status == "incubating" {
+                        return false;
+                    }
+                }
+                let name_lower = c.name.to_lowercase();
+                if name_lower.contains("testnet") || name_lower.contains("devnet")
+                    || name_lower.contains("sepolia") || name_lower.contains("goerli")
+                    || name_lower.contains("holesky") || name_lower.contains("mumbai")
+                    || name_lower.contains("fuji")
+                {
+                    return false;
+                }
+            }
+
+            // Match query
+            if let Some(id) = query_id {
+                if c.chain_id == id {
+                    return true;
+                }
+            }
+            c.name.to_lowercase().contains(&query_lower)
+                || c.chain.to_lowercase().contains(&query_lower)
+        })
+        .collect();
+
+    matches.sort_by_key(|c| c.chain_id);
+
+    if matches.is_empty() {
+        println!("No chains found matching \"{}\"", query);
+        return Ok(());
+    }
+
+    println!("Found {} chain(s) matching \"{}\":\n", matches.len(), query);
+    println!("{:<10} {:<30} {:<8} {:<8} {}", "Chain ID", "Name", "Symbol", "RPCs", "Explorer");
+    println!("{}", "-".repeat(90));
+
+    for c in &matches {
+        let symbol = c.native_currency.as_ref().map(|nc| nc.symbol.as_str()).unwrap_or("?");
+        let public_rpcs = c.rpc.iter().filter(|r| !r.url.contains("${")).count();
+        let explorer = c.explorers.first().map(|e| e.url.as_str()).unwrap_or("-");
+        println!("{:<10} {:<30} {:<8} {:<8} {}", c.chain_id, c.name, symbol, public_rpcs, explorer);
+    }
+
+    Ok(())
+}
+
+async fn chainlist_rpcs(chain_str: &str) -> anyhow::Result<()> {
+    // Resolve chain to ID
+    let chain_id = resolve_chain_id(chain_str)?;
+
+    let chains = fetch_chainlist().await?;
+    let entry = chains.iter().find(|c| c.chain_id == chain_id);
+
+    let entry = match entry {
+        Some(e) => e,
+        None => {
+            anyhow::bail!("Chain ID {} not found on chainlist.org", chain_id);
+        }
+    };
+
+    let public_rpcs: Vec<_> = entry.rpc.iter()
+        .filter(|r| !r.url.contains("${"))
+        .collect();
+
+    if public_rpcs.is_empty() {
+        println!("No public RPC endpoints found for {} (chain ID {})", entry.name, chain_id);
+        return Ok(());
+    }
+
+    println!("{} (chain ID {}) — {} public RPC endpoint(s):\n", entry.name, chain_id, public_rpcs.len());
+    for rpc in &public_rpcs {
+        let tracking = rpc.tracking.as_deref().unwrap_or("unspecified");
+        let label = match tracking {
+            "none" => " [no tracking]",
+            "limited" => " [limited tracking]",
+            "yes" => " [tracks users]",
+            _ => "",
+        };
+        println!("  {}{}", rpc.url, label);
+    }
+
+    Ok(())
+}
+
+async fn chainlist_add(chain_str: &str, max: usize) -> anyhow::Result<()> {
+    let chain_id = resolve_chain_id(chain_str)?;
+
+    let chains = fetch_chainlist().await?;
+    let entry = chains.iter().find(|c| c.chain_id == chain_id);
+
+    let entry = match entry {
+        Some(e) => e,
+        None => {
+            anyhow::bail!("Chain ID {} not found on chainlist.org", chain_id);
+        }
+    };
+
+    // Filter to public HTTPS endpoints, prefer no-tracking ones first
+    let mut public_rpcs: Vec<_> = entry.rpc.iter()
+        .filter(|r| !r.url.contains("${"))
+        .filter(|r| r.url.starts_with("https://"))
+        .collect();
+
+    // Sort: "none" tracking first, then "limited", then others
+    public_rpcs.sort_by_key(|r| match r.tracking.as_deref() {
+        Some("none") => 0,
+        Some("limited") => 1,
+        Some("unspecified") | None => 2,
+        Some("yes") => 3,
+        _ => 2,
+    });
+
+    let public_rpcs: Vec<_> = public_rpcs.into_iter().take(max).collect();
+
+    if public_rpcs.is_empty() {
+        println!("No public HTTPS RPC endpoints found for {} (chain ID {})", entry.name, chain_id);
+        return Ok(());
+    }
+
+    // Load config and add endpoints
+    let mut config_file = load_config_with_warning().unwrap_or_default();
+    let existing_urls: std::collections::HashSet<String> = config_file.endpoints
+        .iter()
+        .map(|ep| ep.url.clone())
+        .collect();
+
+    let chain = Chain::from_chain_id(chain_id);
+    let mut added = 0;
+
+    for rpc in &public_rpcs {
+        if existing_urls.contains(&rpc.url) {
+            println!("  Skip (exists): {}", rpc.url);
+            continue;
+        }
+
+        let ep = EndpointConfig {
+            url: rpc.url.clone(),
+            chain,
+            priority: 5,
+            enabled: true,
+            node_type: ethcli::NodeType::Unknown,
+            has_debug: false,
+            has_trace: false,
+            max_block_range: 0,
+            max_logs: 0,
+            note: Some(format!("Added from chainlist.org ({})", entry.name)),
+            proxy: None,
+            archive_from_block: None,
+            last_tested: None,
+        };
+        config_file.endpoints.push(ep);
+        let tracking = rpc.tracking.as_deref().unwrap_or("unspecified");
+        println!("  Added: {} [tracking: {}]", rpc.url, tracking);
+        added += 1;
+    }
+
+    if added > 0 {
+        config_file.save_default()?;
+        println!("\nAdded {} endpoint(s) for {} (chain ID {})", added, entry.name, chain_id);
+        println!("Run `ethcli endpoints optimize --chain {}` to test and rank them.", chain_str);
+    } else {
+        println!("No new endpoints added (all already exist).");
+    }
+
+    Ok(())
+}
+
+fn chainlist_list(testnets: bool) -> anyhow::Result<()> {
+    let chains = yldfi_common::Chain::mainnets();
+
+    println!("Known EVM chains:\n");
+    println!("{:<10} {:<25} {:<8} {}", "Chain ID", "Name", "Symbol", "Aliases");
+    println!("{}", "-".repeat(70));
+
+    for chain in chains {
+        let id = chain.id();
+        let display = chain.display_name();
+        let symbol = chain.native_currency();
+        let name = chain.name();
+        // Show the canonical name as alias hint
+        println!("{:<10} {:<25} {:<8} --chain {}", id, display, symbol, name);
+    }
+
+    if testnets {
+        println!("\nTestnets:");
+        println!("{}", "-".repeat(70));
+        // Show a few key testnets
+        let test_chains = [
+            yldfi_common::Chain::Sepolia,
+            yldfi_common::Chain::Holesky,
+            yldfi_common::Chain::BaseSepolia,
+            yldfi_common::Chain::ArbitrumSepolia,
+            yldfi_common::Chain::OptimismSepolia,
+        ];
+        for chain in &test_chains {
+            println!("{:<10} {:<25} {:<8} --chain {}", chain.id(), chain.display_name(), chain.native_currency(), chain.name());
+        }
+    }
+
+    println!("\nUse `ethcli chainlist search <name>` to find more chains from chainlist.org.");
+    println!("Any numeric chain ID also works: `ethcli --chain 100 rpc block-number`");
+
+    Ok(())
+}
+
+fn resolve_chain_id(s: &str) -> anyhow::Result<u64> {
+    // Try as numeric ID
+    if let Ok(id) = s.parse::<u64>() {
+        return Ok(id);
+    }
+    // Try as chain name via our chain parser
+    let chain: Chain = s.parse().map_err(|_| anyhow::anyhow!("Unknown chain: {}", s))?;
+    Ok(chain.chain_id())
 }
 
 async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Result<()> {

@@ -5791,6 +5791,56 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
+    // CHAINLIST
+    // =========================================================================
+
+    #[tool(
+        description = "Search EVM chains by name or chain ID from chainlist.org (2500+ chains)"
+    )]
+    async fn chainlist_search(
+        &self,
+        Parameters(input): Parameters<ChainlistSearchInput>,
+    ) -> String {
+        tools::chainlist_search(&input.query, input.testnets)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "List public RPC endpoints for a chain from chainlist.org with tracking/privacy info"
+    )]
+    async fn chainlist_rpcs(
+        &self,
+        Parameters(input): Parameters<ChainlistChainInput>,
+    ) -> String {
+        tools::chainlist_rpcs(&input.chain)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Add public RPC endpoints for a chain from chainlist.org to local config (prefers no-tracking endpoints)"
+    )]
+    async fn chainlist_add(
+        &self,
+        Parameters(input): Parameters<ChainlistAddInput>,
+    ) -> String {
+        tools::chainlist_add(&input.chain, input.max)
+            .await
+            .to_response()
+    }
+
+    #[tool(description = "List all known EVM chains supported by ethcli")]
+    async fn chainlist_list(
+        &self,
+        Parameters(input): Parameters<ChainlistListInput>,
+    ) -> String {
+        tools::chainlist_list(input.testnets)
+            .await
+            .to_response()
+    }
+
+    // =========================================================================
     // HEALTH CHECK
     // =========================================================================
 
@@ -5812,7 +5862,8 @@ impl ServerHandler for EthcliMcpServer {
                 "Comprehensive Ethereum CLI tools: transaction analysis, account queries, \
                  contract interactions, ENS, gas prices, DEX quotes, oracles (Chainlink/Pyth), \
                  security checks (GoPlus/Solodit), portfolio tracking, and more. \
-                 Supports multiple chains: ethereum, polygon, arbitrum, optimism, base, etc."
+                 Supports multiple chains: ethereum, polygon, arbitrum, optimism, base, etc. \
+                 Also supports gnosis, fantom, linea, zksync, scroll, blast, mantle, and any chain by ID."
                     .to_string(),
             ),
         }
@@ -5869,7 +5920,7 @@ async fn main() -> anyhow::Result<()> {
     let server = EthcliMcpServer::new();
     let service = server.serve(stdio()).await?;
 
-    tracing::info!(tools = 236, "ethcli-mcp server ready");
+    tracing::info!(tools = 240, "ethcli-mcp server ready");
 
     // Wait for completion
     service.waiting().await?;

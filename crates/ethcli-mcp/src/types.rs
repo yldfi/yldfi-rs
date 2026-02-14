@@ -31,7 +31,7 @@ pub struct LogsInput {
     pub to_block: Option<String>,
     /// Additional topic filters
     pub topics: Option<Vec<String>>,
-    /// Chain name (ethereum, polygon, arbitrum, etc.)
+    /// Chain name (ethereum, polygon, arbitrum, gnosis, fantom, linea, zksync, etc.) or numeric chain ID
     #[serde(default = "default_chain")]
     pub chain: String,
 }
@@ -42,7 +42,7 @@ pub struct TxAnalyzeInput {
     /// Transaction hash (with or without 0x prefix).
     /// Partial hashes are supported when block is specified.
     pub hash: String,
-    /// Chain name (ethereum, polygon, arbitrum, etc.)
+    /// Chain name (ethereum, polygon, arbitrum, gnosis, fantom, linea, zksync, etc.) or numeric chain ID
     #[serde(default = "default_chain")]
     pub chain: String,
     /// Block number for partial hash resolution.
@@ -60,7 +60,7 @@ pub struct TxAnalyzeInput {
 pub struct AccountAddressInput {
     /// Ethereum address (hex format)
     pub address: String,
-    /// Chain name (ethereum, polygon, arbitrum, etc.)
+    /// Chain name (ethereum, polygon, arbitrum, gnosis, fantom, linea, zksync, etc.) or numeric chain ID
     #[serde(default = "default_chain")]
     pub chain: String,
 }
@@ -69,7 +69,7 @@ pub struct AccountAddressInput {
 pub struct AccountBalanceInput {
     /// Ethereum address(es) - supports multiple addresses
     pub addresses: Vec<String>,
-    /// Chain name (ethereum, polygon, arbitrum, etc.)
+    /// Chain name (ethereum, polygon, arbitrum, gnosis, fantom, linea, zksync, etc.) or numeric chain ID
     #[serde(default = "default_chain")]
     pub chain: String,
 }
@@ -3346,4 +3346,40 @@ pub struct EndpointsOptimizeInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+// --- Chainlist ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainlistSearchInput {
+    /// Search query (chain name, short name, or chain ID)
+    pub query: String,
+    /// Include testnet chains in results
+    #[serde(default)]
+    pub testnets: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainlistChainInput {
+    /// Chain name or numeric chain ID (e.g., "gnosis", "fantom", "100")
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainlistAddInput {
+    /// Chain name or numeric chain ID (e.g., "gnosis", "fantom", "100")
+    pub chain: String,
+    /// Maximum number of endpoints to add (default 5)
+    #[serde(default = "default_chainlist_max")]
+    pub max: usize,
+}
+
+fn default_chainlist_max() -> usize {
+    5
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainlistListInput {
+    /// Include testnet chains in results
+    #[serde(default)]
+    pub testnets: bool,
 }

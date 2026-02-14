@@ -9,6 +9,7 @@ pub mod blacklist;
 pub mod cast;
 pub mod ccxt;
 pub mod chainlink;
+pub mod chainlist;
 pub mod config;
 pub mod contract;
 pub mod cowswap;
@@ -281,6 +282,13 @@ pub enum Commands {
 
     /// Check configuration and endpoint health
     Doctor,
+
+    /// Browse chains and discover RPC endpoints from chainlist.org
+    #[command(visible_alias = "chains")]
+    Chainlist {
+        #[command(subcommand)]
+        action: chainlist::ChainlistCommands,
+    },
 
     /// Direct Alchemy API access
     Alchemy {

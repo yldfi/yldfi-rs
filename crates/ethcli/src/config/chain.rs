@@ -40,7 +40,7 @@ impl Chain {
         }
     }
 
-    /// Get the chain name
+    /// Get the chain name (delegates to yldfi_common for known custom chains)
     pub fn name(&self) -> &'static str {
         match self {
             Chain::Ethereum => "ethereum",
@@ -50,11 +50,18 @@ impl Chain {
             Chain::Base => "base",
             Chain::Bsc => "bsc",
             Chain::Avalanche => "avalanche",
-            Chain::Custom(_) => "custom",
+            Chain::Custom(id) => {
+                let common = yldfi_common::Chain::from_id(*id);
+                if matches!(common, yldfi_common::Chain::Other(_)) {
+                    "custom"
+                } else {
+                    common.name()
+                }
+            }
         }
     }
 
-    /// Get display name
+    /// Get display name (delegates to yldfi_common for known custom chains)
     pub fn display_name(&self) -> &'static str {
         match self {
             Chain::Ethereum => "Ethereum",
@@ -64,11 +71,18 @@ impl Chain {
             Chain::Base => "Base",
             Chain::Bsc => "BNB Smart Chain",
             Chain::Avalanche => "Avalanche C-Chain",
-            Chain::Custom(_) => "Custom Chain",
+            Chain::Custom(id) => {
+                let common = yldfi_common::Chain::from_id(*id);
+                if matches!(common, yldfi_common::Chain::Other(_)) {
+                    "Custom Chain"
+                } else {
+                    common.display_name()
+                }
+            }
         }
     }
 
-    /// Get native currency symbol
+    /// Get native currency symbol (delegates to yldfi_common for known custom chains)
     pub fn native_symbol(&self) -> &'static str {
         match self {
             Chain::Ethereum => "ETH",
@@ -78,7 +92,14 @@ impl Chain {
             Chain::Base => "ETH",
             Chain::Bsc => "BNB",
             Chain::Avalanche => "AVAX",
-            Chain::Custom(_) => "???",
+            Chain::Custom(id) => {
+                let common = yldfi_common::Chain::from_id(*id);
+                if matches!(common, yldfi_common::Chain::Other(_)) {
+                    "???"
+                } else {
+                    common.native_currency()
+                }
+            }
         }
     }
 
@@ -92,7 +113,21 @@ impl Chain {
             Chain::Base => Some("https://basescan.org"),
             Chain::Bsc => Some("https://bscscan.com"),
             Chain::Avalanche => Some("https://snowtrace.io"),
-            Chain::Custom(_) => None,
+            Chain::Custom(id) => match yldfi_common::Chain::from_id(*id) {
+                yldfi_common::Chain::Gnosis => Some("https://gnosisscan.io"),
+                yldfi_common::Chain::Fantom => Some("https://ftmscan.com"),
+                yldfi_common::Chain::Linea => Some("https://lineascan.build"),
+                yldfi_common::Chain::ZkSync => Some("https://explorer.zksync.io"),
+                yldfi_common::Chain::Scroll => Some("https://scrollscan.com"),
+                yldfi_common::Chain::Blast => Some("https://blastscan.io"),
+                yldfi_common::Chain::Mantle => Some("https://mantlescan.xyz"),
+                yldfi_common::Chain::Moonbeam => Some("https://moonscan.io"),
+                yldfi_common::Chain::Celo => Some("https://celoscan.io"),
+                yldfi_common::Chain::PolygonZkEvm => Some("https://zkevm.polygonscan.com"),
+                yldfi_common::Chain::Aurora => Some("https://explorer.aurora.dev"),
+                yldfi_common::Chain::Mode => Some("https://explorer.mode.network"),
+                _ => None,
+            },
         }
     }
 
@@ -100,14 +135,31 @@ impl Chain {
     /// Used for converting relative time to block numbers
     pub fn avg_block_time_secs(&self) -> f64 {
         match self {
-            Chain::Ethereum => 12.0,  // ~12 seconds post-merge
-            Chain::Polygon => 2.0,    // ~2 seconds
-            Chain::Arbitrum => 0.25,  // ~250ms (L2)
-            Chain::Optimism => 2.0,   // ~2 seconds (L2)
-            Chain::Base => 2.0,       // ~2 seconds (L2, OP stack)
-            Chain::Bsc => 3.0,        // ~3 seconds
-            Chain::Avalanche => 2.0,  // ~2 seconds
-            Chain::Custom(_) => 12.0, // Default to Ethereum-like
+            Chain::Ethereum => 12.0,
+            Chain::Polygon => 2.0,
+            Chain::Arbitrum => 0.25,
+            Chain::Optimism => 2.0,
+            Chain::Base => 2.0,
+            Chain::Bsc => 3.0,
+            Chain::Avalanche => 2.0,
+            Chain::Custom(id) => match yldfi_common::Chain::from_id(*id) {
+                yldfi_common::Chain::Gnosis => 5.0,
+                yldfi_common::Chain::Fantom => 1.0,
+                yldfi_common::Chain::Linea => 2.0,
+                yldfi_common::Chain::ZkSync => 1.0,
+                yldfi_common::Chain::Scroll => 3.0,
+                yldfi_common::Chain::Blast => 2.0,
+                yldfi_common::Chain::Mantle => 2.0,
+                yldfi_common::Chain::Moonbeam => 12.0,
+                yldfi_common::Chain::Moonriver => 12.0,
+                yldfi_common::Chain::Celo => 5.0,
+                yldfi_common::Chain::Mode => 2.0,
+                yldfi_common::Chain::Fraxtal => 2.0,
+                yldfi_common::Chain::Klaytn => 1.0,
+                yldfi_common::Chain::Aurora => 1.0,
+                yldfi_common::Chain::PolygonZkEvm => 2.0,
+                _ => 12.0,
+            },
         }
     }
 
@@ -146,13 +198,17 @@ impl Chain {
     }
 
     /// Parse from string (name or chain ID)
+    ///
+    /// Supports all chains known to yldfi_common (44+ chains including gnosis,
+    /// fantom, linea, zksync, scroll, blast, mantle, etc.) plus any numeric
+    /// chain ID.
     pub fn from_str_or_id(s: &str) -> Result<Self, ConfigError> {
         // Try parsing as chain ID first
         if let Ok(id) = s.parse::<ChainId>() {
             return Ok(Self::from_chain_id(id));
         }
 
-        // Try parsing as name
+        // Try parsing as name (primary variants first)
         match s.to_lowercase().as_str() {
             "ethereum" | "eth" | "mainnet" => Ok(Chain::Ethereum),
             "polygon" | "matic" => Ok(Chain::Polygon),
@@ -161,7 +217,15 @@ impl Chain {
             "base" => Ok(Chain::Base),
             "bsc" | "bnb" | "binance" => Ok(Chain::Bsc),
             "avalanche" | "avax" => Ok(Chain::Avalanche),
-            _ => Err(ConfigError::InvalidChain(s.to_string())),
+            _ => {
+                // Fallback: delegate to yldfi_common for 44+ known chains
+                // (gnosis, fantom, linea, zksync, scroll, blast, mantle, etc.)
+                if let Some(common_chain) = yldfi_common::Chain::from_name(s) {
+                    Ok(Chain::Custom(common_chain.id()))
+                } else {
+                    Err(ConfigError::InvalidChain(s.to_string()))
+                }
+            }
         }
     }
 
@@ -275,5 +339,78 @@ mod tests {
             yldfi_common::Chain::from(Chain::Custom(99999)),
             yldfi_common::Chain::Other(99999)
         );
+    }
+
+    #[test]
+    fn test_from_str_extended_chains() {
+        // Gnosis
+        let chain = "gnosis".parse::<Chain>().unwrap();
+        assert_eq!(chain, Chain::Custom(100));
+        assert_eq!(chain.name(), "gnosis");
+        assert_eq!(chain.display_name(), "Gnosis");
+        assert_eq!(chain.native_symbol(), "xDAI");
+
+        // Also works with alias
+        assert_eq!("xdai".parse::<Chain>().unwrap(), Chain::Custom(100));
+
+        // Fantom
+        let chain = "fantom".parse::<Chain>().unwrap();
+        assert_eq!(chain, Chain::Custom(250));
+        assert_eq!(chain.name(), "fantom");
+        assert_eq!(chain.display_name(), "Fantom");
+        assert_eq!(chain.native_symbol(), "FTM");
+        assert_eq!("ftm".parse::<Chain>().unwrap(), Chain::Custom(250));
+
+        // Linea
+        let chain = "linea".parse::<Chain>().unwrap();
+        assert_eq!(chain, Chain::Custom(59144));
+        assert_eq!(chain.name(), "linea");
+
+        // zkSync
+        let chain = "zksync".parse::<Chain>().unwrap();
+        assert_eq!(chain, Chain::Custom(324));
+        assert_eq!(chain.name(), "zksync");
+
+        // Scroll
+        let chain = "scroll".parse::<Chain>().unwrap();
+        assert_eq!(chain, Chain::Custom(534352));
+
+        // Blast
+        let chain = "blast".parse::<Chain>().unwrap();
+        assert_eq!(chain, Chain::Custom(81457));
+
+        // Mantle
+        let chain = "mantle".parse::<Chain>().unwrap();
+        assert_eq!(chain, Chain::Custom(5000));
+    }
+
+    #[test]
+    fn test_custom_unknown_still_works() {
+        let chain = Chain::Custom(99999);
+        assert_eq!(chain.name(), "custom");
+        assert_eq!(chain.display_name(), "Custom Chain");
+        assert_eq!(chain.native_symbol(), "???");
+        assert_eq!(chain.explorer_url(), None);
+    }
+
+    #[test]
+    fn test_custom_known_explorer() {
+        assert_eq!(
+            Chain::Custom(100).explorer_url(),
+            Some("https://gnosisscan.io")
+        );
+        assert_eq!(
+            Chain::Custom(250).explorer_url(),
+            Some("https://ftmscan.com")
+        );
+        assert_eq!(
+            Chain::Custom(324).explorer_url(),
+            Some("https://explorer.zksync.io")
+        );
+    }
+
+    #[test]
+    fn test_invalid_chain_name() {
+        assert!("totally-fake-chain".parse::<Chain>().is_err());
     }
 }

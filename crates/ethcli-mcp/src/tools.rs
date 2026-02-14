@@ -7730,6 +7730,48 @@ pub async fn endpoints_health(chain: Option<&str>) -> Result<String, ToolError> 
 }
 
 // =============================================================================
+// CHAINLIST (4 subcommands)
+// =============================================================================
+
+pub async fn chainlist_search(query: &str, testnets: bool) -> Result<String, ToolError> {
+    ArgsBuilder::new("chainlist")
+        .subcommand("search")
+        .arg(query)
+        .opt_flag("--testnets", testnets)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn chainlist_rpcs(chain: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("chainlist")
+        .subcommand("rpcs")
+        .arg(chain)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn chainlist_add(chain: &str, max: usize) -> Result<String, ToolError> {
+    ArgsBuilder::new("chainlist")
+        .subcommand("add")
+        .arg(chain)
+        .opt("--max", Some(&max.to_string()))
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn chainlist_list(testnets: bool) -> Result<String, ToolError> {
+    ArgsBuilder::new("chainlist")
+        .subcommand("list")
+        .opt_flag("--testnets", testnets)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// =============================================================================
 // HEALTH CHECK
 // =============================================================================
 
