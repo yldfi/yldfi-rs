@@ -386,6 +386,11 @@ mod tests {
         assert_eq!("kong".parse::<PriceSource>().unwrap(), PriceSource::Kong);
         assert_eq!("yearn".parse::<PriceSource>().unwrap(), PriceSource::Kong);
         assert_eq!("ykong".parse::<PriceSource>().unwrap(), PriceSource::Kong);
+        assert_eq!("enso".parse::<PriceSource>().unwrap(), PriceSource::Enso);
+        assert_eq!(
+            "enso_finance".parse::<PriceSource>().unwrap(),
+            PriceSource::Enso
+        );
         assert!("invalid".parse::<PriceSource>().is_err());
     }
 
@@ -396,5 +401,6 @@ mod tests {
         assert_eq!(PriceSource::All.to_string(), "all");
         assert_eq!(PriceSource::Uniswap.to_string(), "uniswap");
         assert_eq!(PriceSource::Kong.to_string(), "kong");
+        assert_eq!(PriceSource::Enso.to_string(), "enso");
     }
 }

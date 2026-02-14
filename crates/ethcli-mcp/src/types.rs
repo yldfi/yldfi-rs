@@ -1126,8 +1126,9 @@ pub struct TenderlyVnetsSimulateInput {
     pub vnet: String,
     /// Sender address
     pub from: String,
-    /// Recipient/contract address
-    pub to: String,
+    /// Recipient/contract address (omit for contract deployment)
+    #[serde(default)]
+    pub to: Option<String>,
     /// Calldata (hex encoded)
     #[serde(default)]
     pub data: Option<String>,
