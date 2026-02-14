@@ -1125,10 +1125,7 @@ fn chainlist_list(testnets: bool) -> anyhow::Result<()> {
     let chains = yldfi_common::Chain::mainnets();
 
     println!("Known EVM chains:\n");
-    println!(
-        "{:<10} {:<25} {:<8} Aliases",
-        "Chain ID", "Name", "Symbol"
-    );
+    println!("{:<10} {:<25} {:<8} Aliases", "Chain ID", "Name", "Symbol");
     println!("{}", "-".repeat(70));
 
     for chain in chains {
