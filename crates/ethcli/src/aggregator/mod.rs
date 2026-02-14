@@ -213,6 +213,9 @@ pub enum PriceSource {
     /// Enso Finance DeFi price API (vault tokens, LP tokens)
     #[value(alias = "enso_finance")]
     Enso,
+    /// Yearn Kong vault-derived pricing (pricePerShare × underlying price)
+    #[value(alias = "yearn_vault", alias = "vault")]
+    KongVault,
 }
 
 impl std::str::FromStr for PriceSource {
@@ -232,6 +235,7 @@ impl std::str::FromStr for PriceSource {
             "uniswap" | "uni" => Ok(PriceSource::Uniswap),
             "kong" | "yearn" | "ykong" => Ok(PriceSource::Kong),
             "enso" | "enso_finance" => Ok(PriceSource::Enso),
+            "kongvault" | "kong_vault" | "yearn_vault" | "vault" => Ok(PriceSource::KongVault),
             _ => Err(format!("Unknown price source: {}", s)),
         }
     }
@@ -252,6 +256,7 @@ impl std::fmt::Display for PriceSource {
             PriceSource::Uniswap => write!(f, "uniswap"),
             PriceSource::Kong => write!(f, "kong"),
             PriceSource::Enso => write!(f, "enso"),
+            PriceSource::KongVault => write!(f, "kong_vault"),
         }
     }
 }

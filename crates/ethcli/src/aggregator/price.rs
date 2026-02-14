@@ -396,6 +396,7 @@ pub async fn fetch_price_from_source(
         PriceSource::Uniswap => fetch_uniswap_price(token, chain, measure).await,
         PriceSource::Kong => fetch_kong_price(token, chain, measure).await,
         PriceSource::Enso => fetch_enso_price(token, chain, measure).await,
+        PriceSource::KongVault => fetch_kong_vault_price(token, chain, measure).await,
         PriceSource::All => SourceResult::error("all", "Use fetch_prices_all instead", 0),
     }
 }
@@ -1778,15 +1779,9 @@ async fn fetch_kong_price(
     }
 
     // Convert chain name to chain ID
-    let chain_id = match chain.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" | "eth-mainnet" | "" => 1,
-        "polygon" | "matic" | "polygon-mainnet" => 137,
-        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => 42161,
-        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => 10,
-        "base" | "base-mainnet" => 8453,
-        "fantom" | "ftm" => 250,
-        "gnosis" | "xdai" => 100,
-        _ => {
+    let chain_id = match chain_name_to_kong_id(chain) {
+        Some(id) => id,
+        None => {
             return SourceResult::error(
                 "kong",
                 format!("Unsupported chain for Kong: {}", chain),
@@ -1885,4 +1880,176 @@ async fn fetch_enso_price(
         }
         Err(e) => SourceResult::error("enso", format!("API error: {}", e), measure.elapsed_ms()),
     }
+}
+
+/// Convert chain name to Kong-compatible chain ID
+fn chain_name_to_kong_id(chain: &str) -> Option<u64> {
+    match chain.to_lowercase().as_str() {
+        "ethereum" | "eth" | "mainnet" | "eth-mainnet" | "" => Some(1),
+        "polygon" | "matic" | "polygon-mainnet" => Some(137),
+        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => Some(42161),
+        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => Some(10),
+        "base" | "base-mainnet" => Some(8453),
+        "fantom" | "ftm" => Some(250),
+        "gnosis" | "xdai" => Some(100),
+        _ => None,
+    }
+}
+
+/// Fetch price using Kong vault data (pricePerShare × underlying price)
+///
+/// For vault tokens (ERC4626, Yearn v2/v3), the price is calculated as:
+/// `(pricePerShare / 10^decimals) × underlying_asset_price_usd`
+///
+/// This uses the Kong vaults API for vault metadata, then prices the
+/// underlying asset using the other aggregator sources.
+async fn fetch_kong_vault_price(
+    token: &str,
+    chain: &str,
+    measure: LatencyMeasure,
+) -> SourceResult<NormalizedPrice> {
+    // KongVault requires contract addresses
+    if !token.starts_with("0x") {
+        return SourceResult::error(
+            "kong_vault",
+            "KongVault requires contract address (0x...)",
+            measure.elapsed_ms(),
+        );
+    }
+
+    // Convert chain name to chain ID
+    let chain_id = match chain_name_to_kong_id(chain) {
+        Some(id) => id,
+        None => {
+            return SourceResult::error(
+                "kong_vault",
+                format!("Unsupported chain for KongVault: {}", chain),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    // Get the Kong client
+    let client = match get_kong_client() {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error(
+                "kong_vault",
+                format!("Client error: {}", e),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    // Fetch vault data
+    let vault = match client.vaults().get(chain_id, token).await {
+        Ok(Some(v)) => v,
+        Ok(None) => {
+            return SourceResult::error(
+                "kong_vault",
+                format!("Token {} is not a Kong vault on chain {}", token, chain),
+                measure.elapsed_ms(),
+            );
+        }
+        Err(e) => {
+            return SourceResult::error(
+                "kong_vault",
+                format!("API error: {}", e),
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    // Extract pricePerShare and decimals
+    let price_per_share_raw = match &vault.price_per_share {
+        Some(pps) if !pps.is_empty() => pps.clone(),
+        _ => {
+            return SourceResult::error(
+                "kong_vault",
+                "Vault has no pricePerShare data",
+                measure.elapsed_ms(),
+            );
+        }
+    };
+
+    let decimals: u32 = vault
+        .decimals
+        .as_ref()
+        .and_then(|d| d.parse::<u32>().ok())
+        .unwrap_or(18);
+
+    let price_per_share: f64 = match price_per_share_raw.parse::<u128>() {
+        Ok(raw) => raw as f64 / 10_f64.powi(decimals as i32),
+        Err(_) => {
+            // Fallback to f64 parse for non-integer strings
+            match price_per_share_raw.parse::<f64>() {
+                Ok(pps) => pps / 10_f64.powi(decimals as i32),
+                Err(_) => {
+                    return SourceResult::error(
+                        "kong_vault",
+                        format!("Invalid pricePerShare: {}", price_per_share_raw),
+                        measure.elapsed_ms(),
+                    );
+                }
+            }
+        }
+    };
+
+    if price_per_share <= 0.0 {
+        return SourceResult::error(
+            "kong_vault",
+            "pricePerShare is zero or negative",
+            measure.elapsed_ms(),
+        );
+    }
+
+    // Get the underlying asset address
+    let underlying_address = match &vault.asset {
+        Some(asset) => asset.address.clone(),
+        None => match &vault.token {
+            Some(t) => t.clone(),
+            None => {
+                return SourceResult::error(
+                    "kong_vault",
+                    "Vault has no underlying asset address",
+                    measure.elapsed_ms(),
+                );
+            }
+        },
+    };
+
+    // Price the underlying asset using other sources (exclude KongVault to avoid recursion)
+    let underlying_sources = vec![
+        PriceSource::Gecko,
+        PriceSource::Llama,
+        PriceSource::Alchemy,
+        PriceSource::Moralis,
+        PriceSource::Ccxt,
+        PriceSource::Chainlink,
+        PriceSource::Pyth,
+        PriceSource::Uniswap,
+        PriceSource::Kong,
+    ];
+
+    let underlying_result =
+        fetch_prices_parallel(&underlying_address, chain, &underlying_sources).await;
+
+    let underlying_price = underlying_result.aggregated.median_usd;
+
+    if underlying_price <= 0.0 {
+        return SourceResult::error(
+            "kong_vault",
+            format!(
+                "Could not price underlying asset {} (tried {} sources)",
+                underlying_address, underlying_result.sources_queried
+            ),
+            measure.elapsed_ms(),
+        );
+    }
+
+    // Calculate vault token price = pricePerShare × underlying_price
+    let vault_price = price_per_share * underlying_price;
+
+    let price = NormalizedPrice::new(vault_price);
+    SourceResult::success("kong_vault", price, measure.elapsed_ms())
 }
