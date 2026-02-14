@@ -39,6 +39,50 @@ where
     string_or_int::deserialize(deserializer)
 }
 
+/// Deserialize a value that can be either a string or u64 into u64
+fn deserialize_string_or_u64<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrU64 {
+        String(String),
+        U64(u64),
+    }
+
+    match StringOrU64::deserialize(deserializer)? {
+        StringOrU64::String(s) => s.parse::<u64>().map_err(serde::de::Error::custom),
+        StringOrU64::U64(n) => Ok(n),
+    }
+}
+
+/// Deserialize a value that can be either a string or u64 into Option<u64>
+fn deserialize_optional_string_or_u64<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrU64 {
+        String(String),
+        U64(u64),
+        Null,
+    }
+
+    match Option::<StringOrU64>::deserialize(deserializer)? {
+        Some(StringOrU64::String(s)) => {
+            if s.is_empty() {
+                Ok(None)
+            } else {
+                s.parse::<u64>().map(Some).map_err(serde::de::Error::custom)
+            }
+        }
+        Some(StringOrU64::U64(n)) => Ok(Some(n)),
+        Some(StringOrU64::Null) | None => Ok(None),
+    }
+}
+
 /// A Yearn vault
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -296,8 +340,10 @@ pub struct Price {
     /// Price source (e.g., "defillama", "coingecko")
     pub price_source: String,
     /// Block number
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub block_number: u64,
     /// Timestamp
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub timestamp: u64,
 }
 
@@ -318,8 +364,10 @@ pub struct Tvl {
     /// Period (day, week, month)
     pub period: String,
     /// Block number
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub block_number: u64,
     /// Timestamp
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_u64")]
     pub time: Option<u64>,
 }
 
