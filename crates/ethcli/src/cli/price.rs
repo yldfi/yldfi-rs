@@ -250,7 +250,7 @@ fn print_table_output(
             let error_note = source
                 .error
                 .as_ref()
-                .map(|e| format!(" ({})", truncate_str(e, 20)))
+                .map(|e| format!(" ({})", truncate_str(e, 30)))
                 .unwrap_or_default();
 
             println!(

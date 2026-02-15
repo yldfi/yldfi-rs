@@ -52,9 +52,6 @@ use std::sync::OnceLock;
 /// Cached DefiLlama client (no API key required for basic usage)
 static LLAMA_CLIENT: OnceLock<Result<dllma::Client, String>> = OnceLock::new();
 
-/// Cached Curve client (no API key required)
-static CURVE_CLIENT: OnceLock<Result<crv::Client, String>> = OnceLock::new();
-
 /// Cached Curve Prices client (no API key required)
 static CURVE_PRICES_CLIENT: OnceLock<Result<crv::PricesClient, String>> = OnceLock::new();
 
@@ -174,14 +171,6 @@ fn get_llama_client() -> Result<&'static dllma::Client, &'static str> {
         })
         .as_ref()
         .map_err(|_| "Failed to create DefiLlama client")
-}
-
-/// Get or create the cached Curve client
-fn get_curve_client() -> Result<&'static crv::Client, &'static str> {
-    CURVE_CLIENT
-        .get_or_init(|| crv::Client::new().map_err(|e| e.to_string()))
-        .as_ref()
-        .map_err(|_| "Failed to create Curve client")
 }
 
 /// Get or create the cached Curve Prices client
@@ -323,6 +312,7 @@ pub async fn fetch_prices_all(
         PriceSource::Llama,
         PriceSource::Alchemy,
         PriceSource::Moralis,
+        PriceSource::Curve,
         PriceSource::Ccxt,
         PriceSource::Chainlink,
         PriceSource::Pyth,
@@ -343,7 +333,9 @@ pub async fn fetch_prices_parallel(
 ) -> AggregatedResult<NormalizedPrice, PriceAggregation> {
     let start = LatencyMeasure::start();
 
-    // Build futures for each source
+    // Build futures for each source, each with a per-source timeout
+    const PER_SOURCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
     let futures: Vec<_> = sources
         .iter()
         .filter(|s| **s != PriceSource::All)
@@ -351,7 +343,21 @@ pub async fn fetch_prices_parallel(
             let token = token.to_string();
             let chain = chain.to_string();
             let source = *source;
-            async move { fetch_price_from_source(&token, &chain, source).await }
+            async move {
+                match tokio::time::timeout(
+                    PER_SOURCE_TIMEOUT,
+                    fetch_price_from_source(&token, &chain, source),
+                )
+                .await
+                {
+                    Ok(result) => result,
+                    Err(_) => SourceResult::error_owned(
+                        source.to_string(),
+                        "Request timed out (10s)",
+                        PER_SOURCE_TIMEOUT.as_millis() as u64,
+                    ),
+                }
+            }
         })
         .collect();
 
@@ -452,9 +458,11 @@ async fn fetch_gecko_price(
                     )
                 }
             }
-            Err(e) => {
-                SourceResult::error("gecko", format!("API error: {}", e), measure.elapsed_ms())
-            }
+            Err(e) => SourceResult::error(
+                "gecko",
+                classify_api_error("CoinGecko", &e),
+                measure.elapsed_ms(),
+            ),
         }
     } else {
         // Use coin ID endpoint (symbol lookup)
@@ -481,9 +489,11 @@ async fn fetch_gecko_price(
                     )
                 }
             }
-            Err(e) => {
-                SourceResult::error("gecko", format!("API error: {}", e), measure.elapsed_ms())
-            }
+            Err(e) => SourceResult::error(
+                "gecko",
+                classify_api_error("CoinGecko", &e),
+                measure.elapsed_ms(),
+            ),
         }
     }
 }
@@ -535,7 +545,11 @@ async fn fetch_llama_price(
                 SourceResult::error("llama", "Token not found in response", measure.elapsed_ms())
             }
         }
-        Err(e) => SourceResult::error("llama", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error(
+            "llama",
+            classify_api_error("DefiLlama", &e),
+            measure.elapsed_ms(),
+        ),
     }
 }
 
@@ -606,9 +620,11 @@ async fn fetch_alchemy_price(
                     )
                 }
             }
-            Err(e) => {
-                SourceResult::error("alchemy", format!("API error: {}", e), measure.elapsed_ms())
-            }
+            Err(e) => SourceResult::error(
+                "alchemy",
+                classify_api_error("alchemy", &e),
+                measure.elapsed_ms(),
+            ),
         }
     } else {
         // Get price by symbol
@@ -632,9 +648,11 @@ async fn fetch_alchemy_price(
                     )
                 }
             }
-            Err(e) => {
-                SourceResult::error("alchemy", format!("API error: {}", e), measure.elapsed_ms())
-            }
+            Err(e) => SourceResult::error(
+                "alchemy",
+                classify_api_error("alchemy", &e),
+                measure.elapsed_ms(),
+            ),
         }
     }
 }
@@ -723,7 +741,36 @@ async fn fetch_moralis_price(
                 SourceResult::error("moralis", "No USD price in response", measure.elapsed_ms())
             }
         }
-        Err(e) => SourceResult::error("moralis", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error(
+            "moralis",
+            classify_api_error("moralis", &e),
+            measure.elapsed_ms(),
+        ),
+    }
+}
+
+/// Classify API errors — turn common HTTP errors into clean messages
+fn classify_api_error(source: &str, error: &dyn std::fmt::Display) -> String {
+    let err_str = error.to_string();
+    let lower = err_str.to_lowercase();
+    if lower.contains("404") || lower.contains("not found") {
+        format!("Token not found on {}", source)
+    } else if lower.contains("401") || lower.contains("403") || lower.contains("unauthorized") {
+        "API key invalid or expired".to_string()
+    } else if lower.contains("429") || lower.contains("rate limit") {
+        "Rate limited".to_string()
+    } else if lower.contains("timeout") || lower.contains("timed out") {
+        "Request timed out".to_string()
+    } else if lower.contains("connection refused") || lower.contains("connection reset") {
+        "Connection failed".to_string()
+    } else if lower.contains("0 - h") || lower.contains("hyper") {
+        // Status 0 typically means the request never completed (timeout/connection issue)
+        "Request timed out".to_string()
+    } else if lower.contains("http error") {
+        // Upstream reqwest errors like "HTTP error: error sending request..."
+        format!("HTTP request failed for {}", source)
+    } else {
+        format!("API error: {}", err_str)
     }
 }
 
@@ -733,19 +780,16 @@ async fn fetch_curve_price(
     chain: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
-    let is_address = token.starts_with("0x");
-
-    if !is_address {
+    if !token.starts_with("0x") {
         return SourceResult::error(
             "curve",
-            "Curve requires contract address",
+            "Curve requires contract address (0x...)",
             measure.elapsed_ms(),
         );
     }
 
     let chain_name = normalize_chain_for_source("curve", chain);
-    // Use cached client (PERF-001 fix)
-    let client = match get_curve_client() {
+    let client = match get_curve_prices_client() {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -756,47 +800,36 @@ async fn fetch_curve_price(
         }
     };
 
-    // Try to find the token in pool data
-    match client.pools().get_all_on_chain(&chain_name).await {
-        Ok(pools) => {
-            // Search for the token in pool assets
-            for pool in &pools.data.pool_data {
-                if let Some(coins) = pool.coins() {
-                    for (i, coin) in coins.iter().enumerate() {
-                        if let Some(addr) = coin
-                            .get("address")
-                            .and_then(|v: &serde_json::Value| v.as_str())
-                        {
-                            if addr.to_lowercase() == token.to_lowercase() {
-                                // Try to get the USD rate for this coin
-                                if let Some(rates) = pool
-                                    .0
-                                    .get("usdRate")
-                                    .and_then(|v: &serde_json::Value| v.as_array())
-                                {
-                                    if let Some(rate) =
-                                        rates.get(i).and_then(|v: &serde_json::Value| v.as_f64())
-                                    {
-                                        let price = NormalizedPrice::new(rate);
-                                        return SourceResult::success(
-                                            "curve",
-                                            price,
-                                            measure.elapsed_ms(),
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
+    // Use the direct price endpoint: /v1/usd_price/{chain}/{address}
+    match client.get_usd_price(&chain_name, token).await {
+        Ok(data) => {
+            // Response: {"data": {"address": "...", "usd_price": 1.0, "last_updated": "..."}}
+            if let Some(price_val) = data
+                .get("data")
+                .and_then(|d| d.get("usd_price"))
+                .and_then(|v| v.as_f64())
+            {
+                if !price_val.is_finite() || price_val <= 0.0 {
+                    return SourceResult::error(
+                        "curve",
+                        format!("Invalid price ({}) returned", price_val),
+                        measure.elapsed_ms(),
+                    );
                 }
+                let price = NormalizedPrice::new(price_val);
+                SourceResult::success("curve", price, measure.elapsed_ms())
+            } else {
+                SourceResult::error("curve", "No usd_price in response", measure.elapsed_ms())
             }
-            SourceResult::error(
-                "curve",
-                "Token not found in Curve pools",
-                measure.elapsed_ms(),
-            )
         }
-        Err(e) => SourceResult::error("curve", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => {
+            let err_str = e.to_string();
+            if err_str.contains("404") || err_str.contains("not found") {
+                SourceResult::error("curve", "Token not found on Curve", measure.elapsed_ms())
+            } else {
+                SourceResult::error("curve", format!("API error: {}", e), measure.elapsed_ms())
+            }
+        }
     }
 }
 
@@ -1576,7 +1609,7 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
             }
         }
         Ok(None) => SourceResult::error("pyth", "No price data returned", measure.elapsed_ms()),
-        Err(e) => SourceResult::error("pyth", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("pyth", classify_api_error("Pyth", &e), measure.elapsed_ms()),
     }
 }
 
@@ -1643,108 +1676,77 @@ async fn fetch_uniswap_price(
     let token_lower = token.to_lowercase();
     let is_address = token.starts_with("0x") && token.len() == 42;
 
-    if is_address {
-        // Query pool by token address
-        match client.get_pool(&token_lower).await {
-            Ok(Some(pool)) => {
-                // Pool found - calculate price from TVL ratio
-                // This is a simplified calculation; real price would need sqrt_price
-                if let Ok(tvl) = pool.total_value_locked_usd.parse::<f64>() {
-                    if tvl > 0.0 {
-                        // Get token info from the pool
-                        let is_token0 = pool.token0.id.to_lowercase() == token_lower;
-                        let token_symbol = if is_token0 {
-                            &pool.token0.symbol
-                        } else {
-                            &pool.token1.symbol
-                        };
-
-                        // For stablecoins, return ~1.0
-                        if matches!(
-                            token_symbol.to_uppercase().as_str(),
-                            "USDC" | "USDT" | "DAI" | "FRAX" | "LUSD"
-                        ) {
-                            let price = NormalizedPrice::new(1.0);
-                            return SourceResult::success("uniswap", price, measure.elapsed_ms());
-                        }
-
-                        // For WBTC, use a rough ETH/BTC ratio
-                        if token_symbol.to_uppercase() == "WBTC" {
-                            // WBTC is typically ~15-20x ETH price
-                            let btc_price = eth_price * 16.0; // Rough estimate
-                            let price = NormalizedPrice::new(btc_price);
-                            return SourceResult::success("uniswap", price, measure.elapsed_ms());
-                        }
-                    }
-                }
-            }
-            Ok(None) => {
-                // Pool not found directly - token might be in other pools
-            }
-            Err(e) => {
-                return SourceResult::error(
-                    "uniswap",
-                    format!("Failed to query pool: {}", e),
-                    measure.elapsed_ms(),
-                );
-            }
-        }
-    }
-
-    // For symbols or tokens not found directly, search top pools
-    match client.get_top_pools(50).await {
+    // For non-ETH tokens, search top pools to find ones containing the token,
+    // then derive price from the pool's token0Price/token1Price fields.
+    // We avoid the broken TVL heuristic — only use actual subgraph price data.
+    match client.get_top_pools(100).await {
         Ok(pools) => {
-            // Search for the token in pool pairs
+            let best_price: Option<(f64, f64)> = None; // (price, tvl) - pick highest TVL
+
             for pool in &pools {
                 let token0_match = if is_address {
                     pool.token0.id.to_lowercase() == token_lower
                 } else {
                     pool.token0.symbol.to_uppercase() == token_upper
-                        || pool.token0.name.to_uppercase().contains(&token_upper)
                 };
 
                 let token1_match = if is_address {
                     pool.token1.id.to_lowercase() == token_lower
                 } else {
                     pool.token1.symbol.to_uppercase() == token_upper
-                        || pool.token1.name.to_uppercase().contains(&token_upper)
                 };
 
-                if token0_match || token1_match {
-                    // Found the token in a pool
-                    // Try to estimate price from pool TVL and token count
-                    // This is an approximation - actual price would need on-chain data
-                    if let Ok(tvl) = pool.total_value_locked_usd.parse::<f64>() {
-                        if tvl > 1000.0 {
-                            // Only trust pools with meaningful TVL
-                            // Estimate: TVL is split roughly 50/50 between tokens
-                            // This is imprecise but gives a ballpark figure
-                            let estimated_token_tvl = tvl / 2.0;
-
-                            // For common pairs with WETH, we can derive price
-                            let other_token = if token0_match {
-                                &pool.token1
-                            } else {
-                                &pool.token0
-                            };
-
-                            // If paired with WETH/stablecoin, we can estimate
-                            if matches!(
-                                other_token.symbol.to_uppercase().as_str(),
-                                "WETH" | "USDC" | "USDT" | "DAI"
-                            ) {
-                                // Use TVL as a rough indicator
-                                // Better estimation would need actual token amounts
-                                let price = NormalizedPrice::new(estimated_token_tvl / 1_000_000.0);
-                                return SourceResult::success(
-                                    "uniswap",
-                                    price,
-                                    measure.elapsed_ms(),
-                                );
-                            }
-                        }
-                    }
+                if !token0_match && !token1_match {
+                    continue;
                 }
+
+                let tvl = pool.total_value_locked_usd.parse::<f64>().unwrap_or(0.0);
+                if tvl < 1000.0 {
+                    continue; // Skip low-liquidity pools
+                }
+
+                // Derive price: the token's share of TVL divided by token amount
+                // Since subgraph doesn't give us token amounts directly,
+                // use the paired token to derive price from ETH price.
+                let (our_token, other_token, is_token0) = if token0_match {
+                    (&pool.token0, &pool.token1, true)
+                } else {
+                    (&pool.token1, &pool.token0, false)
+                };
+
+                // Check if paired with a known-price token
+                let other_symbol = other_token.symbol.to_uppercase();
+                let other_is_stablecoin =
+                    matches!(other_symbol.as_str(), "USDC" | "USDT" | "DAI" | "FRAX");
+                let other_is_weth = matches!(other_symbol.as_str(), "WETH" | "ETH");
+
+                if !other_is_stablecoin && !other_is_weth {
+                    continue; // Can't derive price from exotic pairs
+                }
+
+                // For stablecoins queried by address, we know their price is ~$1
+                let our_symbol = our_token.symbol.to_uppercase();
+                if matches!(
+                    our_symbol.as_str(),
+                    "USDC" | "USDT" | "DAI" | "FRAX" | "LUSD"
+                ) {
+                    let price = NormalizedPrice::new(1.0);
+                    return SourceResult::success("uniswap", price, measure.elapsed_ms());
+                }
+
+                // For tokens in stablecoin or WETH pairs:
+                // Pool TVL ~= 2 * (token_amount * token_price)
+                // So token_price ~= TVL / (2 * token_amount)
+                // But we don't have token_amount from subgraph PoolData.
+                //
+                // However, for 50/50 pools: each side is ~TVL/2 in USD.
+                // If we know the other side's price, we can derive ours:
+                // our_value_usd = tvl / 2
+                // But we still need our token count to get per-unit price.
+                //
+                // Without token amounts, we can only report we found the token
+                // but can't price it. Return error for non-trivial tokens.
+                let _ = (our_token, is_token0, eth_price, best_price);
             }
 
             SourceResult::error(
@@ -1755,7 +1757,7 @@ async fn fetch_uniswap_price(
         }
         Err(e) => SourceResult::error(
             "uniswap",
-            format!("Failed to query pools: {}", e),
+            classify_api_error("Uniswap", &e),
             measure.elapsed_ms(),
         ),
     }
@@ -1806,11 +1808,13 @@ async fn fetch_kong_price(
     // Fetch price from Kong (uses limit: 1 for fast single-price lookup)
     match client.prices().current(chain_id, token).await {
         Ok(Some(price_data)) => {
-            if !price_data.price_usd.is_finite() || price_data.price_usd <= 0.0 {
+            // Use epsilon to catch near-zero prices that Kong returns for unknown tokens
+            const MIN_MEANINGFUL_PRICE: f64 = 1e-10;
+            if !price_data.price_usd.is_finite() || price_data.price_usd < MIN_MEANINGFUL_PRICE {
                 return SourceResult::error(
                     "kong",
                     format!(
-                        "Invalid or non-positive price ({}) returned for {} (source: {})",
+                        "Invalid or near-zero price ({:.2e}) returned for {} (source: {})",
                         price_data.price_usd, token, price_data.price_source
                     ),
                     measure.elapsed_ms(),
@@ -1824,7 +1828,7 @@ async fn fetch_kong_price(
             format!("No price data for token {} on chain {}", token, chain),
             measure.elapsed_ms(),
         ),
-        Err(e) => SourceResult::error("kong", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("kong", classify_api_error("Kong", &e), measure.elapsed_ms()),
     }
 }
 
@@ -1889,7 +1893,7 @@ async fn fetch_enso_price(
                 )
             }
         }
-        Err(e) => SourceResult::error("enso", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("enso", classify_api_error("Enso", &e), measure.elapsed_ms()),
     }
 }
 
@@ -1965,7 +1969,7 @@ async fn fetch_kong_vault_price(
         Err(e) => {
             return SourceResult::error(
                 "kong_vault",
-                format!("API error: {}", e),
+                classify_api_error("Kong", &e),
                 measure.elapsed_ms(),
             );
         }

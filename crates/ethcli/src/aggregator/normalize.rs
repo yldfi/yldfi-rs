@@ -123,6 +123,20 @@ impl PriceAggregation {
         // Sort is now safe since we filtered out NaN values
         sorted.sort_by(|a, b| a.partial_cmp(b).expect("filtered values are finite"));
 
+        // Remove outliers using IQR method when we have enough data points
+        if sorted.len() >= 4 {
+            let q1 = sorted[sorted.len() / 4];
+            let q3 = sorted[3 * sorted.len() / 4];
+            let iqr = q3 - q1;
+            let lower_bound = q1 - 1.5 * iqr;
+            let upper_bound = q3 + 1.5 * iqr;
+            sorted.retain(|&p| p >= lower_bound && p <= upper_bound);
+
+            if sorted.is_empty() {
+                return None;
+            }
+        }
+
         let len = sorted.len();
         let median_usd = if len.is_multiple_of(2) {
             (sorted[len / 2 - 1] + sorted[len / 2]) / 2.0
@@ -131,8 +145,6 @@ impl PriceAggregation {
         };
 
         let mean_usd = sorted.iter().sum::<f64>() / len as f64;
-        // Use safer access pattern - unwrap_or provides fallback even though
-        // we know the vec is non-empty, this protects against future refactoring
         let min_usd = sorted.first().copied().unwrap_or(0.0);
         let max_usd = sorted.last().copied().unwrap_or(0.0);
 

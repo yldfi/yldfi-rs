@@ -101,6 +101,18 @@ impl<T> SourceResult<T> {
         }
     }
 
+    /// Create a failed result with an owned source name
+    pub fn error_owned(source: String, error: impl Into<String>, latency_ms: u64) -> Self {
+        Self {
+            source: Cow::Owned(source),
+            data: None,
+            raw: None,
+            error: Some(error.into()),
+            latency_ms,
+            timestamp: crate::utils::unix_timestamp_secs(),
+        }
+    }
+
     /// Check if this result is successful
     pub fn is_success(&self) -> bool {
         self.data.is_some() && self.error.is_none()
