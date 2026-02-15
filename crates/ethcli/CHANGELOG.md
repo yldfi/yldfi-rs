@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.21](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.20...ethcli-v0.21.21) (2026-02-15)
+
+
+### Bug Fixes
+
+* **ethcli:** improve Kong price source reliability ([#31](https://github.com/yldfi/yldfi-rs/issues/31)) ([4d8956a](https://github.com/yldfi/yldfi-rs/commit/4d8956a591e7d0e9a8bbe64dc4b7129c02195fdb))
+
 ## [0.21.20](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.19...ethcli-v0.21.20) (2026-02-14)
 
 
