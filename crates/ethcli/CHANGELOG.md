@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.22](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.21...ethcli-v0.21.22) (2026-02-15)
+
+
+### Bug Fixes
+
+* **ethcli:** improve price aggregation reliability and error reporting ([f6da4ae](https://github.com/yldfi/yldfi-rs/commit/f6da4aee814a8fb62c07ab9664b5b141c137b0a2))
+
 ## [0.21.21](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.20...ethcli-v0.21.21) (2026-02-15)
 
 
