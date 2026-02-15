@@ -328,6 +328,7 @@ pub async fn fetch_prices_all(
         PriceSource::Pyth,
         PriceSource::Uniswap,
         PriceSource::Kong,
+        PriceSource::KongVault,
         PriceSource::Enso,
     ];
 
@@ -1802,9 +1803,19 @@ async fn fetch_kong_price(
         }
     };
 
-    // Fetch price from Kong
+    // Fetch price from Kong (uses limit: 1 for fast single-price lookup)
     match client.prices().current(chain_id, token).await {
         Ok(Some(price_data)) => {
+            if price_data.price_usd <= 0.0 {
+                return SourceResult::error(
+                    "kong",
+                    format!(
+                        "Zero price returned for {} (source: {})",
+                        token, price_data.price_source
+                    ),
+                    measure.elapsed_ms(),
+                );
+            }
             let price = NormalizedPrice::new(price_data.price_usd);
             SourceResult::success("kong", price, measure.elapsed_ms())
         }
@@ -2018,7 +2029,8 @@ async fn fetch_kong_vault_price(
         },
     };
 
-    // Price the underlying asset using other sources (exclude KongVault to avoid recursion)
+    // Price the underlying asset using other sources
+    // Exclude KongVault (avoid recursion) and Kong (slow response for vault underlyings)
     let underlying_sources = vec![
         PriceSource::Gecko,
         PriceSource::Llama,
@@ -2028,7 +2040,7 @@ async fn fetch_kong_vault_price(
         PriceSource::Chainlink,
         PriceSource::Pyth,
         PriceSource::Uniswap,
-        PriceSource::Kong,
+        PriceSource::Enso,
     ];
 
     let underlying_result =
