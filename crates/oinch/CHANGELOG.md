@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/oinch-v0.1.2...oinch-v0.1.3) (2026-02-15)
+
+
+### Bug Fixes
+
+* rename colliding example filenames across crates ([d12f5b2](https://github.com/yldfi/yldfi-rs/commit/d12f5b2d977df3dc0a56c016a793d8bf37ed0c64))
+
 ## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/oinch-v0.1.1...oinch-v0.1.2) (2026-01-27)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.7...mrls-v0.1.8) (2026-02-15)
+
+
+### Bug Fixes
+
+* rename colliding example filenames across crates ([d12f5b2](https://github.com/yldfi/yldfi-rs/commit/d12f5b2d977df3dc0a56c016a793d8bf37ed0c64))
+
 ## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.6...mrls-v0.1.7) (2026-02-13)
 
 
