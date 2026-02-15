@@ -1806,12 +1806,12 @@ async fn fetch_kong_price(
     // Fetch price from Kong (uses limit: 1 for fast single-price lookup)
     match client.prices().current(chain_id, token).await {
         Ok(Some(price_data)) => {
-            if price_data.price_usd <= 0.0 {
+            if !price_data.price_usd.is_finite() || price_data.price_usd <= 0.0 {
                 return SourceResult::error(
                     "kong",
                     format!(
-                        "Zero price returned for {} (source: {})",
-                        token, price_data.price_source
+                        "Invalid or non-positive price ({}) returned for {} (source: {})",
+                        price_data.price_usd, token, price_data.price_source
                     ),
                     measure.elapsed_ms(),
                 );
