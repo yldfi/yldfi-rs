@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.12...ethcli-mcp-v0.1.13) (2026-02-16)
+
+
+### Bug Fixes
+
+* **mcp:** place -n/--network at correct subcommand level for Alchemy tools ([#43](https://github.com/yldfi/yldfi-rs/issues/43)) ([19c7a7d](https://github.com/yldfi/yldfi-rs/commit/19c7a7d9fcf45118ecb984f6b5b79baf5be0fd3c))
+
 ## [0.1.12](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.11...ethcli-mcp-v0.1.12) (2026-02-16)
 
 
