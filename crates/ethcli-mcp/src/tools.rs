@@ -7395,6 +7395,7 @@ pub async fn enso_route(
     from_token: &str,
     to_token: &str,
     amount: &str,
+    from_address: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("enso")
@@ -7402,6 +7403,7 @@ pub async fn enso_route(
         .arg(from_token)
         .arg(to_token)
         .arg(amount)
+        .arg(from_address)
         .chain(chain)
         .format_json()
         .execute()

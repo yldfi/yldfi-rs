@@ -5578,6 +5578,7 @@ impl EthcliMcpServer {
             &input.from_token,
             &input.to_token,
             &input.amount,
+            &input.from_address,
             Some(&input.chain),
         )
         .await

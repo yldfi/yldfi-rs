@@ -3081,6 +3081,8 @@ pub struct EnsoRouteInput {
     pub to_token: String,
     /// Amount
     pub amount: String,
+    /// Sender address (required by Enso API)
+    pub from_address: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
