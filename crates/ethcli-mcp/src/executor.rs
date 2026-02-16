@@ -496,6 +496,13 @@ impl ArgsBuilder {
         self.opt("--chain", chain)
     }
 
+    /// Set -n/--network flag (for Alchemy commands where --network is defined
+    /// on intermediate subcommands, not leaf subcommands). Must be called
+    /// BEFORE the leaf .subcommand() call.
+    pub fn network(self, network: Option<&str>) -> Self {
+        self.opt("-n", network)
+    }
+
     pub fn format_json(mut self) -> Self {
         // Use -o (short flag) because ethcli commands inconsistently use
         // --format or --output for the long flag, but all use -o for short
