@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.12](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.11...ethcli-mcp-v0.1.12) (2026-02-16)
+
+
+### Bug Fixes
+
+* **mcp:** restore --network flag for Alchemy and Tenderly tools ([ff62ab6](https://github.com/yldfi/yldfi-rs/commit/ff62ab664c3d4db0c7d74c0673f810c068f441ec))
+* **mcp:** restore --network flag for Alchemy and Tenderly tools ([4997517](https://github.com/yldfi/yldfi-rs/commit/4997517c07281a1a02961b76c8e267e16c6f3e4b))
+* **mcp:** restore --network flag for Alchemy and Tenderly tools ([#41](https://github.com/yldfi/yldfi-rs/issues/41)) ([ff62ab6](https://github.com/yldfi/yldfi-rs/commit/ff62ab664c3d4db0c7d74c0673f810c068f441ec))
+
 ## [0.1.11](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.10...ethcli-mcp-v0.1.11) (2026-02-16)
 
 
