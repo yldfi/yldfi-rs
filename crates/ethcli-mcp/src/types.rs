@@ -14,6 +14,14 @@ fn default_chain() -> String {
     "ethereum".to_string()
 }
 
+fn default_moralis_chain() -> String {
+    "eth".to_string()
+}
+
+fn default_network() -> String {
+    "eth-mainnet".to_string()
+}
+
 fn default_unit() -> String {
     "ether".to_string()
 }
@@ -50,9 +58,6 @@ pub struct TxAnalyzeInput {
     /// the transaction will be looked up by matching the prefix within this block.
     #[serde(default)]
     pub block: Option<u64>,
-    /// Include execution trace
-    #[serde(default)]
-    pub trace: bool,
 }
 
 // --- Account ---
@@ -279,12 +284,8 @@ pub struct GasOracleInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GasEstimateInput {
-    /// Target address for the transaction
-    pub to: String,
-    /// Value in wei (optional)
-    pub value: Option<String>,
-    /// Transaction data (optional)
-    pub data: Option<String>,
+    /// Gas price in gwei to estimate confirmation time for
+    pub gwei: u64,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -708,18 +709,18 @@ pub struct CurveRouteInput {
 pub struct AlchemyPortfolioInput {
     /// Wallet address
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyTransfersInput {
     /// Wallet address
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- CoinGecko ---
@@ -745,10 +746,7 @@ pub struct LlamaTvlInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct LlamaYieldsInput {
-    /// Chain name (optional)
-    pub chain: Option<String>,
-}
+pub struct LlamaYieldsInput {}
 
 // --- DEX Aggregators ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -920,15 +918,7 @@ pub struct BlacklistScanInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct BlacklistPathInput {
-    /// Source address
-    pub from: String,
-    /// Destination address
-    pub to: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
-}
+pub struct BlacklistPathInput {}
 
 // --- Contract Call ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -980,8 +970,8 @@ pub struct CastConcatInput {
 // --- Simulate Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SimulateBundleInput {
-    /// Transaction hashes to bundle
-    pub txs: Vec<String>,
+    /// JSON string of transaction array (e.g., '[{"from":"0x...","to":"0x...","data":"0x..."}]')
+    pub txs: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -1331,18 +1321,16 @@ pub struct TenderlyActionsGetCallInput {
 pub struct TenderlyAlertsUpdateInput {
     /// Alert ID
     pub id: String,
-    /// New alert name
-    #[serde(default)]
-    pub name: Option<String>,
-    /// Alert type
-    #[serde(default)]
-    pub alert_type: Option<String>,
-    /// Network name
+    /// Alert name (required)
+    pub name: String,
+    /// Alert type (required, e.g., "successful_transaction", "failed_transaction", "event_emitted")
+    pub alert_type: String,
+    /// Network ID (e.g., "1" for mainnet)
     #[serde(default)]
     pub network: Option<String>,
-    /// Comma-separated contract addresses
+    /// Target contract addresses (repeatable)
     #[serde(default)]
-    pub addresses: Option<String>,
+    pub addresses: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1455,18 +1443,18 @@ pub struct TenderlyVnetsAdminCreateAccessListInput {
 pub struct AlchemyPricesInput {
     /// Comma-separated token addresses
     pub tokens: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyDebugInput {
     /// Transaction hash
     pub hash: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1475,18 +1463,18 @@ pub struct AlchemyNftMetadataInput {
     pub contract: String,
     /// Token ID
     pub token_id: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyNftContractInput {
     /// NFT contract address
     pub contract: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1495,18 +1483,18 @@ pub struct AlchemyNftIsHolderInput {
     pub address: String,
     /// NFT contract address
     pub contract: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyTokenMetadataInput {
     /// Token contract address
     pub contract: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1515,9 +1503,9 @@ pub struct AlchemyTokenAllowancesInput {
     pub owner: String,
     /// Spender address
     pub spender: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1530,18 +1518,18 @@ pub struct AlchemyTransfersToInput {
     /// Ending block number or tag
     #[serde(default)]
     pub to_block: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyPricesByAddressInput {
     /// Comma-separated token contract addresses
     pub addresses: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy NFT (additional) ---
@@ -1550,18 +1538,18 @@ pub struct AlchemyPricesByAddressInput {
 pub struct AlchemyNftContractOwnerInput {
     /// NFT contract address
     pub contract: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyNftAddressInput {
     /// Wallet address
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1572,27 +1560,27 @@ pub struct AlchemyNftForContractInput {
     pub start_token: Option<String>,
     /// Maximum number of NFTs to return
     pub limit: Option<u32>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyNftSlugInput {
     /// OpenSea collection slug
     pub slug: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyNftSearchInput {
     /// Search query
     pub query: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1605,9 +1593,9 @@ pub struct AlchemyNftSalesInput {
     pub from_block: Option<u64>,
     /// Optional to block number
     pub to_block: Option<u64>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1618,16 +1606,16 @@ pub struct AlchemyNftForCollectionInput {
     pub start_token: Option<String>,
     /// Maximum number of NFTs to return
     pub limit: Option<u32>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyChainOnlyInput {
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Token (additional) ---
@@ -1638,9 +1626,9 @@ pub struct AlchemyTokenBalancesForTokensInput {
     pub address: String,
     /// Comma-separated token contract addresses
     pub tokens: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Transfers (additional) ---
@@ -1649,9 +1637,9 @@ pub struct AlchemyTokenBalancesForTokensInput {
 pub struct AlchemyTransfersAllInput {
     /// Address to query (both sent and received)
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Portfolio (additional) ---
@@ -1660,9 +1648,9 @@ pub struct AlchemyTransfersAllInput {
 pub struct AlchemyPortfolioTokenInfoInput {
     /// Comma-separated tokens in network:address format (e.g., eth-mainnet:0x...)
     pub tokens: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1672,9 +1660,9 @@ pub struct AlchemyPortfolioNftsInput {
     /// Include NFT metadata (default: true)
     #[serde(default = "default_true")]
     pub with_metadata: bool,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 fn default_true() -> bool {
@@ -1685,9 +1673,9 @@ fn default_true() -> bool {
 pub struct AlchemyPortfolioNftContractsInput {
     /// Address to query
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Prices (additional) ---
@@ -1696,9 +1684,9 @@ pub struct AlchemyPortfolioNftContractsInput {
 pub struct AlchemyPricesBySymbolInput {
     /// Comma-separated token symbols
     pub symbols: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1711,9 +1699,9 @@ pub struct AlchemyPricesHistoricalBySymbolInput {
     pub end_time: String,
     /// Time interval: 5m, 1h, 1d (default: 1h)
     pub interval: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1726,9 +1714,9 @@ pub struct AlchemyPricesHistoricalByAddressInput {
     pub end_time: String,
     /// Time interval: 5m, 1h, 1d (default: 1h)
     pub interval: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Debug (additional) ---
@@ -1747,27 +1735,27 @@ pub struct AlchemyDebugTraceCallInput {
     pub value: Option<String>,
     /// Gas limit (hex)
     pub gas: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyDebugBlockHashInput {
     /// Block hash
     pub hash: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyDebugBlockInput {
     /// Block number (hex or decimal) or tag
     pub block: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Trace ---
@@ -1776,9 +1764,9 @@ pub struct AlchemyDebugBlockInput {
 pub struct AlchemyTraceBlockInput {
     /// Block number (hex or tag)
     pub block: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1797,9 +1785,9 @@ pub struct AlchemyTraceCallInput {
     pub gas: Option<String>,
     /// Trace types (comma-separated: trace,stateDiff,vmTrace; default: trace)
     pub trace_types: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1808,9 +1796,9 @@ pub struct AlchemyTraceGetInput {
     pub hash: String,
     /// Trace indices (comma-separated, e.g., "0,1")
     pub indices: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1819,9 +1807,9 @@ pub struct AlchemyTraceRawTxInput {
     pub raw_tx: String,
     /// Trace types (comma-separated: trace,stateDiff,vmTrace; default: trace)
     pub trace_types: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1830,9 +1818,9 @@ pub struct AlchemyTraceReplayBlockInput {
     pub block: String,
     /// Trace types (comma-separated: trace,stateDiff,vmTrace; default: trace)
     pub trace_types: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1841,18 +1829,18 @@ pub struct AlchemyTraceReplayTxInput {
     pub hash: String,
     /// Trace types (comma-separated: trace,stateDiff,vmTrace; default: trace)
     pub trace_types: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyTraceTxInput {
     /// Transaction hash
     pub hash: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1869,9 +1857,9 @@ pub struct AlchemyTraceFilterInput {
     pub after: Option<u32>,
     /// Maximum traces to return
     pub count: Option<u32>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Simulation ---
@@ -1888,9 +1876,9 @@ pub struct AlchemySimAssetChangesInput {
     pub value: Option<String>,
     /// Gas limit (hex)
     pub gas: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1909,9 +1897,9 @@ pub struct AlchemySimExecutionInput {
     pub block: Option<String>,
     /// Output format: nested or flat (default: nested)
     pub trace_format: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Bundler ---
@@ -1922,18 +1910,18 @@ pub struct AlchemyBundlerEstimateGasInput {
     pub user_op_json: String,
     /// Entry point address (default: 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789)
     pub entry_point: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyBundlerHashInput {
     /// UserOperation hash
     pub hash: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Gas Manager ---
@@ -1942,9 +1930,9 @@ pub struct AlchemyBundlerHashInput {
 pub struct AlchemyGasManagerPolicyInput {
     /// Policy ID
     pub policy_id: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Notify ---
@@ -1953,9 +1941,9 @@ pub struct AlchemyGasManagerPolicyInput {
 pub struct AlchemyNotifyWebhookInput {
     /// Webhook ID
     pub webhook_id: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Beacon ---
@@ -1964,18 +1952,18 @@ pub struct AlchemyNotifyWebhookInput {
 pub struct AlchemyBeaconBlockIdInput {
     /// Block ID (slot number, "head", "finalized", "justified", or block root hash)
     pub block_id: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyBeaconStateIdInput {
     /// State ID (slot number, "head", "finalized", "justified", or state root hash)
     pub state_id: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1984,9 +1972,9 @@ pub struct AlchemyBeaconValidatorInput {
     pub state_id: String,
     /// Validator ID (index or pubkey)
     pub validator_id: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1995,18 +1983,18 @@ pub struct AlchemyBeaconDutiesInput {
     pub epoch: String,
     /// Comma-separated validator indices
     pub validators: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyBeaconEpochInput {
     /// Epoch number
     pub epoch: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Alchemy Solana ---
@@ -2015,18 +2003,18 @@ pub struct AlchemyBeaconEpochInput {
 pub struct AlchemySolanaAssetInput {
     /// Asset ID (mint address)
     pub id: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemySolanaAssetsInput {
     /// Comma-separated asset IDs
     pub ids: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2037,18 +2025,18 @@ pub struct AlchemySolanaOwnerInput {
     pub page: Option<u32>,
     /// Results per page (default: 100)
     pub limit: Option<u32>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemySolanaAddressInput {
     /// Address (creator, authority, etc.)
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2057,9 +2045,9 @@ pub struct AlchemySolanaGroupInput {
     pub group_key: String,
     /// Group value (e.g., collection address)
     pub group_value: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2068,18 +2056,18 @@ pub struct AlchemySolanaTokenAccountsInput {
     pub owner: Option<String>,
     /// Mint address
     pub mint: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemySolanaMintInput {
     /// Mint address
     pub mint: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
 }
 
 // --- Gecko Extra ---
@@ -2236,28 +2224,43 @@ pub struct LlamaCoinsInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LlamaProtocolInput {
-    /// Protocol name (optional)
-    pub protocol: Option<String>,
+    /// Protocol slug (e.g., "uniswap", "aave")
+    pub protocol: String,
 }
 
 // --- Moralis ---
-// Note: Moralis CLI doesn't support --chain flag - chain is handled internally
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisChainOnlyInput {
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisAddressInput {
     /// Wallet or contract address
     pub address: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisDomainInput {
     /// Domain to resolve (e.g., ENS, Unstoppable)
     pub domain: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisSearchInput {
     /// Search query string
     pub query: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2266,30 +2269,45 @@ pub struct MoralisNftMetadataInput {
     pub contract: String,
     /// Token ID
     pub token_id: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisAddressesInput {
     /// Comma-separated addresses
     pub addresses: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisExchangeInput {
     /// Exchange name (e.g., uniswapv2, uniswapv3, pancakeswap)
     pub exchange: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisSymbolsInput {
     /// Comma-separated token symbols (e.g., USDC,WETH,DAI)
     pub symbols: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisNftContractInput {
     /// NFT contract address
     pub contract: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2298,18 +2316,27 @@ pub struct MoralisNftTokenInput {
     pub contract: String,
     /// Token ID
     pub token_id: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisMultipleNftsInput {
     /// Comma-separated token_address:token_id pairs
     pub tokens: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisTxHashInput {
     /// Transaction hash
     pub tx_hash: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2319,6 +2346,9 @@ pub struct MoralisTxVerboseInput {
     /// Include internal transactions
     #[serde(default)]
     pub include_internal: bool,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2328,6 +2358,9 @@ pub struct MoralisWalletVerboseInput {
     /// Include internal transactions
     #[serde(default)]
     pub include_internal: bool,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2337,12 +2370,18 @@ pub struct MoralisBlockInput {
     /// Include transactions in the response
     #[serde(default)]
     pub include_transactions: bool,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisDateInput {
     /// Date in ISO 8601 format (e.g. 2023-01-01T00:00:00Z)
     pub date: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2353,6 +2392,9 @@ pub struct MoralisDefiPairPriceInput {
     pub token1: String,
     /// DEX exchange name (e.g., uniswapv2, sushiswap)
     pub exchange: Option<String>,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2363,6 +2405,9 @@ pub struct MoralisDefiPairAddressInput {
     pub token1: String,
     /// DEX exchange name
     pub exchange: Option<String>,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2371,6 +2416,9 @@ pub struct MoralisProtocolPositionsInput {
     pub address: String,
     /// Protocol name (e.g., aave, uniswap-v3)
     pub protocol: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2391,6 +2439,9 @@ pub struct MoralisDiscoveryFilterInput {
     pub min_holders: Option<i64>,
     /// Minimum security score
     pub min_security_score: Option<i32>,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2403,18 +2454,27 @@ pub struct MoralisAnalyticsTimeseriesInput {
     pub from_date: Option<String>,
     /// To date (ISO 8601)
     pub to_date: Option<String>,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisEntityIdInput {
     /// Entity ID
     pub entity_id: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisCategoryIdInput {
     /// Category ID
     pub category_id: String,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2425,6 +2485,9 @@ pub struct MoralisVolumeTimeseriesInput {
     pub from_date: Option<String>,
     /// To date (ISO 8601)
     pub to_date: Option<String>,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2437,6 +2500,9 @@ pub struct MoralisVolumeCategoryTimeseriesInput {
     pub from_date: Option<String>,
     /// To date (ISO 8601)
     pub to_date: Option<String>,
+    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
 }
 
 // --- Dsim ---
@@ -2444,18 +2510,24 @@ pub struct MoralisVolumeCategoryTimeseriesInput {
 pub struct DsimAddressInput {
     /// Address to query
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DsimTokenInfoInput {
+    /// Token/contract address to query
+    pub address: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DsimTokenInput {
     /// Token address
     pub token: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
 }
 
 // --- Dune ---
@@ -2649,15 +2721,6 @@ pub struct DunePipelinesStatusInput {
 
 // --- Curve Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CurvePoolInput {
-    /// Pool address or identifier
-    pub pool: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CurveRouterEncodeInput {
     /// Input token address
     pub from: String,
@@ -2742,10 +2805,8 @@ pub struct CcxtTradesInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CcxtCompareInput {
-    /// Trading symbol
+    /// Trading symbol (e.g., BTC/USDT)
     pub symbol: String,
-    /// Comma-separated exchange names (optional)
-    pub exchanges: Option<String>,
 }
 
 // --- Uniswap Extra ---
@@ -2772,27 +2833,38 @@ pub struct UniswapBalanceInput {
 // --- Kong ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct KongChainInput {
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct KongVaultInput {
-    /// Vault address
-    pub vault: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+pub struct KongTvlInput {
+    /// Vault or strategy address
+    pub address: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct KongReportsInput {
+    /// Report type: "vault" or "strategy"
+    pub report_type: String,
+    /// Vault or strategy address
+    pub address: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct KongPricesInput {
-    /// Comma-separated token addresses
-    pub tokens: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Token contract address
+    pub address: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
 }
 
 // --- 1inch Extra ---
@@ -2875,12 +2947,18 @@ pub struct KyberRoutesInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct KyberBuildInput {
-    /// Route summary from routes command
-    pub route_summary: String,
+    /// Source token address
+    pub token_in: String,
+    /// Destination token address
+    pub token_out: String,
+    /// Amount in smallest units (wei)
+    pub amount_in: String,
     /// Sender address
     pub sender: String,
     /// Recipient address
     pub recipient: String,
+    /// Route summary JSON from routes command
+    pub route_summary: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -2895,6 +2973,8 @@ pub struct ZeroxPriceInput {
     pub buy_token: String,
     /// Sell amount
     pub sell_amount: String,
+    /// Taker address (wallet executing the swap)
+    pub taker: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -3033,11 +3113,18 @@ pub struct LifiGasInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LifiTokensInput {
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiConnectionsInput {
-    /// Source chain
-    pub from_chain: String,
-    /// Destination chain
-    pub to_chain: String,
+    /// Source chain ID (optional)
+    pub from_chain: Option<String>,
+    /// Destination chain ID (optional)
+    pub to_chain: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -3048,9 +3135,13 @@ pub struct LifiStepTransactionInput {
 
 // --- Velora ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct VeloraTokenInput {
-    /// Token address or symbol
-    pub token: String,
+pub struct VeloraPriceInput {
+    /// Source token address
+    pub src_token: String,
+    /// Destination token address
+    pub dest_token: String,
+    /// Amount in smallest units (wei)
+    pub amount: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -3058,11 +3149,15 @@ pub struct VeloraTokenInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct VeloraTxInput {
-    /// Transaction hash
-    pub hash: String,
+    /// User address (wallet executing the swap)
+    pub user_address: String,
+    /// Price route JSON from price command
+    pub price_route: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+    /// Slippage in basis points (e.g., 100 = 1%)
+    pub slippage: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -3092,18 +3187,18 @@ pub struct EnsoRouteInput {
 pub struct EnsoPriceInput {
     /// Token address
     pub token: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EnsoBalancesInput {
     /// Wallet address
     pub address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -3309,9 +3404,6 @@ pub struct ConfigChainlinkInput {
 pub struct ConfigDebugRpcInput {
     /// RPC URL for debug mode
     pub url: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
 }
 
 // --- Endpoints ---
@@ -3326,9 +3418,6 @@ pub struct EndpointsChainInput {
 pub struct EndpointsUrlInput {
     /// RPC URL
     pub url: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

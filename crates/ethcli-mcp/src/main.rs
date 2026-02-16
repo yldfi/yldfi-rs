@@ -82,7 +82,7 @@ impl EthcliMcpServer {
         description = "Analyze an Ethereum transaction including decoded events, token transfers, and method calls. Supports partial tx hashes when block number is provided."
     )]
     async fn tx_analyze(&self, Parameters(input): Parameters<TxAnalyzeInput>) -> String {
-        tools::tx_analyze(&input.hash, Some(&input.chain), input.block, input.trace)
+        tools::tx_analyze(&input.hash, Some(&input.chain), input.block)
             .await
             .to_response()
     }
@@ -304,16 +304,11 @@ impl EthcliMcpServer {
         tools::gas_oracle(Some(&input.chain)).await.to_response()
     }
 
-    #[tool(description = "Estimate gas for a transaction")]
+    #[tool(description = "Estimate confirmation time for a given gas price in gwei")]
     async fn gas_estimate(&self, Parameters(input): Parameters<GasEstimateInput>) -> String {
-        tools::gas_estimate(
-            &input.to,
-            input.value.as_deref(),
-            input.data.as_deref(),
-            Some(&input.chain),
-        )
-        .await
-        .to_response()
+        tools::gas_estimate(input.gwei, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -719,7 +714,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioInput>,
     ) -> String {
-        tools::alchemy_portfolio(&input.address, Some(&input.chain))
+        tools::alchemy_portfolio(&input.address, Some(&input.network))
             .await
             .to_response()
     }
@@ -729,7 +724,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTransfersInput>,
     ) -> String {
-        tools::alchemy_transfers(&input.address, Some(&input.chain))
+        tools::alchemy_transfers(&input.address, Some(&input.network))
             .await
             .to_response()
     }
@@ -760,10 +755,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get yield pools from DefiLlama")]
-    async fn llama_yields(&self, Parameters(input): Parameters<LlamaYieldsInput>) -> String {
-        tools::llama_yields(input.chain.as_deref(), None)
-            .await
-            .to_response()
+    async fn llama_yields(&self, Parameters(_input): Parameters<LlamaYieldsInput>) -> String {
+        tools::llama_yields().await.to_response()
     }
 
     // =========================================================================
@@ -1068,11 +1061,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Find transaction path between two addresses for compliance")]
-    async fn blacklist_path(&self, Parameters(input): Parameters<BlacklistPathInput>) -> String {
-        tools::blacklist_path(&input.from, &input.to, Some(&input.chain))
-            .await
-            .to_response()
+    #[tool(description = "Show the blacklist file path")]
+    async fn blacklist_path(&self, Parameters(_input): Parameters<BlacklistPathInput>) -> String {
+        tools::blacklist_path().await.to_response()
     }
 
     // =========================================================================
@@ -1156,7 +1147,7 @@ impl EthcliMcpServer {
 
     #[tool(description = "Simulate a bundle of transactions")]
     async fn simulate_bundle(&self, Parameters(input): Parameters<SimulateBundleInput>) -> String {
-        tools::simulate_bundle(input.txs, Some(&input.chain))
+        tools::simulate_bundle(&input.txs, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1605,10 +1596,10 @@ impl EthcliMcpServer {
     ) -> String {
         tools::tenderly_alerts_update(
             &input.id,
-            input.name.as_deref(),
-            input.alert_type.as_deref(),
+            &input.name,
+            &input.alert_type,
             input.network.as_deref(),
-            input.addresses.as_deref(),
+            input.addresses,
         )
         .await
         .to_response()
@@ -1731,28 +1722,28 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get NFTs for an address via Alchemy")]
     async fn alchemy_nft(&self, Parameters(input): Parameters<AlchemyPortfolioInput>) -> String {
-        tools::alchemy_nft(&input.address, Some(&input.chain))
+        tools::alchemy_nft(&input.address, Some(&input.network))
             .await
             .to_response()
     }
 
     #[tool(description = "Get token info via Alchemy")]
     async fn alchemy_token(&self, Parameters(input): Parameters<AlchemyPortfolioInput>) -> String {
-        tools::alchemy_token(&input.address, Some(&input.chain))
+        tools::alchemy_token(&input.address, Some(&input.network))
             .await
             .to_response()
     }
 
     #[tool(description = "Get token prices via Alchemy")]
     async fn alchemy_prices(&self, Parameters(input): Parameters<AlchemyPricesInput>) -> String {
-        tools::alchemy_prices(&input.tokens, Some(&input.chain))
+        tools::alchemy_prices(&input.tokens, Some(&input.network))
             .await
             .to_response()
     }
 
     #[tool(description = "Debug a transaction via Alchemy")]
     async fn alchemy_debug(&self, Parameters(input): Parameters<AlchemyDebugInput>) -> String {
-        tools::alchemy_debug(&input.hash, Some(&input.chain))
+        tools::alchemy_debug(&input.hash, Some(&input.network))
             .await
             .to_response()
     }
@@ -1762,7 +1753,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_metadata(&input.contract, &input.token_id, Some(&input.chain))
+        tools::alchemy_nft_metadata(&input.contract, &input.token_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -1772,7 +1763,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractInput>,
     ) -> String {
-        tools::alchemy_nft_floor_price(&input.contract, Some(&input.chain))
+        tools::alchemy_nft_floor_price(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -1782,7 +1773,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_owners(&input.contract, &input.token_id, Some(&input.chain))
+        tools::alchemy_nft_owners(&input.contract, &input.token_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -1792,7 +1783,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftIsHolderInput>,
     ) -> String {
-        tools::alchemy_nft_is_holder(&input.address, &input.contract, Some(&input.chain))
+        tools::alchemy_nft_is_holder(&input.address, &input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -1802,7 +1793,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTokenMetadataInput>,
     ) -> String {
-        tools::alchemy_token_metadata(&input.contract, Some(&input.chain))
+        tools::alchemy_token_metadata(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -1812,7 +1803,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTokenAllowancesInput>,
     ) -> String {
-        tools::alchemy_token_allowances(&input.owner, &input.spender, Some(&input.chain))
+        tools::alchemy_token_allowances(&input.owner, &input.spender, Some(&input.network))
             .await
             .to_response()
     }
@@ -1826,7 +1817,7 @@ impl EthcliMcpServer {
             &input.address,
             input.from_block.as_deref(),
             input.to_block.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -1837,7 +1828,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPricesByAddressInput>,
     ) -> String {
-        tools::alchemy_prices_by_address(&input.addresses, Some(&input.chain))
+        tools::alchemy_prices_by_address(&input.addresses, Some(&input.network))
             .await
             .to_response()
     }
@@ -1851,7 +1842,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_owners_for_contract(&input.contract, Some(&input.chain))
+        tools::alchemy_nft_owners_for_contract(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -1861,7 +1852,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftAddressInput>,
     ) -> String {
-        tools::alchemy_nft_contracts_for_owner(&input.address, Some(&input.chain))
+        tools::alchemy_nft_contracts_for_owner(&input.address, Some(&input.network))
             .await
             .to_response()
     }
@@ -1875,7 +1866,7 @@ impl EthcliMcpServer {
             &input.contract,
             input.start_token.as_deref(),
             input.limit,
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -1886,7 +1877,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_contract_metadata(&input.contract, Some(&input.chain))
+        tools::alchemy_nft_contract_metadata(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -1896,7 +1887,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftSlugInput>,
     ) -> String {
-        tools::alchemy_nft_collection_metadata(&input.slug, Some(&input.chain))
+        tools::alchemy_nft_collection_metadata(&input.slug, Some(&input.network))
             .await
             .to_response()
     }
@@ -1906,7 +1897,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftSearchInput>,
     ) -> String {
-        tools::alchemy_nft_search_contract_metadata(&input.query, Some(&input.chain))
+        tools::alchemy_nft_search_contract_metadata(&input.query, Some(&input.network))
             .await
             .to_response()
     }
@@ -1916,7 +1907,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_compute_rarity(&input.contract, &input.token_id, Some(&input.chain))
+        tools::alchemy_nft_compute_rarity(&input.contract, &input.token_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -1926,7 +1917,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_summarize_attributes(&input.contract, Some(&input.chain))
+        tools::alchemy_nft_summarize_attributes(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -1936,7 +1927,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_refresh_metadata(&input.contract, &input.token_id, Some(&input.chain))
+        tools::alchemy_nft_refresh_metadata(&input.contract, &input.token_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -1953,7 +1944,7 @@ impl EthcliMcpServer {
             input.token_id.as_deref(),
             input.from_block,
             input.to_block,
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -1964,7 +1955,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_nft_spam_contracts(Some(&input.chain))
+        tools::alchemy_nft_spam_contracts(Some(&input.network))
             .await
             .to_response()
     }
@@ -1974,7 +1965,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_is_spam(&input.contract, Some(&input.chain))
+        tools::alchemy_nft_is_spam(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -1984,7 +1975,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_is_airdrop(&input.contract, &input.token_id, Some(&input.chain))
+        tools::alchemy_nft_is_airdrop(&input.contract, &input.token_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -1994,7 +1985,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_report_spam(&input.contract, Some(&input.chain))
+        tools::alchemy_nft_report_spam(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -2008,7 +1999,7 @@ impl EthcliMcpServer {
             &input.slug,
             input.start_token.as_deref(),
             input.limit,
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2019,7 +2010,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftAddressInput>,
     ) -> String {
-        tools::alchemy_nft_collections_for_owner(&input.address, Some(&input.chain))
+        tools::alchemy_nft_collections_for_owner(&input.address, Some(&input.network))
             .await
             .to_response()
     }
@@ -2029,7 +2020,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_invalidate_contract(&input.contract, Some(&input.chain))
+        tools::alchemy_nft_invalidate_contract(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -2043,7 +2034,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTokenBalancesForTokensInput>,
     ) -> String {
-        tools::alchemy_token_balances_for_tokens(&input.address, &input.tokens, Some(&input.chain))
+        tools::alchemy_token_balances_for_tokens(&input.address, &input.tokens, Some(&input.network))
             .await
             .to_response()
     }
@@ -2057,7 +2048,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTransfersAllInput>,
     ) -> String {
-        tools::alchemy_transfers_all(&input.address, Some(&input.chain))
+        tools::alchemy_transfers_all(&input.address, Some(&input.network))
             .await
             .to_response()
     }
@@ -2071,7 +2062,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioTokenInfoInput>,
     ) -> String {
-        tools::alchemy_portfolio_token_info(&input.tokens, Some(&input.chain))
+        tools::alchemy_portfolio_token_info(&input.tokens, Some(&input.network))
             .await
             .to_response()
     }
@@ -2081,7 +2072,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioNftsInput>,
     ) -> String {
-        tools::alchemy_portfolio_nfts(&input.address, input.with_metadata, Some(&input.chain))
+        tools::alchemy_portfolio_nfts(&input.address, input.with_metadata, Some(&input.network))
             .await
             .to_response()
     }
@@ -2091,7 +2082,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioNftContractsInput>,
     ) -> String {
-        tools::alchemy_portfolio_nft_contracts(&input.address, Some(&input.chain))
+        tools::alchemy_portfolio_nft_contracts(&input.address, Some(&input.network))
             .await
             .to_response()
     }
@@ -2105,7 +2096,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPricesBySymbolInput>,
     ) -> String {
-        tools::alchemy_prices_by_symbol(&input.symbols, Some(&input.chain))
+        tools::alchemy_prices_by_symbol(&input.symbols, Some(&input.network))
             .await
             .to_response()
     }
@@ -2120,7 +2111,7 @@ impl EthcliMcpServer {
             &input.start_time,
             &input.end_time,
             input.interval.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2136,7 +2127,7 @@ impl EthcliMcpServer {
             &input.start_time,
             &input.end_time,
             input.interval.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2158,7 +2149,7 @@ impl EthcliMcpServer {
             input.data.as_deref(),
             input.value.as_deref(),
             input.gas.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2169,7 +2160,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockHashInput>,
     ) -> String {
-        tools::alchemy_debug_trace_block_by_hash(&input.hash, Some(&input.chain))
+        tools::alchemy_debug_trace_block_by_hash(&input.hash, Some(&input.network))
             .await
             .to_response()
     }
@@ -2179,7 +2170,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
     ) -> String {
-        tools::alchemy_debug_trace_block_by_number(&input.block, Some(&input.chain))
+        tools::alchemy_debug_trace_block_by_number(&input.block, Some(&input.network))
             .await
             .to_response()
     }
@@ -2189,7 +2180,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
     ) -> String {
-        tools::alchemy_debug_get_raw_block(&input.block, Some(&input.chain))
+        tools::alchemy_debug_get_raw_block(&input.block, Some(&input.network))
             .await
             .to_response()
     }
@@ -2199,7 +2190,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
     ) -> String {
-        tools::alchemy_debug_get_raw_header(&input.block, Some(&input.chain))
+        tools::alchemy_debug_get_raw_header(&input.block, Some(&input.network))
             .await
             .to_response()
     }
@@ -2209,7 +2200,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
     ) -> String {
-        tools::alchemy_debug_get_raw_receipts(&input.block, Some(&input.chain))
+        tools::alchemy_debug_get_raw_receipts(&input.block, Some(&input.network))
             .await
             .to_response()
     }
@@ -2223,7 +2214,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTraceBlockInput>,
     ) -> String {
-        tools::alchemy_trace_block(&input.block, Some(&input.chain))
+        tools::alchemy_trace_block(&input.block, Some(&input.network))
             .await
             .to_response()
     }
@@ -2241,7 +2232,7 @@ impl EthcliMcpServer {
             input.value.as_deref(),
             input.gas.as_deref(),
             input.trace_types.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2252,7 +2243,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTraceGetInput>,
     ) -> String {
-        tools::alchemy_trace_get(&input.hash, &input.indices, Some(&input.chain))
+        tools::alchemy_trace_get(&input.hash, &input.indices, Some(&input.network))
             .await
             .to_response()
     }
@@ -2265,7 +2256,7 @@ impl EthcliMcpServer {
         tools::alchemy_trace_raw_transaction(
             &input.raw_tx,
             input.trace_types.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2279,7 +2270,7 @@ impl EthcliMcpServer {
         tools::alchemy_trace_replay_block_transactions(
             &input.block,
             input.trace_types.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2293,7 +2284,7 @@ impl EthcliMcpServer {
         tools::alchemy_trace_replay_transaction(
             &input.hash,
             input.trace_types.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2304,7 +2295,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTraceTxInput>,
     ) -> String {
-        tools::alchemy_trace_transaction(&input.hash, Some(&input.chain))
+        tools::alchemy_trace_transaction(&input.hash, Some(&input.network))
             .await
             .to_response()
     }
@@ -2321,7 +2312,7 @@ impl EthcliMcpServer {
             input.to_address.as_deref(),
             input.after,
             input.count,
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2342,7 +2333,7 @@ impl EthcliMcpServer {
             input.data.as_deref(),
             input.value.as_deref(),
             input.gas.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2361,7 +2352,7 @@ impl EthcliMcpServer {
             input.gas.as_deref(),
             input.block.as_deref(),
             input.trace_format.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2376,7 +2367,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_bundler_supported_entry_points(Some(&input.chain))
+        tools::alchemy_bundler_supported_entry_points(Some(&input.network))
             .await
             .to_response()
     }
@@ -2389,7 +2380,7 @@ impl EthcliMcpServer {
         tools::alchemy_bundler_estimate_gas(
             &input.user_op_json,
             input.entry_point.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2400,7 +2391,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBundlerHashInput>,
     ) -> String {
-        tools::alchemy_bundler_get_by_hash(&input.hash, Some(&input.chain))
+        tools::alchemy_bundler_get_by_hash(&input.hash, Some(&input.network))
             .await
             .to_response()
     }
@@ -2410,7 +2401,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBundlerHashInput>,
     ) -> String {
-        tools::alchemy_bundler_get_receipt(&input.hash, Some(&input.chain))
+        tools::alchemy_bundler_get_receipt(&input.hash, Some(&input.network))
             .await
             .to_response()
     }
@@ -2420,7 +2411,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_bundler_max_priority_fee(Some(&input.chain))
+        tools::alchemy_bundler_max_priority_fee(Some(&input.network))
             .await
             .to_response()
     }
@@ -2434,7 +2425,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_gas_manager_list_policies(Some(&input.chain))
+        tools::alchemy_gas_manager_list_policies(Some(&input.network))
             .await
             .to_response()
     }
@@ -2444,7 +2435,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
     ) -> String {
-        tools::alchemy_gas_manager_get_policy(&input.policy_id, Some(&input.chain))
+        tools::alchemy_gas_manager_get_policy(&input.policy_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2454,7 +2445,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
     ) -> String {
-        tools::alchemy_gas_manager_policy_stats(&input.policy_id, Some(&input.chain))
+        tools::alchemy_gas_manager_policy_stats(&input.policy_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2464,7 +2455,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
     ) -> String {
-        tools::alchemy_gas_manager_list_sponsorships(&input.policy_id, Some(&input.chain))
+        tools::alchemy_gas_manager_list_sponsorships(&input.policy_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2478,7 +2469,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_notify_list_webhooks(Some(&input.chain))
+        tools::alchemy_notify_list_webhooks(Some(&input.network))
             .await
             .to_response()
     }
@@ -2488,7 +2479,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNotifyWebhookInput>,
     ) -> String {
-        tools::alchemy_notify_list_addresses(&input.webhook_id, Some(&input.chain))
+        tools::alchemy_notify_list_addresses(&input.webhook_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2498,7 +2489,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNotifyWebhookInput>,
     ) -> String {
-        tools::alchemy_notify_list_nft_filters(&input.webhook_id, Some(&input.chain))
+        tools::alchemy_notify_list_nft_filters(&input.webhook_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2512,7 +2503,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_genesis(Some(&input.chain))
+        tools::alchemy_beacon_genesis(Some(&input.network))
             .await
             .to_response()
     }
@@ -2522,7 +2513,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_fork_schedule(Some(&input.chain))
+        tools::alchemy_beacon_fork_schedule(Some(&input.network))
             .await
             .to_response()
     }
@@ -2532,7 +2523,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_deposit_contract(Some(&input.chain))
+        tools::alchemy_beacon_deposit_contract(Some(&input.network))
             .await
             .to_response()
     }
@@ -2542,7 +2533,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_spec(Some(&input.chain))
+        tools::alchemy_beacon_spec(Some(&input.network))
             .await
             .to_response()
     }
@@ -2552,7 +2543,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_headers(Some(&input.chain))
+        tools::alchemy_beacon_headers(Some(&input.network))
             .await
             .to_response()
     }
@@ -2562,7 +2553,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_header(&input.block_id, Some(&input.chain))
+        tools::alchemy_beacon_header(&input.block_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2572,7 +2563,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_block(&input.block_id, Some(&input.chain))
+        tools::alchemy_beacon_block(&input.block_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2582,7 +2573,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_block_root(&input.block_id, Some(&input.chain))
+        tools::alchemy_beacon_block_root(&input.block_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2592,7 +2583,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_block_attestations(&input.block_id, Some(&input.chain))
+        tools::alchemy_beacon_block_attestations(&input.block_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2602,7 +2593,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_blob_sidecars(&input.block_id, Some(&input.chain))
+        tools::alchemy_beacon_blob_sidecars(&input.block_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2612,7 +2603,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_state_root(&input.state_id, Some(&input.chain))
+        tools::alchemy_beacon_state_root(&input.state_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2622,7 +2613,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_state_fork(&input.state_id, Some(&input.chain))
+        tools::alchemy_beacon_state_fork(&input.state_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2632,7 +2623,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_finality_checkpoints(&input.state_id, Some(&input.chain))
+        tools::alchemy_beacon_finality_checkpoints(&input.state_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2642,7 +2633,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_validators(&input.state_id, Some(&input.chain))
+        tools::alchemy_beacon_validators(&input.state_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2652,7 +2643,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconValidatorInput>,
     ) -> String {
-        tools::alchemy_beacon_validator(&input.state_id, &input.validator_id, Some(&input.chain))
+        tools::alchemy_beacon_validator(&input.state_id, &input.validator_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2662,7 +2653,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_validator_balances(&input.state_id, Some(&input.chain))
+        tools::alchemy_beacon_validator_balances(&input.state_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2672,7 +2663,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_sync_committees(&input.state_id, Some(&input.chain))
+        tools::alchemy_beacon_sync_committees(&input.state_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2682,7 +2673,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_randao(&input.state_id, Some(&input.chain))
+        tools::alchemy_beacon_randao(&input.state_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2692,7 +2683,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_pool_attestations(Some(&input.chain))
+        tools::alchemy_beacon_pool_attestations(Some(&input.network))
             .await
             .to_response()
     }
@@ -2702,7 +2693,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_voluntary_exits(Some(&input.chain))
+        tools::alchemy_beacon_voluntary_exits(Some(&input.network))
             .await
             .to_response()
     }
@@ -2712,7 +2703,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_block_rewards(&input.block_id, Some(&input.chain))
+        tools::alchemy_beacon_block_rewards(&input.block_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2722,7 +2713,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_syncing(Some(&input.chain))
+        tools::alchemy_beacon_syncing(Some(&input.network))
             .await
             .to_response()
     }
@@ -2732,7 +2723,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_version(Some(&input.chain))
+        tools::alchemy_beacon_version(Some(&input.network))
             .await
             .to_response()
     }
@@ -2742,7 +2733,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_peers(Some(&input.chain))
+        tools::alchemy_beacon_peers(Some(&input.network))
             .await
             .to_response()
     }
@@ -2752,7 +2743,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_peer_count(Some(&input.chain))
+        tools::alchemy_beacon_peer_count(Some(&input.network))
             .await
             .to_response()
     }
@@ -2762,7 +2753,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconDutiesInput>,
     ) -> String {
-        tools::alchemy_beacon_attester_duties(&input.epoch, &input.validators, Some(&input.chain))
+        tools::alchemy_beacon_attester_duties(&input.epoch, &input.validators, Some(&input.network))
             .await
             .to_response()
     }
@@ -2772,7 +2763,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconEpochInput>,
     ) -> String {
-        tools::alchemy_beacon_proposer_duties(&input.epoch, Some(&input.chain))
+        tools::alchemy_beacon_proposer_duties(&input.epoch, Some(&input.network))
             .await
             .to_response()
     }
@@ -2782,7 +2773,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconDutiesInput>,
     ) -> String {
-        tools::alchemy_beacon_sync_duties(&input.epoch, &input.validators, Some(&input.chain))
+        tools::alchemy_beacon_sync_duties(&input.epoch, &input.validators, Some(&input.network))
             .await
             .to_response()
     }
@@ -2796,7 +2787,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
     ) -> String {
-        tools::alchemy_solana_get_asset(&input.id, Some(&input.chain))
+        tools::alchemy_solana_get_asset(&input.id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2806,7 +2797,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetsInput>,
     ) -> String {
-        tools::alchemy_solana_get_assets(&input.ids, Some(&input.chain))
+        tools::alchemy_solana_get_assets(&input.ids, Some(&input.network))
             .await
             .to_response()
     }
@@ -2816,7 +2807,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
     ) -> String {
-        tools::alchemy_solana_get_asset_proof(&input.id, Some(&input.chain))
+        tools::alchemy_solana_get_asset_proof(&input.id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2826,7 +2817,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetsInput>,
     ) -> String {
-        tools::alchemy_solana_get_asset_proofs(&input.ids, Some(&input.chain))
+        tools::alchemy_solana_get_asset_proofs(&input.ids, Some(&input.network))
             .await
             .to_response()
     }
@@ -2840,7 +2831,7 @@ impl EthcliMcpServer {
             &input.owner,
             input.page,
             input.limit,
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2851,7 +2842,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAddressInput>,
     ) -> String {
-        tools::alchemy_solana_get_assets_by_creator(&input.address, Some(&input.chain))
+        tools::alchemy_solana_get_assets_by_creator(&input.address, Some(&input.network))
             .await
             .to_response()
     }
@@ -2861,7 +2852,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAddressInput>,
     ) -> String {
-        tools::alchemy_solana_get_assets_by_authority(&input.address, Some(&input.chain))
+        tools::alchemy_solana_get_assets_by_authority(&input.address, Some(&input.network))
             .await
             .to_response()
     }
@@ -2874,7 +2865,7 @@ impl EthcliMcpServer {
         tools::alchemy_solana_get_assets_by_group(
             &input.group_key,
             &input.group_value,
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2888,7 +2879,7 @@ impl EthcliMcpServer {
         tools::alchemy_solana_get_token_accounts(
             input.owner.as_deref(),
             input.mint.as_deref(),
-            Some(&input.chain),
+            Some(&input.network),
         )
         .await
         .to_response()
@@ -2899,7 +2890,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaMintInput>,
     ) -> String {
-        tools::alchemy_solana_get_nft_editions(&input.mint, Some(&input.chain))
+        tools::alchemy_solana_get_nft_editions(&input.mint, Some(&input.network))
             .await
             .to_response()
     }
@@ -2909,7 +2900,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
     ) -> String {
-        tools::alchemy_solana_get_asset_signatures(&input.id, Some(&input.chain))
+        tools::alchemy_solana_get_asset_signatures(&input.id, Some(&input.network))
             .await
             .to_response()
     }
@@ -3230,14 +3221,14 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get DEX volumes from DefiLlama")]
     async fn llama_volumes(&self, Parameters(input): Parameters<LlamaProtocolInput>) -> String {
-        tools::llama_volumes(input.protocol.as_deref())
+        tools::llama_volumes(&input.protocol)
             .await
             .to_response()
     }
 
     #[tool(description = "Get protocol fees from DefiLlama")]
     async fn llama_fees(&self, Parameters(input): Parameters<LlamaProtocolInput>) -> String {
-        tools::llama_fees(input.protocol.as_deref())
+        tools::llama_fees(&input.protocol)
             .await
             .to_response()
     }
@@ -3256,7 +3247,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_metadata(&input.address)
+        tools::moralis_token_metadata(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3266,7 +3257,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_price(&input.address)
+        tools::moralis_token_price(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3276,7 +3267,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_holders(&input.address)
+        tools::moralis_token_holders(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3286,7 +3277,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_pairs(&input.address)
+        tools::moralis_token_pairs(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3296,7 +3287,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_transfers(&input.address)
+        tools::moralis_token_transfers(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3310,7 +3301,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_balance(&input.address)
+        tools::moralis_wallet_balance(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3320,7 +3311,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_tokens(&input.address)
+        tools::moralis_wallet_tokens(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3330,7 +3321,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_history(&input.address)
+        tools::moralis_wallet_history(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3340,7 +3331,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_net_worth(&input.address)
+        tools::moralis_wallet_net_worth(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3354,7 +3345,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisDomainInput>,
     ) -> String {
-        tools::moralis_resolve_domain(&input.domain)
+        tools::moralis_resolve_domain(&input.domain, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3364,7 +3355,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_resolve_address(&input.address)
+        tools::moralis_resolve_address(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3374,18 +3365,18 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(description = "Get top ERC20 tokens by market cap via Moralis")]
-    async fn moralis_market_top_tokens(&self) -> String {
-        tools::moralis_market_top_tokens().await.to_response()
+    async fn moralis_market_top_tokens(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_market_top_tokens(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get top price movers (gainers/losers) via Moralis")]
-    async fn moralis_market_top_movers(&self) -> String {
-        tools::moralis_market_top_movers().await.to_response()
+    async fn moralis_market_top_movers(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_market_top_movers(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get top NFT collections by market cap via Moralis")]
-    async fn moralis_market_top_nfts(&self) -> String {
-        tools::moralis_market_top_nfts().await.to_response()
+    async fn moralis_market_top_nfts(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_market_top_nfts(Some(input.chain.as_str())).await.to_response()
     }
 
     // =========================================================================
@@ -3397,7 +3388,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_transactions(&input.address)
+        tools::moralis_wallet_transactions(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3407,7 +3398,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_active_chains(&input.address)
+        tools::moralis_wallet_active_chains(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3417,7 +3408,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_approvals(&input.address)
+        tools::moralis_wallet_approvals(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3427,7 +3418,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_stats(&input.address)
+        tools::moralis_wallet_stats(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3437,7 +3428,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_profitability(&input.address)
+        tools::moralis_wallet_profitability(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3451,7 +3442,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_swaps(&input.address)
+        tools::moralis_token_swaps(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3461,7 +3452,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_stats(&input.address)
+        tools::moralis_token_stats(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3471,14 +3462,14 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisSearchInput>,
     ) -> String {
-        tools::moralis_token_search(&input.query)
+        tools::moralis_token_search(&input.query, Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get trending tokens via Moralis")]
-    async fn moralis_token_trending(&self) -> String {
-        tools::moralis_token_trending().await.to_response()
+    async fn moralis_token_trending(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_token_trending(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get OHLCV candlestick data for a token pair via Moralis")]
@@ -3486,7 +3477,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_pair_ohlcv(&input.address)
+        tools::moralis_token_pair_ohlcv(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3496,7 +3487,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_pair_stats(&input.address)
+        tools::moralis_token_pair_stats(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3507,7 +3498,7 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get NFTs owned by a wallet via Moralis")]
     async fn moralis_nft_list(&self, Parameters(input): Parameters<MoralisAddressInput>) -> String {
-        tools::moralis_nft_list(&input.address).await.to_response()
+        tools::moralis_nft_list(&input.address, Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get NFT metadata (name, image, attributes) via Moralis")]
@@ -3515,7 +3506,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisNftMetadataInput>,
     ) -> String {
-        tools::moralis_nft_metadata(&input.contract, &input.token_id)
+        tools::moralis_nft_metadata(&input.contract, &input.token_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3525,7 +3516,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_transfers(&input.address)
+        tools::moralis_nft_transfers(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3535,7 +3526,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_collection(&input.address)
+        tools::moralis_nft_collection(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3545,7 +3536,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_collection_stats(&input.address)
+        tools::moralis_nft_collection_stats(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3555,7 +3546,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_owners(&input.address)
+        tools::moralis_nft_owners(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3565,7 +3556,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_trades(&input.address)
+        tools::moralis_nft_trades(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3575,7 +3566,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_floor_price(&input.address)
+        tools::moralis_nft_floor_price(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3589,7 +3580,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_wallet_profitability_tokens(&input.address)
+        tools::moralis_wallet_profitability_tokens(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3601,7 +3592,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressesInput>,
     ) -> String {
-        tools::moralis_wallet_multiple_balances(&input.addresses)
+        tools::moralis_wallet_multiple_balances(&input.addresses, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3615,7 +3606,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_wallet_swaps(&input.address)
+        tools::moralis_token_wallet_swaps(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3625,14 +3616,14 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_pair_swaps(&input.address)
+        tools::moralis_token_pair_swaps(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get all token categories via Moralis")]
-    async fn moralis_token_categories(&self) -> String {
-        tools::moralis_token_categories().await.to_response()
+    async fn moralis_token_categories(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_token_categories(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(
@@ -3642,7 +3633,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisExchangeInput>,
     ) -> String {
-        tools::moralis_token_exchange_new_tokens(&input.exchange)
+        tools::moralis_token_exchange_new_tokens(&input.exchange, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3652,7 +3643,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisExchangeInput>,
     ) -> String {
-        tools::moralis_token_exchange_bonding_tokens(&input.exchange)
+        tools::moralis_token_exchange_bonding_tokens(&input.exchange, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3662,7 +3653,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisExchangeInput>,
     ) -> String {
-        tools::moralis_token_exchange_graduated_tokens(&input.exchange)
+        tools::moralis_token_exchange_graduated_tokens(&input.exchange, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3674,7 +3665,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressesInput>,
     ) -> String {
-        tools::moralis_token_multiple_prices(&input.addresses)
+        tools::moralis_token_multiple_prices(&input.addresses, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3686,7 +3677,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisSymbolsInput>,
     ) -> String {
-        tools::moralis_token_by_symbols(&input.symbols)
+        tools::moralis_token_by_symbols(&input.symbols, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3696,7 +3687,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_contract_transfers(&input.address)
+        tools::moralis_token_contract_transfers(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3706,7 +3697,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_holders_summary(&input.address)
+        tools::moralis_token_holders_summary(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3716,7 +3707,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_holders_historical(&input.address)
+        tools::moralis_token_holders_historical(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3726,7 +3717,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_pairs_stats(&input.address)
+        tools::moralis_token_pairs_stats(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3736,7 +3727,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_top_gainers(&input.address)
+        tools::moralis_token_top_gainers(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3746,7 +3737,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_pair_snipers(&input.address)
+        tools::moralis_token_pair_snipers(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3756,7 +3747,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_token_bonding_status(&input.address)
+        tools::moralis_token_bonding_status(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3770,7 +3761,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_wallet_collections(&input.address)
+        tools::moralis_nft_wallet_collections(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3780,7 +3771,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisNftContractInput>,
     ) -> String {
-        tools::moralis_nft_contract_transfers(&input.contract)
+        tools::moralis_nft_contract_transfers(&input.contract, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3790,7 +3781,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
     ) -> String {
-        tools::moralis_nft_token_transfers(&input.contract, &input.token_id)
+        tools::moralis_nft_token_transfers(&input.contract, &input.token_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3800,7 +3791,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
     ) -> String {
-        tools::moralis_nft_token_owners(&input.contract, &input.token_id)
+        tools::moralis_nft_token_owners(&input.contract, &input.token_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3810,7 +3801,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
     ) -> String {
-        tools::moralis_nft_token_floor_price(&input.contract, &input.token_id)
+        tools::moralis_nft_token_floor_price(&input.contract, &input.token_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3820,7 +3811,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
     ) -> String {
-        tools::moralis_nft_token_trades(&input.contract, &input.token_id)
+        tools::moralis_nft_token_trades(&input.contract, &input.token_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3830,7 +3821,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_wallet_trades(&input.address)
+        tools::moralis_nft_wallet_trades(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3840,7 +3831,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_collection_traits(&input.address)
+        tools::moralis_nft_collection_traits(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3850,7 +3841,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_collection_traits_paginated(&input.address)
+        tools::moralis_nft_collection_traits_paginated(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3860,7 +3851,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_unique_owners(&input.address)
+        tools::moralis_nft_unique_owners(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3870,7 +3861,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
     ) -> String {
-        tools::moralis_nft_resync_metadata(&input.contract, &input.token_id)
+        tools::moralis_nft_resync_metadata(&input.contract, &input.token_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3882,7 +3873,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisMultipleNftsInput>,
     ) -> String {
-        tools::moralis_nft_multiple_nfts(&input.tokens)
+        tools::moralis_nft_multiple_nfts(&input.tokens, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3892,7 +3883,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_floor_price_historical(&input.address)
+        tools::moralis_nft_floor_price_historical(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3902,7 +3893,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_sync_collection(&input.address)
+        tools::moralis_nft_sync_collection(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3912,7 +3903,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_contract_nfts(&input.address)
+        tools::moralis_nft_contract_nfts(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3924,7 +3915,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressesInput>,
     ) -> String {
-        tools::moralis_nft_multiple_collections(&input.addresses)
+        tools::moralis_nft_multiple_collections(&input.addresses, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3934,7 +3925,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_resync_traits(&input.address)
+        tools::moralis_nft_resync_traits(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3944,7 +3935,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_nft_collection_prices(&input.address)
+        tools::moralis_nft_collection_prices(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3954,7 +3945,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
     ) -> String {
-        tools::moralis_nft_token_prices(&input.contract, &input.token_id)
+        tools::moralis_nft_token_prices(&input.contract, &input.token_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3968,7 +3959,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_resolve_address_domains(&input.address)
+        tools::moralis_resolve_address_domains(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3978,7 +3969,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisDomainInput>,
     ) -> String {
-        tools::moralis_resolve_ens_domain(&input.domain)
+        tools::moralis_resolve_ens_domain(&input.domain, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3988,20 +3979,20 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(description = "Get hottest NFT collections via Moralis")]
-    async fn moralis_market_hottest_nfts(&self) -> String {
-        tools::moralis_market_hottest_nfts().await.to_response()
+    async fn moralis_market_hottest_nfts(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_market_hottest_nfts(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get global crypto market capitalization via Moralis")]
-    async fn moralis_market_global_market_cap(&self) -> String {
-        tools::moralis_market_global_market_cap()
+    async fn moralis_market_global_market_cap(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_market_global_market_cap(Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get global crypto trading volume via Moralis")]
-    async fn moralis_market_global_volume(&self) -> String {
-        tools::moralis_market_global_volume().await.to_response()
+    async fn moralis_market_global_volume(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_market_global_volume(Some(input.chain.as_str())).await.to_response()
     }
 
     // =========================================================================
@@ -4013,7 +4004,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisTxHashInput>,
     ) -> String {
-        tools::moralis_transaction_get(&input.tx_hash)
+        tools::moralis_transaction_get(&input.tx_hash, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4025,7 +4016,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisTxVerboseInput>,
     ) -> String {
-        tools::moralis_transaction_verbose(&input.tx_hash, input.include_internal)
+        tools::moralis_transaction_verbose(&input.tx_hash, input.include_internal, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4035,7 +4026,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_transaction_wallet(&input.address)
+        tools::moralis_transaction_wallet(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4047,7 +4038,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisWalletVerboseInput>,
     ) -> String {
-        tools::moralis_transaction_wallet_verbose(&input.address, input.include_internal)
+        tools::moralis_transaction_wallet_verbose(&input.address, input.include_internal, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4060,14 +4051,14 @@ impl EthcliMcpServer {
         description = "Get block by number or hash with optional transaction details via Moralis"
     )]
     async fn moralis_block_get(&self, Parameters(input): Parameters<MoralisBlockInput>) -> String {
-        tools::moralis_block_get(&input.block_number_or_hash, input.include_transactions)
+        tools::moralis_block_get(&input.block_number_or_hash, input.include_transactions, Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get the latest block number for a chain via Moralis")]
-    async fn moralis_block_latest(&self) -> String {
-        tools::moralis_block_latest().await.to_response()
+    async fn moralis_block_latest(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_block_latest(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(
@@ -4077,7 +4068,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisDateInput>,
     ) -> String {
-        tools::moralis_block_date_to_block(&input.date)
+        tools::moralis_block_date_to_block(&input.date, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4091,7 +4082,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisDefiPairPriceInput>,
     ) -> String {
-        tools::moralis_defi_pair_price(&input.token0, &input.token1, input.exchange.as_deref())
+        tools::moralis_defi_pair_price(&input.token0, &input.token1, input.exchange.as_deref(), Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4101,7 +4092,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_defi_pair_reserves(&input.address)
+        tools::moralis_defi_pair_reserves(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4111,7 +4102,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisDefiPairAddressInput>,
     ) -> String {
-        tools::moralis_defi_pair_address(&input.token0, &input.token1, input.exchange.as_deref())
+        tools::moralis_defi_pair_address(&input.token0, &input.token1, input.exchange.as_deref(), Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4121,7 +4112,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_defi_wallet_summary(&input.address)
+        tools::moralis_defi_wallet_summary(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4131,7 +4122,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_defi_wallet_positions(&input.address)
+        tools::moralis_defi_wallet_positions(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4141,7 +4132,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisProtocolPositionsInput>,
     ) -> String {
-        tools::moralis_defi_protocol_positions(&input.address, &input.protocol)
+        tools::moralis_defi_protocol_positions(&input.address, &input.protocol, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4151,56 +4142,56 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(description = "Get tokens with rising liquidity via Moralis discovery")]
-    async fn moralis_discovery_rising_liquidity(&self) -> String {
-        tools::moralis_discovery_rising_liquidity()
+    async fn moralis_discovery_rising_liquidity(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_rising_liquidity(Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get tokens with buying pressure via Moralis discovery")]
-    async fn moralis_discovery_buying_pressure(&self) -> String {
-        tools::moralis_discovery_buying_pressure()
+    async fn moralis_discovery_buying_pressure(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_buying_pressure(Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get solid performer tokens via Moralis discovery")]
-    async fn moralis_discovery_solid_performers(&self) -> String {
-        tools::moralis_discovery_solid_performers()
+    async fn moralis_discovery_solid_performers(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_solid_performers(Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get tokens with experienced buyers via Moralis discovery")]
-    async fn moralis_discovery_experienced_buyers(&self) -> String {
-        tools::moralis_discovery_experienced_buyers()
+    async fn moralis_discovery_experienced_buyers(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_experienced_buyers(Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get risky bet tokens via Moralis discovery")]
-    async fn moralis_discovery_risky_bets(&self) -> String {
-        tools::moralis_discovery_risky_bets().await.to_response()
+    async fn moralis_discovery_risky_bets(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_risky_bets(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get blue chip tokens via Moralis discovery")]
-    async fn moralis_discovery_blue_chip(&self) -> String {
-        tools::moralis_discovery_blue_chip().await.to_response()
+    async fn moralis_discovery_blue_chip(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_blue_chip(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get top gainer tokens via Moralis discovery")]
-    async fn moralis_discovery_top_gainers(&self) -> String {
-        tools::moralis_discovery_top_gainers().await.to_response()
+    async fn moralis_discovery_top_gainers(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_top_gainers(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get top loser tokens via Moralis discovery")]
-    async fn moralis_discovery_top_losers(&self) -> String {
-        tools::moralis_discovery_top_losers().await.to_response()
+    async fn moralis_discovery_top_losers(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_top_losers(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get trending tokens via Moralis discovery")]
-    async fn moralis_discovery_trending(&self) -> String {
-        tools::moralis_discovery_trending().await.to_response()
+    async fn moralis_discovery_trending(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_discovery_trending(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(
@@ -4210,7 +4201,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_discovery_token_analytics(&input.address)
+        tools::moralis_discovery_token_analytics(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4222,7 +4213,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_discovery_token_score(&input.address)
+        tools::moralis_discovery_token_score(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4243,6 +4234,7 @@ impl EthcliMcpServer {
             input.max_volume_24h,
             input.min_holders,
             input.min_security_score,
+            Some(input.chain.as_str()),
         )
         .await
         .to_response()
@@ -4253,7 +4245,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
-        tools::moralis_discovery_token(&input.address)
+        tools::moralis_discovery_token(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4274,6 +4266,7 @@ impl EthcliMcpServer {
             input.timeframe.as_deref(),
             input.from_date.as_deref(),
             input.to_date.as_deref(),
+            Some(input.chain.as_str()),
         )
         .await
         .to_response()
@@ -4286,7 +4279,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisAddressesInput>,
     ) -> String {
-        tools::moralis_analytics_batch(&input.addresses)
+        tools::moralis_analytics_batch(&input.addresses, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4300,7 +4293,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisSearchInput>,
     ) -> String {
-        tools::moralis_entities_search(&input.query)
+        tools::moralis_entities_search(&input.query, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4310,14 +4303,14 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisEntityIdInput>,
     ) -> String {
-        tools::moralis_entities_get(&input.entity_id)
+        tools::moralis_entities_get(&input.entity_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
 
     #[tool(description = "Get all entity categories via Moralis")]
-    async fn moralis_entities_categories(&self) -> String {
-        tools::moralis_entities_categories().await.to_response()
+    async fn moralis_entities_categories(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_entities_categories(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get entities in a specific category via Moralis")]
@@ -4325,7 +4318,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<MoralisCategoryIdInput>,
     ) -> String {
-        tools::moralis_entities_category_entities(&input.category_id)
+        tools::moralis_entities_category_entities(&input.category_id, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4335,13 +4328,13 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(description = "Get trading volume by chain via Moralis")]
-    async fn moralis_volume_chains(&self) -> String {
-        tools::moralis_volume_chains().await.to_response()
+    async fn moralis_volume_chains(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_volume_chains(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(description = "Get trading volume by category via Moralis")]
-    async fn moralis_volume_categories(&self) -> String {
-        tools::moralis_volume_categories().await.to_response()
+    async fn moralis_volume_categories(&self, Parameters(input): Parameters<MoralisChainOnlyInput>) -> String {
+        tools::moralis_volume_categories(Some(input.chain.as_str())).await.to_response()
     }
 
     #[tool(
@@ -4355,6 +4348,7 @@ impl EthcliMcpServer {
             input.timeframe.as_deref(),
             input.from_date.as_deref(),
             input.to_date.as_deref(),
+            Some(input.chain.as_str()),
         )
         .await
         .to_response()
@@ -4372,6 +4366,7 @@ impl EthcliMcpServer {
             input.timeframe.as_deref(),
             input.from_date.as_deref(),
             input.to_date.as_deref(),
+            Some(input.chain.as_str()),
         )
         .await
         .to_response()
@@ -4388,42 +4383,42 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get token balances via Dune Simulator")]
     async fn dsim_balances(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_balances(&input.address, Some(&input.chain))
+        tools::dsim_balances(&input.address)
             .await
             .to_response()
     }
 
     #[tool(description = "Get NFT collectibles via Dune Simulator")]
     async fn dsim_collectibles(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_collectibles(&input.address, Some(&input.chain))
+        tools::dsim_collectibles(&input.address)
             .await
             .to_response()
     }
 
     #[tool(description = "Get wallet activity via Dune Simulator")]
     async fn dsim_activity(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_activity(&input.address, Some(&input.chain))
+        tools::dsim_activity(&input.address)
             .await
             .to_response()
     }
 
     #[tool(description = "Get token info via Dune Simulator")]
-    async fn dsim_token(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_token(&input.address, Some(&input.chain))
+    async fn dsim_token(&self, Parameters(input): Parameters<DsimTokenInfoInput>) -> String {
+        tools::dsim_token(&input.address, Some(&input.chain_id))
             .await
             .to_response()
     }
 
     #[tool(description = "Get token holders via Dune Simulator")]
     async fn dsim_holders(&self, Parameters(input): Parameters<DsimTokenInput>) -> String {
-        tools::dsim_holders(&input.token, Some(&input.chain))
+        tools::dsim_holders(&input.token, Some(&input.chain_id))
             .await
             .to_response()
     }
 
     #[tool(description = "Get DeFi positions via Dune Simulator")]
     async fn dsim_defi(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_defi(&input.address, Some(&input.chain))
+        tools::dsim_defi(&input.address)
             .await
             .to_response()
     }
@@ -4733,15 +4728,15 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get Curve pool OHLC data")]
-    async fn curve_ohlc(&self, Parameters(input): Parameters<CurvePoolInput>) -> String {
-        tools::curve_ohlc(&input.pool, Some(&input.chain))
+    async fn curve_ohlc(&self, Parameters(input): Parameters<CurveChainAddressInput>) -> String {
+        tools::curve_ohlc(&input.chain, &input.address)
             .await
             .to_response()
     }
 
     #[tool(description = "Get Curve pool trades")]
-    async fn curve_trades(&self, Parameters(input): Parameters<CurvePoolInput>) -> String {
-        tools::curve_trades(&input.pool, Some(&input.chain))
+    async fn curve_trades(&self, Parameters(input): Parameters<CurveChainAddressInput>) -> String {
+        tools::curve_trades(&input.chain, &input.address)
             .await
             .to_response()
     }
@@ -5087,9 +5082,7 @@ impl EthcliMcpServer {
 
     #[tool(description = "Compare prices across exchanges")]
     async fn ccxt_compare(&self, Parameters(input): Parameters<CcxtCompareInput>) -> String {
-        tools::ccxt_compare(&input.symbol, input.exchanges.as_deref())
-            .await
-            .to_response()
+        tools::ccxt_compare(&input.symbol).await.to_response()
     }
 
     // =========================================================================
@@ -5128,7 +5121,7 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get token balance from Uniswap")]
     async fn uniswap_balance(&self, Parameters(input): Parameters<UniswapBalanceInput>) -> String {
-        tools::uniswap_balance(&input.address, &input.token, Some(&input.chain))
+        tools::uniswap_balance(&input.token, &input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -5149,31 +5142,33 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get Yearn vaults via Kong")]
     async fn kong_vaults(&self, Parameters(input): Parameters<KongChainInput>) -> String {
-        tools::kong_vaults(Some(&input.chain)).await.to_response()
+        tools::kong_vaults(Some(&input.chain_id)).await.to_response()
     }
 
     #[tool(description = "List all strategies via Kong")]
     async fn kong_strategies(&self, Parameters(input): Parameters<KongChainInput>) -> String {
-        tools::kong_strategies(Some(&input.chain))
+        tools::kong_strategies(Some(&input.chain_id))
             .await
             .to_response()
     }
 
     #[tool(description = "Get token prices via Kong")]
     async fn kong_prices(&self, Parameters(input): Parameters<KongPricesInput>) -> String {
-        tools::kong_prices(&input.tokens, Some(&input.chain))
+        tools::kong_prices(&input.address, Some(&input.chain_id))
             .await
             .to_response()
     }
 
     #[tool(description = "Get Yearn TVL via Kong")]
-    async fn kong_tvl(&self, Parameters(input): Parameters<KongChainInput>) -> String {
-        tools::kong_tvl(Some(&input.chain)).await.to_response()
+    async fn kong_tvl(&self, Parameters(input): Parameters<KongTvlInput>) -> String {
+        tools::kong_tvl(&input.address, Some(&input.chain_id))
+            .await
+            .to_response()
     }
 
     #[tool(description = "Get vault reports via Kong")]
-    async fn kong_reports(&self, Parameters(input): Parameters<KongVaultInput>) -> String {
-        tools::kong_reports(&input.vault, Some(&input.chain))
+    async fn kong_reports(&self, Parameters(input): Parameters<KongReportsInput>) -> String {
+        tools::kong_reports(&input.report_type, &input.address, Some(&input.chain_id))
             .await
             .to_response()
     }
@@ -5307,9 +5302,12 @@ impl EthcliMcpServer {
     #[tool(description = "Build swap transaction from KyberSwap")]
     async fn kyberswap_build(&self, Parameters(input): Parameters<KyberBuildInput>) -> String {
         tools::kyberswap_build(
-            &input.route_summary,
+            &input.token_in,
+            &input.token_out,
+            &input.amount_in,
             &input.sender,
             &input.recipient,
+            &input.route_summary,
             Some(&input.chain),
         )
         .await
@@ -5326,6 +5324,7 @@ impl EthcliMcpServer {
             &input.sell_token,
             &input.buy_token,
             &input.sell_amount,
+            &input.taker,
             Some(&input.chain),
         )
         .await
@@ -5485,8 +5484,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Get supported tokens from LI.FI")]
-    async fn lifi_tokens(&self, Parameters(input): Parameters<CurvePoolsInput>) -> String {
-        tools::lifi_tokens(Some(&input.chain)).await.to_response()
+    async fn lifi_tokens(&self, Parameters(input): Parameters<LifiTokensInput>) -> String {
+        tools::lifi_tokens(Some(&input.chain_id)).await.to_response()
     }
 
     #[tool(description = "Get available tools from LI.FI")]
@@ -5514,7 +5513,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<LifiConnectionsInput>,
     ) -> String {
-        tools::lifi_connections(&input.from_chain, &input.to_chain)
+        tools::lifi_connections(input.from_chain.as_deref(), input.to_chain.as_deref())
             .await
             .to_response()
     }
@@ -5549,18 +5548,28 @@ impl EthcliMcpServer {
     // VELORA
     // =========================================================================
 
-    #[tool(description = "Get token price from Velora")]
-    async fn velora_price(&self, Parameters(input): Parameters<VeloraTokenInput>) -> String {
-        tools::velora_price(&input.token, Some(&input.chain))
-            .await
-            .to_response()
+    #[tool(description = "Get swap price/route from Velora (ParaSwap)")]
+    async fn velora_price(&self, Parameters(input): Parameters<VeloraPriceInput>) -> String {
+        tools::velora_price(
+            &input.src_token,
+            &input.dest_token,
+            &input.amount,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
-    #[tool(description = "Get transaction details from Velora")]
+    #[tool(description = "Build swap transaction from Velora (ParaSwap)")]
     async fn velora_transaction(&self, Parameters(input): Parameters<VeloraTxInput>) -> String {
-        tools::velora_transaction(&input.hash, Some(&input.chain))
-            .await
-            .to_response()
+        tools::velora_transaction(
+            &input.user_address,
+            &input.price_route,
+            Some(&input.chain),
+            input.slippage.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get supported tokens from Velora")]
@@ -5587,14 +5596,14 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get token price from Enso")]
     async fn enso_price(&self, Parameters(input): Parameters<EnsoPriceInput>) -> String {
-        tools::enso_price(&input.token, Some(&input.chain))
+        tools::enso_price(&input.token, Some(&input.chain_id))
             .await
             .to_response()
     }
 
     #[tool(description = "Get token balances from Enso")]
     async fn enso_balances(&self, Parameters(input): Parameters<EnsoBalancesInput>) -> String {
-        tools::enso_balances(&input.address, Some(&input.chain))
+        tools::enso_balances(&input.address, Some(&input.chain_id))
             .await
             .to_response()
     }
@@ -5713,7 +5722,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ConfigDebugRpcInput>,
     ) -> String {
-        tools::config_add_debug_rpc(&input.url, Some(&input.chain))
+        tools::config_add_debug_rpc(&input.url)
             .await
             .to_response()
     }
@@ -5723,7 +5732,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ConfigDebugRpcInput>,
     ) -> String {
-        tools::config_remove_debug_rpc(&input.url, Some(&input.chain))
+        tools::config_remove_debug_rpc(&input.url)
             .await
             .to_response()
     }
@@ -5748,7 +5757,7 @@ impl EthcliMcpServer {
 
     #[tool(description = "Remove an RPC endpoint")]
     async fn endpoints_remove(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_remove(&input.url, Some(&input.chain))
+        tools::endpoints_remove(&input.url)
             .await
             .to_response()
     }
@@ -5762,14 +5771,14 @@ impl EthcliMcpServer {
 
     #[tool(description = "Enable a disabled RPC endpoint")]
     async fn endpoints_enable(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_enable(&input.url, Some(&input.chain))
+        tools::endpoints_enable(&input.url)
             .await
             .to_response()
     }
 
     #[tool(description = "Disable an RPC endpoint")]
     async fn endpoints_disable(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_disable(&input.url, Some(&input.chain))
+        tools::endpoints_disable(&input.url)
             .await
             .to_response()
     }
@@ -5786,7 +5795,7 @@ impl EthcliMcpServer {
 
     #[tool(description = "Test RPC endpoint for archive support")]
     async fn endpoints_test(&self, Parameters(input): Parameters<EndpointsUrlInput>) -> String {
-        tools::endpoints_test(&input.url, Some(&input.chain))
+        tools::endpoints_test(&input.url)
             .await
             .to_response()
     }
