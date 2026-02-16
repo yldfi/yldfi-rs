@@ -1777,7 +1777,7 @@ pub async fn tenderly_alerts_update(
         .arg(id);
     builder = builder.opt("--name", Some(name));
     builder = builder.opt("--alert-type", Some(alert_type));
-    builder = builder.opt("--chain", network);
+    builder = builder.opt("--network", network);
     if let Some(addrs) = addresses {
         for addr in &addrs {
             builder = builder.opt("--address", Some(addr));
@@ -1828,7 +1828,7 @@ pub async fn tenderly_contracts_update(
         .subcommand("contracts")
         .subcommand("update")
         .arg(address);
-    builder = builder.opt("--chain", network);
+    builder = builder.opt("--network", network);
     builder = builder.opt("--name", name);
     for tag in tags {
         builder = builder.opt("--tag", Some(tag));
@@ -1845,7 +1845,7 @@ pub async fn tenderly_contracts_remove_tag(
         .subcommand("contracts")
         .subcommand("remove-tag")
         .arg(address);
-    builder = builder.opt("--chain", network);
+    builder = builder.opt("--network", network);
     builder = builder.arg(tag);
     builder.execute().await.map_err(ToolError::from)
 }
@@ -1871,7 +1871,7 @@ pub async fn tenderly_contracts_encode_state(
     let mut builder = ArgsBuilder::new("tenderly")
         .subcommand("contracts")
         .subcommand("encode-state");
-    builder = builder.opt("--chain", network);
+    builder = builder.opt("--network", network);
     builder = builder.arg(state_json);
     builder.execute().await.map_err(ToolError::from)
 }
@@ -2020,7 +2020,7 @@ pub async fn alchemy_nft(address: &str, network: Option<&str>) -> Result<String,
         .subcommand("nft")
         .subcommand("get-nfts")
         .arg(address)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2031,7 +2031,7 @@ pub async fn alchemy_token(address: &str, network: Option<&str>) -> Result<Strin
         .subcommand("token")
         .subcommand("balances")
         .arg(address)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2042,7 +2042,7 @@ pub async fn alchemy_transfers(address: &str, network: Option<&str>) -> Result<S
         .subcommand("transfers")
         .subcommand("from")
         .arg(address)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2053,7 +2053,7 @@ pub async fn alchemy_portfolio(address: &str, network: Option<&str>) -> Result<S
         .subcommand("portfolio")
         .subcommand("tokens")
         .arg(address)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2064,7 +2064,7 @@ pub async fn alchemy_prices(tokens: &str, network: Option<&str>) -> Result<Strin
         .subcommand("prices")
         .subcommand("by-address")
         .arg(tokens)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2075,7 +2075,7 @@ pub async fn alchemy_debug(hash: &str, network: Option<&str>) -> Result<String, 
         .subcommand("debug")
         .subcommand("trace-tx")
         .arg(hash)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2091,7 +2091,7 @@ pub async fn alchemy_nft_metadata(
         .subcommand("metadata")
         .arg(contract)
         .arg(token_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2105,7 +2105,7 @@ pub async fn alchemy_nft_floor_price(
         .subcommand("nft")
         .subcommand("floor-price")
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2121,7 +2121,7 @@ pub async fn alchemy_nft_owners(
         .subcommand("owners")
         .arg(contract)
         .arg(token_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2137,7 +2137,7 @@ pub async fn alchemy_nft_is_holder(
         .subcommand("is-holder")
         .arg(address)
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2151,7 +2151,7 @@ pub async fn alchemy_token_metadata(
         .subcommand("token")
         .subcommand("metadata")
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2169,7 +2169,7 @@ pub async fn alchemy_token_allowances(
         .arg(contract)
         .arg(owner)
         .arg(spender)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2187,7 +2187,7 @@ pub async fn alchemy_transfers_to(
         .arg(address)
         .opt("--from-block", from_block)
         .opt("--to-block", to_block)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2201,7 +2201,7 @@ pub async fn alchemy_prices_by_address(
         .subcommand("prices")
         .subcommand("by-address")
         .arg(addresses)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2219,7 +2219,7 @@ pub async fn alchemy_nft_owners_for_contract(
         .subcommand("nft")
         .subcommand("owners-for-contract")
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2233,7 +2233,7 @@ pub async fn alchemy_nft_contracts_for_owner(
         .subcommand("nft")
         .subcommand("contracts-for-owner")
         .arg(address)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2249,7 +2249,7 @@ pub async fn alchemy_nft_nfts_for_contract(
         .subcommand("nft")
         .subcommand("nfts-for-contract")
         .arg(contract)
-        .opt("--chain", network);
+        .opt("--network", network);
     if let Some(st) = start_token {
         builder = builder.opt("--start-token", Some(st));
     }
@@ -2267,7 +2267,7 @@ pub async fn alchemy_nft_contract_metadata(
         .subcommand("nft")
         .subcommand("contract-metadata")
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2281,7 +2281,7 @@ pub async fn alchemy_nft_collection_metadata(
         .subcommand("nft")
         .subcommand("collection-metadata")
         .arg(slug)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2295,7 +2295,7 @@ pub async fn alchemy_nft_search_contract_metadata(
         .subcommand("nft")
         .subcommand("search-contract-metadata")
         .arg(query)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2311,7 +2311,7 @@ pub async fn alchemy_nft_compute_rarity(
         .subcommand("compute-rarity")
         .arg(contract)
         .arg(token_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2325,7 +2325,7 @@ pub async fn alchemy_nft_summarize_attributes(
         .subcommand("nft")
         .subcommand("summarize-attributes")
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2341,7 +2341,7 @@ pub async fn alchemy_nft_refresh_metadata(
         .subcommand("refresh-metadata")
         .arg(contract)
         .arg(token_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2358,7 +2358,7 @@ pub async fn alchemy_nft_sales(
         .subcommand("nft")
         .subcommand("sales")
         .arg(contract)
-        .opt("--chain", network);
+        .opt("--network", network);
     if let Some(tid) = token_id {
         builder = builder.opt("--token-id", Some(tid));
     }
@@ -2375,7 +2375,7 @@ pub async fn alchemy_nft_spam_contracts(network: Option<&str>) -> Result<String,
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("spam-contracts")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2389,7 +2389,7 @@ pub async fn alchemy_nft_is_spam(
         .subcommand("nft")
         .subcommand("is-spam")
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2405,7 +2405,7 @@ pub async fn alchemy_nft_is_airdrop(
         .subcommand("is-airdrop")
         .arg(contract)
         .arg(token_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2419,7 +2419,7 @@ pub async fn alchemy_nft_report_spam(
         .subcommand("nft")
         .subcommand("report-spam")
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2435,7 +2435,7 @@ pub async fn alchemy_nft_nfts_for_collection(
         .subcommand("nft")
         .subcommand("nfts-for-collection")
         .arg(slug)
-        .opt("--chain", network);
+        .opt("--network", network);
     if let Some(st) = start_token {
         builder = builder.opt("--start-token", Some(st));
     }
@@ -2453,7 +2453,7 @@ pub async fn alchemy_nft_collections_for_owner(
         .subcommand("nft")
         .subcommand("collections-for-owner")
         .arg(address)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2467,7 +2467,7 @@ pub async fn alchemy_nft_invalidate_contract(
         .subcommand("nft")
         .subcommand("invalidate-contract")
         .arg(contract)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2487,7 +2487,7 @@ pub async fn alchemy_token_balances_for_tokens(
         .subcommand("balances-for-tokens")
         .arg(address)
         .arg(tokens)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2505,7 +2505,7 @@ pub async fn alchemy_transfers_all(
         .subcommand("transfers")
         .subcommand("all")
         .arg(address)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2523,7 +2523,7 @@ pub async fn alchemy_portfolio_token_info(
         .subcommand("portfolio")
         .subcommand("token-info")
         .arg(tokens)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2539,7 +2539,7 @@ pub async fn alchemy_portfolio_nfts(
         .subcommand("nfts")
         .arg(address)
         .opt_flag("--with-metadata", with_metadata)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2553,7 +2553,7 @@ pub async fn alchemy_portfolio_nft_contracts(
         .subcommand("portfolio")
         .subcommand("nft-contracts")
         .arg(address)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2571,7 +2571,7 @@ pub async fn alchemy_prices_by_symbol(
         .subcommand("prices")
         .subcommand("by-symbol")
         .arg(symbols)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2591,7 +2591,7 @@ pub async fn alchemy_prices_historical_by_symbol(
         .arg(start_time)
         .arg(end_time)
         .opt("--interval", interval)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2611,7 +2611,7 @@ pub async fn alchemy_prices_historical_by_address(
         .arg(start_time)
         .arg(end_time)
         .opt("--interval", interval)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2639,7 +2639,7 @@ pub async fn alchemy_debug_trace_call(
         .opt("--data", data)
         .opt("--value", value)
         .opt("--gas", gas)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2653,7 +2653,7 @@ pub async fn alchemy_debug_trace_block_by_hash(
         .subcommand("debug")
         .subcommand("trace-block-by-hash")
         .arg(hash)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2667,7 +2667,7 @@ pub async fn alchemy_debug_trace_block_by_number(
         .subcommand("debug")
         .subcommand("trace-block-by-number")
         .arg(block)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2681,7 +2681,7 @@ pub async fn alchemy_debug_get_raw_block(
         .subcommand("debug")
         .subcommand("get-raw-block")
         .arg(block)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2695,7 +2695,7 @@ pub async fn alchemy_debug_get_raw_header(
         .subcommand("debug")
         .subcommand("get-raw-header")
         .arg(block)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2709,7 +2709,7 @@ pub async fn alchemy_debug_get_raw_receipts(
         .subcommand("debug")
         .subcommand("get-raw-receipts")
         .arg(block)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2724,7 +2724,7 @@ pub async fn alchemy_trace_block(block: &str, network: Option<&str>) -> Result<S
         .subcommand("trace")
         .subcommand("block")
         .arg(block)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2751,7 +2751,7 @@ pub async fn alchemy_trace_call(
         .opt("--value", value)
         .opt("--gas", gas)
         .opt("--trace-types", trace_types)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2767,7 +2767,7 @@ pub async fn alchemy_trace_get(
         .subcommand("get")
         .arg(hash)
         .arg(indices)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2783,7 +2783,7 @@ pub async fn alchemy_trace_raw_transaction(
         .subcommand("raw-transaction")
         .arg(raw_tx)
         .opt("--trace-types", trace_types)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2799,7 +2799,7 @@ pub async fn alchemy_trace_replay_block_transactions(
         .subcommand("replay-block-transactions")
         .arg(block)
         .opt("--trace-types", trace_types)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2815,7 +2815,7 @@ pub async fn alchemy_trace_replay_transaction(
         .subcommand("replay-transaction")
         .arg(hash)
         .opt("--trace-types", trace_types)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2829,7 +2829,7 @@ pub async fn alchemy_trace_transaction(
         .subcommand("trace")
         .subcommand("transaction")
         .arg(hash)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2851,7 +2851,7 @@ pub async fn alchemy_trace_filter(
         .opt("--to-block", to_block)
         .opt("--from-address", from_address)
         .opt("--to-address", to_address)
-        .opt("--chain", network);
+        .opt("--network", network);
     if let Some(a) = after {
         builder = builder.opt("--after", Some(&a.to_string()));
     }
@@ -2881,7 +2881,7 @@ pub async fn alchemy_sim_asset_changes(
         .opt("--data", data)
         .opt("--value", value)
         .opt("--gas", gas)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2908,7 +2908,7 @@ pub async fn alchemy_sim_execution(
         .opt("--gas", gas)
         .opt("--block", block)
         .opt("--trace-format", trace_format)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2924,7 +2924,7 @@ pub async fn alchemy_bundler_supported_entry_points(
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
         .subcommand("supported-entry-points")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2940,7 +2940,7 @@ pub async fn alchemy_bundler_estimate_gas(
         .subcommand("estimate-gas")
         .arg(user_op_json)
         .opt("--entry-point", entry_point)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2954,7 +2954,7 @@ pub async fn alchemy_bundler_get_by_hash(
         .subcommand("bundler")
         .subcommand("get-by-hash")
         .arg(hash)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2968,7 +2968,7 @@ pub async fn alchemy_bundler_get_receipt(
         .subcommand("bundler")
         .subcommand("get-receipt")
         .arg(hash)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2978,7 +2978,7 @@ pub async fn alchemy_bundler_max_priority_fee(network: Option<&str>) -> Result<S
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
         .subcommand("max-priority-fee")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2992,7 +2992,7 @@ pub async fn alchemy_gas_manager_list_policies(network: Option<&str>) -> Result<
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
         .subcommand("list-policies")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3006,7 +3006,7 @@ pub async fn alchemy_gas_manager_get_policy(
         .subcommand("gas-manager")
         .subcommand("get-policy")
         .arg(policy_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3020,7 +3020,7 @@ pub async fn alchemy_gas_manager_policy_stats(
         .subcommand("gas-manager")
         .subcommand("policy-stats")
         .arg(policy_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3034,7 +3034,7 @@ pub async fn alchemy_gas_manager_list_sponsorships(
         .subcommand("gas-manager")
         .subcommand("list-sponsorships")
         .arg(policy_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3048,7 +3048,7 @@ pub async fn alchemy_notify_list_webhooks(network: Option<&str>) -> Result<Strin
     ArgsBuilder::new("alchemy")
         .subcommand("notify")
         .subcommand("list-webhooks")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3062,7 +3062,7 @@ pub async fn alchemy_notify_list_addresses(
         .subcommand("notify")
         .subcommand("list-addresses")
         .arg(webhook_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3076,7 +3076,7 @@ pub async fn alchemy_notify_list_nft_filters(
         .subcommand("notify")
         .subcommand("list-nft-filters")
         .arg(webhook_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3090,7 +3090,7 @@ pub async fn alchemy_beacon_genesis(network: Option<&str>) -> Result<String, Too
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("genesis")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3099,7 +3099,7 @@ pub async fn alchemy_beacon_fork_schedule(network: Option<&str>) -> Result<Strin
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("fork-schedule")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3108,7 +3108,7 @@ pub async fn alchemy_beacon_deposit_contract(network: Option<&str>) -> Result<St
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("deposit-contract")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3117,7 +3117,7 @@ pub async fn alchemy_beacon_spec(network: Option<&str>) -> Result<String, ToolEr
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("spec")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3126,7 +3126,7 @@ pub async fn alchemy_beacon_headers(network: Option<&str>) -> Result<String, Too
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("headers")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3139,7 +3139,7 @@ pub async fn alchemy_beacon_header(
         .subcommand("beacon")
         .subcommand("header")
         .arg(block_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3152,7 +3152,7 @@ pub async fn alchemy_beacon_block(
         .subcommand("beacon")
         .subcommand("block")
         .arg(block_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3165,7 +3165,7 @@ pub async fn alchemy_beacon_block_root(
         .subcommand("beacon")
         .subcommand("block-root")
         .arg(block_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3178,7 +3178,7 @@ pub async fn alchemy_beacon_block_attestations(
         .subcommand("beacon")
         .subcommand("block-attestations")
         .arg(block_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3191,7 +3191,7 @@ pub async fn alchemy_beacon_blob_sidecars(
         .subcommand("beacon")
         .subcommand("blob-sidecars")
         .arg(block_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3204,7 +3204,7 @@ pub async fn alchemy_beacon_state_root(
         .subcommand("beacon")
         .subcommand("state-root")
         .arg(state_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3217,7 +3217,7 @@ pub async fn alchemy_beacon_state_fork(
         .subcommand("beacon")
         .subcommand("state-fork")
         .arg(state_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3230,7 +3230,7 @@ pub async fn alchemy_beacon_finality_checkpoints(
         .subcommand("beacon")
         .subcommand("finality-checkpoints")
         .arg(state_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3243,7 +3243,7 @@ pub async fn alchemy_beacon_validators(
         .subcommand("beacon")
         .subcommand("validators")
         .arg(state_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3258,7 +3258,7 @@ pub async fn alchemy_beacon_validator(
         .subcommand("validator")
         .arg(state_id)
         .arg(validator_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3271,7 +3271,7 @@ pub async fn alchemy_beacon_validator_balances(
         .subcommand("beacon")
         .subcommand("validator-balances")
         .arg(state_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3284,7 +3284,7 @@ pub async fn alchemy_beacon_sync_committees(
         .subcommand("beacon")
         .subcommand("sync-committees")
         .arg(state_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3297,7 +3297,7 @@ pub async fn alchemy_beacon_randao(
         .subcommand("beacon")
         .subcommand("randao")
         .arg(state_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3306,7 +3306,7 @@ pub async fn alchemy_beacon_pool_attestations(network: Option<&str>) -> Result<S
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("pool-attestations")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3315,7 +3315,7 @@ pub async fn alchemy_beacon_voluntary_exits(network: Option<&str>) -> Result<Str
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("voluntary-exits")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3328,7 +3328,7 @@ pub async fn alchemy_beacon_block_rewards(
         .subcommand("beacon")
         .subcommand("block-rewards")
         .arg(block_id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3337,7 +3337,7 @@ pub async fn alchemy_beacon_syncing(network: Option<&str>) -> Result<String, Too
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("syncing")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3346,7 +3346,7 @@ pub async fn alchemy_beacon_version(network: Option<&str>) -> Result<String, Too
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("version")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3355,7 +3355,7 @@ pub async fn alchemy_beacon_peers(network: Option<&str>) -> Result<String, ToolE
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("peers")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3364,7 +3364,7 @@ pub async fn alchemy_beacon_peer_count(network: Option<&str>) -> Result<String, 
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("peer-count")
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3379,7 +3379,7 @@ pub async fn alchemy_beacon_attester_duties(
         .subcommand("attester-duties")
         .arg(epoch)
         .arg(validators)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3392,7 +3392,7 @@ pub async fn alchemy_beacon_proposer_duties(
         .subcommand("beacon")
         .subcommand("proposer-duties")
         .arg(epoch)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3407,7 +3407,7 @@ pub async fn alchemy_beacon_sync_duties(
         .subcommand("sync-duties")
         .arg(epoch)
         .arg(validators)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3425,7 +3425,7 @@ pub async fn alchemy_solana_get_asset(
         .subcommand("solana")
         .subcommand("get-asset")
         .arg(id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3438,7 +3438,7 @@ pub async fn alchemy_solana_get_assets(
         .subcommand("solana")
         .subcommand("get-assets")
         .arg(ids)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3451,7 +3451,7 @@ pub async fn alchemy_solana_get_asset_proof(
         .subcommand("solana")
         .subcommand("get-asset-proof")
         .arg(id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3464,7 +3464,7 @@ pub async fn alchemy_solana_get_asset_proofs(
         .subcommand("solana")
         .subcommand("get-asset-proofs")
         .arg(ids)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3480,7 +3480,7 @@ pub async fn alchemy_solana_get_assets_by_owner(
         .subcommand("solana")
         .subcommand("get-assets-by-owner")
         .arg(owner)
-        .opt("--chain", network);
+        .opt("--network", network);
     if let Some(p) = page {
         builder = builder.opt("--page", Some(&p.to_string()));
     }
@@ -3498,7 +3498,7 @@ pub async fn alchemy_solana_get_assets_by_creator(
         .subcommand("solana")
         .subcommand("get-assets-by-creator")
         .arg(creator)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3511,7 +3511,7 @@ pub async fn alchemy_solana_get_assets_by_authority(
         .subcommand("solana")
         .subcommand("get-assets-by-authority")
         .arg(authority)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3526,7 +3526,7 @@ pub async fn alchemy_solana_get_assets_by_group(
         .subcommand("get-assets-by-group")
         .arg(group_key)
         .arg(group_value)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3542,7 +3542,7 @@ pub async fn alchemy_solana_get_token_accounts(
         .subcommand("get-token-accounts")
         .opt("--owner", owner)
         .opt("--mint", mint)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3556,7 +3556,7 @@ pub async fn alchemy_solana_get_nft_editions(
         .subcommand("solana")
         .subcommand("get-nft-editions")
         .arg(mint)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3569,7 +3569,7 @@ pub async fn alchemy_solana_get_asset_signatures(
         .subcommand("solana")
         .subcommand("get-asset-signatures")
         .arg(id)
-        .opt("--chain", network)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
