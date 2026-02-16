@@ -104,8 +104,11 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
         eprintln!("Downloading {}...", asset.name);
     }
 
-    // Download the asset
-    let response = client
+    // Download the asset (use longer timeout for large binary downloads)
+    let download_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()?;
+    let response = download_client
         .get(&asset.browser_download_url)
         .header("User-Agent", "ethcli")
         .send()
@@ -128,7 +131,7 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
             eprintln!("Verifying checksum...");
         }
 
-        let checksum_response = client
+        let checksum_response = download_client
             .get(&checksum_asset.browser_download_url)
             .header("User-Agent", "ethcli")
             .send()
