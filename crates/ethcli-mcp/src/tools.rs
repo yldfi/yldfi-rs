@@ -2019,9 +2019,9 @@ pub async fn doctor() -> Result<String, ToolError> {
 pub async fn alchemy_nft(address: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("get-nfts")
         .arg(address)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2030,9 +2030,9 @@ pub async fn alchemy_nft(address: &str, network: Option<&str>) -> Result<String,
 pub async fn alchemy_token(address: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("token")
+        .network(network)
         .subcommand("balances")
         .arg(address)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2041,9 +2041,9 @@ pub async fn alchemy_token(address: &str, network: Option<&str>) -> Result<Strin
 pub async fn alchemy_transfers(address: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("transfers")
+        .network(network)
         .subcommand("from")
         .arg(address)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2052,9 +2052,9 @@ pub async fn alchemy_transfers(address: &str, network: Option<&str>) -> Result<S
 pub async fn alchemy_portfolio(address: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("portfolio")
+        .network(network)
         .subcommand("tokens")
         .arg(address)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2063,9 +2063,9 @@ pub async fn alchemy_portfolio(address: &str, network: Option<&str>) -> Result<S
 pub async fn alchemy_prices(tokens: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
+        .network(network)
         .subcommand("by-address")
         .arg(tokens)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2074,9 +2074,9 @@ pub async fn alchemy_prices(tokens: &str, network: Option<&str>) -> Result<Strin
 pub async fn alchemy_debug(hash: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
+        .network(network)
         .subcommand("trace-tx")
         .arg(hash)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2089,10 +2089,10 @@ pub async fn alchemy_nft_metadata(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("metadata")
         .arg(contract)
         .arg(token_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2104,9 +2104,9 @@ pub async fn alchemy_nft_floor_price(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("floor-price")
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2119,10 +2119,10 @@ pub async fn alchemy_nft_owners(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("owners")
         .arg(contract)
         .arg(token_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2135,10 +2135,10 @@ pub async fn alchemy_nft_is_holder(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("is-holder")
         .arg(address)
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2150,9 +2150,9 @@ pub async fn alchemy_token_metadata(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("token")
+        .network(network)
         .subcommand("metadata")
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2166,11 +2166,11 @@ pub async fn alchemy_token_allowances(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("token")
+        .network(network)
         .subcommand("allowances")
         .arg(contract)
         .arg(owner)
         .arg(spender)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2184,11 +2184,11 @@ pub async fn alchemy_transfers_to(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("transfers")
+        .network(network)
         .subcommand("to")
         .arg(address)
         .opt("--from-block", from_block)
         .opt("--to-block", to_block)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2200,9 +2200,9 @@ pub async fn alchemy_prices_by_address(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
+        .network(network)
         .subcommand("by-address")
         .arg(addresses)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2218,9 +2218,9 @@ pub async fn alchemy_nft_owners_for_contract(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("owners-for-contract")
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2232,9 +2232,9 @@ pub async fn alchemy_nft_contracts_for_owner(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("contracts-for-owner")
         .arg(address)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2248,9 +2248,10 @@ pub async fn alchemy_nft_nfts_for_contract(
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("nfts-for-contract")
         .arg(contract)
-        .chain(network);
+        ;
     if let Some(st) = start_token {
         builder = builder.opt("--start-token", Some(st));
     }
@@ -2266,9 +2267,9 @@ pub async fn alchemy_nft_contract_metadata(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("contract-metadata")
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2280,9 +2281,9 @@ pub async fn alchemy_nft_collection_metadata(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("collection-metadata")
         .arg(slug)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2294,9 +2295,9 @@ pub async fn alchemy_nft_search_contract_metadata(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("search-contract-metadata")
         .arg(query)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2309,10 +2310,10 @@ pub async fn alchemy_nft_compute_rarity(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("compute-rarity")
         .arg(contract)
         .arg(token_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2324,9 +2325,9 @@ pub async fn alchemy_nft_summarize_attributes(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("summarize-attributes")
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2339,10 +2340,10 @@ pub async fn alchemy_nft_refresh_metadata(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("refresh-metadata")
         .arg(contract)
         .arg(token_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2357,9 +2358,10 @@ pub async fn alchemy_nft_sales(
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("sales")
         .arg(contract)
-        .chain(network);
+        ;
     if let Some(tid) = token_id {
         builder = builder.opt("--token-id", Some(tid));
     }
@@ -2375,8 +2377,8 @@ pub async fn alchemy_nft_sales(
 pub async fn alchemy_nft_spam_contracts(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("spam-contracts")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2388,9 +2390,9 @@ pub async fn alchemy_nft_is_spam(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("is-spam")
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2403,10 +2405,10 @@ pub async fn alchemy_nft_is_airdrop(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("is-airdrop")
         .arg(contract)
         .arg(token_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2418,9 +2420,9 @@ pub async fn alchemy_nft_report_spam(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("report-spam")
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2434,9 +2436,10 @@ pub async fn alchemy_nft_nfts_for_collection(
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("nfts-for-collection")
         .arg(slug)
-        .chain(network);
+        ;
     if let Some(st) = start_token {
         builder = builder.opt("--start-token", Some(st));
     }
@@ -2452,9 +2455,9 @@ pub async fn alchemy_nft_collections_for_owner(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("collections-for-owner")
         .arg(address)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2466,9 +2469,9 @@ pub async fn alchemy_nft_invalidate_contract(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
+        .network(network)
         .subcommand("invalidate-contract")
         .arg(contract)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2485,10 +2488,10 @@ pub async fn alchemy_token_balances_for_tokens(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("token")
+        .network(network)
         .subcommand("balances-for-tokens")
         .arg(address)
         .arg(tokens)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2504,9 +2507,9 @@ pub async fn alchemy_transfers_all(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("transfers")
+        .network(network)
         .subcommand("all")
         .arg(address)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2522,9 +2525,9 @@ pub async fn alchemy_portfolio_token_info(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("portfolio")
+        .network(network)
         .subcommand("token-info")
         .arg(tokens)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2537,10 +2540,10 @@ pub async fn alchemy_portfolio_nfts(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("portfolio")
+        .network(network)
         .subcommand("nfts")
         .arg(address)
         .opt_flag("--with-metadata", with_metadata)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2552,9 +2555,9 @@ pub async fn alchemy_portfolio_nft_contracts(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("portfolio")
+        .network(network)
         .subcommand("nft-contracts")
         .arg(address)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2570,9 +2573,9 @@ pub async fn alchemy_prices_by_symbol(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
+        .network(network)
         .subcommand("by-symbol")
         .arg(symbols)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2587,12 +2590,12 @@ pub async fn alchemy_prices_historical_by_symbol(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
+        .network(network)
         .subcommand("historical-by-symbol")
         .arg(symbol)
         .arg(start_time)
         .arg(end_time)
         .opt("--interval", interval)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2607,12 +2610,12 @@ pub async fn alchemy_prices_historical_by_address(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
+        .network(network)
         .subcommand("historical-by-address")
         .arg(address)
         .arg(start_time)
         .arg(end_time)
         .opt("--interval", interval)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2633,6 +2636,7 @@ pub async fn alchemy_debug_trace_call(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
+        .network(network)
         .subcommand("trace-call")
         .arg(to)
         .opt("--block", block)
@@ -2640,7 +2644,6 @@ pub async fn alchemy_debug_trace_call(
         .opt("--data", data)
         .opt("--value", value)
         .opt("--gas", gas)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2652,9 +2655,9 @@ pub async fn alchemy_debug_trace_block_by_hash(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
+        .network(network)
         .subcommand("trace-block-by-hash")
         .arg(hash)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2666,9 +2669,9 @@ pub async fn alchemy_debug_trace_block_by_number(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
+        .network(network)
         .subcommand("trace-block-by-number")
         .arg(block)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2680,9 +2683,9 @@ pub async fn alchemy_debug_get_raw_block(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
+        .network(network)
         .subcommand("get-raw-block")
         .arg(block)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2694,9 +2697,9 @@ pub async fn alchemy_debug_get_raw_header(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
+        .network(network)
         .subcommand("get-raw-header")
         .arg(block)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2708,9 +2711,9 @@ pub async fn alchemy_debug_get_raw_receipts(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
+        .network(network)
         .subcommand("get-raw-receipts")
         .arg(block)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2723,9 +2726,9 @@ pub async fn alchemy_debug_get_raw_receipts(
 pub async fn alchemy_trace_block(block: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
+        .network(network)
         .subcommand("block")
         .arg(block)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2744,6 +2747,7 @@ pub async fn alchemy_trace_call(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
+        .network(network)
         .subcommand("call")
         .arg(to)
         .opt("--block", block)
@@ -2752,7 +2756,6 @@ pub async fn alchemy_trace_call(
         .opt("--value", value)
         .opt("--gas", gas)
         .opt("--trace-types", trace_types)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2765,10 +2768,10 @@ pub async fn alchemy_trace_get(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
+        .network(network)
         .subcommand("get")
         .arg(hash)
         .arg(indices)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2781,10 +2784,10 @@ pub async fn alchemy_trace_raw_transaction(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
+        .network(network)
         .subcommand("raw-transaction")
         .arg(raw_tx)
         .opt("--trace-types", trace_types)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2797,10 +2800,10 @@ pub async fn alchemy_trace_replay_block_transactions(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
+        .network(network)
         .subcommand("replay-block-transactions")
         .arg(block)
         .opt("--trace-types", trace_types)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2813,10 +2816,10 @@ pub async fn alchemy_trace_replay_transaction(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
+        .network(network)
         .subcommand("replay-transaction")
         .arg(hash)
         .opt("--trace-types", trace_types)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2828,9 +2831,9 @@ pub async fn alchemy_trace_transaction(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
+        .network(network)
         .subcommand("transaction")
         .arg(hash)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2847,12 +2850,13 @@ pub async fn alchemy_trace_filter(
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("trace")
+        .network(network)
         .subcommand("filter")
         .opt("--from-block", from_block)
         .opt("--to-block", to_block)
         .opt("--from-address", from_address)
         .opt("--to-address", to_address)
-        .chain(network);
+        ;
     if let Some(a) = after {
         builder = builder.opt("--after", Some(&a.to_string()));
     }
@@ -2876,13 +2880,13 @@ pub async fn alchemy_sim_asset_changes(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("simulation")
+        .network(network)
         .subcommand("asset-changes")
         .arg(to)
         .opt("--from", from)
         .opt("--data", data)
         .opt("--value", value)
         .opt("--gas", gas)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2901,6 +2905,7 @@ pub async fn alchemy_sim_execution(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("simulation")
+        .network(network)
         .subcommand("execution")
         .arg(to)
         .opt("--from", from)
@@ -2909,7 +2914,6 @@ pub async fn alchemy_sim_execution(
         .opt("--gas", gas)
         .opt("--block", block)
         .opt("--trace-format", trace_format)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2924,8 +2928,8 @@ pub async fn alchemy_bundler_supported_entry_points(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
+        .network(network)
         .subcommand("supported-entry-points")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2938,10 +2942,10 @@ pub async fn alchemy_bundler_estimate_gas(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
+        .network(network)
         .subcommand("estimate-gas")
         .arg(user_op_json)
         .opt("--entry-point", entry_point)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2953,9 +2957,9 @@ pub async fn alchemy_bundler_get_by_hash(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
+        .network(network)
         .subcommand("get-by-hash")
         .arg(hash)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2967,9 +2971,9 @@ pub async fn alchemy_bundler_get_receipt(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
+        .network(network)
         .subcommand("get-receipt")
         .arg(hash)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2978,8 +2982,8 @@ pub async fn alchemy_bundler_get_receipt(
 pub async fn alchemy_bundler_max_priority_fee(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
+        .network(network)
         .subcommand("max-priority-fee")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2992,8 +2996,8 @@ pub async fn alchemy_bundler_max_priority_fee(network: Option<&str>) -> Result<S
 pub async fn alchemy_gas_manager_list_policies(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
+        .network(network)
         .subcommand("list-policies")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3005,9 +3009,9 @@ pub async fn alchemy_gas_manager_get_policy(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
+        .network(network)
         .subcommand("get-policy")
         .arg(policy_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3019,9 +3023,9 @@ pub async fn alchemy_gas_manager_policy_stats(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
+        .network(network)
         .subcommand("policy-stats")
         .arg(policy_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3033,9 +3037,9 @@ pub async fn alchemy_gas_manager_list_sponsorships(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
+        .network(network)
         .subcommand("list-sponsorships")
         .arg(policy_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3048,8 +3052,8 @@ pub async fn alchemy_gas_manager_list_sponsorships(
 pub async fn alchemy_notify_list_webhooks(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("notify")
+        .network(network)
         .subcommand("list-webhooks")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3061,9 +3065,9 @@ pub async fn alchemy_notify_list_addresses(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("notify")
+        .network(network)
         .subcommand("list-addresses")
         .arg(webhook_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3075,9 +3079,9 @@ pub async fn alchemy_notify_list_nft_filters(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("notify")
+        .network(network)
         .subcommand("list-nft-filters")
         .arg(webhook_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3090,8 +3094,8 @@ pub async fn alchemy_notify_list_nft_filters(
 pub async fn alchemy_beacon_genesis(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("genesis")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3099,8 +3103,8 @@ pub async fn alchemy_beacon_genesis(network: Option<&str>) -> Result<String, Too
 pub async fn alchemy_beacon_fork_schedule(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("fork-schedule")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3108,8 +3112,8 @@ pub async fn alchemy_beacon_fork_schedule(network: Option<&str>) -> Result<Strin
 pub async fn alchemy_beacon_deposit_contract(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("deposit-contract")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3117,8 +3121,8 @@ pub async fn alchemy_beacon_deposit_contract(network: Option<&str>) -> Result<St
 pub async fn alchemy_beacon_spec(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("spec")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3126,8 +3130,8 @@ pub async fn alchemy_beacon_spec(network: Option<&str>) -> Result<String, ToolEr
 pub async fn alchemy_beacon_headers(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("headers")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3138,9 +3142,9 @@ pub async fn alchemy_beacon_header(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("header")
         .arg(block_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3151,9 +3155,9 @@ pub async fn alchemy_beacon_block(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("block")
         .arg(block_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3164,9 +3168,9 @@ pub async fn alchemy_beacon_block_root(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("block-root")
         .arg(block_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3177,9 +3181,9 @@ pub async fn alchemy_beacon_block_attestations(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("block-attestations")
         .arg(block_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3190,9 +3194,9 @@ pub async fn alchemy_beacon_blob_sidecars(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("blob-sidecars")
         .arg(block_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3203,9 +3207,9 @@ pub async fn alchemy_beacon_state_root(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("state-root")
         .arg(state_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3216,9 +3220,9 @@ pub async fn alchemy_beacon_state_fork(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("state-fork")
         .arg(state_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3229,9 +3233,9 @@ pub async fn alchemy_beacon_finality_checkpoints(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("finality-checkpoints")
         .arg(state_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3242,9 +3246,9 @@ pub async fn alchemy_beacon_validators(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("validators")
         .arg(state_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3256,10 +3260,10 @@ pub async fn alchemy_beacon_validator(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("validator")
         .arg(state_id)
         .arg(validator_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3270,9 +3274,9 @@ pub async fn alchemy_beacon_validator_balances(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("validator-balances")
         .arg(state_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3283,9 +3287,9 @@ pub async fn alchemy_beacon_sync_committees(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("sync-committees")
         .arg(state_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3296,9 +3300,9 @@ pub async fn alchemy_beacon_randao(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("randao")
         .arg(state_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3306,8 +3310,8 @@ pub async fn alchemy_beacon_randao(
 pub async fn alchemy_beacon_pool_attestations(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("pool-attestations")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3315,8 +3319,8 @@ pub async fn alchemy_beacon_pool_attestations(network: Option<&str>) -> Result<S
 pub async fn alchemy_beacon_voluntary_exits(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("voluntary-exits")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3327,9 +3331,9 @@ pub async fn alchemy_beacon_block_rewards(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("block-rewards")
         .arg(block_id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3337,8 +3341,8 @@ pub async fn alchemy_beacon_block_rewards(
 pub async fn alchemy_beacon_syncing(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("syncing")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3346,8 +3350,8 @@ pub async fn alchemy_beacon_syncing(network: Option<&str>) -> Result<String, Too
 pub async fn alchemy_beacon_version(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("version")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3355,8 +3359,8 @@ pub async fn alchemy_beacon_version(network: Option<&str>) -> Result<String, Too
 pub async fn alchemy_beacon_peers(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("peers")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3364,8 +3368,8 @@ pub async fn alchemy_beacon_peers(network: Option<&str>) -> Result<String, ToolE
 pub async fn alchemy_beacon_peer_count(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("peer-count")
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3377,10 +3381,10 @@ pub async fn alchemy_beacon_attester_duties(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("attester-duties")
         .arg(epoch)
         .arg(validators)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3391,9 +3395,9 @@ pub async fn alchemy_beacon_proposer_duties(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("proposer-duties")
         .arg(epoch)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3405,10 +3409,10 @@ pub async fn alchemy_beacon_sync_duties(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
+        .network(network)
         .subcommand("sync-duties")
         .arg(epoch)
         .arg(validators)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3424,9 +3428,9 @@ pub async fn alchemy_solana_get_asset(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-asset")
         .arg(id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3437,9 +3441,9 @@ pub async fn alchemy_solana_get_assets(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-assets")
         .arg(ids)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3450,9 +3454,9 @@ pub async fn alchemy_solana_get_asset_proof(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-asset-proof")
         .arg(id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3463,9 +3467,9 @@ pub async fn alchemy_solana_get_asset_proofs(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-asset-proofs")
         .arg(ids)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3479,9 +3483,10 @@ pub async fn alchemy_solana_get_assets_by_owner(
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-assets-by-owner")
         .arg(owner)
-        .chain(network);
+        ;
     if let Some(p) = page {
         builder = builder.opt("--page", Some(&p.to_string()));
     }
@@ -3497,9 +3502,9 @@ pub async fn alchemy_solana_get_assets_by_creator(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-assets-by-creator")
         .arg(creator)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3510,9 +3515,9 @@ pub async fn alchemy_solana_get_assets_by_authority(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-assets-by-authority")
         .arg(authority)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3524,10 +3529,10 @@ pub async fn alchemy_solana_get_assets_by_group(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-assets-by-group")
         .arg(group_key)
         .arg(group_value)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3540,10 +3545,10 @@ pub async fn alchemy_solana_get_token_accounts(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-token-accounts")
         .opt("--owner", owner)
         .opt("--mint", mint)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3555,9 +3560,9 @@ pub async fn alchemy_solana_get_nft_editions(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-nft-editions")
         .arg(mint)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3568,9 +3573,9 @@ pub async fn alchemy_solana_get_asset_signatures(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
+        .network(network)
         .subcommand("get-asset-signatures")
         .arg(id)
-        .chain(network)
         .execute()
         .await
         .map_err(ToolError::from)
