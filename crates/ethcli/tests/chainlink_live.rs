@@ -700,7 +700,13 @@ async fn test_invalid_oracle_address() {
 async fn test_unknown_symbol_error() {
     let provider = mainnet_provider();
 
-    let result = fetch_price(provider, "UNKNOWN_FAKE_TOKEN_XYZ", "ethereum", denominations::USD).await;
+    let result = fetch_price(
+        provider,
+        "UNKNOWN_FAKE_TOKEN_XYZ",
+        "ethereum",
+        denominations::USD,
+    )
+    .await;
     assert!(result.is_err(), "Should fail with unknown symbol");
 
     // Check error type
