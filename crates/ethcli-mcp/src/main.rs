@@ -714,7 +714,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioInput>,
     ) -> String {
-        tools::alchemy_portfolio(&input.address, Some(&input.network))
+        tools::alchemy_portfolio(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -724,7 +724,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTransfersInput>,
     ) -> String {
-        tools::alchemy_transfers(&input.address, Some(&input.network))
+        tools::alchemy_transfers(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1722,28 +1722,28 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get NFTs for an address via Alchemy")]
     async fn alchemy_nft(&self, Parameters(input): Parameters<AlchemyPortfolioInput>) -> String {
-        tools::alchemy_nft(&input.address, Some(&input.network))
+        tools::alchemy_nft(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
 
     #[tool(description = "Get token info via Alchemy")]
     async fn alchemy_token(&self, Parameters(input): Parameters<AlchemyPortfolioInput>) -> String {
-        tools::alchemy_token(&input.address, Some(&input.network))
+        tools::alchemy_token(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
 
     #[tool(description = "Get token prices via Alchemy")]
     async fn alchemy_prices(&self, Parameters(input): Parameters<AlchemyPricesInput>) -> String {
-        tools::alchemy_prices(&input.tokens, Some(&input.network))
+        tools::alchemy_prices(&input.tokens, Some(&input.chain))
             .await
             .to_response()
     }
 
     #[tool(description = "Debug a transaction via Alchemy")]
     async fn alchemy_debug(&self, Parameters(input): Parameters<AlchemyDebugInput>) -> String {
-        tools::alchemy_debug(&input.hash, Some(&input.network))
+        tools::alchemy_debug(&input.hash, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1753,7 +1753,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_metadata(&input.contract, &input.token_id, Some(&input.network))
+        tools::alchemy_nft_metadata(&input.contract, &input.token_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1763,7 +1763,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractInput>,
     ) -> String {
-        tools::alchemy_nft_floor_price(&input.contract, Some(&input.network))
+        tools::alchemy_nft_floor_price(&input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1773,7 +1773,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_owners(&input.contract, &input.token_id, Some(&input.network))
+        tools::alchemy_nft_owners(&input.contract, &input.token_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1783,7 +1783,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftIsHolderInput>,
     ) -> String {
-        tools::alchemy_nft_is_holder(&input.address, &input.contract, Some(&input.network))
+        tools::alchemy_nft_is_holder(&input.address, &input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1793,7 +1793,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTokenMetadataInput>,
     ) -> String {
-        tools::alchemy_token_metadata(&input.contract, Some(&input.network))
+        tools::alchemy_token_metadata(&input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1807,7 +1807,7 @@ impl EthcliMcpServer {
             &input.contract,
             &input.owner,
             &input.spender,
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -1822,7 +1822,7 @@ impl EthcliMcpServer {
             &input.address,
             input.from_block.as_deref(),
             input.to_block.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -1833,7 +1833,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPricesByAddressInput>,
     ) -> String {
-        tools::alchemy_prices_by_address(&input.addresses, Some(&input.network))
+        tools::alchemy_prices_by_address(&input.addresses, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1847,7 +1847,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_owners_for_contract(&input.contract, Some(&input.network))
+        tools::alchemy_nft_owners_for_contract(&input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1857,7 +1857,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftAddressInput>,
     ) -> String {
-        tools::alchemy_nft_contracts_for_owner(&input.address, Some(&input.network))
+        tools::alchemy_nft_contracts_for_owner(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1871,7 +1871,7 @@ impl EthcliMcpServer {
             &input.contract,
             input.start_token.as_deref(),
             input.limit,
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -1882,7 +1882,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_contract_metadata(&input.contract, Some(&input.network))
+        tools::alchemy_nft_contract_metadata(&input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1892,7 +1892,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftSlugInput>,
     ) -> String {
-        tools::alchemy_nft_collection_metadata(&input.slug, Some(&input.network))
+        tools::alchemy_nft_collection_metadata(&input.slug, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1902,7 +1902,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftSearchInput>,
     ) -> String {
-        tools::alchemy_nft_search_contract_metadata(&input.query, Some(&input.network))
+        tools::alchemy_nft_search_contract_metadata(&input.query, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1912,7 +1912,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_compute_rarity(&input.contract, &input.token_id, Some(&input.network))
+        tools::alchemy_nft_compute_rarity(&input.contract, &input.token_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1922,7 +1922,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_summarize_attributes(&input.contract, Some(&input.network))
+        tools::alchemy_nft_summarize_attributes(&input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1932,7 +1932,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_refresh_metadata(&input.contract, &input.token_id, Some(&input.network))
+        tools::alchemy_nft_refresh_metadata(&input.contract, &input.token_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1949,7 +1949,7 @@ impl EthcliMcpServer {
             input.token_id.as_deref(),
             input.from_block,
             input.to_block,
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -1960,7 +1960,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_nft_spam_contracts(Some(&input.network))
+        tools::alchemy_nft_spam_contracts(Some(&input.chain))
             .await
             .to_response()
     }
@@ -1970,7 +1970,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_is_spam(&input.contract, Some(&input.network))
+        tools::alchemy_nft_is_spam(&input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1980,7 +1980,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
     ) -> String {
-        tools::alchemy_nft_is_airdrop(&input.contract, &input.token_id, Some(&input.network))
+        tools::alchemy_nft_is_airdrop(&input.contract, &input.token_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -1990,7 +1990,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_report_spam(&input.contract, Some(&input.network))
+        tools::alchemy_nft_report_spam(&input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2004,7 +2004,7 @@ impl EthcliMcpServer {
             &input.slug,
             input.start_token.as_deref(),
             input.limit,
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2015,7 +2015,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftAddressInput>,
     ) -> String {
-        tools::alchemy_nft_collections_for_owner(&input.address, Some(&input.network))
+        tools::alchemy_nft_collections_for_owner(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2025,7 +2025,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
-        tools::alchemy_nft_invalidate_contract(&input.contract, Some(&input.network))
+        tools::alchemy_nft_invalidate_contract(&input.contract, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2042,7 +2042,7 @@ impl EthcliMcpServer {
         tools::alchemy_token_balances_for_tokens(
             &input.address,
             &input.tokens,
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2057,7 +2057,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTransfersAllInput>,
     ) -> String {
-        tools::alchemy_transfers_all(&input.address, Some(&input.network))
+        tools::alchemy_transfers_all(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2071,7 +2071,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioTokenInfoInput>,
     ) -> String {
-        tools::alchemy_portfolio_token_info(&input.tokens, Some(&input.network))
+        tools::alchemy_portfolio_token_info(&input.tokens, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2081,7 +2081,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioNftsInput>,
     ) -> String {
-        tools::alchemy_portfolio_nfts(&input.address, input.with_metadata, Some(&input.network))
+        tools::alchemy_portfolio_nfts(&input.address, input.with_metadata, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2091,7 +2091,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPortfolioNftContractsInput>,
     ) -> String {
-        tools::alchemy_portfolio_nft_contracts(&input.address, Some(&input.network))
+        tools::alchemy_portfolio_nft_contracts(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2105,7 +2105,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyPricesBySymbolInput>,
     ) -> String {
-        tools::alchemy_prices_by_symbol(&input.symbols, Some(&input.network))
+        tools::alchemy_prices_by_symbol(&input.symbols, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2120,7 +2120,7 @@ impl EthcliMcpServer {
             &input.start_time,
             &input.end_time,
             input.interval.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2136,7 +2136,7 @@ impl EthcliMcpServer {
             &input.start_time,
             &input.end_time,
             input.interval.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2158,7 +2158,7 @@ impl EthcliMcpServer {
             input.data.as_deref(),
             input.value.as_deref(),
             input.gas.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2169,7 +2169,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockHashInput>,
     ) -> String {
-        tools::alchemy_debug_trace_block_by_hash(&input.hash, Some(&input.network))
+        tools::alchemy_debug_trace_block_by_hash(&input.hash, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2179,7 +2179,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
     ) -> String {
-        tools::alchemy_debug_trace_block_by_number(&input.block, Some(&input.network))
+        tools::alchemy_debug_trace_block_by_number(&input.block, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2189,7 +2189,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
     ) -> String {
-        tools::alchemy_debug_get_raw_block(&input.block, Some(&input.network))
+        tools::alchemy_debug_get_raw_block(&input.block, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2199,7 +2199,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
     ) -> String {
-        tools::alchemy_debug_get_raw_header(&input.block, Some(&input.network))
+        tools::alchemy_debug_get_raw_header(&input.block, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2209,7 +2209,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
     ) -> String {
-        tools::alchemy_debug_get_raw_receipts(&input.block, Some(&input.network))
+        tools::alchemy_debug_get_raw_receipts(&input.block, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2223,7 +2223,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTraceBlockInput>,
     ) -> String {
-        tools::alchemy_trace_block(&input.block, Some(&input.network))
+        tools::alchemy_trace_block(&input.block, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2241,7 +2241,7 @@ impl EthcliMcpServer {
             input.value.as_deref(),
             input.gas.as_deref(),
             input.trace_types.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2252,7 +2252,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTraceGetInput>,
     ) -> String {
-        tools::alchemy_trace_get(&input.hash, &input.indices, Some(&input.network))
+        tools::alchemy_trace_get(&input.hash, &input.indices, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2265,7 +2265,7 @@ impl EthcliMcpServer {
         tools::alchemy_trace_raw_transaction(
             &input.raw_tx,
             input.trace_types.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2279,7 +2279,7 @@ impl EthcliMcpServer {
         tools::alchemy_trace_replay_block_transactions(
             &input.block,
             input.trace_types.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2293,7 +2293,7 @@ impl EthcliMcpServer {
         tools::alchemy_trace_replay_transaction(
             &input.hash,
             input.trace_types.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2304,7 +2304,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTraceTxInput>,
     ) -> String {
-        tools::alchemy_trace_transaction(&input.hash, Some(&input.network))
+        tools::alchemy_trace_transaction(&input.hash, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2321,7 +2321,7 @@ impl EthcliMcpServer {
             input.to_address.as_deref(),
             input.after,
             input.count,
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2342,7 +2342,7 @@ impl EthcliMcpServer {
             input.data.as_deref(),
             input.value.as_deref(),
             input.gas.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2361,7 +2361,7 @@ impl EthcliMcpServer {
             input.gas.as_deref(),
             input.block.as_deref(),
             input.trace_format.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2376,7 +2376,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_bundler_supported_entry_points(Some(&input.network))
+        tools::alchemy_bundler_supported_entry_points(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2389,7 +2389,7 @@ impl EthcliMcpServer {
         tools::alchemy_bundler_estimate_gas(
             &input.user_op_json,
             input.entry_point.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2400,7 +2400,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBundlerHashInput>,
     ) -> String {
-        tools::alchemy_bundler_get_by_hash(&input.hash, Some(&input.network))
+        tools::alchemy_bundler_get_by_hash(&input.hash, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2410,7 +2410,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBundlerHashInput>,
     ) -> String {
-        tools::alchemy_bundler_get_receipt(&input.hash, Some(&input.network))
+        tools::alchemy_bundler_get_receipt(&input.hash, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2420,7 +2420,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_bundler_max_priority_fee(Some(&input.network))
+        tools::alchemy_bundler_max_priority_fee(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2434,7 +2434,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_gas_manager_list_policies(Some(&input.network))
+        tools::alchemy_gas_manager_list_policies(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2444,7 +2444,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
     ) -> String {
-        tools::alchemy_gas_manager_get_policy(&input.policy_id, Some(&input.network))
+        tools::alchemy_gas_manager_get_policy(&input.policy_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2454,7 +2454,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
     ) -> String {
-        tools::alchemy_gas_manager_policy_stats(&input.policy_id, Some(&input.network))
+        tools::alchemy_gas_manager_policy_stats(&input.policy_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2464,7 +2464,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
     ) -> String {
-        tools::alchemy_gas_manager_list_sponsorships(&input.policy_id, Some(&input.network))
+        tools::alchemy_gas_manager_list_sponsorships(&input.policy_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2478,7 +2478,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_notify_list_webhooks(Some(&input.network))
+        tools::alchemy_notify_list_webhooks(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2488,7 +2488,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNotifyWebhookInput>,
     ) -> String {
-        tools::alchemy_notify_list_addresses(&input.webhook_id, Some(&input.network))
+        tools::alchemy_notify_list_addresses(&input.webhook_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2498,7 +2498,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyNotifyWebhookInput>,
     ) -> String {
-        tools::alchemy_notify_list_nft_filters(&input.webhook_id, Some(&input.network))
+        tools::alchemy_notify_list_nft_filters(&input.webhook_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2512,7 +2512,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_genesis(Some(&input.network))
+        tools::alchemy_beacon_genesis(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2522,7 +2522,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_fork_schedule(Some(&input.network))
+        tools::alchemy_beacon_fork_schedule(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2532,7 +2532,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_deposit_contract(Some(&input.network))
+        tools::alchemy_beacon_deposit_contract(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2542,7 +2542,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_spec(Some(&input.network))
+        tools::alchemy_beacon_spec(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2552,7 +2552,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_headers(Some(&input.network))
+        tools::alchemy_beacon_headers(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2562,7 +2562,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_header(&input.block_id, Some(&input.network))
+        tools::alchemy_beacon_header(&input.block_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2572,7 +2572,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_block(&input.block_id, Some(&input.network))
+        tools::alchemy_beacon_block(&input.block_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2582,7 +2582,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_block_root(&input.block_id, Some(&input.network))
+        tools::alchemy_beacon_block_root(&input.block_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2592,7 +2592,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_block_attestations(&input.block_id, Some(&input.network))
+        tools::alchemy_beacon_block_attestations(&input.block_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2602,7 +2602,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_blob_sidecars(&input.block_id, Some(&input.network))
+        tools::alchemy_beacon_blob_sidecars(&input.block_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2612,7 +2612,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_state_root(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_state_root(&input.state_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2622,7 +2622,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_state_fork(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_state_fork(&input.state_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2632,7 +2632,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_finality_checkpoints(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_finality_checkpoints(&input.state_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2642,7 +2642,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_validators(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_validators(&input.state_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2652,7 +2652,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconValidatorInput>,
     ) -> String {
-        tools::alchemy_beacon_validator(&input.state_id, &input.validator_id, Some(&input.network))
+        tools::alchemy_beacon_validator(&input.state_id, &input.validator_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2662,7 +2662,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_validator_balances(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_validator_balances(&input.state_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2672,7 +2672,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_sync_committees(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_sync_committees(&input.state_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2682,7 +2682,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
     ) -> String {
-        tools::alchemy_beacon_randao(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_randao(&input.state_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2692,7 +2692,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_pool_attestations(Some(&input.network))
+        tools::alchemy_beacon_pool_attestations(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2702,7 +2702,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_voluntary_exits(Some(&input.network))
+        tools::alchemy_beacon_voluntary_exits(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2712,7 +2712,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
     ) -> String {
-        tools::alchemy_beacon_block_rewards(&input.block_id, Some(&input.network))
+        tools::alchemy_beacon_block_rewards(&input.block_id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2722,7 +2722,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_syncing(Some(&input.network))
+        tools::alchemy_beacon_syncing(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2732,7 +2732,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_version(Some(&input.network))
+        tools::alchemy_beacon_version(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2742,7 +2742,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_peers(Some(&input.network))
+        tools::alchemy_beacon_peers(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2752,7 +2752,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
     ) -> String {
-        tools::alchemy_beacon_peer_count(Some(&input.network))
+        tools::alchemy_beacon_peer_count(Some(&input.chain))
             .await
             .to_response()
     }
@@ -2762,7 +2762,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconDutiesInput>,
     ) -> String {
-        tools::alchemy_beacon_attester_duties(&input.epoch, &input.validators, Some(&input.network))
+        tools::alchemy_beacon_attester_duties(&input.epoch, &input.validators, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2772,7 +2772,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconEpochInput>,
     ) -> String {
-        tools::alchemy_beacon_proposer_duties(&input.epoch, Some(&input.network))
+        tools::alchemy_beacon_proposer_duties(&input.epoch, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2782,7 +2782,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyBeaconDutiesInput>,
     ) -> String {
-        tools::alchemy_beacon_sync_duties(&input.epoch, &input.validators, Some(&input.network))
+        tools::alchemy_beacon_sync_duties(&input.epoch, &input.validators, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2796,7 +2796,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
     ) -> String {
-        tools::alchemy_solana_get_asset(&input.id, Some(&input.network))
+        tools::alchemy_solana_get_asset(&input.id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2806,7 +2806,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetsInput>,
     ) -> String {
-        tools::alchemy_solana_get_assets(&input.ids, Some(&input.network))
+        tools::alchemy_solana_get_assets(&input.ids, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2816,7 +2816,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
     ) -> String {
-        tools::alchemy_solana_get_asset_proof(&input.id, Some(&input.network))
+        tools::alchemy_solana_get_asset_proof(&input.id, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2826,7 +2826,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetsInput>,
     ) -> String {
-        tools::alchemy_solana_get_asset_proofs(&input.ids, Some(&input.network))
+        tools::alchemy_solana_get_asset_proofs(&input.ids, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2840,7 +2840,7 @@ impl EthcliMcpServer {
             &input.owner,
             input.page,
             input.limit,
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2851,7 +2851,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAddressInput>,
     ) -> String {
-        tools::alchemy_solana_get_assets_by_creator(&input.address, Some(&input.network))
+        tools::alchemy_solana_get_assets_by_creator(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2861,7 +2861,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAddressInput>,
     ) -> String {
-        tools::alchemy_solana_get_assets_by_authority(&input.address, Some(&input.network))
+        tools::alchemy_solana_get_assets_by_authority(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2874,7 +2874,7 @@ impl EthcliMcpServer {
         tools::alchemy_solana_get_assets_by_group(
             &input.group_key,
             &input.group_value,
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2888,7 +2888,7 @@ impl EthcliMcpServer {
         tools::alchemy_solana_get_token_accounts(
             input.owner.as_deref(),
             input.mint.as_deref(),
-            Some(&input.network),
+            Some(&input.chain),
         )
         .await
         .to_response()
@@ -2899,7 +2899,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaMintInput>,
     ) -> String {
-        tools::alchemy_solana_get_nft_editions(&input.mint, Some(&input.network))
+        tools::alchemy_solana_get_nft_editions(&input.mint, Some(&input.chain))
             .await
             .to_response()
     }
@@ -2909,7 +2909,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
     ) -> String {
-        tools::alchemy_solana_get_asset_signatures(&input.id, Some(&input.network))
+        tools::alchemy_solana_get_asset_signatures(&input.id, Some(&input.chain))
             .await
             .to_response()
     }
