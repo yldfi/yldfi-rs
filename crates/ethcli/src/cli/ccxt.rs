@@ -780,6 +780,12 @@ fn truncate_num(s: &str, max_len: usize) -> String {
 /// Parse a timeframe string into the ccxt Timeframe enum
 fn parse_timeframe(s: &str) -> anyhow::Result<ccxt_rust::Timeframe> {
     use ccxt_rust::Timeframe;
+    // Match monthly timeframes before lowercasing, since "1M"/"M" (month)
+    // would become "1m"/"m" (minute) after to_lowercase()
+    match s {
+        "1M" | "M" => return Ok(Timeframe::Mon1),
+        _ => {}
+    }
     match s.to_lowercase().as_str() {
         "1m" => Ok(Timeframe::M1),
         "3m" => Ok(Timeframe::M3),
@@ -795,9 +801,8 @@ fn parse_timeframe(s: &str) -> anyhow::Result<ccxt_rust::Timeframe> {
         "1d" | "d" => Ok(Timeframe::D1),
         "3d" => Ok(Timeframe::D3),
         "1w" | "w" => Ok(Timeframe::W1),
-        "1M" | "M" => Ok(Timeframe::Mon1),
         _ => anyhow::bail!(
-            "Invalid timeframe: {}. Valid: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w",
+            "Invalid timeframe: {}. Valid: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M",
             s
         ),
     }

@@ -23,8 +23,9 @@ impl<'a> BeaconApi<'a> {
 
     fn beacon_url(&self) -> String {
         format!(
-            "https://{}.g.alchemy.com/eth/v1",
-            self.client.network().slug()
+            "https://{}.g.alchemy.com/eth/v1/{}",
+            self.client.network().slug(),
+            self.client.api_key()
         )
     }
 

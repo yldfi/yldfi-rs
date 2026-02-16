@@ -282,6 +282,14 @@ async fn handle_price(
         }
     }
 
+    // Resolve quote denomination
+    let denomination = match quote.to_lowercase().as_str() {
+        "usd" => denominations::USD,
+        "eth" => denominations::ETH,
+        "btc" => denominations::BTC,
+        _ => anyhow::bail!("Unknown quote: {}. Use usd, eth, or btc", quote),
+    };
+
     let price_data = if let Some(oracle_addr) = oracle {
         // Direct oracle query
         let addr = Address::from_str(oracle_addr)
@@ -297,10 +305,10 @@ async fn handle_price(
     } else if let Some(blk) = block {
         // Historical query
         let block_id = parse_block_id(blk)?;
-        chainlink::fetch_price_at_block(provider, token, chain, block_id).await
+        chainlink::fetch_price_at_block(provider, token, chain, block_id, denomination).await
     } else {
         // Latest price
-        chainlink::fetch_price(provider, token, chain).await
+        chainlink::fetch_price(provider, token, chain, denomination).await
     };
 
     match price_data {
