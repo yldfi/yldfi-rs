@@ -7395,14 +7395,19 @@ pub async fn enso_route(
     from_token: &str,
     to_token: &str,
     amount: &str,
-    chain: Option<&str>,
+    from_address: &str,
+    chain_id: Option<&str>,
 ) -> Result<String, ToolError> {
-    ArgsBuilder::new("enso")
+    let mut builder = ArgsBuilder::new("enso")
         .subcommand("route")
         .arg(from_token)
         .arg(to_token)
         .arg(amount)
-        .chain(chain)
+        .arg(from_address);
+    if let Some(cid) = chain_id {
+        builder = builder.opt("--chain-id", Some(cid));
+    }
+    builder
         .format_json()
         .execute()
         .await

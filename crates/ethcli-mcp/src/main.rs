@@ -5578,7 +5578,8 @@ impl EthcliMcpServer {
             &input.from_token,
             &input.to_token,
             &input.amount,
-            Some(&input.chain),
+            &input.from_address,
+            Some(&input.chain_id),
         )
         .await
         .to_response()
