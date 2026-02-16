@@ -2250,8 +2250,7 @@ pub async fn alchemy_nft_nfts_for_contract(
         .subcommand("nft")
         .network(network)
         .subcommand("nfts-for-contract")
-        .arg(contract)
-        ;
+        .arg(contract);
     if let Some(st) = start_token {
         builder = builder.opt("--start-token", Some(st));
     }
@@ -2360,8 +2359,7 @@ pub async fn alchemy_nft_sales(
         .subcommand("nft")
         .network(network)
         .subcommand("sales")
-        .arg(contract)
-        ;
+        .arg(contract);
     if let Some(tid) = token_id {
         builder = builder.opt("--token-id", Some(tid));
     }
@@ -2438,8 +2436,7 @@ pub async fn alchemy_nft_nfts_for_collection(
         .subcommand("nft")
         .network(network)
         .subcommand("nfts-for-collection")
-        .arg(slug)
-        ;
+        .arg(slug);
     if let Some(st) = start_token {
         builder = builder.opt("--start-token", Some(st));
     }
@@ -2855,8 +2852,7 @@ pub async fn alchemy_trace_filter(
         .opt("--from-block", from_block)
         .opt("--to-block", to_block)
         .opt("--from-address", from_address)
-        .opt("--to-address", to_address)
-        ;
+        .opt("--to-address", to_address);
     if let Some(a) = after {
         builder = builder.opt("--after", Some(&a.to_string()));
     }
@@ -3485,8 +3481,7 @@ pub async fn alchemy_solana_get_assets_by_owner(
         .subcommand("solana")
         .network(network)
         .subcommand("get-assets-by-owner")
-        .arg(owner)
-        ;
+        .arg(owner);
     if let Some(p) = page {
         builder = builder.opt("--page", Some(&p.to_string()));
     }
