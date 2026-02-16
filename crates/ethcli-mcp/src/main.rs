@@ -1803,9 +1803,14 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<AlchemyTokenAllowancesInput>,
     ) -> String {
-        tools::alchemy_token_allowances(&input.owner, &input.spender, Some(&input.network))
-            .await
-            .to_response()
+        tools::alchemy_token_allowances(
+            &input.contract,
+            &input.owner,
+            &input.spender,
+            Some(&input.network),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get token transfers TO an address via Alchemy")]

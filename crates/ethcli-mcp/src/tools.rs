@@ -2158,6 +2158,7 @@ pub async fn alchemy_token_metadata(
 }
 
 pub async fn alchemy_token_allowances(
+    contract: &str,
     owner: &str,
     spender: &str,
     network: Option<&str>,
@@ -2165,6 +2166,7 @@ pub async fn alchemy_token_allowances(
     ArgsBuilder::new("alchemy")
         .subcommand("token")
         .subcommand("allowances")
+        .arg(contract)
         .arg(owner)
         .arg(spender)
         .opt("--network", network)

@@ -177,7 +177,7 @@ pub struct PriceOutput {
     pub token: String,
     pub quote: String,
     pub chain: String,
-    pub price_usd: Option<f64>,
+    pub price: Option<f64>,
     pub raw_answer: String,
     pub decimals: u8,
     /// Round ID (uint80 composite: phaseId << 64 | aggregatorRoundId)
@@ -196,7 +196,7 @@ impl From<PriceData> for PriceOutput {
             token: String::new(),
             quote: String::new(),
             chain: String::new(),
-            price_usd: data.to_f64(),
+            price: data.to_f64(),
             raw_answer: data.answer.to_string(),
             decimals: data.decimals,
             round_id: data.round_id,
@@ -700,8 +700,18 @@ fn print_price_output(output: &PriceOutput, format: OutputFormat) -> anyhow::Res
             println!();
             println!("Chainlink Price for {}/{}", output.token, output.quote);
             println!("{}", "=".repeat(50));
-            if let Some(price) = output.price_usd {
-                println!("  Price:       ${:.8}", price);
+            if let Some(price) = output.price {
+                let prefix = if output.quote.eq_ignore_ascii_case("usd") {
+                    "$"
+                } else {
+                    ""
+                };
+                let suffix = if !output.quote.eq_ignore_ascii_case("usd") {
+                    format!(" {}", output.quote.to_uppercase())
+                } else {
+                    String::new()
+                };
+                println!("  Price:       {}{:.8}{}", prefix, price, suffix);
             } else {
                 println!("  Price:       INVALID (stale or negative)");
             }

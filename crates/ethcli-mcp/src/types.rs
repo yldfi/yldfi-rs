@@ -1499,6 +1499,8 @@ pub struct AlchemyTokenMetadataInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyTokenAllowancesInput {
+    /// Token contract address
+    pub contract: String,
     /// Token owner address
     pub owner: String,
     /// Spender address
