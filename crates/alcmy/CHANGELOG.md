@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.1.5...alcmy-v0.1.6) (2026-02-16)
+
+
+### Bug Fixes
+
+* **ethcli:** fix 6 critical CLI bugs — gas estimate, beacon auth, allowance args, CCXT monthly, chainlink quote, sim overrides ([31b1cff](https://github.com/yldfi/yldfi-rs/commit/31b1cff89a1c0d150031a9a943a420eadae96aee)), closes [#37](https://github.com/yldfi/yldfi-rs/issues/37)
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([#38](https://github.com/yldfi/yldfi-rs/issues/38)) ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.1.4...alcmy-v0.1.5) (2026-02-15)
 
 

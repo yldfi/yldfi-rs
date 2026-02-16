@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.21.23](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.22...ethcli-v0.21.23) (2026-02-16)
+
+
+### Bug Fixes
+
+* address Copilot review feedback on PR [#38](https://github.com/yldfi/yldfi-rs/issues/38) ([79c9900](https://github.com/yldfi/yldfi-rs/commit/79c99002ad070ec849364e4194d68d210f1f633f))
+* **ethcli:** fix 6 critical CLI bugs — gas estimate, beacon auth, allowance args, CCXT monthly, chainlink quote, sim overrides ([31b1cff](https://github.com/yldfi/yldfi-rs/commit/31b1cff89a1c0d150031a9a943a420eadae96aee)), closes [#37](https://github.com/yldfi/yldfi-rs/issues/37)
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([#38](https://github.com/yldfi/yldfi-rs/issues/38)) ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+* **tests:** update chainlink_live tests for new fetch_price denomination param ([80a9960](https://github.com/yldfi/yldfi-rs/commit/80a9960e4bc8145925558f8c3e767d7dac393f4d))
+
 ## [0.21.22](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.21...ethcli-v0.21.22) (2026-02-15)
 
 

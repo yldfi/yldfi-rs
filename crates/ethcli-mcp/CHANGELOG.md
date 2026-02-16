@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.10](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.9...ethcli-mcp-v0.1.10) (2026-02-16)
+
+
+### Bug Fixes
+
+* address Copilot review feedback on PR [#38](https://github.com/yldfi/yldfi-rs/issues/38) ([79c9900](https://github.com/yldfi/yldfi-rs/commit/79c99002ad070ec849364e4194d68d210f1f633f))
+* **mcp:** add missing from_address param to enso_route ([#34](https://github.com/yldfi/yldfi-rs/issues/34)) ([88c4738](https://github.com/yldfi/yldfi-rs/commit/88c473835585bb4c731d5e1c8ee0728dc1766e2f))
+* **mcp:** fix ~45 critical parameter mismatches across all MCP tool wrappers ([c1ee10b](https://github.com/yldfi/yldfi-rs/commit/c1ee10bca0ef977bd1a7a9f48387d5fe9f48b5cf)), closes [#36](https://github.com/yldfi/yldfi-rs/issues/36)
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([#38](https://github.com/yldfi/yldfi-rs/issues/38)) ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+
 ## [0.1.9](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.8...ethcli-mcp-v0.1.9) (2026-02-14)
 
 
