@@ -19,7 +19,7 @@ fn default_moralis_chain() -> String {
 }
 
 fn default_network() -> String {
-    "eth-mainnet".to_string()
+    "ethereum".to_string()
 }
 
 fn default_unit() -> String {
