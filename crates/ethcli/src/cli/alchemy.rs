@@ -1360,9 +1360,16 @@ async fn handle_token(
             let response = client.token().get_token_metadata(contract).await?;
             print_output(&response, args.format)?;
         }
-        TokenCommands::Allowances { contract, owner, spender } => {
+        TokenCommands::Allowances {
+            contract,
+            owner,
+            spender,
+        } => {
             if !quiet {
-                eprintln!("Fetching allowances from {} to {} for contract {}...", owner, spender, contract);
+                eprintln!(
+                    "Fetching allowances from {} to {} for contract {}...",
+                    owner, spender, contract
+                );
             }
             let response = client
                 .token()

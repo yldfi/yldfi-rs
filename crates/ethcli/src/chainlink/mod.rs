@@ -93,10 +93,7 @@ pub async fn fetch_price_at_block<P: alloy::providers::Provider + Clone>(
     // Feed Registry approach (mainnet) - resolve feed at the same block
     if chain == "ethereum" || chain == "mainnet" || chain == "eth" {
         let registry = FeedRegistry::new(provider.clone());
-        match registry
-            .price_at_block(base, denomination, block)
-            .await
-        {
+        match registry.price_at_block(base, denomination, block).await {
             Ok(price) => return Ok(price),
             Err(ChainlinkError::NoFeed) => {
                 // Fall through

@@ -67,7 +67,10 @@ pub async fn simulate_via_debug_rpc(
 
     // State overrides go in the 4th parameter (index 3)
     if !state_overrides.is_empty() {
-        params.as_array_mut().unwrap().push(serde_json::to_value(&state_overrides)?);
+        params
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::to_value(&state_overrides)?);
     }
 
     let request = serde_json::json!({
