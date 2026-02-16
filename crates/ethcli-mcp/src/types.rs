@@ -3083,9 +3083,9 @@ pub struct EnsoRouteInput {
     pub amount: String,
     /// Sender address (required by Enso API)
     pub from_address: String,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
