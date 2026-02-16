@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.11](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.10...ethcli-mcp-v0.1.11) (2026-02-16)
+
+
+### Bug Fixes
+
+* **mcp:** correct CLI flag names and placement for Alchemy and Moralis tools ([ff55e4d](https://github.com/yldfi/yldfi-rs/commit/ff55e4d074d01d6a6e578bbeae8b098b3d1c3f64))
+* **mcp:** correct CLI flag names and placement for Alchemy and Moralis tools ([0ec24b8](https://github.com/yldfi/yldfi-rs/commit/0ec24b8e9b64969c1ae879f58bff695e56ccad1e))
+* **mcp:** correct CLI flag names and placement for Alchemy and Moralis tools ([#39](https://github.com/yldfi/yldfi-rs/issues/39)) ([ff55e4d](https://github.com/yldfi/yldfi-rs/commit/ff55e4d074d01d6a6e578bbeae8b098b3d1c3f64))
+
 ## [0.1.10](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.9...ethcli-mcp-v0.1.10) (2026-02-16)
 
 
