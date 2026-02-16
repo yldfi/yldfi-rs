@@ -1310,7 +1310,7 @@ async fn fetch_chainlink_rpc(
     let provider = endpoint.provider().clone();
 
     // Try to fetch price via RPC
-    match chainlink::fetch_price(provider, token, chain).await {
+    match chainlink::fetch_price(provider, token, chain, chainlink::denominations::USD).await {
         Ok(price_data) => {
             if let Some(price_f64) = price_data.to_f64() {
                 let price = NormalizedPrice::new(price_f64);

@@ -383,6 +383,8 @@ pub enum TokenCommands {
 
     /// Get token allowances
     Allowances {
+        /// Token contract address
+        contract: String,
         /// Owner address
         owner: String,
         /// Spender address
@@ -1358,13 +1360,20 @@ async fn handle_token(
             let response = client.token().get_token_metadata(contract).await?;
             print_output(&response, args.format)?;
         }
-        TokenCommands::Allowances { owner, spender } => {
+        TokenCommands::Allowances {
+            contract,
+            owner,
+            spender,
+        } => {
             if !quiet {
-                eprintln!("Fetching allowances from {} to {}...", owner, spender);
+                eprintln!(
+                    "Fetching allowances from {} to {} for contract {}...",
+                    owner, spender, contract
+                );
             }
             let response = client
                 .token()
-                .get_token_allowance(owner, spender, owner)
+                .get_token_allowance(contract, owner, spender)
                 .await?;
             print_output(&response, args.format)?;
         }

@@ -38,6 +38,7 @@ pub async fn fetch_price<P: alloy::providers::Provider + Clone>(
     provider: P,
     token: &str,
     chain: &str,
+    denomination: alloy::primitives::Address,
 ) -> Result<PriceData, ChainlinkError> {
     use alloy::primitives::Address;
     use std::str::FromStr;
@@ -53,7 +54,7 @@ pub async fn fetch_price<P: alloy::providers::Provider + Clone>(
     // Try Feed Registry on mainnet
     if chain == "ethereum" || chain == "mainnet" || chain == "eth" {
         let registry = FeedRegistry::new(provider.clone());
-        match registry.latest_price(base, denominations::USD).await {
+        match registry.latest_price(base, denomination).await {
             Ok(price) => return Ok(price),
             Err(ChainlinkError::NoFeed) => {
                 // Fall through to try direct oracle
@@ -77,6 +78,7 @@ pub async fn fetch_price_at_block<P: alloy::providers::Provider + Clone>(
     token: &str,
     chain: &str,
     block: alloy::eips::BlockId,
+    denomination: alloy::primitives::Address,
 ) -> Result<PriceData, ChainlinkError> {
     use alloy::primitives::Address;
     use std::str::FromStr;
@@ -91,10 +93,7 @@ pub async fn fetch_price_at_block<P: alloy::providers::Provider + Clone>(
     // Feed Registry approach (mainnet) - resolve feed at the same block
     if chain == "ethereum" || chain == "mainnet" || chain == "eth" {
         let registry = FeedRegistry::new(provider.clone());
-        match registry
-            .price_at_block(base, denominations::USD, block)
-            .await
-        {
+        match registry.price_at_block(base, denomination, block).await {
             Ok(price) => return Ok(price),
             Err(ChainlinkError::NoFeed) => {
                 // Fall through

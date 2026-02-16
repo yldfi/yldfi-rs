@@ -91,7 +91,7 @@ pub async fn handle(
                 );
             }
 
-            let gas_price = U256::from(*gwei);
+            let gas_price = U256::from(*gwei) * U256::from(1_000_000_000u64);
             let seconds = client
                 .gas_estimate(gas_price)
                 .await

@@ -89,7 +89,7 @@ pub async fn logs(
 
     if let Some(t) = topics {
         for topic in t {
-            builder = builder.arg("--topic").arg(&topic);
+            builder = builder.opt("-e", Some(&topic));
         }
     }
 
@@ -104,7 +104,6 @@ pub async fn tx_analyze(
     hash: &str,
     chain: Option<&str>,
     block: Option<u64>,
-    trace: bool,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("tx").arg(hash).chain(chain);
 
@@ -112,11 +111,7 @@ pub async fn tx_analyze(
         builder = builder.opt("-b", Some(&b.to_string()));
     }
 
-    builder
-        .opt_flag("--trace", trace)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+    builder.execute().await.map_err(ToolError::from)
 }
 
 // =============================================================================
@@ -436,16 +431,9 @@ pub async fn blacklist_scan_portfolio(
         .map_err(ToolError::from)
 }
 
-pub async fn blacklist_path(
-    from: &str,
-    to: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
+pub async fn blacklist_path() -> Result<String, ToolError> {
     ArgsBuilder::new("blacklist")
         .subcommand("path")
-        .arg(from)
-        .arg(to)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -667,17 +655,10 @@ pub async fn gas_oracle(chain: Option<&str>) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn gas_estimate(
-    to: &str,
-    value: Option<&str>,
-    data: Option<&str>,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
+pub async fn gas_estimate(gwei: u64, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("gas")
         .subcommand("estimate")
-        .arg(to)
-        .opt("--value", value)
-        .opt("--data", data)
+        .arg(&gwei.to_string())
         .chain(chain)
         .execute()
         .await
@@ -800,7 +781,7 @@ pub async fn cast_compute_address(deployer: &str, nonce: &str) -> Result<String,
     ArgsBuilder::new("cast")
         .subcommand("compute-address")
         .arg(deployer)
-        .opt("--nonce", Some(nonce))
+        .arg(nonce)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -814,8 +795,8 @@ pub async fn cast_create2(
     ArgsBuilder::new("cast")
         .subcommand("create2")
         .arg(deployer)
-        .opt("--salt", Some(salt))
-        .opt("--init-code-hash", Some(init_code_hash))
+        .arg(salt)
+        .arg(init_code_hash)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -1167,16 +1148,14 @@ pub async fn simulate_tx(
         .map_err(ToolError::from)
 }
 
-pub async fn simulate_bundle(txs: Vec<String>, chain: Option<&str>) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("simulate")
+pub async fn simulate_bundle(txs: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("simulate")
         .subcommand("bundle")
-        .chain(chain);
-
-    for tx in txs {
-        builder = builder.arg(&tx);
-    }
-
-    builder.execute().await.map_err(ToolError::from)
+        .opt("--txs", Some(txs))
+        .chain(chain)
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 pub async fn simulate_list() -> Result<String, ToolError> {
@@ -1787,19 +1766,23 @@ pub async fn tenderly_actions_get_call(id: &str, execution_id: &str) -> Result<S
 
 pub async fn tenderly_alerts_update(
     id: &str,
-    name: Option<&str>,
-    alert_type: Option<&str>,
+    name: &str,
+    alert_type: &str,
     network: Option<&str>,
-    addresses: Option<&str>,
+    addresses: Option<Vec<String>>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("tenderly")
         .subcommand("alerts")
         .subcommand("update")
         .arg(id);
-    builder = builder.opt("--name", name);
-    builder = builder.opt("--alert-type", alert_type);
+    builder = builder.opt("--name", Some(name));
+    builder = builder.opt("--alert-type", Some(alert_type));
     builder = builder.opt("--network", network);
-    builder = builder.opt("--addresses", addresses);
+    if let Some(addrs) = addresses {
+        for addr in &addrs {
+            builder = builder.opt("--address", Some(addr));
+        }
+    }
     builder.execute().await.map_err(ToolError::from)
 }
 
@@ -2032,67 +2015,67 @@ pub async fn doctor() -> Result<String, ToolError> {
 // ALCHEMY (6 subcommands)
 // =============================================================================
 
-pub async fn alchemy_nft(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_nft(address: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("get-nfts")
         .arg(address)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_token(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_token(address: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("token")
         .subcommand("balances")
         .arg(address)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_transfers(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_transfers(address: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("transfers")
         .subcommand("from")
         .arg(address)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_portfolio(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_portfolio(address: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("portfolio")
         .subcommand("tokens")
         .arg(address)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_prices(tokens: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_prices(tokens: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
         .subcommand("by-address")
         .arg(tokens)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_debug(hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_debug(hash: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
         .subcommand("trace-tx")
         .arg(hash)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2101,14 +2084,14 @@ pub async fn alchemy_debug(hash: &str, chain: Option<&str>) -> Result<String, To
 pub async fn alchemy_nft_metadata(
     contract: &str,
     token_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("metadata")
         .arg(contract)
         .arg(token_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2116,13 +2099,13 @@ pub async fn alchemy_nft_metadata(
 
 pub async fn alchemy_nft_floor_price(
     contract: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("floor-price")
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2131,14 +2114,14 @@ pub async fn alchemy_nft_floor_price(
 pub async fn alchemy_nft_owners(
     contract: &str,
     token_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("owners")
         .arg(contract)
         .arg(token_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2147,14 +2130,14 @@ pub async fn alchemy_nft_owners(
 pub async fn alchemy_nft_is_holder(
     address: &str,
     contract: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("is-holder")
         .arg(address)
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2162,29 +2145,31 @@ pub async fn alchemy_nft_is_holder(
 
 pub async fn alchemy_token_metadata(
     contract: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("token")
         .subcommand("metadata")
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
 pub async fn alchemy_token_allowances(
+    contract: &str,
     owner: &str,
     spender: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("token")
         .subcommand("allowances")
+        .arg(contract)
         .arg(owner)
         .arg(spender)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2194,7 +2179,7 @@ pub async fn alchemy_transfers_to(
     address: &str,
     from_block: Option<&str>,
     to_block: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("transfers")
@@ -2202,7 +2187,7 @@ pub async fn alchemy_transfers_to(
         .arg(address)
         .opt("--from-block", from_block)
         .opt("--to-block", to_block)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2210,13 +2195,13 @@ pub async fn alchemy_transfers_to(
 
 pub async fn alchemy_prices_by_address(
     addresses: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
         .subcommand("by-address")
         .arg(addresses)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2228,13 +2213,13 @@ pub async fn alchemy_prices_by_address(
 
 pub async fn alchemy_nft_owners_for_contract(
     contract: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("owners-for-contract")
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2242,13 +2227,13 @@ pub async fn alchemy_nft_owners_for_contract(
 
 pub async fn alchemy_nft_contracts_for_owner(
     address: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("contracts-for-owner")
         .arg(address)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2258,13 +2243,13 @@ pub async fn alchemy_nft_nfts_for_contract(
     contract: &str,
     start_token: Option<&str>,
     limit: Option<u32>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("nfts-for-contract")
         .arg(contract)
-        .chain(chain);
+        .opt("--network", network);
     if let Some(st) = start_token {
         builder = builder.opt("--start-token", Some(st));
     }
@@ -2276,13 +2261,13 @@ pub async fn alchemy_nft_nfts_for_contract(
 
 pub async fn alchemy_nft_contract_metadata(
     contract: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("contract-metadata")
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2290,13 +2275,13 @@ pub async fn alchemy_nft_contract_metadata(
 
 pub async fn alchemy_nft_collection_metadata(
     slug: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("collection-metadata")
         .arg(slug)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2304,13 +2289,13 @@ pub async fn alchemy_nft_collection_metadata(
 
 pub async fn alchemy_nft_search_contract_metadata(
     query: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("search-contract-metadata")
         .arg(query)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2319,14 +2304,14 @@ pub async fn alchemy_nft_search_contract_metadata(
 pub async fn alchemy_nft_compute_rarity(
     contract: &str,
     token_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("compute-rarity")
         .arg(contract)
         .arg(token_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2334,13 +2319,13 @@ pub async fn alchemy_nft_compute_rarity(
 
 pub async fn alchemy_nft_summarize_attributes(
     contract: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("summarize-attributes")
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2349,14 +2334,14 @@ pub async fn alchemy_nft_summarize_attributes(
 pub async fn alchemy_nft_refresh_metadata(
     contract: &str,
     token_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("refresh-metadata")
         .arg(contract)
         .arg(token_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2367,13 +2352,13 @@ pub async fn alchemy_nft_sales(
     token_id: Option<&str>,
     from_block: Option<u64>,
     to_block: Option<u64>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("sales")
         .arg(contract)
-        .chain(chain);
+        .opt("--network", network);
     if let Some(tid) = token_id {
         builder = builder.opt("--token-id", Some(tid));
     }
@@ -2386,22 +2371,25 @@ pub async fn alchemy_nft_sales(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn alchemy_nft_spam_contracts(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_nft_spam_contracts(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("spam-contracts")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_nft_is_spam(contract: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_nft_is_spam(
+    contract: &str,
+    network: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("is-spam")
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2410,14 +2398,14 @@ pub async fn alchemy_nft_is_spam(contract: &str, chain: Option<&str>) -> Result<
 pub async fn alchemy_nft_is_airdrop(
     contract: &str,
     token_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("is-airdrop")
         .arg(contract)
         .arg(token_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2425,13 +2413,13 @@ pub async fn alchemy_nft_is_airdrop(
 
 pub async fn alchemy_nft_report_spam(
     contract: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("report-spam")
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2441,13 +2429,13 @@ pub async fn alchemy_nft_nfts_for_collection(
     slug: &str,
     start_token: Option<&str>,
     limit: Option<u32>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("nfts-for-collection")
         .arg(slug)
-        .chain(chain);
+        .opt("--network", network);
     if let Some(st) = start_token {
         builder = builder.opt("--start-token", Some(st));
     }
@@ -2459,13 +2447,13 @@ pub async fn alchemy_nft_nfts_for_collection(
 
 pub async fn alchemy_nft_collections_for_owner(
     address: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("collections-for-owner")
         .arg(address)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2473,13 +2461,13 @@ pub async fn alchemy_nft_collections_for_owner(
 
 pub async fn alchemy_nft_invalidate_contract(
     contract: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .subcommand("invalidate-contract")
         .arg(contract)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2492,14 +2480,14 @@ pub async fn alchemy_nft_invalidate_contract(
 pub async fn alchemy_token_balances_for_tokens(
     address: &str,
     tokens: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("token")
         .subcommand("balances-for-tokens")
         .arg(address)
         .arg(tokens)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2511,13 +2499,13 @@ pub async fn alchemy_token_balances_for_tokens(
 
 pub async fn alchemy_transfers_all(
     address: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("transfers")
         .subcommand("all")
         .arg(address)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2529,13 +2517,13 @@ pub async fn alchemy_transfers_all(
 
 pub async fn alchemy_portfolio_token_info(
     tokens: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("portfolio")
         .subcommand("token-info")
         .arg(tokens)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2544,14 +2532,14 @@ pub async fn alchemy_portfolio_token_info(
 pub async fn alchemy_portfolio_nfts(
     address: &str,
     with_metadata: bool,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("portfolio")
         .subcommand("nfts")
         .arg(address)
         .opt_flag("--with-metadata", with_metadata)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2559,13 +2547,13 @@ pub async fn alchemy_portfolio_nfts(
 
 pub async fn alchemy_portfolio_nft_contracts(
     address: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("portfolio")
         .subcommand("nft-contracts")
         .arg(address)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2577,13 +2565,13 @@ pub async fn alchemy_portfolio_nft_contracts(
 
 pub async fn alchemy_prices_by_symbol(
     symbols: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
         .subcommand("by-symbol")
         .arg(symbols)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2594,7 +2582,7 @@ pub async fn alchemy_prices_historical_by_symbol(
     start_time: &str,
     end_time: &str,
     interval: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
@@ -2603,7 +2591,7 @@ pub async fn alchemy_prices_historical_by_symbol(
         .arg(start_time)
         .arg(end_time)
         .opt("--interval", interval)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2614,7 +2602,7 @@ pub async fn alchemy_prices_historical_by_address(
     start_time: &str,
     end_time: &str,
     interval: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("prices")
@@ -2623,7 +2611,7 @@ pub async fn alchemy_prices_historical_by_address(
         .arg(start_time)
         .arg(end_time)
         .opt("--interval", interval)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2640,7 +2628,7 @@ pub async fn alchemy_debug_trace_call(
     data: Option<&str>,
     value: Option<&str>,
     gas: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
@@ -2651,7 +2639,7 @@ pub async fn alchemy_debug_trace_call(
         .opt("--data", data)
         .opt("--value", value)
         .opt("--gas", gas)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2659,13 +2647,13 @@ pub async fn alchemy_debug_trace_call(
 
 pub async fn alchemy_debug_trace_block_by_hash(
     hash: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
         .subcommand("trace-block-by-hash")
         .arg(hash)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2673,13 +2661,13 @@ pub async fn alchemy_debug_trace_block_by_hash(
 
 pub async fn alchemy_debug_trace_block_by_number(
     block: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
         .subcommand("trace-block-by-number")
         .arg(block)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2687,13 +2675,13 @@ pub async fn alchemy_debug_trace_block_by_number(
 
 pub async fn alchemy_debug_get_raw_block(
     block: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
         .subcommand("get-raw-block")
         .arg(block)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2701,13 +2689,13 @@ pub async fn alchemy_debug_get_raw_block(
 
 pub async fn alchemy_debug_get_raw_header(
     block: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
         .subcommand("get-raw-header")
         .arg(block)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2715,13 +2703,13 @@ pub async fn alchemy_debug_get_raw_header(
 
 pub async fn alchemy_debug_get_raw_receipts(
     block: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("debug")
         .subcommand("get-raw-receipts")
         .arg(block)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2731,12 +2719,12 @@ pub async fn alchemy_debug_get_raw_receipts(
 // ALCHEMY TRACE (Parity-style)
 // =============================================================================
 
-pub async fn alchemy_trace_block(block: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_trace_block(block: &str, network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
         .subcommand("block")
         .arg(block)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2751,7 +2739,7 @@ pub async fn alchemy_trace_call(
     value: Option<&str>,
     gas: Option<&str>,
     trace_types: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
@@ -2763,7 +2751,7 @@ pub async fn alchemy_trace_call(
         .opt("--value", value)
         .opt("--gas", gas)
         .opt("--trace-types", trace_types)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2772,14 +2760,14 @@ pub async fn alchemy_trace_call(
 pub async fn alchemy_trace_get(
     hash: &str,
     indices: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
         .subcommand("get")
         .arg(hash)
         .arg(indices)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2788,14 +2776,14 @@ pub async fn alchemy_trace_get(
 pub async fn alchemy_trace_raw_transaction(
     raw_tx: &str,
     trace_types: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
         .subcommand("raw-transaction")
         .arg(raw_tx)
         .opt("--trace-types", trace_types)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2804,14 +2792,14 @@ pub async fn alchemy_trace_raw_transaction(
 pub async fn alchemy_trace_replay_block_transactions(
     block: &str,
     trace_types: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
         .subcommand("replay-block-transactions")
         .arg(block)
         .opt("--trace-types", trace_types)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2820,14 +2808,14 @@ pub async fn alchemy_trace_replay_block_transactions(
 pub async fn alchemy_trace_replay_transaction(
     hash: &str,
     trace_types: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
         .subcommand("replay-transaction")
         .arg(hash)
         .opt("--trace-types", trace_types)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2835,13 +2823,13 @@ pub async fn alchemy_trace_replay_transaction(
 
 pub async fn alchemy_trace_transaction(
     hash: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("trace")
         .subcommand("transaction")
         .arg(hash)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2854,7 +2842,7 @@ pub async fn alchemy_trace_filter(
     to_address: Option<&str>,
     after: Option<u32>,
     count: Option<u32>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("trace")
@@ -2863,7 +2851,7 @@ pub async fn alchemy_trace_filter(
         .opt("--to-block", to_block)
         .opt("--from-address", from_address)
         .opt("--to-address", to_address)
-        .chain(chain);
+        .opt("--network", network);
     if let Some(a) = after {
         builder = builder.opt("--after", Some(&a.to_string()));
     }
@@ -2883,7 +2871,7 @@ pub async fn alchemy_sim_asset_changes(
     data: Option<&str>,
     value: Option<&str>,
     gas: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("simulation")
@@ -2893,7 +2881,7 @@ pub async fn alchemy_sim_asset_changes(
         .opt("--data", data)
         .opt("--value", value)
         .opt("--gas", gas)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2908,7 +2896,7 @@ pub async fn alchemy_sim_execution(
     gas: Option<&str>,
     block: Option<&str>,
     trace_format: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("simulation")
@@ -2920,7 +2908,7 @@ pub async fn alchemy_sim_execution(
         .opt("--gas", gas)
         .opt("--block", block)
         .opt("--trace-format", trace_format)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2931,12 +2919,12 @@ pub async fn alchemy_sim_execution(
 // =============================================================================
 
 pub async fn alchemy_bundler_supported_entry_points(
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
         .subcommand("supported-entry-points")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2945,14 +2933,14 @@ pub async fn alchemy_bundler_supported_entry_points(
 pub async fn alchemy_bundler_estimate_gas(
     user_op_json: &str,
     entry_point: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
         .subcommand("estimate-gas")
         .arg(user_op_json)
         .opt("--entry-point", entry_point)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2960,13 +2948,13 @@ pub async fn alchemy_bundler_estimate_gas(
 
 pub async fn alchemy_bundler_get_by_hash(
     hash: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
         .subcommand("get-by-hash")
         .arg(hash)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2974,23 +2962,23 @@ pub async fn alchemy_bundler_get_by_hash(
 
 pub async fn alchemy_bundler_get_receipt(
     hash: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
         .subcommand("get-receipt")
         .arg(hash)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_bundler_max_priority_fee(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_bundler_max_priority_fee(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("bundler")
         .subcommand("max-priority-fee")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3000,11 +2988,11 @@ pub async fn alchemy_bundler_max_priority_fee(chain: Option<&str>) -> Result<Str
 // ALCHEMY GAS MANAGER
 // =============================================================================
 
-pub async fn alchemy_gas_manager_list_policies(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_gas_manager_list_policies(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
         .subcommand("list-policies")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3012,13 +3000,13 @@ pub async fn alchemy_gas_manager_list_policies(chain: Option<&str>) -> Result<St
 
 pub async fn alchemy_gas_manager_get_policy(
     policy_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
         .subcommand("get-policy")
         .arg(policy_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3026,13 +3014,13 @@ pub async fn alchemy_gas_manager_get_policy(
 
 pub async fn alchemy_gas_manager_policy_stats(
     policy_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
         .subcommand("policy-stats")
         .arg(policy_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3040,13 +3028,13 @@ pub async fn alchemy_gas_manager_policy_stats(
 
 pub async fn alchemy_gas_manager_list_sponsorships(
     policy_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("gas-manager")
         .subcommand("list-sponsorships")
         .arg(policy_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3056,11 +3044,11 @@ pub async fn alchemy_gas_manager_list_sponsorships(
 // ALCHEMY NOTIFY
 // =============================================================================
 
-pub async fn alchemy_notify_list_webhooks(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_notify_list_webhooks(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("notify")
         .subcommand("list-webhooks")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3068,13 +3056,13 @@ pub async fn alchemy_notify_list_webhooks(chain: Option<&str>) -> Result<String,
 
 pub async fn alchemy_notify_list_addresses(
     webhook_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("notify")
         .subcommand("list-addresses")
         .arg(webhook_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3082,13 +3070,13 @@ pub async fn alchemy_notify_list_addresses(
 
 pub async fn alchemy_notify_list_nft_filters(
     webhook_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("notify")
         .subcommand("list-nft-filters")
         .arg(webhook_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3098,164 +3086,164 @@ pub async fn alchemy_notify_list_nft_filters(
 // ALCHEMY BEACON
 // =============================================================================
 
-pub async fn alchemy_beacon_genesis(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_genesis(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("genesis")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_fork_schedule(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_fork_schedule(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("fork-schedule")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_deposit_contract(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_deposit_contract(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("deposit-contract")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_spec(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_spec(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("spec")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_headers(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_headers(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("headers")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_header(
     block_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("header")
         .arg(block_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_block(
     block_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("block")
         .arg(block_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_block_root(
     block_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("block-root")
         .arg(block_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_block_attestations(
     block_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("block-attestations")
         .arg(block_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_blob_sidecars(
     block_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("blob-sidecars")
         .arg(block_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_state_root(
     state_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("state-root")
         .arg(state_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_state_fork(
     state_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("state-fork")
         .arg(state_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_finality_checkpoints(
     state_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("finality-checkpoints")
         .arg(state_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_validators(
     state_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("validators")
         .arg(state_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3263,120 +3251,120 @@ pub async fn alchemy_beacon_validators(
 pub async fn alchemy_beacon_validator(
     state_id: &str,
     validator_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("validator")
         .arg(state_id)
         .arg(validator_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_validator_balances(
     state_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("validator-balances")
         .arg(state_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_sync_committees(
     state_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("sync-committees")
         .arg(state_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_randao(
     state_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("randao")
         .arg(state_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_pool_attestations(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_pool_attestations(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("pool-attestations")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_voluntary_exits(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_voluntary_exits(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("voluntary-exits")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_block_rewards(
     block_id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("block-rewards")
         .arg(block_id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_syncing(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_syncing(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("syncing")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_version(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_version(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("version")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_peers(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_peers(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("peers")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
-pub async fn alchemy_beacon_peer_count(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_beacon_peer_count(network: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("peer-count")
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3384,27 +3372,27 @@ pub async fn alchemy_beacon_peer_count(chain: Option<&str>) -> Result<String, To
 pub async fn alchemy_beacon_attester_duties(
     epoch: &str,
     validators: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("attester-duties")
         .arg(epoch)
         .arg(validators)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_proposer_duties(
     epoch: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("proposer-duties")
         .arg(epoch)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3412,14 +3400,14 @@ pub async fn alchemy_beacon_proposer_duties(
 pub async fn alchemy_beacon_sync_duties(
     epoch: &str,
     validators: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .subcommand("sync-duties")
         .arg(epoch)
         .arg(validators)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3429,51 +3417,54 @@ pub async fn alchemy_beacon_sync_duties(
 // ALCHEMY SOLANA
 // =============================================================================
 
-pub async fn alchemy_solana_get_asset(id: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn alchemy_solana_get_asset(
+    id: &str,
+    network: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-asset")
         .arg(id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_solana_get_assets(
     ids: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-assets")
         .arg(ids)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_solana_get_asset_proof(
     id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-asset-proof")
         .arg(id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_solana_get_asset_proofs(
     ids: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-asset-proofs")
         .arg(ids)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3483,13 +3474,13 @@ pub async fn alchemy_solana_get_assets_by_owner(
     owner: &str,
     page: Option<u32>,
     limit: Option<u32>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-assets-by-owner")
         .arg(owner)
-        .chain(chain);
+        .opt("--network", network);
     if let Some(p) = page {
         builder = builder.opt("--page", Some(&p.to_string()));
     }
@@ -3501,26 +3492,26 @@ pub async fn alchemy_solana_get_assets_by_owner(
 
 pub async fn alchemy_solana_get_assets_by_creator(
     creator: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-assets-by-creator")
         .arg(creator)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_solana_get_assets_by_authority(
     authority: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-assets-by-authority")
         .arg(authority)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3528,14 +3519,14 @@ pub async fn alchemy_solana_get_assets_by_authority(
 pub async fn alchemy_solana_get_assets_by_group(
     group_key: &str,
     group_value: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-assets-by-group")
         .arg(group_key)
         .arg(group_value)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3544,14 +3535,14 @@ pub async fn alchemy_solana_get_assets_by_group(
 pub async fn alchemy_solana_get_token_accounts(
     owner: Option<&str>,
     mint: Option<&str>,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-token-accounts")
         .opt("--owner", owner)
         .opt("--mint", mint)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3559,26 +3550,26 @@ pub async fn alchemy_solana_get_token_accounts(
 
 pub async fn alchemy_solana_get_nft_editions(
     mint: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-nft-editions")
         .arg(mint)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_solana_get_asset_signatures(
     id: &str,
-    chain: Option<&str>,
+    network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
         .subcommand("solana")
         .subcommand("get-asset-signatures")
         .arg(id)
-        .chain(chain)
+        .opt("--network", network)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3593,7 +3584,7 @@ pub async fn gecko_simple_price(ids: &str, vs: Option<&str>) -> Result<String, T
         .subcommand("simple")
         .subcommand("price")
         .arg(ids)
-        .opt("--vs-currencies", vs)
+        .opt("--vs", vs)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3621,7 +3612,7 @@ pub async fn gecko_global() -> Result<String, ToolError> {
 pub async fn gecko_nfts(id: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("gecko")
         .subcommand("nfts")
-        .subcommand("list")
+        .subcommand("get")
         .arg(id)
         .execute()
         .await
@@ -4126,33 +4117,30 @@ pub async fn llama_coins(addresses: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn llama_yields(
-    chain: Option<&str>,
-    _protocol: Option<&str>,
-) -> Result<String, ToolError> {
-    // Note: CLI doesn't support --protocol filter, only --chain
+pub async fn llama_yields() -> Result<String, ToolError> {
     ArgsBuilder::new("llama")
         .subcommand("yields")
         .subcommand("pools")
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn llama_volumes(protocol: Option<&str>) -> Result<String, ToolError> {
+pub async fn llama_volumes(protocol: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("llama")
         .subcommand("volumes")
-        .opt("--protocol", protocol)
+        .subcommand("dex-protocol")
+        .arg(protocol)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn llama_fees(protocol: Option<&str>) -> Result<String, ToolError> {
+pub async fn llama_fees(protocol: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("llama")
         .subcommand("fees")
-        .opt("--protocol", protocol)
+        .subcommand("protocol")
+        .arg(protocol)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4169,56 +4157,69 @@ pub async fn llama_stablecoins() -> Result<String, ToolError> {
 
 // =============================================================================
 // MORALIS (12 subcommands)
-// Note: Moralis CLI doesn't support --chain flag - chain is handled internally
 // =============================================================================
 
 // --- Moralis Token ---
 
-pub async fn moralis_token_metadata(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_metadata(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("metadata")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_price(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_price(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("price")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_holders(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_holders(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("holders")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_pairs(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_pairs(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("pairs")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_transfers(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_transfers(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("transfers")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4226,41 +4227,57 @@ pub async fn moralis_token_transfers(address: &str) -> Result<String, ToolError>
 
 // --- Moralis Wallet ---
 
-pub async fn moralis_wallet_balance(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_balance(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("balance")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_wallet_tokens(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_tokens(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("tokens")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_wallet_history(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_history(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("history")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_wallet_net_worth(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_net_worth(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("net-worth")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4268,21 +4285,29 @@ pub async fn moralis_wallet_net_worth(address: &str) -> Result<String, ToolError
 
 // --- Moralis Resolve ---
 
-pub async fn moralis_resolve_domain(domain: &str) -> Result<String, ToolError> {
+pub async fn moralis_resolve_domain(
+    domain: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("resolve")
         .subcommand("domain")
         .arg(domain)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_resolve_address(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_resolve_address(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("resolve")
         .subcommand("address")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4290,28 +4315,31 @@ pub async fn moralis_resolve_address(address: &str) -> Result<String, ToolError>
 
 // --- Moralis Market ---
 
-pub async fn moralis_market_top_tokens() -> Result<String, ToolError> {
+pub async fn moralis_market_top_tokens(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("market")
         .subcommand("top-tokens")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_market_top_movers() -> Result<String, ToolError> {
+pub async fn moralis_market_top_movers(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("market")
         .subcommand("top-movers")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_market_top_nfts() -> Result<String, ToolError> {
+pub async fn moralis_market_top_nfts(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("market")
         .subcommand("top-nfts")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4319,51 +4347,68 @@ pub async fn moralis_market_top_nfts() -> Result<String, ToolError> {
 
 // --- Moralis Wallet (additional) ---
 
-pub async fn moralis_wallet_transactions(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_transactions(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("transactions")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_wallet_active_chains(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_active_chains(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("active-chains")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_wallet_approvals(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_approvals(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("approvals")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_wallet_stats(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_stats(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("stats")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_wallet_profitability(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_profitability(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("profitability")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4371,60 +4416,72 @@ pub async fn moralis_wallet_profitability(address: &str) -> Result<String, ToolE
 
 // --- Moralis Token (additional) ---
 
-pub async fn moralis_token_swaps(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_swaps(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("swaps")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_stats(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_stats(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("stats")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_search(query: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_search(query: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("search")
         .arg(query)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_trending() -> Result<String, ToolError> {
+pub async fn moralis_token_trending(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("trending")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_pair_ohlcv(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_pair_ohlcv(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("pair-ohlcv")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_pair_stats(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_pair_stats(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("pair-stats")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4432,82 +4489,106 @@ pub async fn moralis_token_pair_stats(address: &str) -> Result<String, ToolError
 
 // --- Moralis NFT ---
 
-pub async fn moralis_nft_list(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_list(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("list")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_metadata(contract: &str, token_id: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_metadata(
+    contract: &str,
+    token_id: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("metadata")
         .arg(contract)
         .arg(token_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_transfers(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_transfers(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("transfers")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_collection(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_collection(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("collection")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_collection_stats(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_collection_stats(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("collection-stats")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_owners(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_owners(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("owners")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_trades(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_trades(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("trades")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_floor_price(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_floor_price(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("floor-price")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4515,21 +4596,29 @@ pub async fn moralis_nft_floor_price(address: &str) -> Result<String, ToolError>
 
 // --- Moralis Wallet (new) ---
 
-pub async fn moralis_wallet_profitability_tokens(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_profitability_tokens(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("profitability-tokens")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_wallet_multiple_balances(addresses: &str) -> Result<String, ToolError> {
+pub async fn moralis_wallet_multiple_balances(
+    addresses: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
         .subcommand("multiple-balances")
         .arg(addresses)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4537,150 +4626,207 @@ pub async fn moralis_wallet_multiple_balances(addresses: &str) -> Result<String,
 
 // --- Moralis Token (new) ---
 
-pub async fn moralis_token_wallet_swaps(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_wallet_swaps(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("wallet-swaps")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_pair_swaps(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_pair_swaps(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("pair-swaps")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_categories() -> Result<String, ToolError> {
+pub async fn moralis_token_categories(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("categories")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_exchange_new_tokens(exchange: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_exchange_new_tokens(
+    exchange: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("exchange-new-tokens")
         .arg(exchange)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_exchange_bonding_tokens(exchange: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_exchange_bonding_tokens(
+    exchange: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("exchange-bonding-tokens")
         .arg(exchange)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_exchange_graduated_tokens(exchange: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_exchange_graduated_tokens(
+    exchange: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("exchange-graduated-tokens")
         .arg(exchange)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_multiple_prices(addresses: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_multiple_prices(
+    addresses: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("multiple-prices")
         .arg(addresses)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_by_symbols(symbols: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_by_symbols(
+    symbols: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("by-symbols")
         .arg(symbols)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_contract_transfers(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_contract_transfers(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("contract-transfers")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_holders_summary(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_holders_summary(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("holders-summary")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_holders_historical(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_holders_historical(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("holders-historical")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_pairs_stats(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_pairs_stats(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("pairs-stats")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_top_gainers(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_top_gainers(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("top-gainers")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_pair_snipers(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_pair_snipers(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("pair-snipers")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_bonding_status(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_token_bonding_status(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("token")
         .subcommand("bonding-status")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4688,21 +4834,29 @@ pub async fn moralis_token_bonding_status(address: &str) -> Result<String, ToolE
 
 // --- Moralis NFT (new) ---
 
-pub async fn moralis_nft_wallet_collections(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_wallet_collections(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("wallet-collections")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_contract_transfers(contract: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_contract_transfers(
+    contract: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("contract-transfers")
         .arg(contract)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4711,23 +4865,30 @@ pub async fn moralis_nft_contract_transfers(contract: &str) -> Result<String, To
 pub async fn moralis_nft_token_transfers(
     contract: &str,
     token_id: &str,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("token-transfers")
         .arg(contract)
         .arg(token_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_token_owners(contract: &str, token_id: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_token_owners(
+    contract: &str,
+    token_id: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("token-owners")
         .arg(contract)
         .arg(token_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4736,63 +4897,86 @@ pub async fn moralis_nft_token_owners(contract: &str, token_id: &str) -> Result<
 pub async fn moralis_nft_token_floor_price(
     contract: &str,
     token_id: &str,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("token-floor-price")
         .arg(contract)
         .arg(token_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_token_trades(contract: &str, token_id: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_token_trades(
+    contract: &str,
+    token_id: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("token-trades")
         .arg(contract)
         .arg(token_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_wallet_trades(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_wallet_trades(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("wallet-trades")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_collection_traits(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_collection_traits(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("collection-traits")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_collection_traits_paginated(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_collection_traits_paginated(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("collection-traits-paginated")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_unique_owners(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_unique_owners(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("unique-owners")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4801,93 +4985,128 @@ pub async fn moralis_nft_unique_owners(address: &str) -> Result<String, ToolErro
 pub async fn moralis_nft_resync_metadata(
     contract: &str,
     token_id: &str,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("resync-metadata")
         .arg(contract)
         .arg(token_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_multiple_nfts(tokens: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_multiple_nfts(
+    tokens: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("multiple-nfts")
         .arg(tokens)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_floor_price_historical(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_floor_price_historical(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("floor-price-historical")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_sync_collection(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_sync_collection(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("sync-collection")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_contract_nfts(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_contract_nfts(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("contract-nfts")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_multiple_collections(addresses: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_multiple_collections(
+    addresses: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("multiple-collections")
         .arg(addresses)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_resync_traits(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_resync_traits(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("resync-traits")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_collection_prices(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_collection_prices(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("collection-prices")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_nft_token_prices(contract: &str, token_id: &str) -> Result<String, ToolError> {
+pub async fn moralis_nft_token_prices(
+    contract: &str,
+    token_id: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .subcommand("token-prices")
         .arg(contract)
         .arg(token_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4895,21 +5114,29 @@ pub async fn moralis_nft_token_prices(contract: &str, token_id: &str) -> Result<
 
 // --- Moralis Resolve (new) ---
 
-pub async fn moralis_resolve_address_domains(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_resolve_address_domains(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("resolve")
         .subcommand("address-domains")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_resolve_ens_domain(domain: &str) -> Result<String, ToolError> {
+pub async fn moralis_resolve_ens_domain(
+    domain: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("resolve")
         .subcommand("ens-domain")
         .arg(domain)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4917,28 +5144,31 @@ pub async fn moralis_resolve_ens_domain(domain: &str) -> Result<String, ToolErro
 
 // --- Moralis Market (new) ---
 
-pub async fn moralis_market_hottest_nfts() -> Result<String, ToolError> {
+pub async fn moralis_market_hottest_nfts(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("market")
         .subcommand("hottest-nfts")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_market_global_market_cap() -> Result<String, ToolError> {
+pub async fn moralis_market_global_market_cap(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("market")
         .subcommand("global-market-cap")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_market_global_volume() -> Result<String, ToolError> {
+pub async fn moralis_market_global_volume(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("market")
         .subcommand("global-volume")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4946,11 +5176,15 @@ pub async fn moralis_market_global_volume() -> Result<String, ToolError> {
 
 // --- Moralis Transaction ---
 
-pub async fn moralis_transaction_get(tx_hash: &str) -> Result<String, ToolError> {
+pub async fn moralis_transaction_get(
+    tx_hash: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("transaction")
         .subcommand("get")
         .arg(tx_hash)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4959,22 +5193,28 @@ pub async fn moralis_transaction_get(tx_hash: &str) -> Result<String, ToolError>
 pub async fn moralis_transaction_verbose(
     tx_hash: &str,
     include_internal: bool,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("transaction")
         .subcommand("verbose")
         .arg(tx_hash)
         .opt_flag("--include-internal", include_internal)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_transaction_wallet(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_transaction_wallet(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("transaction")
         .subcommand("wallet")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4983,12 +5223,14 @@ pub async fn moralis_transaction_wallet(address: &str) -> Result<String, ToolErr
 pub async fn moralis_transaction_wallet_verbose(
     address: &str,
     include_internal: bool,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("transaction")
         .subcommand("wallet-verbose")
         .arg(address)
         .opt_flag("--include-internal", include_internal)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4999,31 +5241,38 @@ pub async fn moralis_transaction_wallet_verbose(
 pub async fn moralis_block_get(
     block_number_or_hash: &str,
     include_transactions: bool,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("block")
         .subcommand("get")
         .arg(block_number_or_hash)
         .opt_flag("--include-transactions", include_transactions)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_block_latest() -> Result<String, ToolError> {
+pub async fn moralis_block_latest(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("block")
         .subcommand("latest")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_block_date_to_block(date: &str) -> Result<String, ToolError> {
+pub async fn moralis_block_date_to_block(
+    date: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("block")
         .subcommand("date-to-block")
         .arg(date)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5035,6 +5284,7 @@ pub async fn moralis_defi_pair_price(
     token0: &str,
     token1: &str,
     exchange: Option<&str>,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("defi")
@@ -5042,16 +5292,21 @@ pub async fn moralis_defi_pair_price(
         .arg(token0)
         .arg(token1)
         .opt("--exchange", exchange)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_defi_pair_reserves(pair_address: &str) -> Result<String, ToolError> {
+pub async fn moralis_defi_pair_reserves(
+    pair_address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("defi")
         .subcommand("pair-reserves")
         .arg(pair_address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5061,6 +5316,7 @@ pub async fn moralis_defi_pair_address(
     token0: &str,
     token1: &str,
     exchange: Option<&str>,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("defi")
@@ -5068,26 +5324,35 @@ pub async fn moralis_defi_pair_address(
         .arg(token0)
         .arg(token1)
         .opt("--exchange", exchange)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_defi_wallet_summary(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_defi_wallet_summary(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("defi")
         .subcommand("wallet-summary")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_defi_wallet_positions(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_defi_wallet_positions(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("defi")
         .subcommand("wallet-positions")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5096,12 +5361,14 @@ pub async fn moralis_defi_wallet_positions(address: &str) -> Result<String, Tool
 pub async fn moralis_defi_protocol_positions(
     address: &str,
     protocol: &str,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("defi")
         .subcommand("protocol-positions")
         .arg(address)
         .arg(protocol)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5109,102 +5376,121 @@ pub async fn moralis_defi_protocol_positions(
 
 // --- Moralis Discovery ---
 
-pub async fn moralis_discovery_rising_liquidity() -> Result<String, ToolError> {
+pub async fn moralis_discovery_rising_liquidity(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("rising-liquidity")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_buying_pressure() -> Result<String, ToolError> {
+pub async fn moralis_discovery_buying_pressure(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("buying-pressure")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_solid_performers() -> Result<String, ToolError> {
+pub async fn moralis_discovery_solid_performers(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("solid-performers")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_experienced_buyers() -> Result<String, ToolError> {
+pub async fn moralis_discovery_experienced_buyers(
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("experienced-buyers")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_risky_bets() -> Result<String, ToolError> {
+pub async fn moralis_discovery_risky_bets(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("risky-bets")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_blue_chip() -> Result<String, ToolError> {
+pub async fn moralis_discovery_blue_chip(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("blue-chip")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_top_gainers() -> Result<String, ToolError> {
+pub async fn moralis_discovery_top_gainers(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("top-gainers")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_top_losers() -> Result<String, ToolError> {
+pub async fn moralis_discovery_top_losers(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("top-losers")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_trending() -> Result<String, ToolError> {
+pub async fn moralis_discovery_trending(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("trending")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_token_analytics(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_discovery_token_analytics(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("token-analytics")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_token_score(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_discovery_token_score(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("token-score")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5220,6 +5506,7 @@ pub async fn moralis_discovery_filter(
     max_volume_24h: Option<f64>,
     min_holders: Option<i64>,
     min_security_score: Option<i32>,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("moralis")
         .subcommand("discovery")
@@ -5250,14 +5537,22 @@ pub async fn moralis_discovery_filter(
         builder = builder.arg("--min-security-score").arg(&v.to_string());
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .opt("--chain", chain)
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
-pub async fn moralis_discovery_token(address: &str) -> Result<String, ToolError> {
+pub async fn moralis_discovery_token(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("discovery")
         .subcommand("token")
         .arg(address)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5270,6 +5565,7 @@ pub async fn moralis_analytics_timeseries(
     timeframe: Option<&str>,
     from_date: Option<&str>,
     to_date: Option<&str>,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("analytics")
@@ -5278,16 +5574,21 @@ pub async fn moralis_analytics_timeseries(
         .opt("--timeframe", timeframe)
         .opt("--from-date", from_date)
         .opt("--to-date", to_date)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_analytics_batch(addresses: &str) -> Result<String, ToolError> {
+pub async fn moralis_analytics_batch(
+    addresses: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("analytics")
         .subcommand("batch")
         .arg(addresses)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5295,40 +5596,53 @@ pub async fn moralis_analytics_batch(addresses: &str) -> Result<String, ToolErro
 
 // --- Moralis Entities ---
 
-pub async fn moralis_entities_search(query: &str) -> Result<String, ToolError> {
+pub async fn moralis_entities_search(
+    query: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("entities")
         .subcommand("search")
         .arg(query)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_entities_get(entity_id: &str) -> Result<String, ToolError> {
+pub async fn moralis_entities_get(
+    entity_id: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("entities")
         .subcommand("get")
         .arg(entity_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_entities_categories() -> Result<String, ToolError> {
+pub async fn moralis_entities_categories(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("entities")
         .subcommand("categories")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_entities_category_entities(category_id: &str) -> Result<String, ToolError> {
+pub async fn moralis_entities_category_entities(
+    category_id: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("entities")
         .subcommand("category-entities")
         .arg(category_id)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5336,19 +5650,21 @@ pub async fn moralis_entities_category_entities(category_id: &str) -> Result<Str
 
 // --- Moralis Volume ---
 
-pub async fn moralis_volume_chains() -> Result<String, ToolError> {
+pub async fn moralis_volume_chains(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("volume")
         .subcommand("chains")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_volume_categories() -> Result<String, ToolError> {
+pub async fn moralis_volume_categories(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("volume")
         .subcommand("categories")
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5358,6 +5674,7 @@ pub async fn moralis_volume_timeseries(
     timeframe: Option<&str>,
     from_date: Option<&str>,
     to_date: Option<&str>,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("volume")
@@ -5365,6 +5682,7 @@ pub async fn moralis_volume_timeseries(
         .opt("--timeframe", timeframe)
         .opt("--from-date", from_date)
         .opt("--to-date", to_date)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5375,6 +5693,7 @@ pub async fn moralis_volume_category_timeseries(
     timeframe: Option<&str>,
     from_date: Option<&str>,
     to_date: Option<&str>,
+    chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("volume")
@@ -5383,6 +5702,7 @@ pub async fn moralis_volume_category_timeseries(
         .opt("--timeframe", timeframe)
         .opt("--from-date", from_date)
         .opt("--to-date", to_date)
+        .opt("--chain", chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5400,64 +5720,63 @@ pub async fn dsim_chains() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn dsim_balances(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn dsim_balances(address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("dsim")
         .subcommand("balances")
         .subcommand("get")
         .arg(address)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn dsim_collectibles(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn dsim_collectibles(address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("dsim")
         .subcommand("collectibles")
+        .subcommand("get")
         .arg(address)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn dsim_activity(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn dsim_activity(address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("dsim")
         .subcommand("activity")
+        .subcommand("get")
         .arg(address)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn dsim_token(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn dsim_token(address: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("dsim")
         .subcommand("token")
         .subcommand("info")
         .arg(address)
-        .chain(chain)
+        .opt("--chain-id", chain_id)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn dsim_holders(token: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn dsim_holders(token: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("dsim")
         .subcommand("holders")
         .subcommand("get")
         .arg(token)
-        .chain(chain)
+        .opt("--chain-id", chain_id)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn dsim_defi(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn dsim_defi(address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("dsim")
         .subcommand("defi")
+        .subcommand("positions")
         .arg(address)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5907,21 +6226,23 @@ pub async fn curve_prices(chain: Option<&str>) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn curve_ohlc(pool: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn curve_ohlc(chain: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("ohlc")
-        .arg(pool)
-        .chain(chain)
+        .subcommand("pool")
+        .arg(chain)
+        .arg(address)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn curve_trades(pool: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn curve_trades(chain: &str, address: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("trades")
-        .arg(pool)
-        .chain(chain)
+        .subcommand("get")
+        .arg(chain)
+        .arg(address)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6521,11 +6842,11 @@ pub async fn ccxt_markets(exchange: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn ccxt_compare(symbol: &str, exchanges: Option<&str>) -> Result<String, ToolError> {
+pub async fn ccxt_compare(symbol: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("ccxt")
         .subcommand("compare")
         .arg(symbol)
-        .opt("--exchanges", exchanges)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6620,14 +6941,14 @@ pub async fn uniswap_positions(
 }
 
 pub async fn uniswap_balance(
-    address: &str,
     token: &str,
+    account: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("uniswap")
         .subcommand("balance")
-        .arg(address)
         .arg(token)
+        .arg(account)
         .chain(chain)
         .execute()
         .await
@@ -6647,50 +6968,58 @@ pub async fn uniswap_addresses(chain: Option<&str>) -> Result<String, ToolError>
 // KONG (5 subcommands) - Yearn/Kong
 // =============================================================================
 
-pub async fn kong_vaults(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn kong_vaults(chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("kong")
         .subcommand("vaults")
         .subcommand("list")
-        .chain(chain)
+        .opt("--chain-id", chain_id)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn kong_strategies(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn kong_strategies(chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("kong")
         .subcommand("strategies")
         .subcommand("list")
-        .chain(chain)
+        .opt("--chain-id", chain_id)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn kong_prices(tokens: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn kong_prices(address: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("kong")
         .subcommand("prices")
-        .arg(tokens)
-        .chain(chain)
+        .subcommand("current")
+        .opt("--chain-id", chain_id)
+        .arg(address)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn kong_tvl(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn kong_tvl(address: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("kong")
         .subcommand("tvl")
-        .chain(chain)
+        .subcommand("current")
+        .opt("--chain-id", chain_id)
+        .arg(address)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn kong_reports(vault: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn kong_reports(
+    report_type: &str,
+    address: &str,
+    chain_id: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("kong")
         .subcommand("reports")
-        .arg(vault)
-        .chain(chain)
+        .subcommand(report_type)
+        .opt("--chain-id", chain_id)
+        .arg(address)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6927,17 +7256,23 @@ pub async fn kyberswap_route_data(
 }
 
 pub async fn kyberswap_build(
-    route_summary: &str,
+    token_in: &str,
+    token_out: &str,
+    amount_in: &str,
     sender: &str,
     recipient: &str,
+    route_summary: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("kyber-swap")
         .subcommand("build")
-        .arg(route_summary)
+        .arg(token_in)
+        .arg(token_out)
+        .arg(amount_in)
         .arg(sender)
         .arg(recipient)
         .chain(chain)
+        .opt("--route-summary", Some(route_summary))
         .format_json()
         .execute()
         .await
@@ -6971,6 +7306,7 @@ pub async fn zerox_price(
     sell_token: &str,
     buy_token: &str,
     sell_amount: &str,
+    taker: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("0x")
@@ -6978,6 +7314,7 @@ pub async fn zerox_price(
         .arg(sell_token)
         .arg(buy_token)
         .arg(sell_amount)
+        .arg(taker)
         .chain(chain)
         .execute()
         .await
@@ -7261,10 +7598,10 @@ pub async fn lifi_chain(chain: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_tokens(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn lifi_tokens(chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("tokens")
-        .chain(chain)
+        .opt("--chain-id", chain_id)
         .format_json()
         .execute()
         .await
@@ -7308,11 +7645,14 @@ pub async fn lifi_gas(chain_id: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_connections(from_chain: &str, to_chain: &str) -> Result<String, ToolError> {
+pub async fn lifi_connections(
+    from_chain: Option<&str>,
+    to_chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("connections")
-        .arg(from_chain)
-        .arg(to_chain)
+        .opt("--from-chain", from_chain)
+        .opt("--to-chain", to_chain)
         .format_json()
         .execute()
         .await
@@ -7355,10 +7695,17 @@ pub async fn lifi_step_transaction(step_json: &str) -> Result<String, ToolError>
 // VELORA (3 subcommands)
 // =============================================================================
 
-pub async fn velora_price(token: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn velora_price(
+    src_token: &str,
+    dest_token: &str,
+    amount: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("velora")
         .subcommand("price")
-        .arg(token)
+        .arg(src_token)
+        .arg(dest_token)
+        .arg(amount)
         .chain(chain)
         .format_json()
         .execute()
@@ -7366,11 +7713,18 @@ pub async fn velora_price(token: &str, chain: Option<&str>) -> Result<String, To
         .map_err(ToolError::from)
 }
 
-pub async fn velora_transaction(hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn velora_transaction(
+    user_address: &str,
+    price_route: &str,
+    chain: Option<&str>,
+    slippage: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("velora")
         .subcommand("transaction")
-        .arg(hash)
+        .arg(user_address)
         .chain(chain)
+        .opt("--slippage", slippage)
+        .opt("--price-route", Some(price_route))
         .format_json()
         .execute()
         .await
@@ -7414,22 +7768,22 @@ pub async fn enso_route(
         .map_err(ToolError::from)
 }
 
-pub async fn enso_price(token: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn enso_price(token: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("enso")
         .subcommand("price")
         .arg(token)
-        .chain(chain)
+        .opt("--chain-id", chain_id)
         .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn enso_balances(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn enso_balances(address: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("enso")
         .subcommand("balances")
         .arg(address)
-        .chain(chain)
+        .opt("--chain-id", chain_id)
         .format_json()
         .execute()
         .await
@@ -7554,9 +7908,9 @@ pub async fn config_set_tenderly(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("config")
         .subcommand("set-tenderly")
-        .arg(account)
-        .arg(project)
-        .arg(key)
+        .opt("--key", Some(key))
+        .opt("--account", Some(account))
+        .opt("--project", Some(project))
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7586,8 +7940,8 @@ pub async fn config_set_chainlink(
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("config")
         .subcommand("set-chainlink")
-        .arg(client_id)
-        .arg(client_secret)
+        .opt("--key", Some(client_id))
+        .opt("--secret", Some(client_secret))
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7620,21 +7974,19 @@ pub async fn config_set_solodit(key: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn config_add_debug_rpc(url: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn config_add_debug_rpc(url: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("config")
         .subcommand("add-debug-rpc")
         .arg(url)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn config_remove_debug_rpc(url: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn config_remove_debug_rpc(url: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("config")
         .subcommand("remove-debug-rpc")
         .arg(url)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7670,11 +8022,10 @@ pub async fn endpoints_add(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn endpoints_remove(url: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn endpoints_remove(url: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("endpoints")
         .subcommand("remove")
         .arg(url)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7695,31 +8046,28 @@ pub async fn endpoints_optimize(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn endpoints_test(url: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn endpoints_test(url: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("endpoints")
         .subcommand("test")
         .arg(url)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn endpoints_enable(url: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn endpoints_enable(url: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("endpoints")
         .subcommand("enable")
         .arg(url)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn endpoints_disable(url: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn endpoints_disable(url: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("endpoints")
         .subcommand("disable")
         .arg(url)
-        .chain(chain)
         .execute()
         .await
         .map_err(ToolError::from)
