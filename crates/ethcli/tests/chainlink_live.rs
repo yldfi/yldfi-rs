@@ -354,7 +354,7 @@ async fn test_polygon_matic_usd() {
 async fn test_fetch_price_by_symbol() {
     let provider = mainnet_provider();
 
-    let result = fetch_price(provider.clone(), "ETH", "ethereum").await;
+    let result = fetch_price(provider.clone(), "ETH", "ethereum", denominations::USD).await;
     assert!(
         result.is_ok(),
         "Failed to fetch ETH price: {:?}",
@@ -377,7 +377,7 @@ async fn test_fetch_price_multiple_tokens() {
     let mut successes = 0;
 
     for token in &tokens {
-        match fetch_price(provider.clone(), token, "ethereum").await {
+        match fetch_price(provider.clone(), token, "ethereum", denominations::USD).await {
             Ok(price) => {
                 if let Some(price_f64) = price.to_f64() {
                     println!("{}: ${:.4}", token, price_f64);
@@ -406,7 +406,7 @@ async fn test_fetch_price_by_address() {
 
     // USDC address
     let usdc_addr = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-    let result = fetch_price(provider, usdc_addr, "ethereum").await;
+    let result = fetch_price(provider, usdc_addr, "ethereum", denominations::USD).await;
     assert!(
         result.is_ok(),
         "Failed to fetch USDC price by address: {:?}",
@@ -428,7 +428,7 @@ async fn test_fetch_price_by_address() {
 async fn test_fetch_price_arbitrum() {
     let provider = arbitrum_provider();
 
-    let result = fetch_price(provider, "ETH", "arbitrum").await;
+    let result = fetch_price(provider, "ETH", "arbitrum", denominations::USD).await;
     assert!(
         result.is_ok(),
         "Failed to fetch Arbitrum ETH price: {:?}",
@@ -700,7 +700,7 @@ async fn test_invalid_oracle_address() {
 async fn test_unknown_symbol_error() {
     let provider = mainnet_provider();
 
-    let result = fetch_price(provider, "UNKNOWN_FAKE_TOKEN_XYZ", "ethereum").await;
+    let result = fetch_price(provider, "UNKNOWN_FAKE_TOKEN_XYZ", "ethereum", denominations::USD).await;
     assert!(result.is_err(), "Should fail with unknown symbol");
 
     // Check error type
