@@ -434,7 +434,7 @@ impl LogDecoder {
             } else {
                 let decoded = Self::decode_data(&data_types, &log.data().data)?;
 
-                for (name, value) in data_names.iter().zip(decoded.into_iter()) {
+                for (name, value) in data_names.iter().zip(decoded) {
                     params.insert(name.clone(), value);
                 }
             }

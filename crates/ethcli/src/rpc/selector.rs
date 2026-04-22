@@ -100,7 +100,7 @@ fn select_endpoint_config_with_options(
     }
 
     // Sort by priority (higher priority first)
-    chain_endpoints.sort_by(|a, b| b.priority.cmp(&a.priority));
+    chain_endpoints.sort_by_key(|endpoint| std::cmp::Reverse(endpoint.priority));
 
     // Get all endpoints with the highest priority
     let top_priority = chain_endpoints[0].priority;

@@ -199,12 +199,10 @@ pub fn detect_security_issues_from_operations(operations: &[Operation]) -> Secur
                 create2_offsets.push(op.offset as usize);
             }
             // Check for PUSH20 which often contains hardcoded addresses
-            Opcode::PUSH20 => {
-                if op.input.len() == 20 {
-                    // Skip zero address and well-known addresses
-                    if !is_known_address(&op.input) {
-                        hardcoded_addresses += 1;
-                    }
+            Opcode::PUSH20 if op.input.len() == 20 => {
+                // Skip zero address and well-known addresses
+                if !is_known_address(&op.input) {
+                    hardcoded_addresses += 1;
                 }
             }
             _ => {}
