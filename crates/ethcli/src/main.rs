@@ -1241,7 +1241,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
             for (chain_name, mut eps) in by_chain {
                 // Sort by priority descending
-                eps.sort_by(|a, b| b.priority.cmp(&a.priority));
+                eps.sort_by_key(|ep| std::cmp::Reverse(ep.priority));
 
                 println!("=== {} ({}) ===", chain_name.to_uppercase(), eps.len());
                 for ep in eps {
