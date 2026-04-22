@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.21.25](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.24...ethcli-v0.21.25) (2026-04-22)
+
+
+### Bug Fixes
+
+* replace stale chainlink streams sdk ([e2ec108](https://github.com/yldfi/yldfi-rs/commit/e2ec10801e7ff3ac9a115a73453177412230a853))
+* satisfy remaining rust 1.95 clippy lint ([0a6c25f](https://github.com/yldfi/yldfi-rs/commit/0a6c25f18e9a9e872b59d4dda3bf41b00d3c004b))
+* satisfy rust 1.95 clippy lints ([4729526](https://github.com/yldfi/yldfi-rs/commit/4729526d86dd54b4d286261da3d4e86241aa5acf))
+* satisfy rust 1.95 priority sort lint ([c2e98d9](https://github.com/yldfi/yldfi-rs/commit/c2e98d9004eeb8212d190043af697da190db85b4))
+* support explicit contract signatures and dynamic abi decode ([f453b86](https://github.com/yldfi/yldfi-rs/commit/f453b86ce319f74d8a582501574f2c2352c474c2))
+
 ## [0.21.24](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.23...ethcli-v0.21.24) (2026-02-16)
 
 
