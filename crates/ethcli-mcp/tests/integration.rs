@@ -10,6 +10,7 @@
 
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 // Test addresses
@@ -25,18 +26,13 @@ struct McpClient {
 
 impl McpClient {
     fn new() -> Self {
+        let workspace_root = workspace_root();
+
         // Use CARGO_BIN_EXE_ethcli-mcp which cargo sets during `cargo test`
         // This ensures the binary is built and available
         let binary = std::path::PathBuf::from(
             std::env::var("CARGO_BIN_EXE_ethcli-mcp").unwrap_or_else(|_| {
                 // Fallback for manual test runs
-                let manifest_dir =
-                    std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-                let workspace_root = std::path::Path::new(&manifest_dir)
-                    .parent()
-                    .and_then(|p| p.parent())
-                    .unwrap_or(std::path::Path::new("."));
-
                 let release_path = workspace_root.join("target/release/ethcli-mcp");
                 let debug_path = workspace_root.join("target/debug/ethcli-mcp");
 
@@ -54,7 +50,12 @@ impl McpClient {
             }),
         );
 
-        let proc = Command::new(&binary)
+        let mut cmd = Command::new(&binary);
+        if let Some(ethcli_binary) = find_ethcli_binary(&workspace_root) {
+            cmd.env("ETHCLI_PATH", ethcli_binary);
+        }
+
+        let proc = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -134,6 +135,42 @@ impl McpClient {
     fn list_tools(&mut self) -> Value {
         self.send_request("tools/list", None)
     }
+}
+
+fn workspace_root() -> PathBuf {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+    Path::new(&manifest_dir)
+        .parent()
+        .and_then(|p| p.parent())
+        .unwrap_or(Path::new("."))
+        .to_path_buf()
+}
+
+fn find_ethcli_binary(workspace_root: &Path) -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("ETHCLI_PATH") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    if let Ok(path) = std::env::var("CARGO_BIN_EXE_ethcli") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    for candidate in [
+        workspace_root.join("target/debug/ethcli"),
+        workspace_root.join("target/release/ethcli"),
+    ] {
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    None
 }
 
 impl Drop for McpClient {
@@ -453,6 +490,29 @@ fn test_cast_abi_encode() {
     );
 }
 
+#[test]
+// Requires ethcli binary (built in CI)
+fn test_cast_abi_decode_dynamic_string() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = client.call_tool(
+        "cast_abi_decode",
+        json!({
+            "sig": "string",
+            "data": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000045745544800000000000000000000000000000000000000000000000000000000"
+        }),
+    );
+    assert!(is_tool_success(&response), "cast_abi_decode should succeed");
+
+    let text = get_tool_text(&response).expect("Should have text");
+    assert!(
+        text.contains("WETH"),
+        "Should decode WETH string, got: {}",
+        text
+    );
+}
+
 // =============================================================================
 // Signature Lookup Tests (uses 4byte.directory, may need network)
 // =============================================================================
@@ -702,6 +762,34 @@ fn test_contract_creation() {
     assert!(
         is_tool_success(&response),
         "contract_creation should succeed"
+    );
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_contract_call_full_signature() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = call_tool_with_retry(
+        &mut client,
+        "contract_call",
+        json!({
+            "address": WETH,
+            "sig": "symbol()",
+            "args": [],
+            "chain": "ethereum",
+            "rpc_url": "https://ethereum.publicnode.com"
+        }),
+        1,
+    );
+    assert!(is_tool_success(&response), "contract_call should succeed");
+
+    let text = get_tool_text(&response).expect("Should have text");
+    assert!(
+        text.contains("WETH"),
+        "Should return WETH symbol, got: {}",
+        text
     );
 }
 

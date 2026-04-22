@@ -339,7 +339,8 @@ pub struct CastAbiEncodeInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CastAbiDecodeInput {
-    /// Function signature
+    /// Type signature for raw ABI data, or function signature for calldata with selector
+    /// (e.g. "uint256", "(address,uint256)", or "transfer(address,uint256)")
     pub sig: String,
     /// Encoded data to decode
     pub data: String,
@@ -925,7 +926,7 @@ pub struct BlacklistPathInput {}
 pub struct ContractCallInput {
     /// Contract address
     pub address: String,
-    /// Function signature
+    /// Function name or full signature (e.g. "balanceOf" or "balanceOf(address)")
     pub sig: String,
     /// Arguments
     #[serde(default)]

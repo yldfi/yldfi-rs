@@ -368,7 +368,7 @@ fn abi_decode(signature: &str, data: &str) -> anyhow::Result<String> {
         .map_err(|e| anyhow::anyhow!("Invalid type signature: {}", e))?;
 
     let decoded = ty
-        .abi_decode(data_to_decode)
+        .abi_decode_params(data_to_decode)
         .map_err(|e| anyhow::anyhow!("Failed to decode: {}", e))?;
 
     Ok(format!("{:?}", decoded))
@@ -610,6 +610,23 @@ mod tests {
     fn test_abi_decode_empty_types() {
         let result = abi_decode("()", "0x").unwrap();
         assert_eq!(result, "()");
+    }
+
+    #[test]
+    fn test_abi_decode_calldata_function_signature() {
+        let data =
+            "0xa9059cbb000000000000000000000000000000000000000000000000000000000000dead00000000000000000000000000000000000000000000000000000000000003e8";
+        let result = abi_decode("transfer(address,uint256)", data).unwrap();
+        assert!(result.contains("0x000000000000000000000000000000000000dead"));
+        assert!(result.contains("1000"));
+    }
+
+    #[test]
+    fn test_abi_decode_dynamic_string() {
+        let data =
+            "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000045745544800000000000000000000000000000000000000000000000000000000";
+        let result = abi_decode("string", data).unwrap();
+        assert!(result.contains("WETH"));
     }
 
     // ==================== function selector tests ====================

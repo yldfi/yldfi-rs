@@ -380,7 +380,7 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "ABI decode function return data")]
+    #[tool(description = "ABI decode calldata with selector or raw ABI-encoded payload")]
     async fn cast_abi_decode(&self, Parameters(input): Parameters<CastAbiDecodeInput>) -> String {
         tools::cast_abi_decode(&input.sig, &input.data)
             .await
@@ -1071,7 +1071,7 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Call a contract function (read-only) with optional block, RPC URL, and human-readable output"
+        description = "Call a contract function by name or full signature (read-only) with optional block, RPC URL, and human-readable output"
     )]
     async fn contract_call(&self, Parameters(input): Parameters<ContractCallInput>) -> String {
         tools::contract_call(

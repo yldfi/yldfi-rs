@@ -50,6 +50,237 @@ fn oz_impl_slot() -> B256 {
     })
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FunctionQuery {
+    name: String,
+    explicit_types: Option<Vec<String>>,
+    original: String,
+}
+
+fn split_type_list(types_str: &str) -> Vec<&str> {
+    let mut result = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+
+    for (i, c) in types_str.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            ',' if depth == 0 => {
+                let ty = types_str[start..i].trim();
+                if !ty.is_empty() {
+                    result.push(ty);
+                }
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+
+    let tail = types_str[start..].trim();
+    if !tail.is_empty() {
+        result.push(tail);
+    }
+
+    result
+}
+
+fn canonicalize_type(type_str: &str) -> anyhow::Result<String> {
+    DynSolType::parse(type_str.trim())
+        .map(|ty| ty.to_string())
+        .map_err(|e| anyhow::anyhow!("Invalid type '{}': {}", type_str, e))
+}
+
+fn parse_function_query(function: &str) -> anyhow::Result<FunctionQuery> {
+    let original = function.trim().to_string();
+    if original.is_empty() {
+        return Err(anyhow::anyhow!("Function name cannot be empty"));
+    }
+
+    let Some(types_start) = original.find('(') else {
+        return Ok(FunctionQuery {
+            name: original.clone(),
+            explicit_types: None,
+            original,
+        });
+    };
+
+    let types_end = original
+        .rfind(')')
+        .ok_or_else(|| anyhow::anyhow!("Invalid function signature '{}': missing ')'", original))?;
+    if types_end != original.len() - 1 {
+        return Err(anyhow::anyhow!(
+            "Invalid function signature '{}': unexpected trailing characters",
+            original
+        ));
+    }
+
+    let name = original[..types_start].trim();
+    if name.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Invalid function signature '{}': missing function name",
+            original
+        ));
+    }
+
+    let raw_types = &original[types_start + 1..types_end];
+    let explicit_types = if raw_types.trim().is_empty() {
+        Vec::new()
+    } else {
+        split_type_list(raw_types)
+            .into_iter()
+            .map(canonicalize_type)
+            .collect::<anyhow::Result<Vec<_>>>()?
+    };
+
+    Ok(FunctionQuery {
+        name: name.to_string(),
+        explicit_types: Some(explicit_types),
+        original,
+    })
+}
+
+fn format_contract_signature(name: &str, function: &alloy::json_abi::Function) -> String {
+    format!(
+        "{}({})",
+        name,
+        function
+            .inputs
+            .iter()
+            .map(|input| input.ty.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn coerce_call_args(
+    function_name: &str,
+    function: &alloy::json_abi::Function,
+    args: &[String],
+) -> anyhow::Result<Vec<DynSolValue>> {
+    if function.inputs.len() != args.len() {
+        return Err(anyhow::anyhow!(
+            "Function '{}' expects {} arguments, got {}",
+            function_name,
+            function.inputs.len(),
+            args.len()
+        ));
+    }
+
+    function
+        .inputs
+        .iter()
+        .zip(args.iter())
+        .map(|(input, arg)| {
+            let ty = DynSolType::parse(&input.ty.to_string())
+                .map_err(|e| anyhow::anyhow!("Invalid type '{}': {}", input.ty, e))?;
+            ty.coerce_str(arg).map_err(|e| {
+                anyhow::anyhow!("Invalid value '{}' for type '{}': {}", arg, input.ty, e)
+            })
+        })
+        .collect()
+}
+
+fn select_contract_function<'a>(
+    query: &FunctionQuery,
+    funcs: &'a [alloy::json_abi::Function],
+    args: &[String],
+) -> anyhow::Result<(&'a alloy::json_abi::Function, Vec<DynSolValue>)> {
+    if let Some(explicit_types) = &query.explicit_types {
+        let matching_funcs: Vec<_> = funcs
+            .iter()
+            .filter(|function| {
+                function.inputs.len() == explicit_types.len()
+                    && function
+                        .inputs
+                        .iter()
+                        .map(|input| input.ty.to_string())
+                        .eq(explicit_types.iter().cloned())
+            })
+            .collect();
+
+        return match matching_funcs.as_slice() {
+            [] => {
+                let overloads: Vec<String> = funcs
+                    .iter()
+                    .map(|function| format_contract_signature(&query.name, function))
+                    .collect();
+                Err(anyhow::anyhow!(
+                    "Function '{}' not found in ABI.\nAvailable overloads:\n  {}",
+                    query.original,
+                    overloads.join("\n  ")
+                ))
+            }
+            [function] => Ok((function, coerce_call_args(&query.name, function, args)?)),
+            _ => {
+                let overloads: Vec<String> = matching_funcs
+                    .iter()
+                    .map(|function| format_contract_signature(&query.name, function))
+                    .collect();
+                Err(anyhow::anyhow!(
+                    "Ambiguous explicit signature '{}': multiple ABI entries match:\n  {}",
+                    query.original,
+                    overloads.join("\n  ")
+                ))
+            }
+        };
+    }
+
+    let try_coerce = |function: &'a alloy::json_abi::Function| -> Option<Vec<DynSolValue>> {
+        if function.inputs.len() != args.len() {
+            return None;
+        }
+
+        let mut values = Vec::new();
+        for (input, arg) in function.inputs.iter().zip(args.iter()) {
+            let ty = DynSolType::parse(&input.ty.to_string()).ok()?;
+            let val = ty.coerce_str(arg).ok()?;
+            values.push(val);
+        }
+        Some(values)
+    };
+
+    if funcs.len() == 1 {
+        let function = &funcs[0];
+        return Ok((function, coerce_call_args(&query.name, function, args)?));
+    }
+
+    let matches: Vec<_> = funcs
+        .iter()
+        .filter_map(|function| try_coerce(function).map(|values| (function, values)))
+        .collect();
+
+    match matches.len() {
+        0 => {
+            let overloads: Vec<String> = funcs
+                .iter()
+                .map(|function| format_contract_signature(&query.name, function))
+                .collect();
+            Err(anyhow::anyhow!(
+                "Function '{}' has {} overloads, none match the provided arguments:\n  {}\n\nProvided: {} args [{}]",
+                query.name,
+                funcs.len(),
+                overloads.join("\n  "),
+                args.len(),
+                args.join(", ")
+            ))
+        }
+        1 => Ok(matches.into_iter().next().unwrap()),
+        _ => {
+            let matching_sigs: Vec<String> = matches
+                .iter()
+                .map(|(function, _)| format_contract_signature(&query.name, function))
+                .collect();
+            Err(anyhow::anyhow!(
+                "Ambiguous call: {} overloads match the provided arguments:\n  {}\n\nUse an explicit signature like {}.",
+                matches.len(),
+                matching_sigs.join("\n  "),
+                matching_sigs[0]
+            ))
+        }
+    }
+}
+
 /// Try to detect if a contract is a proxy and return the implementation address
 async fn detect_proxy_implementation<P: Provider>(
     provider: &P,
@@ -582,94 +813,15 @@ pub async fn handle(
             // contract_abi returns JsonAbi directly
             let json_abi = abi;
 
+            let query = parse_function_query(function)?;
+
             // Find the function - handle overloaded functions by matching arg count and types
             let funcs = json_abi
                 .functions
-                .get(function)
-                .ok_or_else(|| anyhow::anyhow!("Function '{}' not found in ABI", function))?;
+                .get(query.name.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Function '{}' not found in ABI", query.original))?;
 
-            // Helper to format function signature for error messages
-            let format_sig = |f: &alloy::json_abi::Function| {
-                format!(
-                    "{}({})",
-                    function,
-                    f.inputs
-                        .iter()
-                        .map(|i| i.ty.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            };
-
-            // Helper to try coercing arguments for a function
-            let try_coerce = |f: &alloy::json_abi::Function| -> Option<Vec<DynSolValue>> {
-                if f.inputs.len() != args.len() {
-                    return None;
-                }
-                let mut values = Vec::new();
-                for (input, arg) in f.inputs.iter().zip(args.iter()) {
-                    let ty = DynSolType::parse(&input.ty.to_string()).ok()?;
-                    let val = ty.coerce_str(arg).ok()?;
-                    values.push(val);
-                }
-                Some(values)
-            };
-
-            // Try to find a matching overload
-            let (func, values) = if funcs.len() == 1 {
-                // Single function - try to coerce and give detailed error if it fails
-                let f = &funcs[0];
-                if f.inputs.len() != args.len() {
-                    return Err(anyhow::anyhow!(
-                        "Function '{}' expects {} arguments, got {}",
-                        function,
-                        f.inputs.len(),
-                        args.len()
-                    ));
-                }
-                let mut vals = Vec::new();
-                for (input, arg) in f.inputs.iter().zip(args.iter()) {
-                    let ty = DynSolType::parse(&input.ty.to_string())
-                        .map_err(|e| anyhow::anyhow!("Invalid type '{}': {}", input.ty, e))?;
-                    let val = ty.coerce_str(arg).map_err(|e| {
-                        anyhow::anyhow!("Invalid value '{}' for type '{}': {}", arg, input.ty, e)
-                    })?;
-                    vals.push(val);
-                }
-                (f, vals)
-            } else {
-                // Multiple overloads - try each one and find matches
-                let matches: Vec<_> = funcs
-                    .iter()
-                    .filter_map(|f| try_coerce(f).map(|v| (f, v)))
-                    .collect();
-
-                match matches.len() {
-                    0 => {
-                        // No matches - show all overloads
-                        let overloads: Vec<String> = funcs.iter().map(format_sig).collect();
-                        return Err(anyhow::anyhow!(
-                            "Function '{}' has {} overloads, none match the provided arguments:\n  {}\n\nProvided: {} args [{}]",
-                            function,
-                            funcs.len(),
-                            overloads.join("\n  "),
-                            args.len(),
-                            args.join(", ")
-                        ));
-                    }
-                    1 => matches.into_iter().next().unwrap(),
-                    _ => {
-                        // Multiple matches - ambiguous
-                        let matching_sigs: Vec<String> =
-                            matches.iter().map(|(f, _)| format_sig(f)).collect();
-                        return Err(anyhow::anyhow!(
-                            "Ambiguous call: {} overloads match the provided arguments:\n  {}\n\nUse explicit types or specify the full signature.",
-                            matches.len(),
-                            matching_sigs.join("\n  ")
-                        ));
-                    }
-                }
-            };
+            let (func, values) = select_contract_function(&query, funcs, args)?;
 
             // Encode the call
             let calldata = func
@@ -677,7 +829,7 @@ pub async fn handle(
                 .map_err(|e| anyhow::anyhow!("Failed to encode arguments: {}", e))?;
 
             if !quiet {
-                eprintln!("Calling {}({})...", function, args.join(", "));
+                eprintln!("Calling {}({})...", query.name, args.join(", "));
             }
 
             // Parse block
@@ -1381,5 +1533,69 @@ fn format_with_decimals(value: &alloy::primitives::U256, decimals: u8) -> String
         with_thousands_sep(integer)
     } else {
         format!("{}.{}", with_thousands_sep(integer), fraction_trimmed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy::json_abi::JsonAbi;
+
+    fn parse_abi(json: &str) -> JsonAbi {
+        serde_json::from_str(json).expect("valid ABI json")
+    }
+
+    #[test]
+    fn test_parse_function_query_name_only() {
+        let query = parse_function_query("balanceOf").unwrap();
+        assert_eq!(query.name, "balanceOf");
+        assert!(query.explicit_types.is_none());
+    }
+
+    #[test]
+    fn test_parse_function_query_full_signature() {
+        let query = parse_function_query(" foo(uint, (address,uint256)) ").unwrap();
+        assert_eq!(query.name, "foo");
+        assert_eq!(
+            query.explicit_types,
+            Some(vec!["uint256".to_string(), "(address,uint256)".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_select_contract_function_supports_explicit_overload() {
+        let abi = parse_abi(
+            r#"[
+              {"type":"function","name":"foo","inputs":[{"name":"x","type":"uint8"}],"outputs":[],"stateMutability":"view"},
+              {"type":"function","name":"foo","inputs":[{"name":"x","type":"uint256"}],"outputs":[],"stateMutability":"view"}
+            ]"#,
+        );
+
+        let funcs = abi.functions.get("foo").unwrap();
+        let query = parse_function_query("foo(uint8)").unwrap();
+        let args = vec!["1".to_string()];
+
+        let (function, values) = select_contract_function(&query, funcs, &args).unwrap();
+        assert_eq!(function.inputs[0].ty.to_string(), "uint8");
+        assert_eq!(values.len(), 1);
+    }
+
+    #[test]
+    fn test_select_contract_function_reports_ambiguous_name_only() {
+        let abi = parse_abi(
+            r#"[
+              {"type":"function","name":"foo","inputs":[{"name":"x","type":"uint8"}],"outputs":[],"stateMutability":"view"},
+              {"type":"function","name":"foo","inputs":[{"name":"x","type":"uint256"}],"outputs":[],"stateMutability":"view"}
+            ]"#,
+        );
+
+        let funcs = abi.functions.get("foo").unwrap();
+        let query = parse_function_query("foo").unwrap();
+        let args = vec!["1".to_string()];
+
+        let err = select_contract_function(&query, funcs, &args).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Use an explicit signature like foo("));
     }
 }
