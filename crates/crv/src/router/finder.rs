@@ -171,7 +171,7 @@ fn sort_candidates(candidates: &mut [CandidateRoute], by_tvl: bool) {
         });
     } else {
         // Shorter path is better
-        candidates.sort_by(|a, b| a.route.len().cmp(&b.route.len()));
+        candidates.sort_by_key(|a| a.route.len());
     }
 }
 

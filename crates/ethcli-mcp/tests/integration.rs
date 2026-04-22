@@ -161,16 +161,12 @@ fn find_ethcli_binary(workspace_root: &Path) -> Option<PathBuf> {
         }
     }
 
-    for candidate in [
+    [
         workspace_root.join("target/debug/ethcli"),
         workspace_root.join("target/release/ethcli"),
-    ] {
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-
-    None
+    ]
+    .into_iter()
+    .find(|candidate| candidate.exists())
 }
 
 impl Drop for McpClient {
