@@ -1726,7 +1726,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
 name = "crv"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -2262,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.21.24"
+version = "0.21.25"
 dependencies = [
  "alcmy",
  "alloy",
@@ -2330,7 +2330,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli-mcp"
-version = "0.1.13"
+version = "0.1.14"
 dependencies = [
  "anyhow",
  "assert_cmd",
