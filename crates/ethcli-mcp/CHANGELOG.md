@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.14](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.13...ethcli-mcp-v0.1.14) (2026-04-22)
+
+
+### Bug Fixes
+
+* satisfy latest clippy lints ([c97038b](https://github.com/yldfi/yldfi-rs/commit/c97038b9129d8ddc901fbbf38fbcd8aa05af7d10))
+* support explicit contract signatures and dynamic abi decode ([f453b86](https://github.com/yldfi/yldfi-rs/commit/f453b86ce319f74d8a582501574f2c2352c474c2))
+
 ## [0.1.13](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.12...ethcli-mcp-v0.1.13) (2026-02-16)
 
 

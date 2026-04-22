@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/crv-v0.1.5...crv-v0.1.6) (2026-04-22)
+
+
+### Bug Fixes
+
+* satisfy latest clippy lints ([c97038b](https://github.com/yldfi/yldfi-rs/commit/c97038b9129d8ddc901fbbf38fbcd8aa05af7d10))
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/crv-v0.1.4...crv-v0.1.5) (2026-02-15)
 
 
