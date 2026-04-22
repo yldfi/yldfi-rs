@@ -13,7 +13,12 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # Transitive dependencies from external crates are allowed
 unmaintained = "workspace"
 # Ignore specific advisories (add as needed)
-ignore = []
+ignore = [
+    # rand 0.8.5 unsoundness with custom logger + ThreadRng reseeding.
+    # Not exploitable in this project. Waiting for upstream (alloy-signer-local,
+    # tungstenite) to migrate to rand >=0.9.3.
+    "RUSTSEC-2026-0097",
+]
 
 [licenses]
 # List of explicitly allowed licenses

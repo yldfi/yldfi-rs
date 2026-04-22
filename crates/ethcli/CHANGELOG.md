@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.24](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.23...ethcli-v0.21.24) (2026-02-16)
+
+
+### Bug Fixes
+
+* **ethcli:** increase download timeout for self-upgrade ([81a43a2](https://github.com/yldfi/yldfi-rs/commit/81a43a2b0330e1a0946b3523e9d1fb8f4a624658))
+
 ## [0.21.23](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.22...ethcli-v0.21.23) (2026-02-16)
 
 
