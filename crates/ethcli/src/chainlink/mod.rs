@@ -24,11 +24,13 @@
 mod aggregator;
 pub mod constants;
 mod registry;
+mod streams;
 mod types;
 
 pub use aggregator::Aggregator;
 pub use constants::{denominations, oracles, symbol_to_address, tokens, FEED_REGISTRY};
 pub use registry::FeedRegistry;
+pub use streams::{DataStreamsClient, DataStreamsError, DataStreamsFeed, DEFAULT_STREAMS_REST_URL};
 pub use types::{ChainlinkError, PriceData};
 
 /// Fetch Chainlink price via RPC (registry or direct oracle)

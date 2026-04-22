@@ -70,10 +70,12 @@ futures = "0.3"
 parking_lot = "0.12"
 rand = "0.8"
 hex = "0.4"
+hmac = "0.12"
 dirs = "5"
 regex = "1.11"
 num-traits = "0.2"
 sha2 = "0.10"
+serde_urlencoded = "0.7"
 secrecy = { workspace = true }
 semver = "1"
 fs2 = "0.4"  # MED-003 fix: File locking for config persistence
@@ -118,7 +120,6 @@ evmole = { version = "0.8", features = ["serde"] }
 evm-disassembler = "0.5"
 
 # Chainlink Data Streams
-chainlink-data-streams-sdk = { version = "1.2", features = ["full"] }
 chainlink-data-streams-report = "1.2"
 
 # Cryptocurrency exchanges

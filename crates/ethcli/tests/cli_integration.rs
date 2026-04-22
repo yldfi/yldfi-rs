@@ -8,6 +8,10 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
+use wiremock::{
+    matchers::{header_exists, method, path, query_param},
+    Mock, MockServer, ResponseTemplate,
+};
 
 fn ethcli() -> Command {
     Command::cargo_bin("ethcli").unwrap()
@@ -214,6 +218,42 @@ fn test_cast_sig_balance_of() {
         .assert()
         .success()
         .stdout(predicate::str::contains("0x70a08231"));
+}
+
+#[tokio::test]
+async fn test_chainlink_streams_latest_json_with_mock_server() {
+    let temp_dir = setup_temp_config();
+    let server = MockServer::start().await;
+    let feed_id = "0x000359843a543ee2fe414dc14c7e7920ef10f4372990b79d6361cdc0dd1ba782";
+
+    Mock::given(method("GET"))
+        .and(path("/api/v1/reports/latest"))
+        .and(query_param("feedID", feed_id))
+        .and(header_exists("authorization"))
+        .and(header_exists("x-authorization-timestamp"))
+        .and(header_exists("x-authorization-signature-sha256"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "report": {
+                "feedID": feed_id,
+                "validFromTimestamp": 1718885772,
+                "observationsTimestamp": 1718885772,
+                "fullReport": "0x1234"
+            }
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    ethcli_with_config(&temp_dir)
+        .env("CHAINLINK_API_KEY", "test-key")
+        .env("CHAINLINK_USER_SECRET", "test-secret")
+        .env("CHAINLINK_REST_URL", server.uri())
+        .args(["chainlink", "streams", "latest", feed_id, "-o", "json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"feed_id\""))
+        .stdout(predicate::str::contains(feed_id))
+        .stdout(predicate::str::contains("\"full_report\": \"0x1234\""));
 }
 
 #[test]

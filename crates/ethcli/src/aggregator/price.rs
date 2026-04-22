@@ -1349,8 +1349,8 @@ async fn fetch_chainlink_streams(
     token: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
+    use crate::chainlink::{DataStreamsClient, DEFAULT_STREAMS_REST_URL};
     use chainlink_data_streams_report::feed_id::ID;
-    use chainlink_data_streams_sdk::{client::Client, config::Config};
 
     // Get credentials from cached config first, then fall back to environment variables
     let file_config = get_cached_config();
@@ -1391,31 +1391,19 @@ async fn fetch_chainlink_streams(
     let rest_url = chainlink_config
         .and_then(|c| c.rest_url.clone())
         .or_else(|| std::env::var("CHAINLINK_REST_URL").ok())
-        .unwrap_or_else(|| "https://api.testnet-dataengine.chain.link".to_string());
+        .unwrap_or_else(|| DEFAULT_STREAMS_REST_URL.to_string());
 
-    let ws_url = chainlink_config
+    let _ws_url = chainlink_config
         .and_then(|c| c.ws_url.clone())
         .or_else(|| std::env::var("CHAINLINK_WS_URL").ok())
         .unwrap_or_else(|| "wss://ws.testnet-dataengine.chain.link".to_string());
 
-    // Build config and client
-    let config = match Config::new(api_key, user_secret, rest_url, ws_url).build() {
+    let client = match DataStreamsClient::new(api_key, user_secret, rest_url) {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
                 "chainlink-streams",
-                format!("Config error: {:?}", e),
-                measure.elapsed_ms(),
-            )
-        }
-    };
-
-    let client = match Client::new(config) {
-        Ok(c) => c,
-        Err(e) => {
-            return SourceResult::error(
-                "chainlink-streams",
-                format!("Client error: {:?}", e),
+                format!("Client error: {}", e),
                 measure.elapsed_ms(),
             )
         }
@@ -1461,13 +1449,12 @@ async fn fetch_chainlink_streams(
 
     // Fetch latest report
     match client.get_latest_report(id).await {
-        Ok(response) => {
+        Ok(report) => {
             // Decode the V3 report to extract the price
             // The full_report is a hex string containing the encoded report data
             use chainlink_data_streams_report::report::v3::ReportDataV3;
 
-            // The report blob is in response.report.full_report
-            let report_hex = &response.report.full_report;
+            let report_hex = &report.full_report;
 
             // Remove "0x" prefix if present and decode hex
             let hex_str = report_hex.strip_prefix("0x").unwrap_or(report_hex);

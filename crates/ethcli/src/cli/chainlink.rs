@@ -18,7 +18,10 @@
 //! ethcli chainlink streams latest <feed_id>
 //! ```
 
-use crate::chainlink::{self, denominations, Aggregator, ChainlinkError, FeedRegistry, PriceData};
+use crate::chainlink::{
+    self, denominations, Aggregator, ChainlinkError, DataStreamsClient, FeedRegistry, PriceData,
+    DEFAULT_STREAMS_REST_URL,
+};
 use crate::cli::rpc::parse_block_id;
 use crate::cli::OutputFormat;
 use crate::config::{Chain, ConfigFile, EndpointConfig};
@@ -459,17 +462,11 @@ async fn handle_oracles(
 /// Handle Data Streams commands
 async fn handle_streams(command: &StreamsCommands, quiet: bool) -> anyhow::Result<()> {
     use chainlink_data_streams_report::feed_id::ID;
-    use chainlink_data_streams_sdk::{client::Client, config::Config};
 
     // Get credentials
-    let (api_key, user_secret, rest_url, ws_url) = get_streams_credentials()?;
-
-    let config = Config::new(api_key, user_secret, rest_url, ws_url)
-        .build()
-        .map_err(|e| anyhow::anyhow!("Failed to build config: {:?}", e))?;
-
-    let client =
-        Client::new(config).map_err(|e| anyhow::anyhow!("Failed to create client: {:?}", e))?;
+    let (api_key, user_secret, rest_url, _ws_url) = get_streams_credentials()?;
+    let client = DataStreamsClient::new(api_key, user_secret, rest_url)
+        .map_err(|e| anyhow::anyhow!("Failed to create client: {e}"))?;
 
     match command {
         StreamsCommands::Feeds { args } => {
@@ -495,13 +492,13 @@ async fn handle_streams(command: &StreamsCommands, quiet: bool) -> anyhow::Resul
             let response = client
                 .get_latest_report(id)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to get latest report: {:?}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to get latest report: {e}"))?;
 
             let output = StreamsReportOutput {
-                feed_id: response.report.feed_id.to_hex_string(),
-                valid_from_timestamp: response.report.valid_from_timestamp,
-                observations_timestamp: response.report.observations_timestamp,
-                full_report: response.report.full_report,
+                feed_id: response.feed_id.to_hex_string(),
+                valid_from_timestamp: response.valid_from_timestamp,
+                observations_timestamp: response.observations_timestamp,
+                full_report: response.full_report,
             };
 
             print_streams_output(&output, args.format)?;
@@ -524,13 +521,13 @@ async fn handle_streams(command: &StreamsCommands, quiet: bool) -> anyhow::Resul
             let response = client
                 .get_report(id, u128::from(*timestamp))
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to get report: {:?}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to get report: {e}"))?;
 
             let output = StreamsReportOutput {
-                feed_id: response.report.feed_id.to_hex_string(),
-                valid_from_timestamp: response.report.valid_from_timestamp,
-                observations_timestamp: response.report.observations_timestamp,
-                full_report: response.report.full_report,
+                feed_id: response.feed_id.to_hex_string(),
+                valid_from_timestamp: response.valid_from_timestamp,
+                observations_timestamp: response.observations_timestamp,
+                full_report: response.full_report,
             };
 
             print_streams_output(&output, args.format)?;
@@ -557,7 +554,7 @@ async fn handle_streams(command: &StreamsCommands, quiet: bool) -> anyhow::Resul
             let reports = client
                 .get_reports_bulk(&ids, u128::from(*timestamp))
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to get bulk reports: {:?}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to get bulk reports: {e}"))?;
 
             let outputs: Vec<StreamsReportOutput> = reports
                 .iter()
@@ -590,7 +587,7 @@ async fn handle_streams(command: &StreamsCommands, quiet: bool) -> anyhow::Resul
             let reports = client
                 .get_reports_page_with_limit(id, u128::from(*timestamp), *limit)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to get reports: {:?}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to get reports: {e}"))?;
 
             let outputs: Vec<StreamsReportOutput> = reports
                 .iter()
@@ -673,7 +670,7 @@ fn get_streams_credentials() -> anyhow::Result<(String, String, String, String)>
     let rest_url = chainlink_config
         .and_then(|c| c.rest_url.clone())
         .or_else(|| std::env::var("CHAINLINK_REST_URL").ok())
-        .unwrap_or_else(|| "https://api.testnet-dataengine.chain.link".to_string());
+        .unwrap_or_else(|| DEFAULT_STREAMS_REST_URL.to_string());
 
     let ws_url = chainlink_config
         .and_then(|c| c.ws_url.clone())
