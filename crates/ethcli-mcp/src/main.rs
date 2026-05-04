@@ -262,16 +262,16 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ContractAnalyzeInput>,
     ) -> String {
-        tools::contract_analyze(
-            &input.address,
-            Some(&input.chain),
-            input.include_disassembly,
-            input.limit,
-            input.lookup,
-            input.follow_proxy,
-            input.dispatcher,
-            input.checks,
-        )
+        tools::contract_analyze(tools::ContractAnalyzeArgs {
+            address: &input.address,
+            chain: Some(&input.chain),
+            include_disassembly: input.include_disassembly,
+            limit: input.limit,
+            lookup: input.lookup,
+            follow_proxy: input.follow_proxy,
+            dispatcher: input.dispatcher,
+            checks: input.checks,
+        })
         .await
         .to_response()
     }

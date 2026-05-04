@@ -119,12 +119,6 @@ pub fn analyze_handler_checks(
             .copied()
             .find(|next| *next > body_offset)
             .unwrap_or(bytecode.len());
-        let scan_end = if body_offset == entry.handler_offset {
-            body_scan_end
-        } else {
-            body_scan_end
-        };
-
         let range_ops: Vec<_> = ops
             .iter()
             .filter(|op| {
@@ -181,7 +175,7 @@ pub fn analyze_handler_checks(
             signature: entry.signature.clone(),
             handler_offset: entry.handler_offset,
             body_offset: (body_offset != entry.handler_offset).then_some(body_offset),
-            scan_end_offset: scan_end,
+            scan_end_offset: body_scan_end,
             state_mutability,
             uses_caller,
             caller_gated,

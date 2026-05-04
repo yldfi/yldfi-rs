@@ -559,28 +559,30 @@ pub async fn contract_opcodes(address: &str, chain: Option<&str>) -> Result<Stri
         .map_err(ToolError::from)
 }
 
-pub async fn contract_analyze(
-    address: &str,
-    chain: Option<&str>,
-    include_disassembly: bool,
-    limit: Option<u32>,
-    lookup: bool,
-    follow_proxy: bool,
-    dispatcher: bool,
-    checks: bool,
-) -> Result<String, ToolError> {
+pub struct ContractAnalyzeArgs<'a> {
+    pub address: &'a str,
+    pub chain: Option<&'a str>,
+    pub include_disassembly: bool,
+    pub limit: Option<u32>,
+    pub lookup: bool,
+    pub follow_proxy: bool,
+    pub dispatcher: bool,
+    pub checks: bool,
+}
+
+pub async fn contract_analyze(args: ContractAnalyzeArgs<'_>) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("contract")
         .subcommand("analyze")
-        .arg(address)
-        .chain(chain)
-        .opt_flag("--include-disassembly", include_disassembly)
-        .opt_flag("--lookup", lookup)
-        .opt_flag("--follow-proxy", follow_proxy)
-        .opt_flag("--dispatcher", dispatcher)
-        .opt_flag("--checks", checks)
+        .arg(args.address)
+        .chain(args.chain)
+        .opt_flag("--include-disassembly", args.include_disassembly)
+        .opt_flag("--lookup", args.lookup)
+        .opt_flag("--follow-proxy", args.follow_proxy)
+        .opt_flag("--dispatcher", args.dispatcher)
+        .opt_flag("--checks", args.checks)
         .format_json();
 
-    if let Some(l) = limit {
+    if let Some(l) = args.limit {
         builder = builder.opt("--limit", Some(&l.to_string()));
     }
 
