@@ -373,7 +373,12 @@ fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError> {
 }
 
 /// Get timeout duration based on command type
-fn get_timeout(command: &str) -> Duration {
+fn get_timeout(args: &[&str]) -> Duration {
+    if matches!(args, ["endpoints", "health", ..]) {
+        return DEFAULT_TIMEOUT;
+    }
+
+    let command = args.first().copied().unwrap_or("unknown");
     if FAST_COMMANDS.iter().any(|c| command.starts_with(c)) {
         FAST_TIMEOUT
     } else {
@@ -419,7 +424,7 @@ pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> 
     let mut cmd = Command::new(&ethcli_path);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
 
-    let cmd_timeout = get_timeout(command);
+    let cmd_timeout = get_timeout(args);
     debug!(command = %command, timeout_secs = %cmd_timeout.as_secs(), "Executing ethcli command");
 
     // Execute with tiered timeout
@@ -736,16 +741,17 @@ mod tests {
 
     #[test]
     fn test_get_timeout_fast_commands() {
-        assert_eq!(get_timeout("cast"), FAST_TIMEOUT);
-        assert_eq!(get_timeout("ens"), FAST_TIMEOUT);
-        assert_eq!(get_timeout("config"), FAST_TIMEOUT);
+        assert_eq!(get_timeout(&["cast"]), FAST_TIMEOUT);
+        assert_eq!(get_timeout(&["ens"]), FAST_TIMEOUT);
+        assert_eq!(get_timeout(&["config"]), FAST_TIMEOUT);
     }
 
     #[test]
     fn test_get_timeout_slow_commands() {
-        assert_eq!(get_timeout("rpc"), DEFAULT_TIMEOUT);
-        assert_eq!(get_timeout("tx"), DEFAULT_TIMEOUT);
-        assert_eq!(get_timeout("account"), DEFAULT_TIMEOUT);
+        assert_eq!(get_timeout(&["rpc"]), DEFAULT_TIMEOUT);
+        assert_eq!(get_timeout(&["tx"]), DEFAULT_TIMEOUT);
+        assert_eq!(get_timeout(&["account"]), DEFAULT_TIMEOUT);
+        assert_eq!(get_timeout(&["endpoints", "health"]), DEFAULT_TIMEOUT);
     }
 
     // -------------------------------------------------------------------------

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **mcp:** expose contract dispatcher mapping and side-effecting handler guard/check heuristics on contract_analyze
+* **mcp:** return JSON for token_balance and endpoints_health
+* **mcp:** expose proxy following on contract_selectors
+
+### Bug Fixes
+
+* **mcp:** bound endpoints_health to one probe by default and expose the probes argument
+
 ## [0.1.14](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.13...ethcli-mcp-v0.1.14) (2026-04-22)
 
 

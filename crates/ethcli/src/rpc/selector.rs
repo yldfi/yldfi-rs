@@ -2,11 +2,13 @@
 //!
 //! Provides intelligent endpoint selection based on:
 //! - Priority (higher priority endpoints preferred)
+//! - Node classification (tested endpoints preferred over unknown, full nodes for latest state)
+//! - General-purpose RPC support (restricted relay RPCs are fallback-only)
 //! - Random distribution among same-priority endpoints (load balancing)
 //! - Chain filtering
 //! - Archive node filtering for historical queries
 
-use crate::config::{Chain, ConfigFile, EndpointConfig};
+use crate::config::{Chain, ConfigFile, EndpointConfig, NodeType};
 use crate::rpc::Endpoint;
 use rand::seq::SliceRandom;
 
@@ -43,8 +45,11 @@ impl SelectionOptions {
 /// Selection strategy:
 /// 1. Filter endpoints by chain and enabled status
 /// 2. If target_block or require_archive is set, filter by archive capability
-/// 3. Sort by priority (higher first)
-/// 4. Among endpoints with the highest priority, randomly select one
+/// 3. Prefer tested full/archive endpoints over unknown endpoints when available
+/// 4. Treat restricted relay RPCs as fallback-only
+/// 5. For latest-state reads, prefer full nodes over archive nodes when both exist
+/// 6. Sort by priority (higher first)
+/// 7. Among endpoints with the highest priority, randomly select one
 ///    (distributes load across equivalent endpoints)
 fn select_endpoint_config_with_options(
     config: &ConfigFile,
@@ -99,6 +104,39 @@ fn select_endpoint_config_with_options(
         }
     }
 
+    // Unknown endpoints have not been classified by endpoint health/optimization.
+    // Do not let an untested high-priority URL beat known-good full/archive nodes.
+    let known_endpoints: Vec<_> = chain_endpoints
+        .iter()
+        .filter(|e| e.node_type != NodeType::Unknown)
+        .cloned()
+        .collect();
+    if !known_endpoints.is_empty() {
+        chain_endpoints = known_endpoints;
+    }
+
+    // Relay-oriented RPCs may handle basic methods but reject eth_call or other
+    // general-purpose reads. Keep them only if there is no better option.
+    let unrestricted_endpoints: Vec<_> = chain_endpoints
+        .iter()
+        .filter(|e| !is_restricted_rpc_url(&e.url))
+        .cloned()
+        .collect();
+    if !unrestricted_endpoints.is_empty() {
+        chain_endpoints = unrestricted_endpoints;
+    }
+
+    if !options.require_archive && options.target_block.is_none() {
+        let full_endpoints: Vec<_> = chain_endpoints
+            .iter()
+            .filter(|e| e.node_type == NodeType::Full)
+            .cloned()
+            .collect();
+        if !full_endpoints.is_empty() {
+            chain_endpoints = full_endpoints;
+        }
+    }
+
     // Sort by priority (higher priority first)
     chain_endpoints.sort_by_key(|endpoint| std::cmp::Reverse(endpoint.priority));
 
@@ -131,12 +169,20 @@ fn select_endpoint_config(config: &ConfigFile, chain: Chain) -> anyhow::Result<E
     select_endpoint_config_with_options(config, chain, &SelectionOptions::default())
 }
 
+fn is_restricted_rpc_url(url: &str) -> bool {
+    let url = url.to_ascii_lowercase();
+    url.contains("flashbots.net")
+}
+
 /// Get an RPC endpoint with smart selection
 ///
 /// Selection strategy:
 /// 1. Filter endpoints by chain and enabled status
-/// 2. Sort by priority (higher first)
-/// 3. Among endpoints with the highest priority, randomly select one
+/// 2. Prefer tested full/archive endpoints over unknown endpoints when available
+/// 3. Treat restricted relay RPCs as fallback-only
+/// 4. For latest-state reads, prefer full nodes over archive nodes when both exist
+/// 5. Sort by priority (higher first)
+/// 6. Among endpoints with the highest priority, randomly select one
 ///    (distributes load across equivalent endpoints)
 ///
 /// # Arguments
@@ -253,6 +299,84 @@ mod tests {
             let url = get_rpc_url_from_config(&config, Chain::Ethereum).unwrap();
             assert_eq!(url, "https://high.example.com");
         }
+    }
+
+    #[test]
+    fn test_known_endpoint_beats_unknown_higher_priority() {
+        let mut config = ConfigFile::default();
+
+        let mut unknown = EndpointConfig::new("https://unknown.example.com");
+        unknown.priority = 10;
+        unknown.chain = Chain::Ethereum;
+        unknown.node_type = NodeType::Unknown;
+
+        let mut full = EndpointConfig::new("https://full.example.com");
+        full.priority = 5;
+        full.chain = Chain::Ethereum;
+        full.node_type = NodeType::Full;
+
+        config.endpoints = vec![unknown, full];
+
+        let url = get_rpc_url_from_config(&config, Chain::Ethereum).unwrap();
+        assert_eq!(url, "https://full.example.com");
+    }
+
+    #[test]
+    fn test_full_endpoint_beats_archive_for_latest_state() {
+        let mut config = ConfigFile::default();
+
+        let mut archive = EndpointConfig::new("https://archive.example.com");
+        archive.priority = 10;
+        archive.chain = Chain::Ethereum;
+        archive.node_type = NodeType::Archive;
+
+        let mut full = EndpointConfig::new("https://full.example.com");
+        full.priority = 5;
+        full.chain = Chain::Ethereum;
+        full.node_type = NodeType::Full;
+
+        config.endpoints = vec![archive, full];
+
+        let url = get_rpc_url_from_config(&config, Chain::Ethereum).unwrap();
+        assert_eq!(url, "https://full.example.com");
+    }
+
+    #[test]
+    fn test_restricted_rpc_is_fallback_only() {
+        let mut config = ConfigFile::default();
+
+        let mut restricted = EndpointConfig::new("https://rpc.flashbots.net");
+        restricted.priority = 10;
+        restricted.chain = Chain::Ethereum;
+        restricted.node_type = NodeType::Full;
+
+        let mut archive = EndpointConfig::new("https://archive.example.com");
+        archive.priority = 5;
+        archive.chain = Chain::Ethereum;
+        archive.node_type = NodeType::Archive;
+
+        config.endpoints = vec![restricted, archive];
+
+        let url = get_rpc_url_from_config(&config, Chain::Ethereum).unwrap();
+        assert_eq!(url, "https://archive.example.com");
+    }
+
+    #[test]
+    fn test_unknown_priority_selection_when_no_known_endpoints() {
+        let mut config = ConfigFile::default();
+
+        let mut low_priority = EndpointConfig::new("https://low-unknown.example.com");
+        low_priority.priority = 1;
+        low_priority.chain = Chain::Ethereum;
+
+        let mut high_priority = EndpointConfig::new("https://high-unknown.example.com");
+        high_priority.priority = 10;
+        high_priority.chain = Chain::Ethereum;
+
+        config.endpoints = vec![low_priority, high_priority];
+
+        let url = get_rpc_url_from_config(&config, Chain::Ethereum).unwrap();
+        assert_eq!(url, "https://high-unknown.example.com");
     }
 
     #[test]

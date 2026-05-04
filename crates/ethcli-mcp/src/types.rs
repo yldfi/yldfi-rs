@@ -73,7 +73,10 @@ pub struct AccountAddressInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AccountBalanceInput {
     /// Ethereum address(es) - supports multiple addresses
+    #[serde(default)]
     pub addresses: Vec<String>,
+    /// Ethereum address (legacy singular form)
+    pub address: Option<String>,
     /// Chain name (ethereum, polygon, arbitrum, gnosis, fantom, linea, zksync, etc.) or numeric chain ID
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -194,6 +197,9 @@ pub struct ContractSelectorsInput {
     /// Lookup function signatures from 4byte.directory
     #[serde(default)]
     pub lookup: bool,
+    /// If proxy detected, extract selectors from the implementation contract instead
+    #[serde(default)]
+    pub follow_proxy: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -234,6 +240,12 @@ pub struct ContractAnalyzeInput {
     /// If proxy detected, analyze the implementation contract instead
     #[serde(default)]
     pub follow_proxy: bool,
+    /// Include selector -> handler offset dispatcher mapping
+    #[serde(default)]
+    pub dispatcher: bool,
+    /// Include handler guard/check heuristics for auth, calldata hash validation, storage checks, and external calls
+    #[serde(default)]
+    pub checks: bool,
 }
 
 // --- Token ---
@@ -260,10 +272,15 @@ pub struct TokenHoldersInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TokenBalanceInput {
     /// Token contract address(es) or labels. Use "eth" for native ETH balance.
+    #[serde(default)]
     pub tokens: Vec<String>,
+    /// Token contract address or label (legacy singular form)
+    pub token: Option<String>,
     /// Holder address(es) to check balance for
     #[serde(default)]
     pub holders: Vec<String>,
+    /// Holder address (legacy singular form)
+    pub address: Option<String>,
     /// Get balances for all addresses with this tag (can combine with holders)
     pub tag: Option<String>,
     /// Show zero balances (hidden by default when multiple holders)
@@ -3415,6 +3432,20 @@ pub struct EndpointsChainInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EndpointsHealthInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Number of probe requests per endpoint
+    #[serde(default = "default_endpoint_health_probes")]
+    pub probes: u32,
+}
+
+fn default_endpoint_health_probes() -> u32 {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

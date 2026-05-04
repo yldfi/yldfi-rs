@@ -24,7 +24,7 @@ Exposes 200+ Ethereum tools via the [Model Context Protocol](https://modelcontex
 - **Multi-chain support** - Ethereum, Polygon, Arbitrum, Optimism, Base, and more
 - **DEX aggregators** - 1inch, CowSwap, LI.FI, KyberSwap, OpenOcean, 0x, Velora, Enso
 - **Data sources** - CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, Dune
-- **Security tools** - GoPlus token analysis, Solodit vulnerability search, bytecode security analysis
+- **Security tools** - GoPlus token analysis, Solodit vulnerability search, bytecode security analysis with dispatcher and handler guard heuristics
 
 ## Installation
 
@@ -147,6 +147,18 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `MORALIS_API_KEY` | `moralis_*` tools |
 | `SOLODIT_API_KEY` | `solodit_*` tools |
 | `THEGRAPH_API_KEY` | `uniswap_top_pools`, etc. |
+
+## Unverified Contract Analysis
+
+The `contract_analyze` MCP tool exposes ethcli's native unverified-contract workflow. Set `follow_proxy`, `lookup`, `dispatcher`, and `checks` to inspect proxy implementations, resolve selectors, map selector handlers, and flag side-effecting handler bodies that appear to lack caller gates or calldata hash validation. `contract_selectors` also supports `follow_proxy` when you want implementation selectors rather than proxy wrapper selectors.
+
+Equivalent CLI:
+
+```bash
+ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks --format json
+```
+
+For endpoint diagnostics, `endpoints_health` returns JSON and defaults to `probes: 1` so MCP calls stay bounded. Increase `probes` when you need a deeper endpoint check.
 
 ## Architecture
 

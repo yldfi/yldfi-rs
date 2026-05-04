@@ -99,12 +99,13 @@ ethcli blacklist  # Token blacklist management (spam/scam filtering)
 
 ## Bytecode Analysis Commands
 
-Analyze contract bytecode without requiring source code or ABI. Uses evmole for function extraction and evm-disassembler for opcode analysis.
+Analyze contract bytecode without requiring source code or ABI. Uses evmole for function extraction and evm-disassembler for opcode analysis. This does not reconstruct Solidity source.
 
 ```bash
 # Extract function selectors, arguments, and state mutability
 ethcli contract selectors 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory
+ethcli contract sel 0x... --follow-proxy --lookup  # Follow proxy to implementation
 
 # Disassemble bytecode into opcodes
 ethcli contract disassemble 0x... --limit 50
@@ -120,6 +121,9 @@ ethcli contract az 0x... --include-disassembly --lookup
 
 # Analyze proxy's implementation contract instead of proxy bytecode
 ethcli contract analyze 0x... --follow-proxy
+
+# Unverified/proxy review with selector handler mapping and guard heuristics
+ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 
 # JSON output
 ethcli contract analyze 0x... --format json
@@ -1230,4 +1234,5 @@ ethcli endpoints add https://my-node.com --node-type full --has-debug --priority
 
 # Node types: archive (full history), full (recent only), unknown (default)
 # Historical queries (old blocks) automatically prefer archive nodes if configured
+# General reads avoid restricted relay RPCs such as Flashbots when other endpoints exist
 ```

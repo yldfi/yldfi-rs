@@ -43,11 +43,15 @@ ethcli contract verify-status <addr> # Verification status
 ```bash
 ethcli contract selectors <addr>    # Extract function selectors (evmole)
 ethcli contract sel <addr> --lookup # With 4byte.directory lookup
+ethcli contract sel <addr> --follow-proxy --lookup
+                                     # Implementation selectors for proxies
 ethcli contract disassemble <addr>  # Full opcode disassembly
 ethcli contract dis <addr> --limit 50 # Limit output
 ethcli contract opcodes <addr>      # Opcode frequency stats
 ethcli contract analyze <addr>      # Combined security analysis
 ethcli contract az <addr> --lookup  # With signature lookup
+ethcli contract analyze <addr> --follow-proxy --lookup --dispatcher --checks
+                                      # Unverified/proxy review: handler map + guard heuristics
 ```
 
 ### ENS Resolution
@@ -340,7 +344,7 @@ ethcli endpoints add <url> --node-type full --has-debug --priority 10
 ethcli endpoints list               # List endpoints
 ethcli endpoints list --archive     # Filter archive nodes only
 ethcli endpoints optimize --all     # Optimize all
-ethcli endpoints health             # Check health
+ethcli endpoints health --probes 1  # Check endpoint health quickly
 ethcli doctor                       # Diagnose issues
 ```
 

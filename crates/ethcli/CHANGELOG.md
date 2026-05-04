@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **contract:** add optional dispatcher mapping and side-effecting handler guard/check heuristics for unverified contract review
+* **contract:** add proxy following to selector extraction
+* **rpc:** prefer tested full/archive RPC endpoints over unknown endpoints for single-endpoint selection
+
+### Bug Fixes
+
+* **rpc:** keep restricted relay RPCs such as Flashbots as fallback-only for general read calls
+
 ## [0.21.25](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.24...ethcli-v0.21.25) (2026-04-22)
 
 

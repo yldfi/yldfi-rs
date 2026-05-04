@@ -49,6 +49,8 @@ pub fn analyze_bytecode(
         opcode_stats: stats,
         disassembly,
         proxy_info: None, // Set by caller if proxy detected
+        dispatcher: None,
+        checks: None,
     }
 }
 

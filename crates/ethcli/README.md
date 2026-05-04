@@ -22,7 +22,7 @@
 - **Log Fetching**: Parallel RPC requests across multiple endpoints
 - **Transaction Analysis**: Decode transactions with signature lookup
 - **Account Operations**: Balance, transactions, token transfers
-- **Contract Tools**: ABI fetching, source code, bytecode analysis, security patterns
+- **Contract Tools**: ABI fetching, source code, bytecode analysis, selector dispatchers, guard checks
 - **Type Conversions**: Wei/Gwei/Eth, hex/dec, checksums, hashing
 - **RPC Commands**: Direct blockchain calls (call, block, storage, etc.)
 - **ENS Resolution**: Resolve names to addresses and reverse lookup
@@ -65,7 +65,7 @@
 - **Pyth Network**: Real-time price feeds, feed search
 
 ### Security & Analysis
-- **Bytecode Analysis**: Function selector extraction (evmole), opcode disassembly, security pattern detection
+- **Bytecode Analysis**: Function selector extraction (evmole), opcode disassembly, dispatcher mapping, guard/check heuristics, security pattern detection
 - **GoPlus Security**: Token, address, NFT, and approval security analysis
 - **Solodit**: Smart contract vulnerability database search
 - **Blacklist**: Token blacklist management for spam/scam filtering
@@ -219,6 +219,7 @@ ethcli contract creation 0x...
 # Extract function selectors from bytecode (no ABI needed)
 ethcli contract selectors 0x...
 ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory
+ethcli contract sel 0x... --follow-proxy --lookup  # Inspect proxy implementation
 
 # Disassemble bytecode into opcodes
 ethcli contract disassemble 0x... --limit 50
@@ -230,6 +231,10 @@ ethcli contract opcodes 0x...
 # Security analysis (detects dangerous patterns)
 ethcli contract analyze 0x...
 ethcli contract az 0x... --include-disassembly
+
+# Unverified/proxy contract review: follow implementation, resolve selectors,
+# map dispatcher entries, and scan side-effecting handlers for missing auth/hash checks
+ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 ```
 
 ### Cast - Type Conversions and Hashing
@@ -419,9 +424,14 @@ ethcli endpoints add https://my-node.com --node-type full --has-debug --priority
 # Test an endpoint
 ethcli endpoints test https://eth.llamarpc.com
 
+# Check endpoint health; use more probes for a deeper check
+ethcli endpoints health --chain ethereum --probes 1
+
 # Remove an endpoint
 ethcli endpoints remove https://eth.llamarpc.com
 ```
+
+Single-endpoint reads prefer configured, tested full/archive nodes over unknown nodes. Relay-style RPCs that reject general reads, such as Flashbots, are kept as fallback-only when other endpoints are available.
 
 **Node Types:**
 - `archive` - Full historical state, required for queries at old blocks
@@ -851,12 +861,13 @@ ethcli kong reports strategy --chain-id 1 0x...
 
 ### Bytecode Analysis - Function Selectors & Security Patterns
 
-Analyze contract bytecode without requiring source code or ABI. Uses evmole for function extraction and evm-disassembler for opcode analysis.
+Analyze contract bytecode without requiring source code or ABI. Uses evmole for function extraction and evm-disassembler for opcode analysis. This is native bytecode analysis, not Solidity source reconstruction.
 
 ```bash
 # Extract function selectors, arguments, and state mutability
 ethcli contract selectors 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory
+ethcli contract sel 0x... --follow-proxy --lookup  # Follow proxy to implementation
 
 # Disassemble bytecode into opcodes
 ethcli contract disassemble 0x... --limit 50
@@ -869,6 +880,9 @@ ethcli contract ops 0x...
 # Full security analysis
 ethcli contract analyze 0x...
 ethcli contract az 0x... --include-disassembly --lookup
+
+# Unverified/proxy contract review
+ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 ```
 
 **Security patterns detected**:
@@ -880,6 +894,9 @@ ethcli contract az 0x... --include-disassembly --lookup
 
 **Output includes**:
 - Function selectors with arguments and mutability
+- Optional proxy following for selector extraction (`contract selectors --follow-proxy`)
+- Optional selector -> handler offset dispatcher map (`--dispatcher`)
+- Optional handler guard/check heuristics (`--checks`) for caller gates, calldata hash checks, storage status checks, and external calls; findings are emitted for side-effecting bodies
 - Risk level (LOW, MEDIUM, HIGH, CRITICAL)
 - Dangerous opcode counts
 - Hardcoded address detection

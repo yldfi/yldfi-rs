@@ -4,8 +4,8 @@
 
 use super::OutputFormat;
 use crate::bytecode::{
-    analyze_bytecode, disassemble_bytecode, extract_selectors, opcode_stats, BytecodeAnalysis,
-    RiskLevel, MAX_BYTECODE_SIZE,
+    analyze_bytecode, analyze_handler_checks, disassemble_bytecode, extract_selectors,
+    infer_dispatcher, opcode_stats, BytecodeAnalysis, RiskLevel, MAX_BYTECODE_SIZE,
 };
 use crate::config::{Chain, ConfigFile, EndpointConfig};
 use crate::etherscan::{Client, SignatureCache};
@@ -332,6 +332,33 @@ async fn detect_proxy_implementation<P: Provider>(
         }
     }
 
+    // Some legacy proxies expose implementation() directly instead of using
+    // standardized EIP-1967 storage slots.
+    if let Some(impl_addr) = call_implementation_function(provider, address).await {
+        return Some(impl_addr);
+    }
+
+    None
+}
+
+async fn call_implementation_function<P: Provider>(
+    provider: &P,
+    address: Address,
+) -> Option<Address> {
+    // implementation() selector = 0x5c60da1b
+    let calldata = hex::decode("5c60da1b").ok()?;
+    let tx = alloy::rpc::types::TransactionRequest::default()
+        .to(address)
+        .input(calldata.into());
+
+    let result = provider.call(tx).await.ok()?;
+    if result.len() >= 32 {
+        let impl_addr = Address::from_slice(&result[result.len() - 20..]);
+        if !impl_addr.is_zero() {
+            return Some(impl_addr);
+        }
+    }
+
     None
 }
 
@@ -427,6 +454,10 @@ pub enum ContractCommands {
         /// Lookup function signatures from 4byte.directory
         #[arg(long, short)]
         lookup: bool,
+
+        /// If proxy detected, extract selectors from the implementation contract instead
+        #[arg(long)]
+        follow_proxy: bool,
 
         /// Custom RPC URL (overrides config)
         #[arg(long, value_name = "URL")]
@@ -538,6 +569,14 @@ pub enum ContractCommands {
         /// If proxy detected, analyze the implementation contract instead
         #[arg(long)]
         follow_proxy: bool,
+
+        /// Include selector -> handler offset dispatcher mapping
+        #[arg(long)]
+        dispatcher: bool,
+
+        /// Include handler guard/check heuristics
+        #[arg(long)]
+        checks: bool,
 
         /// Custom RPC URL (overrides config)
         #[arg(long, value_name = "URL")]
@@ -890,6 +929,7 @@ pub async fn handle(
         ContractCommands::Selectors {
             address,
             lookup,
+            follow_proxy,
             rpc_url,
             format,
         } => {
@@ -909,7 +949,43 @@ pub async fn handle(
                 ));
             }
 
-            let mut functions = extract_selectors(&bytecode);
+            let proxy_info = crate::bytecode::detect_proxy(&bytecode);
+            let (selector_address, selector_bytecode) = if *follow_proxy {
+                let impl_addr = if let Some(impl_addr) = proxy_info.implementation {
+                    Some(impl_addr)
+                } else {
+                    get_implementation_from_storage(&chain, rpc_url.as_deref(), addr).await
+                };
+
+                if let Some(impl_addr) = impl_addr {
+                    if !quiet {
+                        eprintln!("Following proxy to implementation: {:#x}", impl_addr);
+                    }
+                    let impl_bytecode = get_bytecode(&chain, rpc_url.as_deref(), impl_addr).await?;
+                    if impl_bytecode.is_empty() {
+                        if !quiet {
+                            eprintln!(
+                                "Warning: Implementation at {:#x} has no bytecode; using proxy bytecode",
+                                impl_addr
+                            );
+                        }
+                        (addr, bytecode)
+                    } else {
+                        (impl_addr, impl_bytecode)
+                    }
+                } else {
+                    if !quiet {
+                        eprintln!(
+                            "Warning: Proxy detected but implementation address could not be resolved"
+                        );
+                    }
+                    (addr, bytecode)
+                }
+            } else {
+                (addr, bytecode)
+            };
+
+            let mut functions = extract_selectors(&selector_bytecode);
 
             // Optionally lookup signatures from 4byte.directory
             if *lookup {
@@ -929,7 +1005,7 @@ pub async fn handle(
             if format.is_json() {
                 println!("{}", serde_json::to_string_pretty(&functions)?);
             } else {
-                println!("Function Selectors: {}", address);
+                println!("Function Selectors: {:#x}", selector_address);
                 println!("{}", "═".repeat(70));
                 println!();
                 println!(
@@ -1100,6 +1176,8 @@ pub async fn handle(
             limit,
             lookup,
             follow_proxy,
+            dispatcher,
+            checks,
             rpc_url,
             format,
         } => {
@@ -1206,6 +1284,31 @@ pub async fn handle(
                 }
             }
 
+            if *dispatcher || *checks {
+                if !quiet {
+                    eprintln!("Inferring selector dispatcher...");
+                }
+                let inferred_dispatcher = infer_dispatcher(&analysis_bytecode, &analysis.functions)
+                    .map_err(|e| anyhow::anyhow!("Failed to infer dispatcher: {}", e))?;
+
+                if *checks {
+                    if !quiet {
+                        eprintln!("Analyzing handler guards and checks...");
+                    }
+                    let check_summary = analyze_handler_checks(
+                        &analysis_bytecode,
+                        &analysis.functions,
+                        &inferred_dispatcher,
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to analyze handler checks: {}", e))?;
+                    analysis.checks = Some(check_summary);
+                }
+
+                if *dispatcher {
+                    analysis.dispatcher = Some(inferred_dispatcher);
+                }
+            }
+
             if format.is_json() {
                 println!("{}", serde_json::to_string_pretty(&analysis)?);
             } else {
@@ -1265,16 +1368,7 @@ async fn get_implementation_from_storage(
     let endpoint = if let Some(url) = rpc_url {
         Endpoint::new(EndpointConfig::new(url.to_string()), 30, None).ok()?
     } else {
-        let config = ConfigFile::load_default().ok()?.unwrap_or_default();
-        let chain_endpoints: Vec<_> = config
-            .endpoints
-            .into_iter()
-            .filter(|e| e.enabled && e.chain == *chain)
-            .collect();
-        if chain_endpoints.is_empty() {
-            return None;
-        }
-        Endpoint::new(chain_endpoints[0].clone(), 30, None).ok()?
+        crate::rpc::get_rpc_endpoint(*chain).ok()?
     };
 
     let provider = endpoint.provider();
@@ -1297,6 +1391,20 @@ async fn get_implementation_from_storage(
         if let Some(addr) = address_from_storage(u256_to_b256(value)) {
             return Some(addr);
         }
+    }
+
+    // Try OpenZeppelin AdminUpgradeabilityProxy slot used by older proxies such as USDC.
+    if let Ok(value) = provider
+        .get_storage_at(proxy_address, oz_impl_slot().into())
+        .await
+    {
+        if let Some(addr) = address_from_storage(u256_to_b256(value)) {
+            return Some(addr);
+        }
+    }
+
+    if let Some(addr) = call_implementation_function(&provider, proxy_address).await {
+        return Some(addr);
     }
 
     None
@@ -1364,6 +1472,62 @@ fn print_analysis_table(analysis: &BytecodeAnalysis) {
         }
         if analysis.functions.len() > 10 {
             println!("  ... and {} more functions", analysis.functions.len() - 10);
+        }
+        println!();
+    }
+
+    if let Some(ref dispatcher) = analysis.dispatcher {
+        println!("Dispatcher");
+        println!("{}", "─".repeat(65));
+        println!("  {:<12} {:<12} {:<35}", "Selector", "Handler", "Signature");
+        for entry in dispatcher.iter().take(10) {
+            let sig = entry.signature.as_deref().unwrap_or("");
+            let sig_display = if sig.len() > 33 {
+                format!("{}...", &sig[..30])
+            } else {
+                sig.to_string()
+            };
+            println!(
+                "  {:<12} 0x{:<10x} {:<35}",
+                entry.selector, entry.handler_offset, sig_display
+            );
+        }
+        if dispatcher.len() > 10 {
+            println!(
+                "  ... and {} more dispatcher entries",
+                dispatcher.len() - 10
+            );
+        }
+        println!();
+    }
+
+    if let Some(ref checks) = analysis.checks {
+        println!("Handler Checks");
+        println!("{}", "─".repeat(65));
+        println!("  Risk Level: {}", checks.risk_level);
+        println!("  Functions Scanned: {}", checks.function_count);
+        println!("  Findings: {}", checks.finding_count);
+        if checks.finding_count > 0 {
+            println!();
+            for function in checks
+                .functions
+                .iter()
+                .filter(|f| !f.findings.is_empty())
+                .take(8)
+            {
+                let name = function
+                    .signature
+                    .as_deref()
+                    .unwrap_or(function.selector.as_str());
+                println!(
+                    "  {} @ 0x{:x} ({})",
+                    name, function.handler_offset, function.state_mutability
+                );
+                for finding in &function.findings {
+                    println!("    [{}] {}", finding.risk, finding.id);
+                    println!("       {}", finding.description);
+                }
+            }
         }
         println!();
     }

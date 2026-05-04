@@ -24,6 +24,7 @@
 //! ```
 
 mod analyze;
+mod checks;
 mod disassemble;
 mod proxy;
 mod security;
@@ -31,6 +32,7 @@ mod selectors;
 mod types;
 
 pub use analyze::{analyze_bytecode, AnalysisError};
+pub use checks::{analyze_handler_checks, infer_dispatcher};
 pub use disassemble::{
     disassemble_bytecode, disassemble_raw, opcode_stats, opcode_stats_from_operations,
     DisassemblyError,
@@ -44,6 +46,7 @@ pub use security::{
 };
 pub use selectors::extract_selectors;
 pub use types::{
-    BytecodeAnalysis, DisassembledOp, ExtractedFunction, OpcodeStats, RiskLevel, SecurityAnalysis,
+    BytecodeAnalysis, BytecodeCheckSummary, CheckFinding, DisassembledOp, DispatcherEntry,
+    ExtractedFunction, FunctionCheckAnalysis, OpcodeStats, RiskLevel, SecurityAnalysis,
     SecurityIssue, StateMutability, MAX_BYTECODE_SIZE,
 };

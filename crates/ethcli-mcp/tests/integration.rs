@@ -1243,7 +1243,10 @@ fn test_contract_selectors() {
     assert!(client.initialize());
 
     // USDC has well-known function selectors
-    let response = client.call_tool("contract_selectors", json!({"address": USDC}));
+    let response = client.call_tool(
+        "contract_selectors",
+        json!({"address": USDC, "follow_proxy": true}),
+    );
     assert!(
         is_tool_success(&response),
         "contract_selectors should succeed"
@@ -1266,7 +1269,7 @@ fn test_contract_selectors_with_lookup() {
 
     let response = client.call_tool(
         "contract_selectors",
-        json!({"address": USDC, "lookup": true}),
+        json!({"address": USDC, "lookup": true, "follow_proxy": true}),
     );
     assert!(
         is_tool_success(&response),

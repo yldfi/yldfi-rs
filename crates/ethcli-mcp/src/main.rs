@@ -102,7 +102,14 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get the native token (ETH) balance for one or more addresses")]
     async fn account_balance(&self, Parameters(input): Parameters<AccountBalanceInput>) -> String {
-        tools::account_balance(&input.addresses, Some(&input.chain))
+        let mut addresses = input.addresses;
+        if addresses.is_empty() {
+            if let Some(address) = input.address {
+                addresses.push(address);
+            }
+        }
+
+        tools::account_balance(&addresses, Some(&input.chain))
             .await
             .to_response()
     }
@@ -214,9 +221,14 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<ContractSelectorsInput>,
     ) -> String {
-        tools::contract_selectors(&input.address, Some(&input.chain), input.lookup)
-            .await
-            .to_response()
+        tools::contract_selectors(
+            &input.address,
+            Some(&input.chain),
+            input.lookup,
+            input.follow_proxy,
+        )
+        .await
+        .to_response()
     }
 
     #[tool(
@@ -244,7 +256,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Comprehensive bytecode security analysis. Detects dangerous patterns like SELFDESTRUCT, DELEGATECALL, tx.origin auth (honeypot indicator), and dynamic contract creation. Combines function extraction, security scanning, and opcode statistics. Use follow_proxy to analyze implementation contracts."
+        description = "Comprehensive bytecode security analysis. Detects dangerous opcodes, extracts selectors, follows proxies, and can include dispatcher mapping plus handler guard/check heuristics. Use follow_proxy with dispatcher/checks for unverified contract review."
     )]
     async fn contract_analyze(
         &self,
@@ -257,6 +269,8 @@ impl EthcliMcpServer {
             input.limit,
             input.lookup,
             input.follow_proxy,
+            input.dispatcher,
+            input.checks,
         )
         .await
         .to_response()
@@ -284,9 +298,23 @@ impl EthcliMcpServer {
         description = "Get token balance for one or more tokens and holders, with optional tag filtering"
     )]
     async fn token_balance(&self, Parameters(input): Parameters<TokenBalanceInput>) -> String {
+        let mut tokens = input.tokens;
+        if tokens.is_empty() {
+            if let Some(token) = input.token {
+                tokens.push(token);
+            }
+        }
+
+        let mut holders = input.holders;
+        if holders.is_empty() {
+            if let Some(address) = input.address {
+                holders.push(address);
+            }
+        }
+
         tools::token_balance(
-            &input.tokens,
-            &input.holders,
+            &tokens,
+            &holders,
             input.tag.as_deref(),
             input.show_zero,
             Some(&input.chain),
@@ -5907,8 +5935,11 @@ impl EthcliMcpServer {
     }
 
     #[tool(description = "Check health of RPC endpoints")]
-    async fn endpoints_health(&self, Parameters(input): Parameters<EndpointsChainInput>) -> String {
-        tools::endpoints_health(Some(&input.chain))
+    async fn endpoints_health(
+        &self,
+        Parameters(input): Parameters<EndpointsHealthInput>,
+    ) -> String {
+        tools::endpoints_health(Some(&input.chain), input.probes)
             .await
             .to_response()
     }

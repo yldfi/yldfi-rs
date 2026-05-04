@@ -516,12 +516,14 @@ pub async fn contract_selectors(
     address: &str,
     chain: Option<&str>,
     lookup: bool,
+    follow_proxy: bool,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("contract")
         .subcommand("selectors")
         .arg(address)
         .chain(chain)
         .opt_flag("--lookup", lookup)
+        .opt_flag("--follow-proxy", follow_proxy)
         .format_json()
         .execute()
         .await
@@ -564,6 +566,8 @@ pub async fn contract_analyze(
     limit: Option<u32>,
     lookup: bool,
     follow_proxy: bool,
+    dispatcher: bool,
+    checks: bool,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("contract")
         .subcommand("analyze")
@@ -572,6 +576,8 @@ pub async fn contract_analyze(
         .opt_flag("--include-disassembly", include_disassembly)
         .opt_flag("--lookup", lookup)
         .opt_flag("--follow-proxy", follow_proxy)
+        .opt_flag("--dispatcher", dispatcher)
+        .opt_flag("--checks", checks)
         .format_json();
 
     if let Some(l) = limit {
@@ -636,7 +642,8 @@ pub async fn token_balance(
     builder = builder
         .opt("--tag", tag)
         .opt_flag("--show-zero", show_zero)
-        .chain(chain);
+        .chain(chain)
+        .format_json();
 
     builder.execute().await.map_err(ToolError::from)
 }
@@ -8071,10 +8078,12 @@ pub async fn endpoints_disable(url: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn endpoints_health(chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn endpoints_health(chain: Option<&str>, probes: u32) -> Result<String, ToolError> {
     ArgsBuilder::new("endpoints")
         .subcommand("health")
         .chain(chain)
+        .opt_flag("--json", true)
+        .opt("--probes", Some(&probes.to_string()))
         .execute()
         .await
         .map_err(ToolError::from)

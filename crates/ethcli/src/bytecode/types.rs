@@ -175,6 +175,82 @@ impl SecurityAnalysis {
     }
 }
 
+/// Selector dispatcher entry inferred from bytecode.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DispatcherEntry {
+    /// 4-byte function selector (hex with 0x prefix)
+    pub selector: String,
+    /// Best-known signature, if selector lookup resolved one
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+    /// Byte offset of the selector comparison in the dispatcher
+    pub selector_offset: usize,
+    /// Byte offset of the inferred handler JUMPDEST
+    pub handler_offset: usize,
+}
+
+/// Per-function guard/check heuristics inferred from a handler range.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionCheckAnalysis {
+    /// 4-byte function selector (hex with 0x prefix)
+    pub selector: String,
+    /// Best-known signature, if selector lookup resolved one
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+    /// Inferred handler start byte offset
+    pub handler_offset: usize,
+    /// Inferred function body byte offset when the dispatcher handler is an ABI wrapper
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_offset: Option<usize>,
+    /// Exclusive end byte offset used for the scan
+    pub scan_end_offset: usize,
+    /// Function mutability inferred by selector extraction
+    pub state_mutability: StateMutability,
+    /// True when the handler has a CALLER opcode
+    pub uses_caller: bool,
+    /// True when CALLER appears with EQ and JUMPI in the handler range
+    pub caller_gated: bool,
+    /// True when the handler hashes calldata or copied calldata
+    pub calldata_hash_check: bool,
+    /// True when the handler has storage reads plus a comparison branch
+    pub storage_status_check: bool,
+    /// Number of SLOAD opcodes in the handler range
+    pub storage_reads: usize,
+    /// Number of SSTORE opcodes in the handler range
+    pub storage_writes: usize,
+    /// Number of external call opcodes in the handler range
+    pub external_calls: usize,
+    /// Number of revert opcodes in the handler range
+    pub reverts: usize,
+    /// Heuristic findings for this handler
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub findings: Vec<CheckFinding>,
+}
+
+/// A bytecode guard/check finding.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CheckFinding {
+    /// Finding identifier
+    pub id: String,
+    /// Risk level
+    pub risk: RiskLevel,
+    /// Human-readable description
+    pub description: String,
+}
+
+/// Aggregate guard/check analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BytecodeCheckSummary {
+    /// Overall risk level for guard/check heuristics
+    pub risk_level: RiskLevel,
+    /// Number of functions scanned
+    pub function_count: usize,
+    /// Total findings across scanned functions
+    pub finding_count: usize,
+    /// Per-function guard/check results
+    pub functions: Vec<FunctionCheckAnalysis>,
+}
+
 /// Combined bytecode analysis results
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BytecodeAnalysis {
@@ -197,4 +273,10 @@ pub struct BytecodeAnalysis {
     /// Proxy contract info (if detected)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_info: Option<super::proxy::ProxyInfo>,
+    /// Selector dispatcher mapping (optional, included when requested)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dispatcher: Option<Vec<DispatcherEntry>>,
+    /// Handler guard/check heuristics (optional, included when requested)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checks: Option<BytecodeCheckSummary>,
 }
