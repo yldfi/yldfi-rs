@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [0.22.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.25...ethcli-v0.22.0) (2026-05-04)
+
 ### Features
 
 * **contract:** add optional dispatcher mapping and side-effecting handler guard/check heuristics for unverified contract review

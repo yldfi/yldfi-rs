@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.14...ethcli-mcp-v0.2.0) (2026-05-04)
+
 ### Features
 
 * **mcp:** expose contract dispatcher mapping and side-effecting handler guard/check heuristics on contract_analyze
