@@ -1,6 +1,6 @@
 //! Types for the Market Data API
 
-use serde::de::{self, Deserializer, Visitor};
+use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 
 /// Deserialize a value that could be either a float, integer, or a string containing a number.
@@ -8,44 +8,23 @@ fn string_or_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    struct StringOrF64Visitor;
-
-    impl<'de> Visitor<'de> for StringOrF64Visitor {
-        type Value = Option<f64>;
-
-        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            f.write_str("a float, integer, or string containing a number")
-        }
-
-        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
-            Ok(Some(v))
-        }
-
-        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
-            Ok(Some(v as f64))
-        }
-
-        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
-            Ok(Some(v as f64))
-        }
-
-        fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-            if v.is_empty() || v == "null" {
-                return Ok(None);
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Number(number) => number
+            .as_f64()
+            .map(Some)
+            .ok_or_else(|| de::Error::custom("number cannot be represented as f64")),
+        serde_json::Value::String(value) => {
+            if value.is_empty() || value == "null" {
+                Ok(None)
+            } else {
+                value.parse().map(Some).map_err(de::Error::custom)
             }
-            v.parse().map(Some).map_err(de::Error::custom)
         }
-
-        fn visit_none<E>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
-
-        fn visit_unit<E>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
+        value => Err(de::Error::custom(format!(
+            "expected a float, integer, or string containing a number, got {value}"
+        ))),
     }
-
-    deserializer.deserialize_any(StringOrF64Visitor)
 }
 
 /// Top token data
