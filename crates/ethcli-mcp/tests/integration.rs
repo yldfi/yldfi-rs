@@ -1127,6 +1127,71 @@ fn test_config_show() {
 
     let response = client.call_tool("config_show", json!({}));
     assert!(is_tool_success(&response), "config_show should succeed");
+
+    let text = get_tool_text(&response).expect("Should have text");
+    assert!(
+        text.contains("Config contents are not exposed over MCP"),
+        "config_show should return safe status, got: {text}"
+    );
+    assert!(
+        !text.contains("etherscan_api_key") && !text.contains("access_key"),
+        "config_show must not expose raw config fields"
+    );
+}
+
+#[test]
+fn test_mcp_file_output_paths_are_rejected() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let output = format!("/tmp/ethcli-mcp-file-output-test-{}", std::process::id());
+    let _ = std::fs::remove_file(&output);
+
+    let response = client.call_tool(
+        "contract_abi",
+        json!({
+            "address": USDC,
+            "output": output,
+        }),
+    );
+
+    assert!(
+        !is_tool_success(&response),
+        "file output should be rejected"
+    );
+    let text = get_tool_text(&response).expect("Should have text");
+    assert!(
+        text.contains("File output paths are disabled"),
+        "expected file-output policy error, got: {text}"
+    );
+    assert!(
+        !Path::new(&output).exists(),
+        "rejected file output must not create a file"
+    );
+}
+
+#[test]
+fn test_mcp_mutating_tools_disabled_by_default() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = client.call_tool(
+        "address_add",
+        json!({
+            "name": "mcp-security-test",
+            "address": "0x0000000000000000000000000000000000000001",
+        }),
+    );
+
+    assert!(
+        !is_tool_success(&response),
+        "mutating tools should be disabled by default"
+    );
+    let text = get_tool_text(&response).expect("Should have text");
+    assert!(
+        text.contains("read-only mode") && text.contains("ETHCLI_MCP_ENABLE_WRITE_TOOLS"),
+        "expected read-only policy error, got: {text}"
+    );
 }
 
 #[test]

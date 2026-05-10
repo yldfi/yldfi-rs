@@ -112,9 +112,10 @@ ethcli-mcp
 ```
 
 **Features:**
-- 80+ tools covering all ethcli functionality
+- 230+ typed tools covering read-oriented ethcli workflows
 - JSON Schema validation for all inputs
-- Rate limiting and timeout protection
+- Read-only default for local/remote state changes
+- Rate limiting, timeout protection, and process cleanup
 - Works with Claude, GPT, and other MCP-compatible AI assistants
 
 **Configuration (Claude Desktop):**
@@ -127,6 +128,8 @@ ethcli-mcp
   }
 }
 ```
+
+Use `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1` only for trusted MCP clients that need mutating tools. If `ethcli` is not installed next to `ethcli-mcp`, set `ETHCLI_PATH` to an absolute binary path.
 
 See [ethcli-mcp](https://crates.io/crates/ethcli-mcp) for full documentation.
 

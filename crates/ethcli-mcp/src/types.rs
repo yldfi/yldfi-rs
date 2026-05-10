@@ -172,7 +172,7 @@ pub struct ContractAbiInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
-    /// Save to file instead of returning in response
+    /// Disabled over MCP; omit to return the ABI in the tool response
     pub output: Option<String>,
 }
 
@@ -183,7 +183,7 @@ pub struct ContractSourceInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
-    /// Save to directory instead of returning in response
+    /// Disabled over MCP; omit to return source data in the tool response
     pub output: Option<String>,
 }
 
@@ -897,7 +897,7 @@ pub struct AddressImportInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AddressExportInput {
-    /// Output file path (returns JSON to stdout if not specified)
+    /// Disabled over MCP; omit to return JSON in the tool response
     pub output: Option<String>,
 }
 
@@ -3359,7 +3359,7 @@ pub struct SimulateCallInput {
     pub with_local_artifacts: bool,
     /// RPC timeout in seconds for Foundry calls
     pub rpc_timeout: Option<u64>,
-    /// RPC headers for Foundry calls (format: "Name: value")
+    /// Disabled over MCP because headers can carry credentials; configure RPC auth outside MCP
     #[serde(default)]
     pub rpc_headers: Vec<String>,
     /// Disable automatic proxy detection in Foundry RPC clients
@@ -3374,7 +3374,7 @@ pub struct SimulateCallInput {
     pub fork_transaction_hash: Option<String>,
     /// Anvil fork chain ID for offline-start mode
     pub fork_chain_id: Option<u64>,
-    /// Headers for Anvil upstream fork RPC requests
+    /// Disabled over MCP because headers can carry credentials; configure fork RPC auth outside MCP
     #[serde(default)]
     pub fork_headers: Vec<String>,
     /// Anvil hardfork to use (e.g., prague, cancun)
@@ -3414,7 +3414,7 @@ pub struct SimulateCallInput {
     pub save: bool,
 
     // === Tenderly options ===
-    /// Tenderly API key (or use TENDERLY_ACCESS_KEY env)
+    /// Disabled over MCP; use TENDERLY_ACCESS_KEY env or ethcli config instead
     pub tenderly_key: Option<String>,
     /// Tenderly account slug (or use TENDERLY_ACCOUNT env)
     pub tenderly_account: Option<String>,
@@ -3422,7 +3422,7 @@ pub struct SimulateCallInput {
     pub tenderly_project: Option<String>,
 
     // === Alchemy options ===
-    /// Alchemy API key (or use ALCHEMY_API_KEY env)
+    /// Disabled over MCP; use ALCHEMY_API_KEY env or ethcli config instead
     pub alchemy_key: Option<String>,
     /// Alchemy network (e.g., eth-mainnet, polygon-mainnet, arb-mainnet)
     pub alchemy_network: Option<String>,
@@ -3430,7 +3430,7 @@ pub struct SimulateCallInput {
     // === Debug options ===
     /// Dry run - output request without executing (json, curl, fetch, powershell, url, python, httpie, wget, go, rust, axios)
     pub dry_run: Option<String>,
-    /// Show API keys in dry-run output (default: masked with env var placeholders)
+    /// Disabled over MCP; dry-run output is always masked
     #[serde(default)]
     pub show_secrets: bool,
 }
@@ -3479,7 +3479,7 @@ pub struct SimulateTxInput {
     pub no_proxy: bool,
     /// RPC timeout in seconds for Foundry replay
     pub rpc_timeout: Option<u64>,
-    /// RPC headers for Foundry replay (format: "Name: value")
+    /// Disabled over MCP because headers can carry credentials; configure RPC auth outside MCP
     #[serde(default)]
     pub rpc_headers: Vec<String>,
     /// Enable transaction gas limit checks in Foundry replay
@@ -3488,7 +3488,7 @@ pub struct SimulateTxInput {
     /// Disable block gas limit checks in Foundry replay
     #[serde(default)]
     pub disable_block_gas_limit: bool,
-    /// Etherscan API key override for Foundry trace decoding
+    /// Disabled over MCP; use ETHERSCAN_API_KEY env or ethcli config instead
     pub etherscan_api_key: Option<String>,
 }
 

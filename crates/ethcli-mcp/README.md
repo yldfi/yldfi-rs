@@ -15,11 +15,11 @@
 
 ## Overview
 
-Exposes 200+ Ethereum tools via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP), enabling AI assistants like Claude to query blockchains, analyze transactions, fetch DeFi data, and interact with 50+ data sources.
+Exposes 200+ Ethereum tools via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP), enabling AI assistants like Claude to query blockchains, analyze transactions, fetch DeFi data, and interact with 50+ data sources. The default MCP surface is read-only for local and remote state changes.
 
 ## Features
 
-- **230+ MCP tools** - Full ethcli functionality exposed as typed tools
+- **230+ MCP tools** - Broad ethcli functionality exposed as typed tools, with mutating tools gated by policy
 - **JSON Schema validation** - All tool inputs have schemas for LLM structured output
 - **Multi-chain support** - Ethereum, Polygon, Arbitrum, Optimism, Base, and more
 - **DEX aggregators** - 1inch, CowSwap, LI.FI, KyberSwap, OpenOcean, 0x, Velora, Enso
@@ -36,6 +36,8 @@ Exposes 200+ Ethereum tools via the [Model Context Protocol](https://modelcontex
 cargo install ethcli
 ethcli --version
 ```
+
+`ethcli-mcp` looks for `ethcli` next to the MCP binary. If you use a custom binary location, set `ETHCLI_PATH` to an absolute path.
 
 ### Install ethcli-mcp
 
@@ -54,6 +56,21 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "ethcli": {
       "command": "ethcli-mcp"
+    }
+  }
+}
+```
+
+With a custom ethcli binary:
+
+```json
+{
+  "mcpServers": {
+    "ethcli": {
+      "command": "ethcli-mcp",
+      "env": {
+        "ETHCLI_PATH": "/absolute/path/to/ethcli"
+      }
     }
   }
 }
@@ -137,7 +154,8 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 | Variable | Required For |
 |----------|-------------|
-| `ETHCLI_PATH` | Custom ethcli location (optional) |
+| `ETHCLI_PATH` | Absolute custom ethcli binary path |
+| `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1` | Opt in to MCP tools that mutate local/remote state |
 | `ETHERSCAN_API_KEY` | Higher rate limits (optional) |
 | `ALCHEMY_API_KEY` | `alchemy_*` tools |
 | `TENDERLY_ACCESS_KEY` | `tenderly_*` tools |
@@ -170,8 +188,14 @@ For endpoint diagnostics, `endpoints_health` returns JSON and defaults to `probe
 
 ## Security
 
+- **Read-only by default** - Local/remote mutating tools such as `config_set_*`, `address_add`, `blacklist_add`, `endpoints_add`, `chainlist_add`, `simulate_share`, Dune write APIs, Tenderly VNet/admin mutations, and CowSwap create/cancel order are blocked unless `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1` is set.
+- **No raw config disclosure** - `config_show` returns safe config status only. It does not return config file contents because they may contain API keys or private RPC URLs.
+- **No arbitrary file output** - MCP rejects file-output paths for tools such as `contract_abi`, `contract_source`, and `address_export`; omit `output` to receive data in the tool response.
+- **No secret-bearing subprocess args** - MCP rejects direct credential/header flags such as `--show-secrets`, `--tenderly-key`, `--alchemy-key`, `--etherscan-api-key`, `--rpc-header`, and `--fork-header`. Configure credentials via environment variables or ethcli config instead.
+- **Success-output redaction** - Credential-bearing URLs and secret-looking header/config lines are redacted before returning MCP tool responses.
+- **Process-group cleanup** - Timed-out subprocesses are killed as a process group so child tools such as `anvil` do not remain running.
 - **Rate limiting** - Max 10 concurrent subprocesses
-- **Timeouts** - 30-second limit on all commands
+- **Timeouts** - 10 seconds for fast local commands, 30 seconds for network commands
 - **Input validation** - Argument length limits, null byte detection
 - **Error sanitization** - API keys filtered from error messages
 

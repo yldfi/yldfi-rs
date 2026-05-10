@@ -7,6 +7,8 @@
 
 use crate::executor::{ArgsBuilder, ExecutionError, ValidationError};
 
+const WRITE_TOOLS_ENV: &str = "ETHCLI_MCP_ENABLE_WRITE_TOOLS";
+
 /// Error type for MCP tools
 #[derive(Debug, thiserror::Error)]
 pub enum ToolError {
@@ -37,6 +39,7 @@ impl From<ExecutionError> for ToolError {
     fn from(e: ExecutionError) -> Self {
         match e {
             ExecutionError::Validation(v) => ToolError::InvalidInput(v.to_string()),
+            ExecutionError::PolicyDenied(message) => ToolError::InvalidInput(message),
             ExecutionError::RateLimited => {
                 ToolError::RateLimited("Too many concurrent requests".to_string())
             }
@@ -49,6 +52,32 @@ impl From<ExecutionError> for ToolError {
 impl From<ValidationError> for ToolError {
     fn from(e: ValidationError) -> Self {
         ToolError::InvalidInput(e.to_string())
+    }
+}
+
+fn write_tools_enabled() -> bool {
+    std::env::var(WRITE_TOOLS_ENV)
+        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+        .unwrap_or(false)
+}
+
+fn require_write_tools_enabled(action: &str) -> Result<(), ToolError> {
+    if write_tools_enabled() {
+        Ok(())
+    } else {
+        Err(ToolError::InvalidInput(format!(
+            "{action} is disabled in ethcli-mcp read-only mode; set {WRITE_TOOLS_ENV}=1 to enable mutating tools"
+        )))
+    }
+}
+
+fn reject_file_output(output: Option<&str>) -> Result<(), ToolError> {
+    if output.is_some() {
+        Err(ToolError::InvalidInput(
+            "File output paths are disabled over ethcli-mcp; omit output to receive data in the tool response".to_string(),
+        ))
+    } else {
+        Ok(())
     }
 }
 
@@ -290,6 +319,8 @@ pub async fn address_add(
     tags: &[String],
     for_chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("address_add")?;
+
     let mut builder = ArgsBuilder::new("address")
         .subcommand("add")
         .arg(name)
@@ -305,6 +336,8 @@ pub async fn address_add(
 }
 
 pub async fn address_remove(name: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("address_remove")?;
+
     ArgsBuilder::new("address")
         .subcommand("remove")
         .arg(name)
@@ -343,6 +376,8 @@ pub async fn address_search(query: &str) -> Result<String, ToolError> {
 }
 
 pub async fn address_import(file: &str, overwrite: bool) -> Result<String, ToolError> {
+    require_write_tools_enabled("address_import")?;
+
     let mut builder = ArgsBuilder::new("address").subcommand("import").arg(file);
 
     if overwrite {
@@ -353,9 +388,10 @@ pub async fn address_import(file: &str, overwrite: bool) -> Result<String, ToolE
 }
 
 pub async fn address_export(output: Option<&str>) -> Result<String, ToolError> {
+    reject_file_output(output)?;
+
     ArgsBuilder::new("address")
         .subcommand("export")
-        .opt("-o", output)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -371,6 +407,8 @@ pub async fn blacklist_add(
     reason: Option<&str>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("blacklist_add")?;
+
     ArgsBuilder::new("blacklist")
         .subcommand("add")
         .arg(address)
@@ -383,6 +421,8 @@ pub async fn blacklist_add(
 }
 
 pub async fn blacklist_remove(address: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("blacklist_remove")?;
+
     ArgsBuilder::new("blacklist")
         .subcommand("remove")
         .arg(address)
@@ -448,11 +488,12 @@ pub async fn contract_abi(
     chain: Option<&str>,
     output: Option<&str>,
 ) -> Result<String, ToolError> {
+    reject_file_output(output)?;
+
     ArgsBuilder::new("contract")
         .subcommand("abi")
         .arg(address)
         .chain(chain)
-        .opt("-o", output)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -463,11 +504,12 @@ pub async fn contract_source(
     chain: Option<&str>,
     output: Option<&str>,
 ) -> Result<String, ToolError> {
+    reject_file_output(output)?;
+
     ArgsBuilder::new("contract")
         .subcommand("source")
         .arg(address)
         .chain(chain)
-        .opt("-o", output)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -705,6 +747,8 @@ pub async fn sig_cache_stats() -> Result<String, ToolError> {
 }
 
 pub async fn sig_cache_clear() -> Result<String, ToolError> {
+    require_write_tools_enabled("sig_cache_clear")?;
+
     ArgsBuilder::new("sig")
         .subcommand("cache-clear")
         .execute()
@@ -1078,6 +1122,12 @@ pub async fn simulate_call(
     dry_run: Option<&str>,
     show_secrets: bool,
 ) -> Result<String, ToolError> {
+    if show_secrets {
+        return Err(ToolError::InvalidInput(
+            "show_secrets is disabled over ethcli-mcp".to_string(),
+        ));
+    }
+
     let mut builder = ArgsBuilder::new("simulate")
         .subcommand("call")
         .arg(contract)
@@ -7968,6 +8018,8 @@ pub async fn pyth_known_feeds() -> Result<String, ToolError> {
 // =============================================================================
 
 pub async fn config_init() -> Result<String, ToolError> {
+    require_write_tools_enabled("config_init")?;
+
     ArgsBuilder::new("config")
         .subcommand("init")
         .execute()
@@ -7984,11 +8036,14 @@ pub async fn config_path() -> Result<String, ToolError> {
 }
 
 pub async fn config_show() -> Result<String, ToolError> {
-    ArgsBuilder::new("config")
-        .subcommand("show")
-        .execute()
-        .await
-        .map_err(ToolError::from)
+    let path = config_path().await?;
+    let validation = config_validate().await?;
+
+    Ok(format!(
+        "Config contents are not exposed over MCP because they may contain API keys or private RPC URLs.\n\nPath:\n{}\n\nValidation:\n{}",
+        path.trim(),
+        validation.trim()
+    ))
 }
 
 pub async fn config_validate() -> Result<String, ToolError> {
@@ -8000,6 +8055,8 @@ pub async fn config_validate() -> Result<String, ToolError> {
 }
 
 pub async fn config_set_etherscan_key(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_etherscan_key")?;
+
     ArgsBuilder::new("config")
         .subcommand("set-etherscan-key")
         .arg(key)
@@ -8013,6 +8070,8 @@ pub async fn config_set_tenderly(
     project: &str,
     key: &str,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_tenderly")?;
+
     ArgsBuilder::new("config")
         .subcommand("set-tenderly")
         .opt("--key", Some(key))
@@ -8024,6 +8083,8 @@ pub async fn config_set_tenderly(
 }
 
 pub async fn config_set_alchemy(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_alchemy")?;
+
     ArgsBuilder::new("config")
         .subcommand("set-alchemy")
         .arg(key)
@@ -8033,6 +8094,8 @@ pub async fn config_set_alchemy(key: &str) -> Result<String, ToolError> {
 }
 
 pub async fn config_set_moralis(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_moralis")?;
+
     ArgsBuilder::new("config")
         .subcommand("set-moralis")
         .arg(key)
@@ -8045,6 +8108,8 @@ pub async fn config_set_chainlink(
     client_id: &str,
     client_secret: &str,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_chainlink")?;
+
     ArgsBuilder::new("config")
         .subcommand("set-chainlink")
         .opt("--key", Some(client_id))
@@ -8055,6 +8120,8 @@ pub async fn config_set_chainlink(
 }
 
 pub async fn config_set_dune(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_dune")?;
+
     ArgsBuilder::new("config")
         .subcommand("set-dune")
         .arg(key)
@@ -8064,6 +8131,8 @@ pub async fn config_set_dune(key: &str) -> Result<String, ToolError> {
 }
 
 pub async fn config_set_dune_sim(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_dune_sim")?;
+
     ArgsBuilder::new("config")
         .subcommand("set-dune-sim")
         .arg(key)
@@ -8073,6 +8142,8 @@ pub async fn config_set_dune_sim(key: &str) -> Result<String, ToolError> {
 }
 
 pub async fn config_set_solodit(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_solodit")?;
+
     ArgsBuilder::new("config")
         .subcommand("set-solodit")
         .arg(key)
@@ -8082,6 +8153,8 @@ pub async fn config_set_solodit(key: &str) -> Result<String, ToolError> {
 }
 
 pub async fn config_add_debug_rpc(url: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_add_debug_rpc")?;
+
     ArgsBuilder::new("config")
         .subcommand("add-debug-rpc")
         .arg(url)
@@ -8091,6 +8164,8 @@ pub async fn config_add_debug_rpc(url: &str) -> Result<String, ToolError> {
 }
 
 pub async fn config_remove_debug_rpc(url: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_remove_debug_rpc")?;
+
     ArgsBuilder::new("config")
         .subcommand("remove-debug-rpc")
         .arg(url)
@@ -8117,6 +8192,8 @@ pub async fn endpoints_add(
     chain: Option<&str>,
     no_optimize: bool,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("endpoints_add")?;
+
     let mut builder = ArgsBuilder::new("endpoints")
         .subcommand("add")
         .arg(url)
@@ -8130,6 +8207,8 @@ pub async fn endpoints_add(
 }
 
 pub async fn endpoints_remove(url: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("endpoints_remove")?;
+
     ArgsBuilder::new("endpoints")
         .subcommand("remove")
         .arg(url)
@@ -8142,6 +8221,8 @@ pub async fn endpoints_optimize(
     url: Option<&str>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("endpoints_optimize")?;
+
     let mut builder = ArgsBuilder::new("endpoints")
         .subcommand("optimize")
         .chain(chain);
@@ -8163,6 +8244,8 @@ pub async fn endpoints_test(url: &str) -> Result<String, ToolError> {
 }
 
 pub async fn endpoints_enable(url: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("endpoints_enable")?;
+
     ArgsBuilder::new("endpoints")
         .subcommand("enable")
         .arg(url)
@@ -8172,6 +8255,8 @@ pub async fn endpoints_enable(url: &str) -> Result<String, ToolError> {
 }
 
 pub async fn endpoints_disable(url: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("endpoints_disable")?;
+
     ArgsBuilder::new("endpoints")
         .subcommand("disable")
         .arg(url)
@@ -8215,6 +8300,8 @@ pub async fn chainlist_rpcs(chain: &str) -> Result<String, ToolError> {
 }
 
 pub async fn chainlist_add(chain: &str, max: usize) -> Result<String, ToolError> {
+    require_write_tools_enabled("chainlist_add")?;
+
     ArgsBuilder::new("chainlist")
         .subcommand("add")
         .arg(chain)

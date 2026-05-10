@@ -186,18 +186,14 @@ impl EthcliMcpServer {
     // CONTRACT
     // =========================================================================
 
-    #[tool(
-        description = "Fetch the ABI for a verified contract from Etherscan (optionally save to file)"
-    )]
+    #[tool(description = "Fetch the ABI for a verified contract from Etherscan")]
     async fn contract_abi(&self, Parameters(input): Parameters<ContractAbiInput>) -> String {
         tools::contract_abi(&input.address, Some(&input.chain), input.output.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(
-        description = "Download verified source code for a contract (optionally save to directory)"
-    )]
+    #[tool(description = "Download verified source code for a contract")]
     async fn contract_source(&self, Parameters(input): Parameters<ContractSourceInput>) -> String {
         tools::contract_source(&input.address, Some(&input.chain), input.output.as_deref())
             .await
@@ -960,7 +956,7 @@ impl EthcliMcpServer {
             input.alchemy_network.as_deref(),
             // Debug options
             input.dry_run.as_deref(),
-            input.show_secrets,
+            false,
         )
         .await
         .to_response()
@@ -1063,7 +1059,7 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Export addresses to JSON (file or stdout)")]
+    #[tool(description = "Export addresses to JSON in the tool response")]
     async fn address_export(&self, Parameters(input): Parameters<AddressExportInput>) -> String {
         tools::address_export(input.output.as_deref())
             .await
@@ -5865,7 +5861,7 @@ impl EthcliMcpServer {
         tools::config_path().await.to_response()
     }
 
-    #[tool(description = "Show current ethcli config")]
+    #[tool(description = "Show safe ethcli config status without exposing config contents")]
     async fn config_show(&self) -> String {
         tools::config_show().await.to_response()
     }

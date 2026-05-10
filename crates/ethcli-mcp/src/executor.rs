@@ -3,14 +3,17 @@
 //! Runs ethcli commands as subprocesses and captures output.
 //! Includes rate limiting, timeouts, input validation, and metrics.
 
-use std::process::Stdio;
+use std::process::{Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 use tokio::sync::Semaphore;
-use tokio::time::timeout;
+use tokio::task::JoinHandle;
+use tokio::time::{timeout, timeout_at, Instant as TokioInstant};
 use tracing::{debug, info, warn};
+use url::Url;
 
 /// Maximum concurrent subprocess executions to prevent DoS
 const MAX_CONCURRENT_SUBPROCESSES: usize = 10;
@@ -24,11 +27,26 @@ const FAST_TIMEOUT: Duration = Duration::from_secs(10);
 /// Commands that use fast timeout (pure computation, no network)
 const FAST_COMMANDS: &[&str] = &["cast", "ens", "config", "address", "blacklist", "endpoints"];
 
+/// Opt-in env var for MCP tools that mutate local/remote state
+const WRITE_TOOLS_ENV: &str = "ETHCLI_MCP_ENABLE_WRITE_TOOLS";
+
+/// Flags that can carry credentials in subprocess arguments
+const SECRET_BEARING_FLAGS: &[&str] = &[
+    "--show-secrets",
+    "--tenderly-key",
+    "--alchemy-key",
+    "--etherscan-api-key",
+    "--rpc-header",
+    "--fork-header",
+];
+
 /// Maximum argument length to prevent memory exhaustion
 const MAX_ARG_LENGTH: usize = 10_000;
 
 /// Maximum number of arguments
 const MAX_ARGS: usize = 100;
+
+const URL_PREFIXES: &[&str] = &["https://", "http://", "wss://", "ws://"];
 
 /// Semaphore to limit concurrent subprocess spawns
 static SUBPROCESS_SEMAPHORE: OnceLock<Semaphore> = OnceLock::new();
@@ -153,6 +171,8 @@ pub enum ExecutionError {
     Timeout,
     /// Failed to spawn process
     SpawnFailed(String),
+    /// Command blocked by MCP security policy
+    PolicyDenied(String),
     /// Command failed with exit code
     CommandFailed { exit_code: i32, message: String },
     /// Invalid UTF-8 in output
@@ -168,6 +188,7 @@ impl std::fmt::Display for ExecutionError {
             Self::RateLimited => write!(f, "Too many concurrent requests, please retry"),
             Self::Timeout => write!(f, "Command timed out"),
             Self::SpawnFailed(e) => write!(f, "Failed to execute command: {}", e),
+            Self::PolicyDenied(message) => write!(f, "{}", message),
             Self::CommandFailed { exit_code, message } => {
                 write!(f, "Command failed (exit {}): {}", exit_code, message)
             }
@@ -265,6 +286,144 @@ fn validate_args(args: &[&str]) -> Result<(), ValidationError> {
     Ok(())
 }
 
+fn env_flag_enabled(name: &str) -> bool {
+    std::env::var(name)
+        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+        .unwrap_or(false)
+}
+
+fn write_tools_enabled() -> bool {
+    env_flag_enabled(WRITE_TOOLS_ENV)
+}
+
+fn has_file_output_flag(args: &[&str]) -> bool {
+    args.iter()
+        .any(|arg| matches!(*arg, "-o" | "--output") || arg.starts_with("--output="))
+}
+
+fn is_file_output_command(args: &[&str]) -> bool {
+    match (args.first().copied(), args.get(1).copied()) {
+        (Some("address"), Some("export")) => has_file_output_flag(&args[2..]),
+        (Some("contract"), Some("abi" | "source")) => has_file_output_flag(&args[2..]),
+        _ => false,
+    }
+}
+
+fn is_mutating_dune_command(args: &[&str]) -> bool {
+    matches!(
+        (args.get(1).copied(), args.get(2).copied()),
+        (
+            Some("queries"),
+            Some("create" | "update" | "archive" | "unarchive" | "make-private" | "make-public")
+        ) | (
+            Some("tables"),
+            Some("create" | "upload-csv" | "insert" | "clear" | "delete")
+        ) | (Some("matviews"), Some("upsert" | "refresh" | "delete"))
+            | (Some("pipelines"), Some("execute"))
+    )
+}
+
+fn is_mutating_tenderly_command(args: &[&str]) -> bool {
+    match (args.get(1).copied(), args.get(2).copied()) {
+        (Some("vnets"), Some("create" | "delete" | "update" | "fork" | "send")) => true,
+        (Some("vnets"), Some("admin")) => {
+            let Some(mut index) = args
+                .iter()
+                .position(|arg| *arg == "admin")
+                .map(|index| index + 1)
+            else {
+                return true;
+            };
+
+            let mut action = None;
+            while index < args.len() {
+                let arg = args[index];
+                if arg.starts_with("--") {
+                    index += 2;
+                    continue;
+                }
+
+                action = Some(arg);
+                break;
+            }
+
+            !matches!(
+                action,
+                Some("get-latest" | "simulate-tx" | "simulate-bundle" | "create-access-list")
+            )
+        }
+        (Some("actions"), Some("stop-many" | "resume-many")) => true,
+        (Some("alerts"), Some("update" | "add-destination" | "remove-destination")) => true,
+        (Some("contracts"), Some("update" | "remove-tag" | "bulk-tag")) => true,
+        _ => false,
+    }
+}
+
+fn is_mutating_command(args: &[&str]) -> bool {
+    match (args.first().copied(), args.get(1).copied()) {
+        (Some("config"), Some(sub)) => matches!(
+            sub,
+            "init"
+                | "set-etherscan-key"
+                | "set-tenderly"
+                | "set-alchemy"
+                | "set-moralis"
+                | "set-chainlink"
+                | "set-dune"
+                | "set-dune-sim"
+                | "set-solodit"
+                | "add-debug-rpc"
+                | "remove-debug-rpc"
+        ),
+        (Some("address"), Some("add" | "remove" | "import")) => true,
+        (Some("blacklist"), Some("add" | "remove")) => true,
+        (Some("endpoints"), Some("add" | "remove" | "enable" | "disable" | "optimize")) => true,
+        (Some("chainlist"), Some("add")) => true,
+        (Some("sig"), Some("cache-clear")) => true,
+        (Some("simulate"), Some("share" | "unshare")) => true,
+        (Some("dune"), _) => is_mutating_dune_command(args),
+        (Some("tenderly"), _) => is_mutating_tenderly_command(args),
+        (Some("cow-swap"), Some("create-order" | "cancel-order")) => true,
+        _ => false,
+    }
+}
+
+fn describe_command(args: &[&str]) -> String {
+    args.iter().take(3).copied().collect::<Vec<_>>().join(" ")
+}
+
+fn secret_bearing_flag<'a>(args: &[&'a str]) -> Option<&'a str> {
+    args.iter().copied().find(|arg| {
+        SECRET_BEARING_FLAGS.contains(arg)
+            || SECRET_BEARING_FLAGS
+                .iter()
+                .any(|flag| arg.starts_with(&format!("{flag}=")))
+    })
+}
+
+fn validate_command_policy(args: &[&str]) -> Result<(), ExecutionError> {
+    if let Some(flag) = secret_bearing_flag(args) {
+        return Err(ExecutionError::PolicyDenied(format!(
+            "{flag} is disabled over ethcli-mcp because it can expose credentials through subprocess arguments"
+        )));
+    }
+
+    if is_file_output_command(args) {
+        return Err(ExecutionError::PolicyDenied(
+            "File output paths are disabled over ethcli-mcp; omit output to receive data in the tool response".to_string(),
+        ));
+    }
+
+    if is_mutating_command(args) && !write_tools_enabled() {
+        return Err(ExecutionError::PolicyDenied(format!(
+            "{} is disabled in ethcli-mcp read-only mode; set {WRITE_TOOLS_ENV}=1 to enable mutating tools",
+            describe_command(args)
+        )));
+    }
+
+    Ok(())
+}
+
 /// Sanitize error messages to prevent information leakage
 fn sanitize_error(stderr: &str, stdout: &str) -> String {
     let mut message = String::new();
@@ -318,6 +477,188 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
     }
 }
 
+fn contains_secret_key_name(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    lower.contains("api_key")
+        || lower.contains("apikey")
+        || lower.contains("api key")
+        || lower.contains("access_key")
+        || lower.contains("access key")
+        || lower.contains("x-access-key")
+        || lower.contains("user_secret")
+        || lower.contains("client_secret")
+        || lower.contains("authorization")
+        || lower.contains("auth_token")
+        || lower.contains("bearer")
+        || lower.contains("token")
+}
+
+fn should_redact_path_segment(host: &str, previous: Option<&str>, segment: &str) -> bool {
+    if segment.is_empty() {
+        return false;
+    }
+
+    let lower = segment.to_ascii_lowercase();
+    if contains_secret_key_name(&lower) {
+        return true;
+    }
+
+    let previous = previous.map(str::to_ascii_lowercase);
+    if matches!(previous.as_deref(), Some("v2" | "v3" | "key" | "token")) && segment.len() >= 12 {
+        return true;
+    }
+
+    let known_keyed_rpc_host = [
+        "alchemy.com",
+        "infura.io",
+        "quicknode",
+        "quiknode",
+        "blastapi",
+        "drpc",
+        "ankr",
+        "chainstack",
+        "tenderly.co",
+    ]
+    .iter()
+    .any(|provider| host.contains(provider));
+
+    known_keyed_rpc_host
+        && segment.len() >= 16
+        && segment
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+fn redact_url_candidate(candidate: &str) -> String {
+    let Ok(mut url) = Url::parse(candidate) else {
+        return candidate.to_string();
+    };
+
+    if !url.username().is_empty() {
+        let _ = url.set_username("redacted");
+    }
+    if url.password().is_some() {
+        let _ = url.set_password(Some("redacted"));
+    }
+
+    if url.query().is_some() {
+        let pairs: Vec<(String, String)> = url
+            .query_pairs()
+            .map(|(key, value)| {
+                let key = key.into_owned();
+                let value = if contains_secret_key_name(&key) {
+                    "redacted".to_string()
+                } else {
+                    value.into_owned()
+                };
+                (key, value)
+            })
+            .collect();
+
+        url.set_query(None);
+        {
+            let mut query = url.query_pairs_mut();
+            for (key, value) in pairs {
+                query.append_pair(&key, &value);
+            }
+        }
+    }
+
+    let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
+    if let Some(segments) = url.path_segments() {
+        let segments: Vec<String> = segments
+            .scan(None::<String>, |previous, segment| {
+                let redacted = if should_redact_path_segment(&host, previous.as_deref(), segment) {
+                    "redacted".to_string()
+                } else {
+                    segment.to_string()
+                };
+                *previous = Some(segment.to_string());
+                Some(redacted)
+            })
+            .collect();
+
+        if let Ok(mut path) = url.path_segments_mut() {
+            path.clear();
+            path.extend(segments.iter().map(String::as_str));
+        }
+    }
+
+    url.to_string()
+}
+
+fn find_next_url_start(text: &str) -> Option<usize> {
+    URL_PREFIXES
+        .iter()
+        .filter_map(|prefix| text.find(prefix))
+        .min()
+}
+
+fn is_url_delimiter(byte: u8) -> bool {
+    matches!(
+        byte,
+        b' ' | b'\n' | b'\r' | b'\t' | b'"' | b'\'' | b'<' | b'>' | b')' | b']' | b'}'
+    )
+}
+
+fn redact_sensitive_urls(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut remaining = text;
+
+    while let Some(start) = find_next_url_start(remaining) {
+        output.push_str(&remaining[..start]);
+        let url_and_after = &remaining[start..];
+        let end = url_and_after
+            .bytes()
+            .position(is_url_delimiter)
+            .unwrap_or(url_and_after.len());
+        let candidate = &url_and_after[..end];
+        output.push_str(&redact_url_candidate(candidate));
+        remaining = &url_and_after[end..];
+    }
+
+    output.push_str(remaining);
+    output
+}
+
+fn redact_secret_line(line: &str) -> Option<String> {
+    let lower = line.to_ascii_lowercase();
+    if URL_PREFIXES.iter().any(|prefix| lower.contains(prefix)) {
+        return None;
+    }
+
+    let looks_secret = lower.contains("api_key")
+        || lower.contains("access_key")
+        || lower.contains("api key")
+        || lower.contains("access key")
+        || lower.contains("user_secret")
+        || lower.contains("client_secret")
+        || lower.contains("x-access-key")
+        || lower.contains("authorization:");
+
+    if !looks_secret {
+        return None;
+    }
+
+    if let Some(index) = line.find('=') {
+        return Some(format!("{} <redacted>", line[..=index].trim_end()));
+    }
+    if let Some(index) = line.find(':') {
+        return Some(format!("{}: <redacted>", line[..index].trim_end()));
+    }
+
+    Some("<redacted>".to_string())
+}
+
+fn sanitize_success_output(stdout: &str) -> String {
+    let redacted = redact_sensitive_urls(stdout);
+    redacted
+        .lines()
+        .map(|line| redact_secret_line(line).unwrap_or_else(|| line.to_string()))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Verify the ethcli binary is valid and executable
 fn verify_binary(path: &std::path::Path) -> Result<(), ExecutionError> {
     use std::os::unix::fs::PermissionsExt;
@@ -353,6 +694,11 @@ fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError> {
     // First check environment variable override
     if let Ok(path) = std::env::var("ETHCLI_PATH") {
         let path = std::path::PathBuf::from(&path);
+        if !path.is_absolute() {
+            return Err(ExecutionError::BinaryNotFound(
+                "ETHCLI_PATH must be an absolute path".to_string(),
+            ));
+        }
         verify_binary(&path)?;
         return Ok(path);
     }
@@ -368,8 +714,10 @@ fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError> {
         }
     }
 
-    // Fall back to PATH lookup (can't verify without which/where)
-    Ok(std::path::PathBuf::from("ethcli"))
+    Err(ExecutionError::BinaryNotFound(
+        "ethcli not found next to ethcli-mcp; set ETHCLI_PATH to an absolute ethcli binary path"
+            .to_string(),
+    ))
 }
 
 /// Get timeout duration based on command type
@@ -397,6 +745,128 @@ pub async fn execute(args: &[&str]) -> Result<String, String> {
     execute_validated(args).await.map_err(|e| e.to_string())
 }
 
+fn read_pipe<R>(mut pipe: R) -> JoinHandle<std::io::Result<Vec<u8>>>
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut output = Vec::new();
+        pipe.read_to_end(&mut output).await?;
+        Ok(output)
+    })
+}
+
+async fn collect_output(
+    mut task: JoinHandle<std::io::Result<Vec<u8>>>,
+    stream: &str,
+    deadline: TokioInstant,
+) -> Result<Vec<u8>, ExecutionError> {
+    match timeout_at(deadline, &mut task).await {
+        Ok(joined) => joined
+            .map_err(|e| ExecutionError::SpawnFailed(format!("Failed to join {stream}: {e}")))?
+            .map_err(|e| ExecutionError::SpawnFailed(format!("Failed to read {stream}: {e}"))),
+        Err(_) => {
+            task.abort();
+            Err(ExecutionError::Timeout)
+        }
+    }
+}
+
+fn abort_output_task(task: Option<JoinHandle<std::io::Result<Vec<u8>>>>) {
+    if let Some(task) = task {
+        task.abort();
+    }
+}
+
+#[cfg(unix)]
+fn kill_process_group(pid: u32) {
+    // The child is spawned into a new process group whose PGID equals its PID.
+    // Killing -PGID also terminates grandchildren such as anvil/cast.
+    unsafe {
+        libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+    }
+}
+
+#[cfg(not(unix))]
+fn kill_process_group(_pid: u32) {}
+
+async fn run_command_with_timeout(
+    mut cmd: Command,
+    cmd_timeout: Duration,
+) -> Result<Output, ExecutionError> {
+    #[cfg(unix)]
+    cmd.process_group(0);
+
+    cmd.kill_on_drop(true);
+    let deadline = TokioInstant::now() + cmd_timeout;
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| ExecutionError::SpawnFailed(e.to_string()))?;
+    let child_pid = child.id();
+    let stdout_task = child.stdout.take().map(read_pipe);
+    let stderr_task = child.stderr.take().map(read_pipe);
+
+    let status = match timeout_at(deadline, child.wait()).await {
+        Ok(Ok(status)) => status,
+        Ok(Err(e)) => {
+            abort_output_task(stdout_task);
+            abort_output_task(stderr_task);
+            return Err(ExecutionError::SpawnFailed(e.to_string()));
+        }
+        Err(_) => {
+            if let Some(pid) = child_pid {
+                kill_process_group(pid);
+            }
+            let _ = child.kill().await;
+            let _ = timeout(Duration::from_secs(2), child.wait()).await;
+            abort_output_task(stdout_task);
+            abort_output_task(stderr_task);
+            return Err(ExecutionError::Timeout);
+        }
+    };
+
+    let stdout = if let Some(task) = stdout_task {
+        match collect_output(task, "stdout", deadline).await {
+            Ok(output) => output,
+            Err(e @ ExecutionError::Timeout) => {
+                if let Some(pid) = child_pid {
+                    kill_process_group(pid);
+                }
+                abort_output_task(stderr_task);
+                return Err(e);
+            }
+            Err(e) => {
+                abort_output_task(stderr_task);
+                return Err(e);
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
+    let stderr = if let Some(task) = stderr_task {
+        match collect_output(task, "stderr", deadline).await {
+            Ok(output) => output,
+            Err(e @ ExecutionError::Timeout) => {
+                if let Some(pid) = child_pid {
+                    kill_process_group(pid);
+                }
+                return Err(e);
+            }
+            Err(e) => return Err(e),
+        }
+    } else {
+        Vec::new()
+    };
+
+    Ok(Output {
+        status,
+        stdout,
+        stderr,
+    })
+}
+
 /// Execute with full error type information
 pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> {
     let start = Instant::now();
@@ -407,6 +877,7 @@ pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> 
 
     // Validate arguments
     validate_args(args).map_err(ExecutionError::Validation)?;
+    validate_command_policy(args)?;
 
     // Acquire semaphore permit (rate limiting)
     let _permit = match get_semaphore().try_acquire() {
@@ -428,16 +899,16 @@ pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> 
     debug!(command = %command, timeout_secs = %cmd_timeout.as_secs(), "Executing ethcli command");
 
     // Execute with tiered timeout
-    let output = match timeout(cmd_timeout, cmd.output()).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            METRICS.commands_failed.fetch_add(1, Ordering::Relaxed);
-            return Err(ExecutionError::SpawnFailed(e.to_string()));
-        }
-        Err(_) => {
+    let output = match run_command_with_timeout(cmd, cmd_timeout).await {
+        Ok(output) => output,
+        Err(ExecutionError::Timeout) => {
             METRICS.timeouts.fetch_add(1, Ordering::Relaxed);
             warn!(command = %command, "Command timed out");
             return Err(ExecutionError::Timeout);
+        }
+        Err(e) => {
+            METRICS.commands_failed.fetch_add(1, Ordering::Relaxed);
+            return Err(e);
         }
     };
 
@@ -446,7 +917,9 @@ pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> 
     if output.status.success() {
         METRICS.commands_success.fetch_add(1, Ordering::Relaxed);
         debug!(command = %command, duration_ms = %duration_ms, "Command succeeded");
-        String::from_utf8(output.stdout).map_err(|e| ExecutionError::InvalidUtf8(e.to_string()))
+        let stdout = String::from_utf8(output.stdout)
+            .map_err(|e| ExecutionError::InvalidUtf8(e.to_string()))?;
+        Ok(sanitize_success_output(&stdout))
     } else {
         METRICS.commands_failed.fetch_add(1, Ordering::Relaxed);
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -686,6 +1159,38 @@ mod tests {
         assert_eq!(result, "Command failed");
     }
 
+    #[test]
+    fn test_sanitize_success_output_redacts_keyed_rpc_urls() {
+        let output = sanitize_success_output(
+            "Endpoint https://eth-mainnet.g.alchemy.com/v2/supersecretapikey1234567890?api_key=abc123 is healthy",
+        );
+
+        assert!(!output.contains("supersecretapikey1234567890"));
+        assert!(!output.contains("abc123"));
+        assert!(output.contains("/v2/redacted"));
+        assert!(output.contains("api_key=redacted"));
+    }
+
+    #[test]
+    fn test_sanitize_success_output_preserves_public_urls() {
+        let output = sanitize_success_output("RPC https://ethereum.publicnode.com is healthy");
+
+        assert!(output.contains("https://ethereum.publicnode.com"));
+    }
+
+    #[test]
+    fn test_sanitize_success_output_redacts_secret_lines() {
+        let output = sanitize_success_output(
+            "Etherscan API key: configured\naccess_key = \"secret\"\nAuthorization: Bearer abc",
+        );
+
+        assert!(output.contains("Etherscan API key: <redacted>"));
+        assert!(output.contains("access_key = <redacted>"));
+        assert!(output.contains("Authorization: <redacted>"));
+        assert!(!output.contains("secret"));
+        assert!(!output.contains("Bearer abc"));
+    }
+
     // -------------------------------------------------------------------------
     // ArgsBuilder tests
     // -------------------------------------------------------------------------
@@ -752,6 +1257,177 @@ mod tests {
         assert_eq!(get_timeout(&["tx"]), DEFAULT_TIMEOUT);
         assert_eq!(get_timeout(&["account"]), DEFAULT_TIMEOUT);
         assert_eq!(get_timeout(&["endpoints", "health"]), DEFAULT_TIMEOUT);
+    }
+
+    // -------------------------------------------------------------------------
+    // MCP command policy tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_file_output_policy_blocks_mcp_file_writes() {
+        assert!(is_file_output_command(&[
+            "contract",
+            "abi",
+            "0x0000000000000000000000000000000000000000",
+            "-o",
+            "/tmp/abi.json"
+        ]));
+        assert!(is_file_output_command(&[
+            "address",
+            "export",
+            "--output=/tmp/address.json"
+        ]));
+        assert!(!is_file_output_command(&[
+            "rpc", "receipt", "0x123", "-o", "json"
+        ]));
+    }
+
+    #[test]
+    fn test_mutating_command_policy_blocks_write_tools() {
+        assert!(is_mutating_command(&[
+            "config",
+            "set-etherscan-key",
+            "secret"
+        ]));
+        assert!(is_mutating_command(&[
+            "address",
+            "import",
+            "addresses.json"
+        ]));
+        assert!(is_mutating_command(&["blacklist", "remove", "0xabc"]));
+        assert!(is_mutating_command(&[
+            "endpoints",
+            "add",
+            "https://rpc.example"
+        ]));
+        assert!(is_mutating_command(&["chainlist", "add", "base"]));
+        assert!(is_mutating_command(&["sig", "cache-clear"]));
+        assert!(is_mutating_command(&[
+            "cow-swap",
+            "cancel-order",
+            "uid",
+            "sig"
+        ]));
+        assert!(is_mutating_command(&["dune", "queries", "update", "1"]));
+        assert!(is_mutating_command(&[
+            "tenderly",
+            "vnets",
+            "admin",
+            "--vnet",
+            "abc",
+            "set-balance",
+            "0xabc",
+            "1"
+        ]));
+    }
+
+    #[test]
+    fn test_mutating_command_policy_allows_read_tools() {
+        assert!(!is_mutating_command(&["config", "validate"]));
+        assert!(!is_mutating_command(&["address", "list"]));
+        assert!(!is_mutating_command(&["blacklist", "check", "0xabc"]));
+        assert!(!is_mutating_command(&["endpoints", "health"]));
+        assert!(!is_mutating_command(&["chainlist", "rpcs", "base"]));
+        assert!(!is_mutating_command(&["dune", "queries", "get", "1"]));
+        assert!(!is_mutating_command(&["tenderly", "vnets", "get", "abc"]));
+        assert!(!is_mutating_command(&[
+            "tenderly",
+            "vnets",
+            "admin",
+            "--vnet",
+            "abc",
+            "get-latest"
+        ]));
+    }
+
+    #[test]
+    fn test_policy_blocks_secret_bearing_args() {
+        for args in [
+            &["simulate", "call", "0xabc", "--show-secrets"][..],
+            &["simulate", "call", "0xabc", "--tenderly-key", "secret"][..],
+            &["simulate", "call", "0xabc", "--alchemy-key=secret"][..],
+            &[
+                "simulate",
+                "call",
+                "0xabc",
+                "--rpc-header",
+                "x-api-key: secret",
+            ][..],
+            &[
+                "contract",
+                "source",
+                "0xabc",
+                "--etherscan-api-key",
+                "secret",
+            ][..],
+        ] {
+            assert!(matches!(
+                validate_command_policy(args),
+                Err(ExecutionError::PolicyDenied(_))
+            ));
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_timeout_kills_process_group_descendants() {
+        let marker = format!(
+            "/tmp/ethcli-mcp-timeout-marker-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let _ = std::fs::remove_file(&marker);
+
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c")
+            .arg(format!("(sleep 1; touch {marker}) & wait"))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let result = run_command_with_timeout(cmd, Duration::from_millis(50)).await;
+        assert!(matches!(result, Err(ExecutionError::Timeout)));
+
+        tokio::time::sleep(Duration::from_millis(1_200)).await;
+        assert!(
+            !std::path::Path::new(&marker).exists(),
+            "timeout should kill child processes in the spawned process group"
+        );
+
+        let _ = std::fs::remove_file(&marker);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_timeout_kills_descendant_after_parent_exits() {
+        let marker = format!(
+            "/tmp/ethcli-mcp-timeout-detached-marker-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let _ = std::fs::remove_file(&marker);
+
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c")
+            .arg(format!("(sleep 1; touch {marker}) &"))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let result = run_command_with_timeout(cmd, Duration::from_millis(50)).await;
+        assert!(matches!(result, Err(ExecutionError::Timeout)));
+
+        tokio::time::sleep(Duration::from_millis(1_200)).await;
+        assert!(
+            !std::path::Path::new(&marker).exists(),
+            "timeout should kill descendants even if the parent process already exited"
+        );
+
+        let _ = std::fs::remove_file(&marker);
     }
 
     // -------------------------------------------------------------------------
