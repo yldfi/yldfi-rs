@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.3...unswp-v0.1.4) (2026-05-10)
+
+### Dependencies
+
+* **unswp:** upgrade direct Alloy dependency to 2.x and align uniswap-lens with 1.x
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.2...unswp-v0.1.3) (2026-02-04)
 
 

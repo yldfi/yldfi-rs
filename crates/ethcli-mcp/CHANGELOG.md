@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.2.0...ethcli-mcp-v0.2.1) (2026-05-10)
+
+### Features
+
+* **mcp:** expose Foundry 1.7 simulate transaction and call options
+
+### Dependencies
+
+* **mcp:** upgrade rmcp to 1.6
 
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.1.14...ethcli-mcp-v0.2.0) (2026-05-04)
 

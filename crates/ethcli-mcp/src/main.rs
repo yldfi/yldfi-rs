@@ -6055,19 +6055,15 @@ impl EthcliMcpServer {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for EthcliMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: Default::default(),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation::from_build_env(),
-            instructions: Some(
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::from_build_env())
+            .with_instructions(
                 "Comprehensive Ethereum CLI tools: transaction analysis, account queries, \
                  contract interactions, ENS, gas prices, DEX quotes, oracles (Chainlink/Pyth), \
                  security checks (GoPlus/Solodit), portfolio tracking, and more. \
                  Supports multiple chains: ethereum, polygon, arbitrum, optimism, base, etc. \
-                 Also supports gnosis, fantom, linea, zksync, scroll, blast, mantle, and any chain by ID."
-                    .to_string(),
-            ),
-        }
+                 Also supports gnosis, fantom, linea, zksync, scroll, blast, mantle, and any chain by ID.",
+            )
     }
 }
 

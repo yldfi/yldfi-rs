@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.9](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.8...mrls-v0.1.9) (2026-05-10)
+
+### Bug Fixes
+
+* **mrls:** make numeric deserializers stable under workspace serde_json feature unification
+
 ## [0.1.8](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.7...mrls-v0.1.8) (2026-02-15)
 
 

@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.22.0"
+version = "0.22.1"
 edition = "2021"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
 license = "MIT"
@@ -22,7 +22,7 @@ path = "src/lib.rs"
 tokio = { version = "1", features = ["full"] }
 
 # Ethereum
-alloy = { version = "1.6", features = [
+alloy = { version = "2", features = [
     "providers",
     "rpc-types",
     "sol-types",
@@ -33,7 +33,7 @@ alloy = { version = "1.6", features = [
 ] }
 
 # Etherscan API
-foundry-block-explorers = "0.22"
+foundry-block-explorers = "0.23"
 alloy-chains = "0.2"
 
 # HTTP client

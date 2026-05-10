@@ -1,6 +1,6 @@
 [package]
 name = "unswp"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "Unofficial Rust client for Uniswap - combining on-chain lens queries and subgraph historical data"
 license = "MIT"
@@ -23,10 +23,10 @@ uniswap-sdk-core = "6.0"
 uniswap-v2-sdk = "2.0"
 uniswap-v3-sdk = { version = "6.0", features = ["extensions", "std"] }
 uniswap-v4-sdk = { version = "1.0", features = ["extensions", "std"] }
-uniswap-lens = { version = "0.15", features = ["std"] }
+uniswap-lens = { version = "1", features = ["std"] }
 
-# Ethereum (version aligned with uniswap-v3-sdk)
-alloy = { version = "1.6", features = ["providers", "transports", "transport-http", "rpc-types"] }
+# Ethereum
+alloy = { version = "2", features = ["providers", "transports", "transport-http", "rpc-types"] }
 
 [dev-dependencies]
 wiremock = "0.6"

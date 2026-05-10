@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## [0.22.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.22.0...ethcli-v0.22.1) (2026-05-10)
+
+### Features
+
+* **simulate:** pass Foundry 1.7 trace, replay, RPC, and Anvil fork options through to cast/anvil
+
+### Dependencies
+
+* **ethcli:** upgrade direct Alloy dependency to 2.x and foundry-block-explorers to 0.23
 
 ## [0.22.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.21.25...ethcli-v0.22.0) (2026-05-04)
 
