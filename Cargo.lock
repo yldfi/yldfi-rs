@@ -2574,7 +2574,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.22.1"
+version = "0.22.2"
 dependencies = [
  "alcmy",
  "alloy 2.0.4",
@@ -2642,7 +2642,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli-mcp"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -3853,7 +3853,7 @@ dependencies = [
 
 [[package]]
 name = "mrls"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",
@@ -6276,7 +6276,7 @@ checksum = "81e544489bf3d8ef66c953931f56617f423cd4b5494be343d9b9d3dda037b9a3"
 
 [[package]]
 name = "unswp"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "alloy 2.0.4",
  "reqwest 0.12.28",
