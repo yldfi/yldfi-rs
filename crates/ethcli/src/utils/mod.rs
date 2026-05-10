@@ -19,6 +19,30 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 ///
 /// We store Result<Client, String> to handle initialization errors.
 static SHARED_HTTP_CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
+static SHARED_NO_PROXY_HTTP_CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
+
+/// Return true when ethcli should disable HTTP proxy auto-detection.
+pub fn should_disable_proxy_detection() -> bool {
+    std::env::var("ETHCLI_NO_PROXY")
+        .ok()
+        .map(|value| matches!(value.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false)
+}
+
+fn build_shared_http_client(no_proxy: bool) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .pool_max_idle_per_host(10)
+        .pool_idle_timeout(Duration::from_secs(90));
+
+    if no_proxy {
+        builder = builder.no_proxy();
+    }
+
+    builder
+        .build()
+        .map_err(|e| format!("Failed to initialize HTTP client: {}", e))
+}
 
 /// Get or create the shared HTTP client
 ///
@@ -29,15 +53,21 @@ static SHARED_HTTP_CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock:
 ///
 /// Returns an error if client initialization fails (rare, usually TLS backend issues).
 pub fn get_shared_http_client() -> Result<&'static reqwest::Client, String> {
-    SHARED_HTTP_CLIENT
-        .get_or_init(|| {
-            reqwest::Client::builder()
-                .timeout(Duration::from_secs(30))
-                .pool_max_idle_per_host(10)
-                .pool_idle_timeout(Duration::from_secs(90))
-                .build()
-                .map_err(|e| format!("Failed to initialize HTTP client: {}", e))
-        })
+    get_shared_http_client_with_no_proxy(should_disable_proxy_detection())
+}
+
+/// Get or create the shared HTTP client with explicit proxy behavior.
+pub fn get_shared_http_client_with_no_proxy(
+    no_proxy: bool,
+) -> Result<&'static reqwest::Client, String> {
+    let storage = if no_proxy {
+        &SHARED_NO_PROXY_HTTP_CLIENT
+    } else {
+        &SHARED_HTTP_CLIENT
+    };
+
+    storage
+        .get_or_init(|| build_shared_http_client(no_proxy))
         .as_ref()
         .map_err(|e| e.clone())
 }

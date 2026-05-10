@@ -1040,6 +1040,27 @@ pub async fn simulate_call(
     via: Option<&str>,
     rpc_url: Option<&str>,
     trace: bool,
+    decode_internal: bool,
+    disable_labels: bool,
+    labels: &[String],
+    evm_version: Option<&str>,
+    with_local_artifacts: bool,
+    rpc_timeout: Option<u64>,
+    rpc_headers: &[String],
+    no_proxy: bool,
+    fork_urls: &[String],
+    fork_block_number: Option<&str>,
+    fork_transaction_hash: Option<&str>,
+    fork_chain_id: Option<u64>,
+    fork_headers: &[String],
+    hardfork: Option<&str>,
+    network: Option<&str>,
+    no_rate_limit: bool,
+    no_storage_caching: bool,
+    fork_timeout_ms: Option<u64>,
+    fork_retries: Option<u32>,
+    disable_block_gas_limit: bool,
+    enable_tx_gas_limit: bool,
     estimate_gas: bool,
     generate_access_list: bool,
     access_list: Option<&str>,
@@ -1082,6 +1103,19 @@ pub async fn simulate_call(
         .opt("--via", via)
         .opt("--rpc-url", rpc_url)
         .opt_flag("--trace", trace)
+        .opt_flag("--decode-internal", decode_internal)
+        .opt_flag("--disable-labels", disable_labels)
+        .opt("--evm-version", evm_version)
+        .opt_flag("--with-local-artifacts", with_local_artifacts)
+        .opt_flag("--no-proxy", no_proxy)
+        .opt("--fork-block-number", fork_block_number)
+        .opt("--fork-transaction-hash", fork_transaction_hash)
+        .opt("--hardfork", hardfork)
+        .opt("--network", network)
+        .opt_flag("--no-rate-limit", no_rate_limit)
+        .opt_flag("--no-storage-caching", no_storage_caching)
+        .opt_flag("--disable-block-gas-limit", disable_block_gas_limit)
+        .opt_flag("--enable-tx-gas-limit", enable_tx_gas_limit)
         .opt_flag("--estimate-gas", estimate_gas)
         .opt_flag("--generate-access-list", generate_access_list)
         .opt("--access-list", access_list)
@@ -1117,6 +1151,18 @@ pub async fn simulate_call(
     if let Some(nid) = network_id {
         builder = builder.opt("--network-id", Some(&nid.to_string()));
     }
+    if let Some(timeout) = rpc_timeout {
+        builder = builder.opt("--rpc-timeout", Some(&timeout.to_string()));
+    }
+    if let Some(chain_id) = fork_chain_id {
+        builder = builder.opt("--fork-chain-id", Some(&chain_id.to_string()));
+    }
+    if let Some(timeout_ms) = fork_timeout_ms {
+        builder = builder.opt("--fork-timeout-ms", Some(&timeout_ms.to_string()));
+    }
+    if let Some(retries) = fork_retries {
+        builder = builder.opt("--fork-retries", Some(&retries.to_string()));
+    }
 
     // State overrides (repeatable)
     for bo in balance_overrides {
@@ -1131,6 +1177,18 @@ pub async fn simulate_call(
     for no in nonce_overrides {
         builder = builder.opt("--nonce-override", Some(no));
     }
+    for label in labels {
+        builder = builder.opt("--label", Some(label));
+    }
+    for header in rpc_headers {
+        builder = builder.opt("--rpc-header", Some(header));
+    }
+    for fork_url in fork_urls {
+        builder = builder.opt("--fork-url", Some(fork_url));
+    }
+    for fork_header in fork_headers {
+        builder = builder.opt("--fork-header", Some(fork_header));
+    }
 
     // Function arguments
     for arg in args {
@@ -1140,21 +1198,63 @@ pub async fn simulate_call(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn simulate_tx(
-    hash: &str,
-    chain: Option<&str>,
-    via: Option<&str>,
-    trace: bool,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("simulate")
+pub struct SimulateTxOptions<'a> {
+    pub hash: &'a str,
+    pub chain: Option<&'a str>,
+    pub via: Option<&'a str>,
+    pub rpc_url: Option<&'a str>,
+    pub trace: bool,
+    pub debug: bool,
+    pub quick: bool,
+    pub decode_internal: bool,
+    pub trace_depth: Option<u32>,
+    pub replay_system_txs: bool,
+    pub disable_labels: bool,
+    pub labels: &'a [String],
+    pub evm_version: Option<&'a str>,
+    pub with_local_artifacts: bool,
+    pub no_proxy: bool,
+    pub rpc_timeout: Option<u64>,
+    pub rpc_headers: &'a [String],
+    pub enable_tx_gas_limit: bool,
+    pub disable_block_gas_limit: bool,
+    pub etherscan_api_key: Option<&'a str>,
+}
+
+pub async fn simulate_tx(input: SimulateTxOptions<'_>) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("simulate")
         .subcommand("tx")
-        .arg(hash)
-        .chain(chain)
-        .opt("--via", via)
-        .opt_flag("--trace", trace)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .arg(input.hash)
+        .chain(input.chain)
+        .opt("--via", input.via)
+        .opt("--rpc-url", input.rpc_url)
+        .opt_flag("--trace", input.trace)
+        .opt_flag("--debug", input.debug)
+        .opt_flag("--quick", input.quick)
+        .opt_flag("--decode-internal", input.decode_internal)
+        .opt_flag("--replay-system-txs", input.replay_system_txs)
+        .opt_flag("--disable-labels", input.disable_labels)
+        .opt("--evm-version", input.evm_version)
+        .opt_flag("--with-local-artifacts", input.with_local_artifacts)
+        .opt_flag("--no-proxy", input.no_proxy)
+        .opt_flag("--enable-tx-gas-limit", input.enable_tx_gas_limit)
+        .opt_flag("--disable-block-gas-limit", input.disable_block_gas_limit)
+        .opt("--etherscan-api-key", input.etherscan_api_key);
+
+    if let Some(depth) = input.trace_depth {
+        builder = builder.opt("--trace-depth", Some(&depth.to_string()));
+    }
+    if let Some(timeout) = input.rpc_timeout {
+        builder = builder.opt("--rpc-timeout", Some(&timeout.to_string()));
+    }
+    for label in input.labels {
+        builder = builder.opt("--label", Some(label));
+    }
+    for header in input.rpc_headers {
+        builder = builder.opt("--rpc-header", Some(header));
+    }
+
+    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn simulate_bundle(txs: &str, chain: Option<&str>) -> Result<String, ToolError> {

@@ -3343,6 +3343,60 @@ pub struct SimulateCallInput {
     /// Show execution trace
     #[serde(default)]
     pub trace: bool,
+    /// Decode internal functions in Foundry traces
+    #[serde(default)]
+    pub decode_internal: bool,
+    /// Disable address labels in Foundry traces
+    #[serde(default)]
+    pub disable_labels: bool,
+    /// Label addresses in Foundry traces (format: address:label)
+    #[serde(default)]
+    pub labels: Vec<String>,
+    /// EVM version for Foundry trace execution
+    pub evm_version: Option<String>,
+    /// Use local Foundry project artifacts for trace decoding
+    #[serde(default)]
+    pub with_local_artifacts: bool,
+    /// RPC timeout in seconds for Foundry calls
+    pub rpc_timeout: Option<u64>,
+    /// RPC headers for Foundry calls (format: "Name: value")
+    #[serde(default)]
+    pub rpc_headers: Vec<String>,
+    /// Disable automatic proxy detection in Foundry RPC clients
+    #[serde(default)]
+    pub no_proxy: bool,
+    /// Additional Anvil fork RPC URLs
+    #[serde(default)]
+    pub fork_urls: Vec<String>,
+    /// Anvil fork block number or negative offset from latest
+    pub fork_block_number: Option<String>,
+    /// Anvil fork state after a specific transaction hash
+    pub fork_transaction_hash: Option<String>,
+    /// Anvil fork chain ID for offline-start mode
+    pub fork_chain_id: Option<u64>,
+    /// Headers for Anvil upstream fork RPC requests
+    #[serde(default)]
+    pub fork_headers: Vec<String>,
+    /// Anvil hardfork to use (e.g., prague, cancun)
+    pub hardfork: Option<String>,
+    /// Anvil network family to enable (ethereum, optimism, tempo)
+    pub network: Option<String>,
+    /// Disable Anvil fork RPC rate limiting
+    #[serde(default)]
+    pub no_rate_limit: bool,
+    /// Disable Anvil fork storage caching
+    #[serde(default)]
+    pub no_storage_caching: bool,
+    /// Anvil upstream fork RPC timeout in milliseconds
+    pub fork_timeout_ms: Option<u64>,
+    /// Anvil upstream fork retry count
+    pub fork_retries: Option<u32>,
+    /// Disable Anvil block gas limit checks
+    #[serde(default)]
+    pub disable_block_gas_limit: bool,
+    /// Enable Anvil transaction gas limit checks
+    #[serde(default)]
+    pub enable_tx_gas_limit: bool,
     /// Enable precise gas estimation (Tenderly)
     #[serde(default)]
     pub estimate_gas: bool,
@@ -3390,9 +3444,52 @@ pub struct SimulateTxInput {
     pub chain: String,
     /// Simulation backend (cast, tenderly, debug, trace, alchemy)
     pub via: Option<String>,
+    /// RPC URL
+    pub rpc_url: Option<String>,
     /// Show full opcode trace
     #[serde(default)]
     pub trace: bool,
+    /// Open interactive Foundry debugger
+    #[serde(default)]
+    pub debug: bool,
+    /// Only execute with previous-block state for faster Foundry replay
+    #[serde(default)]
+    pub quick: bool,
+    /// Decode internal functions in Foundry traces
+    #[serde(default)]
+    pub decode_internal: bool,
+    /// Limit Foundry trace depth
+    pub trace_depth: Option<u32>,
+    /// Replay system transactions before the target transaction
+    #[serde(default)]
+    pub replay_system_txs: bool,
+    /// Disable address labels in Foundry traces
+    #[serde(default)]
+    pub disable_labels: bool,
+    /// Label addresses in Foundry traces (format: address:label)
+    #[serde(default)]
+    pub labels: Vec<String>,
+    /// EVM version for Foundry replay
+    pub evm_version: Option<String>,
+    /// Use local Foundry project artifacts for trace decoding
+    #[serde(default)]
+    pub with_local_artifacts: bool,
+    /// Disable automatic proxy detection in Foundry RPC clients
+    #[serde(default)]
+    pub no_proxy: bool,
+    /// RPC timeout in seconds for Foundry replay
+    pub rpc_timeout: Option<u64>,
+    /// RPC headers for Foundry replay (format: "Name: value")
+    #[serde(default)]
+    pub rpc_headers: Vec<String>,
+    /// Enable transaction gas limit checks in Foundry replay
+    #[serde(default)]
+    pub enable_tx_gas_limit: bool,
+    /// Disable block gas limit checks in Foundry replay
+    #[serde(default)]
+    pub disable_block_gas_limit: bool,
+    /// Etherscan API key override for Foundry trace decoding
+    pub etherscan_api_key: Option<String>,
 }
 
 // --- Config ---

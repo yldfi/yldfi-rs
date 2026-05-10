@@ -1093,12 +1093,13 @@ pub enum ChannelsCommands {
 pub async fn handle(
     cmd: &TenderlyCommands,
     chain: crate::config::Chain,
+    etherscan_key: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
     match cmd {
         TenderlyCommands::Simulate { action } => {
             // Delegate to the simulate handler
-            crate::cli::simulate::handle(action, chain, quiet).await
+            crate::cli::simulate::handle(action, chain, etherscan_key, quiet).await
         }
         TenderlyCommands::Vnets { action, tenderly } => handle_vnets(action, tenderly, quiet).await,
         TenderlyCommands::Wallets { action, tenderly } => {

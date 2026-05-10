@@ -314,7 +314,9 @@ ethcli pyth search "ETH"
 ```bash
 ethcli simulate call <contract> --sig "fn(types)" <args>
 ethcli simulate call ... --via tenderly|anvil|debug|trace
-ethcli simulate tx <hash>           # Trace existing tx
+ethcli simulate call ... --trace --decode-internal --label 0x...:name
+ethcli simulate call ... --via anvil --fork-url <rpc> --fork-block-number -10
+ethcli simulate tx <hash> --decode-internal --trace-depth 6
 ```
 
 ## Tenderly (requires TENDERLY_ACCESS_KEY)
@@ -353,6 +355,7 @@ ethcli doctor                       # Diagnose issues
 | Variable | Required For | Description |
 |----------|-------------|-------------|
 | ETHERSCAN_API_KEY | Optional | Higher rate limits |
+| ETHCLI_NO_PROXY | Optional | Disable HTTP proxy auto-detection |
 | ALCHEMY_API_KEY | alchemy commands | Alchemy API |
 | MORALIS_API_KEY | moralis commands | Moralis API |
 | COINGECKO_API_KEY | Optional | CoinGecko Pro |

@@ -169,10 +169,12 @@ async fn main() -> anyhow::Result<()> {
             return ethcli::cli::ens::handle(action, chain, rpc_url.clone(), cli.quiet).await;
         }
         Commands::Simulate { action } => {
-            return ethcli::cli::simulate::handle(action, chain, cli.quiet).await;
+            return ethcli::cli::simulate::handle(action, chain, etherscan_key.clone(), cli.quiet)
+                .await;
         }
         Commands::Tenderly { action } => {
-            return ethcli::cli::tenderly::handle(action, chain, cli.quiet).await;
+            return ethcli::cli::tenderly::handle(action, chain, etherscan_key.clone(), cli.quiet)
+                .await;
         }
 
         Commands::Price(args) => {

@@ -151,8 +151,8 @@ fn normalize_hex_selector(selector: &str) -> Cow<'_, str> {
 use crate::error::{AbiError, Result};
 use crate::etherscan::SignatureCache;
 use crate::utils::{
-    decode_string_from_hex, decode_uint8_from_hex, get_shared_http_client, urlencoding_encode,
-    TokenMetadata,
+    decode_string_from_hex, decode_uint8_from_hex, get_shared_http_client,
+    should_disable_proxy_detection, urlencoding_encode, TokenMetadata,
 };
 use alloy_chains::Chain as AlloyChain;
 use foundry_block_explorers::Client as EtherscanClient;
@@ -181,10 +181,16 @@ impl Client {
         // Convert our Chain enum to alloy_chains::Chain for foundry-block-explorers
         let alloy_chain = AlloyChain::from_id(chain.chain_id());
 
-        let inner = EtherscanClient::builder()
+        let mut builder = EtherscanClient::builder()
             .chain(alloy_chain)
             .map_err(|e| AbiError::EtherscanFetch(format!("Unsupported chain: {}", e)))?
-            .with_api_key(api_key.as_deref().unwrap_or_default())
+            .with_api_key(api_key.as_deref().unwrap_or_default());
+
+        if should_disable_proxy_detection() {
+            builder = builder.no_proxy();
+        }
+
+        let inner = builder
             .build()
             .map_err(|e| AbiError::EtherscanFetch(format!("Failed to build client: {}", e)))?;
 

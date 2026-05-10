@@ -363,11 +363,16 @@ ethcli simulate call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 \
 # Simulate with trace output
 ethcli simulate call 0x... --sig "transfer(address,uint256)" 0x... 1000 --trace
 
+# Decode richer Foundry traces and label addresses
+ethcli simulate call 0x... --sig "swap()" --trace --decode-internal \
+  --label 0x...:router --with-local-artifacts
+
 # Trace an existing transaction
-ethcli simulate tx 0x1234...
+ethcli simulate tx 0x1234... --decode-internal --trace-depth 6
 
 # Use different backends
 ethcli simulate call ... --via cast      # Default
+ethcli simulate call ... --via anvil --fork-block-number -10 --fork-url https://...
 ethcli simulate call ... --via tenderly  # Tenderly API
 ethcli simulate call ... --via debug     # debug_traceCall RPC
 ```
@@ -1035,6 +1040,7 @@ ethcli config set-etherscan-key YOUR_KEY
 | Variable | Required For | Description |
 |----------|-------------|-------------|
 | `ETHERSCAN_API_KEY` | Optional | Increases Etherscan rate limit |
+| `ETHCLI_NO_PROXY` | Optional | Set to `1`/`true` to disable HTTP proxy auto-detection |
 | `TENDERLY_ACCESS_KEY` | `ethcli tenderly` | Tenderly API access |
 | `ALCHEMY_API_KEY` | `ethcli alchemy`, aggregation | Alchemy API access |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (higher rate limits) |

@@ -127,6 +127,26 @@ pub enum SimulateCommands {
         #[arg(long)]
         access_list: Option<String>,
 
+        /// Decode internal functions in Foundry traces
+        #[arg(long)]
+        decode_internal: bool,
+
+        /// Disable address labels in Foundry traces
+        #[arg(long)]
+        disable_labels: bool,
+
+        /// Label addresses in Foundry traces (format: address:label, can repeat)
+        #[arg(long = "label", alias = "labels", action = clap::ArgAction::Append)]
+        labels: Vec<String>,
+
+        /// EVM version for Foundry trace execution
+        #[arg(long)]
+        evm_version: Option<String>,
+
+        /// Use local Foundry project artifacts for trace decoding
+        #[arg(long, alias = "la")]
+        with_local_artifacts: bool,
+
         /// Simulation type: full (default), quick (faster, less data), or abi (decode only)
         #[arg(long, value_enum, default_value = "full")]
         simulation_type: SimulationType,
@@ -162,6 +182,70 @@ pub enum SimulateCommands {
         /// RPC URL
         #[arg(long)]
         rpc_url: Option<String>,
+
+        /// RPC timeout in seconds for Foundry calls
+        #[arg(long)]
+        rpc_timeout: Option<u64>,
+
+        /// RPC header for Foundry calls (format: "Name: value", can repeat)
+        #[arg(long = "rpc-header", alias = "rpc-headers", action = clap::ArgAction::Append)]
+        rpc_headers: Vec<String>,
+
+        /// Disable automatic proxy detection in Foundry RPC clients
+        #[arg(long)]
+        no_proxy: bool,
+
+        /// Additional Anvil fork RPC URL (can repeat)
+        #[arg(long = "fork-url", action = clap::ArgAction::Append)]
+        fork_urls: Vec<String>,
+
+        /// Anvil fork block number or negative offset from latest
+        #[arg(long)]
+        fork_block_number: Option<String>,
+
+        /// Anvil fork state after a specific transaction hash
+        #[arg(long)]
+        fork_transaction_hash: Option<String>,
+
+        /// Anvil fork chain ID for offline-start mode
+        #[arg(long)]
+        fork_chain_id: Option<u64>,
+
+        /// Header for Anvil upstream fork RPC requests (can repeat)
+        #[arg(long = "fork-header", alias = "fork-headers", action = clap::ArgAction::Append)]
+        fork_headers: Vec<String>,
+
+        /// Anvil hardfork to use (e.g. prague, cancun)
+        #[arg(long)]
+        hardfork: Option<String>,
+
+        /// Anvil network family to enable (ethereum, optimism, tempo)
+        #[arg(long)]
+        network: Option<String>,
+
+        /// Disable Anvil fork RPC rate limiting
+        #[arg(long)]
+        no_rate_limit: bool,
+
+        /// Disable Anvil fork storage caching
+        #[arg(long)]
+        no_storage_caching: bool,
+
+        /// Anvil upstream fork RPC timeout in milliseconds
+        #[arg(long = "fork-timeout-ms", alias = "fork-timeout")]
+        fork_timeout_ms: Option<u64>,
+
+        /// Anvil upstream fork retry count
+        #[arg(long)]
+        fork_retries: Option<u32>,
+
+        /// Disable Anvil block gas limit checks
+        #[arg(long)]
+        disable_block_gas_limit: bool,
+
+        /// Enable Anvil transaction gas limit checks
+        #[arg(long)]
+        enable_tx_gas_limit: bool,
 
         /// Show execution trace (requires debug-capable node for cast)
         #[arg(long, short)]
@@ -216,6 +300,62 @@ pub enum SimulateCommands {
         /// Open interactive debugger (cast only)
         #[arg(long, short)]
         debug: bool,
+
+        /// Only execute with previous-block state for faster Foundry replay
+        #[arg(long)]
+        quick: bool,
+
+        /// Decode internal functions in Foundry traces
+        #[arg(long)]
+        decode_internal: bool,
+
+        /// Limit Foundry trace depth
+        #[arg(long)]
+        trace_depth: Option<u32>,
+
+        /// Replay system transactions before the target transaction
+        #[arg(long)]
+        replay_system_txs: bool,
+
+        /// Disable address labels in Foundry traces
+        #[arg(long)]
+        disable_labels: bool,
+
+        /// Label addresses in Foundry traces (format: address:label, can repeat)
+        #[arg(long = "label", alias = "labels", action = clap::ArgAction::Append)]
+        labels: Vec<String>,
+
+        /// EVM version for Foundry replay
+        #[arg(long)]
+        evm_version: Option<String>,
+
+        /// Use local Foundry project artifacts for trace decoding
+        #[arg(long, alias = "la")]
+        with_local_artifacts: bool,
+
+        /// Disable automatic proxy detection in Foundry RPC clients
+        #[arg(long)]
+        no_proxy: bool,
+
+        /// RPC timeout in seconds for Foundry replay
+        #[arg(long)]
+        rpc_timeout: Option<u64>,
+
+        /// RPC header for Foundry replay (format: "Name: value", can repeat)
+        #[arg(long = "rpc-header", alias = "rpc-headers", action = clap::ArgAction::Append)]
+        rpc_headers: Vec<String>,
+
+        /// Enable transaction gas limit checks in Foundry replay
+        #[arg(long)]
+        enable_tx_gas_limit: bool,
+
+        /// Disable block gas limit checks in Foundry replay
+        #[arg(long)]
+        disable_block_gas_limit: bool,
+
+        /// Etherscan API key override for Foundry trace decoding
+        #[arg(long = "etherscan-api-key")]
+        etherscan_api_key: Option<String>,
     },
 
     /// Simulate a bundle of transactions in sequence (Tenderly only)
@@ -307,7 +447,12 @@ pub enum SimulateCommands {
     },
 }
 
-pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> anyhow::Result<()> {
+pub async fn handle(
+    action: &SimulateCommands,
+    chain: Chain,
+    etherscan_key: Option<String>,
+    quiet: bool,
+) -> anyhow::Result<()> {
     match action {
         SimulateCommands::Call {
             to,
@@ -322,10 +467,33 @@ pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> any
             balance_overrides,
             storage_overrides,
             code_overrides,
+            nonce_overrides,
             block_timestamp,
+            block_number_override,
             via,
             rpc_url,
+            rpc_timeout,
+            rpc_headers,
+            no_proxy,
+            fork_urls,
+            fork_block_number,
+            fork_transaction_hash,
+            fork_chain_id,
+            fork_headers,
+            hardfork,
+            network,
+            no_rate_limit,
+            no_storage_caching,
+            fork_timeout_ms,
+            fork_retries,
+            disable_block_gas_limit,
+            enable_tx_gas_limit,
             trace,
+            decode_internal,
+            disable_labels,
+            labels,
+            evm_version,
+            with_local_artifacts,
             tenderly,
             alchemy,
             save,
@@ -389,22 +557,31 @@ pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> any
 
                 if matches!(via, SimulateVia::Cast | SimulateVia::Anvil) {
                     let mut not_supported = Vec::new();
-                    if !balance_overrides.is_empty()
-                        || !storage_overrides.is_empty()
-                        || !code_overrides.is_empty()
-                    {
-                        not_supported.push("state overrides");
-                    }
-                    if block_timestamp.is_some()
-                        || block_gas_limit.is_some()
-                        || block_coinbase.is_some()
-                        || block_difficulty.is_some()
-                        || block_base_fee.is_some()
-                    {
+                    if block_coinbase.is_some() || block_difficulty.is_some() {
                         not_supported.push("block header overrides");
                     }
-                    if access_list.is_some() {
-                        not_supported.push("--access-list");
+                    if block_base_fee.is_some() && !matches!(via, SimulateVia::Anvil) {
+                        not_supported.push("--block-base-fee");
+                    }
+                    if block_gas_limit.is_some() && !matches!(via, SimulateVia::Anvil) {
+                        not_supported.push("--block-gas-limit");
+                    }
+                    if matches!(via, SimulateVia::Cast)
+                        && (!fork_urls.is_empty()
+                            || fork_block_number.is_some()
+                            || fork_transaction_hash.is_some()
+                            || fork_chain_id.is_some()
+                            || !fork_headers.is_empty()
+                            || hardfork.is_some()
+                            || network.is_some()
+                            || *no_rate_limit
+                            || *no_storage_caching
+                            || fork_timeout_ms.is_some()
+                            || fork_retries.is_some()
+                            || *disable_block_gas_limit
+                            || *enable_tx_gas_limit)
+                    {
+                        not_supported.push("anvil fork options");
                     }
                     if transaction_index.is_some() {
                         not_supported.push("--transaction-index");
@@ -421,21 +598,77 @@ pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> any
                 }
             }
 
+            let needs_cast_trace = *trace
+                || *decode_internal
+                || *disable_labels
+                || !labels.is_empty()
+                || evm_version.is_some()
+                || *with_local_artifacts;
+
+            let cast_options = CastCallOptions {
+                chain,
+                trace: needs_cast_trace,
+                gas: *gas,
+                gas_price: *gas_price,
+                access_list: access_list.clone(),
+                balance_overrides: balance_overrides.clone(),
+                storage_overrides: storage_overrides.clone(),
+                code_overrides: code_overrides.clone(),
+                nonce_overrides: nonce_overrides.clone(),
+                block_timestamp: *block_timestamp,
+                block_number_override: *block_number_override,
+                decode_internal: *decode_internal,
+                disable_labels: *disable_labels,
+                labels: labels.clone(),
+                evm_version: evm_version.clone(),
+                with_local_artifacts: *with_local_artifacts,
+                no_proxy: *no_proxy,
+                rpc_timeout: *rpc_timeout,
+                rpc_headers: rpc_headers.clone(),
+            };
+
+            let anvil_options = AnvilOptions {
+                chain,
+                fork_urls: fork_urls.clone(),
+                fork_block_number: fork_block_number.clone(),
+                fork_transaction_hash: fork_transaction_hash.clone(),
+                fork_chain_id: *fork_chain_id,
+                fork_headers: fork_headers.clone(),
+                hardfork: hardfork.clone(),
+                network: network.clone(),
+                no_rate_limit: *no_rate_limit,
+                no_storage_caching: *no_storage_caching,
+                timeout_ms: *fork_timeout_ms,
+                retries: *fork_retries,
+                block_gas_limit: *block_gas_limit,
+                block_base_fee: *block_base_fee,
+                disable_block_gas_limit: *disable_block_gas_limit,
+                enable_tx_gas_limit: *enable_tx_gas_limit,
+            };
+
+            let cast_request = CastCallRequest {
+                to,
+                sig,
+                data,
+                args,
+                from,
+                value,
+                block,
+            };
+
             match via {
                 SimulateVia::Cast => {
                     if dry_run.is_some() {
                         return Err(anyhow::anyhow!("--dry-run not supported for cast backend. Use --via tenderly, debug, or trace"));
                     }
-                    simulate_via_cast(
-                        to, sig, data, args, from, value, block, rpc_url, *trace, quiet,
-                    )
-                    .await
+                    simulate_via_cast(cast_request, rpc_url, &cast_options, quiet).await
                 }
                 SimulateVia::Anvil => {
                     if dry_run.is_some() {
                         return Err(anyhow::anyhow!("--dry-run not supported for anvil backend. Use --via tenderly, debug, or trace"));
                     }
-                    simulate_via_anvil(to, sig, data, args, from, value, rpc_url, quiet).await
+                    simulate_via_anvil(cast_request, rpc_url, &anvil_options, &cast_options, quiet)
+                        .await
                 }
                 SimulateVia::Tenderly => {
                     simulate_via_tenderly(
@@ -537,9 +770,42 @@ pub async fn handle(action: &SimulateCommands, chain: Chain, quiet: bool) -> any
             alchemy,
             trace,
             debug,
+            quick,
+            decode_internal,
+            trace_depth,
+            replay_system_txs,
+            disable_labels,
+            labels,
+            evm_version,
+            with_local_artifacts,
+            no_proxy,
+            rpc_timeout,
+            rpc_headers,
+            enable_tx_gas_limit,
+            disable_block_gas_limit,
+            etherscan_api_key,
         } => match via {
             SimulateVia::Cast | SimulateVia::Anvil => {
-                trace_tx_via_cast(hash, *trace, *debug, rpc_url, quiet).await
+                let cast_options = CastTxOptions {
+                    chain,
+                    trace: *trace,
+                    debug: *debug,
+                    quick: *quick,
+                    decode_internal: *decode_internal,
+                    trace_depth: *trace_depth,
+                    replay_system_txs: *replay_system_txs,
+                    disable_labels: *disable_labels,
+                    labels: labels.clone(),
+                    evm_version: evm_version.clone(),
+                    with_local_artifacts: *with_local_artifacts,
+                    no_proxy: *no_proxy,
+                    rpc_timeout: *rpc_timeout,
+                    rpc_headers: rpc_headers.clone(),
+                    enable_tx_gas_limit: *enable_tx_gas_limit,
+                    disable_block_gas_limit: *disable_block_gas_limit,
+                    etherscan_api_key: etherscan_api_key.clone().or_else(|| etherscan_key.clone()),
+                };
+                trace_tx_via_cast(hash, rpc_url, &cast_options, quiet).await
             }
             SimulateVia::Tenderly => trace_tx_via_tenderly(hash, tenderly, quiet).await,
             SimulateVia::Debug => trace_tx_via_debug_rpc(hash, rpc_url, chain, quiet).await,

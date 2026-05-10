@@ -96,6 +96,30 @@ fn test_cast_help() {
         .stdout(predicate::str::contains("to-wei"));
 }
 
+#[test]
+fn test_simulate_call_help_foundry_options() {
+    ethcli()
+        .args(["simulate", "call", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--decode-internal"))
+        .stdout(predicate::str::contains("--fork-url"))
+        .stdout(predicate::str::contains("--rpc-header"))
+        .stdout(predicate::str::contains("--enable-tx-gas-limit"));
+}
+
+#[test]
+fn test_simulate_tx_help_foundry_options() {
+    ethcli()
+        .args(["simulate", "tx", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--quick"))
+        .stdout(predicate::str::contains("--trace-depth"))
+        .stdout(predicate::str::contains("--decode-internal"))
+        .stdout(predicate::str::contains("--etherscan-api-key"));
+}
+
 // ==================== Cast conversion tests ====================
 
 #[test]

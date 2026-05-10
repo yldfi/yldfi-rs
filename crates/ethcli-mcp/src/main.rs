@@ -924,6 +924,27 @@ impl EthcliMcpServer {
             input.via.as_deref(),
             input.rpc_url.as_deref(),
             input.trace,
+            input.decode_internal,
+            input.disable_labels,
+            &input.labels,
+            input.evm_version.as_deref(),
+            input.with_local_artifacts,
+            input.rpc_timeout,
+            &input.rpc_headers,
+            input.no_proxy,
+            &input.fork_urls,
+            input.fork_block_number.as_deref(),
+            input.fork_transaction_hash.as_deref(),
+            input.fork_chain_id,
+            &input.fork_headers,
+            input.hardfork.as_deref(),
+            input.network.as_deref(),
+            input.no_rate_limit,
+            input.no_storage_caching,
+            input.fork_timeout_ms,
+            input.fork_retries,
+            input.disable_block_gas_limit,
+            input.enable_tx_gas_limit,
             input.estimate_gas,
             input.generate_access_list,
             input.access_list.as_deref(),
@@ -947,12 +968,28 @@ impl EthcliMcpServer {
 
     #[tool(description = "Simulate/trace a historical transaction")]
     async fn simulate_tx(&self, Parameters(input): Parameters<SimulateTxInput>) -> String {
-        tools::simulate_tx(
-            &input.hash,
-            Some(&input.chain),
-            input.via.as_deref(),
-            input.trace,
-        )
+        tools::simulate_tx(tools::SimulateTxOptions {
+            hash: &input.hash,
+            chain: Some(&input.chain),
+            via: input.via.as_deref(),
+            rpc_url: input.rpc_url.as_deref(),
+            trace: input.trace,
+            debug: input.debug,
+            quick: input.quick,
+            decode_internal: input.decode_internal,
+            trace_depth: input.trace_depth,
+            replay_system_txs: input.replay_system_txs,
+            disable_labels: input.disable_labels,
+            labels: &input.labels,
+            evm_version: input.evm_version.as_deref(),
+            with_local_artifacts: input.with_local_artifacts,
+            no_proxy: input.no_proxy,
+            rpc_timeout: input.rpc_timeout,
+            rpc_headers: &input.rpc_headers,
+            enable_tx_gas_limit: input.enable_tx_gas_limit,
+            disable_block_gas_limit: input.disable_block_gas_limit,
+            etherscan_api_key: input.etherscan_api_key.as_deref(),
+        })
         .await
         .to_response()
     }
