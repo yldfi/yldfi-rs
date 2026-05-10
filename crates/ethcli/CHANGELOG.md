@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.22.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.22.1...ethcli-v0.22.2) (2026-05-10)
+
+
+### Features
+
+* add 'upgrade' command, keep 'update' for checking only ([e40ee32](https://github.com/yldfi/yldfi-rs/commit/e40ee325fefab3cb3795c05276bf362ede2a5ce7))
+* add 130+ CLI commands for Alchemy & Moralis, fix formatting ([b580a6e](https://github.com/yldfi/yldfi-rs/commit/b580a6edb67179787771d854bc44dcec5ddfc8c0))
+* add 169 MCP tools, fix deserialization bugs across Moralis/CoinGecko/Curve ([92085a1](https://github.com/yldfi/yldfi-rs/commit/92085a1fa7639eb1e2d62f8a0f2a836af264a257))
+* add medium-effort API coverage — Tenderly batch, Dune CRUD, CowSwap orders ([5cdcf89](https://github.com/yldfi/yldfi-rs/commit/5cdcf892aab53199aa061021bac41d963be593ce))
+* add multi-chain support and chainlist.org integration ([48c3e09](https://github.com/yldfi/yldfi-rs/commit/48c3e0943105f6680e65ec5743362649165b0f52))
+* **ethcli:** add bytecode analysis and fix MCP bugs ([b74a17c](https://github.com/yldfi/yldfi-rs/commit/b74a17c2c0865fd335506f19fe4711a7c828ac4e))
+* **ethcli:** add bytecode guard analysis and stabilize rpc selection ([7b4e3d1](https://github.com/yldfi/yldfi-rs/commit/7b4e3d1f5d96b11b3659d88d7d0f6399c099ec6e))
+* **ethcli:** add direct DEX aggregator CLI commands ([f7ead70](https://github.com/yldfi/yldfi-rs/commit/f7ead7094e9f9e2ebad9ef93010f5e5a14b2aa73))
+* **ethcli:** add Enso Finance as price source ([054e689](https://github.com/yldfi/yldfi-rs/commit/054e689b7caf177f747f6ba7f9bde4c3582affee))
+* **ethcli:** add Enso Finance as price source in aggregator ([ff965d1](https://github.com/yldfi/yldfi-rs/commit/ff965d1d27423711e556e3d137936c7432239d4b))
+* **ethcli:** add Kong vault-derived pricing source ([18ba09d](https://github.com/yldfi/yldfi-rs/commit/18ba09d8d9b504fbf234be75f9809816a24b9e4a))
+* **ethcli:** add Kong vault-derived pricing source ([91a1eb4](https://github.com/yldfi/yldfi-rs/commit/91a1eb4fd5e6185c350d86c63807ff8ca7a85f3d))
+* **simulate:** support Foundry 1.7 options ([541d308](https://github.com/yldfi/yldfi-rs/commit/541d3081c1d3011c63112cf5c8666b2c88c8e614))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([dac43e2](https://github.com/yldfi/yldfi-rs/commit/dac43e202028861fcb80474bf3b807560b6722bd))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([bb6d849](https://github.com/yldfi/yldfi-rs/commit/bb6d84985bf33a126c71fbcc0176c9605b219a85))
+
+
+### Bug Fixes
+
+* address Copilot review feedback for merged PRs ([4bec07c](https://github.com/yldfi/yldfi-rs/commit/4bec07cc1974b1ecb841cad2455ebaf7dbb5cf30))
+* address Copilot review feedback for merged PRs ([b497355](https://github.com/yldfi/yldfi-rs/commit/b4973555548a5d2dd7fbcd0cdfcdaa90cdd62a58))
+* address Copilot review feedback on PR [#38](https://github.com/yldfi/yldfi-rs/issues/38) ([79c9900](https://github.com/yldfi/yldfi-rs/commit/79c99002ad070ec849364e4194d68d210f1f633f))
+* **crv:** update LendingVault struct to match Curve API response ([#19](https://github.com/yldfi/yldfi-rs/issues/19)) ([38a0bac](https://github.com/yldfi/yldfi-rs/commit/38a0bac6bdcae0772db212d5eae550ec25a8ec94))
+* **ethcli-mcp:** harden MCP execution policy ([8f166a6](https://github.com/yldfi/yldfi-rs/commit/8f166a686cd22d8ecc721f290802d55f2cb8a7a1))
+* **ethcli-mcp:** prevent data truncation in MCP tool outputs ([12da461](https://github.com/yldfi/yldfi-rs/commit/12da4612be2f9826971498a3c7a0c7a1c475e5f4))
+* **ethcli:** fix 6 critical CLI bugs — gas estimate, beacon auth, allowance args, CCXT monthly, chainlink quote, sim overrides ([31b1cff](https://github.com/yldfi/yldfi-rs/commit/31b1cff89a1c0d150031a9a943a420eadae96aee)), closes [#37](https://github.com/yldfi/yldfi-rs/issues/37)
+* **ethcli:** improve block ID parsing, node-type validation, and archive warnings ([0eddac0](https://github.com/yldfi/yldfi-rs/commit/0eddac0bf6fceb86a7679b6db92696437aab41e7))
+* **ethcli:** improve Kong price source reliability ([#31](https://github.com/yldfi/yldfi-rs/issues/31)) ([4d8956a](https://github.com/yldfi/yldfi-rs/commit/4d8956a591e7d0e9a8bbe64dc4b7129c02195fdb))
+* **ethcli:** improve price aggregation reliability and error reporting ([f6da4ae](https://github.com/yldfi/yldfi-rs/commit/f6da4aee814a8fb62c07ab9664b5b141c137b0a2))
+* **ethcli:** increase download timeout for self-upgrade ([81a43a2](https://github.com/yldfi/yldfi-rs/commit/81a43a2b0330e1a0946b3523e9d1fb8f4a624658))
+* **ethcli:** reduce false positives in bytecode security analysis ([2ca9421](https://github.com/yldfi/yldfi-rs/commit/2ca9421918fe27dbe32818834c3226138e539e31))
+* **ethcli:** resolve clippy unnecessary_unwrap warning ([0b2934d](https://github.com/yldfi/yldfi-rs/commit/0b2934de93e308c9f3500ebd69381e852a74b862))
+* **ethcli:** satisfy workspace clippy ([0296cbb](https://github.com/yldfi/yldfi-rs/commit/0296cbbbf988a5a4ed9d121a00d9c4b85be7bb22))
+* replace stale chainlink streams sdk ([e2ec108](https://github.com/yldfi/yldfi-rs/commit/e2ec10801e7ff3ac9a115a73453177412230a853))
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([#38](https://github.com/yldfi/yldfi-rs/issues/38)) ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+* resolve clippy print_literal warnings in chainlist output ([937fee1](https://github.com/yldfi/yldfi-rs/commit/937fee13f0466cd831edfb56360629b9ddf4fe2f))
+* resolve clippy warnings ([3dcea82](https://github.com/yldfi/yldfi-rs/commit/3dcea82e8af3dcfe0f077365b90098e88f16a75b))
+* resolve clippy warnings and doc test failure ([09ce397](https://github.com/yldfi/yldfi-rs/commit/09ce39721be834c176ce28229765752d722249a9))
+* resolve clippy warnings in tests ([3da0cb0](https://github.com/yldfi/yldfi-rs/commit/3da0cb07d2dd1ba2d5febde875252dcab7efcf46))
+* resolve clippy warnings in tx analyzer ([cd283d2](https://github.com/yldfi/yldfi-rs/commit/cd283d2446b7e9c670357e1af14e5ec6ea20dfaf))
+* satisfy remaining rust 1.95 clippy lint ([0a6c25f](https://github.com/yldfi/yldfi-rs/commit/0a6c25f18e9a9e872b59d4dda3bf41b00d3c004b))
+* satisfy rust 1.95 clippy lints ([4729526](https://github.com/yldfi/yldfi-rs/commit/4729526d86dd54b4d286261da3d4e86241aa5acf))
+* satisfy rust 1.95 priority sort lint ([c2e98d9](https://github.com/yldfi/yldfi-rs/commit/c2e98d9004eeb8212d190043af697da190db85b4))
+* support explicit contract signatures and dynamic abi decode ([f453b86](https://github.com/yldfi/yldfi-rs/commit/f453b86ce319f74d8a582501574f2c2352c474c2))
+* **tests:** update chainlink_live tests for new fetch_price denomination param ([80a9960](https://github.com/yldfi/yldfi-rs/commit/80a9960e4bc8145925558f8c3e767d7dac393f4d))
+* update Enso API client for new endpoints ([1c631e9](https://github.com/yldfi/yldfi-rs/commit/1c631e9eacc6d43813cd5d8160f37a0eb27706f1))
+* use struct initializer syntax for Dune options (clippy::field_reassign_with_default) ([590551d](https://github.com/yldfi/yldfi-rs/commit/590551d37a6f3ced92086a78af9190952f509cc6))
+
 ## [0.22.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.22.0...ethcli-v0.22.1) (2026-05-10)
 
 ### Features
