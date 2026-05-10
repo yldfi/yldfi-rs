@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.10](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.9...mrls-v0.1.10) (2026-05-10)
+
+
+### Features
+
+* add 169 MCP tools, fix deserialization bugs across Moralis/CoinGecko/Curve ([92085a1](https://github.com/yldfi/yldfi-rs/commit/92085a1fa7639eb1e2d62f8a0f2a836af264a257))
+* **ethcli:** add bytecode analysis and fix MCP bugs ([b74a17c](https://github.com/yldfi/yldfi-rs/commit/b74a17c2c0865fd335506f19fe4711a7c828ac4e))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([dac43e2](https://github.com/yldfi/yldfi-rs/commit/dac43e202028861fcb80474bf3b807560b6722bd))
+
+
+### Bug Fixes
+
+* moralis API deserialization and tenderly vnet simulate ([37f1431](https://github.com/yldfi/yldfi-rs/commit/37f14315902f9ddb7c59bfa79847656c6969074f))
+* **mrls:** handle arbitrary precision json numbers ([bb04703](https://github.com/yldfi/yldfi-rs/commit/bb0470306a366e9eb0cabc25f89b607147e188f2))
+* rename colliding example filenames across crates ([d12f5b2](https://github.com/yldfi/yldfi-rs/commit/d12f5b2d977df3dc0a56c016a793d8bf37ed0c64))
+* resolve clippy warnings for too_many_arguments and useless_format ([68ac6d0](https://github.com/yldfi/yldfi-rs/commit/68ac6d035360d87061507928db95dcaf346648ac))
+* update Enso API client for new endpoints ([1c631e9](https://github.com/yldfi/yldfi-rs/commit/1c631e9eacc6d43813cd5d8160f37a0eb27706f1))
+
 ## [0.1.9](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.8...mrls-v0.1.9) (2026-05-10)
 
 ### Bug Fixes
