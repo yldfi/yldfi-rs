@@ -3,7 +3,7 @@
 //! These tests hit real RPC endpoints to verify Chainlink functionality.
 //! Run with:
 //! ```bash
-//! cargo test -p ethcli --test chainlink_live -- --nocapture
+//! cargo test -p ethcli --test chainlink_live -- --ignored --nocapture
 //! ```
 
 use alloy::primitives::Address;
@@ -50,6 +50,7 @@ async fn test_feed_registry_address() {
 
 /// Test checking if a feed exists
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_feed_registry_has_feed() {
     let provider = mainnet_provider();
     let registry = FeedRegistry::new(provider);
@@ -74,6 +75,7 @@ async fn test_feed_registry_has_feed() {
 
 /// Test getting the aggregator address for a pair
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_feed_registry_get_feed() {
     let provider = mainnet_provider();
     let registry = FeedRegistry::new(provider);
@@ -90,6 +92,7 @@ async fn test_feed_registry_get_feed() {
 
 /// Test getting ETH/USD price via Feed Registry
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_feed_registry_latest_price_eth() {
     let provider = mainnet_provider();
     let registry = FeedRegistry::new(provider);
@@ -121,6 +124,7 @@ async fn test_feed_registry_latest_price_eth() {
 
 /// Test getting BTC/USD price via Feed Registry
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_feed_registry_latest_price_btc() {
     let provider = mainnet_provider();
     let registry = FeedRegistry::new(provider);
@@ -143,6 +147,7 @@ async fn test_feed_registry_latest_price_btc() {
 
 /// Test getting price for DeFi tokens via Feed Registry
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_feed_registry_defi_tokens() {
     let provider = mainnet_provider();
     let registry = FeedRegistry::new(provider);
@@ -173,6 +178,7 @@ async fn test_feed_registry_defi_tokens() {
 
 /// Test getting feed description
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_feed_registry_description() {
     let provider = mainnet_provider();
     let registry = FeedRegistry::new(provider);
@@ -195,6 +201,7 @@ async fn test_feed_registry_description() {
 
 /// Test direct aggregator query for ETH/USD on mainnet
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_aggregator_eth_usd_mainnet() {
     let provider = mainnet_provider();
     let aggregator = Aggregator::new(oracles::ethereum::ETH_USD, provider);
@@ -216,6 +223,7 @@ async fn test_aggregator_eth_usd_mainnet() {
 
 /// Test aggregator description
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_aggregator_description() {
     let provider = mainnet_provider();
     let aggregator = Aggregator::new(oracles::ethereum::ETH_USD, provider);
@@ -238,6 +246,7 @@ async fn test_aggregator_description() {
 
 /// Test aggregator version
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_aggregator_version() {
     let provider = mainnet_provider();
     let aggregator = Aggregator::new(oracles::ethereum::ETH_USD, provider);
@@ -256,6 +265,7 @@ async fn test_aggregator_version() {
 
 /// Test aggregator decimals
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_aggregator_decimals() {
     let provider = mainnet_provider();
     let aggregator = Aggregator::new(oracles::ethereum::ETH_USD, provider);
@@ -272,6 +282,7 @@ async fn test_aggregator_decimals() {
 
 /// Test aggregator latest_answer (simpler method)
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_aggregator_latest_answer() {
     let provider = mainnet_provider();
     let aggregator = Aggregator::new(oracles::ethereum::ETH_USD, provider);
@@ -295,6 +306,7 @@ async fn test_aggregator_latest_answer() {
 
 /// Test Arbitrum ETH/USD oracle
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_arbitrum_eth_usd() {
     let provider = arbitrum_provider();
     let aggregator = Aggregator::new(oracles::arbitrum::ETH_USD, provider);
@@ -315,6 +327,7 @@ async fn test_arbitrum_eth_usd() {
 
 /// Test Arbitrum ARB/USD oracle
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_arbitrum_arb_usd() {
     let provider = arbitrum_provider();
     let aggregator = Aggregator::new(oracles::arbitrum::ARB_USD, provider);
@@ -336,6 +349,7 @@ async fn test_arbitrum_arb_usd() {
 
 /// Test Polygon MATIC/USD oracle
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_polygon_matic_usd() {
     let provider = polygon_provider();
     let aggregator = Aggregator::new(oracles::polygon::MATIC_USD, provider);
@@ -358,6 +372,7 @@ async fn test_polygon_matic_usd() {
 
 /// Test the fetch_price convenience function
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_fetch_price_by_symbol() {
     let provider = mainnet_provider();
 
@@ -377,6 +392,7 @@ async fn test_fetch_price_by_symbol() {
 
 /// Test fetch_price with various token symbols
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_fetch_price_multiple_tokens() {
     let provider = mainnet_provider();
 
@@ -408,6 +424,7 @@ async fn test_fetch_price_multiple_tokens() {
 
 /// Test fetch_price with address instead of symbol
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_fetch_price_by_address() {
     let provider = mainnet_provider();
 
@@ -432,6 +449,7 @@ async fn test_fetch_price_by_address() {
 
 /// Test fetch_price for L2 chain
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_fetch_price_arbitrum() {
     let provider = arbitrum_provider();
 
@@ -482,6 +500,7 @@ async fn test_symbol_to_address_mapping() {
 
 /// Test all known mainnet oracle addresses work
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_all_mainnet_oracles() {
     let provider = mainnet_provider();
 
@@ -543,6 +562,7 @@ async fn test_all_mainnet_oracles() {
 
 /// Test all known Arbitrum oracle addresses work
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_all_arbitrum_oracles() {
     let provider = arbitrum_provider();
 
@@ -595,6 +615,7 @@ async fn test_all_arbitrum_oracles() {
 
 /// Test that price data has reasonable values
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_price_data_validation() {
     let provider = mainnet_provider();
     let aggregator = Aggregator::new(oracles::ethereum::ETH_USD, provider);
@@ -639,6 +660,7 @@ async fn test_price_data_validation() {
 
 /// Test staleness detection
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_staleness_detection() {
     let provider = mainnet_provider();
     let aggregator = Aggregator::new(oracles::ethereum::ETH_USD, provider);
@@ -672,6 +694,7 @@ async fn test_staleness_detection() {
 
 /// Test to_u256 conversion
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_price_to_u256() {
     let provider = mainnet_provider();
     let aggregator = Aggregator::new(oracles::ethereum::ETH_USD, provider);
@@ -697,6 +720,7 @@ async fn test_price_to_u256() {
 
 /// Test error handling for invalid oracle address
 #[tokio::test]
+#[ignore = "requires live RPC endpoint"]
 async fn test_invalid_oracle_address() {
     let provider = mainnet_provider();
     // Use a random address that's not a Chainlink oracle
