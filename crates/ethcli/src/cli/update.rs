@@ -3,6 +3,7 @@
 use semver::Version;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 
 #[derive(Deserialize)]
 struct GitHubRelease {
@@ -15,6 +16,11 @@ struct GitHubRelease {
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
+}
+
+struct ExtractedBinaries {
+    ethcli: PathBuf,
+    ethcli_mcp: Option<PathBuf>,
 }
 
 const REPO: &str = "yldfi/yldfi-rs";
@@ -188,113 +194,45 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
     // Archives could contain paths like "../../../.bashrc" that would write outside temp_dir.
     // By stripping the first component and only extracting the expected binary name,
     // we prevent malicious archives from overwriting arbitrary files.
-    let binary_path = if asset.name.ends_with(".tar.gz") {
-        // Extract tar.gz - only extract the expected binary, strip path components
-        let expected_binary = "ethcli";
-        let output = std::process::Command::new("tar")
-            .args([
-                "-xzf",
-                &archive_path.to_string_lossy(),
-                "-C",
-                &temp_dir.to_string_lossy(),
-                "--strip-components=1", // Flatten any directory structure
-                "--wildcards",
-                &format!("*/{}", expected_binary), // Only extract the binary
-            ])
-            .output()?;
-        // If wildcards extraction fails, try without (binary might be at root)
-        if !output.status.success() {
-            let output = std::process::Command::new("tar")
-                .args([
-                    "-xzf",
-                    &archive_path.to_string_lossy(),
-                    "-C",
-                    &temp_dir.to_string_lossy(),
-                    expected_binary,
-                ])
-                .output()?;
-            if !output.status.success() {
-                anyhow::bail!(
-                    "Failed to extract archive: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                );
-            }
+    let extracted = if asset.name.ends_with(".tar.gz") {
+        ExtractedBinaries {
+            ethcli: extract_tar_binary(&archive_path, &temp_dir, "ethcli", true)?.ok_or_else(
+                || anyhow::anyhow!("Required binary 'ethcli' was not extracted from archive"),
+            )?,
+            ethcli_mcp: extract_tar_binary(&archive_path, &temp_dir, "ethcli-mcp", false)?,
         }
-        let binary = temp_dir.join(expected_binary);
-        // Verify the binary exists and is within temp_dir (defense in depth)
-        let canonical = binary
-            .canonicalize()
-            .map_err(|_| anyhow::anyhow!("Binary '{}' not found in archive", expected_binary))?;
-        let temp_canonical = temp_dir.canonicalize()?;
-        if !canonical.starts_with(&temp_canonical) {
-            anyhow::bail!("Security: extracted path escapes temp directory");
-        }
-        binary
     } else if asset.name.ends_with(".zip") {
-        // Extract zip - only extract the expected binary
-        let expected_binary = "ethcli.exe";
-        let output = std::process::Command::new("unzip")
-            .args([
-                "-o",
-                "-j", // Junk paths - extract files without directory structure
-                &archive_path.to_string_lossy(),
-                expected_binary,
-                "-d",
-                &temp_dir.to_string_lossy(),
-            ])
-            .output()?;
-        if !output.status.success() {
-            anyhow::bail!(
-                "Failed to extract archive: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+        ExtractedBinaries {
+            ethcli: extract_zip_binary(&archive_path, &temp_dir, "ethcli.exe", true)?.ok_or_else(
+                || anyhow::anyhow!("Required binary 'ethcli.exe' was not extracted from archive"),
+            )?,
+            ethcli_mcp: extract_zip_binary(&archive_path, &temp_dir, "ethcli-mcp.exe", false)?,
         }
-        let binary = temp_dir.join(expected_binary);
-        // Verify the binary exists and is within temp_dir (defense in depth)
-        let canonical = binary
-            .canonicalize()
-            .map_err(|_| anyhow::anyhow!("Binary '{}' not found in archive", expected_binary))?;
-        let temp_canonical = temp_dir.canonicalize()?;
-        if !canonical.starts_with(&temp_canonical) {
-            anyhow::bail!("Security: extracted path escapes temp directory");
-        }
-        binary
     } else {
         anyhow::bail!("Unknown archive format: {}", asset.name);
     };
 
     // Find the install location
     let install_path = std::env::current_exe()?;
+    let install_dir = install_path.parent().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Could not determine install directory from {}",
+            install_path.display()
+        )
+    })?;
+    let mcp_install_path = install_dir.join(format!("ethcli-mcp{}", std::env::consts::EXE_SUFFIX));
 
     if !quiet {
-        eprintln!("Installing to {}...", install_path.display());
+        eprintln!("Installing ethcli to {}...", install_path.display());
     }
 
-    // On Unix, we need to handle the case where we can't overwrite a running binary
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
+    install_binary(&extracted.ethcli, &install_path)?;
 
-        // Make the new binary executable
-        std::fs::set_permissions(&binary_path, std::fs::Permissions::from_mode(0o755))?;
-
-        // Try direct copy first, fall back to rename trick if needed
-        if std::fs::copy(&binary_path, &install_path).is_err() {
-            // Rename the old binary and copy new one
-            let backup_path = install_path.with_extension("old");
-            std::fs::rename(&install_path, &backup_path)?;
-            std::fs::copy(&binary_path, &install_path)?;
-            let _ = std::fs::remove_file(&backup_path);
+    if let Some(ethcli_mcp) = &extracted.ethcli_mcp {
+        if !quiet {
+            eprintln!("Installing ethcli-mcp to {}...", mcp_install_path.display());
         }
-    }
-
-    #[cfg(windows)]
-    {
-        // On Windows, rename the running exe and copy new one
-        let backup_path = install_path.with_extension("old.exe");
-        std::fs::rename(&install_path, &backup_path)?;
-        std::fs::copy(&binary_path, &install_path)?;
-        // Note: old exe will be cleaned up on next run or reboot
+        install_binary(ethcli_mcp, &mcp_install_path)?;
     }
 
     // Cleanup
@@ -313,9 +251,145 @@ fn get_asset_name_for_platform() -> String {
     match (os, arch) {
         ("macos", "aarch64") => "ethcli-macos-aarch64.tar.gz".to_string(),
         ("macos", "x86_64") => "ethcli-macos-x86_64.tar.gz".to_string(),
-        ("linux", "x86_64") => "ethcli-linux-x86_64.tar.gz".to_string(),
+        ("linux", "x86_64") => linux_x86_64_asset_name(),
         ("linux", "aarch64") => "ethcli-linux-aarch64.tar.gz".to_string(),
         ("windows", "x86_64") => "ethcli-windows-x86_64.zip".to_string(),
         _ => format!("ethcli-{}-{}.tar.gz", os, arch),
     }
+}
+
+fn linux_x86_64_asset_name() -> String {
+    if cfg!(target_env = "musl") {
+        "ethcli-linux-x86_64-musl.tar.gz".to_string()
+    } else {
+        "ethcli-linux-x86_64.tar.gz".to_string()
+    }
+}
+
+fn extract_tar_binary(
+    archive_path: &Path,
+    temp_dir: &Path,
+    expected_binary: &str,
+    required: bool,
+) -> anyhow::Result<Option<PathBuf>> {
+    // Extract tar.gz - only extract the expected binary, strip path components
+    let output = std::process::Command::new("tar")
+        .args([
+            "-xzf",
+            &archive_path.to_string_lossy(),
+            "-C",
+            &temp_dir.to_string_lossy(),
+            "--strip-components=1", // Flatten any directory structure
+            "--wildcards",
+            &format!("*/{}", expected_binary), // Only extract the binary
+        ])
+        .output()?;
+
+    // If wildcards extraction fails, try without (binary might be at root)
+    if !output.status.success() {
+        let output = std::process::Command::new("tar")
+            .args([
+                "-xzf",
+                &archive_path.to_string_lossy(),
+                "-C",
+                &temp_dir.to_string_lossy(),
+                expected_binary,
+            ])
+            .output()?;
+        if !output.status.success() {
+            if required {
+                anyhow::bail!(
+                    "Failed to extract archive: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            return Ok(None);
+        }
+    }
+
+    verify_extracted_binary(temp_dir, expected_binary, required)
+}
+
+fn extract_zip_binary(
+    archive_path: &Path,
+    temp_dir: &Path,
+    expected_binary: &str,
+    required: bool,
+) -> anyhow::Result<Option<PathBuf>> {
+    // Extract zip - only extract the expected binary
+    let output = std::process::Command::new("unzip")
+        .args([
+            "-o",
+            "-j", // Junk paths - extract files without directory structure
+            &archive_path.to_string_lossy(),
+            expected_binary,
+            "-d",
+            &temp_dir.to_string_lossy(),
+        ])
+        .output()?;
+    if !output.status.success() {
+        if required {
+            anyhow::bail!(
+                "Failed to extract archive: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        return Ok(None);
+    }
+
+    verify_extracted_binary(temp_dir, expected_binary, required)
+}
+
+fn verify_extracted_binary(
+    temp_dir: &Path,
+    expected_binary: &str,
+    required: bool,
+) -> anyhow::Result<Option<PathBuf>> {
+    let binary = temp_dir.join(expected_binary);
+    // Verify the binary exists and is within temp_dir (defense in depth)
+    let canonical = match binary.canonicalize() {
+        Ok(path) => path,
+        Err(_) if required => {
+            anyhow::bail!("Binary '{}' not found in archive", expected_binary);
+        }
+        Err(_) => return Ok(None),
+    };
+    let temp_canonical = temp_dir.canonicalize()?;
+    if !canonical.starts_with(&temp_canonical) {
+        anyhow::bail!("Security: extracted path escapes temp directory");
+    }
+    Ok(Some(binary))
+}
+
+fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Make the new binary executable
+        std::fs::set_permissions(source, std::fs::Permissions::from_mode(0o755))?;
+
+        // Try direct copy first, fall back to rename trick if needed.
+        if std::fs::copy(source, destination).is_err() {
+            let backup_path = destination.with_extension("old");
+            if destination.exists() {
+                std::fs::rename(destination, &backup_path)?;
+            }
+            std::fs::copy(source, destination)?;
+            let _ = std::fs::remove_file(&backup_path);
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        // On Windows, rename the running exe and copy new one.
+        let backup_path = destination.with_extension("old.exe");
+        if destination.exists() {
+            std::fs::rename(destination, &backup_path)?;
+        }
+        std::fs::copy(source, destination)?;
+        // Note: old exe will be cleaned up on next run or reboot.
+    }
+
+    Ok(())
 }

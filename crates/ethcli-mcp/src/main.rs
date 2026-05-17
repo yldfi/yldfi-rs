@@ -6067,11 +6067,31 @@ impl ServerHandler for EthcliMcpServer {
 async fn verify_ethcli() -> anyhow::Result<String> {
     use tokio::process::Command;
 
-    let output = Command::new("ethcli")
+    let ethcli = if let Ok(path) = std::env::var("ETHCLI_PATH") {
+        std::path::PathBuf::from(path)
+    } else {
+        std::env::current_exe()
+            .ok()
+            .and_then(|exe| {
+                exe.parent().and_then(|dir| {
+                    let adjacent = dir.join(format!("ethcli{}", std::env::consts::EXE_SUFFIX));
+                    adjacent.exists().then_some(adjacent)
+                })
+            })
+            .unwrap_or_else(|| std::path::PathBuf::from("ethcli"))
+    };
+
+    let output = Command::new(&ethcli)
         .arg("--version")
         .output()
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to execute ethcli: {}. Is ethcli installed?", e))?;
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to execute ethcli at {}: {}. Is ethcli installed?",
+                ethcli.display(),
+                e
+            )
+        })?;
 
     if !output.status.success() {
         anyhow::bail!("ethcli --version failed. Is ethcli installed correctly?");

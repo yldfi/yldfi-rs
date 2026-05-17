@@ -661,8 +661,6 @@ fn sanitize_success_output(stdout: &str) -> String {
 
 /// Verify the ethcli binary is valid and executable
 fn verify_binary(path: &std::path::Path) -> Result<(), ExecutionError> {
-    use std::os::unix::fs::PermissionsExt;
-
     let metadata = std::fs::metadata(path)
         .map_err(|e| ExecutionError::BinaryNotFound(format!("{}: {}", path.display(), e)))?;
 
@@ -677,6 +675,8 @@ fn verify_binary(path: &std::path::Path) -> Result<(), ExecutionError> {
     // Check it's executable (Unix only)
     #[cfg(unix)]
     {
+        use std::os::unix::fs::PermissionsExt;
+
         let mode = metadata.permissions().mode();
         if mode & 0o111 == 0 {
             return Err(ExecutionError::BinaryNotFound(format!(
@@ -706,7 +706,7 @@ fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError> {
     // Check same directory as this binary
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let ethcli = dir.join("ethcli");
+            let ethcli = dir.join(format!("ethcli{}", std::env::consts::EXE_SUFFIX));
             if ethcli.exists() {
                 verify_binary(&ethcli)?;
                 return Ok(ethcli);
