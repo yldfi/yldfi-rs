@@ -6,6 +6,210 @@ use crate::cli::OutputFormat;
 use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
 
+const MORALIS_FANTOM_REMOVAL_DATE: &str = "2026-05-29";
+const MORALIS_LEGACY_REMOVAL_DATE: &str = "2026-06-04";
+
+fn ensure_moralis_chain_supported(chain: &str) -> anyhow::Result<()> {
+    match chain.trim().to_ascii_lowercase().as_str() {
+        "fantom" | "ftm" | "0xfa" | "250" => anyhow::bail!(
+            "Moralis is removing Fantom support on {MORALIS_FANTOM_REMOVAL_DATE}; \
+             ethcli no longer routes Moralis requests to Fantom. Use another provider \
+             or migrate Fantom-specific workflows before relying on this command."
+        ),
+        _ => Ok(()),
+    }
+}
+
+fn deprecated_moralis_endpoint(
+    command: &str,
+    endpoints: &[&str],
+    replacement: Option<&str>,
+) -> anyhow::Result<()> {
+    let endpoint_list = endpoints.join(", ");
+    let mut message = format!(
+        "`ethcli moralis {command}` calls Moralis endpoint(s) scheduled for removal on \
+         {MORALIS_LEGACY_REMOVAL_DATE}: {endpoint_list}."
+    );
+
+    if let Some(replacement) = replacement {
+        message.push_str(" Suggested migration: ");
+        message.push_str(replacement);
+        message.push('.');
+    }
+
+    anyhow::bail!("{message}")
+}
+
+fn moralis_command_args(command: &MoralisCommands) -> &MoralisArgs {
+    match command {
+        MoralisCommands::Wallet { args, .. }
+        | MoralisCommands::Token { args, .. }
+        | MoralisCommands::Nft { args, .. }
+        | MoralisCommands::Resolve { args, .. }
+        | MoralisCommands::Market { args, .. }
+        | MoralisCommands::Transaction { args, .. }
+        | MoralisCommands::Block { args, .. }
+        | MoralisCommands::Defi { args, .. }
+        | MoralisCommands::Discovery { args, .. }
+        | MoralisCommands::Analytics { args, .. }
+        | MoralisCommands::Entities { args, .. }
+        | MoralisCommands::Volume { args, .. } => args,
+    }
+}
+
+fn reject_deprecated_moralis_command(command: &MoralisCommands) -> anyhow::Result<()> {
+    match command {
+        MoralisCommands::Token { action, .. } => match action {
+            TokenCommands::Stats { .. } => deprecated_moralis_endpoint(
+                "token stats",
+                &["GET /erc20/{address}/stats"],
+                Some("use Moralis Token API analytics where available"),
+            ),
+            TokenCommands::ExchangeNewTokens { .. } => deprecated_moralis_endpoint(
+                "token exchange-new-tokens",
+                &["GET /erc20/exchange/{exchangeName}/new"],
+                None,
+            ),
+            TokenCommands::ExchangeBondingTokens { .. } => deprecated_moralis_endpoint(
+                "token exchange-bonding-tokens",
+                &["GET /erc20/exchange/{exchangeName}/bonding"],
+                None,
+            ),
+            TokenCommands::ExchangeGraduatedTokens { .. } => deprecated_moralis_endpoint(
+                "token exchange-graduated-tokens",
+                &["GET /erc20/exchange/{exchangeName}/graduated"],
+                None,
+            ),
+            TokenCommands::BySymbols { .. } => deprecated_moralis_endpoint(
+                "token by-symbols",
+                &["GET /erc20/metadata/symbols"],
+                Some("use `ethcli moralis token search <symbol>` for one symbol at a time"),
+            ),
+            TokenCommands::PairsStats { .. } => deprecated_moralis_endpoint(
+                "token pairs-stats",
+                &["GET /erc20/{token_address}/pairs/stats"],
+                Some("migrate to `GET /tokens/{tokenAddress}/analytics`"),
+            ),
+            TokenCommands::PairSnipers { .. } => deprecated_moralis_endpoint(
+                "token pair-snipers",
+                &["GET /pairs/{address}/snipers"],
+                None,
+            ),
+            TokenCommands::BondingStatus { .. } => deprecated_moralis_endpoint(
+                "token bonding-status",
+                &["GET /erc20/{tokenAddress}/bondingStatus"],
+                None,
+            ),
+            _ => Ok(()),
+        },
+        MoralisCommands::Market { action, .. } => match action {
+            MarketCommands::TopTokens => deprecated_moralis_endpoint(
+                "market top-tokens",
+                &["GET /market-data/erc20s/top-tokens"],
+                None,
+            ),
+            MarketCommands::TopMovers => deprecated_moralis_endpoint(
+                "market top-movers",
+                &["GET /market-data/erc20s/top-movers"],
+                None,
+            ),
+            MarketCommands::TopNfts => deprecated_moralis_endpoint(
+                "market top-nfts",
+                &["GET /market-data/nfts/top-collections"],
+                None,
+            ),
+            MarketCommands::HottestNfts => deprecated_moralis_endpoint(
+                "market hottest-nfts",
+                &["GET /market-data/nfts/hottest-collections"],
+                None,
+            ),
+            MarketCommands::GlobalMarketCap => deprecated_moralis_endpoint(
+                "market global-market-cap",
+                &["GET /market-data/global/market-cap"],
+                None,
+            ),
+            MarketCommands::GlobalVolume => deprecated_moralis_endpoint(
+                "market global-volume",
+                &["GET /market-data/global/volume"],
+                None,
+            ),
+        },
+        MoralisCommands::Discovery { action, .. } => match action {
+            DiscoveryCommands::RisingLiquidity => deprecated_moralis_endpoint(
+                "discovery rising-liquidity",
+                &["GET /discovery/tokens/rising-liquidity"],
+                None,
+            ),
+            DiscoveryCommands::BuyingPressure => deprecated_moralis_endpoint(
+                "discovery buying-pressure",
+                &["GET /discovery/tokens/buying-pressure"],
+                None,
+            ),
+            DiscoveryCommands::SolidPerformers => deprecated_moralis_endpoint(
+                "discovery solid-performers",
+                &["GET /discovery/tokens/solid-performers"],
+                None,
+            ),
+            DiscoveryCommands::ExperiencedBuyers => deprecated_moralis_endpoint(
+                "discovery experienced-buyers",
+                &["GET /discovery/tokens/experienced-buyers"],
+                None,
+            ),
+            DiscoveryCommands::RiskyBets => deprecated_moralis_endpoint(
+                "discovery risky-bets",
+                &["GET /discovery/tokens/risky-bets"],
+                None,
+            ),
+            DiscoveryCommands::BlueChip => deprecated_moralis_endpoint(
+                "discovery blue-chip",
+                &["GET /discovery/tokens/blue-chip"],
+                None,
+            ),
+            DiscoveryCommands::TopGainers => deprecated_moralis_endpoint(
+                "discovery top-gainers",
+                &["GET /discovery/tokens/top-gainers"],
+                None,
+            ),
+            DiscoveryCommands::TopLosers => deprecated_moralis_endpoint(
+                "discovery top-losers",
+                &["GET /discovery/tokens/top-losers"],
+                None,
+            ),
+            DiscoveryCommands::Trending => deprecated_moralis_endpoint(
+                "discovery trending",
+                &["GET /discovery/tokens/trending"],
+                Some("use `ethcli moralis token trending`"),
+            ),
+            DiscoveryCommands::Filter { .. } => {
+                deprecated_moralis_endpoint("discovery filter", &["POST /discovery/tokens"], None)
+            }
+            DiscoveryCommands::Token { .. } => {
+                deprecated_moralis_endpoint("discovery token", &["GET /discovery/token"], None)
+            }
+            DiscoveryCommands::TokenAnalytics { .. } | DiscoveryCommands::TokenScore { .. } => {
+                Ok(())
+            }
+        },
+        MoralisCommands::Volume { action, .. } => match action {
+            VolumeCommands::Chains => {
+                deprecated_moralis_endpoint("volume chains", &["GET /volume/chains"], None)
+            }
+            VolumeCommands::Categories => {
+                deprecated_moralis_endpoint("volume categories", &["GET /volume/categories"], None)
+            }
+            VolumeCommands::Timeseries { .. } => {
+                deprecated_moralis_endpoint("volume timeseries", &["GET /volume/timeseries"], None)
+            }
+            VolumeCommands::CategoryTimeseries { .. } => deprecated_moralis_endpoint(
+                "volume category-timeseries",
+                &["GET /volume/timeseries/{category_id}"],
+                None,
+            ),
+        },
+        _ => Ok(()),
+    }
+}
+
 #[derive(Args)]
 pub struct MoralisArgs {
     /// Chain (e.g., eth, polygon, bsc, arbitrum)
@@ -883,6 +1087,10 @@ pub enum VolumeCommands {
 pub async fn handle(command: &MoralisCommands, quiet: bool) -> anyhow::Result<()> {
     use secrecy::ExposeSecret;
 
+    let args = moralis_command_args(command);
+    ensure_moralis_chain_supported(&args.chain)?;
+    reject_deprecated_moralis_command(command)?;
+
     // Try config first, then fall back to env var
     let client = if let Ok(Some(config)) = ConfigFile::load_default() {
         if let Some(ref moralis_config) = config.moralis {
@@ -1037,6 +1245,7 @@ async fn handle_wallet(
     Ok(())
 }
 
+#[allow(deprecated)]
 async fn handle_token(
     client: &mrls::Client,
     action: &TokenCommands,
@@ -1667,6 +1876,7 @@ async fn handle_resolve(
     Ok(())
 }
 
+#[allow(deprecated)]
 async fn handle_market(
     client: &mrls::Client,
     action: &MarketCommands,
@@ -1926,6 +2136,7 @@ async fn handle_defi(
     Ok(())
 }
 
+#[allow(deprecated)]
 async fn handle_discovery(
     client: &mrls::Client,
     action: &DiscoveryCommands,
@@ -2167,6 +2378,7 @@ async fn handle_entities(
     Ok(())
 }
 
+#[allow(deprecated)]
 async fn handle_volume(
     client: &mrls::Client,
     action: &VolumeCommands,
@@ -2251,4 +2463,76 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        deprecated_moralis_endpoint, reject_deprecated_moralis_command, DiscoveryCommands,
+        MoralisArgs, MoralisCommands, OutputFormat,
+    };
+    use super::{ensure_moralis_chain_supported, TokenCommands};
+
+    #[test]
+    fn moralis_fantom_aliases_are_blocked() {
+        for chain in ["fantom", "Fantom", "ftm", "250", "0xfa"] {
+            assert!(ensure_moralis_chain_supported(chain).is_err());
+        }
+    }
+
+    #[test]
+    fn supported_moralis_chains_still_pass() {
+        for chain in ["eth", "polygon", "bsc", "arbitrum", "base", "optimism"] {
+            assert!(ensure_moralis_chain_supported(chain).is_ok());
+        }
+    }
+
+    #[test]
+    fn deprecated_endpoint_message_names_command_and_endpoint() {
+        let error =
+            deprecated_moralis_endpoint("market top-tokens", &["GET /market-data/test"], None)
+                .unwrap_err()
+                .to_string();
+
+        assert!(error.contains("market top-tokens"));
+        assert!(error.contains("GET /market-data/test"));
+        assert!(error.contains("2026-06-04"));
+    }
+
+    #[test]
+    fn deprecated_moralis_commands_are_rejected_before_client_setup() {
+        let args = MoralisArgs {
+            chain: "eth".to_string(),
+            format: OutputFormat::Json,
+        };
+        let command = MoralisCommands::Token {
+            action: TokenCommands::PairSnipers {
+                address: "0xpair".to_string(),
+            },
+            args,
+        };
+
+        let error = reject_deprecated_moralis_command(&command)
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("pair-snipers"));
+        assert!(error.contains("/pairs/{address}/snipers"));
+    }
+
+    #[test]
+    fn non_deprecated_moralis_commands_are_not_rejected() {
+        let args = MoralisArgs {
+            chain: "eth".to_string(),
+            format: OutputFormat::Json,
+        };
+        let command = MoralisCommands::Discovery {
+            action: DiscoveryCommands::TokenScore {
+                address: "0xtoken".to_string(),
+            },
+            args,
+        };
+
+        assert!(reject_deprecated_moralis_command(&command).is_ok());
+    }
 }

@@ -166,6 +166,11 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `SOLODIT_API_KEY` | `solodit_*` tools |
 | `THEGRAPH_API_KEY` | `uniswap_top_pools`, etc. |
 
+Moralis is removing Fantom support on 2026-05-29 and selected legacy Data API
+endpoints on 2026-06-04. The MCP `moralis_*` tools inherit the same ethcli
+guards for Fantom and deprecated Discovery, Volume, Market Data, pair sniper,
+and selected ERC20 helper endpoints.
+
 ## Unverified Contract Analysis
 
 The `contract_analyze` MCP tool exposes ethcli's native unverified-contract workflow. Set `follow_proxy`, `lookup`, `dispatcher`, and `checks` to inspect proxy implementations, resolve selectors, map selector handlers, and flag side-effecting handler bodies that appear to lack caller gates or calldata hash validation. `contract_selectors` also supports `follow_proxy` when you want implementation selectors rather than proxy wrapper selectors.

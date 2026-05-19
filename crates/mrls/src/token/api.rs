@@ -242,6 +242,7 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get token stats
+    #[deprecated(note = "Moralis is sunsetting GET /erc20/{address}/stats on 2026-06-04")]
     pub async fn get_stats(&self, address: &str, chain: Option<&str>) -> Result<TokenStats> {
         let path = format!("/erc20/{address}/stats");
         if let Some(chain) = chain {
@@ -323,6 +324,9 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get new tokens on an exchange
+    #[deprecated(
+        note = "Moralis is sunsetting GET /erc20/exchange/{exchangeName}/new on 2026-06-04"
+    )]
     pub async fn get_exchange_new_tokens(
         &self,
         exchange_name: &str,
@@ -338,6 +342,9 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get bonding tokens on an exchange (e.g., pump.fun)
+    #[deprecated(
+        note = "Moralis is sunsetting GET /erc20/exchange/{exchangeName}/bonding on 2026-06-04"
+    )]
     pub async fn get_exchange_bonding_tokens(
         &self,
         exchange_name: &str,
@@ -353,6 +360,9 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get graduated tokens on an exchange
+    #[deprecated(
+        note = "Moralis is sunsetting GET /erc20/exchange/{exchangeName}/graduated on 2026-06-04"
+    )]
     pub async fn get_exchange_graduated_tokens(
         &self,
         exchange_name: &str,
@@ -384,6 +394,9 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get tokens by symbols
+    #[deprecated(
+        note = "Moralis is sunsetting GET /erc20/metadata/symbols on 2026-06-04; use token search instead"
+    )]
     pub async fn get_by_symbols(
         &self,
         symbols: &[&str],
@@ -455,6 +468,9 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get aggregated token pair stats
+    #[deprecated(
+        note = "Moralis is sunsetting GET /erc20/{token_address}/pairs/stats on 2026-06-04; migrate to /tokens/{tokenAddress}/analytics"
+    )]
     pub async fn get_pairs_stats(
         &self,
         address: &str,
@@ -485,6 +501,7 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get pair snipers
+    #[deprecated(note = "Moralis is sunsetting GET /pairs/{address}/snipers on 2026-06-04")]
     pub async fn get_pair_snipers(
         &self,
         pair_address: &str,
@@ -500,6 +517,9 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get token bonding status (for pump.fun, etc)
+    #[deprecated(
+        note = "Moralis is sunsetting GET /erc20/{tokenAddress}/bondingStatus on 2026-06-04"
+    )]
     pub async fn get_bonding_status(
         &self,
         address: &str,

@@ -55,6 +55,9 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get tokens with rising liquidity
+    #[deprecated(
+        note = "Moralis is sunsetting GET /discovery/tokens/rising-liquidity on 2026-06-04"
+    )]
     pub async fn get_rising_liquidity(
         &self,
         query: Option<&DiscoveryQuery>,
@@ -68,6 +71,9 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get tokens with buying pressure
+    #[deprecated(
+        note = "Moralis is sunsetting GET /discovery/tokens/buying-pressure on 2026-06-04"
+    )]
     pub async fn get_buying_pressure(
         &self,
         query: Option<&DiscoveryQuery>,
@@ -81,6 +87,9 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get solid performers
+    #[deprecated(
+        note = "Moralis is sunsetting GET /discovery/tokens/solid-performers on 2026-06-04"
+    )]
     pub async fn get_solid_performers(
         &self,
         query: Option<&DiscoveryQuery>,
@@ -94,6 +103,9 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get tokens with experienced buyers
+    #[deprecated(
+        note = "Moralis is sunsetting GET /discovery/tokens/experienced-buyers on 2026-06-04"
+    )]
     pub async fn get_experienced_buyers(
         &self,
         query: Option<&DiscoveryQuery>,
@@ -107,6 +119,7 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get risky bet tokens
+    #[deprecated(note = "Moralis is sunsetting GET /discovery/tokens/risky-bets on 2026-06-04")]
     pub async fn get_risky_bets(
         &self,
         query: Option<&DiscoveryQuery>,
@@ -120,6 +133,7 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get blue chip tokens
+    #[deprecated(note = "Moralis is sunsetting GET /discovery/tokens/blue-chip on 2026-06-04")]
     pub async fn get_blue_chip(&self, query: Option<&DiscoveryQuery>) -> Result<DiscoveryResponse> {
         let path = "/discovery/tokens/blue-chip";
         if let Some(q) = query {
@@ -130,6 +144,7 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get top gainers
+    #[deprecated(note = "Moralis is sunsetting GET /discovery/tokens/top-gainers on 2026-06-04")]
     pub async fn get_top_gainers(
         &self,
         query: Option<&DiscoveryQuery>,
@@ -143,6 +158,7 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get top losers
+    #[deprecated(note = "Moralis is sunsetting GET /discovery/tokens/top-losers on 2026-06-04")]
     pub async fn get_top_losers(
         &self,
         query: Option<&DiscoveryQuery>,
@@ -156,6 +172,9 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Get trending tokens
+    #[deprecated(
+        note = "Moralis is sunsetting GET /discovery/tokens/trending on 2026-06-04; use /tokens/trending instead"
+    )]
     pub async fn get_trending(&self, query: Option<&DiscoveryQuery>) -> Result<DiscoveryResponse> {
         let path = "/discovery/tokens/trending";
         if let Some(q) = query {
@@ -196,11 +215,13 @@ impl<'a> DiscoveryApi<'a> {
     }
 
     /// Filter tokens with custom criteria
+    #[deprecated(note = "Moralis is sunsetting POST /discovery/tokens on 2026-06-04")]
     pub async fn filter_tokens(&self, filter: &DiscoveryFilter) -> Result<DiscoveryResponse> {
         self.client.post("/discovery/tokens", filter).await
     }
 
     /// Get single token details from discovery
+    #[deprecated(note = "Moralis is sunsetting GET /discovery/token on 2026-06-04")]
     pub async fn get_token(&self, address: &str, chain: Option<&str>) -> Result<DiscoveredToken> {
         #[derive(Serialize)]
         struct TokenQuery {

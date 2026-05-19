@@ -16,15 +16,23 @@
 ## Features
 
 - **Wallet API** - Native balances, token balances, transactions, approvals, net worth, profitability
-- **Token API** - Metadata, prices, transfers, swaps, pairs, holders, stats, trending
+- **Token API** - Metadata, prices, transfers, swaps, pairs, holders, trending
 - **NFT API** - NFT metadata, transfers, owners, trades, floor prices, collections
 - **DeFi API** - Pair prices, reserves, positions, protocol summaries
 - **Block API** - Block data, timestamps, date-to-block lookups
 - **Transaction API** - Transaction details, decoded calls, internal transactions
 - **Resolve API** - ENS, Unstoppable Domains, domain resolution
-- **Market Data API** - Top tokens, movers, NFT collections, global stats
-- **Discovery API** - Token discovery, trending, analytics, scores
+- **Market Data API** - Legacy endpoints scheduled for Moralis removal on 2026-06-04
+- **Discovery API** - Legacy discovery endpoints scheduled for Moralis removal on 2026-06-04
 - **Entities API** - Wallet/protocol/exchange labels and categories
+
+## Moralis Deprecations
+
+Moralis is removing Fantom support across all APIs on 2026-05-29. It is also
+removing Cortex and selected legacy Data API endpoints on 2026-06-04. The
+affected `mrls` methods are annotated with `#[deprecated]`, including legacy
+Discovery, Volume, Market Data, selected ERC20 stats/discovery helpers, and pair
+sniper endpoints.
 
 ## Installation
 
