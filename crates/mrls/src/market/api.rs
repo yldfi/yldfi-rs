@@ -45,6 +45,7 @@ impl<'a> MarketApi<'a> {
     }
 
     /// Get top ERC20 tokens by market cap
+    #[deprecated(note = "Moralis is sunsetting GET /market-data/erc20s/top-tokens on 2026-06-04")]
     pub async fn get_top_tokens(&self, query: Option<&MarketQuery>) -> Result<Vec<TopToken>> {
         let path = "/market-data/erc20s/top-tokens";
         if let Some(q) = query {
@@ -55,6 +56,7 @@ impl<'a> MarketApi<'a> {
     }
 
     /// Get top gainers and losers
+    #[deprecated(note = "Moralis is sunsetting GET /market-data/erc20s/top-movers on 2026-06-04")]
     pub async fn get_top_movers(&self, query: Option<&MarketQuery>) -> Result<serde_json::Value> {
         let path = "/market-data/erc20s/top-movers";
         if let Some(q) = query {
@@ -65,6 +67,9 @@ impl<'a> MarketApi<'a> {
     }
 
     /// Get top NFT collections
+    #[deprecated(
+        note = "Moralis is sunsetting GET /market-data/nfts/top-collections on 2026-06-04"
+    )]
     pub async fn get_top_nft_collections(
         &self,
         query: Option<&MarketQuery>,
@@ -78,6 +83,9 @@ impl<'a> MarketApi<'a> {
     }
 
     /// Get hottest NFT collections
+    #[deprecated(
+        note = "Moralis is sunsetting GET /market-data/nfts/hottest-collections on 2026-06-04"
+    )]
     pub async fn get_hottest_nft_collections(
         &self,
         query: Option<&MarketQuery>,
@@ -91,11 +99,13 @@ impl<'a> MarketApi<'a> {
     }
 
     /// Get global market cap
+    #[deprecated(note = "Moralis is sunsetting GET /market-data/global/market-cap on 2026-06-04")]
     pub async fn get_global_market_cap(&self) -> Result<GlobalMarketCap> {
         self.client.get("/market-data/global/market-cap").await
     }
 
     /// Get global volume
+    #[deprecated(note = "Moralis is sunsetting GET /market-data/global/volume on 2026-06-04")]
     pub async fn get_global_volume(&self) -> Result<GlobalVolume> {
         self.client.get("/market-data/global/volume").await
     }

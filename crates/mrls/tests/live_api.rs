@@ -2,6 +2,11 @@
 //!
 //! Run with: MORALIS_API_KEY=your_key cargo test -p mrls --test live_api -- --ignored
 
+#![allow(deprecated)]
+
+// These ignored live tests intentionally cover Moralis legacy endpoints until
+// their 2026-06-04 sunset date.
+
 use mrls::Client;
 
 /// Vitalik's address for testing

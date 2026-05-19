@@ -61,16 +61,19 @@ impl<'a> VolumeApi<'a> {
     }
 
     /// Get volume by chain
+    #[deprecated(note = "Moralis is sunsetting GET /volume/chains on 2026-06-04")]
     pub async fn get_chains_volume(&self) -> Result<Vec<ChainVolume>> {
         self.client.get("/volume/chains").await
     }
 
     /// Get volume by category
+    #[deprecated(note = "Moralis is sunsetting GET /volume/categories on 2026-06-04")]
     pub async fn get_categories_volume(&self) -> Result<Vec<CategoryVolume>> {
         self.client.get("/volume/categories").await
     }
 
     /// Get overall volume timeseries
+    #[deprecated(note = "Moralis is sunsetting GET /volume/timeseries on 2026-06-04")]
     pub async fn get_timeseries(&self, query: Option<&VolumeQuery>) -> Result<VolumeTimeseries> {
         if let Some(q) = query {
             self.client.get_with_query("/volume/timeseries", q).await
@@ -80,6 +83,7 @@ impl<'a> VolumeApi<'a> {
     }
 
     /// Get volume timeseries for a category
+    #[deprecated(note = "Moralis is sunsetting GET /volume/timeseries/{category_id} on 2026-06-04")]
     pub async fn get_category_timeseries(
         &self,
         category_id: &str,

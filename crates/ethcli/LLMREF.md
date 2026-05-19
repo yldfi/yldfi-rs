@@ -177,6 +177,10 @@ ethcli llama yields --chain ethereum
 ```
 
 ### Moralis (requires MORALIS_API_KEY)
+Fantom is blocked for Moralis calls after Moralis' 2026-05-29 removal notice.
+Legacy Discovery, Volume, Market Data, selected ERC20 helper, and pair sniper
+commands are blocked ahead of the 2026-06-04 endpoint removal.
+
 ```bash
 ethcli moralis balance <addr>
 ethcli moralis tokens <addr>

@@ -669,6 +669,11 @@ ethcli llama stablecoin-history tether
 
 Requires `MORALIS_API_KEY` environment variable.
 
+Moralis is removing Fantom support on 2026-05-29 and selected legacy Data API
+endpoints on 2026-06-04. `ethcli moralis` blocks Fantom chain aliases and the
+legacy Discovery, Volume, Market Data, pair sniper, and selected ERC20 helper
+commands affected by that changelog.
+
 ```bash
 # Wallet data
 ethcli moralis balance 0x...
