@@ -115,11 +115,16 @@ pub async fn simulate_via_debug_rpc(
     Ok(())
 }
 
-/// Trace existing tx via debug_traceTransaction
+/// Trace existing tx via debug_traceTransaction.
+///
+/// By default the callTracer result is decoded into a cast-style call tree
+/// (contract names, function args, events); `raw` restores the JSON output.
 pub async fn trace_tx_via_debug_rpc(
     hash: &str,
     rpc_url: &Option<String>,
     chain: Chain,
+    etherscan_key: Option<String>,
+    raw: bool,
     quiet: bool,
 ) -> anyhow::Result<()> {
     let rpc = get_debug_rpc_url(rpc_url, chain)
@@ -160,10 +165,29 @@ pub async fn trace_tx_via_debug_rpc(
         return Err(anyhow::anyhow!("RPC error: {}", error));
     }
 
-    if let Some(trace) = result.get("result") {
-        println!("{}", serde_json::to_string_pretty(trace)?);
-    } else {
+    let Some(trace) = result.get("result") else {
         println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    };
+
+    if raw {
+        println!("{}", serde_json::to_string_pretty(trace)?);
+        return Ok(());
+    }
+
+    if !quiet {
+        eprintln!("Decoding trace (ABIs, signatures, labels)...");
+    }
+    let decoder = super::decode::TraceDecoder::new(chain, etherscan_key)?;
+    println!("Traces:");
+    println!("{}", decoder.render(trace).await);
+
+    if let Some(gas) = trace
+        .get("gasUsed")
+        .and_then(|g| g.as_str())
+        .and_then(|g| u64::from_str_radix(g.strip_prefix("0x").unwrap_or(g), 16).ok())
+    {
+        println!("\nGas used: {}", gas);
     }
 
     Ok(())

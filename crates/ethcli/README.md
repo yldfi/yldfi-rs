@@ -373,6 +373,11 @@ ethcli simulate call 0x... --sig "swap()" --trace --decode-internal \
 # Trace an existing transaction
 ethcli simulate tx 0x1234... --decode-internal --trace-depth 6
 
+# Trace via debug_traceTransaction — decoded call tree by default (contract
+# names, function args, events; Etherscan ABIs + 4byte fallback, no Foundry)
+ethcli simulate tx 0x1234... --via debug
+ethcli simulate tx 0x1234... --via debug --raw   # raw callTracer JSON
+
 # Use different backends
 ethcli simulate call ... --via cast      # Default
 ethcli simulate call ... --via anvil --fork-block-number -10 --fork-url https://...
