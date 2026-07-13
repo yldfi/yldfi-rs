@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.2.3...ethcli-mcp-v0.2.4) (2026-07-13)
+
+
+### Features
+
+* **ethcli:** decode debug_traceTransaction traces into labeled call trees ([#65](https://github.com/yldfi/yldfi-rs/issues/65)) ([a3b7319](https://github.com/yldfi/yldfi-rs/commit/a3b731981d2f4d9c267c9af43f1a8e1f7c268475))
+
+
+### Bug Fixes
+
+* **dsim:** guard Dune Sim sunset, disable removed DeFi Positions ([#66](https://github.com/yldfi/yldfi-rs/issues/66)) ([00cddb0](https://github.com/yldfi/yldfi-rs/commit/00cddb0ae59dbfb87c48d44da5d87aa44b57d61c))
+
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.2.1...ethcli-mcp-v0.2.2) (2026-05-10)
 
 

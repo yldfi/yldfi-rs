@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.22.3...ethcli-v0.22.4) (2026-07-13)
+
+
+### Features
+
+* **ethcli:** decode debug_traceTransaction traces into labeled call trees ([#65](https://github.com/yldfi/yldfi-rs/issues/65)) ([a3b7319](https://github.com/yldfi/yldfi-rs/commit/a3b731981d2f4d9c267c9af43f1a8e1f7c268475))
+
+
+### Bug Fixes
+
+* **dsim:** guard Dune Sim sunset, disable removed DeFi Positions ([#66](https://github.com/yldfi/yldfi-rs/issues/66)) ([00cddb0](https://github.com/yldfi/yldfi-rs/commit/00cddb0ae59dbfb87c48d44da5d87aa44b57d61c))
+* **ethcli:** satisfy clippy 1.97 useless_borrows_in_formatting ([2a489e3](https://github.com/yldfi/yldfi-rs/commit/2a489e341bdd94c4da63e5cc2381a1c53610ef83))
+
 ## [0.22.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.22.1...ethcli-v0.22.2) (2026-05-10)
 
 

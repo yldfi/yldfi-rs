@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/dnsim-v0.1.3...dnsim-v0.1.4) (2026-07-13)
+
+
+### Bug Fixes
+
+* **dsim:** guard Dune Sim sunset, disable removed DeFi Positions ([#66](https://github.com/yldfi/yldfi-rs/issues/66)) ([00cddb0](https://github.com/yldfi/yldfi-rs/commit/00cddb0ae59dbfb87c48d44da5d87aa44b57d61c))
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/dnsim-v0.1.2...dnsim-v0.1.3) (2026-02-15)
 
 
