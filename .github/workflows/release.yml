@@ -43,6 +43,9 @@ jobs:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             name: linux-x86_64-musl
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            name: linux-aarch64
           - target: x86_64-apple-darwin
             os: macos-latest
             name: macos-x86_64
@@ -200,6 +203,12 @@ jobs:
             **Linux Alpine / musl (x86_64)**
             ```bash
             curl -sL https://github.com/yldfi/yldfi-rs/releases/latest/download/ethcli-linux-x86_64-musl.tar.gz | tar xz
+            sudo mv ethcli ethcli-mcp /usr/local/bin/
+            ```
+
+            **Linux (aarch64 / Raspberry Pi)**
+            ```bash
+            curl -sL https://github.com/yldfi/yldfi-rs/releases/latest/download/ethcli-linux-aarch64.tar.gz | tar xz
             sudo mv ethcli ethcli-mcp /usr/local/bin/
             ```
 
