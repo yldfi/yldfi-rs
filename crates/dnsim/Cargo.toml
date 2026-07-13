@@ -1,6 +1,6 @@
 [package]
 name = "dnsim"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "Unofficial Rust client for the Dune SIM API (dnsim)"
 license = "MIT"
