@@ -662,14 +662,15 @@ ethcli moralis defi-positions 0x...
 
 ## Dsim (Dune SIM) Commands
 
-Direct access to Dune SIM API. Requires `DUNE_SIM_API_KEY` environment variable.
+Direct access to Dune SIM API. Requires `DUNE_SIM_API_KEY` environment variable
+(`DUNE_API_KEY` is not a fallback). Dune Sim shuts down 2026-08-01 (issue #64);
+`ethcli dsim defi` is blocked because DeFi Positions was deprecated 2026-06-01.
 
 ```bash
 # Wallet simulation
 ethcli dsim balances 0x...
 ethcli dsim activity 0x...
 ethcli dsim collectibles 0x...
-ethcli dsim defi 0x...
 ```
 
 ## Dune Commands

@@ -28,7 +28,7 @@ pub enum PortfolioSourceArg {
     Alchemy,
     /// Moralis Wallet API
     Moralis,
-    /// Dune SIM Balances API
+    /// Dune SIM Balances API (sunset 2026-08-01; excluded from "all")
     Dsim,
     /// Uniswap V3 LP positions
     Uniswap,
@@ -61,7 +61,7 @@ impl From<PortfolioSourceArg> for PortfolioSource {
 Environment Variables:
   ALCHEMY_API_KEY     Required for Alchemy source
   MORALIS_API_KEY     Required for Moralis source
-  DUNE_SIM_API_KEY    Required for Dune SIM source
+  DUNE_SIM_API_KEY    Required for Dune SIM source (sunset 2026-08-01; excluded from "all")
   THEGRAPH_API_KEY    Required for Uniswap positions"#)]
 pub struct PortfolioArgs {
     /// Wallet address(es) to query (or labels from address book). Can specify multiple.

@@ -6,6 +6,17 @@ use crate::cli::OutputFormat;
 use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
 
+const DUNE_SIM_SUNSET_WARNING: &str = "WARNING: Dune Sim shuts down 2026-08-01 (issue #64)";
+const DUNE_SIM_DEFI_REMOVED: &str = "Dune Sim DeFi Positions was deprecated 2026-06-01 and the Sim platform shuts down 2026-08-01. See https://github.com/yldfi/yldfi-rs/issues/64";
+
+/// Reject subcommands whose Dune Sim endpoints have already been removed
+fn reject_removed_dsim_command(command: &DsimCommands) -> anyhow::Result<()> {
+    match command {
+        DsimCommands::Defi { .. } => anyhow::bail!(DUNE_SIM_DEFI_REMOVED),
+        _ => Ok(()),
+    }
+}
+
 #[derive(Args)]
 pub struct DsimArgs {
     /// Output format
@@ -140,21 +151,23 @@ pub enum DefiCommands {
 pub async fn handle(command: &DsimCommands, quiet: bool) -> anyhow::Result<()> {
     use secrecy::ExposeSecret;
 
-    // Try config first, then fall back to env var
+    reject_removed_dsim_command(command)?;
+
+    if !quiet {
+        eprintln!("{DUNE_SIM_SUNSET_WARNING}");
+    }
+
+    // Try config first, then fall back to env var. Dune Analytics keys are not
+    // valid Sim credentials, so there is intentionally no DUNE_API_KEY fallback.
     let api_key = if let Ok(Some(config)) = ConfigFile::load_default() {
         if let Some(ref dune_sim_config) = config.dune_sim {
             dune_sim_config.api_key.expose_secret().to_string()
-        } else if let Some(ref dune_config) = config.dune {
-            // Fall back to Dune Analytics key if no SIM-specific key
-            dune_config.api_key.expose_secret().to_string()
         } else {
             std::env::var("DUNE_SIM_API_KEY")
-                .or_else(|_| std::env::var("DUNE_API_KEY"))
                 .map_err(|_| anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment"))?
         }
     } else {
         std::env::var("DUNE_SIM_API_KEY")
-            .or_else(|_| std::env::var("DUNE_API_KEY"))
             .map_err(|_| anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment"))?
     };
 
@@ -279,6 +292,9 @@ async fn handle_holders(
     Ok(())
 }
 
+// Unreachable behind `reject_removed_dsim_command`; kept compiled until the
+// 2026-08-01 Sim sunset removes the command tree entirely.
+#[allow(deprecated)]
 async fn handle_defi(
     client: &dnsim::Client,
     action: &DefiCommands,
@@ -310,4 +326,50 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        reject_removed_dsim_command, BalancesCommands, DefiCommands, DsimArgs, DsimCommands,
+        OutputFormat, DUNE_SIM_DEFI_REMOVED,
+    };
+
+    fn dsim_args() -> DsimArgs {
+        DsimArgs {
+            format: OutputFormat::Json,
+        }
+    }
+
+    #[test]
+    fn dsim_defi_positions_is_rejected() {
+        let command = DsimCommands::Defi {
+            action: DefiCommands::Positions {
+                address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string(),
+            },
+            args: dsim_args(),
+        };
+
+        let error = reject_removed_dsim_command(&command)
+            .expect_err("dsim defi should be rejected")
+            .to_string();
+        assert_eq!(error, DUNE_SIM_DEFI_REMOVED);
+    }
+
+    #[test]
+    fn other_dsim_commands_still_pass_the_guard() {
+        let commands = [
+            DsimCommands::Chains { args: dsim_args() },
+            DsimCommands::Balances {
+                action: BalancesCommands::Get {
+                    address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string(),
+                },
+                args: dsim_args(),
+            },
+        ];
+
+        for command in &commands {
+            assert!(reject_removed_dsim_command(command).is_ok());
+        }
+    }
 }

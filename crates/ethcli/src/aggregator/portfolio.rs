@@ -154,6 +154,10 @@ pub struct MergedToken {
 }
 
 /// Fetch portfolio from all available sources in parallel
+///
+/// Dune Sim is excluded from the default set because the platform shuts down
+/// on 2026-08-01 (<https://github.com/yldfi/yldfi-rs/issues/64>); it can still
+/// be queried explicitly via `--source dsim` until then.
 pub async fn fetch_portfolio_all(
     address: &str,
     chains: &[&str],
@@ -161,7 +165,6 @@ pub async fn fetch_portfolio_all(
     let sources = vec![
         PortfolioSource::Alchemy,
         PortfolioSource::Moralis,
-        PortfolioSource::DuneSim,
         PortfolioSource::Uniswap,
         PortfolioSource::Yearn,
     ];

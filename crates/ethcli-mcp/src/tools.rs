@@ -5868,7 +5868,7 @@ pub async fn moralis_volume_category_timeseries(
 }
 
 // =============================================================================
-// DSIM (7 subcommands) - Dune Sim
+// DSIM (6 subcommands) - Dune Sim (platform shuts down 2026-08-01, issue #64)
 // =============================================================================
 
 pub async fn dsim_chains() -> Result<String, ToolError> {
@@ -5931,15 +5931,8 @@ pub async fn dsim_holders(token: &str, chain_id: Option<&str>) -> Result<String,
         .map_err(ToolError::from)
 }
 
-pub async fn dsim_defi(address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("defi")
-        .subcommand("positions")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
+// dsim_defi was removed: Dune Sim DeFi Positions was deprecated 2026-06-01
+// and the Sim platform shuts down 2026-08-01. See issue #64.
 
 // =============================================================================
 // DUNE (3 subcommands)

@@ -21,6 +21,10 @@ pub enum DomainError {
     #[error("Bad request: {0}")]
     BadRequest(String),
 
+    /// Deprecated endpoint removed by the provider
+    #[error("Deprecated: {0}")]
+    Deprecated(String),
+
     /// URL parse error
     #[error("URL parse error: {0}")]
     UrlParse(#[from] url::ParseError),
@@ -46,6 +50,11 @@ pub fn not_found(resource: impl Into<String>) -> Error {
 /// Create a bad request error
 pub fn bad_request(message: impl Into<String>) -> Error {
     ApiError::domain(DomainError::BadRequest(message.into()))
+}
+
+/// Create a deprecated endpoint error
+pub fn deprecated(message: impl Into<String>) -> Error {
+    ApiError::domain(DomainError::Deprecated(message.into()))
 }
 
 /// Create from HTTP response status and body

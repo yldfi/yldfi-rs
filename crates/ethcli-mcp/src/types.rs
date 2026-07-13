@@ -470,7 +470,8 @@ pub struct PortfolioInput {
     pub aggregate: bool,
     /// Chain(s) to query (default: ethereum)
     pub chain: Option<String>,
-    /// Source to query: all, alchemy, moralis, dsim, uniswap, yearn
+    /// Source to query: all, alchemy, moralis, dsim, uniswap, yearn.
+    /// "all" excludes dsim (Dune Sim shuts down 2026-08-01, issue #64).
     pub source: Option<String>,
     /// Minimum USD value to show (filter small balances)
     pub min_value: Option<f64>,

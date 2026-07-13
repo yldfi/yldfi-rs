@@ -30,8 +30,13 @@ impl NftSource {
         }
     }
 
+    /// Default source set for `--source all`
+    ///
+    /// Dune Sim is excluded because the platform shuts down on 2026-08-01
+    /// (<https://github.com/yldfi/yldfi-rs/issues/64>); it can still be
+    /// queried explicitly via `--source dsim` until then.
     pub fn all_sources() -> Vec<NftSource> {
-        vec![NftSource::Alchemy, NftSource::Moralis, NftSource::DuneSim]
+        vec![NftSource::Alchemy, NftSource::Moralis]
     }
 }
 
@@ -612,7 +617,9 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
 
 /// Fetch NFTs from Dune SIM (Collectibles API)
 async fn fetch_nfts_dsim(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
-    // Get API key from config first, then fall back to env var
+    // Get API key from config first, then fall back to env var. Dune Analytics
+    // keys are not valid Sim credentials, so there is intentionally no
+    // DUNE_API_KEY fallback.
     let config = get_cached_config();
     let api_key = config
         .as_ref()
@@ -620,17 +627,8 @@ async fn fetch_nfts_dsim(address: &str, chains: &[&str]) -> anyhow::Result<Vec<N
             c.dune_sim
                 .as_ref()
                 .map(|d| d.api_key.expose_secret().to_string())
-                .or_else(|| {
-                    c.dune
-                        .as_ref()
-                        .map(|d| d.api_key.expose_secret().to_string())
-                })
         })
-        .or_else(|| {
-            std::env::var("DUNE_SIM_API_KEY")
-                .or_else(|_| std::env::var("DUNE_API_KEY"))
-                .ok()
-        })
+        .or_else(|| std::env::var("DUNE_SIM_API_KEY").ok())
         .ok_or_else(|| anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment"))?;
 
     let client = dnsim::Client::new(&api_key)?;

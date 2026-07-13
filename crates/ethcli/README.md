@@ -35,8 +35,8 @@
 
 ### Aggregation Commands
 - **Price Aggregation**: Multi-source prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, CCXT
-- **Portfolio Aggregation**: Balance data from Alchemy, Dune SIM, Moralis
-- **NFT Aggregation**: Holdings from Alchemy, CoinGecko, Moralis, Dune SIM
+- **Portfolio Aggregation**: Balance data from Alchemy, Moralis (Dune SIM only via `--source dsim` until the 2026-08-01 sunset)
+- **NFT Aggregation**: Holdings from Alchemy, CoinGecko, Moralis (Dune SIM only via `--source dsim` until the 2026-08-01 sunset)
 - **Yield Aggregation**: DeFi yields from DefiLlama and Curve
 - **Quote Aggregation**: Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora, Enso
 
@@ -45,7 +45,7 @@
 - **CoinGecko**: Coins, prices, NFTs, exchanges
 - **DefiLlama**: TVL, prices, yields, stablecoins
 - **Moralis**: Wallet, token, NFT, DeFi, transactions
-- **Dune SIM**: Balances, activity, collectibles, DeFi positions
+- **Dune SIM**: Balances, activity, collectibles (sunsetting 2026-08-01; DeFi positions removed)
 - **Dune Analytics**: Queries, executions, tables
 - **Curve Finance**: Pools, volumes, lending, tokens, router
 - **Chainlink**: Price feeds (RPC-based, no API key needed)
@@ -527,7 +527,7 @@ ethcli portfolio 0x... --chain polygon
 ethcli portfolio 0x... -o json
 ```
 
-**Sources**: Alchemy, Dune SIM, Moralis
+**Sources**: Alchemy, Moralis (Dune SIM via `--source dsim` only; sunset 2026-08-01)
 
 ### NFTs - Multi-Source NFT Aggregation
 
@@ -540,7 +540,7 @@ ethcli nfts 0x... --chain polygon
 ethcli nfts 0x... -o json
 ```
 
-**Sources**: Alchemy, CoinGecko, Moralis, Dune SIM
+**Sources**: Alchemy, CoinGecko, Moralis (Dune SIM via `--source dsim` only; sunset 2026-08-01)
 
 ### Yields - DeFi Yield Aggregation
 
@@ -700,14 +700,19 @@ ethcli moralis defi-positions 0x...
 
 ### Dsim - Dune SIM API
 
-Requires `DUNE_SIM_API_KEY` environment variable.
+Requires `DUNE_SIM_API_KEY` environment variable (Dune Analytics keys are no
+longer accepted as a fallback).
+
+Dune is shutting down the Sim platform on 2026-08-01; every `ethcli dsim`
+command prints a sunset warning to stderr until then. The DeFi Positions
+endpoints were deprecated on 2026-06-01, so `ethcli dsim defi` now returns an
+error. See <https://github.com/yldfi/yldfi-rs/issues/64>.
 
 ```bash
 # Wallet simulation
 ethcli dsim balances 0x...
 ethcli dsim activity 0x...
 ethcli dsim collectibles 0x...
-ethcli dsim defi 0x...
 ```
 
 ### Dune - Dune Analytics API
@@ -1059,7 +1064,7 @@ ethcli config set-etherscan-key YOUR_KEY
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (higher rate limits) |
 | `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
-| `DUNE_SIM_API_KEY` | `ethcli dsim` | Dune SIM wallet simulation |
+| `DUNE_SIM_API_KEY` | `ethcli dsim` | Dune SIM wallet simulation (sunset 2026-08-01) |
 | `DUNE_API_KEY` | `ethcli dune` | Dune Analytics queries |
 | `THEGRAPH_API_KEY` | Uniswap subgraph | The Graph API access |
 | `CHAINLINK_API_KEY` | `chainlink streams` | Chainlink Data Streams (premium) |

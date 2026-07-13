@@ -115,7 +115,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | cowswap_* | 8 |
 | account_* | 8 |
 | oneinch_* | 7 |
-| dsim_* | 7 |
+| dsim_* | 6 |
 | ccxt_* | 7 |
 | blacklist_* | 7 |
 | address_* | 7 |
@@ -162,6 +162,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `ONEINCH_API_KEY` | `oneinch_*` tools |
 | `ENSO_API_KEY` | `enso_*` tools |
 | `DUNE_API_KEY` | `dune_*` tools |
+| `DUNE_SIM_API_KEY` | `dsim_*` tools (sunset 2026-08-01; `DUNE_API_KEY` is not a fallback) |
 | `MORALIS_API_KEY` | `moralis_*` tools |
 | `SOLODIT_API_KEY` | `solodit_*` tools |
 | `THEGRAPH_API_KEY` | `uniswap_top_pools`, etc. |
@@ -170,6 +171,12 @@ Moralis is removing Fantom support on 2026-05-29 and selected legacy Data API
 endpoints on 2026-06-04. The MCP `moralis_*` tools inherit the same ethcli
 guards for Fantom and deprecated Discovery, Volume, Market Data, pair sniper,
 and selected ERC20 helper endpoints.
+
+Dune is shutting down the Sim platform on 2026-08-01. The remaining `dsim_*`
+tools keep working until then (with a stderr sunset warning from ethcli), but
+the `dsim_defi` tool was removed because the DeFi Positions endpoints were
+deprecated on 2026-06-01. See
+<https://github.com/yldfi/yldfi-rs/issues/64>.
 
 ## Unverified Contract Analysis
 

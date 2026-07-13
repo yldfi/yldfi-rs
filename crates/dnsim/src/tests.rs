@@ -703,3 +703,33 @@ mod deserialization_tests {
         assert!(response.next_offset.is_some());
     }
 }
+
+#[cfg(test)]
+mod defi_sunset_tests {
+    use crate::defi::{DefiPositionsOptions, DEFI_POSITIONS_SUNSET_MESSAGE};
+
+    #[tokio::test]
+    async fn defi_positions_is_short_circuited() {
+        let client = crate::Client::new("test-key").unwrap();
+        #[allow(deprecated)]
+        let error = client
+            .defi()
+            .positions("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains(DEFI_POSITIONS_SUNSET_MESSAGE));
+    }
+
+    #[tokio::test]
+    async fn defi_positions_with_options_is_short_circuited() {
+        let client = crate::Client::new("test-key").unwrap();
+        let options = DefiPositionsOptions::default();
+        #[allow(deprecated)]
+        let error = client
+            .defi()
+            .positions_with_options("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", &options)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains(DEFI_POSITIONS_SUNSET_MESSAGE));
+    }
+}

@@ -13,13 +13,19 @@
   <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/dune-sim/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
+> [!WARNING]
+> Dune is shutting down the Sim platform on **2026-08-01**; this crate stops
+> working then. The DeFi Positions endpoints were already deprecated on
+> 2026-06-01 and the `defi()` API is short-circuited to always return an
+> error. See <https://github.com/yldfi/yldfi-rs/issues/64>.
+
 ## Features
 
 - **Chains** - List supported chains
 - **Balances** - Get wallet token balances across chains
 - **Activity** - Get wallet transaction history
 - **Collectibles** - Get NFT holdings
-- **DeFi** - Get DeFi protocol positions
+- **DeFi** - Removed (deprecated by Dune on 2026-06-01; calls always error)
 - **Tokens** - Get token metadata
 - **Holders** - Get token holders
 - **Transactions** - Get transaction details
