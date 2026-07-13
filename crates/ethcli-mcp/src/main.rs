@@ -4586,7 +4586,8 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
-    // DSIM (Dune Simulator)
+    // DSIM (Dune Sim) - platform shuts down 2026-08-01
+    // (https://github.com/yldfi/yldfi-rs/issues/64)
     // =========================================================================
 
     #[tool(description = "List supported chains for Dune Simulator")]
@@ -4623,10 +4624,8 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get DeFi positions via Dune Simulator")]
-    async fn dsim_defi(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_defi(&input.address).await.to_response()
-    }
+    // dsim_defi was removed: Dune Sim DeFi Positions was deprecated 2026-06-01
+    // and the Sim platform shuts down 2026-08-01. See issue #64.
 
     // =========================================================================
     // DUNE

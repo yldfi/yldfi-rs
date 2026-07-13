@@ -18,7 +18,7 @@ pub enum NftSourceArg {
     Alchemy,
     /// Moralis NFT API
     Moralis,
-    /// Dune SIM Collectibles API
+    /// Dune SIM Collectibles API (sunset 2026-08-01; excluded from "all")
     Dsim,
 }
 

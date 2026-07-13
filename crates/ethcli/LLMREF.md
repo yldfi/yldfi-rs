@@ -228,11 +228,14 @@ ethcli solodit get <slug>
 ```
 
 ### Dune SIM (requires DUNE_SIM_API_KEY)
+Dune Sim shuts down 2026-08-01 (yldfi-rs issue #64); dsim commands print a
+sunset warning to stderr. `ethcli dsim defi` is blocked (DeFi Positions was
+deprecated 2026-06-01). DUNE_API_KEY is no longer accepted as a fallback.
+
 ```bash
 ethcli dsim balances <addr>         # Wallet balances
 ethcli dsim activity <addr>         # Wallet activity
 ethcli dsim collectibles <addr>     # NFTs
-ethcli dsim defi <addr>             # DeFi positions
 ```
 
 ### Curve
@@ -364,7 +367,7 @@ ethcli doctor                       # Diagnose issues
 | MORALIS_API_KEY | moralis commands | Moralis API |
 | COINGECKO_API_KEY | Optional | CoinGecko Pro |
 | DUNE_API_KEY | dune commands | Dune Analytics |
-| DUNE_SIM_API_KEY | dsim commands | Dune SIM |
+| DUNE_SIM_API_KEY | dsim commands | Dune SIM (sunset 2026-08-01) |
 | TENDERLY_ACCESS_KEY | tenderly commands | Tenderly API |
 | THEGRAPH_API_KEY | uniswap subgraph | The Graph |
 | GOPLUS_APP_KEY | Optional | GoPlus batch queries |
