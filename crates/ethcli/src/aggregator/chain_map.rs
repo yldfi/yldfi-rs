@@ -134,7 +134,7 @@ pub fn normalize_address(address: &str) -> String {
     // In production, you'd want to use proper EIP-55 checksumming
     let addr = address.trim();
     if addr.starts_with("0x") || addr.starts_with("0X") {
-        format!("0x{}", &addr[2..].to_lowercase())
+        format!("0x{}", addr[2..].to_lowercase())
     } else {
         format!("0x{}", addr.to_lowercase())
     }
