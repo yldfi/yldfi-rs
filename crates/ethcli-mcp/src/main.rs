@@ -3798,7 +3798,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get historical holders data for a token via Moralis")]
+    #[tool(
+        description = "Get historical holders data for a token via Moralis (Moralis is sunsetting this endpoint on 2026-07-31 and the call is blocked; use moralis_token_holders or moralis_token_holders_summary for current holder data)"
+    )]
     async fn moralis_token_holders_historical(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
