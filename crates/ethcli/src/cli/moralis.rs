@@ -8,6 +8,7 @@ use clap::{Args, Subcommand};
 
 const MORALIS_FANTOM_REMOVAL_DATE: &str = "2026-05-29";
 const MORALIS_LEGACY_REMOVAL_DATE: &str = "2026-06-04";
+const MORALIS_HOLDERS_HISTORICAL_REMOVAL_DATE: &str = "2026-07-31";
 
 fn ensure_moralis_chain_supported(chain: &str) -> anyhow::Result<()> {
     match chain.trim().to_ascii_lowercase().as_str() {
@@ -25,10 +26,24 @@ fn deprecated_moralis_endpoint(
     endpoints: &[&str],
     replacement: Option<&str>,
 ) -> anyhow::Result<()> {
+    deprecated_moralis_endpoint_with_date(
+        command,
+        endpoints,
+        MORALIS_LEGACY_REMOVAL_DATE,
+        replacement,
+    )
+}
+
+fn deprecated_moralis_endpoint_with_date(
+    command: &str,
+    endpoints: &[&str],
+    removal_date: &str,
+    replacement: Option<&str>,
+) -> anyhow::Result<()> {
     let endpoint_list = endpoints.join(", ");
     let mut message = format!(
         "`ethcli moralis {command}` calls Moralis endpoint(s) scheduled for removal on \
-         {MORALIS_LEGACY_REMOVAL_DATE}: {endpoint_list}."
+         {removal_date}: {endpoint_list}."
     );
 
     if let Some(replacement) = replacement {
@@ -84,6 +99,16 @@ fn reject_deprecated_moralis_command(command: &MoralisCommands) -> anyhow::Resul
                 "token by-symbols",
                 &["GET /erc20/metadata/symbols"],
                 Some("use `ethcli moralis token search <symbol>` for one symbol at a time"),
+            ),
+            TokenCommands::HoldersHistorical { .. } => deprecated_moralis_endpoint_with_date(
+                "token holders-historical",
+                &["GET /erc20/{address}/holders/historical"],
+                MORALIS_HOLDERS_HISTORICAL_REMOVAL_DATE,
+                Some(
+                    "use `ethcli moralis token holders` or `ethcli moralis token \
+                     holders-summary` for current holder data (Moralis documents no \
+                     historical replacement)",
+                ),
             ),
             TokenCommands::PairsStats { .. } => deprecated_moralis_endpoint(
                 "token pairs-stats",
@@ -2518,6 +2543,28 @@ mod tests {
 
         assert!(error.contains("pair-snipers"));
         assert!(error.contains("/pairs/{address}/snipers"));
+    }
+
+    #[test]
+    fn holders_historical_is_rejected_with_its_own_removal_date() {
+        let args = MoralisArgs {
+            chain: "eth".to_string(),
+            format: OutputFormat::Json,
+        };
+        let command = MoralisCommands::Token {
+            action: TokenCommands::HoldersHistorical {
+                address: "0xtoken".to_string(),
+            },
+            args,
+        };
+
+        let error = reject_deprecated_moralis_command(&command)
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("holders-historical"));
+        assert!(error.contains("/erc20/{address}/holders/historical"));
+        assert!(error.contains("2026-07-31"));
     }
 
     #[test]

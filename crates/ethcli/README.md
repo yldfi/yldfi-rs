@@ -672,7 +672,11 @@ Requires `MORALIS_API_KEY` environment variable.
 Moralis is removing Fantom support on 2026-05-29 and selected legacy Data API
 endpoints on 2026-06-04. `ethcli moralis` blocks Fantom chain aliases and the
 legacy Discovery, Volume, Market Data, pair sniper, and selected ERC20 helper
-commands affected by that changelog.
+commands affected by that changelog. Moralis is also sunsetting
+`GET /erc20/{address}/holders/historical` on 2026-07-31, so
+`ethcli moralis token holders-historical` is blocked as well; there is no
+documented replacement, and `token holders` and `token holders-summary` remain
+supported.
 
 ```bash
 # Wallet data

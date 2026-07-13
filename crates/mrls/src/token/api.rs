@@ -453,6 +453,9 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get historical holders data for a token
+    #[deprecated(
+        note = "Moralis is sunsetting GET /erc20/{address}/holders/historical on 2026-07-31"
+    )]
     pub async fn get_holders_historical(
         &self,
         address: &str,

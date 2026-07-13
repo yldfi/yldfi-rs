@@ -34,6 +34,12 @@ affected `mrls` methods are annotated with `#[deprecated]`, including legacy
 Discovery, Volume, Market Data, selected ERC20 stats/discovery helpers, and pair
 sniper endpoints.
 
+Moralis also announced on 2026-06-30 that it is sunsetting
+`GET /erc20/{address}/holders/historical` on 2026-07-31, so
+`TokenApi::get_holders_historical` is annotated with `#[deprecated]`. There is
+no documented replacement; `get_holders` and `get_holders_summary` remain
+supported.
+
 ## Installation
 
 ```toml

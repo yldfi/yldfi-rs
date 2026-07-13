@@ -169,7 +169,10 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 Moralis is removing Fantom support on 2026-05-29 and selected legacy Data API
 endpoints on 2026-06-04. The MCP `moralis_*` tools inherit the same ethcli
 guards for Fantom and deprecated Discovery, Volume, Market Data, pair sniper,
-and selected ERC20 helper endpoints.
+and selected ERC20 helper endpoints. `moralis_token_holders_historical`
+inherits the guard for the 2026-07-31 sunset of
+`GET /erc20/{address}/holders/historical`; `moralis_token_holders` and
+`moralis_token_holders_summary` remain supported.
 
 ## Unverified Contract Analysis
 
