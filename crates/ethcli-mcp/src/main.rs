@@ -962,7 +962,9 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Simulate/trace a historical transaction")]
+    #[tool(
+        description = "Simulate/trace a historical transaction. With via=debug, returns a decoded call tree (contract names, function args, events) from debug_traceTransaction; set raw=true for the raw callTracer JSON"
+    )]
     async fn simulate_tx(&self, Parameters(input): Parameters<SimulateTxInput>) -> String {
         tools::simulate_tx(tools::SimulateTxOptions {
             hash: &input.hash,
@@ -985,6 +987,7 @@ impl EthcliMcpServer {
             enable_tx_gas_limit: input.enable_tx_gas_limit,
             disable_block_gas_limit: input.disable_block_gas_limit,
             etherscan_api_key: input.etherscan_api_key.as_deref(),
+            raw: input.raw,
         })
         .await
         .to_response()

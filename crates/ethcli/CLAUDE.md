@@ -318,6 +318,10 @@ ethcli simulate call <contract> --sig "transfer(address,uint256)" <to> <amount> 
 # Trace an existing transaction
 ethcli simulate tx <tx_hash> --rpc-url https://eth.llamarpc.com
 
+# Decoded call tree from debug_traceTransaction (contract names, function
+# args, events — no Foundry/cast binary required); --raw for callTracer JSON
+ethcli simulate tx <tx_hash> --via debug
+
 # Use different backends
 ethcli simulate call ... --via cast      # Default: uses cast call
 ethcli simulate call ... --via anvil     # Forks mainnet with Anvil

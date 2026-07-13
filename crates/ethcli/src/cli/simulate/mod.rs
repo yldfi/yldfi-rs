@@ -1,6 +1,7 @@
 pub mod alchemy;
 pub mod anvil;
 pub mod cast;
+pub mod decode;
 pub mod rpc;
 pub mod tenderly;
 pub mod types;
@@ -356,6 +357,10 @@ pub enum SimulateCommands {
         /// Etherscan API key override for Foundry trace decoding
         #[arg(long = "etherscan-api-key")]
         etherscan_api_key: Option<String>,
+
+        /// Print raw callTracer JSON instead of the decoded call tree (debug backend)
+        #[arg(long)]
+        raw: bool,
     },
 
     /// Simulate a bundle of transactions in sequence (Tenderly only)
@@ -784,6 +789,7 @@ pub async fn handle(
             enable_tx_gas_limit,
             disable_block_gas_limit,
             etherscan_api_key,
+            raw,
         } => match via {
             SimulateVia::Cast | SimulateVia::Anvil => {
                 let cast_options = CastTxOptions {
@@ -808,7 +814,10 @@ pub async fn handle(
                 trace_tx_via_cast(hash, rpc_url, &cast_options, quiet).await
             }
             SimulateVia::Tenderly => trace_tx_via_tenderly(hash, tenderly, quiet).await,
-            SimulateVia::Debug => trace_tx_via_debug_rpc(hash, rpc_url, chain, quiet).await,
+            SimulateVia::Debug => {
+                let key = etherscan_api_key.clone().or_else(|| etherscan_key.clone());
+                trace_tx_via_debug_rpc(hash, rpc_url, chain, key, *raw, quiet).await
+            }
             SimulateVia::Trace => trace_tx_via_trace_rpc(hash, rpc_url, chain, quiet).await,
             SimulateVia::Alchemy => trace_tx_via_alchemy(hash, alchemy, quiet).await,
         },

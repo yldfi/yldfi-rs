@@ -1269,6 +1269,7 @@ pub struct SimulateTxOptions<'a> {
     pub enable_tx_gas_limit: bool,
     pub disable_block_gas_limit: bool,
     pub etherscan_api_key: Option<&'a str>,
+    pub raw: bool,
 }
 
 pub async fn simulate_tx(input: SimulateTxOptions<'_>) -> Result<String, ToolError> {
@@ -1289,7 +1290,8 @@ pub async fn simulate_tx(input: SimulateTxOptions<'_>) -> Result<String, ToolErr
         .opt_flag("--no-proxy", input.no_proxy)
         .opt_flag("--enable-tx-gas-limit", input.enable_tx_gas_limit)
         .opt_flag("--disable-block-gas-limit", input.disable_block_gas_limit)
-        .opt("--etherscan-api-key", input.etherscan_api_key);
+        .opt("--etherscan-api-key", input.etherscan_api_key)
+        .opt_flag("--raw", input.raw);
 
     if let Some(depth) = input.trace_depth {
         builder = builder.opt("--trace-depth", Some(&depth.to_string()));

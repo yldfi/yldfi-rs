@@ -321,6 +321,8 @@ ethcli simulate call ... --via tenderly|anvil|debug|trace
 ethcli simulate call ... --trace --decode-internal --label 0x...:name
 ethcli simulate call ... --via anvil --fork-url <rpc> --fork-block-number -10
 ethcli simulate tx <hash> --decode-internal --trace-depth 6
+ethcli simulate tx <hash> --via debug            # decoded call tree (names, args, events); no Foundry needed
+ethcli simulate tx <hash> --via debug --raw      # raw callTracer JSON
 ```
 
 ## Tenderly (requires TENDERLY_ACCESS_KEY)

@@ -3490,6 +3490,9 @@ pub struct SimulateTxInput {
     pub disable_block_gas_limit: bool,
     /// Disabled over MCP; use ETHERSCAN_API_KEY env or ethcli config instead
     pub etherscan_api_key: Option<String>,
+    /// Print raw callTracer JSON instead of the decoded call tree (debug backend)
+    #[serde(default)]
+    pub raw: bool,
 }
 
 // --- Config ---
