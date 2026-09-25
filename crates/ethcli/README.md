@@ -462,8 +462,9 @@ ethcli config init
 # Show config file path
 ethcli config path
 
-# Show current config
+# Show current config (API keys, tokens and keyed RPC URLs are masked)
 ethcli config show
+ethcli config show --show-secrets   # print the file verbatim, secrets included
 
 # Set Etherscan API key
 ethcli config set-etherscan-key YOUR_KEY

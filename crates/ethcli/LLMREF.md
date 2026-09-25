@@ -348,7 +348,7 @@ ethcli tenderly contracts add <addr> --network 1 ...
 ```bash
 ethcli config init                  # Create config file
 ethcli config path                  # Show config path
-ethcli config show                  # Display config
+ethcli config show                  # Display config (secrets masked; --show-secrets for raw)
 ethcli config validate              # Validate config
 ethcli config set-etherscan-key <k> # Set API key
 ethcli config set-tenderly --key <k> --account <a> --project <p>

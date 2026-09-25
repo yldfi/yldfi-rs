@@ -42,7 +42,7 @@ use crate::config::{
     Chain, ConfigFile, EndpointConfig, NodeType, RpcConfig, DEFAULT_MAX_BLOCK_RANGE,
     MIN_TX_FETCH_CONCURRENCY,
 };
-use crate::error::{sanitize_error_message, Error, Result, RpcError};
+use crate::error::{Error, Result, RpcError};
 use crate::rpc::{Endpoint, EndpointHealth, HealthTracker};
 use alloy::primitives::B256;
 use alloy::rpc::types::{Block, Filter, Log, Transaction, TransactionReceipt};
@@ -53,6 +53,9 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+
+/// Maximum endpoints tried for a single read-only `eth_call`.
+const MAX_CALL_ATTEMPTS: usize = 6;
 
 /// Global mutex to serialize config file updates within a single process.
 ///
@@ -101,7 +104,7 @@ fn persist_block_range_limit(url: &str, limit: u64) {
                 Ok(true) => {
                     tracing::info!(
                         "Learned block range limit for {}: {} blocks (saved to config)",
-                        sanitize_error_message(&url),
+                        crate::utils::url::redact_url(&url),
                         limit
                     );
                 }
@@ -130,7 +133,7 @@ fn persist_max_logs_limit(url: &str, limit: usize) {
                 Ok(true) => {
                     tracing::info!(
                         "Learned max logs limit for {}: {} logs (saved to config)",
-                        sanitize_error_message(&url),
+                        crate::utils::url::redact_url(&url),
                         limit
                     );
                 }
@@ -228,7 +231,7 @@ impl RpcPool {
                 Err(e) => {
                     tracing::warn!(
                         "Failed to create endpoint {}: {}",
-                        sanitize_error_message(&url),
+                        crate::utils::url::redact_url(&url),
                         e
                     );
                 }
@@ -290,7 +293,7 @@ impl RpcPool {
                     self.health.record_failure(endpoint.url(), false, false);
                     tracing::debug!(
                         "Failed to get block number from {}: {}",
-                        sanitize_error_message(endpoint.url()),
+                        crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
                 }
@@ -316,14 +319,14 @@ impl RpcPool {
                     // Transaction not found on this endpoint, try others
                     tracing::debug!(
                         "Transaction not found on {}, trying next endpoint",
-                        sanitize_error_message(endpoint.url())
+                        crate::utils::url::redact_url(endpoint.url())
                     );
                 }
                 Err(e) => {
                     self.health.record_failure(endpoint.url(), false, false);
                     tracing::debug!(
                         "Failed to get transaction from {}: {}",
-                        sanitize_error_message(endpoint.url()),
+                        crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
                 }
@@ -332,6 +335,40 @@ impl RpcPool {
 
         // No endpoint had the transaction
         Ok(None)
+    }
+
+    /// Execute a read-only `eth_call` at the latest block, failing over
+    /// across endpoints on error.
+    pub async fn call(
+        &self,
+        to: alloy::primitives::Address,
+        data: alloy::primitives::Bytes,
+    ) -> Result<alloy::primitives::Bytes> {
+        let endpoints = self.select_endpoints(MAX_CALL_ATTEMPTS);
+        let mut last_err: Option<Error> = None;
+
+        for endpoint in endpoints {
+            match endpoint.call(to, data.clone()).await {
+                Ok(out) => {
+                    self.health
+                        .record_success(endpoint.url(), Duration::from_millis(100));
+                    return Ok(out);
+                }
+                Err(e) => {
+                    let is_rate_limit = e.to_string().contains("429");
+                    self.health
+                        .record_failure(endpoint.url(), is_rate_limit, false);
+                    tracing::debug!(
+                        "eth_call failed on {}: {}",
+                        crate::utils::url::redact_url(endpoint.url()),
+                        e
+                    );
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| RpcError::AllEndpointsFailed.into()))
     }
 
     /// Get a transaction receipt by hash (tries multiple endpoints)
@@ -350,14 +387,14 @@ impl RpcPool {
                     // Receipt not found on this endpoint, try others
                     tracing::debug!(
                         "Receipt not found on {}, trying next endpoint",
-                        sanitize_error_message(endpoint.url())
+                        crate::utils::url::redact_url(endpoint.url())
                     );
                 }
                 Err(e) => {
                     self.health.record_failure(endpoint.url(), false, false);
                     tracing::debug!(
                         "Failed to get transaction receipt from {}: {}",
-                        sanitize_error_message(endpoint.url()),
+                        crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
                 }
@@ -383,7 +420,7 @@ impl RpcPool {
                     tracing::debug!(
                         "Block {} not found on {}, trying next endpoint",
                         block_number,
-                        sanitize_error_message(endpoint.url())
+                        crate::utils::url::redact_url(endpoint.url())
                     );
                 }
                 Err(e) => {
@@ -391,7 +428,7 @@ impl RpcPool {
                     tracing::debug!(
                         "Failed to get block {} from {}: {}",
                         block_number,
-                        sanitize_error_message(endpoint.url()),
+                        crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
                 }
@@ -454,7 +491,7 @@ impl RpcPool {
 
                     tracing::debug!(
                         "Failed to get logs from {}: {}",
-                        sanitize_error_message(endpoint.url()),
+                        crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
                 }
