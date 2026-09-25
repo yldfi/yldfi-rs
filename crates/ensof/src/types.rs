@@ -114,17 +114,37 @@ impl From<Chain> for yldfi_common::Chain {
     }
 }
 
-/// Routing strategy for Enso
+/// Routing strategy for Enso (API values: `router`, `delegate`,
+/// `ensowallet-v2`, `router-legacy`, `delegate-legacy`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum RoutingStrategy {
     /// Use the router contract directly
     #[default]
     Router,
     /// Use delegate call through smart wallet
     Delegate,
-    /// Use Enso smart wallet
+    /// Use Enso smart wallet (`ensowallet-v2`)
+    #[serde(rename = "ensowallet-v2", alias = "ensowallet")]
     Ensowallet,
+    /// Legacy router
+    RouterLegacy,
+    /// Legacy delegate
+    DelegateLegacy,
+}
+
+impl RoutingStrategy {
+    /// API string value
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Router => "router",
+            Self::Delegate => "delegate",
+            Self::Ensowallet => "ensowallet-v2",
+            Self::RouterLegacy => "router-legacy",
+            Self::DelegateLegacy => "delegate-legacy",
+        }
+    }
 }
 
 /// Route request parameters for getting swap routes
@@ -396,6 +416,11 @@ impl BundleAction {
 }
 
 /// Bundle request for multi-action transactions
+///
+/// `POST /api/v1/shortcuts/bundle` takes `chainId`, `fromAddress` and
+/// `routingStrategy` as **query parameters** and the bare `actions` array as
+/// the JSON body; see [`BundleRequest::query_params`] and
+/// [`BundleRequest::body`].
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BundleRequest {
@@ -427,6 +452,25 @@ impl BundleRequest {
     pub fn with_routing_strategy(mut self, strategy: RoutingStrategy) -> Self {
         self.routing_strategy = Some(strategy);
         self
+    }
+
+    /// Query parameters for the bundle endpoint
+    #[must_use]
+    pub fn query_params(&self) -> Vec<(&'static str, String)> {
+        let mut params = vec![
+            ("chainId", self.chain_id.to_string()),
+            ("fromAddress", self.from_address.clone()),
+        ];
+        if let Some(strategy) = self.routing_strategy {
+            params.push(("routingStrategy", strategy.as_str().to_string()));
+        }
+        params
+    }
+
+    /// JSON body for the bundle endpoint (the bare actions array)
+    #[must_use]
+    pub fn body(&self) -> &Vec<BundleAction> {
+        &self.actions
     }
 }
 
@@ -504,6 +548,44 @@ pub struct ApiErrorResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_bundle_request_splits_query_and_body() {
+        let req = BundleRequest::new(
+            1,
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            vec![BundleAction::swap("0xa", "0xb", "100")],
+        )
+        .with_routing_strategy(RoutingStrategy::Router);
+        assert_eq!(
+            req.query_params(),
+            vec![
+                ("chainId", "1".to_string()),
+                (
+                    "fromAddress",
+                    "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string()
+                ),
+                ("routingStrategy", "router".to_string()),
+            ]
+        );
+        let body = serde_json::to_value(req.body()).unwrap();
+        assert!(body.is_array(), "body must be the bare actions array");
+        assert_eq!(body[0]["protocol"], "enso");
+        assert_eq!(body[0]["action"], "route");
+    }
+
+    #[test]
+    fn test_routing_strategy_values() {
+        assert_eq!(
+            serde_json::to_value(RoutingStrategy::Ensowallet).unwrap(),
+            "ensowallet-v2"
+        );
+        assert_eq!(
+            serde_json::to_value(RoutingStrategy::RouterLegacy).unwrap(),
+            "router-legacy"
+        );
+        assert_eq!(RoutingStrategy::DelegateLegacy.as_str(), "delegate-legacy");
+    }
 
     #[test]
     fn test_chain_id() {

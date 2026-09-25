@@ -42,7 +42,7 @@ pub enum EnsoCommands {
         /// Slippage in basis points (e.g., 50 = 0.5%)
         #[arg(long, default_value = "50")]
         slippage: u16,
-        /// Routing strategy (router, delegate, ensowallet)
+        /// Routing strategy (router, delegate, ensowallet, router-legacy, delegate-legacy)
         #[arg(long)]
         routing_strategy: Option<String>,
     },
@@ -74,8 +74,10 @@ pub enum EnsoCommands {
         /// Chain ID (defaults to the global --chain)
         #[arg(long)]
         chain_id: Option<u64>,
-        /// Routing strategy (router, delegate, ensowallet)
-        #[arg(long)]
+        /// Routing strategy (router, delegate, ensowallet, router-legacy, delegate-legacy).
+        /// Defaults to `router` (for EOAs); the API's own default is delegate
+        /// mode, which is only executable from a smart wallet.
+        #[arg(long, default_value = "router")]
         routing_strategy: Option<String>,
     },
 }
@@ -162,9 +164,11 @@ fn parse_routing_strategy(s: &str) -> anyhow::Result<ensof::RoutingStrategy> {
     match s.to_lowercase().as_str() {
         "router" => Ok(ensof::RoutingStrategy::Router),
         "delegate" => Ok(ensof::RoutingStrategy::Delegate),
-        "ensowallet" | "enso_wallet" => Ok(ensof::RoutingStrategy::Ensowallet),
+        "ensowallet" | "enso_wallet" | "ensowallet-v2" => Ok(ensof::RoutingStrategy::Ensowallet),
+        "router-legacy" => Ok(ensof::RoutingStrategy::RouterLegacy),
+        "delegate-legacy" => Ok(ensof::RoutingStrategy::DelegateLegacy),
         _ => anyhow::bail!(
-            "Invalid routing strategy: {}. Use: router, delegate, ensowallet",
+            "Invalid routing strategy: {}. Use: router, delegate, ensowallet, router-legacy, delegate-legacy",
             s
         ),
     }
