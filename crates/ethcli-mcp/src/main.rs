@@ -4936,18 +4936,34 @@ impl EthcliMcpServer {
         tools::curve_prices(Some(&input.chain)).await.to_response()
     }
 
-    #[tool(description = "Get Curve pool OHLC data")]
-    async fn curve_ohlc(&self, Parameters(input): Parameters<CurveChainAddressInput>) -> String {
-        tools::curve_ohlc(&input.chain, &input.address)
-            .await
-            .to_response()
+    #[tool(
+        description = "Get Curve pool OHLC data: price of reference_token denominated in main_token (both pool coins). Defaults to the last 7 days."
+    )]
+    async fn curve_ohlc(&self, Parameters(input): Parameters<CurvePoolPairInput>) -> String {
+        tools::curve_ohlc(
+            &input.chain,
+            &input.address,
+            &input.main_token,
+            &input.reference_token,
+            input.start,
+            input.end,
+        )
+        .await
+        .to_response()
     }
 
-    #[tool(description = "Get Curve pool trades")]
-    async fn curve_trades(&self, Parameters(input): Parameters<CurveChainAddressInput>) -> String {
-        tools::curve_trades(&input.chain, &input.address)
-            .await
-            .to_response()
+    #[tool(
+        description = "Get Curve pool trades between two pool coins (main_token, reference_token)"
+    )]
+    async fn curve_trades(&self, Parameters(input): Parameters<CurvePoolPairInput>) -> String {
+        tools::curve_trades(
+            &input.chain,
+            &input.address,
+            &input.main_token,
+            &input.reference_token,
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get Curve DAO data")]
@@ -5094,9 +5110,11 @@ impl EthcliMcpServer {
 
     // --- CrvUSD additional ---
 
-    #[tool(description = "Get crvUSD circulating supply")]
-    async fn curve_crvusd_circulating_supply(&self) -> String {
-        tools::curve_crvusd_circulating_supply().await.to_response()
+    #[tool(
+        description = "Get CRV (not crvUSD) circulating supply. For crvUSD supply use curve_crvusd."
+    )]
+    async fn curve_crv_circulating_supply(&self) -> String {
+        tools::curve_crv_circulating_supply().await.to_response()
     }
 
     #[tool(description = "Get scrvUSD total supply")]
@@ -5172,7 +5190,9 @@ impl EthcliMcpServer {
 
     // --- OHLC additional ---
 
-    #[tool(description = "Get LP token OHLC data on Curve. Requires start and end timestamps.")]
+    #[tool(
+        description = "Get LP token OHLC data on Curve (address is the pool address). start/end default to the last 7 days."
+    )]
     async fn curve_ohlc_lp_token(
         &self,
         Parameters(input): Parameters<CurveChainAddressTimeRangeInput>,

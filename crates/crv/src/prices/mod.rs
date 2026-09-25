@@ -126,40 +126,43 @@ impl PricesClient {
 
     /// Get OHLC data for a pool
     ///
+    /// The prices API requires `main_token`, `reference_token`, `start` and
+    /// `end`. The returned prices are the price of `reference_token`
+    /// denominated in `main_token`.
+    ///
     /// # Arguments
     /// * `chain` - Chain name (e.g., "ethereum")
     /// * `address` - Pool contract address
-    /// * `start` - Optional start timestamp (unix seconds)
-    /// * `end` - Optional end timestamp (unix seconds)
+    /// * `main_token` - Token the price is denominated in
+    /// * `reference_token` - Token being priced
+    /// * `start` - Start timestamp (unix seconds, default: end - 7 days)
+    /// * `end` - End timestamp (unix seconds, default: now)
     pub async fn get_ohlc(
         &self,
         chain: &str,
         address: &str,
+        main_token: &str,
+        reference_token: &str,
         start: Option<u64>,
         end: Option<u64>,
     ) -> Result<serde_json::Value> {
-        let mut path = format!("/ohlc/{chain}/{address}");
-        let mut params = Vec::new();
-        if let Some(s) = start {
-            params.push(format!("start={s}"));
-        }
-        if let Some(e) = end {
-            params.push(format!("end={e}"));
-        }
-        if !params.is_empty() {
-            path.push('?');
-            path.push_str(&params.join("&"));
-        }
+        let (start, end) = default_window(start, end);
+        let path = format!(
+            "/ohlc/{chain}/{address}?main_token={main_token}&reference_token={reference_token}&start={start}&end={end}"
+        );
         self.get(&path).await
     }
 
     /// Get LP token OHLC data
     ///
+    /// Note: the endpoint is keyed by the **pool** address (for pools whose
+    /// LP token is a separate contract, pass the pool, not the LP token).
+    ///
     /// # Arguments
     /// * `chain` - Chain name (e.g., "ethereum")
-    /// * `address` - LP token contract address
-    /// * `start` - Optional start timestamp (unix seconds)
-    /// * `end` - Optional end timestamp (unix seconds)
+    /// * `address` - Pool contract address
+    /// * `start` - Start timestamp (unix seconds, default: end - 7 days)
+    /// * `end` - End timestamp (unix seconds, default: now)
     pub async fn get_lp_ohlc(
         &self,
         chain: &str,
@@ -167,26 +170,26 @@ impl PricesClient {
         start: Option<u64>,
         end: Option<u64>,
     ) -> Result<serde_json::Value> {
-        let mut path = format!("/lp_ohlc/{chain}/{address}");
-        let mut params = Vec::new();
-        if let Some(s) = start {
-            params.push(format!("start={s}"));
-        }
-        if let Some(e) = end {
-            params.push(format!("end={e}"));
-        }
-        if !params.is_empty() {
-            path.push('?');
-            path.push_str(&params.join("&"));
-        }
+        let (start, end) = default_window(start, end);
+        let path = format!("/lp_ohlc/{chain}/{address}?start={start}&end={end}");
         self.get(&path).await
     }
 
     // === Trades ===
 
-    /// Get trades for a contract
-    pub async fn get_trades(&self, chain: &str, address: &str) -> Result<serde_json::Value> {
-        let path = format!("/trades/{chain}/{address}");
+    /// Get trades for a pool between two of its tokens
+    ///
+    /// The prices API requires `main_token` and `reference_token`.
+    pub async fn get_trades(
+        &self,
+        chain: &str,
+        address: &str,
+        main_token: &str,
+        reference_token: &str,
+    ) -> Result<serde_json::Value> {
+        let path = format!(
+            "/trades/{chain}/{address}?main_token={main_token}&reference_token={reference_token}"
+        );
         self.get(&path).await
     }
 
@@ -359,6 +362,18 @@ fn chain_volume_path(
         path.push_str(interval.as_str());
     }
     path
+}
+
+/// Default OHLC time window: `end` defaults to now, `start` to `end - 7d`.
+fn default_window(start: Option<u64>, end: Option<u64>) -> (u64, u64) {
+    let end = end.unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    });
+    let start = start.unwrap_or_else(|| end.saturating_sub(7 * 86_400));
+    (start, end)
 }
 
 #[cfg(test)]

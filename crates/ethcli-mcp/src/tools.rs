@@ -6378,23 +6378,43 @@ pub async fn curve_prices(chain: Option<&str>) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn curve_ohlc(chain: &str, address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("curve")
+pub async fn curve_ohlc(
+    chain: &str,
+    address: &str,
+    main_token: &str,
+    reference_token: &str,
+    start: Option<u64>,
+    end: Option<u64>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("curve")
         .subcommand("ohlc")
         .subcommand("pool")
         .arg(chain)
         .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
+        .opt("--main-token", Some(main_token))
+        .opt("--reference-token", Some(reference_token));
+    if let Some(s) = start {
+        builder = builder.opt("--start", Some(&s.to_string()));
+    }
+    if let Some(e) = end {
+        builder = builder.opt("--end", Some(&e.to_string()));
+    }
+    builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn curve_trades(chain: &str, address: &str) -> Result<String, ToolError> {
+pub async fn curve_trades(
+    chain: &str,
+    address: &str,
+    main_token: &str,
+    reference_token: &str,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("trades")
         .subcommand("get")
         .arg(chain)
         .arg(address)
+        .opt("--main-token", Some(main_token))
+        .opt("--reference-token", Some(reference_token))
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6586,10 +6606,10 @@ pub async fn curve_lending_registry(chain: &str, registry: &str) -> Result<Strin
 
 // --- CrvUSD additional ---
 
-pub async fn curve_crvusd_circulating_supply() -> Result<String, ToolError> {
+pub async fn curve_crv_circulating_supply() -> Result<String, ToolError> {
     ArgsBuilder::new("curve")
         .subcommand("crvusd")
-        .subcommand("circulating-supply")
+        .subcommand("crv-circulating-supply")
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6608,8 +6628,9 @@ pub async fn curve_crvusd_markets(chain: Option<&str>) -> Result<String, ToolErr
     let mut builder = ArgsBuilder::new("curve")
         .subcommand("crvusd")
         .subcommand("markets");
+    // Positional chain (the global --chain would be ignored here)
     if let Some(c) = chain {
-        builder = builder.opt("--chain", Some(c));
+        builder = builder.arg(c);
     }
     builder.execute().await.map_err(ToolError::from)
 }

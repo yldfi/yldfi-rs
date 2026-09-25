@@ -42,8 +42,8 @@ pub mod types;
 pub use finder::{find_best_route, find_routes};
 pub use graph::build_graph;
 pub use types::{
-    eth_wrapper_pairs, router_address, GraphEdge, GraphNode, PoolType, QuotedRoute, Route,
-    RouteGraph, RouteStep, SwapParams, SwapType, WrapperPair, GRAPH_MAX_EDGES,
+    eth_wrapper_pairs, finite_tvl, router_address, GraphEdge, GraphNode, PoolType, QuotedRoute,
+    Route, RouteGraph, RouteStep, SwapParams, SwapType, WrapperPair, GRAPH_MAX_EDGES,
     MAX_ROUTES_PER_CRITERION, MAX_ROUTE_STEPS, MAX_SEARCH_DEPTH, MIN_TVL_USD,
 };
 

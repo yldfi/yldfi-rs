@@ -162,6 +162,30 @@ impl SwapParams {
 }
 
 /// A single step in a swap route
+/// Returns the TVL as `Some` if it is a real value, or `None` for the
+/// "unlimited" sentinel (`f64::MAX`) used by wrap/unwrap edges or
+/// non-finite values. Use this before emitting TVL values as JSON.
+#[must_use]
+pub fn finite_tvl(tvl: f64) -> Option<f64> {
+    (tvl.is_finite() && tvl < f64::MAX).then_some(tvl)
+}
+
+/// Serde helpers mapping the unlimited-TVL sentinel to/from JSON `null`.
+mod tvl_serde {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(tvl: &f64, s: S) -> Result<S::Ok, S::Error> {
+        match super::finite_tvl(*tvl) {
+            Some(v) => s.serialize_some(&v),
+            None => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+        Ok(Option::<f64>::deserialize(d)?.unwrap_or(f64::MAX))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RouteStep {
     /// Pool ID (for reference)
@@ -174,7 +198,9 @@ pub struct RouteStep {
     pub output_coin: String,
     /// Swap parameters
     pub swap_params: SwapParams,
-    /// TVL of the pool in USD (for sorting)
+    /// TVL of the pool in USD (for sorting); `f64::MAX` for wrap/unwrap
+    /// edges (serialized as `null`)
+    #[serde(with = "tvl_serde")]
     pub tvl_usd: f64,
 }
 
@@ -208,9 +234,11 @@ pub struct Route {
     pub input_token: String,
     /// Output token address
     pub output_token: String,
-    /// Minimum TVL across all steps
+    /// Minimum TVL across all steps (`f64::MAX`/`null` if every step is a
+    /// wrap/unwrap edge)
+    #[serde(with = "tvl_serde")]
     pub min_tvl: f64,
-    /// Total TVL across all steps
+    /// Total TVL across all pool steps (wrap/unwrap edges excluded)
     pub total_tvl: f64,
 }
 
@@ -229,7 +257,7 @@ impl Route {
     /// Add a step to the route
     pub fn push(&mut self, step: RouteStep) {
         self.min_tvl = self.min_tvl.min(step.tvl_usd);
-        self.total_tvl += step.tvl_usd;
+        self.total_tvl += finite_tvl(step.tvl_usd).unwrap_or(0.0);
         self.steps.push(step);
     }
 
@@ -459,6 +487,38 @@ pub fn router_address(chain: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_unlimited_tvl_serializes_as_null() {
+        let params = SwapParams::new(0, 0, SwapType::Wrap, PoolType::Main, 2);
+        let wrap = RouteStep::new("wrap", "0xw", "0xe", "0xw", params, f64::MAX);
+        let pool = RouteStep::new("p", "0xp", "0xw", "0xu", params, 5_000_000.0);
+        let mut route = Route::new("0xe", "0xu");
+        route.push(wrap);
+        route.push(pool);
+        assert!((route.total_tvl - 5_000_000.0).abs() < 1e-6);
+        assert!((route.min_tvl - 5_000_000.0).abs() < 1e-6);
+
+        let json = serde_json::to_value(&route).unwrap();
+        assert!(json["steps"][0]["tvl_usd"].is_null());
+        assert_eq!(json["steps"][1]["tvl_usd"], 5_000_000.0);
+        let back: Route = serde_json::from_value(json).unwrap();
+        assert_eq!(back.steps[0].tvl_usd, f64::MAX);
+
+        let mut only_wrap = Route::new("0xe", "0xw");
+        only_wrap.push(RouteStep::new(
+            "wrap",
+            "0xw",
+            "0xe",
+            "0xw",
+            params,
+            f64::MAX,
+        ));
+        assert!(serde_json::to_value(&only_wrap).unwrap()["min_tvl"].is_null());
+        assert_eq!(finite_tvl(f64::MAX), None);
+        assert_eq!(finite_tvl(f64::NAN), None);
+        assert_eq!(finite_tvl(1.0), Some(1.0));
+    }
 
     #[test]
     fn test_swap_params_array_roundtrip() {

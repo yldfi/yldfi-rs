@@ -2798,6 +2798,23 @@ pub struct CurveChainAddressInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurvePoolPairInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Pool contract address
+    pub address: String,
+    /// Main token address (pool coin; OHLC prices are denominated in it)
+    pub main_token: String,
+    /// Reference token address (pool coin being priced)
+    pub reference_token: String,
+    /// Start timestamp (unix seconds, optional; default end - 7 days)
+    pub start: Option<u64>,
+    /// End timestamp (unix seconds, optional; default now)
+    pub end: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CurveChainAddressTimeRangeInput {
     /// Chain name
     #[serde(default = "default_chain")]

@@ -172,20 +172,26 @@ pub enum PoolsCommands {
 
     /// Get pools with TVL >= $10k
     Big {
-        /// Chain name (optional, all chains if omitted)
-        chain: Option<String>,
+        /// Chain name (optional, all chains if omitted).
+        /// Positional so it does not collide with the global `--chain`.
+        #[arg(value_name = "CHAIN")]
+        network: Option<String>,
     },
 
     /// Get pools with TVL < $10k
     Small {
-        /// Chain name (optional, all chains if omitted)
-        chain: Option<String>,
+        /// Chain name (optional, all chains if omitted).
+        /// Positional so it does not collide with the global `--chain`.
+        #[arg(value_name = "CHAIN")]
+        network: Option<String>,
     },
 
     /// Get pools with $0 TVL
     Empty {
-        /// Chain name (optional, all chains if omitted)
-        chain: Option<String>,
+        /// Chain name (optional, all chains if omitted).
+        /// Positional so it does not collide with the global `--chain`.
+        #[arg(value_name = "CHAIN")]
+        network: Option<String>,
     },
 
     /// Get pool addresses on a chain
@@ -259,16 +265,19 @@ pub enum CrvusdCommands {
     /// Get crvUSD total supply
     TotalSupply,
 
-    /// Get crvUSD circulating supply
-    CirculatingSupply,
+    /// Get CRV (not crvUSD) circulating supply. The Curve API has no crvUSD
+    /// circulating-supply endpoint; use `total-supply` for crvUSD.
+    CrvCirculatingSupply,
 
     /// Get scrvUSD total supply
     ScrvusdSupply,
 
     /// Get crvUSD markets (from prices API)
     Markets {
-        /// Chain name (optional, all chains if omitted)
-        chain: Option<String>,
+        /// Chain name (optional, all chains if omitted).
+        /// Positional so it does not collide with the global `--chain`.
+        #[arg(value_name = "CHAIN")]
+        network: Option<String>,
     },
 
     /// Get crvUSD savings stats
@@ -329,16 +338,22 @@ pub enum PricesCommands {
 
 #[derive(Subcommand)]
 pub enum OhlcCommands {
-    /// Get OHLC data for a pool
+    /// Get OHLC data for a pool (price of reference token in main token)
     Pool {
         /// Chain name
         chain: String,
         /// Pool contract address
         address: String,
-        /// Start timestamp (unix seconds)
+        /// Token the price is denominated in (pool coin address)
+        #[arg(long)]
+        main_token: String,
+        /// Token being priced (pool coin address)
+        #[arg(long)]
+        reference_token: String,
+        /// Start timestamp (unix seconds, default: end - 7 days)
         #[arg(long)]
         start: Option<u64>,
-        /// End timestamp (unix seconds)
+        /// End timestamp (unix seconds, default: now)
         #[arg(long)]
         end: Option<u64>,
     },
@@ -347,12 +362,12 @@ pub enum OhlcCommands {
     LpToken {
         /// Chain name
         chain: String,
-        /// LP token contract address
+        /// Pool contract address (the API is keyed by pool, not LP token)
         address: String,
-        /// Start timestamp (unix seconds)
+        /// Start timestamp (unix seconds, default: end - 7 days)
         #[arg(long)]
         start: Option<u64>,
-        /// End timestamp (unix seconds)
+        /// End timestamp (unix seconds, default: now)
         #[arg(long)]
         end: Option<u64>,
     },
@@ -360,12 +375,18 @@ pub enum OhlcCommands {
 
 #[derive(Subcommand)]
 pub enum TradesCommands {
-    /// Get trades for a contract
+    /// Get trades for a pool between two of its coins
     Get {
         /// Chain name
         chain: String,
-        /// Contract address
+        /// Pool contract address
         address: String,
+        /// Main token (pool coin address)
+        #[arg(long)]
+        main_token: String,
+        /// Reference token (pool coin address)
+        #[arg(long)]
+        reference_token: String,
     },
 }
 
@@ -455,10 +476,12 @@ async fn handle_router(
                 return Ok(());
             }
 
+            // Wrap/unwrap edges carry an f64::MAX "unlimited" TVL sentinel;
+            // emit null instead of 1.797e308.
             #[derive(serde::Serialize)]
             struct RouteOutput {
                 hops: usize,
-                min_tvl_usd: f64,
+                min_tvl_usd: Option<f64>,
                 total_tvl_usd: f64,
                 steps: Vec<StepOutput>,
             }
@@ -470,14 +493,14 @@ async fn handle_router(
                 input: String,
                 output: String,
                 swap_type: u8,
-                tvl_usd: f64,
+                tvl_usd: Option<f64>,
             }
 
             let output: Vec<RouteOutput> = routes
                 .iter()
                 .map(|r| RouteOutput {
                     hops: r.steps.len(),
-                    min_tvl_usd: r.min_tvl,
+                    min_tvl_usd: crv::router::finite_tvl(r.min_tvl),
                     total_tvl_usd: r.total_tvl,
                     steps: r
                         .steps
@@ -488,7 +511,7 @@ async fn handle_router(
                             input: s.input_coin.clone(),
                             output: s.output_coin.clone(),
                             swap_type: s.swap_params.swap_type.as_u8(),
-                            tvl_usd: s.tvl_usd,
+                            tvl_usd: crv::router::finite_tvl(s.tvl_usd),
                         })
                         .collect(),
                 })
@@ -615,8 +638,8 @@ async fn handle_pools(
             let response = client.pools().get_all().await?;
             print_output(&response, args.format)?;
         }
-        PoolsCommands::Big { chain } => {
-            if let Some(chain) = chain {
+        PoolsCommands::Big { network } => {
+            if let Some(chain) = network {
                 if !quiet {
                     eprintln!("Fetching big pools on {}...", chain);
                 }
@@ -630,8 +653,8 @@ async fn handle_pools(
                 print_output(&response, args.format)?;
             }
         }
-        PoolsCommands::Small { chain } => {
-            if let Some(chain) = chain {
+        PoolsCommands::Small { network } => {
+            if let Some(chain) = network {
                 if !quiet {
                     eprintln!("Fetching small pools on {}...", chain);
                 }
@@ -645,8 +668,8 @@ async fn handle_pools(
                 print_output(&response, args.format)?;
             }
         }
-        PoolsCommands::Empty { chain } => {
-            if let Some(chain) = chain {
+        PoolsCommands::Empty { network } => {
+            if let Some(chain) = network {
                 if !quiet {
                     eprintln!("Fetching empty pools on {}...", chain);
                 }
@@ -789,11 +812,11 @@ async fn handle_crvusd(
             let response = client.crvusd().get_total_supply().await?;
             print_output(&response, args.format)?;
         }
-        CrvusdCommands::CirculatingSupply => {
+        CrvusdCommands::CrvCirculatingSupply => {
             if !quiet {
-                eprintln!("Fetching crvUSD circulating supply...");
+                eprintln!("Fetching CRV circulating supply...");
             }
-            let response = client.crvusd().get_circulating_supply().await?;
+            let response = client.crvusd().get_crv_circulating_supply().await?;
             print_output(&response, args.format)?;
         }
         CrvusdCommands::ScrvusdSupply => {
@@ -803,8 +826,8 @@ async fn handle_crvusd(
             let response = client.crvusd().get_scrvusd_supply().await?;
             print_output(&response, args.format)?;
         }
-        CrvusdCommands::Markets { chain } => {
-            if let Some(chain) = chain {
+        CrvusdCommands::Markets { network } => {
+            if let Some(chain) = network {
                 if !quiet {
                     eprintln!("Fetching crvUSD markets on {}...", chain);
                 }
@@ -914,13 +937,17 @@ async fn handle_ohlc(
         OhlcCommands::Pool {
             chain,
             address,
+            main_token,
+            reference_token,
             start,
             end,
         } => {
             if !quiet {
                 eprintln!("Fetching OHLC for pool {} on {}...", address, chain);
             }
-            let response = client.get_ohlc(chain, address, *start, *end).await?;
+            let response = client
+                .get_ohlc(chain, address, main_token, reference_token, *start, *end)
+                .await?;
             print_output(&response, args.format)?;
         }
         OhlcCommands::LpToken {
@@ -946,11 +973,18 @@ async fn handle_trades(
     quiet: bool,
 ) -> anyhow::Result<()> {
     match action {
-        TradesCommands::Get { chain, address } => {
+        TradesCommands::Get {
+            chain,
+            address,
+            main_token,
+            reference_token,
+        } => {
             if !quiet {
                 eprintln!("Fetching trades for {} on {}...", address, chain);
             }
-            let response = client.get_trades(chain, address).await?;
+            let response = client
+                .get_trades(chain, address, main_token, reference_token)
+                .await?;
             print_output(&response, args.format)?;
         }
     }
