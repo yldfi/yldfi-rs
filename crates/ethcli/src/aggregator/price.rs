@@ -1217,7 +1217,12 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
             .await
             .ok()?;
         let price = ticker.last?.0.to_f64()?;
-        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
+        // ccxt-rust reports Bitget's 24h change as a ratio; convert to percent.
+        let change = ticker
+            .percentage
+            .and_then(|p| p.to_f64())
+            .map(|p| crate::cli::ccxt::change_pct_value(crate::cli::ccxt::ExchangeId::Bitget, p))
+            .unwrap_or(0.0);
         Some((price, change, "ccxt-bitget"))
     }
 
