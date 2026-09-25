@@ -78,7 +78,7 @@ pub async fn handle(quiet: bool) -> anyhow::Result<()> {
                                             "  ✗ {} ({}): {}",
                                             chain,
                                             truncate_url(&ep.url, 40),
-                                            e
+                                            crate::utils::url::redact_urls_in_text(&e.to_string())
                                         );
                                         warnings += 1;
                                     }
@@ -141,20 +141,18 @@ async fn test_endpoint(client: &reqwest::Client, url: &str) -> anyhow::Result<u1
     Ok(start.elapsed().as_millis())
 }
 
+/// Redact credentials/path from `url`, then truncate for display.
 fn truncate_url(url: &str, max_len: usize) -> String {
+    let url = crate::utils::url::redact_url(url);
     if url.len() <= max_len {
-        url.to_string()
+        url
     } else {
-        // Try to show the domain
-        if let Some(start) = url.find("://") {
-            let domain_start = start + 3;
-            if let Some(end) = url[domain_start..].find('/') {
-                let domain = &url[domain_start..domain_start + end];
-                if domain.len() < max_len - 3 {
-                    return format!("{}...", domain);
-                }
-            }
-        }
-        format!("{}...", &url[..max_len - 3])
+        let cut = url
+            .char_indices()
+            .map(|(i, _)| i)
+            .take_while(|&i| i <= max_len.saturating_sub(3))
+            .last()
+            .unwrap_or(0);
+        format!("{}...", &url[..cut])
     }
 }

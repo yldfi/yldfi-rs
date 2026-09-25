@@ -68,7 +68,7 @@ pub struct PoolArgs {
     pub pool: String,
 
     /// RPC URL (defaults to public endpoint)
-    #[arg(long, env = "ETH_RPC_URL")]
+    #[arg(long, env = "ETH_RPC_URL", hide_env_values = true)]
     pub rpc_url: Option<String>,
 }
 
@@ -79,7 +79,7 @@ pub struct LiquidityArgs {
     pub pool: String,
 
     /// RPC URL
-    #[arg(long, env = "ETH_RPC_URL")]
+    #[arg(long, env = "ETH_RPC_URL", hide_env_values = true)]
     pub rpc_url: Option<String>,
 }
 
@@ -87,7 +87,7 @@ pub struct LiquidityArgs {
 #[derive(Args, Debug)]
 pub struct EthPriceArgs {
     /// The Graph API key (or set THEGRAPH_API_KEY env var, or add [thegraph] to config)
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version
@@ -103,7 +103,7 @@ pub struct TopPoolsArgs {
     pub limit: u32,
 
     /// The Graph API key (or set THEGRAPH_API_KEY env var, or add [thegraph] to config)
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version
@@ -122,7 +122,7 @@ pub struct SwapsArgs {
     pub limit: u32,
 
     /// The Graph API key (or set THEGRAPH_API_KEY env var, or add [thegraph] to config)
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version
@@ -141,7 +141,7 @@ pub struct DayDataArgs {
     pub days: u32,
 
     /// The Graph API key (or set THEGRAPH_API_KEY env var, or add [thegraph] to config)
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version
@@ -156,7 +156,7 @@ pub struct PositionsArgs {
     pub address: String,
 
     /// The Graph API key
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version (omit to query all versions)
@@ -182,7 +182,7 @@ pub struct BalanceArgs {
     pub account: String,
 
     /// RPC URL
-    #[arg(long, env = "ETH_RPC_URL")]
+    #[arg(long, env = "ETH_RPC_URL", hide_env_values = true)]
     pub rpc_url: Option<String>,
 }
 
@@ -220,21 +220,6 @@ fn resolve_rpc_url(arg: Option<&str>) -> String {
     }
     crate::rpc::get_rpc_url(crate::config::Chain::Ethereum)
         .unwrap_or_else(|_| FALLBACK_RPC_URL.to_string())
-}
-
-/// Render an RPC URL for progress output without credentials.
-///
-/// Configured endpoints often embed API keys in userinfo, path or query, so
-/// only `scheme://host[:port]` is shown.
-fn rpc_display(url: &str) -> String {
-    match reqwest::Url::parse(url) {
-        Ok(u) => match (u.host_str(), u.port()) {
-            (Some(host), Some(port)) => format!("{}://{}:{}", u.scheme(), host, port),
-            (Some(host), None) => format!("{}://{}", u.scheme(), host),
-            _ => "RPC endpoint".to_string(),
-        },
-        Err(_) => "RPC endpoint".to_string(),
-    }
 }
 
 /// Resolve TheGraph API key from args, config, or env
@@ -279,7 +264,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
-                eprintln!("Fetching pool state from {}...", rpc_display(rpc_url));
+                eprintln!(
+                    "Fetching pool state from {}...",
+                    crate::utils::url::redact_url(rpc_url)
+                );
             }
 
             let client = LensClient::mainnet(rpc_url)?;
@@ -305,7 +293,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
-                eprintln!("Fetching liquidity from {}...", rpc_display(rpc_url));
+                eprintln!(
+                    "Fetching liquidity from {}...",
+                    crate::utils::url::redact_url(rpc_url)
+                );
             }
 
             let client = LensClient::mainnet(rpc_url)?;
@@ -742,7 +733,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let account: Address = args.account.parse()?;
 
             if !quiet {
-                eprintln!("Fetching balance from {}...", rpc_display(rpc_url));
+                eprintln!(
+                    "Fetching balance from {}...",
+                    crate::utils::url::redact_url(rpc_url)
+                );
             }
 
             let client = LensClient::mainnet(rpc_url)?;
@@ -903,19 +897,6 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rpc_display_strips_credentials() {
-        assert_eq!(
-            rpc_display("https://user:secret@rpc.example.com/v2/abcdef0123456789?key=x"),
-            "https://rpc.example.com"
-        );
-        assert_eq!(
-            rpc_display("http://127.0.0.1:8545"),
-            "http://127.0.0.1:8545"
-        );
-        assert_eq!(rpc_display("not a url"), "RPC endpoint");
-    }
 
     #[test]
     fn explicit_rpc_url_wins() {

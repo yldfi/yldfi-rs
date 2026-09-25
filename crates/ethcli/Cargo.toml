@@ -86,7 +86,6 @@ alcmy = { version = "0.1", path = "../alcmy" }
 cgko = { version = "0.1", path = "../cgko" }
 dllma = { version = "0.1", path = "../dllma" }
 mrls = { version = "0.1", path = "../mrls" }
-dnsim = { version = "0.1", path = "../dnsim" }
 dnapi = { version = "0.1", path = "../dnapi" }
 crv = { version = "0.1", path = "../crv" }
 pyth = { version = "0.1", path = "../pythc", package = "pythc" }

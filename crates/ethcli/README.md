@@ -35,8 +35,8 @@
 
 ### Aggregation Commands
 - **Price Aggregation**: Multi-source prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, CCXT
-- **Portfolio Aggregation**: Balance data from Alchemy, Moralis (Dune SIM only via `--source dsim` until the 2026-08-01 sunset)
-- **NFT Aggregation**: Holdings from Alchemy, CoinGecko, Moralis (Dune SIM only via `--source dsim` until the 2026-08-01 sunset)
+- **Portfolio Aggregation**: Balance data from Alchemy, Moralis
+- **NFT Aggregation**: Holdings from Alchemy, CoinGecko, Moralis
 - **Yield Aggregation**: DeFi yields from DefiLlama and Curve
 - **Quote Aggregation**: Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora, Enso
 
@@ -45,7 +45,6 @@
 - **CoinGecko**: Coins, prices, NFTs, exchanges
 - **DefiLlama**: TVL, prices, yields, stablecoins
 - **Moralis**: Wallet, token, NFT, DeFi, transactions
-- **Dune SIM**: Balances, activity, collectibles (sunsetting 2026-08-01; DeFi positions removed)
 - **Dune Analytics**: Queries, executions, tables
 - **Curve Finance**: Pools, volumes, lending, tokens, router
 - **Chainlink**: Price feeds (RPC-based, no API key needed)
@@ -462,8 +461,9 @@ ethcli config init
 # Show config file path
 ethcli config path
 
-# Show current config
+# Show current config (API keys, tokens and keyed RPC URLs are masked)
 ethcli config show
+ethcli config show --show-secrets   # print the file verbatim, secrets included
 
 # Set Etherscan API key
 ethcli config set-etherscan-key YOUR_KEY
@@ -527,7 +527,7 @@ ethcli portfolio 0x... --chain polygon
 ethcli portfolio 0x... -o json
 ```
 
-**Sources**: Alchemy, Moralis (Dune SIM via `--source dsim` only; sunset 2026-08-01)
+**Sources**: Alchemy, Moralis
 
 ### NFTs - Multi-Source NFT Aggregation
 
@@ -540,7 +540,7 @@ ethcli nfts 0x... --chain polygon
 ethcli nfts 0x... -o json
 ```
 
-**Sources**: Alchemy, CoinGecko, Moralis (Dune SIM via `--source dsim` only; sunset 2026-08-01)
+**Sources**: Alchemy, CoinGecko, Moralis
 
 ### Yields - DeFi Yield Aggregation
 
@@ -607,8 +607,11 @@ Requires `ALCHEMY_API_KEY` environment variable.
 
 ```bash
 # NFT queries
-ethcli alchemy nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
-ethcli alchemy nft-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+ethcli alchemy nft get-nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli alchemy nft metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+ethcli alchemy nft contracts-for-owner 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli alchemy nft contract-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d
+ethcli alchemy nft is-holder 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d
 
 # Token data
 ethcli alchemy balances 0x...
@@ -620,6 +623,26 @@ ethcli alchemy transfers 0x... --category erc20
 # Debug traces
 ethcli alchemy trace-tx 0x...
 ```
+
+Alchemy retired several NFT API endpoints on 2026-09-30, and the matching
+`ethcli alchemy nft` subcommands were removed:
+
+| Removed | Use instead |
+|---------|-------------|
+| `collections-for-owner` | `contracts-for-owner` |
+| `collection-metadata`, `search-contract-metadata` | `contract-metadata` (OpenSea data is in `openSeaMetadata`) |
+| `spam-contracts` | `is-spam <contract>` |
+| `summarize-attributes`, `compute-rarity` | no direct replacement; aggregate `nfts-for-contract` output |
+| `invalidate-contract` | no replacement; `refresh-metadata` still refreshes single tokens |
+| `is-airdrop`, `sales` | no replacement |
+
+`is-holder` is kept and now uses `getNFTsForOwner` filtered to the contract.
+
+The Alchemy Transaction Simulation API was retired on the same date, so
+`ethcli alchemy simulation asset-changes|execution` were removed. Use
+`ethcli simulate call ... --via tenderly` (rich decoded output),
+`--via debug` (`debug_traceCall` on any RPC), `--via alchemy` (Alchemy's
+`debug_traceCall`), or `ethcli alchemy debug trace-call`.
 
 ### Gecko - CoinGecko API
 
@@ -702,22 +725,13 @@ ethcli moralis token-metadata 0x...
 ethcli moralis defi-positions 0x...
 ```
 
-### Dsim - Dune SIM API
+### Dune SIM (removed)
 
-Requires `DUNE_SIM_API_KEY` environment variable (Dune Analytics keys are no
-longer accepted as a fallback).
-
-Dune is shutting down the Sim platform on 2026-08-01; every `ethcli dsim`
-command prints a sunset warning to stderr until then. The DeFi Positions
-endpoints were deprecated on 2026-06-01, so `ethcli dsim defi` now returns an
-error. See <https://github.com/yldfi/yldfi-rs/issues/64>.
-
-```bash
-# Wallet simulation
-ethcli dsim balances 0x...
-ethcli dsim activity 0x...
-ethcli dsim collectibles 0x...
-```
+Dune Sim (sim.dune.com) was shut down on 2026-08-01, so `ethcli dsim`,
+`--source dsim`, `ethcli config set-dune-sim` and the `DUNE_SIM_API_KEY`
+variable were removed (see <https://github.com/yldfi/yldfi-rs/issues/64>).
+Use `ethcli portfolio` / `ethcli nfts` (Alchemy, Moralis) instead. Dune
+Analytics (`ethcli dune`, `DUNE_API_KEY`) is unaffected.
 
 ### Dune - Dune Analytics API
 
@@ -1079,7 +1093,6 @@ ethcli config set-etherscan-key YOUR_KEY
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (higher rate limits) |
 | `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
-| `DUNE_SIM_API_KEY` | `ethcli dsim` | Dune SIM wallet simulation (sunset 2026-08-01) |
 | `DUNE_API_KEY` | `ethcli dune` | Dune Analytics queries |
 | `THEGRAPH_API_KEY` | Uniswap subgraph | The Graph API access |
 | `CHAINLINK_API_KEY` | `chainlink streams` | Chainlink Data Streams (premium) |

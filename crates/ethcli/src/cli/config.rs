@@ -135,19 +135,6 @@ pub enum ConfigCommands {
         stdin: bool,
     },
 
-    /// Set Dune SIM API key (separate from Dune Analytics)
-    #[command(
-        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-dune-sim --stdin"
-    )]
-    SetDuneSim {
-        /// Dune SIM API key (omit if using --stdin)
-        key: Option<String>,
-
-        /// Read API key from stdin
-        #[arg(long)]
-        stdin: bool,
-    },
-
     /// Set Solodit API key (smart contract vulnerability database)
     #[command(
         after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-solodit --stdin\n\nGet an API key at: https://solodit.cyfrin.io (Profile > API Keys)"
@@ -173,8 +160,12 @@ pub enum ConfigCommands {
         url: String,
     },
 
-    /// Show current config
-    Show,
+    /// Show current config (API keys, tokens and keyed RPC URLs are masked)
+    Show {
+        /// Print the config file verbatim, including secrets
+        #[arg(long)]
+        show_secrets: bool,
+    },
 
     /// Validate config file syntax and structure
     Validate,
