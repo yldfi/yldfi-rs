@@ -1,4 +1,7 @@
-//! Rust client for the `OpenOcean` DEX Aggregator API
+//! Rust client for the De¹ (formerly `OpenOcean`) DEX Aggregator API
+//!
+//! `OpenOcean` rebranded to De¹ (<https://de1.ai>); the API is unchanged and now
+//! documented at <https://docs.de1.exchange> with base URL `open-api.de1.exchange`.
 //!
 //! `OpenOcean` is a multi-chain DEX aggregator that provides optimal swap routes
 //! across 40+ chains and hundreds of DEXs.
@@ -79,8 +82,12 @@ pub use types::{
 pub use yldfi_common::api::{ApiConfig, BaseClient};
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
-/// Default base URL for the `OpenOcean` API
-pub const DEFAULT_BASE_URL: &str = "https://open-api.openocean.finance/v4";
+/// Default base URL for the De¹ (formerly `OpenOcean`) API
+pub const DEFAULT_BASE_URL: &str = "https://open-api.de1.exchange/v4";
+
+/// Legacy `OpenOcean` base URL. Still served, but no longer documented since
+/// the rebrand to De¹.
+pub const LEGACY_BASE_URL: &str = "https://open-api.openocean.finance/v4";
 
 /// Configuration for the `OpenOcean` API client
 pub type Config = ApiConfig;

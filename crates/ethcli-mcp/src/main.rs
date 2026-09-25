@@ -807,7 +807,7 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get quote from OpenOcean DEX aggregator")]
+    #[tool(description = "Get quote from De¹ (formerly OpenOcean) DEX aggregator")]
     async fn openocean_quote(&self, Parameters(input): Parameters<OpenoceanQuoteInput>) -> String {
         tools::openocean_quote(
             &input.in_token,
@@ -5449,7 +5449,7 @@ impl EthcliMcpServer {
     // OPENOCEAN (additional)
     // =========================================================================
 
-    #[tool(description = "Get swap calldata from OpenOcean")]
+    #[tool(description = "Get swap calldata from De¹ (formerly OpenOcean)")]
     async fn openocean_swap(&self, Parameters(input): Parameters<OpenoceanSwapInput>) -> String {
         tools::openocean_swap(
             &input.in_token,
@@ -5462,7 +5462,7 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get reverse quote from OpenOcean")]
+    #[tool(description = "Get reverse quote from De¹ (formerly OpenOcean)")]
     async fn openocean_reverse_quote(
         &self,
         Parameters(input): Parameters<OpenoceanQuoteInput>,
@@ -5477,14 +5477,14 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get supported tokens from OpenOcean")]
+    #[tool(description = "Get supported tokens from De¹ (formerly OpenOcean)")]
     async fn openocean_tokens(&self, Parameters(input): Parameters<OpenoceanChainInput>) -> String {
         tools::openocean_tokens(Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get supported DEXes from OpenOcean")]
+    #[tool(description = "Get supported DEXes from De¹ (formerly OpenOcean)")]
     async fn openocean_dexes(&self, Parameters(input): Parameters<OpenoceanChainInput>) -> String {
         tools::openocean_dexes(Some(&input.chain))
             .await

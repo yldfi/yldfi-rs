@@ -5,7 +5,7 @@
 <h1 align="center">openoc</h1>
 
 <p align="center">
-  Unofficial Rust client for the <a href="https://openocean.finance/">OpenOcean</a> DEX Aggregator API
+  Unofficial Rust client for the <a href="https://de1.ai/">De¹</a> (formerly OpenOcean) DEX Aggregator API
 </p>
 
 <p align="center">
@@ -96,7 +96,7 @@ Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Fantom, Gnosis, zkS
 
 ## Terms of Service
 
-This is an **unofficial** client. By using this library, you agree to comply with [OpenOcean Terms of Service](https://openocean.finance/terms).
+This is an **unofficial** client. By using this library, you agree to comply with [De¹ (formerly OpenOcean) Terms of Service](https://de1.ai/).
 
 ## Disclaimer
 

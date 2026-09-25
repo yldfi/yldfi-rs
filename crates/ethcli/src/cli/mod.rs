@@ -400,11 +400,11 @@ pub enum Commands {
     #[command(name = "1inch", visible_alias = "oneinch")]
     OneInch(oneinch::OneInchArgs),
 
-    /// Direct OpenOcean DEX Aggregator API access
+    /// Direct De¹ (formerly OpenOcean) DEX Aggregator API access
     ///
-    /// Get swap quotes and routes from OpenOcean.
+    /// Get swap quotes and routes from De¹ (formerly OpenOcean).
     /// No API key required.
-    #[command(visible_alias = "oo")]
+    #[command(visible_aliases = ["oo", "de1"])]
     OpenOcean(openocean::OpenOceanArgs),
 
     /// Direct KyberSwap DEX Aggregator API access

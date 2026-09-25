@@ -55,7 +55,7 @@
 
 ### Direct DEX Aggregator Access
 - **1inch**: Quote, swap, tokens, liquidity sources, approvals
-- **OpenOcean**: Quote, swap, reverse quote, tokens, DEX sources
+- **De¹ (formerly OpenOcean)**: Quote, swap, reverse quote, tokens, DEX sources
 - **KyberSwap**: Routes, route data, transaction building
 - **0x Protocol**: Quote, price, liquidity sources
 - **CowSwap**: MEV-protected quotes, orders, trades, auctions
@@ -588,7 +588,7 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 
 | Alias | Aggregator | Notes |
 |-------|------------|-------|
-| `openocean`, `oo` | OpenOcean | Multi-chain DEX aggregator |
+| `openocean`, `oo`, `de1` | De¹ (formerly OpenOcean) | Multi-chain DEX aggregator |
 | `kyberswap`, `kyber` | KyberSwap | Dynamic routing |
 | `0x`, `zerox` | 0x Protocol | Professional-grade liquidity |
 | `1inch`, `oneinch` | 1inch | Pathfinder algorithm |
@@ -1120,9 +1120,9 @@ ethcli 1inch approve <token> --chain-id 1 --amount 1000000
 
 **Alias**: `ethcli oneinch`
 
-### OpenOcean - DEX Aggregator
+### De¹ (formerly OpenOcean) - DEX Aggregator
 
-Direct access to OpenOcean v4 API. No API key required. Quote/swap amounts are
+Direct access to the De¹ (formerly OpenOcean) v4 API (`open-api.de1.exchange`). No API key required. Quote/swap amounts are
 in smallest units (sent as `amountDecimals`); `--gas-price` is in gwei and is
 converted to wei (`gasPriceDecimals`).
 
