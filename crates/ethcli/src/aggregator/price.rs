@@ -1377,21 +1377,20 @@ async fn fetch_chainlink_streams(
     let file_config = get_cached_config();
     let chainlink_config = file_config.as_ref().and_then(|c| c.chainlink.as_ref());
 
-    let api_key = match chainlink_config.map(|c| c.api_key.expose_secret().to_string()) {
-        Some(key) => key,
-        None => match std::env::var("CHAINLINK_API_KEY")
-            .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
-        {
-            Ok(key) => key,
-            Err(_) => {
-                return SourceResult::error(
+    let api_key =
+        match chainlink_config.map(|c| c.api_key.expose_secret().to_string()) {
+            Some(key) => key,
+            None => match std::env::var("CHAINLINK_API_KEY")
+                .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
+            {
+                Ok(key) => key,
+                Err(_) => return SourceResult::error(
                     "chainlink",
-                    "No RPC feed, no Data Streams credentials",
+                    "No RPC feed; Data Streams credentials not set (ethcli config set-chainlink)",
                     measure.elapsed_ms(),
-                )
-            }
-        },
-    };
+                ),
+            },
+        };
 
     let user_secret = match chainlink_config.map(|c| c.user_secret.expose_secret().to_string()) {
         Some(secret) => secret,
@@ -1402,7 +1401,7 @@ async fn fetch_chainlink_streams(
             Err(_) => {
                 return SourceResult::error(
                     "chainlink",
-                    "CHAINLINK_USER_SECRET not configured",
+                    "No RPC feed; Data Streams needs CHAINLINK_USER_SECRET too (ethcli config set-chainlink)",
                     measure.elapsed_ms(),
                 )
             }

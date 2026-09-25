@@ -644,6 +644,22 @@ fn get_provider(chain: &str, rpc_url: Option<&str>) -> anyhow::Result<impl Provi
     Ok(endpoint.provider().clone())
 }
 
+/// Error text for missing Data Streams credentials.
+///
+/// Data Streams needs BOTH an API key (client ID) and a user secret; point at
+/// the config command that stores them (reading from stdin keeps them out of
+/// shell history).
+fn missing_streams_credentials_message(missing_var: &str) -> String {
+    format!(
+        "{missing_var} not set. Chainlink Data Streams requires both an API key and a user \
+         secret (CHAINLINK_API_KEY + CHAINLINK_USER_SECRET).\n\
+         Configure them with:\n  \
+         echo \"$KEY:$SECRET\" | ethcli config set-chainlink --stdin\n\
+         or: ethcli config set-chainlink --key <KEY> --secret <SECRET>\n\
+         (RPC-based 'ethcli chainlink price' works without credentials.)"
+    )
+}
+
 /// Get Data Streams credentials
 fn get_streams_credentials() -> anyhow::Result<(String, String, String, String)> {
     use secrecy::ExposeSecret;
@@ -656,7 +672,7 @@ fn get_streams_credentials() -> anyhow::Result<(String, String, String, String)>
         None => std::env::var("CHAINLINK_API_KEY")
             .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
             .map_err(|_| {
-                anyhow::anyhow!("CHAINLINK_API_KEY not set. Data Streams requires API credentials.")
+                anyhow::anyhow!(missing_streams_credentials_message("CHAINLINK_API_KEY"))
             })?,
     };
 
@@ -664,7 +680,9 @@ fn get_streams_credentials() -> anyhow::Result<(String, String, String, String)>
         Some(secret) => secret,
         None => std::env::var("CHAINLINK_USER_SECRET")
             .or_else(|_| std::env::var("CHAINLINK_CLIENT_SECRET"))
-            .map_err(|_| anyhow::anyhow!("CHAINLINK_USER_SECRET not set"))?,
+            .map_err(|_| {
+                anyhow::anyhow!(missing_streams_credentials_message("CHAINLINK_USER_SECRET"))
+            })?,
     };
 
     let rest_url = chainlink_config
@@ -746,4 +764,18 @@ fn print_streams_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod credential_message_tests {
+    use super::missing_streams_credentials_message;
+
+    #[test]
+    fn missing_credentials_message_mentions_config_and_both_secrets() {
+        let msg = missing_streams_credentials_message("CHAINLINK_API_KEY");
+        assert!(msg.starts_with("CHAINLINK_API_KEY not set"));
+        assert!(msg.contains("ethcli config set-chainlink"));
+        assert!(msg.contains("CHAINLINK_USER_SECRET"));
+        assert!(msg.contains("both"));
+    }
 }
