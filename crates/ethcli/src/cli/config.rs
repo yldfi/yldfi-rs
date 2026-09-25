@@ -83,6 +83,22 @@ pub enum ConfigCommands {
         network: Option<String>,
     },
 
+    /// Set Alchemy auth token (dashboard auth token / access key)
+    ///
+    /// Required by `alchemy notify` and `alchemy gas-manager`, which do not
+    /// accept the app API key. Can also be provided via ALCHEMY_AUTH_TOKEN.
+    #[command(
+        after_help = "To avoid exposing the token in shell history:\n  echo $TOKEN | ethcli config set-alchemy-auth-token --stdin"
+    )]
+    SetAlchemyAuthToken {
+        /// Alchemy auth token (omit if using --stdin)
+        token: Option<String>,
+
+        /// Read auth token from stdin
+        #[arg(long)]
+        stdin: bool,
+    },
+
     /// Set Moralis API key
     #[command(
         after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-moralis --stdin"

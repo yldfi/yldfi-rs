@@ -193,7 +193,7 @@ ethcli goplus token 0x... --chain-id 1 -o ndjson
 ### Notes
 
 - **Free API**: No API key required for basic usage
-- **Authenticated mode**: Set `GOPLUS_APP_KEY` and `GOPLUS_APP_SECRET` for batch queries and higher rate limits
+- **Authenticated mode**: Set `GOPLUS_APP_KEY` and `GOPLUS_APP_SECRET` for batch queries and higher rate limits (without them `token-batch` queries each address individually and warns about addresses with no data)
 - **Alias**: `ethcli gp` works as an alias for `ethcli goplus`
 - **Chain IDs**: 1=Ethereum, 56=BSC, 137=Polygon, 42161=Arbitrum, 8453=Base, etc.
 
@@ -406,7 +406,7 @@ ethcli tenderly channels list --project <slug> --account <slug>
 ethcli tenderly channels account --project <slug> --account <slug>
 ethcli tenderly channels project --project <slug> --account <slug>
 
-# Simulation (alias to ethcli simulate)
+# Simulation (alias to ethcli simulate --via tenderly; always uses Tenderly)
 ethcli tenderly simulate call <contract> --sig "balanceOf(address)" <args>
 ```
 
@@ -1180,6 +1180,7 @@ ethcli chainlink oracles --chain arbitrum
 | `ETHERSCAN_API_KEY` | Optional | Increases Etherscan rate limit |
 | `TENDERLY_ACCESS_KEY` | `ethcli tenderly` | Tenderly API access |
 | `ALCHEMY_API_KEY` | `ethcli alchemy`, `--via alcmy` | Alchemy API access |
+| `ALCHEMY_AUTH_TOKEN` | `alchemy notify`, `alchemy gas-manager` | Alchemy dashboard auth token (not the app API key); or `ethcli config set-alchemy-auth-token --stdin` |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (increases rate limit) |
 | `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |

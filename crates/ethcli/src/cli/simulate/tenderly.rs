@@ -449,7 +449,8 @@ pub async fn list_simulations_tenderly(
         eprintln!("Listing Tenderly simulations...");
     }
     let client = create_tenderly_client(tenderly_args)?;
-    let result = client.simulation().list(limit, page).await?;
+    // tndrly's signature is list(page, per_page)
+    let result = client.simulation().list(page, limit).await?;
     println!("{}", serde_json::to_string_pretty(&result)?);
     Ok(())
 }

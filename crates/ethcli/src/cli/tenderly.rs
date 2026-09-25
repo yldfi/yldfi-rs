@@ -648,16 +648,6 @@ pub enum ContractsCommands {
         optimize_runs: Option<u32>,
     },
 
-    /// Get contract ABI
-    Abi {
-        /// Contract address
-        address: String,
-
-        /// Network ID
-        #[arg(long, default_value = "1")]
-        network: String,
-    },
-
     /// Add a tag to a contract
     Tag {
         /// Contract address
@@ -1098,8 +1088,16 @@ pub async fn handle(
 ) -> anyhow::Result<()> {
     match cmd {
         TenderlyCommands::Simulate { action } => {
-            // Delegate to the simulate handler
-            crate::cli::simulate::handle(action, chain, etherscan_key, quiet).await
+            // Delegate to the simulate handler, forcing the Tenderly backend
+            // (this command is documented as `ethcli simulate --via tenderly`)
+            crate::cli::simulate::handle_with_via(
+                action,
+                Some(crate::cli::simulate::SimulateVia::Tenderly),
+                chain,
+                etherscan_key,
+                quiet,
+            )
+            .await
         }
         TenderlyCommands::Vnets { action, tenderly } => handle_vnets(action, tenderly, quiet).await,
         TenderlyCommands::Wallets { action, tenderly } => {
@@ -1870,15 +1868,6 @@ async fn handle_contracts(
             }
             let result = client.contracts().verify(&request).await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
-        }
-
-        ContractsCommands::Abi { address, network } => {
-            validate_address(address)?;
-            if !quiet {
-                eprintln!("Getting ABI for {} on network {}...", address, network);
-            }
-            let abi = client.contracts().abi(network, address).await?;
-            println!("{}", serde_json::to_string_pretty(&abi)?);
         }
 
         ContractsCommands::Tag {

@@ -167,6 +167,17 @@ pub struct AlchemyConfig {
     /// Default network (e.g., eth-mainnet, polygon-mainnet)
     #[serde(default)]
     pub default_network: Option<String>,
+    /// Alchemy account auth token / access key (from the dashboard).
+    ///
+    /// Required by the Notify (webhooks) and Gas Manager admin APIs, which do
+    /// not accept the app API key. Falls back to `ALCHEMY_AUTH_TOKEN`.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_secret_option",
+        deserialize_with = "deserialize_secret_option"
+    )]
+    pub auth_token: Option<SecretString>,
 }
 
 /// CoinGecko API configuration
@@ -696,6 +707,31 @@ impl ConfigFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_alchemy_auth_token_roundtrip_and_redaction() {
+        let toml_in = r#"
+[alchemy]
+api_key = "app-key-secret"
+auth_token = "dash-token-secret"
+"#;
+        let config: ConfigFile = toml::from_str(toml_in).expect("parse");
+        let alchemy = config.alchemy.as_ref().expect("alchemy section");
+        assert_eq!(
+            alchemy.auth_token.as_ref().map(|s| s.expose_secret()),
+            Some("dash-token-secret")
+        );
+        let dbg = format!("{alchemy:?}");
+        assert!(!dbg.contains("dash-token-secret"), "{dbg}");
+        assert!(!dbg.contains("app-key-secret"), "{dbg}");
+
+        // Round-trips, and is optional for existing configs
+        let out = toml::to_string(&config).expect("serialize");
+        assert!(out.contains("auth_token"));
+        let legacy: ConfigFile =
+            toml::from_str("[alchemy]\napi_key = \"k\"\n").expect("parse legacy");
+        assert!(legacy.alchemy.unwrap().auth_token.is_none());
+    }
 
     #[test]
     fn test_parse_config() {

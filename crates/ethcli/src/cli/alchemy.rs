@@ -1076,6 +1076,48 @@ pub enum SolanaCommands {
 // =============================================================================
 
 /// Handle Alchemy commands
+/// Resolve the Alchemy auth token (dashboard auth token / access key) used by
+/// the Notify and Gas Manager admin APIs: config `alchemy.auth_token` first,
+/// then the `ALCHEMY_AUTH_TOKEN` environment variable.
+fn resolve_auth_token(
+    config_token: Option<&secrecy::SecretString>,
+    env_token: Option<String>,
+) -> Option<String> {
+    use secrecy::ExposeSecret;
+    config_token
+        .map(|t| t.expose_secret().to_string())
+        .or(env_token)
+        .filter(|t| !t.trim().is_empty())
+}
+
+fn load_auth_token() -> Option<String> {
+    let config = ConfigFile::load_default().ok().flatten();
+    let config_token = config
+        .as_ref()
+        .and_then(|c| c.alchemy.as_ref())
+        .and_then(|a| a.auth_token.as_ref());
+    resolve_auth_token(config_token, std::env::var("ALCHEMY_AUTH_TOKEN").ok())
+}
+
+/// Build an Alchemy client carrying the auth token, failing early with a
+/// CLI-oriented message if no auth token is configured.
+fn client_with_auth_token(
+    api_key: &str,
+    network: AlchemyNetwork,
+    api_name: &str,
+) -> anyhow::Result<alcmy::Client> {
+    let token = load_auth_token().ok_or_else(|| {
+        anyhow::anyhow!(
+            "{api_name} requires an Alchemy auth token (from the Alchemy dashboard), \
+             not the app API key.\n\
+             Set it with `ethcli config set-alchemy-auth-token --stdin` \
+             or the ALCHEMY_AUTH_TOKEN environment variable."
+        )
+    })?;
+    let config = alcmy::Config::new(api_key, network.into()).with_auth_token(token);
+    Ok(alcmy::Client::with_config(config)?)
+}
+
 pub async fn handle(command: &AlchemyCommands, quiet: bool) -> anyhow::Result<()> {
     use secrecy::ExposeSecret;
 
@@ -1966,7 +2008,7 @@ async fn handle_gas_manager(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = client_with_auth_token(api_key, args.network, "Alchemy Gas Manager admin API")?;
 
     match action {
         GasManagerCommands::ListPolicies => {
@@ -2012,7 +2054,7 @@ async fn handle_notify(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = client_with_auth_token(api_key, args.network, "Alchemy Notify API")?;
 
     match action {
         NotifyCommands::ListWebhooks => {
@@ -2400,4 +2442,25 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use secrecy::SecretString;
+
+    #[test]
+    fn auth_token_prefers_config_then_env() {
+        let cfg = SecretString::new("from-config".into());
+        assert_eq!(
+            resolve_auth_token(Some(&cfg), Some("from-env".into())).as_deref(),
+            Some("from-config")
+        );
+        assert_eq!(
+            resolve_auth_token(None, Some("from-env".into())).as_deref(),
+            Some("from-env")
+        );
+        assert_eq!(resolve_auth_token(None, None), None);
+        assert_eq!(resolve_auth_token(None, Some("  ".into())), None);
+    }
 }

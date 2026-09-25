@@ -1862,9 +1862,12 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                 })?
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            // Preserve a previously configured auth token
+            let auth_token = cfg.alchemy.take().and_then(|a| a.auth_token);
             cfg.alchemy = Some(AlchemyConfig {
                 api_key: SecretString::new(api_key.into()),
                 default_network: network.clone(),
+                auth_token,
             });
             cfg.save_default()?;
             println!("Alchemy API key saved to config file.");
@@ -1873,6 +1876,28 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             }
             println!("\nBy using Alchemy, you agree to their Terms of Service.");
             println!("See: https://www.alchemy.com/terms-conditions");
+        }
+
+        ConfigCommands::SetAlchemyAuthToken { token, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            use secrecy::SecretString;
+            let auth_token = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+            } else {
+                token.clone().ok_or_else(|| {
+                    anyhow::anyhow!("Auth token required (provide token or use --stdin)")
+                })?
+            };
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            let alchemy = cfg.alchemy.as_mut().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No Alchemy API key configured. Run `ethcli config set-alchemy` first."
+                )
+            })?;
+            alchemy.auth_token = Some(SecretString::new(auth_token.into()));
+            cfg.save_default()?;
+            println!("Alchemy auth token saved to config file.");
+            println!("  Used by: ethcli alchemy notify, ethcli alchemy gas-manager");
         }
 
         ConfigCommands::SetMoralis { key, stdin } => {
@@ -2092,9 +2117,12 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                         api_keys_present += 1;
                         println!("Tenderly credentials: configured");
                     }
-                    if config.alchemy.is_some() {
+                    if let Some(alchemy) = &config.alchemy {
                         api_keys_present += 1;
                         println!("Alchemy API key: configured");
+                        if alchemy.auth_token.is_some() {
+                            println!("Alchemy auth token: configured");
+                        }
                     }
                     if config.moralis.is_some() {
                         api_keys_present += 1;
