@@ -81,17 +81,50 @@ fn reject_file_output(output: Option<&str>) -> Result<(), ToolError> {
     }
 }
 
-/// Extension trait to convert tool results to MCP response strings
+/// Maximum size of a successful tool response returned to the MCP client.
+///
+/// Some commands (e.g. `llama tvl protocol aave`, ~10.7 MB) produce payloads
+/// far larger than any MCP client context; oversize output is truncated with
+/// an explicit note telling the caller how to narrow the query.
+pub const MAX_RESPONSE_BYTES: usize = 1_000_000;
+
+/// Truncate `output` to at most `max_bytes` (on a char boundary), appending a
+/// note that explains the truncation.
+pub fn cap_response(output: String, max_bytes: usize) -> String {
+    if output.len() <= max_bytes {
+        return output;
+    }
+    let total = output.len();
+    let mut cut = max_bytes;
+    while cut > 0 && !output.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    let mut truncated = output;
+    truncated.truncate(cut);
+    truncated.push_str(&format!(
+        "\n\n[ethcli-mcp: output truncated to {cut} of {total} bytes. The result is incomplete \
+         (and JSON is no longer valid); narrow the query with filters/limits or run the \
+         ethcli command directly.]"
+    ));
+    truncated
+}
+
+/// Extension trait to convert tool results to MCP tool call results
 pub trait ToResponse {
-    /// Convert a Result to a String response for MCP
-    fn to_response(self) -> String;
+    /// Convert a Result to an MCP [`CallToolResult`]: `Ok` becomes a success
+    /// (size-capped), `Err` becomes a result with `isError: true` so clients
+    /// can distinguish failures from data.
+    fn to_response(self) -> rmcp::model::CallToolResult;
 }
 
 impl<E: std::fmt::Display> ToResponse for Result<String, E> {
-    fn to_response(self) -> String {
+    fn to_response(self) -> rmcp::model::CallToolResult {
+        use rmcp::model::{CallToolResult, Content};
         match self {
-            Ok(r) => r,
-            Err(e) => format!("Error: {}", e),
+            Ok(r) => {
+                CallToolResult::success(vec![Content::text(cap_response(r, MAX_RESPONSE_BYTES))])
+            }
+            Err(e) => CallToolResult::error(vec![Content::text(format!("Error: {}", e))]),
         }
     }
 }
@@ -1384,40 +1417,50 @@ pub async fn tenderly_simulate(
 }
 
 pub async fn tenderly_vnets() -> Result<String, ToolError> {
+    // `tenderly vnets` is a command group; `list` is the read-only leaf.
     ArgsBuilder::new("tenderly")
         .subcommand("vnets")
+        .subcommand("list")
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
 pub async fn tenderly_wallets() -> Result<String, ToolError> {
+    // `tenderly wallets` is a command group; `list` is the read-only leaf.
     ArgsBuilder::new("tenderly")
         .subcommand("wallets")
+        .subcommand("list")
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
 pub async fn tenderly_contracts() -> Result<String, ToolError> {
+    // `tenderly contracts` is a command group; `list` is the read-only leaf.
     ArgsBuilder::new("tenderly")
         .subcommand("contracts")
+        .subcommand("list")
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
 pub async fn tenderly_alerts() -> Result<String, ToolError> {
+    // `tenderly alerts` is a command group; `list` is the read-only leaf.
     ArgsBuilder::new("tenderly")
         .subcommand("alerts")
+        .subcommand("list")
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
 pub async fn tenderly_actions() -> Result<String, ToolError> {
+    // `tenderly actions` is a command group; `list` is the read-only leaf.
     ArgsBuilder::new("tenderly")
         .subcommand("actions")
+        .subcommand("list")
         .execute()
         .await
         .map_err(ToolError::from)
@@ -1433,8 +1476,10 @@ pub async fn tenderly_networks() -> Result<String, ToolError> {
 }
 
 pub async fn tenderly_channels() -> Result<String, ToolError> {
+    // `tenderly channels` is a command group; `list` is the read-only leaf.
     ArgsBuilder::new("tenderly")
         .subcommand("channels")
+        .subcommand("list")
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6608,8 +6653,9 @@ pub async fn curve_crvusd_markets(chain: Option<&str>) -> Result<String, ToolErr
     let mut builder = ArgsBuilder::new("curve")
         .subcommand("crvusd")
         .subcommand("markets");
+    // The CLI takes the chain as an optional positional argument.
     if let Some(c) = chain {
-        builder = builder.opt("--chain", Some(c));
+        builder = builder.arg(c);
     }
     builder.execute().await.map_err(ToolError::from)
 }
@@ -8352,4 +8398,33 @@ pub async fn health() -> String {
     status.push_str(&format!("\nHealth check completed in {:?}\n", elapsed));
 
     status
+}
+
+#[cfg(test)]
+mod response_tests {
+    use super::*;
+
+    #[test]
+    fn ok_is_success_and_err_sets_is_error() {
+        let ok: Result<String, String> = Ok("data".into());
+        let r = ok.to_response();
+        assert_ne!(r.is_error, Some(true));
+
+        let err: Result<String, String> = Err("boom".into());
+        let r = err.to_response();
+        assert_eq!(r.is_error, Some(true));
+        let text = r.content[0].as_text().map(|t| t.text.clone()).unwrap();
+        assert_eq!(text, "Error: boom");
+    }
+
+    #[test]
+    fn cap_response_truncates_with_note() {
+        let small = "abc".to_string();
+        assert_eq!(cap_response(small.clone(), 10), small);
+
+        let big = "é".repeat(100); // 200 bytes, 2-byte chars
+        let capped = cap_response(big, 51);
+        assert!(capped.starts_with(&"é".repeat(25)));
+        assert!(capped.contains("output truncated to 50 of 200 bytes"));
+    }
 }
