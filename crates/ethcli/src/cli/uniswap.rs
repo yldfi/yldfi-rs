@@ -581,10 +581,7 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                     "ethereum" | "mainnet" | "eth" => Some(SubgraphConfig::mainnet_v4(&api_key)),
                     "arbitrum" | "arb" => Some(SubgraphConfig::arbitrum_v4(&api_key)),
                     "base" => Some(SubgraphConfig::base_v4(&api_key)),
-                    "polygon" | "matic" => Some(
-                        SubgraphConfig::mainnet_v4(&api_key)
-                            .with_subgraph_id(subgraph_ids::POLYGON_V4),
-                    ),
+                    "polygon" | "matic" => Some(SubgraphConfig::polygon_v4(&api_key)),
                     _ => None,
                 };
 
