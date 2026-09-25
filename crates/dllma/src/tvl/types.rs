@@ -33,10 +33,13 @@ pub struct Protocol {
     /// Current total TVL in USD
     pub tvl: Option<f64>,
     /// TVL change in last 1 day (percentage)
+    #[serde(rename = "change_1d")]
     pub change_1d: Option<f64>,
     /// TVL change in last 7 days (percentage)
+    #[serde(rename = "change_7d")]
     pub change_7d: Option<f64>,
     /// TVL change in last 1 hour (percentage)
+    #[serde(rename = "change_1h")]
     pub change_1h: Option<f64>,
     /// Market cap in USD
     pub mcap: Option<f64>,
@@ -55,6 +58,7 @@ pub struct Protocol {
     /// GitHub organization
     pub github: Option<Vec<String>>,
     /// Audit links
+    #[serde(rename = "audit_links")]
     pub audit_links: Option<Vec<String>>,
     /// Whether the protocol is listed on `DefiLlama`
     pub listed_at: Option<u64>,
@@ -65,6 +69,7 @@ pub struct Protocol {
     /// Oracle used
     pub oracles: Option<Vec<String>>,
     /// Governance token address
+    #[serde(rename = "governanceID")]
     pub governance_id: Option<Vec<String>>,
     /// Treasury address
     pub treasury: Option<String>,
@@ -107,7 +112,11 @@ pub struct ProtocolDetail {
     #[serde(default, deserialize_with = "null_to_empty_vec")]
     pub github: Vec<String>,
     /// Audit links
-    #[serde(default, deserialize_with = "null_to_empty_vec")]
+    #[serde(
+        rename = "audit_links",
+        default,
+        deserialize_with = "null_to_empty_vec"
+    )]
     pub audit_links: Vec<String>,
     /// Chain-specific TVL breakdown
     #[serde(default, rename = "chainTvls")]
@@ -169,6 +178,7 @@ pub struct Chain {
     /// Chain name
     pub name: Option<String>,
     /// Alternative: `gecko_id` as name in some responses
+    #[serde(rename = "gecko_id")]
     pub gecko_id: Option<String>,
     /// Chain CMC ID
     pub cmc_id: Option<String>,
@@ -256,4 +266,34 @@ pub struct AssetCategory {
     /// Token breakdown
     #[serde(default)]
     pub breakdown: HashMap<String, String>,
+}
+
+#[cfg(test)]
+mod rename_tests {
+    use super::*;
+
+    // Field names verified against live api.llama.fi/protocols and /v2/chains.
+    #[test]
+    fn protocol_snake_case_api_fields() {
+        let json = r#"{"id":"1","name":"Aave","slug":"aave","change_1h":0.1,"change_1d":1.0,
+            "change_7d":7.0,"audit_links":["https://a"],"governanceID":["snapshot:aave"]}"#;
+        let p: Protocol = serde_json::from_str(json).unwrap();
+        assert_eq!(p.change_1h, Some(0.1));
+        assert_eq!(p.change_1d, Some(1.0));
+        assert_eq!(p.change_7d, Some(7.0));
+        assert_eq!(
+            p.audit_links.as_deref(),
+            Some(&["https://a".to_string()][..])
+        );
+        assert!(p.governance_id.is_some());
+    }
+
+    #[test]
+    fn chain_gecko_id() {
+        let c: Chain = serde_json::from_str(
+            r#"{"gecko_id":"ethereum","tvl":1.0,"tokenSymbol":"ETH","name":"Ethereum"}"#,
+        )
+        .unwrap();
+        assert_eq!(c.gecko_id.as_deref(), Some("ethereum"));
+    }
 }

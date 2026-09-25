@@ -63,6 +63,7 @@ pub struct FeesOverview {
     /// Total 24h fees
     pub total24h: Option<f64>,
     /// Total 48h to 24h fees
+    #[serde(rename = "total48hto24h")]
     pub total48h_to24h: Option<f64>,
     /// Total 7d fees
     pub total7d: Option<f64>,
@@ -73,12 +74,16 @@ pub struct FeesOverview {
     /// Average 1d fees
     pub average1d: Option<f64>,
     /// Fee change 1d (percentage)
+    #[serde(rename = "change_1d")]
     pub change_1d: Option<f64>,
     /// Fee change 7d (percentage)
+    #[serde(rename = "change_7d")]
     pub change_7d: Option<f64>,
     /// Fee change 30d (percentage)
+    #[serde(rename = "change_30d")]
     pub change_30d: Option<f64>,
     /// Fee change 1m (percentage)
+    #[serde(rename = "change_1m")]
     pub change_1m: Option<f64>,
     /// Historical chart data
     #[serde(default)]
@@ -116,6 +121,7 @@ pub struct FeesProtocol {
     /// 24h fees
     pub total24h: Option<f64>,
     /// 48h to 24h fees
+    #[serde(rename = "total48hto24h")]
     pub total48h_to24h: Option<f64>,
     /// 7d fees
     pub total7d: Option<f64>,
@@ -136,19 +142,24 @@ pub struct FeesProtocol {
     /// 24h protocol revenue
     pub protocol_revenue24h: Option<f64>,
     /// 1d change
+    #[serde(rename = "change_1d")]
     pub change_1d: Option<f64>,
     /// 7d change
+    #[serde(rename = "change_7d")]
     pub change_7d: Option<f64>,
     /// 30d change
+    #[serde(rename = "change_30d")]
     pub change_30d: Option<f64>,
     /// Chain breakdown
     #[serde(default)]
     pub breakdown24h: Option<HashMap<String, HashMap<String, f64>>>,
     /// `DefiLlama` ID
+    #[serde(rename = "defillamaId")]
     pub defi_llama_id: Option<String>,
     /// Parent protocol
     pub parent_protocol: Option<String>,
     /// Methodology URL
+    #[serde(rename = "methodologyURL")]
     pub methodology_url: Option<String>,
 }
 
@@ -165,6 +176,7 @@ pub struct ProtocolFeesSummary {
     /// Logo URL
     pub logo: Option<String>,
     /// `DefiLlama` ID
+    #[serde(rename = "defillamaId")]
     pub defi_llama_id: Option<String>,
     /// Protocol URL
     pub url: Option<String>,
@@ -194,5 +206,36 @@ pub struct ProtocolFeesSummary {
     /// All-time revenue
     pub total_all_time_revenue: Option<f64>,
     /// 1d change
+    #[serde(rename = "change_1d")]
     pub change_1d: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Field names verified against live api.llama.fi/overview/fees responses.
+    #[test]
+    fn fees_change_and_48h_fields_use_api_names() {
+        let json = r#"{"total24h":10.0,"total48hto24h":9.0,"change_1d":3.0,
+            "change_7d":1.0,"change_30d":2.0,"change_1m":4.0,
+            "protocols":[{"name":"Aave","total48hto24h":2.0,"change_1d":-1.5,
+              "change_7d":0.5,"change_30d":4.0,"defillamaId":"1",
+              "methodologyURL":"https://x"}]}"#;
+        let o: FeesOverview = serde_json::from_str(json).unwrap();
+        assert_eq!(o.total48h_to24h, Some(9.0));
+        assert_eq!(o.change_1d, Some(3.0));
+        assert_eq!(o.change_1m, Some(4.0));
+        let p = &o.protocols[0];
+        assert_eq!(p.total48h_to24h, Some(2.0));
+        assert_eq!(p.change_1d, Some(-1.5));
+        assert_eq!(p.change_30d, Some(4.0));
+        assert_eq!(p.defi_llama_id.as_deref(), Some("1"));
+        assert_eq!(p.methodology_url.as_deref(), Some("https://x"));
+
+        let s: ProtocolFeesSummary =
+            serde_json::from_str(r#"{"name":"x","change_1d":5.0,"defillamaId":"7"}"#).unwrap();
+        assert_eq!(s.change_1d, Some(5.0));
+        assert_eq!(s.defi_llama_id.as_deref(), Some("7"));
+    }
 }
