@@ -16,9 +16,17 @@ use std::time::Duration;
 use yldfi_common::http::HttpClientConfig;
 
 /// Default base URL for the 1inch API
-pub const DEFAULT_BASE_URL: &str = "https://api.1inch.dev";
+///
+/// 1inch Business moved the API from `api.1inch.dev` (served through
+/// 2026-01-31) to `api.1inch.com`; API keys and paths are unchanged.
+pub const DEFAULT_BASE_URL: &str = "https://api.1inch.com";
 
 /// API version for the swap endpoint
+///
+/// Pinned to v6.0: v6.1 changes the `protocols` response field from
+/// `[[[{name, part, fromTokenAddress, toTokenAddress}]]]` to
+/// `[{token, hops: [...]}]`, which is incompatible with
+/// [`crate::ProtocolInfo`].
 const SWAP_API_VERSION: &str = "v6.0";
 
 /// Configuration for the 1inch API client
@@ -37,7 +45,7 @@ impl Config {
     ///
     /// # Arguments
     ///
-    /// * `api_key` - Your 1inch API key (get one at <https://portal.1inch.dev>)
+    /// * `api_key` - Your 1inch API key (get one at <https://business.1inch.com>)
     #[must_use]
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
@@ -85,7 +93,7 @@ impl Config {
 /// Client for the 1inch DEX Aggregator Swap API v6.0
 ///
 /// The client requires an API key for authentication. Get one at
-/// <https://portal.1inch.dev>.
+/// <https://business.1inch.com>.
 ///
 /// # Rate Limits
 ///
@@ -503,13 +511,13 @@ mod tests {
         let client = Client::new("test-api-key").unwrap();
 
         let url = client.swap_url(Chain::Ethereum, "quote");
-        assert_eq!(url, "https://api.1inch.dev/swap/v6.0/1/quote");
+        assert_eq!(url, "https://api.1inch.com/swap/v6.0/1/quote");
 
         let url = client.swap_url(Chain::Polygon, "swap");
-        assert_eq!(url, "https://api.1inch.dev/swap/v6.0/137/swap");
+        assert_eq!(url, "https://api.1inch.com/swap/v6.0/137/swap");
 
         let url = client.swap_url(Chain::Arbitrum, "tokens");
-        assert_eq!(url, "https://api.1inch.dev/swap/v6.0/42161/tokens");
+        assert_eq!(url, "https://api.1inch.com/swap/v6.0/42161/tokens");
     }
 
     #[test]

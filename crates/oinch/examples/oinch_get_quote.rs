@@ -3,7 +3,7 @@
 //! This example demonstrates getting quotes for token swaps.
 //!
 //! **Requirements:**
-//! - API key from https://portal.1inch.dev
+//! - API key from https://business.1inch.com
 //! - Set ONEINCH_API_KEY environment variable
 
 use oinch::{Chain, Client, QuoteRequest};
