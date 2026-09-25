@@ -11,6 +11,9 @@ use crate::error::{lens_error, rpc_error, Result};
 use crate::types::PoolState;
 
 /// Well-known Uniswap factory addresses
+///
+/// Source: docs.uniswap.org deployment pages (Uniswap/docs
+/// `content/protocols/v2/deployments.mdx`, `v4/deployments.mdx`).
 pub mod factories {
     use alloy::primitives::address;
 
@@ -23,13 +26,13 @@ pub mod factories {
             address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f");
         /// Uniswap V2 Factory on Arbitrum
         pub const ARBITRUM: alloy::primitives::Address =
-            address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f");
+            address!("f1D7CC64Fb4452F05c498126312eBE29f30Fbcf9");
         /// Uniswap V2 Factory on Optimism
         pub const OPTIMISM: alloy::primitives::Address =
             address!("0c3c1c532F1e39EdF36BE9Fe0bE1410313E074Bf");
         /// Uniswap V2 Factory on Polygon
         pub const POLYGON: alloy::primitives::Address =
-            address!("5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f");
+            address!("9e5A52f57b3038F1B8EeE45F28b3C1967e22799C");
         /// Uniswap V2 Factory on Base
         pub const BASE: alloy::primitives::Address =
             address!("8909Dc15e40173Ff4699343b6eB8132c65e18eC6");
@@ -65,13 +68,16 @@ pub mod factories {
             address!("000000000004444c5dc75cB358380D2e3de08A90");
         /// Uniswap V4 `PoolManager` on Arbitrum
         pub const ARBITRUM: alloy::primitives::Address =
-            address!("000000000004444c5dc75cB358380D2e3de08A90");
+            address!("360e68faccca8ca495c1b759fd9eee466db9fb32");
+        /// Uniswap V4 `PoolManager` on Optimism
+        pub const OPTIMISM: alloy::primitives::Address =
+            address!("9a13f98cb987694c9f086b1f5eb990eea8264ec3");
         /// Uniswap V4 `PoolManager` on Base
         pub const BASE: alloy::primitives::Address =
-            address!("000000000004444c5dc75cB358380D2e3de08A90");
+            address!("498581ff718922c3f8e6a244956af099b2652b2b");
         /// Uniswap V4 `PoolManager` on Polygon
         pub const POLYGON: alloy::primitives::Address =
-            address!("000000000004444c5dc75cB358380D2e3de08A90");
+            address!("67366782805870060151383f4bbff9dab53e5cd6");
     }
 
     // Re-export V3 addresses at top level for backwards compatibility
@@ -320,6 +326,36 @@ mod tests {
         // Ensure factory addresses are valid
         assert!(!factories::MAINNET.is_zero());
         assert!(!factories::BASE.is_zero());
+    }
+
+    #[test]
+    fn test_l2_addresses_are_not_mainnet_copies() {
+        // Regression: V2 Arbitrum/Polygon and V4 Arbitrum/Base/Polygon were
+        // copies of the mainnet addresses (no code on those chains).
+        use alloy::primitives::address;
+        assert_eq!(
+            factories::v2::ARBITRUM,
+            address!("f1D7CC64Fb4452F05c498126312eBE29f30Fbcf9")
+        );
+        assert_eq!(
+            factories::v2::POLYGON,
+            address!("9e5A52f57b3038F1B8EeE45F28b3C1967e22799C")
+        );
+        for a in [factories::v2::ARBITRUM, factories::v2::POLYGON] {
+            assert_ne!(a, factories::v2::MAINNET);
+        }
+        for a in [
+            factories::v4::ARBITRUM,
+            factories::v4::OPTIMISM,
+            factories::v4::BASE,
+            factories::v4::POLYGON,
+        ] {
+            assert_ne!(a, factories::v4::MAINNET);
+        }
+        assert_eq!(
+            factories::v4::BASE,
+            address!("498581ff718922c3f8e6a244956af099b2652b2b")
+        );
     }
 
     #[test]

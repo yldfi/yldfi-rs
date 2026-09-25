@@ -458,38 +458,20 @@ impl SubgraphClient {
     }
 
     /// Get recent swaps for a pool
+    ///
+    /// The query is version-aware: V2 swaps are keyed by `pair` and report
+    /// in/out amounts (mapped to signed `amount0`/`amount1` from the pool's
+    /// perspective); V4 swaps have no `recipient` field and report `origin`
+    /// (the EOA that initiated the transaction) instead.
     pub async fn get_swaps(&self, pool_address: &str, limit: u32) -> Result<Vec<Swap>> {
         #[derive(serde::Deserialize)]
         struct Response {
             swaps: Vec<Swap>,
         }
 
-        let query = format!(
-            r#"
-            query {{
-                swaps(
-                    first: {}
-                    orderBy: timestamp
-                    orderDirection: desc
-                    where: {{ pool: "{}" }}
-                ) {{
-                    id
-                    transaction {{ id }}
-                    timestamp
-                    pool {{ id }}
-                    sender
-                    recipient
-                    amount0
-                    amount1
-                    amountUSD
-                }}
-            }}
-        "#,
-            limit,
-            pool_address.to_lowercase()
-        );
-
-        let data: Response = self.query(&query).await?;
+        let data: Response = self
+            .query(&swaps_query(self.version, pool_address, limit))
+            .await?;
         Ok(data.swaps)
     }
 
@@ -642,52 +624,120 @@ impl SubgraphClient {
         Ok(data.liquidity_positions)
     }
 
-    /// Get V4 LP positions for a wallet address
+    /// Get V4 LP positions (position NFTs) owned by a wallet address
+    ///
+    /// The V4 subgraph `Position` entity only tracks ownership
+    /// (`id`, `tokenId`, `owner`, `origin`, `createdAtTimestamp`); pool and
+    /// liquidity details live on-chain in the `PositionManager`.
     pub async fn get_positions_v4(&self, owner: &str) -> Result<Vec<PositionV4>> {
         #[derive(serde::Deserialize)]
         struct Response {
             positions: Vec<PositionV4>,
         }
 
-        let query = format!(
+        let data: Response = self.query(&positions_v4_query(owner)).await?;
+        Ok(data.positions)
+    }
+}
+
+/// Build the swaps query for a subgraph version
+fn swaps_query(version: UniswapVersion, pool_address: &str, limit: u32) -> String {
+    let pool = pool_address.to_lowercase();
+    match version {
+        UniswapVersion::V2 => format!(
             r#"
+            query {{
+                swaps(
+                    first: {limit}
+                    orderBy: timestamp
+                    orderDirection: desc
+                    where: {{ pair: "{pool}" }}
+                ) {{
+                    id
+                    transaction {{ id }}
+                    timestamp
+                    pair {{ id }}
+                    sender
+                    to
+                    from
+                    amount0In
+                    amount1In
+                    amount0Out
+                    amount1Out
+                    amountUSD
+                }}
+            }}
+        "#
+        ),
+        UniswapVersion::V3 => format!(
+            r#"
+            query {{
+                swaps(
+                    first: {limit}
+                    orderBy: timestamp
+                    orderDirection: desc
+                    where: {{ pool: "{pool}" }}
+                ) {{
+                    id
+                    transaction {{ id }}
+                    timestamp
+                    pool {{ id }}
+                    sender
+                    recipient
+                    origin
+                    amount0
+                    amount1
+                    amountUSD
+                }}
+            }}
+        "#
+        ),
+        UniswapVersion::V4 => format!(
+            r#"
+            query {{
+                swaps(
+                    first: {limit}
+                    orderBy: timestamp
+                    orderDirection: desc
+                    where: {{ pool: "{pool}" }}
+                ) {{
+                    id
+                    transaction {{ id }}
+                    timestamp
+                    pool {{ id }}
+                    sender
+                    origin
+                    amount0
+                    amount1
+                    amountUSD
+                }}
+            }}
+        "#
+        ),
+    }
+}
+
+/// Build the V4 positions query (fields per Uniswap/v4-subgraph schema.graphql)
+fn positions_v4_query(owner: &str) -> String {
+    format!(
+        r#"
             query {{
                 positions(
                     first: 100
-                    where: {{ owner: "{}", liquidity_gt: "0" }}
+                    orderBy: createdAtTimestamp
+                    orderDirection: desc
+                    where: {{ owner: "{}" }}
                 ) {{
                     id
+                    tokenId
                     owner
-                    pool {{
-                        id
-                        token0 {{
-                            id
-                            symbol
-                            name
-                            decimals
-                        }}
-                        token1 {{
-                            id
-                            symbol
-                            name
-                            decimals
-                        }}
-                        fee
-                        hooks
-                        totalValueLockedUSD
-                    }}
-                    liquidity
-                    tickLower
-                    tickUpper
+                    origin
+                    createdAtTimestamp
                 }}
             }}
         "#,
-            owner.to_lowercase()
-        );
-
-        let data: Response = self.query(&query).await?;
-        Ok(data.positions)
-    }
+        owner.to_lowercase()
+    )
 }
 
 #[cfg(test)]
@@ -699,6 +749,55 @@ mod tests {
         let config = SubgraphConfig::mainnet_v3("test-key");
         assert_eq!(config.api_key, "test-key");
         assert_eq!(config.subgraph_id, subgraph_ids::MAINNET_V3);
+    }
+
+    #[test]
+    fn test_v4_queries_use_v4_schema_fields() {
+        let q = swaps_query(UniswapVersion::V4, "0xABC", 5);
+        assert!(!q.contains("recipient"), "{q}");
+        assert!(q.contains("origin"));
+        assert!(q.contains(r#"pool: "0xabc""#));
+
+        let p = positions_v4_query("0xD8dA");
+        for bad in ["liquidity", "tickLower", "pool {", "liquidity_gt"] {
+            assert!(!p.contains(bad), "V4 Position has no field {bad}: {p}");
+        }
+        assert!(p.contains("tokenId") && p.contains(r#"owner: "0xd8da""#));
+    }
+
+    #[test]
+    fn test_swap_deserializes_all_versions() {
+        let v4: Swap = serde_json::from_str(
+            r#"{"id":"1","transaction":{"id":"0xt"},"timestamp":"1","pool":{"id":"0xp"},
+            "sender":"0xs","origin":"0xo","amount0":"-1.5","amount1":"4000","amountUSD":"4000"}"#,
+        )
+        .unwrap();
+        assert_eq!(v4.recipient, None);
+        assert_eq!(v4.origin.as_deref(), Some("0xo"));
+
+        let v2: Swap = serde_json::from_str(
+            r#"{"id":"2","transaction":{"id":"0xt"},"timestamp":"1","pair":{"id":"0xpair"},
+            "sender":"0xs","to":"0xr","from":"0xf","amount0In":"0","amount1In":"2",
+            "amount0Out":"5000","amount1Out":"0","amountUSD":"5000"}"#,
+        )
+        .unwrap();
+        assert_eq!(v2.pool.id, "0xpair");
+        assert_eq!(v2.recipient.as_deref(), Some("0xr"));
+        assert_eq!(v2.amount0, "-5000");
+        assert_eq!(v2.amount1, "2");
+
+        let v4_pos: PositionV4 = serde_json::from_str(
+            r#"{"id":"123","tokenId":"123","owner":"0xo","origin":"0xo","createdAtTimestamp":"1700000000"}"#,
+        )
+        .unwrap();
+        assert_eq!(v4_pos.token_id, "123");
+    }
+
+    #[test]
+    fn test_v2_swaps_query_uses_pair() {
+        let q = swaps_query(UniswapVersion::V2, "0xB4e1", 3);
+        assert!(q.contains(r#"pair: "0xb4e1""#));
+        assert!(q.contains("amount0In") && !q.contains("recipient"));
     }
 
     #[test]

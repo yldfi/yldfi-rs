@@ -258,7 +258,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Uniswap { action } => {
-            return ethcli::cli::uniswap::handle(action, cli.quiet).await;
+            return ethcli::cli::uniswap::handle(action, &cli.chain, cli.quiet).await;
         }
 
         Commands::Kong { action } => {

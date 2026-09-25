@@ -237,8 +237,50 @@ fn resolve_api_key(arg_key: &Option<String>) -> anyhow::Result<String> {
     ))
 }
 
+/// Resolve the RPC URL and V3 factory for on-chain lens commands on `chain`.
+///
+/// `--rpc-url` wins; otherwise the configured endpoint for the chain is used
+/// (falling back to a public endpoint on mainnet). An `ETH_RPC_URL` env
+/// value is only honoured for mainnet so that `--chain arbitrum` never
+/// silently queries an Ethereum node.
+fn resolve_lens_target(
+    rpc_arg: Option<&str>,
+    chain: &str,
+) -> anyhow::Result<(String, alloy::primitives::Address, crate::config::Chain)> {
+    use unswp::factories::v3;
+    let chain = crate::config::Chain::from_str_or_id(chain)
+        .map_err(|e| anyhow::anyhow!("Invalid --chain '{chain}': {e}"))?;
+    let chain_id = chain.chain_id();
+    let factory = match chain_id {
+        1 => v3::MAINNET,
+        10 => v3::OPTIMISM,
+        137 => v3::POLYGON,
+        8453 => v3::BASE,
+        42161 => v3::ARBITRUM,
+        _ => anyhow::bail!(
+            "Uniswap lens queries support ethereum, optimism, polygon, base and arbitrum (got chain {chain_id})"
+        ),
+    };
+    let env_url = std::env::var("ETH_RPC_URL").ok();
+    let explicit = rpc_arg.filter(|u| chain_id == 1 || env_url.as_deref() != Some(*u));
+    let url = match explicit {
+        Some(u) => u.to_string(),
+        None => match crate::rpc::selector::get_rpc_url(chain) {
+            Ok(u) => u,
+            Err(_) if chain_id == 1 => DEFAULT_RPC_URL.to_string(),
+            Err(e) => anyhow::bail!(
+                "No RPC endpoint configured for {chain}: {e}. Pass --rpc-url or add one with `ethcli endpoints add`"
+            ),
+        },
+    };
+    Ok((url, factory, chain))
+}
+
 /// Handle Uniswap CLI commands
-pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()> {
+///
+/// `chain` is the global `--chain`, used by the on-chain lens commands
+/// (`pool`, `liquidity`, `balance`).
+pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyhow::Result<()> {
     use alloy::primitives::Address;
     use unswp::{
         factories, pools, subgraph_ids, tokens, LensClient, SubgraphClient, SubgraphConfig,
@@ -246,14 +288,15 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
 
     match action {
         UniswapCommands::Pool(args) => {
-            let rpc_url = args.rpc_url.as_deref().unwrap_or(DEFAULT_RPC_URL);
+            let (rpc_url, factory, lens_chain) =
+                resolve_lens_target(args.rpc_url.as_deref(), chain)?;
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
-                eprintln!("Fetching pool state from {}...", rpc_url);
+                eprintln!("Fetching pool state on {}...", lens_chain);
             }
 
-            let client = LensClient::mainnet(rpc_url)?;
+            let client = LensClient::new(&rpc_url, factory)?;
             let state = client.get_pool_state(pool).await?;
 
             let output = serde_json::json!({
@@ -271,14 +314,15 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
         }
 
         UniswapCommands::Liquidity(args) => {
-            let rpc_url = args.rpc_url.as_deref().unwrap_or(DEFAULT_RPC_URL);
+            let (rpc_url, factory, lens_chain) =
+                resolve_lens_target(args.rpc_url.as_deref(), chain)?;
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
-                eprintln!("Fetching liquidity from {}...", rpc_url);
+                eprintln!("Fetching liquidity on {}...", lens_chain);
             }
 
-            let client = LensClient::mainnet(rpc_url)?;
+            let client = LensClient::new(&rpc_url, factory)?;
             let liquidity = client.get_liquidity(pool).await?;
 
             let output = serde_json::json!({
@@ -574,57 +618,33 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                 };
 
                 if let Some(config) = config {
-                    if let Ok(client) = SubgraphClient::new(config) {
-                        match client.get_positions_v4(&address).await {
-                            Ok(positions) => {
-                                for pos in positions {
-                                    let pool = &pos.pool;
-                                    let liquidity: f64 = pos.liquidity.parse().unwrap_or(0.0);
-                                    let fee: f64 = pool.fee.parse().unwrap_or(0.0) / 1_000_000.0;
-                                    let tvl: f64 = pool
-                                        .total_value_locked_usd
-                                        .as_ref()
-                                        .and_then(|s| s.parse().ok())
-                                        .unwrap_or(0.0);
-
-                                    let has_hooks = pool
-                                        .hooks
-                                        .as_ref()
-                                        .map(|h| {
-                                            !h.is_empty()
-                                                && h != "0x0000000000000000000000000000000000000000"
-                                        })
-                                        .unwrap_or(false);
-
-                                    all_positions.push(serde_json::json!({
-                                        "version": "v4",
-                                        "positionId": pos.id,
-                                        "pool": pool.id,
-                                        "feeTier": format!("{}%", fee),
-                                        "token0": {
-                                            "symbol": pool.token0.symbol,
-                                            "address": pool.token0.id,
-                                        },
-                                        "token1": {
-                                            "symbol": pool.token1.symbol,
-                                            "address": pool.token1.id,
-                                        },
-                                        "liquidity": liquidity,
-                                        "tickRange": {
-                                            "lower": pos.tick_lower,
-                                            "upper": pos.tick_upper,
-                                        },
-                                        "hasHooks": has_hooks,
-                                        "hooks": pool.hooks,
-                                        "poolTvlUsd": tvl,
-                                    }));
-                                }
-                            }
-                            Err(_) => {
-                                // V4 subgraph may not have positions query yet - silently skip
+                    let client = SubgraphClient::new(config)?;
+                    match client.get_positions_v4(&address).await {
+                        Ok(positions) => {
+                            // The V4 subgraph only indexes position NFT ownership;
+                            // pool key, ticks and liquidity live in the on-chain
+                            // PositionManager.
+                            for pos in positions {
+                                all_positions.push(serde_json::json!({
+                                    "version": "v4",
+                                    "positionId": pos.token_id,
+                                    "owner": pos.owner,
+                                    "origin": pos.origin,
+                                    "createdAtTimestamp": pos.created_at_timestamp,
+                                }));
                             }
                         }
+                        Err(e) => {
+                            // Surface V4 errors instead of silently returning [];
+                            // fail if V4 was explicitly requested.
+                            if matches!(args.version, Some(Version::V4)) {
+                                return Err(anyhow::anyhow!("V4 positions query failed: {e}"));
+                            }
+                            eprintln!("Warning: V4 positions query failed: {e}");
+                        }
                     }
+                } else if matches!(args.version, Some(Version::V4)) {
+                    anyhow::bail!("Uniswap V4 subgraph not available for chain '{}'", chain);
                 }
             }
 
@@ -690,16 +710,12 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                             );
                         }
                     } else if version == "v4" {
-                        let tick_lower = pos["tickRange"]["lower"].as_i64().unwrap_or(0);
-                        let tick_upper = pos["tickRange"]["upper"].as_i64().unwrap_or(0);
-                        let liquidity = pos["liquidity"].as_f64().unwrap_or(0.0);
-                        let has_hooks = pos["hasHooks"].as_bool().unwrap_or(false);
-
-                        println!("  Liquidity: {:.0}", liquidity);
-                        println!("  Tick Range: {} to {}", tick_lower, tick_upper);
-                        if has_hooks {
-                            println!("  Hooks: {}", pos["hooks"].as_str().unwrap_or("?"));
+                        if let Some(ts) = pos["createdAtTimestamp"].as_str() {
+                            println!("  Created: {}", ts);
                         }
+                        println!(
+                            "  (pool/liquidity: query the V4 PositionManager on-chain for this token ID)"
+                        );
                     }
                     println!();
                 }
@@ -709,15 +725,16 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
         }
 
         UniswapCommands::Balance(args) => {
-            let rpc_url = args.rpc_url.as_deref().unwrap_or(DEFAULT_RPC_URL);
+            let (rpc_url, factory, lens_chain) =
+                resolve_lens_target(args.rpc_url.as_deref(), chain)?;
             let token: Address = args.token.parse()?;
             let account: Address = args.account.parse()?;
 
             if !quiet {
-                eprintln!("Fetching balance from {}...", rpc_url);
+                eprintln!("Fetching balance on {}...", lens_chain);
             }
 
-            let client = LensClient::mainnet(rpc_url)?;
+            let client = LensClient::new(&rpc_url, factory)?;
             let balance = client.get_token_balance(token, account).await?;
 
             let output = serde_json::json!({
@@ -770,6 +787,7 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                         serde_json::json!({
                             "mainnet": format!("{:#x}", factories::v4::MAINNET),
                             "arbitrum": format!("{:#x}", factories::v4::ARBITRUM),
+                            "optimism": format!("{:#x}", factories::v4::OPTIMISM),
                             "polygon": format!("{:#x}", factories::v4::POLYGON),
                             "base": format!("{:#x}", factories::v4::BASE),
                         }),
