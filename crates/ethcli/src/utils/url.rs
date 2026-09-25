@@ -57,7 +57,9 @@ pub fn url_has_hidden_parts(raw: &str) -> bool {
 const URL_SCHEMES: &[&str] = &["https://", "http://", "wss://", "ws://"];
 
 fn is_url_delimiter(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | ')' | ']' | '}' | '`' | ',')
+    c.is_whitespace()
+        || c.is_control()
+        || matches!(c, '"' | '\'' | '<' | '>' | ')' | ']' | '}' | '`' | ',')
 }
 
 /// Replace every URL embedded in free-form text (e.g. an error chain from
@@ -112,6 +114,15 @@ mod tests {
         assert_eq!(
             redact_urls_in_text(msg),
             "a https://h1.io, then wss://h2.io:8546. done"
+        );
+    }
+
+    #[test]
+    fn text_redaction_stops_at_ansi_escape() {
+        let msg = "Transport{url=https://h.io/v3/KEY\x1b[1m}\x1b[0m: starting";
+        assert_eq!(
+            redact_urls_in_text(msg),
+            "Transport{url=https://h.io\x1b[1m}\x1b[0m: starting"
         );
     }
 

@@ -86,6 +86,25 @@ fn should_show_progress() -> bool {
     std::io::stderr().is_terminal()
 }
 
+/// `io::Write` adapter that redacts URLs before forwarding to the inner writer.
+///
+/// `tracing_subscriber::fmt` formats each event into a buffer and emits it with
+/// a single `write_all`, so URLs are never split across calls in practice.
+struct RedactingWriter<W: std::io::Write>(W);
+
+impl<W: std::io::Write> std::io::Write for RedactingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let text = String::from_utf8_lossy(buf);
+        self.0
+            .write_all(ethcli::utils::url::redact_urls_in_text(&text).as_bytes())?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
@@ -119,8 +138,15 @@ async fn run() -> anyhow::Result<()> {
         _ => "trace",
     };
 
+    // Dependency spans/events (alloy's ReqwestTransport span, reqwest's
+    // "response for <url>") include full RPC URLs, which may carry API keys.
+    // Route all log output through a URL-redacting writer.
     tracing_subscriber::registry()
-        .with(fmt::layer().with_target(false))
+        .with(
+            fmt::layer()
+                .with_target(false)
+                .with_writer(|| RedactingWriter(std::io::stdout())),
+        )
         .with(EnvFilter::new(filter))
         .init();
 
