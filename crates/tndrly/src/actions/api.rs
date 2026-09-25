@@ -1,9 +1,8 @@
 //! Web3 Actions API operations
 
 use super::types::{
-    Action, ActionCall, ActionCallsQuery, ActionCallsResponse, ActionLog, CreateActionRequest,
-    InvokeActionRequest, InvokeActionResponse, ListActionLogsResponse, ListActionsResponse,
-    StopResumeActionsRequest,
+    Action, ActionCall, ActionCallsQuery, ActionCallsResponse, CreateActionRequest,
+    ListActionsResponse, StopResumeActionsRequest,
 };
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
@@ -64,103 +63,10 @@ impl<'a> ActionsApi<'a> {
             .await
     }
 
-    /// Update an action
-    pub async fn update(&self, id: &str, request: &CreateActionRequest) -> Result<Action> {
-        self.client
-            .patch(
-                &format!("/actions/action/{}", encode_path_segment(id)),
-                request,
-            )
-            .await
-    }
-
     /// Delete an action
     pub async fn delete(&self, id: &str) -> Result<()> {
         self.client
             .delete(&format!("/actions/action/{}", encode_path_segment(id)))
-            .await
-    }
-
-    /// Enable an action
-    pub async fn enable(&self, id: &str) -> Result<Action> {
-        let request = serde_json::json!({ "enabled": true });
-        self.client
-            .patch(
-                &format!("/actions/action/{}", encode_path_segment(id)),
-                &request,
-            )
-            .await
-    }
-
-    /// Disable an action
-    pub async fn disable(&self, id: &str) -> Result<Action> {
-        let request = serde_json::json!({ "enabled": false });
-        self.client
-            .patch(
-                &format!("/actions/action/{}", encode_path_segment(id)),
-                &request,
-            )
-            .await
-    }
-
-    /// Invoke an action manually
-    ///
-    /// Useful for testing or manual triggering.
-    pub async fn invoke(
-        &self,
-        id: &str,
-        request: &InvokeActionRequest,
-    ) -> Result<InvokeActionResponse> {
-        self.client
-            .post(
-                &format!("/actions/action/{}/invoke", encode_path_segment(id)),
-                request,
-            )
-            .await
-    }
-
-    /// Get execution logs for an action
-    pub async fn logs(&self, id: &str) -> Result<ListActionLogsResponse> {
-        self.client
-            .get(&format!("/actions/action/{}/logs", encode_path_segment(id)))
-            .await
-    }
-
-    /// Get a specific execution log
-    pub async fn get_log(&self, action_id: &str, log_id: &str) -> Result<ActionLog> {
-        self.client
-            .get(&format!(
-                "/actions/action/{}/logs/{}",
-                encode_path_segment(action_id),
-                encode_path_segment(log_id)
-            ))
-            .await
-    }
-
-    /// Get the source code of an action
-    pub async fn source(&self, id: &str) -> Result<String> {
-        #[derive(serde::Deserialize)]
-        struct SourceResponse {
-            source_code: String,
-        }
-        let response: SourceResponse = self
-            .client
-            .get(&format!(
-                "/actions/action/{}/source",
-                encode_path_segment(id)
-            ))
-            .await?;
-        Ok(response.source_code)
-    }
-
-    /// Update the source code of an action
-    pub async fn update_source(&self, id: &str, source_code: &str) -> Result<Action> {
-        let request = serde_json::json!({ "source_code": source_code });
-        self.client
-            .patch(
-                &format!("/actions/action/{}/source", encode_path_segment(id)),
-                &request,
-            )
             .await
     }
 
@@ -316,14 +222,6 @@ mod tests {
         let tx_config = TriggerConfig::transaction("1", "0x1234");
         assert_eq!(tx_config.network_id, Some("1".to_string()));
         assert_eq!(tx_config.address, Some("0x1234".to_string()));
-    }
-
-    #[test]
-    fn test_invoke_request() {
-        let request = InvokeActionRequest::with_payload(serde_json::json!({
-            "test": true
-        }));
-        assert!(request.payload.is_some());
     }
 
     #[test]

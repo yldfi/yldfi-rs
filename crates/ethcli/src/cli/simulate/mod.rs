@@ -31,7 +31,7 @@ use clap::Subcommand;
   ethcli simulate call 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D --sig "swapExactETHForTokens(uint256,address[],address,uint256)" 0 '[...]' 0x... 9999999999 --via tenderly --balance-override 0x123=1000000000000000000
 
   # Trace an existing transaction
-  ethcli simulate tx 0x123abc... --via tenderly
+  ethcli simulate tx 0x123abc... --via debug
 
   # Simulate using Anvil fork
   ethcli simulate call 0x... --sig "foo()" --via anvil"#)]
@@ -842,7 +842,14 @@ pub async fn handle_with_via(
                 };
                 trace_tx_via_cast(hash, rpc_url, &cast_options, quiet).await
             }
-            SimulateVia::Tenderly => trace_tx_via_tenderly(hash, tenderly, quiet).await,
+            SimulateVia::Tenderly => {
+                let _ = tenderly;
+                anyhow::bail!(
+                    "Tenderly has no public API to trace an existing transaction by hash \
+                     (GET /trace/{{hash}} does not exist). Use --via debug, --via trace, \
+                     --via alchemy or --via cast instead."
+                )
+            }
             SimulateVia::Debug => {
                 let key = etherscan_api_key.clone().or_else(|| etherscan_key.clone());
                 trace_tx_via_debug_rpc(hash, rpc_url, chain, key, *raw, quiet).await

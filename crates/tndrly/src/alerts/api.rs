@@ -1,9 +1,8 @@
 //! Alerts API operations
 
 use super::types::{
-    AddDestinationRequest, Alert, AlertDestination, AlertHistoryQuery, AlertHistoryResponse,
-    CreateAlertRequest, CreateWebhookRequest, ListAlertsResponse, ListWebhooksResponse,
-    TestAlertRequest, Webhook,
+    Alert, AlertHistoryQuery, AlertHistoryResponse, CreateAlertRequest, CreateWebhookRequest,
+    ListAlertsResponse, ListWebhooksResponse, TestAlertRequest, Webhook,
 };
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
@@ -84,31 +83,6 @@ impl<'a> AlertsApi<'a> {
             .await
     }
 
-    /// Add a destination to an alert
-    pub async fn add_destination(
-        &self,
-        alert_id: &str,
-        request: &AddDestinationRequest,
-    ) -> Result<AlertDestination> {
-        self.client
-            .post(
-                &format!("/alert/{}/destinations", encode_path_segment(alert_id)),
-                request,
-            )
-            .await
-    }
-
-    /// Remove a destination from an alert
-    pub async fn remove_destination(&self, alert_id: &str, destination_id: &str) -> Result<()> {
-        self.client
-            .delete(&format!(
-                "/alert/{}/destinations/{}",
-                encode_path_segment(alert_id),
-                encode_path_segment(destination_id)
-            ))
-            .await
-    }
-
     // Webhook management
 
     /// Create a webhook destination
@@ -138,20 +112,6 @@ impl<'a> AlertsApi<'a> {
     pub async fn delete_webhook(&self, id: &str) -> Result<()> {
         self.client
             .delete(&format!("/webhooks/{}", encode_path_segment(id)))
-            .await
-    }
-
-    /// Test a webhook by sending a test event
-    pub async fn test_webhook(&self, id: &str, tx_hash: &str, network: &str) -> Result<()> {
-        let request = serde_json::json!({
-            "transaction_hash": tx_hash,
-            "network": network
-        });
-        self.client
-            .post_no_response(
-                &format!("/webhooks/{}/test", encode_path_segment(id)),
-                &request,
-            )
             .await
     }
 
@@ -198,7 +158,7 @@ impl<'a> AlertsApi<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::alerts::{AlertParameters, AlertTarget, AlertType, DestinationType};
+    use crate::alerts::{AlertParameters, AlertTarget, AlertType};
 
     #[test]
     fn test_create_alert_request() {
@@ -228,16 +188,6 @@ mod tests {
 
         let params = AlertParameters::whale("1000000000000000000");
         assert_eq!(params.threshold, Some("1000000000000000000".to_string()));
-    }
-
-    #[test]
-    fn test_add_destination_request() {
-        let dest = AddDestinationRequest::webhook("webhook-123");
-        assert_eq!(dest.destination_type, DestinationType::Webhook);
-        assert_eq!(dest.destination_id, "webhook-123");
-
-        let dest = AddDestinationRequest::slack("https://hooks.slack.com/...");
-        assert_eq!(dest.destination_type, DestinationType::Slack);
     }
 
     #[test]

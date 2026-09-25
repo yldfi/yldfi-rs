@@ -382,7 +382,8 @@ ethcli tenderly wallets get <address> --network 1 --project <slug> --account <sl
 ethcli tenderly contracts list --project <slug> --account <slug>
 ethcli tenderly contracts get <address> --network 1 --project <slug> --account <slug>
 ethcli tenderly contracts add <address> --network 1 --project <slug> --account <slug>
-ethcli tenderly contracts verify <address> --network 1 --name <name> --source <file> --compiler <ver> --project <slug> --account <slug>
+ethcli tenderly contracts rename <address> --network 1 --name <name> --project <slug> --account <slug>
+ethcli tenderly contracts encode-state --network 1 '{"0xToken": {"value": {"balances[0xHolder]": "1000"}}}' --project <slug> --account <slug>
 
 # Alerts
 ethcli tenderly alerts list --project <slug> --account <slug>
@@ -394,8 +395,9 @@ ethcli tenderly alerts webhooks create --name "Hook" --url https://... --project
 # Web3 Actions
 ethcli tenderly actions list --project <slug> --account <slug>
 ethcli tenderly actions get <action-id> --project <slug> --account <slug>
-ethcli tenderly actions invoke <action-id> --project <slug> --account <slug>
-ethcli tenderly actions logs <action-id> --project <slug> --account <slug>
+ethcli tenderly actions stop <action-id> --project <slug> --account <slug>
+ethcli tenderly actions resume <action-id> --project <slug> --account <slug>
+ethcli tenderly actions get-call <action-id> <execution-id> --project <slug> --account <slug>
 
 # Networks
 ethcli tenderly networks list
@@ -510,7 +512,9 @@ ethcli chainlink oracles
 ethcli chainlink oracles --chain ethereum
 ethcli chainlink oracles --chain arbitrum
 
-# Data Streams (requires API credentials)
+# Data Streams (requires API credentials). Defaults to mainnet
+# (api.dataengine.chain.link / ws.dataengine.chain.link); override with
+# CHAINLINK_REST_URL / CHAINLINK_WS_URL or [chainlink] rest_url / ws_url for testnet.
 ethcli chainlink streams feeds
 ethcli chainlink streams latest <feed_id>
 ethcli chainlink streams report <feed_id> <timestamp>

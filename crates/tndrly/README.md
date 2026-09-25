@@ -15,7 +15,7 @@
 - **Simulation API** - Simulate transactions without broadcasting
 - **Virtual TestNets API** - Create isolated blockchain environments
 - **Alerts API** - Monitor on-chain activity with notifications
-- **Contract API** - Manage and verify smart contracts
+- **Contract API** - Manage, rename and tag smart contracts; encode state overrides
 - **Web3 Actions API** - Deploy serverless functions
 - **Wallets API** - Track and monitor wallet addresses
 
@@ -91,6 +91,11 @@ let url = client.simulation().share("sim-id").await?;
 
 ### Virtual TestNets
 
+> **Note:** Tenderly has renamed Virtual TestNets to **Virtual Environments**, now
+> documented under `/api/public/v1/account/{account}/project/{project}/environments`.
+> The legacy `/vnets` routes wrapped by this module are still live, so `client.vnets()`
+> keeps using them for now.
+
 ```rust
 use tndrly::vnets::{CreateVNetRequest, ListVNetsQuery};
 
@@ -148,10 +153,16 @@ let history = client.alerts()
 let alert = client.alerts().get("alert-id").await?;
 ```
 
+Alert destinations (`/alert/{id}/destinations`) and webhook test
+(`/webhooks/{id}/test`) endpoints do not exist in the public API; those wrappers
+were removed. `GET /trace/{hash}` likewise does not exist, so
+`simulation().trace()` was removed.
+
 ### Contracts
 
 ```rust
-use tndrly::contracts::{AddContractRequest, VerifyContractRequest};
+use std::collections::HashMap;
+use tndrly::contracts::{AddContractRequest, EncodeStateRequest, StateOverrideInput};
 
 // Add a contract
 let contract = client.contracts()
@@ -160,17 +171,26 @@ let contract = client.contracts()
         .tag("defi"))
     .await?;
 
-// Verify source code
-let result = client.contracts()
-    .verify(&VerifyContractRequest::new(
-        "1",
-        "0xAddress",
-        "MyContract",
-        source_code,
-        "v0.8.19+commit.7dd6d404",
-    ).optimization(true, 200))
+// Rename / tag
+client.contracts().rename("1", "0xAddress", "New Name").await?;
+client.contracts().add_tag("1", "0xAddress", "v1").await?;
+
+// Encode human-readable state overrides (POST /contracts/encode-states)
+let mut overrides = HashMap::new();
+overrides.insert(
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string(),
+    StateOverrideInput::new().value("balanceAndBlacklistStates[0xAd4A...]", "1000"),
+);
+let encoded = client.contracts()
+    .encode_state(&EncodeStateRequest::new("1", overrides))
     .await?;
 ```
+
+Tenderly has no public endpoint for contract source verification
+(`POST /contract/verify`) or for patching contract metadata
+(`PATCH /contract/{network}/{address}`), so those wrappers were removed; use the
+Tenderly CLI / Foundry / Hardhat plugins to verify, and `rename` / `add_tag` /
+`delete_tag` to edit metadata.
 
 ### Web3 Actions
 
@@ -188,9 +208,14 @@ let action = client.actions()
     .secret("SLACK_WEBHOOK", webhook_url))
     .await?;
 
-// View execution logs
-let logs = client.actions().logs(&action.id).await?;
+// Pause / resume, and inspect executions
+client.actions().stop(&action.id).await?;
+client.actions().resume(&action.id).await?;
+let calls = client.actions().calls(&action.id, None).await?;
 ```
+
+The public API has no update/enable/disable (`PATCH /actions/action/{id}`),
+`/invoke`, `/logs` or `/source` endpoints; those wrappers were removed.
 
 ### Wallets
 

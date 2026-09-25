@@ -3,10 +3,15 @@
 use super::types::{
     AddContractRequest, BulkTagRequest, BulkTagResponse, Contract, DeleteTagRequest,
     EncodeStateRequest, EncodeStateResponse, ListContractsQuery, RenameContractRequest,
-    UpdateContractRequest, VerificationResult, VerifyContractRequest,
 };
 use crate::client::{encode_path_segment, Client};
 use crate::error::{self, Result};
+
+/// Build a Tenderly contract ID (`eth:{network_id}:{address}`) as used by `POST /tag`
+#[must_use]
+pub fn contract_id(network_id: &str, address: &str) -> String {
+    format!("eth:{}:{}", network_id, address.to_lowercase())
+}
 
 /// Contract API client
 pub struct ContractsApi<'a> {
@@ -59,25 +64,6 @@ impl<'a> ContractsApi<'a> {
             .await
     }
 
-    /// Update a contract
-    pub async fn update(
-        &self,
-        network_id: &str,
-        address: &str,
-        request: &UpdateContractRequest,
-    ) -> Result<Contract> {
-        self.client
-            .patch(
-                &format!(
-                    "/contract/{}/{}",
-                    encode_path_segment(network_id),
-                    encode_path_segment(address)
-                ),
-                request,
-            )
-            .await
-    }
-
     /// Delete a contract
     pub async fn delete(&self, network_id: &str, address: &str) -> Result<()> {
         self.client
@@ -89,51 +75,32 @@ impl<'a> ContractsApi<'a> {
             .await
     }
 
-    /// Verify a contract
-    ///
-    /// Submits source code for verification. If successful, the contract
-    /// will show as verified and its ABI will be available.
-    pub async fn verify(&self, request: &VerifyContractRequest) -> Result<VerificationResult> {
-        self.client.post("/contract/verify", request).await
-    }
-
     /// Encode state overrides for use in simulations
     ///
-    /// This converts human-readable state overrides into the format
+    /// Calls `POST /contracts/encode-states`, converting human-readable
+    /// (named variable) state overrides into the raw storage-slot format
     /// expected by the simulation API.
     pub async fn encode_state(&self, request: &EncodeStateRequest) -> Result<EncodeStateResponse> {
-        self.client.post("/contract/encode-states", request).await
+        self.client.post("/contracts/encode-states", request).await
     }
 
-    /// Add a tag to a contract
+    /// Add a tag to a contract and return the updated contract
     ///
-    /// # Note
-    ///
-    /// This operation is not atomic. It fetches the current tags, modifies them,
-    /// and updates the contract. If another client modifies the tags between these
-    /// operations, their changes may be overwritten (TOCTOU race condition).
-    /// For concurrent access, consider using the direct `update()` method with
-    /// your own synchronization.
+    /// Uses `POST /tag` (see [`bulk_tag`](Self::bulk_tag)) with the contract ID
+    /// `eth:{network_id}:{address}`, then re-fetches the contract.
     pub async fn add_tag(&self, network_id: &str, address: &str, tag: &str) -> Result<Contract> {
-        let contract = self.get(network_id, address).await?;
-        let mut tags = contract.tags();
-        if !tags.contains(&tag.to_string()) {
-            tags.push(tag.to_string());
-        }
-        let request = UpdateContractRequest::new().tags(tags);
-        self.update(network_id, address, &request).await
+        self.bulk_tag(tag, vec![contract_id(network_id, address)])
+            .await?;
+        self.get(network_id, address).await
     }
 
-    /// Remove a tag from a contract
+    /// Remove a tag from a contract and return the updated contract
     ///
-    /// # Note
-    ///
-    /// This operation is not atomic. See [`add_tag`](Self::add_tag) for details.
+    /// Uses `DELETE /contract/{network}/{address}/tag` (see
+    /// [`delete_tag`](Self::delete_tag)), then re-fetches the contract.
     pub async fn remove_tag(&self, network_id: &str, address: &str, tag: &str) -> Result<Contract> {
-        let contract = self.get(network_id, address).await?;
-        let tags: Vec<String> = contract.tags().into_iter().filter(|t| t != tag).collect();
-        let request = UpdateContractRequest::new().tags(tags);
-        self.update(network_id, address, &request).await
+        self.delete_tag(network_id, address, tag).await?;
+        self.get(network_id, address).await
     }
 
     /// Get the ABI for a contract
@@ -259,23 +226,6 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_contract_request() {
-        let request = VerifyContractRequest::new(
-            "1",
-            "0x1234",
-            "MyContract",
-            "pragma solidity ^0.8.0;",
-            "v0.8.19+commit.7dd6d404",
-        )
-        .optimization(true, 200)
-        .evm_version("paris");
-
-        assert_eq!(request.network_id, "1");
-        assert!(request.optimization.is_some());
-        assert_eq!(request.evm_version, Some("paris".to_string()));
-    }
-
-    #[test]
     fn test_state_override_input() {
         let override_input = StateOverrideInput::new()
             .balance("1000000000000000000")
@@ -288,6 +238,40 @@ mod tests {
         );
         assert!(override_input.storage.is_some());
         assert_eq!(override_input.nonce, Some(10));
+    }
+
+    #[test]
+    fn test_encode_state_request_serialization() {
+        // Field names must match POST /contracts/encode-states in the OpenAPI spec
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert(
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string(),
+            StateOverrideInput::new().value("balances[0xabc]", "1000"),
+        );
+        let request = EncodeStateRequest::new("1", overrides).block_number("-1");
+        let json = serde_json::to_value(&request).unwrap();
+
+        assert_eq!(json["networkID"], "1");
+        assert_eq!(json["blockNumber"], "-1");
+        assert_eq!(
+            json["stateOverrides"]["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"]["value"]
+                ["balances[0xabc]"],
+            "1000"
+        );
+        assert!(json.get("network_id").is_none());
+    }
+
+    #[test]
+    fn test_encode_state_response_accepts_state_overrides_key() {
+        let resp: EncodeStateResponse =
+            serde_json::from_str(r#"{"stateOverrides":{"0xabc":{"value":{"0x0":"0x1"}}}}"#)
+                .unwrap();
+        assert_eq!(resp.encoded_state["0xabc"]["value"]["0x0"], "0x1");
+    }
+
+    #[test]
+    fn test_contract_id_format() {
+        assert_eq!(contract_id("1", "0xABCdef"), "eth:1:0xabcdef");
     }
 
     #[test]
@@ -305,33 +289,5 @@ mod tests {
         assert_eq!(json["display_name"], "My Contract");
         assert!(json["tags"].is_array());
         assert_eq!(json["tags"][0], "defi");
-    }
-
-    #[test]
-    fn test_verify_contract_request_serialization() {
-        // Verify JSON structure for contract verification
-        let request = VerifyContractRequest::new(
-            "1",
-            "0x1234",
-            "MyContract",
-            "pragma solidity ^0.8.0;",
-            "v0.8.19+commit.7dd6d404",
-        )
-        .optimization(true, 200)
-        .evm_version("paris");
-
-        let json = serde_json::to_value(&request).unwrap();
-
-        assert_eq!(json["network_id"], "1");
-        assert_eq!(json["address"], "0x1234");
-        assert_eq!(json["contract_name"], "MyContract");
-        assert_eq!(json["compiler_version"], "v0.8.19+commit.7dd6d404");
-
-        // Verify optimization is nested correctly
-        assert!(json["optimization"].is_object());
-        assert_eq!(json["optimization"]["enabled"], true);
-        assert_eq!(json["optimization"]["runs"], 200);
-
-        assert_eq!(json["evm_version"], "paris");
     }
 }

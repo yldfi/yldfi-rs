@@ -7,8 +7,6 @@ use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
 
 const MORALIS_FANTOM_REMOVAL_DATE: &str = "2026-05-29";
-const MORALIS_LEGACY_REMOVAL_DATE: &str = "2026-06-04";
-const MORALIS_HOLDERS_HISTORICAL_REMOVAL_DATE: &str = "2026-07-31";
 
 fn ensure_moralis_chain_supported(chain: &str) -> anyhow::Result<()> {
     match chain.trim().to_ascii_lowercase().as_str() {
@@ -21,217 +19,18 @@ fn ensure_moralis_chain_supported(chain: &str) -> anyhow::Result<()> {
     }
 }
 
-fn deprecated_moralis_endpoint(
-    command: &str,
-    endpoints: &[&str],
-    replacement: Option<&str>,
-) -> anyhow::Result<()> {
-    deprecated_moralis_endpoint_with_date(
-        command,
-        endpoints,
-        MORALIS_LEGACY_REMOVAL_DATE,
-        replacement,
-    )
-}
-
-fn deprecated_moralis_endpoint_with_date(
-    command: &str,
-    endpoints: &[&str],
-    removal_date: &str,
-    replacement: Option<&str>,
-) -> anyhow::Result<()> {
-    let endpoint_list = endpoints.join(", ");
-    let mut message = format!(
-        "`ethcli moralis {command}` calls Moralis endpoint(s) scheduled for removal on \
-         {removal_date}: {endpoint_list}."
-    );
-
-    if let Some(replacement) = replacement {
-        message.push_str(" Suggested migration: ");
-        message.push_str(replacement);
-        message.push('.');
-    }
-
-    anyhow::bail!("{message}")
-}
-
 fn moralis_command_args(command: &MoralisCommands) -> &MoralisArgs {
     match command {
         MoralisCommands::Wallet { args, .. }
         | MoralisCommands::Token { args, .. }
         | MoralisCommands::Nft { args, .. }
         | MoralisCommands::Resolve { args, .. }
-        | MoralisCommands::Market { args, .. }
         | MoralisCommands::Transaction { args, .. }
         | MoralisCommands::Block { args, .. }
         | MoralisCommands::Defi { args, .. }
         | MoralisCommands::Discovery { args, .. }
         | MoralisCommands::Analytics { args, .. }
-        | MoralisCommands::Entities { args, .. }
-        | MoralisCommands::Volume { args, .. } => args,
-    }
-}
-
-fn reject_deprecated_moralis_command(command: &MoralisCommands) -> anyhow::Result<()> {
-    match command {
-        MoralisCommands::Token { action, .. } => match action {
-            TokenCommands::Stats { .. } => deprecated_moralis_endpoint(
-                "token stats",
-                &["GET /erc20/{address}/stats"],
-                Some("use Moralis Token API analytics where available"),
-            ),
-            TokenCommands::ExchangeNewTokens { .. } => deprecated_moralis_endpoint(
-                "token exchange-new-tokens",
-                &["GET /erc20/exchange/{exchangeName}/new"],
-                None,
-            ),
-            TokenCommands::ExchangeBondingTokens { .. } => deprecated_moralis_endpoint(
-                "token exchange-bonding-tokens",
-                &["GET /erc20/exchange/{exchangeName}/bonding"],
-                None,
-            ),
-            TokenCommands::ExchangeGraduatedTokens { .. } => deprecated_moralis_endpoint(
-                "token exchange-graduated-tokens",
-                &["GET /erc20/exchange/{exchangeName}/graduated"],
-                None,
-            ),
-            TokenCommands::BySymbols { .. } => deprecated_moralis_endpoint(
-                "token by-symbols",
-                &["GET /erc20/metadata/symbols"],
-                Some("use `ethcli moralis token search <symbol>` for one symbol at a time"),
-            ),
-            TokenCommands::HoldersHistorical { .. } => deprecated_moralis_endpoint_with_date(
-                "token holders-historical",
-                &["GET /erc20/{address}/holders/historical"],
-                MORALIS_HOLDERS_HISTORICAL_REMOVAL_DATE,
-                Some(
-                    "use `ethcli moralis token holders` or `ethcli moralis token \
-                     holders-summary` for current holder data (Moralis documents no \
-                     historical replacement)",
-                ),
-            ),
-            TokenCommands::PairsStats { .. } => deprecated_moralis_endpoint(
-                "token pairs-stats",
-                &["GET /erc20/{token_address}/pairs/stats"],
-                Some("migrate to `GET /tokens/{tokenAddress}/analytics`"),
-            ),
-            TokenCommands::PairSnipers { .. } => deprecated_moralis_endpoint(
-                "token pair-snipers",
-                &["GET /pairs/{address}/snipers"],
-                None,
-            ),
-            TokenCommands::BondingStatus { .. } => deprecated_moralis_endpoint(
-                "token bonding-status",
-                &["GET /erc20/{tokenAddress}/bondingStatus"],
-                None,
-            ),
-            _ => Ok(()),
-        },
-        MoralisCommands::Market { action, .. } => match action {
-            MarketCommands::TopTokens => deprecated_moralis_endpoint(
-                "market top-tokens",
-                &["GET /market-data/erc20s/top-tokens"],
-                None,
-            ),
-            MarketCommands::TopMovers => deprecated_moralis_endpoint(
-                "market top-movers",
-                &["GET /market-data/erc20s/top-movers"],
-                None,
-            ),
-            MarketCommands::TopNfts => deprecated_moralis_endpoint(
-                "market top-nfts",
-                &["GET /market-data/nfts/top-collections"],
-                None,
-            ),
-            MarketCommands::HottestNfts => deprecated_moralis_endpoint(
-                "market hottest-nfts",
-                &["GET /market-data/nfts/hottest-collections"],
-                None,
-            ),
-            MarketCommands::GlobalMarketCap => deprecated_moralis_endpoint(
-                "market global-market-cap",
-                &["GET /market-data/global/market-cap"],
-                None,
-            ),
-            MarketCommands::GlobalVolume => deprecated_moralis_endpoint(
-                "market global-volume",
-                &["GET /market-data/global/volume"],
-                None,
-            ),
-        },
-        MoralisCommands::Discovery { action, .. } => match action {
-            DiscoveryCommands::RisingLiquidity => deprecated_moralis_endpoint(
-                "discovery rising-liquidity",
-                &["GET /discovery/tokens/rising-liquidity"],
-                None,
-            ),
-            DiscoveryCommands::BuyingPressure => deprecated_moralis_endpoint(
-                "discovery buying-pressure",
-                &["GET /discovery/tokens/buying-pressure"],
-                None,
-            ),
-            DiscoveryCommands::SolidPerformers => deprecated_moralis_endpoint(
-                "discovery solid-performers",
-                &["GET /discovery/tokens/solid-performers"],
-                None,
-            ),
-            DiscoveryCommands::ExperiencedBuyers => deprecated_moralis_endpoint(
-                "discovery experienced-buyers",
-                &["GET /discovery/tokens/experienced-buyers"],
-                None,
-            ),
-            DiscoveryCommands::RiskyBets => deprecated_moralis_endpoint(
-                "discovery risky-bets",
-                &["GET /discovery/tokens/risky-bets"],
-                None,
-            ),
-            DiscoveryCommands::BlueChip => deprecated_moralis_endpoint(
-                "discovery blue-chip",
-                &["GET /discovery/tokens/blue-chip"],
-                None,
-            ),
-            DiscoveryCommands::TopGainers => deprecated_moralis_endpoint(
-                "discovery top-gainers",
-                &["GET /discovery/tokens/top-gainers"],
-                None,
-            ),
-            DiscoveryCommands::TopLosers => deprecated_moralis_endpoint(
-                "discovery top-losers",
-                &["GET /discovery/tokens/top-losers"],
-                None,
-            ),
-            DiscoveryCommands::Trending => deprecated_moralis_endpoint(
-                "discovery trending",
-                &["GET /discovery/tokens/trending"],
-                Some("use `ethcli moralis token trending`"),
-            ),
-            DiscoveryCommands::Filter { .. } => {
-                deprecated_moralis_endpoint("discovery filter", &["POST /discovery/tokens"], None)
-            }
-            DiscoveryCommands::Token { .. } => {
-                deprecated_moralis_endpoint("discovery token", &["GET /discovery/token"], None)
-            }
-            DiscoveryCommands::TokenAnalytics { .. } | DiscoveryCommands::TokenScore { .. } => {
-                Ok(())
-            }
-        },
-        MoralisCommands::Volume { action, .. } => match action {
-            VolumeCommands::Chains => {
-                deprecated_moralis_endpoint("volume chains", &["GET /volume/chains"], None)
-            }
-            VolumeCommands::Categories => {
-                deprecated_moralis_endpoint("volume categories", &["GET /volume/categories"], None)
-            }
-            VolumeCommands::Timeseries { .. } => {
-                deprecated_moralis_endpoint("volume timeseries", &["GET /volume/timeseries"], None)
-            }
-            VolumeCommands::CategoryTimeseries { .. } => deprecated_moralis_endpoint(
-                "volume category-timeseries",
-                &["GET /volume/timeseries/{category_id}"],
-                None,
-            ),
-        },
-        _ => Ok(()),
+        | MoralisCommands::Entities { args, .. } => args,
     }
 }
 
@@ -284,15 +83,6 @@ pub enum MoralisCommands {
         args: MoralisArgs,
     },
 
-    /// Market data
-    Market {
-        #[command(subcommand)]
-        action: MarketCommands,
-
-        #[command(flatten)]
-        args: MoralisArgs,
-    },
-
     /// Transaction operations
     Transaction {
         #[command(subcommand)]
@@ -320,7 +110,7 @@ pub enum MoralisCommands {
         args: MoralisArgs,
     },
 
-    /// Token discovery
+    /// Per-token analytics and scores (`/tokens/{address}/analytics|score`)
     Discovery {
         #[command(subcommand)]
         action: DiscoveryCommands,
@@ -342,15 +132,6 @@ pub enum MoralisCommands {
     Entities {
         #[command(subcommand)]
         action: EntitiesCommands,
-
-        #[command(flatten)]
-        args: MoralisArgs,
-    },
-
-    /// Volume analytics
-    Volume {
-        #[command(subcommand)]
-        action: VolumeCommands,
 
         #[command(flatten)]
         args: MoralisArgs,
@@ -464,12 +245,6 @@ pub enum TokenCommands {
         address: String,
     },
 
-    /// Get token stats
-    Stats {
-        /// Token contract address
-        address: String,
-    },
-
     /// Search tokens
     Search {
         /// Search query
@@ -522,34 +297,10 @@ pub enum TokenCommands {
     /// Get token categories
     Categories,
 
-    /// Get new tokens on an exchange (e.g., uniswap, pancakeswap)
-    ExchangeNewTokens {
-        /// Exchange name (e.g., uniswapv2, uniswapv3, pancakeswap)
-        exchange: String,
-    },
-
-    /// Get bonding tokens on an exchange (e.g., pump.fun)
-    ExchangeBondingTokens {
-        /// Exchange name
-        exchange: String,
-    },
-
-    /// Get graduated tokens on an exchange
-    ExchangeGraduatedTokens {
-        /// Exchange name
-        exchange: String,
-    },
-
     /// Get multiple token prices (batch, comma-separated addresses)
     MultiplePrices {
         /// Comma-separated token addresses
         addresses: String,
-    },
-
-    /// Get tokens by symbols (comma-separated)
-    BySymbols {
-        /// Comma-separated token symbols (e.g., USDC,WETH,DAI)
-        symbols: String,
     },
 
     /// Get contract transfers for a token (not wallet transfers)
@@ -564,32 +315,8 @@ pub enum TokenCommands {
         address: String,
     },
 
-    /// Get historical holders data for a token
-    HoldersHistorical {
-        /// Token contract address
-        address: String,
-    },
-
-    /// Get aggregated pair stats for a token
-    PairsStats {
-        /// Token contract address
-        address: String,
-    },
-
     /// Get top gainers/traders for a token
     TopGainers {
-        /// Token contract address
-        address: String,
-    },
-
-    /// Get pair snipers
-    PairSnipers {
-        /// Pair address
-        address: String,
-    },
-
-    /// Get token bonding status (pump.fun, etc.)
-    BondingStatus {
         /// Token contract address
         address: String,
     },
@@ -802,27 +529,6 @@ pub enum ResolveCommands {
 }
 
 #[derive(Subcommand)]
-pub enum MarketCommands {
-    /// Get top ERC20 tokens by market cap
-    TopTokens,
-
-    /// Get top movers (gainers/losers)
-    TopMovers,
-
-    /// Get top NFT collections
-    TopNfts,
-
-    /// Get hottest NFT collections
-    HottestNfts,
-
-    /// Get global market cap
-    GlobalMarketCap,
-
-    /// Get global volume
-    GlobalVolume,
-}
-
-#[derive(Subcommand)]
 pub enum TransactionCommands {
     /// Get transaction by hash
     Get {
@@ -881,7 +587,7 @@ pub enum BlockCommands {
 
 #[derive(Subcommand)]
 pub enum DefiCommands {
-    /// Get price between two tokens in a pair
+    /// Get price between two tokens in a pair (legacy: not in the Moralis OpenAPI spec)
     PairPrice {
         /// Token 0 address
         token0: String,
@@ -893,13 +599,13 @@ pub enum DefiCommands {
         exchange: Option<String>,
     },
 
-    /// Get reserves for a pair
+    /// Get reserves for a pair (legacy: not in the Moralis OpenAPI spec)
     PairReserves {
         /// Pair address
         pair_address: String,
     },
 
-    /// Get pair address for two tokens
+    /// Get pair address for two tokens (legacy: not in the Moralis OpenAPI spec)
     PairAddress {
         /// Token 0 address
         token0: String,
@@ -934,33 +640,6 @@ pub enum DefiCommands {
 
 #[derive(Subcommand)]
 pub enum DiscoveryCommands {
-    /// Get tokens with rising liquidity
-    RisingLiquidity,
-
-    /// Get tokens with buying pressure
-    BuyingPressure,
-
-    /// Get solid performers
-    SolidPerformers,
-
-    /// Get tokens with experienced buyers
-    ExperiencedBuyers,
-
-    /// Get risky bet tokens
-    RiskyBets,
-
-    /// Get blue chip tokens
-    BlueChip,
-
-    /// Get top gainers
-    TopGainers,
-
-    /// Get top losers
-    TopLosers,
-
-    /// Get trending tokens (discovery)
-    Trending,
-
     /// Get token analytics (buyers/sellers/volume)
     TokenAnalytics {
         /// Token contract address
@@ -969,47 +648,6 @@ pub enum DiscoveryCommands {
 
     /// Get token score (security, verified, spam)
     TokenScore {
-        /// Token contract address
-        address: String,
-    },
-
-    /// Filter tokens with custom criteria
-    Filter {
-        /// Minimum market cap
-        #[arg(long)]
-        min_market_cap: Option<f64>,
-
-        /// Maximum market cap
-        #[arg(long)]
-        max_market_cap: Option<f64>,
-
-        /// Minimum liquidity
-        #[arg(long)]
-        min_liquidity: Option<f64>,
-
-        /// Maximum liquidity
-        #[arg(long)]
-        max_liquidity: Option<f64>,
-
-        /// Minimum 24h volume
-        #[arg(long)]
-        min_volume_24h: Option<f64>,
-
-        /// Maximum 24h volume
-        #[arg(long)]
-        max_volume_24h: Option<f64>,
-
-        /// Minimum holders
-        #[arg(long)]
-        min_holders: Option<i64>,
-
-        /// Minimum security score
-        #[arg(long)]
-        min_security_score: Option<i32>,
-    },
-
-    /// Get single token details from discovery
-    Token {
         /// Token contract address
         address: String,
     },
@@ -1066,55 +704,12 @@ pub enum EntitiesCommands {
     },
 }
 
-#[derive(Subcommand)]
-pub enum VolumeCommands {
-    /// Get volume by chain
-    Chains,
-
-    /// Get volume by category
-    Categories,
-
-    /// Get overall volume timeseries
-    Timeseries {
-        /// Timeframe (e.g., 1h, 4h, 1d)
-        #[arg(long)]
-        timeframe: Option<String>,
-
-        /// From date (ISO 8601)
-        #[arg(long)]
-        from_date: Option<String>,
-
-        /// To date (ISO 8601)
-        #[arg(long)]
-        to_date: Option<String>,
-    },
-
-    /// Get volume timeseries for a category
-    CategoryTimeseries {
-        /// Category ID
-        category_id: String,
-
-        /// Timeframe (e.g., 1h, 4h, 1d)
-        #[arg(long)]
-        timeframe: Option<String>,
-
-        /// From date (ISO 8601)
-        #[arg(long)]
-        from_date: Option<String>,
-
-        /// To date (ISO 8601)
-        #[arg(long)]
-        to_date: Option<String>,
-    },
-}
-
 /// Handle Moralis commands
 pub async fn handle(command: &MoralisCommands, quiet: bool) -> anyhow::Result<()> {
     use secrecy::ExposeSecret;
 
     let args = moralis_command_args(command);
     ensure_moralis_chain_supported(&args.chain)?;
-    reject_deprecated_moralis_command(command)?;
 
     // Try config first, then fall back to env var
     let client = if let Ok(Some(config)) = ConfigFile::load_default() {
@@ -1138,9 +733,6 @@ pub async fn handle(command: &MoralisCommands, quiet: bool) -> anyhow::Result<()
         MoralisCommands::Resolve { action, args } => {
             handle_resolve(&client, action, args, quiet).await
         }
-        MoralisCommands::Market { action, args } => {
-            handle_market(&client, action, args, quiet).await
-        }
         MoralisCommands::Transaction { action, args } => {
             handle_transaction(&client, action, args, quiet).await
         }
@@ -1154,9 +746,6 @@ pub async fn handle(command: &MoralisCommands, quiet: bool) -> anyhow::Result<()
         }
         MoralisCommands::Entities { action, args } => {
             handle_entities(&client, action, args, quiet).await
-        }
-        MoralisCommands::Volume { action, args } => {
-            handle_volume(&client, action, args, quiet).await
         }
     }
 }
@@ -1270,7 +859,6 @@ async fn handle_wallet(
     Ok(())
 }
 
-#[allow(deprecated)]
 async fn handle_token(
     client: &mrls::Client,
     action: &TokenCommands,
@@ -1327,13 +915,6 @@ async fn handle_token(
                 eprintln!("Fetching swaps for {}...", address);
             }
             let response = client.token().get_swaps(address, Some(&args.chain)).await?;
-            print_output(&response, args.format)?;
-        }
-        TokenCommands::Stats { address } => {
-            if !quiet {
-                eprintln!("Fetching stats for {}...", address);
-            }
-            let response = client.token().get_stats(address, Some(&args.chain)).await?;
             print_output(&response, args.format)?;
         }
         TokenCommands::Search { query } => {
@@ -1412,36 +993,6 @@ async fn handle_token(
             let response = client.token().get_categories().await?;
             print_output(&response, args.format)?;
         }
-        TokenCommands::ExchangeNewTokens { exchange } => {
-            if !quiet {
-                eprintln!("Fetching new tokens on {}...", exchange);
-            }
-            let response = client
-                .token()
-                .get_exchange_new_tokens(exchange, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        TokenCommands::ExchangeBondingTokens { exchange } => {
-            if !quiet {
-                eprintln!("Fetching bonding tokens on {}...", exchange);
-            }
-            let response = client
-                .token()
-                .get_exchange_bonding_tokens(exchange, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        TokenCommands::ExchangeGraduatedTokens { exchange } => {
-            if !quiet {
-                eprintln!("Fetching graduated tokens on {}...", exchange);
-            }
-            let response = client
-                .token()
-                .get_exchange_graduated_tokens(exchange, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
         TokenCommands::MultiplePrices { addresses } => {
             let addrs: Vec<&str> = addresses.split(',').map(str::trim).collect();
             if !quiet {
@@ -1459,17 +1010,6 @@ async fn handle_token(
             let response = client
                 .token()
                 .get_multiple_prices(&request, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        TokenCommands::BySymbols { symbols } => {
-            let syms: Vec<&str> = symbols.split(',').map(str::trim).collect();
-            if !quiet {
-                eprintln!("Fetching tokens by symbols: {}...", symbols);
-            }
-            let response = client
-                .token()
-                .get_by_symbols(&syms, Some(&args.chain))
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -1493,26 +1033,6 @@ async fn handle_token(
                 .await?;
             print_output(&response, args.format)?;
         }
-        TokenCommands::HoldersHistorical { address } => {
-            if !quiet {
-                eprintln!("Fetching historical holders for {}...", address);
-            }
-            let response = client
-                .token()
-                .get_holders_historical(address, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        TokenCommands::PairsStats { address } => {
-            if !quiet {
-                eprintln!("Fetching aggregated pairs stats for {}...", address);
-            }
-            let response = client
-                .token()
-                .get_pairs_stats(address, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
         TokenCommands::TopGainers { address } => {
             if !quiet {
                 eprintln!("Fetching top gainers for {}...", address);
@@ -1520,26 +1040,6 @@ async fn handle_token(
             let response = client
                 .token()
                 .get_top_gainers(address, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        TokenCommands::PairSnipers { address } => {
-            if !quiet {
-                eprintln!("Fetching snipers for pair {}...", address);
-            }
-            let response = client
-                .token()
-                .get_pair_snipers(address, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        TokenCommands::BondingStatus { address } => {
-            if !quiet {
-                eprintln!("Fetching bonding status for {}...", address);
-            }
-            let response = client
-                .token()
-                .get_bonding_status(address, Some(&args.chain))
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -1901,60 +1401,6 @@ async fn handle_resolve(
     Ok(())
 }
 
-#[allow(deprecated)]
-async fn handle_market(
-    client: &mrls::Client,
-    action: &MarketCommands,
-    args: &MoralisArgs,
-    quiet: bool,
-) -> anyhow::Result<()> {
-    match action {
-        MarketCommands::TopTokens => {
-            if !quiet {
-                eprintln!("Fetching top tokens...");
-            }
-            let response = client.market().get_top_tokens(None).await?;
-            print_output(&response, args.format)?;
-        }
-        MarketCommands::TopMovers => {
-            if !quiet {
-                eprintln!("Fetching top movers...");
-            }
-            let response = client.market().get_top_movers(None).await?;
-            print_output(&response, args.format)?;
-        }
-        MarketCommands::TopNfts => {
-            if !quiet {
-                eprintln!("Fetching top NFT collections...");
-            }
-            let response = client.market().get_top_nft_collections(None).await?;
-            print_output(&response, args.format)?;
-        }
-        MarketCommands::HottestNfts => {
-            if !quiet {
-                eprintln!("Fetching hottest NFT collections...");
-            }
-            let response = client.market().get_hottest_nft_collections(None).await?;
-            print_output(&response, args.format)?;
-        }
-        MarketCommands::GlobalMarketCap => {
-            if !quiet {
-                eprintln!("Fetching global market cap...");
-            }
-            let response = client.market().get_global_market_cap().await?;
-            print_output(&response, args.format)?;
-        }
-        MarketCommands::GlobalVolume => {
-            if !quiet {
-                eprintln!("Fetching global volume...");
-            }
-            let response = client.market().get_global_volume().await?;
-            print_output(&response, args.format)?;
-        }
-    }
-    Ok(())
-}
-
 async fn handle_transaction(
     client: &mrls::Client,
     action: &TransactionCommands,
@@ -1998,9 +1444,10 @@ async fn handle_transaction(
             if !quiet {
                 eprintln!("Fetching transactions for {}...", address);
             }
+            let query = mrls::WalletQuery::new().chain(&args.chain);
             let response = client
-                .transaction()
-                .get_wallet_transactions(address, Some(&args.chain))
+                .wallet()
+                .get_transactions(address, Some(&query))
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -2075,6 +1522,9 @@ async fn handle_block(
     Ok(())
 }
 
+// PairPrice/PairReserves/PairAddress call endpoints that Moralis dropped from its
+// OpenAPI spec but still routes; keep them reachable until they are removed.
+#[allow(deprecated)]
 async fn handle_defi(
     client: &mrls::Client,
     action: &DefiCommands,
@@ -2161,88 +1611,13 @@ async fn handle_defi(
     Ok(())
 }
 
-#[allow(deprecated)]
 async fn handle_discovery(
     client: &mrls::Client,
     action: &DiscoveryCommands,
     args: &MoralisArgs,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let query = mrls::DiscoveryQuery::new().chain(&args.chain);
-
     match action {
-        DiscoveryCommands::RisingLiquidity => {
-            if !quiet {
-                eprintln!("Fetching tokens with rising liquidity...");
-            }
-            let response = client
-                .discovery()
-                .get_rising_liquidity(Some(&query))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::BuyingPressure => {
-            if !quiet {
-                eprintln!("Fetching tokens with buying pressure...");
-            }
-            let response = client.discovery().get_buying_pressure(Some(&query)).await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::SolidPerformers => {
-            if !quiet {
-                eprintln!("Fetching solid performers...");
-            }
-            let response = client
-                .discovery()
-                .get_solid_performers(Some(&query))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::ExperiencedBuyers => {
-            if !quiet {
-                eprintln!("Fetching tokens with experienced buyers...");
-            }
-            let response = client
-                .discovery()
-                .get_experienced_buyers(Some(&query))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::RiskyBets => {
-            if !quiet {
-                eprintln!("Fetching risky bet tokens...");
-            }
-            let response = client.discovery().get_risky_bets(Some(&query)).await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::BlueChip => {
-            if !quiet {
-                eprintln!("Fetching blue chip tokens...");
-            }
-            let response = client.discovery().get_blue_chip(Some(&query)).await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::TopGainers => {
-            if !quiet {
-                eprintln!("Fetching top gainers...");
-            }
-            let response = client.discovery().get_top_gainers(Some(&query)).await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::TopLosers => {
-            if !quiet {
-                eprintln!("Fetching top losers...");
-            }
-            let response = client.discovery().get_top_losers(Some(&query)).await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::Trending => {
-            if !quiet {
-                eprintln!("Fetching trending tokens (discovery)...");
-            }
-            let response = client.discovery().get_trending(Some(&query)).await?;
-            print_output(&response, args.format)?;
-        }
         DiscoveryCommands::TokenAnalytics { address } => {
             if !quiet {
                 eprintln!("Fetching analytics for {}...", address);
@@ -2260,43 +1635,6 @@ async fn handle_discovery(
             let response = client
                 .discovery()
                 .get_token_score(address, Some(&args.chain))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::Filter {
-            min_market_cap,
-            max_market_cap,
-            min_liquidity,
-            max_liquidity,
-            min_volume_24h,
-            max_volume_24h,
-            min_holders,
-            min_security_score,
-        } => {
-            if !quiet {
-                eprintln!("Filtering tokens with custom criteria...");
-            }
-            let filter = mrls::discovery::DiscoveryFilter {
-                min_market_cap: *min_market_cap,
-                max_market_cap: *max_market_cap,
-                min_liquidity: *min_liquidity,
-                max_liquidity: *max_liquidity,
-                min_volume_24h: *min_volume_24h,
-                max_volume_24h: *max_volume_24h,
-                min_holders: *min_holders,
-                min_security_score: *min_security_score,
-                chains: Some(vec![args.chain.clone()]),
-            };
-            let response = client.discovery().filter_tokens(&filter).await?;
-            print_output(&response, args.format)?;
-        }
-        DiscoveryCommands::Token { address } => {
-            if !quiet {
-                eprintln!("Fetching discovery details for {}...", address);
-            }
-            let response = client
-                .discovery()
-                .get_token(address, Some(&args.chain))
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -2403,78 +1741,6 @@ async fn handle_entities(
     Ok(())
 }
 
-#[allow(deprecated)]
-async fn handle_volume(
-    client: &mrls::Client,
-    action: &VolumeCommands,
-    args: &MoralisArgs,
-    quiet: bool,
-) -> anyhow::Result<()> {
-    match action {
-        VolumeCommands::Chains => {
-            if !quiet {
-                eprintln!("Fetching volume by chain...");
-            }
-            let response = client.volume().get_chains_volume().await?;
-            print_output(&response, args.format)?;
-        }
-        VolumeCommands::Categories => {
-            if !quiet {
-                eprintln!("Fetching volume by category...");
-            }
-            let response = client.volume().get_categories_volume().await?;
-            print_output(&response, args.format)?;
-        }
-        VolumeCommands::Timeseries {
-            timeframe,
-            from_date,
-            to_date,
-        } => {
-            if !quiet {
-                eprintln!("Fetching volume timeseries...");
-            }
-            let mut query = mrls::VolumeQuery::new().chain(&args.chain);
-            if let Some(tf) = timeframe {
-                query = query.timeframe(tf);
-            }
-            if let Some(fd) = from_date {
-                query = query.from_date(fd);
-            }
-            if let Some(td) = to_date {
-                query = query.to_date(td);
-            }
-            let response = client.volume().get_timeseries(Some(&query)).await?;
-            print_output(&response, args.format)?;
-        }
-        VolumeCommands::CategoryTimeseries {
-            category_id,
-            timeframe,
-            from_date,
-            to_date,
-        } => {
-            if !quiet {
-                eprintln!("Fetching volume timeseries for category {}...", category_id);
-            }
-            let mut query = mrls::VolumeQuery::new().chain(&args.chain);
-            if let Some(tf) = timeframe {
-                query = query.timeframe(tf);
-            }
-            if let Some(fd) = from_date {
-                query = query.from_date(fd);
-            }
-            if let Some(td) = to_date {
-                query = query.to_date(td);
-            }
-            let response = client
-                .volume()
-                .get_category_timeseries(category_id, Some(&query))
-                .await?;
-            print_output(&response, args.format)?;
-        }
-    }
-    Ok(())
-}
-
 fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::Result<()> {
     match format {
         OutputFormat::Json => {
@@ -2492,11 +1758,7 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        deprecated_moralis_endpoint, reject_deprecated_moralis_command, DiscoveryCommands,
-        MoralisArgs, MoralisCommands, OutputFormat,
-    };
-    use super::{ensure_moralis_chain_supported, TokenCommands};
+    use super::ensure_moralis_chain_supported;
 
     #[test]
     fn moralis_fantom_aliases_are_blocked() {
@@ -2510,76 +1772,5 @@ mod tests {
         for chain in ["eth", "polygon", "bsc", "arbitrum", "base", "optimism"] {
             assert!(ensure_moralis_chain_supported(chain).is_ok());
         }
-    }
-
-    #[test]
-    fn deprecated_endpoint_message_names_command_and_endpoint() {
-        let error =
-            deprecated_moralis_endpoint("market top-tokens", &["GET /market-data/test"], None)
-                .unwrap_err()
-                .to_string();
-
-        assert!(error.contains("market top-tokens"));
-        assert!(error.contains("GET /market-data/test"));
-        assert!(error.contains("2026-06-04"));
-    }
-
-    #[test]
-    fn deprecated_moralis_commands_are_rejected_before_client_setup() {
-        let args = MoralisArgs {
-            chain: "eth".to_string(),
-            format: OutputFormat::Json,
-        };
-        let command = MoralisCommands::Token {
-            action: TokenCommands::PairSnipers {
-                address: "0xpair".to_string(),
-            },
-            args,
-        };
-
-        let error = reject_deprecated_moralis_command(&command)
-            .unwrap_err()
-            .to_string();
-
-        assert!(error.contains("pair-snipers"));
-        assert!(error.contains("/pairs/{address}/snipers"));
-    }
-
-    #[test]
-    fn holders_historical_is_rejected_with_its_own_removal_date() {
-        let args = MoralisArgs {
-            chain: "eth".to_string(),
-            format: OutputFormat::Json,
-        };
-        let command = MoralisCommands::Token {
-            action: TokenCommands::HoldersHistorical {
-                address: "0xtoken".to_string(),
-            },
-            args,
-        };
-
-        let error = reject_deprecated_moralis_command(&command)
-            .unwrap_err()
-            .to_string();
-
-        assert!(error.contains("holders-historical"));
-        assert!(error.contains("/erc20/{address}/holders/historical"));
-        assert!(error.contains("2026-07-31"));
-    }
-
-    #[test]
-    fn non_deprecated_moralis_commands_are_not_rejected() {
-        let args = MoralisArgs {
-            chain: "eth".to_string(),
-            format: OutputFormat::Json,
-        };
-        let command = MoralisCommands::Discovery {
-            action: DiscoveryCommands::TokenScore {
-                address: "0xtoken".to_string(),
-            },
-            args,
-        };
-
-        assert!(reject_deprecated_moralis_command(&command).is_ok());
     }
 }

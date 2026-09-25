@@ -8,9 +8,7 @@
 // Note: Alerts API types are defined but not used here due to undocumented API format
 // See: https://docs.tenderly.co/alerts/api
 #[allow(unused_imports)]
-use tndrly::alerts::{
-    AddDestinationRequest, AlertTarget, AlertType, CreateAlertRequest, CreateWebhookRequest,
-};
+use tndrly::alerts::{AlertTarget, AlertType, CreateAlertRequest, CreateWebhookRequest};
 use tndrly::contracts::AddContractRequest;
 use tndrly::vnets::{CreateVNetRequest, ForkVNetRequest, UpdateVNetRequest};
 use tndrly::wallets::AddWalletRequest;
@@ -389,16 +387,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("SKIP (API requires undocumented 'source_type' field)");
     skipped += 1;
     let webhook_id: Option<String> = None;
-
-    // 6. add_destination() - SKIP (depends on create)
-    print!("  alerts.add_destination()... ");
-    println!("SKIP (no alert or webhook created)");
-    skipped += 1;
-
-    // 7. remove_destination() - SKIP (depends on create)
-    print!("  alerts.remove_destination()... ");
-    println!("SKIP (no alert or webhook created)");
-    skipped += 1;
 
     // 8. get_webhook() - SKIP (depends on create_webhook)
     print!("  alerts.get_webhook()... ");

@@ -119,13 +119,6 @@ impl<'a> SimulationApi<'a> {
             )
             .await
     }
-
-    /// Trace an existing transaction
-    pub async fn trace(&self, hash: &str) -> Result<serde_json::Value> {
-        self.client
-            .get(&format!("/trace/{}", encode_path_segment(hash)))
-            .await
-    }
 }
 
 #[derive(serde::Serialize)]
