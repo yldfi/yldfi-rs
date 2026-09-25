@@ -5,8 +5,10 @@
 use super::OutputFormat;
 use crate::config::{AddressBook, Chain};
 use crate::etherscan::TokenMetadataCache;
-use crate::rpc::get_rpc_endpoint;
 use crate::rpc::multicall::{selectors, MulticallBuilder};
+use crate::rpc::{
+    candidate_endpoints, get_rpc_endpoint, with_failover, SelectionOptions, MAX_FAILOVER_ATTEMPTS,
+};
 use crate::utils::address::resolve_from_book;
 use crate::utils::format::format_token_amount;
 use alloy::primitives::Address;
@@ -115,25 +117,32 @@ pub async fn handle(
                 eprintln!("Fetching token info for {}...", display);
             }
 
-            // Use RPC with Multicall3 for single request
-            let endpoint = get_rpc_endpoint(chain)?;
-            let provider = endpoint.provider();
+            // Use RPC with Multicall3 for single request, failing over across
+            // ranked endpoints on rate limits / transport errors.
+            let candidates =
+                candidate_endpoints(chain, &SelectionOptions::default(), MAX_FAILOVER_ATTEMPTS)?;
 
             let (name, symbol, decimals, total_supply, from_cache) = if let Some(c) = cached {
-                let results = MulticallBuilder::new()
-                    .add_call_allow_failure(token_addr, selectors::total_supply())
-                    .execute_with_retry(provider, 3)
-                    .await?;
+                let results = with_failover(candidates, |ep| async move {
+                    MulticallBuilder::new()
+                        .add_call_allow_failure(token_addr, selectors::total_supply())
+                        .execute_with_retry(ep.provider(), 1)
+                        .await
+                })
+                .await?;
                 let total_supply = results.first().and_then(|r| r.decode_uint256());
                 (c.name, c.symbol, c.decimals, total_supply, true)
             } else {
-                let results = MulticallBuilder::new()
-                    .add_call_allow_failure(token_addr, selectors::name())
-                    .add_call_allow_failure(token_addr, selectors::symbol())
-                    .add_call_allow_failure(token_addr, selectors::decimals())
-                    .add_call_allow_failure(token_addr, selectors::total_supply())
-                    .execute_with_retry(provider, 3)
-                    .await?;
+                let results = with_failover(candidates, |ep| async move {
+                    MulticallBuilder::new()
+                        .add_call_allow_failure(token_addr, selectors::name())
+                        .add_call_allow_failure(token_addr, selectors::symbol())
+                        .add_call_allow_failure(token_addr, selectors::decimals())
+                        .add_call_allow_failure(token_addr, selectors::total_supply())
+                        .execute_with_retry(ep.provider(), 1)
+                        .await
+                })
+                .await?;
 
                 let name = results.first().and_then(|r| r.decode_string());
                 let symbol = results.get(1).and_then(|r| r.decode_string());

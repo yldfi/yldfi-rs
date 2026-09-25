@@ -1,7 +1,7 @@
 use super::types::DryRunFormat;
 use super::utils::{
-    block_to_param, build_calldata, build_state_overrides, format_request, get_debug_rpc_url,
-    get_trace_rpc_url, value_to_hex,
+    block_to_param, build_calldata, build_state_overrides, format_request, get_debug_rpc_urls,
+    get_trace_rpc_urls, post_jsonrpc_with_failover, value_to_hex,
 };
 use crate::config::Chain;
 use crate::utils::address::resolve_label;
@@ -25,8 +25,8 @@ pub async fn simulate_via_debug_rpc(
     show_secrets: bool,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let rpc = get_debug_rpc_url(rpc_url, chain)
-        .ok_or_else(|| anyhow::anyhow!(
+    let rpcs = get_debug_rpc_urls(rpc_url, chain);
+    let rpc = rpcs.first().cloned().ok_or_else(|| anyhow::anyhow!(
             "Debug RPC URL required. Set via --rpc-url, add an endpoint with has_debug: true, or use 'config add-debug-rpc'"
         ))?;
 
@@ -93,32 +93,9 @@ pub async fn simulate_via_debug_rpc(
         return Ok(());
     }
 
-    if !quiet {
-        eprintln!(
-            "Calling debug_traceCall on {}...",
-            crate::utils::url::redact_url(&rpc)
-        );
-    }
+    let trace = post_jsonrpc_with_failover(&rpcs, &request, quiet).await?;
 
-    let client = reqwest::Client::new();
-    let response = client
-        .post(&rpc)
-        .header("Content-Type", "application/json")
-        .json(&request)
-        .send()
-        .await?;
-
-    let result: serde_json::Value = response.json().await?;
-
-    if let Some(error) = result.get("error") {
-        return Err(anyhow::anyhow!("RPC error: {}", error));
-    }
-
-    if let Some(trace) = result.get("result") {
-        println!("{}", serde_json::to_string_pretty(trace)?);
-    } else {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-    }
+    println!("{}", serde_json::to_string_pretty(&trace)?);
 
     Ok(())
 }
@@ -135,17 +112,10 @@ pub async fn trace_tx_via_debug_rpc(
     raw: bool,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let rpc = get_debug_rpc_url(rpc_url, chain)
-        .ok_or_else(|| anyhow::anyhow!(
+    let rpcs = get_debug_rpc_urls(rpc_url, chain);
+    rpcs.first().ok_or_else(|| anyhow::anyhow!(
             "Debug RPC URL required. Set via --rpc-url, add an endpoint with has_debug: true, or use 'config add-debug-rpc'"
         ))?;
-
-    if !quiet {
-        eprintln!(
-            "Calling debug_traceTransaction on {}...",
-            crate::utils::url::redact_url(&rpc)
-        );
-    }
 
     let request = serde_json::json!({
         "jsonrpc": "2.0",
@@ -162,27 +132,10 @@ pub async fn trace_tx_via_debug_rpc(
         "id": 1
     });
 
-    let client = reqwest::Client::new();
-    let response = client
-        .post(&rpc)
-        .header("Content-Type", "application/json")
-        .json(&request)
-        .send()
-        .await?;
-
-    let result: serde_json::Value = response.json().await?;
-
-    if let Some(error) = result.get("error") {
-        return Err(anyhow::anyhow!("RPC error: {}", error));
-    }
-
-    let Some(trace) = result.get("result") else {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-        return Ok(());
-    };
+    let trace = post_jsonrpc_with_failover(&rpcs, &request, quiet).await?;
 
     if raw {
-        println!("{}", serde_json::to_string_pretty(trace)?);
+        println!("{}", serde_json::to_string_pretty(&trace)?);
         return Ok(());
     }
 
@@ -191,7 +144,7 @@ pub async fn trace_tx_via_debug_rpc(
     }
     let decoder = super::decode::TraceDecoder::new(chain, etherscan_key)?;
     println!("Traces:");
-    println!("{}", decoder.render(trace).await);
+    println!("{}", decoder.render(&trace).await);
 
     if let Some(gas) = trace
         .get("gasUsed")
@@ -223,7 +176,8 @@ pub async fn simulate_via_trace_rpc(
     show_secrets: bool,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let rpc = get_trace_rpc_url(rpc_url, chain).ok_or_else(|| {
+    let rpcs = get_trace_rpc_urls(rpc_url, chain);
+    let rpc = rpcs.first().cloned().ok_or_else(|| {
         anyhow::anyhow!(
             "Trace RPC URL required. Set via --rpc-url or add an endpoint with has_trace: true"
         )
@@ -285,32 +239,9 @@ pub async fn simulate_via_trace_rpc(
         return Ok(());
     }
 
-    if !quiet {
-        eprintln!(
-            "Calling trace_call on {}...",
-            crate::utils::url::redact_url(&rpc)
-        );
-    }
+    let trace = post_jsonrpc_with_failover(&rpcs, &request, quiet).await?;
 
-    let client = reqwest::Client::new();
-    let response = client
-        .post(&rpc)
-        .header("Content-Type", "application/json")
-        .json(&request)
-        .send()
-        .await?;
-
-    let result: serde_json::Value = response.json().await?;
-
-    if let Some(error) = result.get("error") {
-        return Err(anyhow::anyhow!("RPC error: {}", error));
-    }
-
-    if let Some(trace) = result.get("result") {
-        println!("{}", serde_json::to_string_pretty(trace)?);
-    } else {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-    }
+    println!("{}", serde_json::to_string_pretty(&trace)?);
 
     Ok(())
 }
@@ -322,18 +253,12 @@ pub async fn trace_tx_via_trace_rpc(
     chain: Chain,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let rpc = get_trace_rpc_url(rpc_url, chain).ok_or_else(|| {
+    let rpcs = get_trace_rpc_urls(rpc_url, chain);
+    rpcs.first().ok_or_else(|| {
         anyhow::anyhow!(
             "Trace RPC URL required. Set via --rpc-url or add an endpoint with has_trace: true"
         )
     })?;
-
-    if !quiet {
-        eprintln!(
-            "Calling trace_transaction on {}...",
-            crate::utils::url::redact_url(&rpc)
-        );
-    }
 
     let request = serde_json::json!({
         "jsonrpc": "2.0",
@@ -342,25 +267,9 @@ pub async fn trace_tx_via_trace_rpc(
         "id": 1
     });
 
-    let client = reqwest::Client::new();
-    let response = client
-        .post(&rpc)
-        .header("Content-Type", "application/json")
-        .json(&request)
-        .send()
-        .await?;
+    let trace = post_jsonrpc_with_failover(&rpcs, &request, quiet).await?;
 
-    let result: serde_json::Value = response.json().await?;
-
-    if let Some(error) = result.get("error") {
-        return Err(anyhow::anyhow!("RPC error: {}", error));
-    }
-
-    if let Some(trace) = result.get("result") {
-        println!("{}", serde_json::to_string_pretty(trace)?);
-    } else {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-    }
+    println!("{}", serde_json::to_string_pretty(&trace)?);
 
     Ok(())
 }

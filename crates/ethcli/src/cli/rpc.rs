@@ -3,7 +3,7 @@
 //! Commands for reading blockchain state
 
 use crate::cli::OutputFormat;
-use crate::config::{Chain, ConfigFile, EndpointConfig};
+use crate::config::{Chain, EndpointConfig};
 use crate::rpc::Endpoint;
 use alloy::primitives::{Address, B256, U256};
 use alloy::providers::Provider;
@@ -139,30 +139,26 @@ pub async fn handle(
     rpc_url: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    // Get RPC endpoint
-    let endpoint = if let Some(url) = rpc_url {
-        Endpoint::new(EndpointConfig::new(url), 30, None)?
+    // Explicit --rpc-url: use it alone. Otherwise try ranked configured
+    // endpoints, failing over on rate limits / transport errors.
+    let candidates = if let Some(url) = rpc_url {
+        vec![Endpoint::new(EndpointConfig::new(url), 30, None)?]
     } else {
-        // Use config endpoints
-        let config = ConfigFile::load_default()
-            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-            .unwrap_or_default();
-
-        let chain_endpoints: Vec<_> = config
-            .endpoints
-            .into_iter()
-            .filter(|e| e.enabled && e.chain == chain)
-            .collect();
-
-        if chain_endpoints.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                chain.display_name()
-            ));
-        }
-        Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+        crate::rpc::candidate_endpoints(
+            chain,
+            &crate::rpc::SelectionOptions::default(),
+            crate::rpc::MAX_FAILOVER_ATTEMPTS,
+        )?
     };
 
+    crate::rpc::with_failover(candidates, |endpoint| async move {
+        run_action(action, &endpoint, quiet).await
+    })
+    .await
+}
+
+/// Execute a (read-only) RPC command against a single endpoint
+async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> anyhow::Result<()> {
     let provider = endpoint.provider();
 
     match action {
