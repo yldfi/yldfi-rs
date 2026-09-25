@@ -367,6 +367,7 @@ fn is_mutating_command(args: &[&str]) -> bool {
                 | "set-etherscan-key"
                 | "set-tenderly"
                 | "set-alchemy"
+                | "set-alchemy-auth-token"
                 | "set-moralis"
                 | "set-chainlink"
                 | "set-dune"
@@ -1323,6 +1324,7 @@ mod tests {
 
     #[test]
     fn test_mutating_command_policy_allows_read_tools() {
+        assert!(is_mutating_command(&["config", "set-alchemy-auth-token"]));
         assert!(!is_mutating_command(&["config", "validate"]));
         assert!(!is_mutating_command(&["address", "list"]));
         assert!(!is_mutating_command(&["blacklist", "check", "0xabc"]));
