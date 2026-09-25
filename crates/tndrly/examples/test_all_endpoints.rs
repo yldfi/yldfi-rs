@@ -292,8 +292,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     skipped += 1;
     println!("  simulation.unshare()... SKIP (modifies state)");
     skipped += 1;
-    println!("  simulation.trace()... SKIP (needs real tx hash)");
-    skipped += 1;
 
     // ========== CONTRACTS API (12 methods) ==========
     println!("\n--- Contracts API ---");
@@ -388,11 +386,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5-12. Skip write operations
     println!("  contracts.add()... SKIP (modifies state)");
     skipped += 1;
-    println!("  contracts.update()... SKIP (modifies state)");
-    skipped += 1;
     println!("  contracts.delete()... SKIP (modifies state)");
-    skipped += 1;
-    println!("  contracts.verify()... SKIP (needs source code)");
     skipped += 1;
     println!("  contracts.encode_state()... SKIP (needs specific input)");
     skipped += 1;
@@ -549,17 +543,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     skipped += 1;
     println!("  alerts.disable()... SKIP (modifies state)");
     skipped += 1;
-    println!("  alerts.add_destination()... SKIP (modifies state)");
-    skipped += 1;
-    println!("  alerts.remove_destination()... SKIP (modifies state)");
-    skipped += 1;
     println!("  alerts.create_webhook()... SKIP (modifies state)");
     skipped += 1;
     println!("  alerts.get_webhook()... SKIP (needs webhook id)");
     skipped += 1;
     println!("  alerts.delete_webhook()... SKIP (modifies state)");
-    skipped += 1;
-    println!("  alerts.test_webhook()... SKIP (modifies state)");
     skipped += 1;
     println!("  alerts.test_alert()... SKIP (needs specific input)");
     skipped += 1;
@@ -605,52 +593,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         skipped += 1;
     }
 
-    // 3. source()
-    print!("  actions.source()... ");
-    if let Some(ref a) = actions {
-        if let Some(action) = a.actions.first() {
-            match client.actions().source(&action.id).await {
-                Ok(s) => {
-                    println!("✓ ({} bytes)", s.len());
-                    passed += 1;
-                }
-                Err(e) => {
-                    println!("✗ {}", e);
-                    failed += 1;
-                }
-            }
-        } else {
-            println!("SKIP (no actions)");
-            skipped += 1;
-        }
-    } else {
-        println!("SKIP (list failed)");
-        skipped += 1;
-    }
-
-    // 4. logs()
-    print!("  actions.logs()... ");
-    if let Some(ref a) = actions {
-        if let Some(action) = a.actions.first() {
-            match client.actions().logs(&action.id).await {
-                Ok(l) => {
-                    println!("✓ ({} logs)", l.logs.len());
-                    passed += 1;
-                }
-                Err(e) => {
-                    println!("✗ {}", e);
-                    failed += 1;
-                }
-            }
-        } else {
-            println!("SKIP (no actions)");
-            skipped += 1;
-        }
-    } else {
-        println!("SKIP (list failed)");
-        skipped += 1;
-    }
-
     // 5. calls()
     print!("  actions.calls()... ");
     if let Some(ref a) = actions {
@@ -677,19 +619,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6-16. Skip write operations and ops needing specific IDs
     println!("  actions.create()... SKIP (modifies state)");
     skipped += 1;
-    println!("  actions.update()... SKIP (modifies state)");
-    skipped += 1;
     println!("  actions.delete()... SKIP (modifies state)");
     skipped += 1;
-    println!("  actions.enable()... SKIP (modifies state)");
-    skipped += 1;
-    println!("  actions.disable()... SKIP (modifies state)");
-    skipped += 1;
-    println!("  actions.invoke()... SKIP (modifies state)");
-    skipped += 1;
     println!("  actions.get_log()... SKIP (needs log id)");
-    skipped += 1;
-    println!("  actions.update_source()... SKIP (modifies state)");
     skipped += 1;
     println!("  actions.stop()... SKIP (modifies state)");
     skipped += 1;
