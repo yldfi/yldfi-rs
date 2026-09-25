@@ -421,7 +421,7 @@ pub enum ContractCommands {
         function: String,
 
         /// Function arguments
-        #[arg(trailing_var_arg = true, value_name = "ARG")]
+        #[arg(value_name = "ARG", allow_negative_numbers = true)]
         args: Vec<String>,
 
         /// Block number or "latest" (default: latest)
@@ -1320,94 +1320,104 @@ pub async fn handle(
     Ok(())
 }
 
+/// Candidate endpoints for a read: the explicit `--rpc-url` if given,
+/// otherwise the ranked configured endpoints (for failover).
+fn read_candidates(chain: &Chain, rpc_url: Option<&str>) -> anyhow::Result<Vec<Endpoint>> {
+    if let Some(url) = rpc_url {
+        Ok(vec![Endpoint::new(
+            EndpointConfig::new(url.to_string()),
+            30,
+            None,
+        )?])
+    } else {
+        crate::rpc::candidate_endpoints(
+            *chain,
+            &crate::rpc::SelectionOptions::default(),
+            crate::rpc::MAX_FAILOVER_ATTEMPTS,
+        )
+    }
+}
+
 /// Get bytecode for an address via RPC
 async fn get_bytecode(
     chain: &Chain,
     rpc_url: Option<&str>,
     address: Address,
 ) -> anyhow::Result<Vec<u8>> {
-    let endpoint = if let Some(url) = rpc_url {
-        Endpoint::new(EndpointConfig::new(url.to_string()), 30, None)?
-    } else {
-        let config = ConfigFile::load_default()
-            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-            .unwrap_or_default();
-
-        let chain_endpoints: Vec<_> = config
-            .endpoints
-            .into_iter()
-            .filter(|e| e.enabled && e.chain == *chain)
-            .collect();
-
-        if chain_endpoints.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                chain.display_name()
-            ));
-        }
-        Endpoint::new(chain_endpoints[0].clone(), 30, None)?
-    };
-
-    let provider = endpoint.provider();
-    let code = provider
-        .get_code_at(address)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to fetch bytecode: {}", e))?;
-
-    Ok(code.to_vec())
+    let candidates = read_candidates(chain, rpc_url)?;
+    crate::rpc::with_failover(candidates, |endpoint| async move {
+        let code = endpoint
+            .provider()
+            .get_code_at(address)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fetch bytecode: {}", e))?;
+        Ok(code.to_vec())
+    })
+    .await
 }
 
 /// Try to get implementation address from EIP-1967 storage slot
+///
+/// RPC errors fail over to the next endpoint; if every endpoint fails the
+/// error is reported as a warning (instead of being silently treated as
+/// "not a proxy").
 async fn get_implementation_from_storage(
     chain: &Chain,
     rpc_url: Option<&str>,
     proxy_address: Address,
 ) -> Option<Address> {
-    use crate::bytecode::{address_from_storage, proxy_slots, u256_to_b256};
-
-    let endpoint = if let Some(url) = rpc_url {
-        Endpoint::new(EndpointConfig::new(url.to_string()), 30, None).ok()?
-    } else {
-        crate::rpc::get_rpc_endpoint(*chain).ok()?
+    let candidates = match read_candidates(chain, rpc_url) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Warning: cannot check proxy implementation slots: {e}");
+            return None;
+        }
     };
+    match crate::rpc::with_failover(candidates, |endpoint| async move {
+        implementation_from_storage_on(&endpoint, proxy_address).await
+    })
+    .await
+    {
+        Ok(addr) => addr,
+        Err(e) => {
+            eprintln!(
+                "Warning: failed to read proxy implementation slots: {}",
+                crate::utils::url::redact_urls_in_text(&format!("{e:#}"))
+            );
+            None
+        }
+    }
+}
+
+/// Read the known implementation slots on a single endpoint, propagating
+/// RPC errors so the caller can fail over.
+async fn implementation_from_storage_on(
+    endpoint: &Endpoint,
+    proxy_address: Address,
+) -> anyhow::Result<Option<Address>> {
+    use crate::bytecode::{address_from_storage, proxy_slots, u256_to_b256};
 
     let provider = endpoint.provider();
 
-    // Try EIP-1967 implementation slot first
-    if let Ok(value) = provider
-        .get_storage_at(proxy_address, proxy_slots::EIP1967_IMPLEMENTATION.into())
-        .await
-    {
+    let slots = [
+        // EIP-1967 implementation slot
+        proxy_slots::EIP1967_IMPLEMENTATION.into(),
+        // OpenZeppelin legacy slot
+        proxy_slots::OZ_LEGACY_IMPLEMENTATION.into(),
+        // OpenZeppelin AdminUpgradeabilityProxy slot used by older proxies such as USDC.
+        oz_impl_slot().into(),
+    ];
+    for slot in slots {
+        let value = provider
+            .get_storage_at(proxy_address, slot)
+            .await
+            .map_err(|e| anyhow::anyhow!("eth_getStorageAt failed: {}", e))?;
         if let Some(addr) = address_from_storage(u256_to_b256(value)) {
-            return Some(addr);
+            return Ok(Some(addr));
         }
     }
 
-    // Try OpenZeppelin legacy slot
-    if let Ok(value) = provider
-        .get_storage_at(proxy_address, proxy_slots::OZ_LEGACY_IMPLEMENTATION.into())
-        .await
-    {
-        if let Some(addr) = address_from_storage(u256_to_b256(value)) {
-            return Some(addr);
-        }
-    }
-
-    // Try OpenZeppelin AdminUpgradeabilityProxy slot used by older proxies such as USDC.
-    if let Ok(value) = provider
-        .get_storage_at(proxy_address, oz_impl_slot().into())
-        .await
-    {
-        if let Some(addr) = address_from_storage(u256_to_b256(value)) {
-            return Some(addr);
-        }
-    }
-
-    if let Some(addr) = call_implementation_function(&provider, proxy_address).await {
-        return Some(addr);
-    }
-
-    None
+    Ok(call_implementation_function(provider, proxy_address).await)
 }
 
 /// Print a nicely formatted analysis table
@@ -1609,7 +1619,7 @@ async fn get_token_decimals<P: Provider>(provider: &P, address: Address) -> Opti
 }
 
 /// Format a DynSolValue for display
-fn format_value(value: &DynSolValue) -> String {
+pub(crate) fn format_value(value: &DynSolValue) -> String {
     format_value_internal(value, false, None)
 }
 
@@ -1704,6 +1714,46 @@ fn format_with_decimals(value: &alloy::primitives::U256, decimals: u8) -> String
 mod tests {
     use super::*;
     use alloy::json_abi::JsonAbi;
+
+    fn parse_call(argv: &[&str]) -> (Vec<String>, bool, String) {
+        use clap::Parser;
+        let cli = crate::cli::Cli::try_parse_from(argv).unwrap();
+        match cli.command {
+            crate::cli::Commands::Contract {
+                action:
+                    ContractCommands::Call {
+                        args, human, block, ..
+                    },
+            } => (args, human, block),
+            _ => panic!("expected contract call"),
+        }
+    }
+
+    #[test]
+    fn test_call_trailing_flags_not_swallowed() {
+        let (args, human, block) = parse_call(&[
+            "ethcli",
+            "contract",
+            "call",
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "balanceOf",
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "-H",
+            "--block",
+            "123",
+        ]);
+        assert_eq!(args, vec!["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"]);
+        assert!(human);
+        assert_eq!(block, "123");
+    }
+
+    #[test]
+    fn test_call_negative_number_args() {
+        let (args, human, _) =
+            parse_call(&["ethcli", "contract", "call", "0xabc", "foo", "-5", "7"]);
+        assert_eq!(args, vec!["-5", "7"]);
+        assert!(!human);
+    }
 
     fn parse_abi(json: &str) -> JsonAbi {
         serde_json::from_str(json).expect("valid ABI json")

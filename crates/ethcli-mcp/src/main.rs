@@ -1809,7 +1809,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Check if an address holds an NFT from a contract via Alchemy")]
+    #[tool(
+        description = "Check if an address holds an NFT from a contract via Alchemy (uses getNFTsForOwner)"
+    )]
     async fn alchemy_nft_is_holder(
         &self,
         Parameters(input): Parameters<AlchemyNftIsHolderInput>,
@@ -1883,7 +1885,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT contracts owned by an address via Alchemy")]
+    #[tool(
+        description = "Get NFT contracts owned by an address via Alchemy (replaces the retired collections-for-owner)"
+    )]
     async fn alchemy_nft_contracts_for_owner(
         &self,
         Parameters(input): Parameters<AlchemyNftAddressInput>,
@@ -1908,52 +1912,14 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get contract metadata for an NFT contract via Alchemy")]
+    #[tool(
+        description = "Get contract metadata for an NFT contract via Alchemy, incl. OpenSea collection data in openSeaMetadata (replaces the retired collection-metadata/search-contract-metadata)"
+    )]
     async fn alchemy_nft_contract_metadata(
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
         tools::alchemy_nft_contract_metadata(&input.contract, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get collection metadata by OpenSea slug via Alchemy")]
-    async fn alchemy_nft_collection_metadata(
-        &self,
-        Parameters(input): Parameters<AlchemyNftSlugInput>,
-    ) -> String {
-        tools::alchemy_nft_collection_metadata(&input.slug, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Search NFT contract metadata by keyword via Alchemy")]
-    async fn alchemy_nft_search_contract_metadata(
-        &self,
-        Parameters(input): Parameters<AlchemyNftSearchInput>,
-    ) -> String {
-        tools::alchemy_nft_search_contract_metadata(&input.query, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Compute rarity for an NFT via Alchemy")]
-    async fn alchemy_nft_compute_rarity(
-        &self,
-        Parameters(input): Parameters<AlchemyNftMetadataInput>,
-    ) -> String {
-        tools::alchemy_nft_compute_rarity(&input.contract, &input.token_id, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Summarize NFT attributes for a contract via Alchemy")]
-    async fn alchemy_nft_summarize_attributes(
-        &self,
-        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
-    ) -> String {
-        tools::alchemy_nft_summarize_attributes(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -1969,49 +1935,13 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get NFT sales for a contract with optional token ID and block range via Alchemy"
+        description = "Check if an NFT contract is spam via Alchemy (replaces the retired spam-contracts list)"
     )]
-    async fn alchemy_nft_sales(
-        &self,
-        Parameters(input): Parameters<AlchemyNftSalesInput>,
-    ) -> String {
-        tools::alchemy_nft_sales(
-            &input.contract,
-            input.token_id.as_deref(),
-            input.from_block,
-            input.to_block,
-            Some(&input.network),
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(description = "Get list of known spam NFT contracts via Alchemy")]
-    async fn alchemy_nft_spam_contracts(
-        &self,
-        Parameters(input): Parameters<AlchemyChainOnlyInput>,
-    ) -> String {
-        tools::alchemy_nft_spam_contracts(Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Check if an NFT contract is spam via Alchemy")]
     async fn alchemy_nft_is_spam(
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
         tools::alchemy_nft_is_spam(&input.contract, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Check if an NFT is an airdrop via Alchemy")]
-    async fn alchemy_nft_is_airdrop(
-        &self,
-        Parameters(input): Parameters<AlchemyNftMetadataInput>,
-    ) -> String {
-        tools::alchemy_nft_is_airdrop(&input.contract, &input.token_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2039,26 +1969,6 @@ impl EthcliMcpServer {
         )
         .await
         .to_response()
-    }
-
-    #[tool(description = "Get collections owned by an address via Alchemy")]
-    async fn alchemy_nft_collections_for_owner(
-        &self,
-        Parameters(input): Parameters<AlchemyNftAddressInput>,
-    ) -> String {
-        tools::alchemy_nft_collections_for_owner(&input.address, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Invalidate cached metadata for an NFT contract via Alchemy")]
-    async fn alchemy_nft_invalidate_contract(
-        &self,
-        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
-    ) -> String {
-        tools::alchemy_nft_invalidate_contract(&input.contract, Some(&input.network))
-            .await
-            .to_response()
     }
 
     // =========================================================================
@@ -2278,7 +2188,9 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get a specific trace by position in a transaction via Alchemy")]
+    #[tool(
+        description = "Get a specific trace by position in a transaction via Alchemy (trace_get; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+    )]
     async fn alchemy_trace_get(
         &self,
         Parameters(input): Parameters<AlchemyTraceGetInput>,
@@ -2288,7 +2200,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Trace a raw transaction without executing via Alchemy")]
+    #[tool(
+        description = "Trace a raw transaction without executing via Alchemy (trace_rawTransaction; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+    )]
     async fn alchemy_trace_raw_transaction(
         &self,
         Parameters(input): Parameters<AlchemyTraceRawTxInput>,
@@ -2340,7 +2254,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Filter traces by criteria (block range, addresses) via Alchemy")]
+    #[tool(
+        description = "Filter traces by criteria (block range, addresses) via Alchemy (trace_filter; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+    )]
     async fn alchemy_trace_filter(
         &self,
         Parameters(input): Parameters<AlchemyTraceFilterInput>,
@@ -2352,46 +2268,6 @@ impl EthcliMcpServer {
             input.to_address.as_deref(),
             input.after,
             input.count,
-            Some(&input.network),
-        )
-        .await
-        .to_response()
-    }
-
-    // =========================================================================
-    // ALCHEMY SIMULATION
-    // =========================================================================
-
-    #[tool(description = "Simulate a transaction and return asset changes via Alchemy")]
-    async fn alchemy_sim_asset_changes(
-        &self,
-        Parameters(input): Parameters<AlchemySimAssetChangesInput>,
-    ) -> String {
-        tools::alchemy_sim_asset_changes(
-            &input.to,
-            input.from.as_deref(),
-            input.data.as_deref(),
-            input.value.as_deref(),
-            input.gas.as_deref(),
-            Some(&input.network),
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(description = "Simulate execution with decoded traces and logs via Alchemy")]
-    async fn alchemy_sim_execution(
-        &self,
-        Parameters(input): Parameters<AlchemySimExecutionInput>,
-    ) -> String {
-        tools::alchemy_sim_execution(
-            &input.to,
-            input.from.as_deref(),
-            input.data.as_deref(),
-            input.value.as_deref(),
-            input.gas.as_deref(),
-            input.block.as_deref(),
-            input.trace_format.as_deref(),
             Some(&input.network),
         )
         .await
@@ -4213,48 +4089,6 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
-    // DSIM (Dune Sim) - platform shuts down 2026-08-01
-    // (https://github.com/yldfi/yldfi-rs/issues/64)
-    // =========================================================================
-
-    #[tool(description = "List supported chains for Dune Simulator")]
-    async fn dsim_chains(&self) -> String {
-        tools::dsim_chains().await.to_response()
-    }
-
-    #[tool(description = "Get token balances via Dune Simulator")]
-    async fn dsim_balances(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_balances(&input.address).await.to_response()
-    }
-
-    #[tool(description = "Get NFT collectibles via Dune Simulator")]
-    async fn dsim_collectibles(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_collectibles(&input.address).await.to_response()
-    }
-
-    #[tool(description = "Get wallet activity via Dune Simulator")]
-    async fn dsim_activity(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_activity(&input.address).await.to_response()
-    }
-
-    #[tool(description = "Get token info via Dune Simulator")]
-    async fn dsim_token(&self, Parameters(input): Parameters<DsimTokenInfoInput>) -> String {
-        tools::dsim_token(&input.address, Some(&input.chain_id))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get token holders via Dune Simulator")]
-    async fn dsim_holders(&self, Parameters(input): Parameters<DsimTokenInput>) -> String {
-        tools::dsim_holders(&input.token, Some(&input.chain_id))
-            .await
-            .to_response()
-    }
-
-    // dsim_defi was removed: Dune Sim DeFi Positions was deprecated 2026-06-01
-    // and the Sim platform shuts down 2026-08-01. See issue #64.
-
-    // =========================================================================
     // DUNE
     // =========================================================================
 
@@ -5530,11 +5364,6 @@ impl EthcliMcpServer {
     #[tool(description = "Set Dune API key in config")]
     async fn config_set_dune(&self, Parameters(input): Parameters<ConfigKeyInput>) -> String {
         tools::config_set_dune(&input.key).await.to_response()
-    }
-
-    #[tool(description = "Set Dune simulation API key in config")]
-    async fn config_set_dune_sim(&self, Parameters(input): Parameters<ConfigKeyInput>) -> String {
-        tools::config_set_dune_sim(&input.key).await.to_response()
     }
 
     #[tool(description = "Set Solodit API key in config")]

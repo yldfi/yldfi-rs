@@ -31,8 +31,35 @@ pub struct DecodedLog {
     pub params: HashMap<String, DecodedValue>,
     /// Raw topics (for reference)
     pub topics: Vec<B256>,
-    /// Raw data (for reference)
+    /// Raw data (for reference); serialized as a `0x`-prefixed hex string
+    #[serde(with = "hex_data")]
     pub data: Vec<u8>,
+}
+
+/// Serde helper: `Vec<u8>` <-> `"0x…"` hex string (accepts a byte array on
+/// input for backward compatibility with older checkpoints/output).
+mod hex_data {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(data: &[u8], s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&format!("0x{}", hex::encode(data)))
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Repr {
+        Hex(String),
+        Bytes(Vec<u8>),
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        match Repr::deserialize(d)? {
+            Repr::Bytes(b) => Ok(b),
+            Repr::Hex(h) => {
+                hex::decode(h.strip_prefix("0x").unwrap_or(&h)).map_err(serde::de::Error::custom)
+            }
+        }
+    }
 }
 
 /// A decoded parameter value

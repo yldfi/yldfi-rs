@@ -1,17 +1,15 @@
 //! NFT API implementation
 
 use super::types::{
-    AttributeSummaryResponse, CollectionMetadata, CollectionsForOwnerResponse, ContractMetadata,
     ContractMetadataBatchResponse, ContractMetadataResponse, ContractsForOwnerResponse,
-    FloorPriceResponse, GetNftsForOwnerOptions, InvalidateContractResponse, IsAirdropResponse,
-    IsHolderResponse, IsSpamResponse, Nft, NftRarityResponse, NftSalesResponse,
+    FloorPriceResponse, GetNftsForOwnerOptions, IsHolderResponse, IsSpamResponse, Nft,
     NftsForContractResponse, OwnedNftsResponse, OwnersForContractResponse, OwnersForNftResponse,
-    RefreshMetadataResponse, SpamContractsResponse,
+    RefreshMetadataResponse,
 };
 use crate::client::Client;
 use crate::error::Result;
 
-/// NFT API for ownership, metadata, sales, and spam detection
+/// NFT API for ownership, metadata, floor prices, and spam detection
 pub struct NftApi<'a> {
     client: &'a Client,
 }
@@ -68,13 +66,25 @@ impl<'a> NftApi<'a> {
     }
 
     /// Check if an address owns any NFT from a contract
+    ///
+    /// Alchemy retired the dedicated `isHolderOfContract` endpoint on 2026-09-30,
+    /// so this is implemented on top of `getNFTsForOwner` filtered to a single
+    /// contract (one result page, no metadata).
     pub async fn is_holder_of_contract(
         &self,
         wallet: &str,
         contract_address: &str,
     ) -> Result<IsHolderResponse> {
-        let query = [("wallet", wallet), ("contractAddress", contract_address)];
-        self.client.nft_get("isHolderOfContract", &query).await
+        let options = GetNftsForOwnerOptions {
+            contract_addresses: Some(vec![contract_address.to_string()]),
+            page_size: Some(1),
+            with_metadata: Some(false),
+            ..Default::default()
+        };
+        let response = self
+            .get_nfts_for_owner_with_options(wallet, &options)
+            .await?;
+        Ok(IsHolderResponse::from_owned_nfts(&response))
     }
 
     // ========== Metadata Methods ==========
@@ -150,40 +160,6 @@ impl<'a> NftApi<'a> {
             .await
     }
 
-    /// Get collection metadata by `OpenSea` slug
-    pub async fn get_collection_metadata(&self, slug: &str) -> Result<CollectionMetadata> {
-        let query = [("collectionSlug", slug)];
-        self.client.nft_get("getCollectionMetadata", &query).await
-    }
-
-    /// Search contract metadata by keyword
-    pub async fn search_contract_metadata(
-        &self,
-        query_text: &str,
-    ) -> Result<Vec<ContractMetadata>> {
-        let query = [("query", query_text)];
-        self.client.nft_get("searchContractMetadata", &query).await
-    }
-
-    /// Compute rarity for an NFT
-    pub async fn compute_rarity(
-        &self,
-        contract_address: &str,
-        token_id: &str,
-    ) -> Result<NftRarityResponse> {
-        let query = [("contractAddress", contract_address), ("tokenId", token_id)];
-        self.client.nft_get("computeRarity", &query).await
-    }
-
-    /// Summarize NFT attributes for a contract
-    pub async fn summarize_nft_attributes(
-        &self,
-        contract_address: &str,
-    ) -> Result<AttributeSummaryResponse> {
-        let query = [("contractAddress", contract_address)];
-        self.client.nft_get("summarizeNFTAttributes", &query).await
-    }
-
     /// Refresh metadata for an NFT
     pub async fn refresh_nft_metadata(
         &self,
@@ -197,35 +173,7 @@ impl<'a> NftApi<'a> {
         self.client.nft_post("refreshNftMetadata", &body).await
     }
 
-    // ========== Sales Methods ==========
-
-    /// Get NFT sales for a contract
-    pub async fn get_nft_sales(&self, contract_address: &str) -> Result<NftSalesResponse> {
-        self.get_nft_sales_with_options(contract_address, None, None, None)
-            .await
-    }
-
-    /// Get NFT sales with options
-    pub async fn get_nft_sales_with_options(
-        &self,
-        contract_address: &str,
-        token_id: Option<&str>,
-        from_block: Option<u64>,
-        to_block: Option<u64>,
-    ) -> Result<NftSalesResponse> {
-        let mut query = vec![("contractAddress", contract_address.to_string())];
-        if let Some(id) = token_id {
-            query.push(("tokenId", id.to_string()));
-        }
-        if let Some(from) = from_block {
-            query.push(("fromBlock", from.to_string()));
-        }
-        if let Some(to) = to_block {
-            query.push(("toBlock", to.to_string()));
-        }
-        let query_refs: Vec<(&str, &str)> = query.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.client.nft_get("getNFTSales", &query_refs).await
-    }
+    // ========== Pricing Methods ==========
 
     /// Get floor price for a contract
     pub async fn get_floor_price(&self, contract_address: &str) -> Result<FloorPriceResponse> {
@@ -235,25 +183,10 @@ impl<'a> NftApi<'a> {
 
     // ========== Spam Methods ==========
 
-    /// Get list of spam contracts
-    pub async fn get_spam_contracts(&self) -> Result<SpamContractsResponse> {
-        self.client.nft_get("getSpamContracts", &[]).await
-    }
-
     /// Check if a contract is spam
     pub async fn is_spam_contract(&self, contract_address: &str) -> Result<IsSpamResponse> {
         let query = [("contractAddress", contract_address)];
         self.client.nft_get("isSpamContract", &query).await
-    }
-
-    /// Check if an NFT is an airdrop
-    pub async fn is_airdrop_nft(
-        &self,
-        contract_address: &str,
-        token_id: &str,
-    ) -> Result<IsAirdropResponse> {
-        let query = [("contractAddress", contract_address), ("tokenId", token_id)];
-        self.client.nft_get("isAirdropNFT", &query).await
     }
 
     /// Report a contract as spam
@@ -292,47 +225,5 @@ impl<'a> NftApi<'a> {
         self.client
             .nft_get("getNFTsForCollection", &query_refs)
             .await
-    }
-
-    /// Get collections owned by an address
-    pub async fn get_collections_for_owner(
-        &self,
-        owner: &str,
-    ) -> Result<CollectionsForOwnerResponse> {
-        self.get_collections_for_owner_with_options(owner, None, None)
-            .await
-    }
-
-    /// Get collections owned by an address with pagination
-    pub async fn get_collections_for_owner_with_options(
-        &self,
-        owner: &str,
-        page_key: Option<&str>,
-        page_size: Option<u32>,
-    ) -> Result<CollectionsForOwnerResponse> {
-        let mut query = vec![("owner", owner.to_string())];
-        if let Some(key) = page_key {
-            query.push(("pageKey", key.to_string()));
-        }
-        if let Some(size) = page_size {
-            query.push(("pageSize", size.to_string()));
-        }
-        let query_refs: Vec<(&str, &str)> = query.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.client
-            .nft_get("getCollectionsForOwner", &query_refs)
-            .await
-    }
-
-    // ========== Cache Invalidation ==========
-
-    /// Invalidate cached metadata for a contract
-    pub async fn invalidate_contract(
-        &self,
-        contract_address: &str,
-    ) -> Result<InvalidateContractResponse> {
-        let body = serde_json::json!({
-            "contractAddress": contract_address
-        });
-        self.client.nft_post("invalidateContract", &body).await
     }
 }

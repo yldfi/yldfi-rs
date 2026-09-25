@@ -10,68 +10,6 @@ pub enum AuthType {
     Passkey,
 }
 
-/// Signup request
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SignupRequest {
-    /// Email address
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
-    /// Passkey credential
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub passkey: Option<PasskeyCredential>,
-    /// Target public key (for delegated signing)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_public_key: Option<String>,
-}
-
-/// Passkey credential
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PasskeyCredential {
-    /// Credential ID
-    pub id: String,
-    /// Raw ID (base64)
-    pub raw_id: String,
-    /// Response
-    pub response: PasskeyResponse,
-    /// Authenticator attachment
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authenticator_attachment: Option<String>,
-    /// Client extension results
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_extension_results: Option<serde_json::Value>,
-}
-
-/// Passkey response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PasskeyResponse {
-    /// Client data JSON (base64)
-    pub client_data_json: String,
-    /// Attestation object (base64)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attestation_object: Option<String>,
-    /// Authenticator data (base64)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authenticator_data: Option<String>,
-    /// Signature (base64)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub signature: Option<String>,
-}
-
-/// Signup response
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SignupResponse {
-    /// Org ID
-    pub org_id: String,
-    /// User ID
-    pub user_id: String,
-    /// Address
-    pub address: String,
-}
-
 /// Auth request (email magic link)
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

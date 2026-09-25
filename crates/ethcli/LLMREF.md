@@ -157,10 +157,16 @@ ethcli nfts <wallet> --chain ethereum
 ### Alchemy (requires ALCHEMY_API_KEY)
 ```bash
 ethcli alchemy balances <addr>
-ethcli alchemy nfts <addr>
+ethcli alchemy nft get-nfts <addr>
+ethcli alchemy nft contracts-for-owner <addr>   # replaces retired collections-for-owner
+ethcli alchemy nft contract-metadata <contract> # replaces retired collection-metadata/search-contract-metadata
+ethcli alchemy nft is-holder <addr> <contract>  # via getNFTsForOwner
+ethcli alchemy nft is-spam <contract>           # replaces retired spam-contracts
 ethcli alchemy transfers <addr> --category erc20
 ethcli alchemy trace-tx <hash>
 ```
+Removed 2026-09-30 (Alchemy NFT sunset, no replacement): `summarize-attributes`, `compute-rarity`, `invalidate-contract`, `is-airdrop`, `sales`.
+Removed 2026-09-30 (Alchemy Simulation API sunset): `ethcli alchemy simulation asset-changes|execution`; use `ethcli simulate call ... --via tenderly|debug|alchemy` or `ethcli alchemy debug trace-call`.
 
 ### CoinGecko (optional COINGECKO_API_KEY)
 ```bash
@@ -234,16 +240,10 @@ ethcli solodit search "reentrancy" --impact HIGH
 ethcli solodit get <slug>
 ```
 
-### Dune SIM (requires DUNE_SIM_API_KEY)
-Dune Sim shuts down 2026-08-01 (yldfi-rs issue #64); dsim commands print a
-sunset warning to stderr. `ethcli dsim defi` is blocked (DeFi Positions was
-deprecated 2026-06-01). DUNE_API_KEY is no longer accepted as a fallback.
-
-```bash
-ethcli dsim balances <addr>         # Wallet balances
-ethcli dsim activity <addr>         # Wallet activity
-ethcli dsim collectibles <addr>     # NFTs
-```
+### Dune SIM (removed)
+Dune Sim shut down 2026-08-01 (yldfi-rs issue #64): `ethcli dsim`, `--source dsim`,
+`config set-dune-sim` and DUNE_SIM_API_KEY are gone. Use `ethcli portfolio` /
+`ethcli nfts`. Dune Analytics (`ethcli dune`) is unaffected.
 
 ### Curve
 ```bash
@@ -327,7 +327,7 @@ ethcli pyth search "ETH"
 
 ```bash
 ethcli simulate call <contract> --sig "fn(types)" <args>
-ethcli simulate call ... --via tenderly|anvil|debug|trace
+ethcli simulate call ... --via tenderly|anvil|debug|trace|alchemy   # alchemy = debug_traceCall
 ethcli simulate call ... --trace --decode-internal --label 0x...:name
 ethcli simulate call ... --via anvil --fork-url <rpc> --fork-block-number -10
 ethcli simulate tx <hash> --decode-internal --trace-depth 6
@@ -359,7 +359,7 @@ Removed (no public Tenderly endpoint): `contracts verify|update`,
 ```bash
 ethcli config init                  # Create config file
 ethcli config path                  # Show config path
-ethcli config show                  # Display config
+ethcli config show                  # Display config (secrets masked; --show-secrets for raw)
 ethcli config validate              # Validate config
 ethcli config set-etherscan-key <k> # Set API key
 ethcli config set-tenderly --key <k> --account <a> --project <p>
@@ -383,7 +383,6 @@ ethcli doctor                       # Diagnose issues
 | MORALIS_API_KEY | moralis commands | Moralis API |
 | COINGECKO_API_KEY | Optional | CoinGecko Pro |
 | DUNE_API_KEY | dune commands | Dune Analytics |
-| DUNE_SIM_API_KEY | dsim commands | Dune SIM (sunset 2026-08-01) |
 | TENDERLY_ACCESS_KEY | tenderly commands | Tenderly API |
 | THEGRAPH_API_KEY | uniswap subgraph | The Graph |
 | GOPLUS_APP_KEY | Optional | GoPlus batch queries |

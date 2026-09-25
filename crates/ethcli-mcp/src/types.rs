@@ -470,8 +470,7 @@ pub struct PortfolioInput {
     pub aggregate: bool,
     /// Chain(s) to query (default: ethereum)
     pub chain: Option<String>,
-    /// Source to query: all, alchemy, moralis, dsim, uniswap, yearn.
-    /// "all" excludes dsim (Dune Sim shuts down 2026-08-01, issue #64).
+    /// Source to query: all, alchemy, moralis, uniswap, yearn
     pub source: Option<String>,
     /// Minimum USD value to show (filter small balances)
     pub min_value: Option<f64>,
@@ -1555,39 +1554,6 @@ pub struct AlchemyNftForContractInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemyNftSlugInput {
-    /// OpenSea collection slug
-    pub slug: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemyNftSearchInput {
-    /// Search query
-    pub query: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemyNftSalesInput {
-    /// Contract address
-    pub contract: String,
-    /// Optional token ID
-    pub token_id: Option<String>,
-    /// Optional from block number
-    pub from_block: Option<u64>,
-    /// Optional to block number
-    pub to_block: Option<u64>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyNftForCollectionInput {
     /// Collection slug
     pub slug: String,
@@ -1846,46 +1812,6 @@ pub struct AlchemyTraceFilterInput {
     pub after: Option<u32>,
     /// Maximum traces to return
     pub count: Option<u32>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-// --- Alchemy Simulation ---
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemySimAssetChangesInput {
-    /// Recipient address
-    pub to: String,
-    /// Sender address
-    pub from: Option<String>,
-    /// Call data (hex)
-    pub data: Option<String>,
-    /// Value to send (hex)
-    pub value: Option<String>,
-    /// Gas limit (hex)
-    pub gas: Option<String>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemySimExecutionInput {
-    /// Recipient address
-    pub to: String,
-    /// Sender address
-    pub from: Option<String>,
-    /// Call data (hex)
-    pub data: Option<String>,
-    /// Value to send (hex)
-    pub value: Option<String>,
-    /// Gas limit (hex)
-    pub gas: Option<String>,
-    /// Block tag (e.g., "latest")
-    pub block: Option<String>,
-    /// Output format: nested or flat (default: nested)
-    pub trace_format: Option<String>,
     /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
     #[serde(default = "default_network")]
     pub network: String,
@@ -2423,31 +2349,6 @@ pub struct MoralisCategoryIdInput {
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
-}
-
-// --- Dsim ---
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct DsimAddressInput {
-    /// Address to query
-    pub address: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct DsimTokenInfoInput {
-    /// Token/contract address to query
-    pub address: String,
-    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
-    #[serde(default = "default_chain_id")]
-    pub chain_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct DsimTokenInput {
-    /// Token address
-    pub token: String,
-    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
-    #[serde(default = "default_chain_id")]
-    pub chain_id: String,
 }
 
 // --- Dune ---
