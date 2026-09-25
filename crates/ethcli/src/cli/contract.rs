@@ -601,6 +601,16 @@ pub async fn handle(
     quiet: bool,
 ) -> anyhow::Result<()> {
     let client = Client::new(chain, api_key)?;
+    // These subcommands need the Etherscan API (ABI, source, creation info).
+    if matches!(
+        action,
+        ContractCommands::Abi { .. }
+            | ContractCommands::Source { .. }
+            | ContractCommands::Creation { .. }
+            | ContractCommands::Call { .. }
+    ) {
+        client.ensure_api_supported()?;
+    }
 
     match action {
         ContractCommands::Abi { address, output } => {

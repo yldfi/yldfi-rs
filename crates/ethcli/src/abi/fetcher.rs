@@ -4,7 +4,8 @@
 
 use crate::config::Chain;
 use crate::error::{AbiError, Result};
-use crate::etherscan::SignatureCache;
+use crate::etherscan::support::describe_etherscan_error;
+use crate::etherscan::{ensure_etherscan_supported, SignatureCache};
 use crate::utils::{
     decode_string_from_hex, decode_uint8_from_hex, get_shared_http_client, urlencoding_encode,
     TokenMetadata,
@@ -110,6 +111,8 @@ impl AbiFetcher {
             // If cache is corrupted, fall through to fetch
         }
 
+        ensure_etherscan_supported(chain_id)?;
+
         // URL-encode the address to prevent parameter injection
         let encoded_address: Cow<str> = urlencoding_encode(address);
 
@@ -165,7 +168,9 @@ impl AbiFetcher {
                 return Err(AbiError::ContractNotVerified(address.to_string()).into());
             }
 
-            return Err(AbiError::EtherscanFetch(format!("{}: {}", message, result)).into());
+            return Err(
+                AbiError::EtherscanFetch(describe_etherscan_error(&message, result)).into(),
+            );
         }
 
         // Parse ABI from result
@@ -250,6 +255,7 @@ impl AbiFetcher {
         contract: &str,
     ) -> Result<ContractCreation> {
         let chain_id = chain.chain_id();
+        ensure_etherscan_supported(chain_id)?;
         let encoded_address: Cow<str> = urlencoding_encode(contract);
 
         let base_url = format!(
@@ -291,9 +297,13 @@ impl AbiFetcher {
         })?;
 
         if etherscan_response.status != "1" {
+            let result = etherscan_response
+                .result
+                .as_str()
+                .unwrap_or("Unknown error");
             return Err(AbiError::EtherscanFetch(format!(
                 "Failed to get contract creation: {}",
-                etherscan_response.message
+                describe_etherscan_error(&etherscan_response.message, result)
             ))
             .into());
         }
@@ -337,6 +347,7 @@ impl AbiFetcher {
         address: &str,
     ) -> Result<ContractMetadata> {
         let chain_id = chain.chain_id();
+        ensure_etherscan_supported(chain_id)?;
         let encoded_address: Cow<str> = urlencoding_encode(address);
 
         let base_url = format!(
@@ -479,6 +490,7 @@ impl AbiFetcher {
 
     /// Make an eth_call via Etherscan proxy
     async fn eth_call(&self, chain_id: u64, to: &str, data: &str) -> Result<String> {
+        ensure_etherscan_supported(chain_id)?;
         let encoded_to: Cow<str> = urlencoding_encode(to);
         let encoded_data: Cow<str> = urlencoding_encode(data);
 
@@ -521,6 +533,7 @@ impl AbiFetcher {
     /// Get transaction block number from Etherscan
     async fn get_tx_block_number(&self, chain: Chain, tx_hash: &str) -> Result<u64> {
         let chain_id = chain.chain_id();
+        ensure_etherscan_supported(chain_id)?;
         let encoded_hash: Cow<str> = urlencoding_encode(tx_hash);
 
         let base_url = format!(

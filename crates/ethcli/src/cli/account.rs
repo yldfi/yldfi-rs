@@ -256,6 +256,10 @@ pub async fn handle(
     quiet: bool,
 ) -> anyhow::Result<()> {
     let client = Client::new(chain, api_key)?;
+    // Everything except `balance` (RPC multicall) goes through the Etherscan API.
+    if !matches!(action, AccountCommands::Balance { .. }) {
+        client.ensure_api_supported()?;
+    }
 
     match action {
         AccountCommands::Info { address, output } => {
