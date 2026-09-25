@@ -108,6 +108,10 @@ impl McpClient {
     }
 
     fn initialize(&mut self) -> bool {
+        self.initialize_response().get("error").is_none()
+    }
+
+    fn initialize_response(&mut self) -> Value {
         let resp = self.send_request(
             "initialize",
             Some(json!({
@@ -117,12 +121,10 @@ impl McpClient {
             })),
         );
 
-        if resp.get("error").is_some() {
-            return false;
+        if resp.get("error").is_none() {
+            self.send_notification("notifications/initialized", None);
         }
-
-        self.send_notification("notifications/initialized", None);
-        true
+        resp
     }
 
     fn call_tool(&mut self, name: &str, arguments: Value) -> Value {
@@ -179,6 +181,9 @@ impl Drop for McpClient {
 /// Helper to check if a tool call succeeded
 fn is_tool_success(response: &Value) -> bool {
     if response.get("error").is_some() {
+        return false;
+    }
+    if response["result"]["isError"].as_bool() == Some(true) {
         return false;
     }
 
@@ -242,6 +247,35 @@ fn call_tool_with_retry(
 fn test_mcp_initialize() {
     let mut client = McpClient::new();
     assert!(client.initialize(), "MCP initialization should succeed");
+}
+
+#[test]
+fn test_mcp_server_info_reports_ethcli_mcp() {
+    let mut client = McpClient::new();
+    let resp = client.initialize_response();
+    let info = &resp["result"]["serverInfo"];
+    assert_eq!(info["name"], "ethcli-mcp", "serverInfo: {info}");
+    assert_eq!(
+        info["version"],
+        env!("CARGO_PKG_VERSION"),
+        "serverInfo: {info}"
+    );
+}
+
+#[test]
+fn test_failed_tool_sets_is_error() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    // Invalid input to an offline tool: ethcli exits non-zero.
+    let response = client.call_tool("cast_to_dec", json!({"value": "not-a-number-zz"}));
+    assert!(response.get("error").is_none(), "{response}");
+    assert_eq!(
+        response["result"]["isError"].as_bool(),
+        Some(true),
+        "failed tool calls must set isError: {response}"
+    );
+    assert!(!is_tool_success(&response));
 }
 
 #[test]

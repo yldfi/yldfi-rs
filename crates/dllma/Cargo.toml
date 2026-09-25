@@ -21,3 +21,7 @@ yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+# Run the crate tests with arbitrary_precision enabled: ethcli pulls it in
+# workspace-wide via foundry-block-explorers, and it changes how buffered
+# (flatten/untagged) numbers deserialize. Regression tests rely on it.
+serde_json = { version = "1", features = ["arbitrary_precision"] }

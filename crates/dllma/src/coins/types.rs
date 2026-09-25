@@ -141,10 +141,13 @@ pub struct PricePercentage {
 }
 
 /// Response from percentage change endpoint
+///
+/// The API returns a bare number per coin:
+/// `{"coins": {"coingecko:ethereum": 0.27}}`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PercentageResponse {
-    /// Map of token ID to percentage data
-    pub coins: HashMap<String, PricePercentage>,
+    /// Map of token ID to price change percentage over the period
+    pub coins: HashMap<String, f64>,
 }
 
 /// First price record for a coin
@@ -172,4 +175,19 @@ pub struct BlockResponse {
     pub height: u64,
     /// Unix timestamp
     pub timestamp: u64,
+}
+
+#[cfg(test)]
+mod percentage_tests {
+    use super::*;
+
+    #[test]
+    fn percentage_response_is_bare_number_per_coin() {
+        // Live shape from coins.llama.fi/percentage/{coins}
+        let json = r#"{"coins":{"coingecko:ethereum":0.271920600594351,
+            "ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48":0.011446113550635}}"#;
+        let r: PercentageResponse = serde_json::from_str(json).unwrap();
+        assert!((r.coins["coingecko:ethereum"] - 0.2719).abs() < 1e-3);
+        assert_eq!(r.coins.len(), 2);
+    }
 }

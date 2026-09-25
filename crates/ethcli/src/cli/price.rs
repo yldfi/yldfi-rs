@@ -4,10 +4,9 @@
 
 use crate::aggregator::{
     fetch_lp_price, fetch_prices_all, fetch_prices_parallel, is_token_address,
-    symbol_to_eth_address, NormalizedPrice, PriceAggregation, PriceSource,
+    symbol_to_eth_address, NormalizedPrice, PriceAggregation, PriceSource, SourceResult,
 };
 use crate::cli::OutputFormat;
-use crate::utils::format::truncate_str;
 use clap::Args;
 use serde::Serialize;
 
@@ -89,6 +88,7 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
         }
 
         let result = fetch_lp_price(token, chain).await;
+        ensure_any_price(token, chain, &result.sources)?;
 
         // Build output
         let sources = if args.summary_only {
@@ -165,6 +165,9 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
         source => fetch_prices_parallel(&token_for_query, chain, &[source]).await,
     };
 
+    // Never report a fabricated $0 "median" when every source failed.
+    ensure_any_price(token, chain, &result.sources)?;
+
     // Build output
     let sources = if args.summary_only {
         None
@@ -207,10 +210,7 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_table_output(
-    output: &PriceOutput,
-    sources: &[crate::aggregator::SourceResult<NormalizedPrice>],
-) {
+fn print_table_output(output: &PriceOutput, sources: &[SourceResult<NormalizedPrice>]) {
     println!();
     println!("Aggregated Price for {}", output.token);
     println!("{}", "=".repeat(40));
@@ -247,22 +247,101 @@ fn print_table_output(
                 .as_ref()
                 .map(|p| format!("${:.6}", p.usd))
                 .unwrap_or_else(|| "-".to_string());
-            let error_note = source
-                .error
-                .as_ref()
-                .map(|e| format!(" ({})", truncate_str(e, 30)))
-                .unwrap_or_default();
-
             println!(
-                "{:<12} {:>14} {:>8}ms {:>10}{}",
-                source.source, price_str, source.latency_ms, status, error_note
+                "{:<12} {:>14} {:>8}ms {:>10}",
+                source.source, price_str, source.latency_ms, status
             );
         }
         println!("{}", "-".repeat(60));
+        print_error_footnotes(sources);
     }
 
     println!("Total time: {}ms (parallel)", output.total_latency_ms);
     println!();
 }
 
-// Use truncate_str from utils::format for Unicode-safe truncation
+/// Print full (untruncated) error messages for failed sources below the table.
+fn print_error_footnotes(sources: &[SourceResult<NormalizedPrice>]) {
+    let failed: Vec<_> = sources
+        .iter()
+        .filter_map(|s| s.error.as_ref().map(|e| (s.source.as_ref(), e)))
+        .collect();
+    if failed.is_empty() {
+        return;
+    }
+    println!("Errors:");
+    for (source, err) in failed {
+        println!("  {source}: {err}");
+    }
+}
+
+/// Fail (non-zero exit) when no price source returned a price.
+///
+/// Previously the command printed "Median $0.000000 (sources disagree)" and
+/// exited 0, which is indistinguishable from a real (zero) price to scripts.
+fn ensure_any_price(
+    token: &str,
+    chain: &str,
+    sources: &[SourceResult<NormalizedPrice>],
+) -> anyhow::Result<()> {
+    match no_price_error(token, chain, sources) {
+        Some(msg) => Err(anyhow::anyhow!(msg)),
+        None => Ok(()),
+    }
+}
+
+fn no_price_error(
+    token: &str,
+    chain: &str,
+    sources: &[SourceResult<NormalizedPrice>],
+) -> Option<String> {
+    if sources.iter().any(|s| s.is_success()) {
+        return None;
+    }
+    let mut msg = format!(
+        "No price found for {token} on {chain}: all {} source(s) failed",
+        sources.len()
+    );
+    for s in sources {
+        let err = s.error.as_deref().unwrap_or("no data returned");
+        msg.push_str(&format!("\n  {}: {}", s.source, err));
+    }
+    Some(msg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_price_error_when_all_sources_fail() {
+        let sources = vec![
+            SourceResult::<NormalizedPrice>::error("alchemy", "Rate limited by Alchemy (429)", 5),
+            SourceResult::<NormalizedPrice>::error(
+                "curve",
+                "Curve requires contract address (0x...)",
+                1,
+            ),
+        ];
+        let msg = no_price_error("ETH", "ethereum", &sources).expect("should error");
+        assert!(msg.contains("all 2 source(s) failed"), "{msg}");
+        // Full, untruncated upstream messages are kept.
+        assert!(
+            msg.contains("Curve requires contract address (0x...)"),
+            "{msg}"
+        );
+        assert!(
+            msg.contains("alchemy: Rate limited by Alchemy (429)"),
+            "{msg}"
+        );
+    }
+
+    #[test]
+    fn no_error_when_any_source_succeeds() {
+        let sources = vec![
+            SourceResult::error("alchemy", "boom", 5),
+            SourceResult::success("gecko", NormalizedPrice::new(2690.0), 5),
+        ];
+        assert!(no_price_error("ETH", "ethereum", &sources).is_none());
+    }
+}

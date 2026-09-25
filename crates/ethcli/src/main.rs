@@ -138,17 +138,21 @@ async fn run() -> anyhow::Result<()> {
         _ => "trace",
     };
 
+    // Logs MUST go to stderr: stdout is reserved for command output so that
+    // `-o json` (and the MCP wrapper, which parses stdout) stays machine-readable
+    // even when `-v` is set or a dependency logs at WARN/ERROR level.
     // Dependency spans/events (alloy's ReqwestTransport span, reqwest's
-    // "response for <url>") include full RPC URLs, which may carry API keys.
-    // Route all log output through a URL-redacting writer.
+    // "response for <url>") include full RPC URLs, which may carry API keys,
+    // so all log output also goes through a URL-redacting writer.
     tracing_subscriber::registry()
         .with(
             fmt::layer()
                 .with_target(false)
-                .with_writer(|| RedactingWriter(std::io::stdout())),
+                .with_writer(|| RedactingWriter(std::io::stderr())),
         )
         .with(EnvFilter::new(filter))
         .init();
+    tracing::debug!("logging initialized (verbosity {})", cli.verbose);
 
     // Parse chain once for use in handlers
     let chain: Chain = cli.chain.parse()?;

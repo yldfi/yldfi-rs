@@ -219,6 +219,12 @@ macro_rules! create_exchange {
 pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
     use ccxt_rust::prelude::{Binance, Bitget, Exchange as ExchangeTrait, HyperLiquid, Okx};
 
+    if let Some(args) = command.exchange_args() {
+        if args.exchange == ExchangeId::Hyperliquid {
+            anyhow::bail!("{}", HYPERLIQUID_UNSUPPORTED);
+        }
+    }
+
     match command {
         CcxtCommands::Ticker { symbol, args } => {
             if !quiet {
@@ -261,7 +267,9 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                 high: ticker.high.map(|p| p.to_string()),
                 low: ticker.low.map(|p| p.to_string()),
                 volume: ticker.base_volume.map(|v| v.to_string()),
-                change_24h: ticker.percentage.map(|p| format!("{}%", p)),
+                change_24h: ticker
+                    .percentage
+                    .map(|p| format_change_pct(args.exchange, p)),
                 timestamp: ticker.timestamp,
             };
 
@@ -293,7 +301,9 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                                 high: t.high.map(|p| p.to_string()),
                                 low: t.low.map(|p| p.to_string()),
                                 volume: t.base_volume.map(|v| v.to_string()),
-                                change_24h: t.percentage.map(|p| format!("{}%", p)),
+                                change_24h: t
+                                    .percentage
+                                    .map(|p| format_change_pct(args.exchange, p)),
                                 timestamp: t.timestamp,
                             });
                         }
@@ -419,30 +429,38 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
 
             let tf = parse_timeframe(timeframe)?;
 
-            let candles = match args.exchange {
+            let candles: Vec<CandleOutput> = match args.exchange {
                 ExchangeId::Binance => {
                     let exchange = create_exchange!(Binance, args.testnet);
-                    ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
-                        .await
-                        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?
+                    candles_to_output(
+                        ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
+                            .await
+                            .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?,
+                    )
                 }
                 ExchangeId::Bitget => {
-                    let exchange = create_exchange!(Bitget, args.testnet);
-                    ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
-                        .await
-                        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?
+                    // ccxt-rust 0.1.5 sends v1-style granularities ("1H", "1D")
+                    // that Bitget's v2 API rejects (code 400171); query v2 directly.
+                    if args.testnet {
+                        anyhow::bail!("Bitget OHLCV is not available in --testnet mode");
+                    }
+                    fetch_bitget_ohlcv(symbol, timeframe, *limit).await?
                 }
                 ExchangeId::Okx => {
                     let exchange = create_exchange!(Okx, args.testnet);
-                    ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
-                        .await
-                        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?
+                    candles_to_output(
+                        ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
+                            .await
+                            .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?,
+                    )
                 }
                 ExchangeId::Hyperliquid => {
                     let exchange = create_exchange!(HyperLiquid, args.testnet);
-                    ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
-                        .await
-                        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?
+                    candles_to_output(
+                        ExchangeTrait::fetch_ohlcv(&exchange, symbol, tf, None, Some(*limit))
+                            .await
+                            .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV: {:?}", e))?,
+                    )
                 }
             };
 
@@ -450,17 +468,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                 exchange: args.exchange.to_string(),
                 symbol: symbol.clone(),
                 timeframe: timeframe.clone(),
-                candles: candles
-                    .into_iter()
-                    .map(|c| CandleOutput {
-                        timestamp: c.timestamp,
-                        open: c.open.to_string(),
-                        high: c.high.to_string(),
-                        low: c.low.to_string(),
-                        close: c.close.to_string(),
-                        volume: c.volume.to_string(),
-                    })
-                    .collect(),
+                candles,
             };
 
             match args.format {
@@ -691,7 +699,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
 
             // Fetch from each exchange, collecting successes
             macro_rules! try_fetch {
-                ($exchange_type:ty, $name:expr) => {{
+                ($exchange_type:ty, $name:expr, $id:expr) => {{
                     match <$exchange_type>::builder().build() {
                         Ok(exchange) => {
                             if exchange.load_markets(false).await.is_ok() {
@@ -706,7 +714,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                                         high: t.high.map(|p| p.to_string()),
                                         low: t.low.map(|p| p.to_string()),
                                         volume: t.base_volume.map(|v| v.to_string()),
-                                        change_24h: t.percentage.map(|p| format!("{}%", p)),
+                                        change_24h: t.percentage.map(|p| format_change_pct($id, p)),
                                         timestamp: t.timestamp,
                                     });
                                 }
@@ -717,10 +725,13 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                 }};
             }
 
-            try_fetch!(Binance, "binance");
-            try_fetch!(Bitget, "bitget");
-            try_fetch!(Okx, "okx");
-            try_fetch!(HyperLiquid, "hyperliquid");
+            try_fetch!(Binance, "binance", ExchangeId::Binance);
+            try_fetch!(Bitget, "bitget", ExchangeId::Bitget);
+            try_fetch!(Okx, "okx", ExchangeId::Okx);
+            // Hyperliquid is skipped: see HYPERLIQUID_UNSUPPORTED.
+            if !quiet {
+                eprintln!("Note: hyperliquid skipped ({})", HYPERLIQUID_UNSUPPORTED);
+            }
 
             match format {
                 OutputFormat::Table => {
@@ -777,6 +788,174 @@ fn truncate_num(s: &str, max_len: usize) -> String {
     }
 }
 
+/// Why Hyperliquid is disabled.
+///
+/// ccxt-rust 0.1.5 (latest release) posts JSON bodies without a
+/// `Content-Type: application/json` header (ccxt-core http_client/request.rs),
+/// which Hyperliquid's /info endpoint rejects with HTTP 415 for every call.
+/// Upstream issue to file against ccxt-rust: set the JSON content type in
+/// `HttpClient::fetch_once` when a body is present.
+const HYPERLIQUID_UNSUPPORTED: &str =
+    "Hyperliquid is temporarily unsupported: the ccxt-rust 0.1.5 \
+     HTTP client omits the JSON Content-Type header and Hyperliquid rejects every request with \
+     HTTP 415. Use --exchange binance, okx or bitget instead.";
+
+impl CcxtCommands {
+    /// Shared exchange args, if the command targets a single exchange.
+    fn exchange_args(&self) -> Option<&CcxtArgs> {
+        match self {
+            CcxtCommands::Ticker { args, .. }
+            | CcxtCommands::Tickers { args, .. }
+            | CcxtCommands::OrderBook { args, .. }
+            | CcxtCommands::Ohlcv { args, .. }
+            | CcxtCommands::Trades { args, .. }
+            | CcxtCommands::Markets { args, .. } => Some(args),
+            CcxtCommands::Compare { .. } => None,
+        }
+    }
+}
+
+/// Normalize a ccxt ticker `percentage` to a percent value.
+///
+/// ccxt-rust 0.1.5 maps Bitget's `changeUtc24h` (a ratio, e.g. `0.00301`)
+/// straight into `percentage`, so Bitget values are 100x too small.
+pub(crate) fn change_pct_value(exchange: ExchangeId, raw: f64) -> f64 {
+    match exchange {
+        ExchangeId::Bitget => raw * 100.0,
+        _ => raw,
+    }
+}
+
+fn format_change_pct<D>(exchange: ExchangeId, raw: D) -> String
+where
+    D: num_traits::ToPrimitive + std::fmt::Display,
+{
+    match raw.to_f64() {
+        Some(v) => format!("{:.4}%", change_pct_value(exchange, v)),
+        None => format!("{}%", raw),
+    }
+}
+
+fn candles_to_output(candles: Vec<ccxt_rust::prelude::Ohlcv>) -> Vec<CandleOutput> {
+    candles
+        .into_iter()
+        .map(|c| CandleOutput {
+            timestamp: c.timestamp,
+            open: c.open.to_string(),
+            high: c.high.to_string(),
+            low: c.low.to_string(),
+            close: c.close.to_string(),
+            volume: c.volume.to_string(),
+        })
+        .collect()
+}
+
+/// Map a CLI timeframe to a Bitget v2 spot candle granularity.
+fn bitget_v2_granularity(timeframe: &str) -> anyhow::Result<&'static str> {
+    Ok(match timeframe {
+        "1M" => "1M",
+        tf => match tf.to_lowercase().as_str() {
+            "1m" => "1min",
+            "3m" => "3min",
+            "5m" => "5min",
+            "15m" => "15min",
+            "30m" => "30min",
+            "1h" => "1h",
+            "4h" => "4h",
+            "6h" => "6h",
+            "12h" => "12h",
+            "1d" | "d" => "1day",
+            "3d" => "3day",
+            "1w" | "w" => "1week",
+            other => anyhow::bail!(
+                "Timeframe {} is not supported by Bitget. Valid: 1m, 3m, 5m, 15m, 30m, 1h, 4h, 6h, 12h, 1d, 3d, 1w, 1M",
+                other
+            ),
+        },
+    })
+}
+
+/// Parse Bitget v2 candles: `[[ts, open, high, low, close, baseVol, usdtVol, quoteVol], ...]`
+fn parse_bitget_candles(body: &serde_json::Value) -> anyhow::Result<Vec<CandleOutput>> {
+    let code = body.get("code").and_then(|c| c.as_str()).unwrap_or("");
+    if code != "00000" {
+        anyhow::bail!(
+            "Bitget error {}: {}",
+            code,
+            body.get("msg")
+                .and_then(|m| m.as_str())
+                .unwrap_or("unknown")
+        );
+    }
+    let rows = body
+        .get("data")
+        .and_then(|d| d.as_array())
+        .ok_or_else(|| anyhow::anyhow!("Bitget response missing data array"))?;
+    let field = |row: &[serde_json::Value], i: usize| -> String {
+        row.get(i)
+            .map(|v| {
+                v.as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| v.to_string())
+            })
+            .unwrap_or_default()
+    };
+    let mut candles = rows
+        .iter()
+        .filter_map(|r| r.as_array())
+        .map(|row| {
+            let timestamp = field(row, 0)
+                .parse::<i64>()
+                .map_err(|e| anyhow::anyhow!("invalid Bitget candle timestamp: {e}"))?;
+            Ok(CandleOutput {
+                timestamp,
+                open: field(row, 1),
+                high: field(row, 2),
+                low: field(row, 3),
+                close: field(row, 4),
+                volume: field(row, 5),
+            })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    candles.sort_by_key(|c| c.timestamp);
+    Ok(candles)
+}
+
+/// Fetch OHLCV directly from Bitget's v2 spot API.
+async fn fetch_bitget_ohlcv(
+    symbol: &str,
+    timeframe: &str,
+    limit: u32,
+) -> anyhow::Result<Vec<CandleOutput>> {
+    let granularity = bitget_v2_granularity(timeframe)?;
+    let market_id: String = symbol
+        .split(':')
+        .next()
+        .unwrap_or(symbol)
+        .chars()
+        .filter(|c| *c != '/')
+        .collect::<String>()
+        .to_uppercase();
+    let limit = limit.clamp(1, 1000).to_string();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+    let body: serde_json::Value = client
+        .get("https://api.bitget.com/api/v2/spot/market/candles")
+        .query(&[
+            ("symbol", market_id.as_str()),
+            ("granularity", granularity),
+            ("limit", limit.as_str()),
+        ])
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to fetch OHLCV from Bitget: {e}"))?
+        .json()
+        .await
+        .map_err(|e| anyhow::anyhow!("Invalid Bitget OHLCV response: {e}"))?;
+    parse_bitget_candles(&body)
+}
+
 /// Parse a timeframe string into the ccxt Timeframe enum
 fn parse_timeframe(s: &str) -> anyhow::Result<ccxt_rust::Timeframe> {
     use ccxt_rust::Timeframe;
@@ -805,5 +984,48 @@ fn parse_timeframe(s: &str) -> anyhow::Result<ccxt_rust::Timeframe> {
             "Invalid timeframe: {}. Valid: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M",
             s
         ),
+    }
+}
+
+#[cfg(test)]
+mod workaround_tests {
+    use super::*;
+
+    #[test]
+    fn bitget_change_is_scaled_from_ratio_to_percent() {
+        assert!((change_pct_value(ExchangeId::Bitget, 0.00301) - 0.301).abs() < 1e-12);
+        assert_eq!(change_pct_value(ExchangeId::Binance, 1.5), 1.5);
+        assert_eq!(change_pct_value(ExchangeId::Okx, -2.0), -2.0);
+    }
+
+    #[test]
+    fn bitget_granularity_uses_v2_names() {
+        assert_eq!(bitget_v2_granularity("1h").unwrap(), "1h");
+        assert_eq!(bitget_v2_granularity("1d").unwrap(), "1day");
+        assert_eq!(bitget_v2_granularity("5m").unwrap(), "5min");
+        assert_eq!(bitget_v2_granularity("1w").unwrap(), "1week");
+        assert_eq!(bitget_v2_granularity("1M").unwrap(), "1M");
+        assert!(bitget_v2_granularity("2h").is_err());
+    }
+
+    #[test]
+    fn parse_bitget_candles_live_shape() {
+        let body = serde_json::json!({"code":"00000","msg":"success","data":[
+            ["1790352000000","2687.09","2699.47","2678.26","2695.85","6578.5623","1.7e7","1.7e7"],
+            ["1790265600000","2683.63","2742.76","2660.7","2687.09","55500.7331","1.4e8","1.4e8"]]});
+        let c = parse_bitget_candles(&body).unwrap();
+        assert_eq!(c.len(), 2);
+        assert_eq!(c[0].timestamp, 1_790_265_600_000); // sorted ascending
+        assert_eq!(c[1].close, "2695.85");
+        let err =
+            parse_bitget_candles(&serde_json::json!({"code":"400171","msg":"bad granularity"}))
+                .unwrap_err()
+                .to_string();
+        assert!(err.contains("400171"));
+    }
+
+    #[test]
+    fn hyperliquid_is_rejected_with_clear_error() {
+        assert!(HYPERLIQUID_UNSUPPORTED.contains("415"));
     }
 }
