@@ -709,6 +709,20 @@ pub async fn fetch_velora_quote(
     };
 
     let mut request = vlra::PriceRequest::sell(token_in, token_out, amount_in);
+    // Off mainnet Velora requires srcDecimals/destDecimals for tokens outside
+    // its list ("Token not found. Please pass srcDecimals & destDecimals").
+    if chain != vlra::Chain::Ethereum {
+        let (src, dest) = futures::join!(
+            crate::utils::token_meta::fetch_token_decimals(chain_id, token_in),
+            crate::utils::token_meta::fetch_token_decimals(chain_id, token_out)
+        );
+        if let Ok(d) = src {
+            request = request.with_src_decimals(d);
+        }
+        if let Ok(d) = dest {
+            request = request.with_dest_decimals(d);
+        }
+    }
     if let Some(addr) = sender {
         request = request.with_user_address(addr);
     }

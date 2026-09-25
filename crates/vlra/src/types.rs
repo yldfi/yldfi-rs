@@ -303,11 +303,54 @@ impl PriceRequest {
 }
 
 /// Price response with routing information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+///
+/// Velora's `/transactions` endpoint rejects any `priceRoute` that is not
+/// byte-for-byte what `/prices` returned ("priceRoute must be unmodified"),
+/// including the `hmac` it signs. The response therefore keeps the raw
+/// `priceRoute` JSON alongside the typed view; serialization emits the raw
+/// value untouched.
+#[derive(Debug, Clone)]
 pub struct PriceResponse {
-    /// Price route containing all swap details
+    /// Typed view of the price route (for reading amounts, gas, etc.)
     pub price_route: PriceRoute,
+    /// The price route exactly as returned by the API
+    pub raw_price_route: serde_json::Value,
+}
+
+impl PriceResponse {
+    /// Build a response from a raw `priceRoute` JSON value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value does not match the expected shape.
+    pub fn from_raw_price_route(raw: serde_json::Value) -> Result<Self, serde_json::Error> {
+        let price_route = PriceRoute::deserialize(&raw)?;
+        Ok(Self {
+            price_route,
+            raw_price_route: raw,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for PriceResponse {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Raw {
+            price_route: serde_json::Value,
+        }
+        let raw = Raw::deserialize(deserializer)?;
+        Self::from_raw_price_route(raw.price_route).map_err(serde::de::Error::custom)
+    }
+}
+
+impl Serialize for PriceResponse {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut st = serializer.serialize_struct("PriceResponse", 1)?;
+        st.serialize_field("priceRoute", &self.raw_price_route)?;
+        st.end()
+    }
 }
 
 /// Detailed price route information
@@ -342,16 +385,33 @@ pub struct PriceRoute {
     #[serde(default)]
     pub partner_fee: f64,
     /// Estimated gas cost
+    #[serde(default)]
     pub gas_cost: Option<String>,
     /// Gas cost in USD
+    #[serde(default, rename = "gasCostUSD")]
     pub gas_cost_usd: Option<String>,
     /// Side of the swap
     pub side: String,
     /// Source token USD value
+    #[serde(default, rename = "srcUSD")]
     pub src_usd: Option<String>,
     /// Destination token USD value
+    #[serde(default, rename = "destUSD")]
     pub dest_usd: Option<String>,
+    /// Destination amount after partner fee
+    #[serde(default)]
+    pub dest_amount_after_fee: Option<String>,
+    /// Augustus router version (e.g. "6.2")
+    #[serde(default)]
+    pub version: Option<String>,
+    /// Partner name
+    #[serde(default)]
+    pub partner: Option<String>,
+    /// HMAC over the route (validated by `/transactions`)
+    #[serde(default)]
+    pub hmac: Option<String>,
     /// Max impact percentage
+    #[serde(default)]
     pub max_impact_reached: Option<bool>,
     /// Price impact percentage
     #[serde(default)]
@@ -412,11 +472,22 @@ pub struct TransactionRequest {
     pub src_token: String,
     /// Destination token address
     pub dest_token: String,
+    /// Source token decimals (required by Velora for tokens not in its list)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub src_decimals: Option<u8>,
+    /// Destination token decimals
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dest_decimals: Option<u8>,
     /// Source amount
     pub src_amount: String,
-    /// Destination amount (from price route)
-    pub dest_amount: String,
-    /// Price route from `PriceResponse`
+    /// Destination amount.
+    ///
+    /// Velora rejects requests that specify both `destAmount` and `slippage`
+    /// ("Cannot specify both"), so this is `None` by default and only sent
+    /// if explicitly set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dest_amount: Option<String>,
+    /// Price route exactly as returned by `/prices` (must be unmodified)
     pub price_route: serde_json::Value,
     /// Slippage tolerance in basis points (e.g., 100 = 1%)
     pub slippage: u32,
@@ -443,15 +514,20 @@ pub struct TransactionRequest {
 }
 
 impl TransactionRequest {
-    /// Create a new transaction request from a price route
+    /// Create a new transaction request from a price response.
+    ///
+    /// The raw `priceRoute` is passed through untouched.
     #[must_use]
-    pub fn new(price_route: &PriceRoute, user_address: impl Into<String>, slippage: u32) -> Self {
+    pub fn new(price: &PriceResponse, user_address: impl Into<String>, slippage: u32) -> Self {
+        let route = &price.price_route;
         Self {
-            src_token: price_route.src_token.clone(),
-            dest_token: price_route.dest_token.clone(),
-            src_amount: price_route.src_amount.clone(),
-            dest_amount: price_route.dest_amount.clone(),
-            price_route: serde_json::to_value(price_route).unwrap_or_default(),
+            src_token: route.src_token.clone(),
+            dest_token: route.dest_token.clone(),
+            src_decimals: Some(route.src_decimals),
+            dest_decimals: Some(route.dest_decimals),
+            src_amount: route.src_amount.clone(),
+            dest_amount: None,
+            price_route: price.raw_price_route.clone(),
             slippage,
             user_address: user_address.into(),
             partner: None,
@@ -461,6 +537,21 @@ impl TransactionRequest {
             ignore_gas: None,
             ignore_checks: None,
         }
+    }
+
+    /// Create a transaction request from a raw `priceRoute` JSON value
+    /// (e.g. copied from the `/prices` output).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value is not a valid price route.
+    pub fn from_raw_price_route(
+        price_route: serde_json::Value,
+        user_address: impl Into<String>,
+        slippage: u32,
+    ) -> Result<Self, serde_json::Error> {
+        let price = PriceResponse::from_raw_price_route(price_route)?;
+        Ok(Self::new(&price, user_address, slippage))
     }
 
     /// Set receiver address
@@ -587,5 +678,50 @@ mod tests {
         assert_eq!(request.side, Side::Sell);
         assert_eq!(request.src_decimals, Some(18));
         assert_eq!(request.dest_decimals, Some(6));
+    }
+
+    const LIVE_PRICE: &str = r#"{"priceRoute":{"blockNumber":26056822,"network":1,
+        "srcToken":"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","srcDecimals":18,
+        "srcAmount":"1000000000000000000",
+        "destToken":"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","destDecimals":6,
+        "destAmount":"2690528459","bestRoute":[],"gasCostUSD":"0.072117","gasCost":"235640",
+        "side":"SELL","version":"6.2","contractAddress":"0x6a000f20005980200259b80c5102003040001068",
+        "tokenTransferProxy":"0x6a000f20005980200259b80c5102003040001068",
+        "contractMethod":"swapExactAmountIn","partnerFee":0.01,"srcUSD":"2690.5700000000",
+        "destUSD":"2690.3481935932","destAmountAfterFee":"2690259406","partner":"anon",
+        "maxImpactReached":false,"hmac":"c056035782855c7aacae85e82615ddd5cb3255d1"}}"#;
+
+    #[test]
+    fn price_response_round_trip_is_lossless() {
+        let original: serde_json::Value = serde_json::from_str(LIVE_PRICE).unwrap();
+        let parsed: PriceResponse = serde_json::from_str(LIVE_PRICE).unwrap();
+        assert_eq!(
+            parsed.price_route.src_usd.as_deref(),
+            Some("2690.5700000000")
+        );
+        assert_eq!(parsed.price_route.gas_cost_usd.as_deref(), Some("0.072117"));
+        assert_eq!(
+            parsed.price_route.hmac.as_deref(),
+            Some("c056035782855c7aacae85e82615ddd5cb3255d1")
+        );
+        assert_eq!(serde_json::to_value(&parsed).unwrap(), original);
+    }
+
+    #[test]
+    fn transaction_request_passes_route_through_and_omits_dest_amount() {
+        let original: serde_json::Value = serde_json::from_str(LIVE_PRICE).unwrap();
+        let req = TransactionRequest::from_raw_price_route(
+            original["priceRoute"].clone(),
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            100,
+        )
+        .unwrap();
+        let body = serde_json::to_value(&req).unwrap();
+        assert_eq!(body["priceRoute"], original["priceRoute"]);
+        assert!(body.get("destAmount").is_none(), "{body}");
+        assert_eq!(body["slippage"], 100);
+        assert_eq!(body["srcDecimals"], 18);
+        assert_eq!(body["destDecimals"], 6);
+        assert_eq!(body["srcAmount"], "1000000000000000000");
     }
 }
