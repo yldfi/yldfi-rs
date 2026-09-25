@@ -367,6 +367,8 @@ fn is_mutating_command(args: &[&str]) -> bool {
                 | "set-etherscan-key"
                 | "set-tenderly"
                 | "set-alchemy"
+                | "set-alchemy-notify-token"
+                | "set-alchemy-access-key"
                 | "set-moralis"
                 | "set-chainlink"
                 | "set-dune"
@@ -485,6 +487,9 @@ fn contains_secret_key_name(value: &str) -> bool {
         || lower.contains("access_key")
         || lower.contains("access key")
         || lower.contains("x-access-key")
+        || lower.contains("access-key")
+        || lower.contains("notify_token")
+        || lower.contains("x-alchemy-token")
         || lower.contains("user_secret")
         || lower.contains("client_secret")
         || lower.contains("authorization")
@@ -634,6 +639,9 @@ fn redact_secret_line(line: &str) -> Option<String> {
         || lower.contains("user_secret")
         || lower.contains("client_secret")
         || lower.contains("x-access-key")
+        || lower.contains("notify_token")
+        || lower.contains("auth_token")
+        || lower.contains("x-alchemy-token")
         || lower.contains("authorization:");
 
     if !looks_secret {
@@ -1322,7 +1330,27 @@ mod tests {
     }
 
     #[test]
+    fn test_redacts_alchemy_notify_token_and_access_key_lines() {
+        assert_eq!(
+            redact_secret_line("notify_token = \"abc123\"").as_deref(),
+            Some("notify_token = <redacted>")
+        );
+        assert_eq!(
+            redact_secret_line("access_key = \"abc123\"").as_deref(),
+            Some("access_key = <redacted>")
+        );
+        assert_eq!(
+            redact_secret_line("X-Alchemy-Token: abc123").as_deref(),
+            Some("X-Alchemy-Token: <redacted>")
+        );
+        assert!(contains_secret_key_name("access-key"));
+        assert!(contains_secret_key_name("notify_token"));
+    }
+
+    #[test]
     fn test_mutating_command_policy_allows_read_tools() {
+        assert!(is_mutating_command(&["config", "set-alchemy-notify-token"]));
+        assert!(is_mutating_command(&["config", "set-alchemy-access-key"]));
         assert!(!is_mutating_command(&["config", "validate"]));
         assert!(!is_mutating_command(&["address", "list"]));
         assert!(!is_mutating_command(&["blacklist", "check", "0xabc"]));

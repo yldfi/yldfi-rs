@@ -560,3 +560,72 @@ async fn test_malformed_json_response() {
     let err = result.unwrap_err();
     assert!(err.to_string().contains("Parse error"));
 }
+
+// ==================== Unauthenticated Batch Fallback ====================
+
+#[tokio::test]
+async fn test_token_security_batch_unauthenticated_queries_individually() {
+    let server = MockServer::start().await;
+
+    // Unauthenticated API only answers for one address per request
+    for (addr, symbol) in [("0xtoken1", "TK1"), ("0xtoken2", "TK2")] {
+        Mock::given(method("GET"))
+            .and(path("/token_security/1"))
+            .and(query_param("contract_addresses", addr))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 1,
+                "message": "ok",
+                "result": { addr: { "token_symbol": symbol } }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+    }
+
+    let client = mock_client(&server);
+    // Duplicate (case-insensitive) address must not trigger a third request
+    let results = client
+        .token_security_batch(1, &["0xTOKEN1", "0xtoken2", "0xtoken1"])
+        .await
+        .unwrap();
+
+    assert_eq!(results.len(), 2);
+    assert!(results.contains_key("0xtoken1"));
+    assert!(results.contains_key("0xtoken2"));
+}
+
+#[tokio::test]
+async fn test_token_security_batch_reports_missing_addresses() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .and(query_param("contract_addresses", "0xtoken1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "code": 1,
+            "message": "ok",
+            "result": { "0xtoken1": { "token_symbol": "TK1" } }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .and(query_param("contract_addresses", "0xunknown"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "code": 1,
+            "message": "ok",
+            "result": {}
+        })))
+        .mount(&server)
+        .await;
+
+    let client = mock_client(&server);
+    let requested = ["0xTOKEN1", "0xUnknown"];
+    let results = client.token_security_batch(1, &requested).await.unwrap();
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(
+        Client::missing_addresses(&requested, &results),
+        vec!["0xunknown".to_string()]
+    );
+}

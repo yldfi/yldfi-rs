@@ -8,8 +8,38 @@ use super::types::{
     ForkScheduleEntry, GenesisInfo, NodeVersion, PeerCount, PeerInfo, ProposerDuty,
     SignedVoluntaryExit, SyncCommittee, SyncDuty, SyncStatus, ValidatorInfo,
 };
-use crate::client::Client;
-use crate::error::{Error, Result};
+use crate::client::{Client, Network};
+use crate::error::{DomainError, Error, Result};
+
+/// Get the Beacon (consensus layer) host for a network.
+///
+/// Alchemy serves the Beacon API from dedicated `{network}beacon` hosts,
+/// e.g. `https://eth-mainnetbeacon.g.alchemy.com/v2/{apiKey}/eth/v1/beacon/genesis`.
+/// Only Ethereum mainnet and its testnets have beacon hosts.
+fn beacon_host(network: Network) -> Result<String> {
+    match network {
+        Network::EthMainnet | Network::EthSepolia | Network::EthHolesky => {
+            Ok(format!("{}beacon.g.alchemy.com", network.slug()))
+        }
+        other => Err(Error::domain(DomainError::UnsupportedBeaconNetwork(
+            other.slug(),
+        ))),
+    }
+}
+
+/// Build a full Beacon API URL.
+///
+/// `version` is the Beacon API version segment (`v1` / `v2`) and `path` is
+/// the endpoint path after `/eth/{version}` (e.g. `/beacon/genesis`).
+fn beacon_url(network: Network, api_key: &str, version: &str, path: &str) -> Result<String> {
+    Ok(format!(
+        "https://{}/v2/{}/eth/{}{}",
+        beacon_host(network)?,
+        api_key,
+        version,
+        path
+    ))
+}
 
 /// Beacon API for Ethereum consensus layer
 pub struct BeaconApi<'a> {
@@ -21,32 +51,20 @@ impl<'a> BeaconApi<'a> {
         Self { client }
     }
 
-    fn beacon_url(&self) -> String {
-        format!(
-            "https://{}.g.alchemy.com/eth/v1/{}",
-            self.client.network().slug(),
-            self.client.api_key()
-        )
-    }
-
     async fn get<R>(&self, path: &str) -> Result<R>
     where
         R: serde::de::DeserializeOwned,
     {
-        let url = format!("{}{}", self.beacon_url(), path);
+        self.get_versioned("v1", path).await
+    }
+
+    async fn get_versioned<R>(&self, version: &str, path: &str) -> Result<R>
+    where
+        R: serde::de::DeserializeOwned,
+    {
+        let url = beacon_url(self.client.network(), self.client.api_key(), version, path)?;
         let response = self.client.http().get(&url).send().await?;
-
-        if response.status() == 429 {
-            return Err(Error::rate_limited(None));
-        }
-
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
-        }
+        self.client.handle_response(response).await
     }
 
     async fn post<B, R>(&self, path: &str, body: &B) -> Result<R>
@@ -54,20 +72,9 @@ impl<'a> BeaconApi<'a> {
         B: serde::Serialize,
         R: serde::de::DeserializeOwned,
     {
-        let url = format!("{}{}", self.beacon_url(), path);
+        let url = beacon_url(self.client.network(), self.client.api_key(), "v1", path)?;
         let response = self.client.http().post(&url).json(body).send().await?;
-
-        if response.status() == 429 {
-            return Err(Error::rate_limited(None));
-        }
-
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
-        }
+        self.client.handle_response(response).await
     }
 
     // ========== Genesis & Config ==========
@@ -107,19 +114,8 @@ impl<'a> BeaconApi<'a> {
     /// Get block by ID
     pub async fn get_block(&self, block_id: &str) -> Result<BeaconResponse<serde_json::Value>> {
         // Use v2 endpoint for full block
-        let url = format!(
-            "https://{}.g.alchemy.com/eth/v2/beacon/blocks/{}",
-            self.client.network().slug(),
-            block_id
-        );
-        let response = self.client.http().get(&url).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
-        }
+        self.get_versioned("v2", &format!("/beacon/blocks/{block_id}"))
+            .await
     }
 
     /// Get block root
@@ -132,19 +128,8 @@ impl<'a> BeaconApi<'a> {
         &self,
         block_id: &str,
     ) -> Result<BeaconListResponse<Attestation>> {
-        let url = format!(
-            "https://{}.g.alchemy.com/eth/v2/beacon/blocks/{}/attestations",
-            self.client.network().slug(),
-            block_id
-        );
-        let response = self.client.http().get(&url).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
-        }
+        self.get_versioned("v2", &format!("/beacon/blocks/{block_id}/attestations"))
+            .await
     }
 
     /// Get blob sidecars
@@ -224,18 +209,7 @@ impl<'a> BeaconApi<'a> {
 
     /// Get pool attestations
     pub async fn get_pool_attestations(&self) -> Result<BeaconListResponse<Attestation>> {
-        let url = format!(
-            "https://{}.g.alchemy.com/eth/v2/beacon/pool/attestations",
-            self.client.network().slug()
-        );
-        let response = self.client.http().get(&url).send().await?;
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
-        }
+        self.get_versioned("v2", "/beacon/pool/attestations").await
     }
 
     /// Get voluntary exits
@@ -328,4 +302,38 @@ pub struct ValidatorBalance {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RandaoResponse {
     pub randao: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn beacon_url_mainnet_matches_docs() {
+        assert_eq!(
+            beacon_url(Network::EthMainnet, "KEY", "v1", "/beacon/genesis").unwrap(),
+            "https://eth-mainnetbeacon.g.alchemy.com/v2/KEY/eth/v1/beacon/genesis"
+        );
+    }
+
+    #[test]
+    fn beacon_url_v2_and_testnets() {
+        assert_eq!(
+            beacon_url(Network::EthSepolia, "KEY", "v2", "/beacon/blocks/head").unwrap(),
+            "https://eth-sepoliabeacon.g.alchemy.com/v2/KEY/eth/v2/beacon/blocks/head"
+        );
+        assert_eq!(
+            beacon_url(Network::EthHolesky, "KEY", "v1", "/node/version").unwrap(),
+            "https://eth-holeskybeacon.g.alchemy.com/v2/KEY/eth/v1/node/version"
+        );
+    }
+
+    #[test]
+    fn beacon_url_rejects_non_ethereum_networks() {
+        let err = beacon_url(Network::BaseMainnet, "KEY", "v1", "/beacon/genesis").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::Domain(DomainError::UnsupportedBeaconNetwork("base-mainnet"))
+        ));
+    }
 }

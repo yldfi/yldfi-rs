@@ -640,8 +640,22 @@ ethcli alchemy transfers 0x... --category erc20
 
 # Debug traces
 ethcli alchemy trace-tx 0x...
+
+# Notify (dashboard: Webhooks) - needs the Webhooks auth token
+ethcli alchemy notify list-webhooks            # alias: ethcli alchemy webhooks ...
+# Gas Manager (dashboard: Gas Sponsorship) - needs an access key
+ethcli alchemy gas-manager list-policies       # alias: ethcli alchemy gas-sponsorship ...
 ```
 
+`alchemy notify` and `alchemy gas-manager` do not accept the app API key:
+
+- **Notify / Webhooks**: copy the Auth Token from the AUTH TOKEN button at the top
+  right of the dashboard Webhooks page (sidebar Data -> Webhooks,
+  https://dashboard.alchemy.com/webhooks). Set it with
+  `ethcli config set-alchemy-notify-token --stdin` or `ALCHEMY_NOTIFY_TOKEN`.
+- **Gas Manager / Gas Sponsorship**: create an Access Key under dashboard ->
+  Security with Gas Manager permissions (billing/team admins only). Set it with
+  `ethcli config set-alchemy-access-key --stdin` or `ALCHEMY_ACCESS_KEY`.
 Alchemy retired several NFT API endpoints on 2026-09-30, and the matching
 `ethcli alchemy nft` subcommands were removed:
 
@@ -1118,6 +1132,8 @@ ethcli config set-etherscan-key YOUR_KEY
 | `ETHCLI_NO_PROXY` | Optional | Set to `1`/`true` to disable HTTP proxy auto-detection |
 | `TENDERLY_ACCESS_KEY` | `ethcli tenderly` | Tenderly API access |
 | `ALCHEMY_API_KEY` | `ethcli alchemy`, aggregation | Alchemy API access |
+| `ALCHEMY_NOTIFY_TOKEN` | `ethcli alchemy notify` | Webhooks auth token (dashboard Data -> Webhooks, AUTH TOKEN button) |
+| `ALCHEMY_ACCESS_KEY` | `ethcli alchemy gas-manager` | Access key with Gas Manager (Gas Sponsorship) permissions (dashboard -> Security) |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (higher rate limits) |
 | `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
