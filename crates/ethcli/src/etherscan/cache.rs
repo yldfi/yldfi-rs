@@ -726,6 +726,9 @@ pub struct TokenCacheEntry {
     pub name: Option<String>,
     pub symbol: Option<String>,
     pub decimals: Option<u8>,
+    /// Deprecated: totalSupply is mutable and no longer cached. Kept so older
+    /// cache files still deserialize; always written as `None`.
+    #[serde(default, skip_serializing)]
     pub total_supply: Option<String>,
     pub timestamp: u64,
 }
@@ -789,7 +792,6 @@ impl TokenMetadataCache {
         name: Option<String>,
         symbol: Option<String>,
         decimals: Option<u8>,
-        total_supply: Option<String>,
     ) {
         let key = format!("{}:{}", chain, address.to_lowercase());
         let timestamp = SystemTime::now()
@@ -805,7 +807,7 @@ impl TokenMetadataCache {
                     name,
                     symbol,
                     decimals,
-                    total_supply,
+                    total_supply: None,
                     timestamp,
                 },
             );
@@ -830,5 +832,48 @@ impl TokenMetadataCache {
 impl Default for TokenMetadataCache {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod token_cache_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn total_supply_is_never_persisted() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("token_cache.json");
+        let cache = TokenMetadataCache::with_path(path.clone());
+        cache.set(
+            "ethereum",
+            "0xAbC",
+            Some("USD Coin".into()),
+            Some("USDC".into()),
+            Some(6),
+        );
+        let on_disk = fs::read_to_string(&path).unwrap();
+        assert!(!on_disk.contains("total_supply"));
+
+        let entry = TokenMetadataCache::with_path(path)
+            .get("ethereum", "0xabc")
+            .unwrap();
+        assert_eq!(entry.decimals, Some(6));
+        assert!(entry.total_supply.is_none());
+    }
+
+    #[test]
+    fn legacy_cache_with_total_supply_still_loads() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("token_cache.json");
+        fs::write(
+            &path,
+            r#"{"tokens":{"ethereum:0xabc":{"name":"X","symbol":"X","decimals":18,"total_supply":"123","timestamp":1}}}"#,
+        )
+        .unwrap();
+        let entry = TokenMetadataCache::with_path(path)
+            .get("ethereum", "0xabc")
+            .unwrap();
+        assert_eq!(entry.symbol.as_deref(), Some("X"));
     }
 }

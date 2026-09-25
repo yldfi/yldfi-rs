@@ -214,11 +214,23 @@ pub struct ContractWithMetadata {
     pub display_nft: Option<Nft>,
 }
 
-/// Response for isHolderOfContract
-#[derive(Debug, Clone, Deserialize, Serialize)]
+/// Result of [`NftApi::is_holder_of_contract`](super::NftApi::is_holder_of_contract)
+///
+/// Serializes with the same shape as the retired `isHolderOfContract` endpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IsHolderResponse {
     pub is_holder_of_contract: bool,
+}
+
+impl IsHolderResponse {
+    /// Derive holder status from a contract-filtered `getNFTsForOwner` response
+    #[must_use]
+    pub fn from_owned_nfts(response: &OwnedNftsResponse) -> Self {
+        Self {
+            is_holder_of_contract: response.total_count > 0 || !response.owned_nfts.is_empty(),
+        }
+    }
 }
 
 /// Response for getNFTsForContract
@@ -244,60 +256,6 @@ pub struct ContractMetadataBatchResponse {
     pub contracts: Vec<ContractMetadata>,
 }
 
-/// Collection metadata response
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CollectionMetadata {
-    pub name: Option<String>,
-    pub slug: Option<String>,
-    pub description: Option<String>,
-    pub image_url: Option<String>,
-    pub banner_image_url: Option<String>,
-    pub external_url: Option<String>,
-    pub twitter_username: Option<String>,
-    pub discord_url: Option<String>,
-}
-
-/// NFT sale
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NftSale {
-    pub marketplace: Option<String>,
-    pub marketplace_address: Option<String>,
-    pub contract_address: String,
-    pub token_id: String,
-    pub quantity: String,
-    pub buyer_address: String,
-    pub seller_address: String,
-    pub taker: Option<String>,
-    pub seller_fee: Option<Fee>,
-    pub protocol_fee: Option<Fee>,
-    pub royalty_fee: Option<Fee>,
-    pub block_number: u64,
-    pub log_index: u64,
-    pub bundle_index: u64,
-    pub transaction_hash: String,
-}
-
-/// Fee info for sales
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Fee {
-    pub amount: Option<String>,
-    pub token_address: Option<String>,
-    pub symbol: Option<String>,
-    pub decimals: Option<u8>,
-}
-
-/// Response for getNFTSales
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NftSalesResponse {
-    pub nft_sales: Vec<NftSale>,
-    pub valid_at: Option<BlockInfo>,
-    pub page_key: Option<String>,
-}
-
 /// Floor price response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -317,50 +275,11 @@ pub struct FloorPriceMarketplace {
     pub error: Option<String>,
 }
 
-/// Response for getSpamContracts
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SpamContractsResponse {
-    pub contract_addresses: Vec<String>,
-}
-
 /// Response for isSpamContract
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IsSpamResponse {
     pub is_spam_contract: bool,
-}
-
-/// Response for isAirdropNFT
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IsAirdropResponse {
-    pub is_airdrop: bool,
-}
-
-/// NFT rarity response
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NftRarityResponse {
-    pub rarities: Vec<AttributeRarity>,
-}
-
-/// Attribute rarity info
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AttributeRarity {
-    pub trait_type: String,
-    pub value: serde_json::Value,
-    pub prevalence: f64,
-}
-
-/// NFT attribute summary response
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AttributeSummaryResponse {
-    pub contract_address: String,
-    pub total_supply: String,
-    pub summary: serde_json::Value,
 }
 
 /// Refresh metadata response
@@ -427,34 +346,46 @@ impl GetNftsForOwnerOptions {
     }
 }
 
-/// Response for getCollectionsForOwner
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CollectionsForOwnerResponse {
-    pub collections: Vec<OwnedCollection>,
-    pub total_count: u64,
-    pub page_key: Option<String>,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-/// Collection owned by an address
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OwnedCollection {
-    pub name: Option<String>,
-    pub slug: Option<String>,
-    pub image_url: Option<String>,
-    pub banner_image_url: Option<String>,
-    pub external_url: Option<String>,
-    pub num_distinct_tokens_owned: Option<u64>,
-    pub total_balance: Option<String>,
-    pub is_spam: Option<bool>,
-    pub contract: Option<ContractMetadata>,
-}
+    fn owned(json: serde_json::Value) -> OwnedNftsResponse {
+        serde_json::from_value(json).expect("valid OwnedNftsResponse")
+    }
 
-/// Response for invalidateContract
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InvalidateContractResponse {
-    pub contract_address: String,
-    pub progress: String,
+    #[test]
+    fn is_holder_from_empty_response_is_false() {
+        let response = owned(serde_json::json!({ "ownedNfts": [], "totalCount": 0 }));
+        assert!(!IsHolderResponse::from_owned_nfts(&response).is_holder_of_contract);
+    }
+
+    #[test]
+    fn is_holder_from_non_zero_count_is_true() {
+        let response = owned(serde_json::json!({ "ownedNfts": [], "totalCount": 3 }));
+        assert!(IsHolderResponse::from_owned_nfts(&response).is_holder_of_contract);
+    }
+
+    #[test]
+    fn is_holder_serializes_like_retired_endpoint() {
+        let value = serde_json::to_value(IsHolderResponse {
+            is_holder_of_contract: true,
+        })
+        .unwrap();
+        assert_eq!(value, serde_json::json!({ "isHolderOfContract": true }));
+    }
+
+    #[test]
+    fn get_nfts_for_owner_options_emit_contract_filter() {
+        let options = GetNftsForOwnerOptions {
+            contract_addresses: Some(vec!["0xabc".to_string()]),
+            page_size: Some(1),
+            with_metadata: Some(false),
+            ..Default::default()
+        };
+        let params = options.to_query_params();
+        assert!(params.contains(&("contractAddresses[]", "0xabc".to_string())));
+        assert!(params.contains(&("pageSize", "1".to_string())));
+        assert!(params.contains(&("withMetadata", "false".to_string())));
+    }
 }

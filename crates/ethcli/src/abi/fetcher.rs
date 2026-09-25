@@ -4,7 +4,8 @@
 
 use crate::config::Chain;
 use crate::error::{AbiError, Result};
-use crate::etherscan::SignatureCache;
+use crate::etherscan::support::describe_etherscan_error;
+use crate::etherscan::{ensure_etherscan_supported, SignatureCache};
 use crate::utils::{
     decode_string_from_hex, decode_uint8_from_hex, get_shared_http_client, urlencoding_encode,
     TokenMetadata,
@@ -110,6 +111,8 @@ impl AbiFetcher {
             // If cache is corrupted, fall through to fetch
         }
 
+        ensure_etherscan_supported(chain_id)?;
+
         // URL-encode the address to prevent parameter injection
         let encoded_address: Cow<str> = urlencoding_encode(address);
 
@@ -165,7 +168,9 @@ impl AbiFetcher {
                 return Err(AbiError::ContractNotVerified(address.to_string()).into());
             }
 
-            return Err(AbiError::EtherscanFetch(format!("{}: {}", message, result)).into());
+            return Err(
+                AbiError::EtherscanFetch(describe_etherscan_error(&message, result)).into(),
+            );
         }
 
         // Parse ABI from result
@@ -231,16 +236,47 @@ impl AbiFetcher {
         contract: &str,
         event_name: &str,
     ) -> Result<String> {
-        let abi = self.fetch_from_etherscan(chain, contract).await?;
+        // 1. The contract's own ABI
+        let own_abi = self.fetch_from_etherscan(chain, contract).await;
+        if let Ok(abi) = &own_abi {
+            if let Some(event) = Self::find_event(abi, event_name) {
+                return Ok(Self::event_signature_string(event));
+            }
+        }
 
-        let event = Self::find_event(&abi, event_name).ok_or_else(|| {
-            crate::error::AbiError::EventNotFound(format!(
-                "Event '{}' not found in contract ABI",
-                event_name
+        // 2. Proxy: follow Etherscan's `Implementation` field
+        if let Ok(meta) = self.get_contract_metadata(chain, contract).await {
+            if let Some(implementation) = meta.implementation {
+                if !implementation.eq_ignore_ascii_case(contract) {
+                    tracing::debug!(
+                        "Event '{}' not in proxy ABI; checking implementation {}",
+                        event_name,
+                        implementation
+                    );
+                    if let Ok(impl_abi) = self.fetch_from_etherscan(chain, &implementation).await {
+                        if let Some(event) = Self::find_event(&impl_abi, event_name) {
+                            return Ok(Self::event_signature_string(event));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Well-known standard events
+        if let Some(sig) = well_known_event_signature(event_name) {
+            tracing::debug!("Using well-known signature for '{}': {}", event_name, sig);
+            return Ok(sig.to_string());
+        }
+
+        match own_abi {
+            Err(e) => Err(e),
+            Ok(_) => Err(crate::error::AbiError::EventNotFound(format!(
+                "Event '{}' not found in contract (or implementation) ABI. \
+                 Pass the full signature, e.g. -e \"{}(address,uint256)\"",
+                event_name, event_name
             ))
-        })?;
-
-        Ok(Self::event_signature_string(event))
+            .into()),
+        }
     }
 
     /// Get contract creation info from Etherscan API v2
@@ -250,6 +286,7 @@ impl AbiFetcher {
         contract: &str,
     ) -> Result<ContractCreation> {
         let chain_id = chain.chain_id();
+        ensure_etherscan_supported(chain_id)?;
         let encoded_address: Cow<str> = urlencoding_encode(contract);
 
         let base_url = format!(
@@ -291,9 +328,13 @@ impl AbiFetcher {
         })?;
 
         if etherscan_response.status != "1" {
+            let result = etherscan_response
+                .result
+                .as_str()
+                .unwrap_or("Unknown error");
             return Err(AbiError::EtherscanFetch(format!(
                 "Failed to get contract creation: {}",
-                etherscan_response.message
+                describe_etherscan_error(&etherscan_response.message, result)
             ))
             .into());
         }
@@ -337,6 +378,7 @@ impl AbiFetcher {
         address: &str,
     ) -> Result<ContractMetadata> {
         let chain_id = chain.chain_id();
+        ensure_etherscan_supported(chain_id)?;
         let encoded_address: Cow<str> = urlencoding_encode(address);
 
         let base_url = format!(
@@ -479,6 +521,7 @@ impl AbiFetcher {
 
     /// Make an eth_call via Etherscan proxy
     async fn eth_call(&self, chain_id: u64, to: &str, data: &str) -> Result<String> {
+        ensure_etherscan_supported(chain_id)?;
         let encoded_to: Cow<str> = urlencoding_encode(to);
         let encoded_data: Cow<str> = urlencoding_encode(data);
 
@@ -521,6 +564,7 @@ impl AbiFetcher {
     /// Get transaction block number from Etherscan
     async fn get_tx_block_number(&self, chain: Chain, tx_hash: &str) -> Result<u64> {
         let chain_id = chain.chain_id();
+        ensure_etherscan_supported(chain_id)?;
         let encoded_hash: Cow<str> = urlencoding_encode(tx_hash);
 
         let base_url = format!(
@@ -574,7 +618,8 @@ impl AbiFetcher {
 
     /// Decode function call data using the contract ABI
     ///
-    /// Returns (function_name, signature, decoded_params) or None if decoding fails
+    /// Returns `None` if the ABI is unavailable or does not contain the selector
+    /// (e.g. a proxy ABI), so callers can fall back to a signature database.
     pub async fn decode_function_call(
         &self,
         chain: Chain,
@@ -591,7 +636,7 @@ impl AbiFetcher {
         // Try to get ABI from Etherscan
         let abi = match self.fetch_from_etherscan(chain, contract).await {
             Ok(abi) => abi,
-            Err(_) => return Some(DecodedFunction::unknown(selector_hex)),
+            Err(_) => return None,
         };
 
         // Find the function by selector
@@ -615,7 +660,7 @@ impl AbiFetcher {
         }
 
         // Selector not found in ABI
-        Some(DecodedFunction::unknown(selector_hex))
+        None
     }
 
     /// Lookup function selector from cache first, then 4byte.directory
@@ -724,15 +769,39 @@ pub struct DecodedFunction {
     pub params: Vec<(String, String, String)>, // (name, type, value)
 }
 
-impl DecodedFunction {
-    fn unknown(selector: String) -> Self {
-        Self {
-            selector,
-            name: None,
-            signature: None,
-            params: Vec::new(),
-        }
-    }
+/// Canonical signatures for widely used standard events (ERC-20/721/1155,
+/// WETH, OpenZeppelin Ownable, ERC-1967 proxies), keyed case-insensitively by
+/// name. Used as a last resort when an event name cannot be found in the
+/// contract (or implementation) ABI.
+const WELL_KNOWN_EVENTS: &[(&str, &str)] = &[
+    ("transfer", "Transfer(address,address,uint256)"),
+    ("approval", "Approval(address,address,uint256)"),
+    ("approvalforall", "ApprovalForAll(address,address,bool)"),
+    (
+        "transfersingle",
+        "TransferSingle(address,address,address,uint256,uint256)",
+    ),
+    (
+        "transferbatch",
+        "TransferBatch(address,address,address,uint256[],uint256[])",
+    ),
+    ("deposit", "Deposit(address,uint256)"),
+    ("withdrawal", "Withdrawal(address,uint256)"),
+    (
+        "ownershiptransferred",
+        "OwnershipTransferred(address,address)",
+    ),
+    ("upgraded", "Upgraded(address)"),
+    ("adminchanged", "AdminChanged(address,address)"),
+];
+
+/// Look up a well-known event signature by (case-insensitive) name.
+pub fn well_known_event_signature(name: &str) -> Option<&'static str> {
+    let lower = name.to_ascii_lowercase();
+    WELL_KNOWN_EVENTS
+        .iter()
+        .find(|(n, _)| *n == lower)
+        .map(|(_, sig)| *sig)
 }
 
 /// Decode function parameters using the function definition
@@ -817,6 +886,23 @@ fn format_sol_value(value: &alloy::dyn_abi::DynSolValue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_well_known_event_signature() {
+        assert_eq!(
+            well_known_event_signature("Transfer"),
+            Some("Transfer(address,address,uint256)")
+        );
+        assert_eq!(
+            well_known_event_signature("APPROVAL"),
+            Some("Approval(address,address,uint256)")
+        );
+        assert_eq!(well_known_event_signature("TokenExchange"), None);
+        // Every entry must parse as a valid event signature
+        for (_, sig) in WELL_KNOWN_EVENTS {
+            crate::abi::EventSignature::parse(sig).unwrap();
+        }
+    }
 
     #[test]
     fn test_fetcher_creation() {

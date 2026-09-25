@@ -18,8 +18,6 @@ pub enum NftSourceArg {
     Alchemy,
     /// Moralis NFT API
     Moralis,
-    /// Dune SIM Collectibles API (sunset 2026-08-01; excluded from "all")
-    Dsim,
 }
 
 impl From<NftSourceArg> for NftSource {
@@ -28,7 +26,6 @@ impl From<NftSourceArg> for NftSource {
             NftSourceArg::All => NftSource::All,
             NftSourceArg::Alchemy => NftSource::Alchemy,
             NftSourceArg::Moralis => NftSource::Moralis,
-            NftSourceArg::Dsim => NftSource::DuneSim,
         }
     }
 }

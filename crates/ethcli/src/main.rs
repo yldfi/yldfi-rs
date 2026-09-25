@@ -78,6 +78,7 @@ fn load_config_with_warning() -> Option<ConfigFile> {
 }
 
 use ethcli::utils::format::format_thousands;
+use ethcli::utils::url::redact_url;
 
 /// Check if we should show interactive progress indicators.
 /// Returns true only if stderr is a TTY (not piped/redirected).
@@ -85,8 +86,41 @@ fn should_show_progress() -> bool {
     std::io::stderr().is_terminal()
 }
 
+/// `io::Write` adapter that redacts URLs before forwarding to the inner writer.
+///
+/// `tracing_subscriber::fmt` formats each event into a buffer and emits it with
+/// a single `write_all`, so URLs are never split across calls in practice.
+struct RedactingWriter<W: std::io::Write>(W);
+
+impl<W: std::io::Write> std::io::Write for RedactingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let text = String::from_utf8_lossy(buf);
+        self.0
+            .write_all(ethcli::utils::url::redact_urls_in_text(&text).as_bytes())?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
+    if let Err(e) = run().await {
+        // Error chains (notably reqwest's) embed full request URLs, which may
+        // carry API keys or basic-auth credentials. Redact before printing.
+        eprintln!(
+            "Error: {}",
+            ethcli::utils::url::redact_urls_in_text(&format!("{e:?}"))
+        );
+        std::process::exit(1);
+    }
+}
+
+// The dispatch below uses early `return` for uniformity across arms.
+#[allow(clippy::needless_return)]
+async fn run() -> anyhow::Result<()> {
     // Handle --help-json before clap parsing
     // This allows us to output JSON schema without normal argument validation
     let args: Vec<String> = std::env::args().collect();
@@ -104,8 +138,15 @@ async fn main() -> anyhow::Result<()> {
         _ => "trace",
     };
 
+    // Dependency spans/events (alloy's ReqwestTransport span, reqwest's
+    // "response for <url>") include full RPC URLs, which may carry API keys.
+    // Route all log output through a URL-redacting writer.
     tracing_subscriber::registry()
-        .with(fmt::layer().with_target(false))
+        .with(
+            fmt::layer()
+                .with_target(false)
+                .with_writer(|| RedactingWriter(std::io::stdout())),
+        )
         .with(EnvFilter::new(filter))
         .init();
 
@@ -227,10 +268,6 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Moralis { action } => {
             return ethcli::cli::moralis::handle(action, cli.quiet).await;
-        }
-
-        Commands::Dsim { action } => {
-            return ethcli::cli::dsim::handle(action, cli.quiet).await;
         }
 
         Commands::Dune { action } => {
@@ -867,14 +904,19 @@ async fn handle_chainlist(action: &ChainlistCommands) -> anyhow::Result<()> {
 #[derive(serde::Deserialize)]
 struct ChainlistEntry {
     name: String,
+    #[serde(default)]
     chain: String,
     #[serde(rename = "chainId")]
     chain_id: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_lenient_vec")]
     rpc: Vec<ChainlistRpc>,
-    #[serde(rename = "nativeCurrency")]
+    #[serde(
+        rename = "nativeCurrency",
+        default,
+        deserialize_with = "deserialize_lenient_option"
+    )]
     native_currency: Option<ChainlistCurrency>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_lenient_vec")]
     explorers: Vec<ChainlistExplorer>,
     #[serde(default)]
     status: Option<String>,
@@ -910,8 +952,47 @@ async fn fetch_chainlist() -> anyhow::Result<Vec<ChainlistEntry>> {
         .timeout(std::time::Duration::from_secs(30))
         .build()?;
     let resp = client.get("https://chainlist.org/rpcs.json").send().await?;
-    let chains: Vec<ChainlistEntry> = resp.json().await?;
-    Ok(chains)
+    let raw: Vec<serde_json::Value> = resp.json().await?;
+    Ok(parse_chainlist_entries(raw))
+}
+
+/// Parse chainlist entries one by one, skipping malformed ones.
+///
+/// chainlist.org is community-maintained; a single bad entry (e.g. missing
+/// `chainId`) must not make the whole command fail.
+fn parse_chainlist_entries(raw: Vec<serde_json::Value>) -> Vec<ChainlistEntry> {
+    raw.into_iter()
+        .filter_map(|v| serde_json::from_value::<ChainlistEntry>(v).ok())
+        .collect()
+}
+
+/// Deserialize a JSON array, silently dropping elements that fail to parse
+/// (and treating a non-array / null value as empty).
+fn deserialize_lenient_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    use serde::Deserialize;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Array(items) => items
+            .into_iter()
+            .filter_map(|item| serde_json::from_value(item).ok())
+            .collect(),
+        _ => Vec::new(),
+    })
+}
+
+/// Deserialize an optional value, mapping parse failures to `None`.
+fn deserialize_lenient_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    use serde::Deserialize;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 async fn chainlist_search(query: &str, testnets: bool) -> anyhow::Result<()> {
@@ -1256,7 +1337,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
                     println!(
                         "  P{} {} {} {}",
-                        ep.priority, node_type_badge, debug_badge, ep.url
+                        ep.priority,
+                        node_type_badge,
+                        debug_badge,
+                        redact_url(&ep.url)
                     );
 
                     if *detailed {
@@ -1298,7 +1382,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
             // Check if already exists
             if config.endpoints.iter().any(|e| e.url == *url) {
-                println!("Endpoint already exists: {url}");
+                println!("Endpoint already exists: {}", redact_url(url));
                 return Ok(());
             }
 
@@ -1326,7 +1410,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 EndpointConfig::new(url).with_chain(chain)
             } else {
                 // Optimize to detect capabilities
-                println!("Optimizing endpoint: {url}\n");
+                println!("Optimizing endpoint: {}\n", redact_url(url));
 
                 let expected_chain: Option<Chain> =
                     chain_override.as_ref().map(|c| c.parse()).transpose()?;
@@ -1336,7 +1420,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 if !result.connectivity_ok {
                     println!(
                         "Failed to connect: {}",
-                        result.error.unwrap_or_else(|| "Unknown error".to_string())
+                        ethcli::utils::url::redact_urls_in_text(
+                            &result.error.unwrap_or_else(|| "Unknown error".to_string())
+                        )
                     );
                     return Ok(());
                 }
@@ -1390,12 +1476,12 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             config.endpoints.retain(|e| e.url != *url);
 
             if config.endpoints.len() == initial_len {
-                println!("Endpoint not found: {url}");
+                println!("Endpoint not found: {}", redact_url(url));
                 return Ok(());
             }
 
             config.save_default()?;
-            println!("Endpoint removed from config: {url}");
+            println!("Endpoint removed from config: {}", redact_url(url));
         }
 
         EndpointCommands::Optimize {
@@ -1449,7 +1535,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 let ep_url = config.endpoints[idx].url.clone();
                 let expected_chain = Some(config.endpoints[idx].chain);
 
-                print!("Testing {ep_url}... ");
+                print!("Testing {}... ", redact_url(&ep_url));
                 std::io::Write::flush(&mut std::io::stdout())?;
 
                 match optimize_endpoint(&ep_url, expected_chain, *timeout).await {
@@ -1471,12 +1557,17 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         } else {
                             println!(
                                 "FAILED: {}",
-                                result.error.unwrap_or_else(|| "Unknown".to_string())
+                                ethcli::utils::url::redact_urls_in_text(
+                                    &result.error.unwrap_or_else(|| "Unknown".to_string())
+                                )
                             );
                         }
                     }
                     Err(e) => {
-                        println!("ERROR: {e}");
+                        println!(
+                            "ERROR: {}",
+                            ethcli::utils::url::redact_urls_in_text(&e.to_string())
+                        );
                     }
                 }
             }
@@ -1486,7 +1577,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
         }
 
         EndpointCommands::Test { url } => {
-            println!("Testing endpoint: {url}\n");
+            println!("Testing endpoint: {}\n", redact_url(url));
 
             // Test connectivity
             print!("[1/3] Connectivity.............. ");
@@ -1505,7 +1596,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     p
                 }
                 Err(e) => {
-                    println!("FAILED: {e}");
+                    println!(
+                        "FAILED: {}",
+                        ethcli::utils::url::redact_urls_in_text(&e.to_string())
+                    );
                     return Ok(());
                 }
             };
@@ -1517,7 +1611,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             match pool.get_block_number().await {
                 Ok(block) => println!("Block {block}"),
                 Err(e) => {
-                    println!("FAILED: {e}");
+                    println!(
+                        "FAILED: {}",
+                        ethcli::utils::url::redact_urls_in_text(&e.to_string())
+                    );
                     return Ok(());
                 }
             }
@@ -1532,7 +1629,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             match endpoint.test_archive_support().await {
                 Ok(true) => println!("YES (historical state accessible)"),
                 Ok(false) => println!("NO (pruned node)"),
-                Err(e) => println!("UNKNOWN: {e}"),
+                Err(e) => println!(
+                    "UNKNOWN: {}",
+                    ethcli::utils::url::redact_urls_in_text(&e.to_string())
+                ),
             }
 
             println!("\nEndpoint test complete.");
@@ -1544,9 +1644,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             if let Some(ep) = config.endpoints.iter_mut().find(|e| e.url == *url) {
                 ep.enabled = true;
                 config.save_default()?;
-                println!("Endpoint enabled: {url}");
+                println!("Endpoint enabled: {}", redact_url(url));
             } else {
-                println!("Endpoint not found: {url}");
+                println!("Endpoint not found: {}", redact_url(url));
             }
         }
 
@@ -1556,9 +1656,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             if let Some(ep) = config.endpoints.iter_mut().find(|e| e.url == *url) {
                 ep.enabled = false;
                 config.save_default()?;
-                println!("Endpoint disabled: {url}");
+                println!("Endpoint disabled: {}", redact_url(url));
             } else {
-                println!("Endpoint not found: {url}");
+                println!("Endpoint not found: {}", redact_url(url));
             }
         }
 
@@ -1618,13 +1718,20 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         .unwrap_or_else(|_| "http://localhost:8545".parse().unwrap());
                     let provider = ProviderBuilder::new().connect_http(url_parsed);
 
-                    let result: Result<u64, _> = provider.get_block_number().await;
+                    let result = tokio::time::timeout(
+                        std::time::Duration::from_secs(10),
+                        provider.get_block_number(),
+                    )
+                    .await;
                     match result {
-                        Ok(_) => {
+                        Ok(Ok(_)) => {
                             let latency = start.elapsed();
                             health_tracker.record_success(url, latency);
                         }
-                        Err(e) => {
+                        Err(_) => {
+                            health_tracker.record_failure(url, false, true);
+                        }
+                        Ok(Err(e)) => {
                             let err_str = e.to_string();
                             let is_timeout = err_str.contains("timeout");
                             let is_rate_limit =
@@ -1648,6 +1755,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     url: String,
                     chain: String,
                     available: bool,
+                    status: String,
                     success_rate: f64,
                     avg_latency_ms: f64,
                     total_requests: u64,
@@ -1670,9 +1778,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                             0.0
                         };
                         EndpointHealthJson {
-                            url: ep.url.clone(),
+                            url: redact_url(&ep.url),
                             chain: ep.chain.to_string(),
-                            available: h.is_available(),
+                            available: h.probe_status().is_usable(),
+                            status: format!("{:?}", h.probe_status()).to_lowercase(),
                             success_rate,
                             avg_latency_ms: h.avg_latency_ms,
                             total_requests: h.total_requests,
@@ -1701,24 +1810,16 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         0.0
                     };
 
-                    // Truncate/mask URL for display
-                    let display_url = if ep.url.len() > 60 {
-                        format!("{}...", &ep.url[..57])
-                    } else {
-                        ep.url.clone()
-                    };
+                    // Mask URL for display (may embed API keys / credentials)
+                    let display_url = redact_url(&ep.url);
 
                     println!("\n{display_url}");
                     println!("  Chain:        {}", ep.chain);
 
                     // Status indicator
-                    let status = if h.circuit_open {
-                        "⚠ Circuit Open"
-                    } else if h.is_available() {
-                        "✓ Available"
-                    } else {
-                        "✗ Unavailable"
-                    };
+                    // Based on actual probe results, not just the circuit
+                    // breaker (which needs 5 consecutive failures to open).
+                    let status = h.probe_status().label();
                     println!("  Status:       {status}");
 
                     // Success rate
@@ -1961,27 +2062,6 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://dune.com/terms");
         }
 
-        ConfigCommands::SetDuneSim { key, stdin } => {
-            use ethcli::cli::config::read_from_stdin;
-            use ethcli::config::DuneSimConfig;
-            use secrecy::SecretString;
-            let api_key = if *stdin {
-                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
-            } else {
-                key.clone().ok_or_else(|| {
-                    anyhow::anyhow!("API key required (provide key or use --stdin)")
-                })?
-            };
-            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
-            cfg.dune_sim = Some(DuneSimConfig {
-                api_key: SecretString::new(api_key.into()),
-            });
-            cfg.save_default()?;
-            println!("Dune SIM API key saved to config file.");
-            println!("\nBy using Dune SIM, you agree to their Terms of Service.");
-            println!("See: https://sim.dune.com/terms");
-        }
-
         ConfigCommands::SetSolodit { key, stdin } => {
             use ethcli::cli::config::read_from_stdin;
             use ethcli::config::SoloditConfig;
@@ -2003,11 +2083,36 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://www.cyfrin.io/terms-of-service");
         }
 
+        ConfigCommands::SetPyth { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            use ethcli::config::PythConfig;
+            use secrecy::SecretString;
+            let api_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+            } else {
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
+            };
+            let api_key = api_key.trim().to_string();
+            if api_key.is_empty() {
+                anyhow::bail!("API key must not be empty");
+            }
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.pyth = Some(PythConfig {
+                api_key: SecretString::new(api_key.into()),
+            });
+            cfg.save_default()?;
+            println!("Pyth API key saved to config file.");
+            println!("\nBy using Pyth, you agree to the Pyth Network Terms of Use.");
+            println!("See: https://pyth.network/terms-of-use");
+        }
+
         ConfigCommands::AddDebugRpc { url } => {
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.add_debug_rpc(url.clone())?;
             println!("Debug RPC URL added to config file.");
-            println!("  URL: {url}");
+            println!("  URL: {}", redact_url(url));
         }
 
         ConfigCommands::RemoveDebugRpc { url } => {
@@ -2016,12 +2121,28 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("Debug RPC URL removed from config file.");
         }
 
-        ConfigCommands::Show => {
+        ConfigCommands::Show { show_secrets } => {
             let path = ConfigFile::default_path();
             if path.exists() {
                 let content = std::fs::read_to_string(&path)?;
                 println!("# {}\n", path.display());
-                println!("{content}");
+                if *show_secrets {
+                    println!("{content}");
+                } else {
+                    match ethcli::config::redact::redact_config_toml(&content) {
+                        Ok(redacted) => {
+                            println!("# Secrets are masked. Use --show-secrets to print them.\n");
+                            println!("{redacted}");
+                        }
+                        Err(e) => {
+                            // Never fall back to printing a file we couldn't redact
+                            println!(
+                                "Config file is not valid TOML ({e}); not printing it because \
+                                 secrets could not be masked. Use --show-secrets to print it anyway."
+                            );
+                        }
+                    }
+                }
             } else {
                 println!("No config file found at: {}", path.display());
                 println!("\nCreate one with:");
@@ -2072,11 +2193,16 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                                 && !ep.url.starts_with("wss://")
                                 && !ep.url.starts_with("ws://")
                             {
-                                errors.push(format!("Invalid RPC URL scheme: {}", ep.url));
+                                errors.push(format!(
+                                    "Invalid RPC URL scheme: {}",
+                                    redact_url(&ep.url)
+                                ));
                             }
                             if ep.priority == 0 {
-                                warnings
-                                    .push(format!("Endpoint {} has priority 0 (lowest)", ep.url));
+                                warnings.push(format!(
+                                    "Endpoint {} has priority 0 (lowest)",
+                                    redact_url(&ep.url)
+                                ));
                             }
                         }
                         println!("RPC endpoints: {} configured", config.endpoints.len());
@@ -2108,13 +2234,13 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                         api_keys_present += 1;
                         println!("Dune API key: configured");
                     }
-                    if config.dune_sim.is_some() {
-                        api_keys_present += 1;
-                        println!("Dune SIM API key: configured");
-                    }
                     if config.solodit.is_some() {
                         api_keys_present += 1;
                         println!("Solodit API key: configured");
+                    }
+                    if config.pyth.is_some() {
+                        api_keys_present += 1;
+                        println!("Pyth API key: configured");
                     }
                     if api_keys_present == 0 {
                         warnings.push(
@@ -2219,15 +2345,7 @@ debug_rpc_urls = []
 # Ethereum Mainnet
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://eth-mainnet.public.blastapi.io"
-chain = "ethereum"
-priority = 10
-max_block_range = 18303
-max_logs = 200000
-note = "Excellent - highest log limit"
-
-[[endpoints]]
-url = "https://ethereum.publicnode.com"
+url = "https://ethereum-rpc.publicnode.com"
 chain = "ethereum"
 priority = 8
 max_block_range = 44864
@@ -2244,28 +2362,35 @@ max_logs = 5000
 # Polygon
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://polygon-mainnet.public.blastapi.io"
+url = "https://polygon-bor-rpc.publicnode.com"
 chain = "polygon"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
 
 [[endpoints]]
-url = "https://polygon.publicnode.com"
+url = "https://polygon.drpc.org"
 chain = "polygon"
-priority = 5
+priority = 6
 max_block_range = 10000
-max_logs = 10000
+max_logs = 5000
 
 # -----------------------------------------------------------------------------
 # Arbitrum
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://arbitrum-mainnet.public.blastapi.io"
+url = "https://arbitrum-one-rpc.publicnode.com"
 chain = "arbitrum"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://arbitrum.drpc.org"
+chain = "arbitrum"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://arb1.arbitrum.io/rpc"
@@ -2278,11 +2403,18 @@ max_logs = 10000
 # Base
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://base-mainnet.public.blastapi.io"
+url = "https://base-rpc.publicnode.com"
 chain = "base"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://base.drpc.org"
+chain = "base"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://mainnet.base.org"
@@ -2296,11 +2428,18 @@ note = "Official Base RPC"
 # Optimism
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://optimism-mainnet.public.blastapi.io"
+url = "https://optimism-rpc.publicnode.com"
 chain = "optimism"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://optimism.drpc.org"
+chain = "optimism"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://mainnet.optimism.io"
@@ -2565,4 +2704,33 @@ fn handle_help_json(args: &[String]) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod chainlist_tests {
+    use super::*;
+
+    #[test]
+    fn chainlist_skips_malformed_entries() {
+        let raw: Vec<serde_json::Value> = serde_json::from_str(
+            r#"[
+                {"name": "Ethereum", "chain": "ETH", "chainId": 1,
+                 "rpc": [{"url": "https://a.example"}, "https://legacy-string", {"nourl": 1}],
+                 "nativeCurrency": {"name": "Ether", "symbol": "ETH", "decimals": 18},
+                 "explorers": [{"name": "x", "url": "https://x"}, 5]},
+                {"name": "No chain field", "chainId": 2, "rpc": []},
+                {"name": "Bad chain id", "chain": "X", "chainId": "oops"},
+                {"name": "Bad currency", "chain": "Y", "chainId": 3, "nativeCurrency": 7},
+                42
+            ]"#,
+        )
+        .unwrap();
+        let entries = parse_chainlist_entries(raw);
+        let ids: Vec<u64> = entries.iter().map(|e| e.chain_id).collect();
+        assert_eq!(ids, vec![1, 2, 3]);
+        assert_eq!(entries[0].rpc.len(), 1);
+        assert_eq!(entries[0].explorers.len(), 1);
+        assert!(entries[1].chain.is_empty());
+        assert!(entries[2].native_currency.is_none());
+    }
 }

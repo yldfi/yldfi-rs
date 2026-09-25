@@ -66,7 +66,7 @@ fn resolve_fork_urls(
         if let Ok(configured_rpc) = get_rpc_url(chain) {
             fork_urls.push(configured_rpc);
         } else if chain == Chain::Ethereum {
-            fork_urls.push("https://eth.llamarpc.com".to_string());
+            fork_urls.push("https://ethereum-rpc.publicnode.com".to_string());
         } else {
             anyhow::bail!(
                 "No fork RPC URL configured for {}. Pass --rpc-url or --fork-url.",
@@ -208,11 +208,14 @@ pub async fn simulate_via_anvil(
     if !quiet {
         let extra_count = fork_urls.len().saturating_sub(1);
         if extra_count == 0 {
-            eprintln!("Starting Anvil fork of {}...", fork_urls[0]);
+            eprintln!(
+                "Starting Anvil fork of {}...",
+                crate::utils::url::redact_url(&fork_urls[0])
+            );
         } else {
             eprintln!(
                 "Starting Anvil fork of {} plus {extra_count} fallback endpoint(s)...",
-                fork_urls[0]
+                crate::utils::url::redact_url(&fork_urls[0])
             );
         }
     }

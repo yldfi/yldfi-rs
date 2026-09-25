@@ -6,7 +6,7 @@
 use std::borrow::Cow;
 use std::time::Duration;
 use url::Url;
-use yldfi_common::api::{ApiConfig, BaseClient};
+use yldfi_common::api::{ApiConfig, BaseClient, SecretApiKey};
 use yldfi_common::{with_retry, RetryConfig};
 
 use crate::error::{DomainError, Error, Result};
@@ -15,18 +15,51 @@ use crate::types::{LatestPriceResponse, ParsedPriceFeed, PriceFeedId};
 /// Maximum length of error body to include in error messages
 const MAX_ERROR_BODY_LEN: usize = 500;
 
+/// Environment variable read by [`Client::from_env`] and [`Config::from_env`].
+pub const API_KEY_ENV_VAR: &str = "PYTH_API_KEY";
+
+/// Where to obtain a Pyth API key (Pyth Terminal).
+pub const API_KEY_URL: &str = "https://pythdata.app";
+
 /// Base URLs for Pyth Hermes
+///
+/// Since the Pyth Core upgrade (2026-08-26), every Hermes endpoint requires an
+/// API key sent as `Authorization: Bearer <key>`. Keys are issued via the Pyth
+/// Terminal (<https://pythdata.app>).
 pub mod base_urls {
-    /// Production Hermes
-    pub const MAINNET: &str = "https://hermes.pyth.network";
-    /// Testnet Hermes
+    /// Production Hermes (Pyth Core upgraded endpoint).
+    ///
+    /// Routes and response shapes are identical to the legacy endpoint.
+    pub const MAINNET: &str = "https://pyth.dourolabs.app/hermes";
+    /// Legacy production Hermes host.
+    ///
+    /// Still served, but also requires an API key since the Pyth Core upgrade.
+    /// Prefer [`MAINNET`].
+    pub const LEGACY: &str = "https://hermes.pyth.network";
+    /// Legacy beta/testnet Hermes host.
+    ///
+    /// Kept for backwards compatibility only. Pyth no longer documents a
+    /// separate beta endpoint after the Pyth Core upgrade, so availability and
+    /// authentication requirements of this host are unverified.
     pub const TESTNET: &str = "https://hermes-beta.pyth.network";
 }
 
 /// Configuration for the Pyth Hermes client
 ///
 /// This is a thin wrapper around [`ApiConfig`] that provides Pyth-specific
-/// defaults and convenience methods.
+/// defaults and convenience methods. The API key (if any) is stored as a
+/// [`SecretApiKey`](yldfi_common::api::SecretApiKey) and is redacted from
+/// `Debug` output.
+///
+/// # Example
+///
+/// ```
+/// use pythc::Config;
+///
+/// let config = Config::mainnet().with_api_key("my-secret-key");
+/// assert!(config.has_api_key());
+/// assert!(!format!("{config:?}").contains("my-secret-key"));
+/// ```
 #[derive(Debug, Clone)]
 pub struct Config {
     inner: ApiConfig,
@@ -47,7 +80,17 @@ impl Config {
         Self::default()
     }
 
-    /// Create a testnet config
+    /// Create a mainnet config, reading the API key from the `PYTH_API_KEY`
+    /// environment variable if it is set and non-empty.
+    #[must_use]
+    pub fn from_env() -> Self {
+        Self::default().with_optional_api_key(std::env::var(API_KEY_ENV_VAR).ok())
+    }
+
+    /// Create a config for the legacy `hermes-beta` host.
+    ///
+    /// **Legacy / unverified:** Pyth does not document a beta endpoint after the
+    /// Pyth Core upgrade. See [`base_urls::TESTNET`].
     #[must_use]
     pub fn testnet() -> Self {
         Self {
@@ -60,6 +103,31 @@ impl Config {
     pub fn with_base_url(mut self, url: impl Into<String>) -> Self {
         self.inner.base_url = url.into();
         self
+    }
+
+    /// Set the Pyth API key, sent as `Authorization: Bearer <key>`.
+    ///
+    /// Required by all Hermes endpoints since the Pyth Core upgrade.
+    /// Surrounding whitespace is trimmed; an empty key clears the setting.
+    #[must_use]
+    pub fn with_api_key(self, api_key: impl Into<String>) -> Self {
+        self.with_optional_api_key(Some(api_key.into()))
+    }
+
+    /// Set the Pyth API key if `Some` and non-empty, otherwise clear it.
+    #[must_use]
+    pub fn with_optional_api_key(mut self, api_key: Option<String>) -> Self {
+        self.inner.api_key = api_key
+            .map(|k| k.trim().to_string())
+            .filter(|k| !k.is_empty())
+            .map(SecretApiKey::new);
+        self
+    }
+
+    /// Whether an API key is configured.
+    #[must_use]
+    pub fn has_api_key(&self) -> bool {
+        self.inner.api_key.is_some()
     }
 
     /// Set a custom timeout
@@ -127,12 +195,36 @@ pub struct Client {
 }
 
 impl Client {
-    /// Create a new mainnet client
+    /// Create a new mainnet client **without** an API key.
+    ///
+    /// Since the Pyth Core upgrade, Hermes rejects unauthenticated requests
+    /// with `401 Unauthorized`. Prefer [`Client::with_api_key`] or
+    /// [`Client::from_env`].
     pub fn new() -> Result<Self> {
         Self::with_config(Config::mainnet())
     }
 
-    /// Create a testnet client
+    /// Create a mainnet client authenticated with the given Pyth API key.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let client = pythc::Client::with_api_key("my-pyth-api-key")?;
+    /// assert!(client.has_api_key());
+    /// # Ok::<(), pythc::Error>(())
+    /// ```
+    pub fn with_api_key(api_key: impl Into<String>) -> Result<Self> {
+        Self::with_config(Config::mainnet().with_api_key(api_key))
+    }
+
+    /// Create a mainnet client using the `PYTH_API_KEY` environment variable
+    /// (if set). See [`Config::from_env`].
+    pub fn from_env() -> Result<Self> {
+        Self::with_config(Config::from_env())
+    }
+
+    /// Create a client for the legacy `hermes-beta` host (unverified, see
+    /// [`base_urls::TESTNET`]).
     pub fn testnet() -> Result<Self> {
         Self::with_config(Config::testnet())
     }
@@ -156,6 +248,12 @@ impl Client {
                 .with_initial_delay(Duration::from_millis(100))
                 .with_max_delay(Duration::from_secs(5)),
         })
+    }
+
+    /// Whether this client sends an API key.
+    #[must_use]
+    pub fn has_api_key(&self) -> bool {
+        self.base.config().api_key.is_some()
     }
 
     /// Get the latest price for one or more feed IDs
@@ -230,14 +328,22 @@ impl Client {
     async fn get_url<T: serde::de::DeserializeOwned>(&self, url: &Url) -> Result<T> {
         let url_str = url.to_string();
         let http = self.base.http().clone();
+        // Includes `Authorization: Bearer <key>` when an API key is configured
+        let headers = self.base.default_headers();
+        let has_api_key = self.has_api_key();
 
         // Use with_retry for automatic retry with backoff
         let result = with_retry(&self.retry_config, || {
             let http = http.clone();
             let url_str = url_str.clone();
+            let headers = headers.clone();
             async move {
-                let response = http.get(&url_str).send().await?;
+                let response = http.get(&url_str).headers(headers).send().await?;
                 let status = response.status().as_u16();
+
+                if matches!(status, 401 | 403) {
+                    return Err(crate::error::unauthorized(status, has_api_key));
+                }
 
                 if response.status().is_success() {
                     response
@@ -250,7 +356,11 @@ impl Client {
 
                     // Truncate error body to prevent huge error messages
                     let body_truncated = if body.len() > MAX_ERROR_BODY_LEN {
-                        format!("{}...(truncated)", &body[..MAX_ERROR_BODY_LEN])
+                        let mut end = MAX_ERROR_BODY_LEN;
+                        while !body.is_char_boundary(end) {
+                            end -= 1;
+                        }
+                        format!("{}...(truncated)", &body[..end])
                     } else {
                         body
                     };

@@ -17,6 +17,10 @@ pub struct JsonWriter {
     ndjson: bool,
     /// Whether first item has been written (for array format)
     first_written: bool,
+    /// Whether the opening `[` has been written (array format). Deferred
+    /// until the first item or `finalize` so that an error before any output
+    /// doesn't leave a stray `[` on stdout.
+    opened: bool,
     /// Count of items written
     count: usize,
 }
@@ -32,24 +36,33 @@ impl JsonWriter {
             Box::new(BufWriter::new(io::stdout()))
         };
 
-        let mut json_writer = Self {
+        Ok(Self::with_writer(writer, ndjson))
+    }
+
+    /// Create a JSON writer over an arbitrary sink
+    pub fn with_writer(writer: Box<dyn Write + Send>, ndjson: bool) -> Self {
+        Self {
             writer,
             ndjson,
             first_written: false,
+            opened: false,
             count: 0,
-        };
-
-        // Write opening bracket for array format
-        if !ndjson {
-            writeln!(json_writer.writer, "[").map_err(|e| OutputError::JsonWrite(e.to_string()))?;
         }
+    }
 
-        Ok(json_writer)
+    /// Write the opening bracket for array format (once)
+    fn ensure_open(&mut self) -> Result<()> {
+        if !self.ndjson && !self.opened {
+            writeln!(self.writer, "[").map_err(|e| OutputError::JsonWrite(e.to_string()))?;
+            self.opened = true;
+        }
+        Ok(())
     }
 
     /// Write a single decoded log
     fn write_decoded(&mut self, log: &DecodedLog) -> Result<()> {
         let json = serde_json::to_string(log).map_err(|e| OutputError::JsonWrite(e.to_string()))?;
+        self.ensure_open()?;
 
         if self.ndjson {
             writeln!(self.writer, "{}", json).map_err(|e| OutputError::JsonWrite(e.to_string()))?;
@@ -68,6 +81,7 @@ impl JsonWriter {
     /// Write a single raw log
     fn write_raw(&mut self, log: &Log) -> Result<()> {
         let json = serde_json::to_string(log).map_err(|e| OutputError::JsonWrite(e.to_string()))?;
+        self.ensure_open()?;
 
         if self.ndjson {
             writeln!(self.writer, "{}", json).map_err(|e| OutputError::JsonWrite(e.to_string()))?;
@@ -103,6 +117,7 @@ impl OutputWriter for JsonWriter {
 
     fn finalize(&mut self) -> Result<()> {
         if !self.ndjson {
+            self.ensure_open()?;
             writeln!(self.writer).map_err(|e| OutputError::JsonWrite(e.to_string()))?;
             writeln!(self.writer, "]").map_err(|e| OutputError::JsonWrite(e.to_string()))?;
         }
@@ -121,7 +136,6 @@ mod tests {
     use alloy::primitives::{Address, B256};
     use std::collections::HashMap;
 
-    #[allow(dead_code)]
     fn test_log() -> DecodedLog {
         DecodedLog {
             block_number: 12345,
@@ -137,16 +151,60 @@ mod tests {
         }
     }
 
+    /// Shared in-memory sink so tests can inspect output after writing
+    #[derive(Clone, Default)]
+    struct SharedBuf(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl Write for SharedBuf {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl SharedBuf {
+        fn text(&self) -> String {
+            String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
+        }
+    }
+
+    #[test]
+    fn test_no_output_before_first_item() {
+        let buf = SharedBuf::default();
+        let _writer = JsonWriter::with_writer(Box::new(buf.clone()), false);
+        // Simulates an error before any logs are fetched: nothing on stdout
+        assert_eq!(buf.text(), "");
+    }
+
+    #[test]
+    fn test_array_output_is_valid_json_and_data_is_hex() {
+        let buf = SharedBuf::default();
+        let mut writer = JsonWriter::with_writer(Box::new(buf.clone()), false);
+        let mut log = test_log();
+        log.data = vec![0x00, 0x01, 0xab];
+        writer.write_decoded(&log).unwrap();
+        writer.finalize().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&buf.text()).unwrap();
+        assert_eq!(parsed[0]["data"], "0x0001ab");
+    }
+
+    #[test]
+    fn test_empty_array_output() {
+        let buf = SharedBuf::default();
+        let mut writer = JsonWriter::with_writer(Box::new(buf.clone()), false);
+        writer.finalize().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&buf.text()).unwrap();
+        assert_eq!(parsed, serde_json::json!([]));
+    }
+
     #[test]
     fn test_json_array_format() {
         use std::io::Cursor;
         let buffer = Cursor::new(Vec::new());
-        let _writer = JsonWriter {
-            writer: Box::new(buffer),
-            ndjson: false,
-            first_written: false,
-            count: 0,
-        };
+        let _writer = JsonWriter::with_writer(Box::new(buffer), false);
 
         // Can't easily test without mocking, but structure is correct
     }

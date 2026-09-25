@@ -21,8 +21,6 @@ pub enum PortfolioSource {
     Alchemy,
     /// Moralis Wallet API
     Moralis,
-    /// Dune SIM Balances API
-    DuneSim,
     /// Uniswap V3 LP positions via The Graph
     Uniswap,
     /// Yearn vault positions via Kong API
@@ -35,7 +33,6 @@ impl PortfolioSource {
             PortfolioSource::All => "all",
             PortfolioSource::Alchemy => "alchemy",
             PortfolioSource::Moralis => "moralis",
-            PortfolioSource::DuneSim => "dsim",
             PortfolioSource::Uniswap => "uniswap",
             PortfolioSource::Yearn => "yearn",
         }
@@ -154,10 +151,6 @@ pub struct MergedToken {
 }
 
 /// Fetch portfolio from all available sources in parallel
-///
-/// Dune Sim is excluded from the default set because the platform shuts down
-/// on 2026-08-01 (<https://github.com/yldfi/yldfi-rs/issues/64>); it can still
-/// be queried explicitly via `--source dsim` until then.
 pub async fn fetch_portfolio_all(
     address: &str,
     chains: &[&str],
@@ -212,7 +205,6 @@ pub async fn fetch_portfolio_from_source(
     match source {
         PortfolioSource::Alchemy => fetch_alchemy_portfolio(address, chains, measure).await,
         PortfolioSource::Moralis => fetch_moralis_portfolio(address, chains, measure).await,
-        PortfolioSource::DuneSim => fetch_dsim_portfolio(address, chains, measure).await,
         PortfolioSource::Uniswap => fetch_uniswap_portfolio(address, chains, measure).await,
         PortfolioSource::Yearn => fetch_yearn_portfolio(address, chains, measure).await,
         PortfolioSource::All => SourceResult::error("all", "Use fetch_portfolio_all instead", 0),
@@ -396,80 +388,6 @@ async fn fetch_moralis_portfolio(
     SourceResult::success("moralis", all_balances, measure.elapsed_ms())
 }
 
-/// Fetch portfolio from Dune SIM
-async fn fetch_dsim_portfolio(
-    address: &str,
-    chains: &[String],
-    measure: LatencyMeasure,
-) -> SourceResult<Vec<PortfolioBalance>> {
-    // Get API key from config
-    let config = get_cached_config();
-    let api_key = match config
-        .as_ref()
-        .and_then(|c| c.dune_sim.as_ref())
-        .map(|d| d.api_key.expose_secret().to_string())
-    {
-        Some(key) => key,
-        None => match std::env::var("DUNE_SIM_API_KEY") {
-            Ok(key) => key,
-            Err(_) => {
-                return SourceResult::error(
-                    "dsim",
-                    "DUNE_SIM_API_KEY not configured",
-                    measure.elapsed_ms(),
-                )
-            }
-        },
-    };
-
-    let client = match dnsim::Client::new(&api_key) {
-        Ok(c) => c,
-        Err(e) => {
-            return SourceResult::error(
-                "dsim",
-                format!("Client error: {}", e),
-                measure.elapsed_ms(),
-            )
-        }
-    };
-
-    // Build chain IDs filter
-    let chain_ids: Vec<&str> = chains.iter().filter_map(|c| chain_to_id(c)).collect();
-
-    let options = if chain_ids.is_empty() {
-        dnsim::balances::BalancesOptions::new()
-    } else {
-        let mut opts = dnsim::balances::BalancesOptions::new();
-        opts.chain_ids = Some(chain_ids.join(","));
-        opts
-    };
-
-    match client.balances().get_with_options(address, &options).await {
-        Ok(response) => {
-            let balances: Vec<PortfolioBalance> = response
-                .balances
-                .iter()
-                .map(|b| {
-                    let mut balance = PortfolioBalance::new(
-                        &b.address, &b.symbol, &b.chain, &b.amount, b.decimals,
-                    )
-                    .with_name(b.name.clone())
-                    .with_usd_value(b.value_usd)
-                    .with_price_usd(b.price_usd);
-
-                    if let Some(ref meta) = b.token_metadata {
-                        balance = balance.with_logo(meta.logo.clone());
-                    }
-
-                    balance
-                })
-                .collect();
-            SourceResult::success("dsim", balances, measure.elapsed_ms())
-        }
-        Err(e) => SourceResult::error("dsim", format!("API error: {}", e), measure.elapsed_ms()),
-    }
-}
-
 /// Fetch Uniswap LP positions (V2, V3, and V4)
 async fn fetch_uniswap_portfolio(
     address: &str,
@@ -640,10 +558,9 @@ async fn fetch_uniswap_portfolio(
                         Some(unswp::SubgraphConfig::arbitrum_v4(&api_key))
                     }
                     "base" | "base-mainnet" => Some(unswp::SubgraphConfig::base_v4(&api_key)),
-                    "polygon" | "matic" | "polygon-mainnet" => Some(
-                        unswp::SubgraphConfig::mainnet_v4(&api_key)
-                            .with_subgraph_id(unswp::subgraph_ids::POLYGON_V4),
-                    ),
+                    "polygon" | "matic" | "polygon-mainnet" => {
+                        Some(unswp::SubgraphConfig::polygon_v4(&api_key))
+                    }
                     _ => None,
                 };
 
@@ -1187,19 +1104,5 @@ fn estimate_lp_usd_value(
     } else {
         // Neither is stable - we'd need price data
         None
-    }
-}
-
-/// Map chain name to chain ID for dsim
-fn chain_to_id(chain: &str) -> Option<&'static str> {
-    match chain.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" | "eth-mainnet" => Some("1"),
-        "polygon" | "matic" | "polygon-mainnet" => Some("137"),
-        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => Some("42161"),
-        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => Some("10"),
-        "base" | "base-mainnet" => Some("8453"),
-        "avalanche" | "avax" => Some("43114"),
-        "bsc" | "bnb" => Some("56"),
-        _ => None,
     }
 }

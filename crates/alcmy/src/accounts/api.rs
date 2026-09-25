@@ -2,7 +2,7 @@
 
 use super::types::{
     AuthRequest, JwtAuthRequest, LookupRequest, LookupResponse, OtpRequest, SignPayloadRequest,
-    SignPayloadResponse, SignupRequest, SignupResponse, WhoamiResponse,
+    SignPayloadResponse, WhoamiResponse,
 };
 use crate::client::Client;
 use crate::error::{Error, Result};
@@ -45,11 +45,6 @@ impl<'a> AccountsApi<'a> {
             let message = response.text().await.unwrap_or_default();
             Err(Error::api(status, message))
         }
-    }
-
-    /// Sign up a new user (email or passkey)
-    pub async fn signup(&self, request: &SignupRequest) -> Result<SignupResponse> {
-        self.post("/signup", request).await
     }
 
     /// Send authentication email with magic link
