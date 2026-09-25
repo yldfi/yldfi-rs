@@ -1,12 +1,16 @@
 //! HTTP client for the Solodit API
+//!
+//! Implements the documented Cyfrin Solodit Findings API: a single
+//! `POST /findings` endpoint authenticated via the `X-Cyfrin-API-Key` header.
 
+use reqwest::header::HeaderMap;
 use reqwest::Client as HttpClient;
 use secrecy::{ExposeSecret, SecretString};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::time::Duration;
 
 use crate::error::{Error, Result};
-use crate::types::{ApiResponse, Finding, SearchFilter, SearchResults};
+use crate::types::{ApiResponse, Finding, Impact, RateLimit, SearchFilter, SearchResults};
 
 /// Base URL for Solodit API
 pub const BASE_URL: &str = "https://solodit.cyfrin.io/api/v1/solodit";
@@ -17,10 +21,16 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Default user agent
 const USER_AGENT: &str = "sldt/0.1 (Rust; +https://github.com/yldfi/yldfi-rs)";
 
+/// Maximum characters of a raw (non-JSON) error body included in errors
+const MAX_ERROR_BODY: usize = 500;
+
 /// Solodit API client
 ///
 /// This is an unofficial client for the Solodit vulnerability database.
-/// Requires an API key from <https://solodit.cyfrin.io>
+/// Requires an API key from <https://solodit.cyfrin.io>.
+///
+/// The API key is stored using `SecretString` to prevent accidental exposure
+/// in logs or debug output, and is redacted from any error message.
 ///
 /// # Example
 ///
@@ -31,10 +41,6 @@ const USER_AGENT: &str = "sldt/0.1 (Rust; +https://github.com/yldfi/yldfi-rs)";
 /// # Ok(())
 /// # }
 /// ```
-/// Solodit API client
-///
-/// The API key is stored securely using `SecretString` to prevent
-/// accidental exposure in logs or debug output.
 #[derive(Clone)]
 pub struct Client {
     http: HttpClient,
@@ -52,46 +58,10 @@ impl std::fmt::Debug for Client {
 }
 
 impl Client {
-    /// Create a new client with an API key
-    ///
-    /// Get your API key from <https://solodit.cyfrin.io> (Profile > API Keys)
-    ///
-    /// # Errors
-    /// Returns an error if:
-    /// - The API key is empty or whitespace-only
-    /// - The HTTP client fails to initialize (rare, typically TLS issues)
-    pub fn new(api_key: impl Into<String>) -> Result<Self> {
-        let api_key_str = api_key.into();
-
-        // Validate API key is not empty
-        if api_key_str.trim().is_empty() {
+    fn build(api_key: String, base_url: String, timeout: Duration) -> Result<Self> {
+        if api_key.trim().is_empty() {
             return Err(Error::client(
-                "API key cannot be empty. Get your key from https://solodit.cyfrin.io",
-            ));
-        }
-
-        let http = HttpClient::builder()
-            .timeout(DEFAULT_TIMEOUT)
-            .user_agent(USER_AGENT)
-            .build()
-            .map_err(|e| Error::client(format!("Failed to build HTTP client: {e}")))?;
-
-        Ok(Self {
-            http,
-            base_url: BASE_URL.to_string(),
-            api_key: SecretString::new(api_key_str.into()),
-        })
-    }
-
-    /// Create a client with custom timeout
-    ///
-    /// # Errors
-    /// Returns an error if the API key is empty or HTTP client fails to initialize
-    pub fn with_timeout(api_key: impl Into<String>, timeout: Duration) -> Result<Self> {
-        let api_key_str = api_key.into();
-        if api_key_str.trim().is_empty() {
-            return Err(Error::client(
-                "API key cannot be empty. Get your key from https://solodit.cyfrin.io",
+                "API key cannot be empty. Get your key from https://solodit.cyfrin.io (Profile > API Keys)",
             ));
         }
 
@@ -103,9 +73,29 @@ impl Client {
 
         Ok(Self {
             http,
-            base_url: BASE_URL.to_string(),
-            api_key: SecretString::new(api_key_str.into()),
+            base_url,
+            api_key: SecretString::new(api_key.trim().to_string().into()),
         })
+    }
+
+    /// Create a new client with an API key
+    ///
+    /// Get your API key from <https://solodit.cyfrin.io> (Profile > API Keys)
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - The API key is empty or whitespace-only
+    /// - The HTTP client fails to initialize (rare, typically TLS issues)
+    pub fn new(api_key: impl Into<String>) -> Result<Self> {
+        Self::build(api_key.into(), BASE_URL.to_string(), DEFAULT_TIMEOUT)
+    }
+
+    /// Create a client with custom timeout
+    ///
+    /// # Errors
+    /// Returns an error if the API key is empty or HTTP client fails to initialize
+    pub fn with_timeout(api_key: impl Into<String>, timeout: Duration) -> Result<Self> {
+        Self::build(api_key.into(), BASE_URL.to_string(), timeout)
     }
 
     /// Create a client with custom base URL (for testing)
@@ -113,24 +103,7 @@ impl Client {
     /// # Errors
     /// Returns an error if the API key is empty or HTTP client fails to initialize
     pub fn with_base_url(api_key: impl Into<String>, base_url: impl Into<String>) -> Result<Self> {
-        let api_key_str = api_key.into();
-        if api_key_str.trim().is_empty() {
-            return Err(Error::client(
-                "API key cannot be empty. Get your key from https://solodit.cyfrin.io",
-            ));
-        }
-
-        let http = HttpClient::builder()
-            .timeout(DEFAULT_TIMEOUT)
-            .user_agent(USER_AGENT)
-            .build()
-            .map_err(|e| Error::client(format!("Failed to build HTTP client: {e}")))?;
-
-        Ok(Self {
-            http,
-            base_url: base_url.into(),
-            api_key: SecretString::new(api_key_str.into()),
-        })
+        Self::build(api_key.into(), base_url.into(), DEFAULT_TIMEOUT)
     }
 
     /// Build URL for an endpoint
@@ -140,93 +113,126 @@ impl Client {
         format!("{base}/{endpoint}")
     }
 
-    /// Build the request body from a `SearchFilter`
-    fn build_request_body(&self, filter: &SearchFilter) -> serde_json::Value {
-        let mut filters = json!({});
+    /// Build the `POST /findings` request body from a `SearchFilter`.
+    ///
+    /// Values are normalized to the documented constraints: `page >= 1`,
+    /// `1 <= pageSize <= 100`, scores `0..=5`, `minFinders`/`maxFinders` as
+    /// strings, and `reported.value = "after"` whenever `reportedAfter` is set.
+    fn build_request_body(filter: &SearchFilter) -> Value {
+        let mut filters = serde_json::Map::new();
 
-        // Keywords
-        if let Some(ref keywords) = filter.keywords {
-            filters["keywords"] = json!(keywords);
+        if let Some(keywords) = filter.keywords.as_deref().map(str::trim) {
+            if !keywords.is_empty() {
+                filters.insert("keywords".into(), json!(keywords));
+            }
         }
 
-        // Impact levels
-        if !filter.impacts.is_empty() {
-            let impacts: Vec<&str> = filter
-                .impacts
-                .iter()
-                .map(super::types::Impact::as_str)
-                .collect();
-            filters["impact"] = json!(impacts);
+        // Only the documented impact values; `Unknown` is never sent.
+        let mut impacts: Vec<&str> = Vec::new();
+        for impact in &filter.impacts {
+            if *impact != Impact::Unknown && !impacts.contains(&impact.as_str()) {
+                impacts.push(impact.as_str());
+            }
+        }
+        if !impacts.is_empty() {
+            filters.insert("impact".into(), json!(impacts));
         }
 
-        // Firms
         if !filter.firms.is_empty() {
-            filters["firms"] = json!(filter.firms);
+            filters.insert("firms".into(), json!(filter.firms));
         }
-
-        // Tags
         if !filter.tags.is_empty() {
-            filters["tags"] = json!(filter.tags);
+            filters.insert("tags".into(), json!(filter.tags));
         }
-
-        // Protocol
-        if let Some(ref protocol) = filter.protocol {
-            filters["protocol"] = json!(protocol);
+        if let Some(protocol) = &filter.protocol {
+            filters.insert("protocol".into(), json!(protocol));
         }
-
-        // Protocol categories
         if !filter.protocol_categories.is_empty() {
-            filters["protocolCategory"] = json!(filter.protocol_categories);
+            filters.insert("protocolCategory".into(), json!(filter.protocol_categories));
         }
-
-        // Forked protocols
         if !filter.forked.is_empty() {
-            filters["forked"] = json!(filter.forked);
+            filters.insert("forked".into(), json!(filter.forked));
         }
-
-        // Languages
         if !filter.languages.is_empty() {
-            filters["languages"] = json!(filter.languages);
+            filters.insert("languages".into(), json!(filter.languages));
+        }
+        if let Some(user) = &filter.user {
+            filters.insert("user".into(), json!(user));
         }
 
-        // User/finder
-        if let Some(ref user) = filter.user {
-            filters["user"] = json!(user);
-        }
-
-        // Finder count range
+        // The spec types these as strings.
         if let Some(min) = filter.min_finders {
-            filters["minFinders"] = json!(min.to_string());
+            filters.insert("minFinders".into(), json!(min.to_string()));
         }
         if let Some(max) = filter.max_finders {
-            filters["maxFinders"] = json!(max.to_string());
+            filters.insert("maxFinders".into(), json!(max.to_string()));
         }
 
-        // Reported period
-        if let Some(ref period) = filter.reported {
-            filters["reported"] = json!({ "value": period.as_str() });
+        // `reportedAfter` is only honored when `reported.value == "after"`.
+        let reported = match (&filter.reported, &filter.reported_after) {
+            (_, Some(_)) => Some(crate::types::ReportedPeriod::After),
+            (Some(p), None) => Some(*p),
+            (None, None) => None,
+        };
+        if let Some(period) = reported {
+            filters.insert("reported".into(), json!({ "value": period.as_str() }));
         }
-        if let Some(ref date) = filter.reported_after {
-            filters["reportedAfter"] = json!(date);
+        if let Some(date) = &filter.reported_after {
+            filters.insert("reportedAfter".into(), json!(date));
         }
 
-        // Quality/Rarity scores
         if let Some(score) = filter.quality_score {
-            filters["qualityScore"] = json!(score);
+            filters.insert("qualityScore".into(), json!(score.min(5)));
         }
         if let Some(score) = filter.rarity_score {
-            filters["rarityScore"] = json!(score);
+            filters.insert("rarityScore".into(), json!(score.min(5)));
         }
 
-        // Sort
-        filters["sortField"] = json!(filter.sort_field.as_str());
-        filters["sortDirection"] = json!(filter.sort_direction.as_str());
+        filters.insert("sortField".into(), json!(filter.sort_field.as_str()));
+        filters.insert(
+            "sortDirection".into(),
+            json!(filter.sort_direction.as_str()),
+        );
 
         json!({
-            "page": filter.page,
-            "pageSize": filter.page_size,
-            "filters": filters
+            "page": filter.page.max(1),
+            "pageSize": filter.page_size.clamp(1, 100),
+            "filters": Value::Object(filters),
         })
+    }
+
+    /// Replace any occurrence of the API key in `text` (defense in depth).
+    fn redact(&self, text: &str) -> String {
+        let key = self.api_key.expose_secret();
+        if key.is_empty() {
+            text.to_string()
+        } else {
+            text.replace(key, "[REDACTED]")
+        }
+    }
+
+    /// Extract the server's error message from a response body.
+    ///
+    /// Uses the `message` field of `{"message": "..."}` when present,
+    /// otherwise a truncated copy of the raw body.
+    fn error_message(&self, body: &str, fallback: &str) -> String {
+        let msg = serde_json::from_str::<Value>(body)
+            .ok()
+            .and_then(|v| {
+                v.get("message")
+                    .or_else(|| v.get("error"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| {
+                let trimmed = body.trim();
+                if trimmed.is_empty() {
+                    fallback.to_string()
+                } else {
+                    trimmed.chars().take(MAX_ERROR_BODY).collect()
+                }
+            });
+        self.redact(&msg)
     }
 
     /// Search for vulnerability findings
@@ -244,6 +250,9 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    /// See [`Client::search_with_filter`].
     pub async fn search(&self, keywords: &str) -> Result<SearchResults> {
         self.search_with_filter(SearchFilter::new(keywords)).await
     }
@@ -269,9 +278,15 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    /// - [`Error::Api`] for 400 and other non-success statuses (with the server message)
+    /// - [`Error::Unauthorized`] for 401 ("Missing API key" / "Invalid API key")
+    /// - [`Error::RateLimited`] for 429 (with `X-RateLimit-*` header values)
+    /// - [`Error::Http`] / [`Error::Json`] for transport or parse failures
     pub async fn search_with_filter(&self, filter: SearchFilter) -> Result<SearchResults> {
         let url = self.build_url("/findings");
-        let body = self.build_request_body(&filter);
+        let body = Self::build_request_body(&filter);
 
         let response = self
             .http
@@ -282,26 +297,47 @@ impl Client {
             .send()
             .await?;
 
-        let status = response.status().as_u16();
+        let status = response.status();
+        let header_rate_limit = parse_rate_limit_headers(response.headers());
+        let text = response.text().await?;
 
-        if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-
-            return match status {
-                401 => Err(Error::unauthorized()),
-                429 => Err(Error::rate_limited()),
-                _ => Err(Error::api(status, body)),
-            };
+        if !status.is_success() {
+            let code = status.as_u16();
+            let reason = status.canonical_reason().unwrap_or("request failed");
+            let message = self.error_message(&text, reason);
+            return Err(match code {
+                401 => Error::unauthorized(message),
+                429 => {
+                    let (limit, remaining, reset) = header_rate_limit
+                        .map_or((None, None, None), |h| (h.limit, h.remaining, h.reset));
+                    Error::rate_limited(message, limit, remaining, reset)
+                }
+                _ => Error::api(code, message),
+            });
         }
 
-        let api_response: ApiResponse = response.json().await?;
-        Ok(SearchResults::from_response(api_response))
+        let value: Value = serde_json::from_str(&text)?;
+        if !value.is_object() {
+            return Err(Error::invalid_response(
+                "expected a JSON object from POST /findings",
+            ));
+        }
+        let body_had_rate_limit = value.get("rateLimit").is_some_and(Value::is_object);
+        let api_response: ApiResponse = serde_json::from_value(value)?;
+
+        Ok(SearchResults::from_response(api_response)
+            .with_header_rate_limit(body_had_rate_limit, header_rate_limit.map(|h| h.complete())))
     }
 
-    /// Get a specific finding by its slug
+    /// Look up a single finding by slug, numeric ID, or Solodit URL.
     ///
-    /// Note: The official API doesn't have a dedicated endpoint for fetching by slug.
-    /// This method searches for the exact slug and returns the first match.
+    /// The documented API has **no get-by-id endpoint** (only `POST /findings`),
+    /// so this is a best-effort lookup: it runs keyword searches derived from
+    /// the input (the raw value, then the slug with dashes replaced by spaces)
+    /// and returns the first finding whose `slug` or `id` matches exactly.
+    /// Each attempt costs one request against the rate limit (at most two).
+    /// A finding whose title/content does not match its slug text may not be
+    /// found this way.
     ///
     /// # Example
     ///
@@ -313,16 +349,34 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_by_slug(&self, slug: &str) -> Result<Finding> {
-        // Search with the slug as keyword and look for exact match
-        let filter = SearchFilter::new(slug).page_size(100);
-        let results = self.search_with_filter(filter).await?;
+    ///
+    /// # Errors
+    /// Returns [`Error::NotFound`] if no exact match is found, or any error
+    /// from [`Client::search_with_filter`].
+    pub async fn get_by_slug(&self, slug_or_id: &str) -> Result<Finding> {
+        let needle = normalize_lookup(slug_or_id);
+        if needle.is_empty() {
+            return Err(Error::not_found(slug_or_id));
+        }
 
-        results
-            .findings
-            .into_iter()
-            .find(|f| f.slug.as_deref() == Some(slug))
-            .ok_or_else(|| Error::not_found(slug))
+        let mut queries = vec![needle.clone()];
+        let spaced = needle.replace(['-', '_'], " ");
+        if spaced != needle {
+            queries.push(spaced);
+        }
+
+        for query in queries {
+            let filter = SearchFilter::new(query).page_size(100);
+            let results = self.search_with_filter(filter).await?;
+            if let Some(found) = results.findings.into_iter().find(|f| {
+                f.slug.as_deref() == Some(needle.as_str())
+                    || f.id.as_deref() == Some(needle.as_str())
+            }) {
+                return Ok(found);
+            }
+        }
+
+        Err(Error::not_found(needle))
     }
 
     /// Search for findings with pagination support
@@ -356,10 +410,65 @@ impl Client {
     }
 
     /// Get current rate limit status by making a minimal request
-    pub async fn check_rate_limit(&self) -> Result<crate::types::RateLimit> {
+    /// (`pageSize: 1`, which itself consumes one request).
+    ///
+    /// # Errors
+    /// Any error from [`Client::search_with_filter`].
+    pub async fn check_rate_limit(&self) -> Result<RateLimit> {
         let filter = SearchFilter::empty().page_size(1);
         let results = self.search_with_filter(filter).await?;
         Ok(results.rate_limit)
+    }
+}
+
+/// Partially-present `X-RateLimit-*` headers.
+#[derive(Debug, Clone, Copy)]
+struct HeaderRateLimit {
+    limit: Option<u32>,
+    remaining: Option<u32>,
+    reset: Option<u64>,
+}
+
+impl HeaderRateLimit {
+    fn complete(self) -> RateLimit {
+        RateLimit {
+            limit: self.limit.unwrap_or_default(),
+            remaining: self.remaining.unwrap_or_default(),
+            reset: self.reset.unwrap_or_default(),
+        }
+    }
+}
+
+/// Parse `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`.
+/// Returns `None` if none of them are present.
+fn parse_rate_limit_headers(headers: &HeaderMap) -> Option<HeaderRateLimit> {
+    fn get<T: std::str::FromStr>(headers: &HeaderMap, name: &str) -> Option<T> {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.trim().parse().ok())
+    }
+    let parsed = HeaderRateLimit {
+        limit: get(headers, "x-ratelimit-limit"),
+        remaining: get(headers, "x-ratelimit-remaining"),
+        reset: get(headers, "x-ratelimit-reset"),
+    };
+    (parsed.limit.is_some() || parsed.remaining.is_some() || parsed.reset.is_some())
+        .then_some(parsed)
+}
+
+/// Normalize a lookup input: accept a full Solodit URL
+/// (`https://solodit.cyfrin.io/issues/<slug>`) as well as a bare slug/ID.
+fn normalize_lookup(input: &str) -> String {
+    let s = input.trim();
+    let s = s
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(s)
+        .trim_end_matches('/');
+    match s.rfind("/issues/") {
+        Some(idx) => s[idx + "/issues/".len()..].to_string(),
+        None => s.to_string(),
     }
 }
 
@@ -462,9 +571,8 @@ mod tests {
 
     #[test]
     fn test_build_request_body_simple() {
-        let client = Client::new("test_key").unwrap();
         let filter = SearchFilter::new("reentrancy");
-        let body = client.build_request_body(&filter);
+        let body = Client::build_request_body(&filter);
 
         assert_eq!(body["page"], 1);
         assert_eq!(body["pageSize"], 50);
@@ -475,11 +583,10 @@ mod tests {
     fn test_build_request_body_with_impacts() {
         use crate::types::Impact;
 
-        let client = Client::new("test_key").unwrap();
         let filter = SearchFilter::new("test")
             .impact(Impact::High)
             .impact(Impact::Medium);
-        let body = client.build_request_body(&filter);
+        let body = Client::build_request_body(&filter);
 
         let impacts = body["filters"]["impact"].as_array().unwrap();
         assert_eq!(impacts.len(), 2);
@@ -489,11 +596,81 @@ mod tests {
 
     #[test]
     fn test_build_request_body_with_firms() {
-        let client = Client::new("test_key").unwrap();
         let filter = SearchFilter::new("test").firm("Cyfrin").firm("Sherlock");
-        let body = client.build_request_body(&filter);
+        let body = Client::build_request_body(&filter);
 
         let firms = body["filters"]["firms"].as_array().unwrap();
         assert_eq!(firms.len(), 2);
+        assert_eq!(firms[0], json!({"value": "Cyfrin"}));
+    }
+
+    #[test]
+    fn test_build_request_body_normalizes_to_spec() {
+        use crate::types::Impact;
+
+        let filter = SearchFilter {
+            page: 0,
+            page_size: 500,
+            impacts: vec![Impact::High, Impact::Unknown, Impact::High],
+            min_finders: Some(1),
+            max_finders: Some(3),
+            reported_after: Some("2024-01-01".into()),
+            quality_score: Some(9),
+            ..SearchFilter::default()
+        };
+        let body = Client::build_request_body(&filter);
+        assert_eq!(body["page"], 1);
+        assert_eq!(body["pageSize"], 100);
+        assert_eq!(body["filters"]["impact"], json!(["HIGH"]));
+        assert_eq!(body["filters"]["minFinders"], json!("1"));
+        assert_eq!(body["filters"]["maxFinders"], json!("3"));
+        assert_eq!(body["filters"]["reported"], json!({"value": "after"}));
+        assert_eq!(body["filters"]["reportedAfter"], json!("2024-01-01"));
+        assert_eq!(body["filters"]["qualityScore"], json!(5));
+        assert!(body["filters"].get("keywords").is_none());
+        assert_eq!(body["filters"]["sortField"], json!("Recency"));
+        assert_eq!(body["filters"]["sortDirection"], json!("Desc"));
+    }
+
+    #[test]
+    fn test_error_message_parsing_and_redaction() {
+        let client = Client::new("sk_secret").unwrap();
+        assert_eq!(
+            client.error_message(r#"{"message":"Invalid API key"}"#, "x"),
+            "Invalid API key"
+        );
+        assert_eq!(client.error_message("", "Unauthorized"), "Unauthorized");
+        assert_eq!(
+            client.error_message("bad key sk_secret", "x"),
+            "bad key [REDACTED]"
+        );
+    }
+
+    #[test]
+    fn test_normalize_lookup() {
+        assert_eq!(normalize_lookup(" abc-def "), "abc-def");
+        assert_eq!(
+            normalize_lookup("https://solodit.cyfrin.io/issues/h-01-foo-bar?x=1"),
+            "h-01-foo-bar"
+        );
+        assert_eq!(normalize_lookup("12345"), "12345");
+    }
+
+    #[test]
+    fn test_parse_rate_limit_headers() {
+        let mut h = HeaderMap::new();
+        assert!(parse_rate_limit_headers(&h).is_none());
+        h.insert("X-RateLimit-Limit", "20".parse().unwrap());
+        h.insert("X-RateLimit-Remaining", "0".parse().unwrap());
+        h.insert("X-RateLimit-Reset", "1700000000".parse().unwrap());
+        let rl = parse_rate_limit_headers(&h).unwrap().complete();
+        assert_eq!(
+            rl,
+            RateLimit {
+                limit: 20,
+                remaining: 0,
+                reset: 1_700_000_000
+            }
+        );
     }
 }

@@ -243,8 +243,14 @@ ethcli goplus address <addr> --chain-id 1 # Address security
 ### Solodit (requires SOLODIT_API_KEY)
 ```bash
 ethcli solodit search "reentrancy" --impact HIGH
-ethcli solodit get <slug>
+ethcli solodit search --impact HIGH,MEDIUM --tag Oracle --language Solidity --reported 90
+ethcli solodit search "oracle" --protocol-category DeFi --forked Compound --reported-after 2024-01-01
+ethcli solodit get <slug|id|url>   # best-effort: API has no get-by-id; searches + exact match
 ```
+Filters: --impact(HIGH|MEDIUM|LOW|GAS) --firm --tag --protocol --protocol-category --forked
+--language --finder --min-finders --max-finders --reported(30|60|90|alltime|after)
+--reported-after --min-quality/--min-rarity(0-5) --sort(recency|quality|rarity)
+--sort-dir(desc|asc) --page(>=1) --limit(1-100). Rate limit 20 req/60s.
 
 ### Dune SIM (removed)
 Dune Sim shut down 2026-08-01 (yldfi-rs issue #64): `ethcli dsim`, `--source dsim`,

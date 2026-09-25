@@ -4015,19 +4015,35 @@ pub async fn goplus_chains() -> Result<String, ToolError> {
 // SOLODIT (5 subcommands) - Security DB
 // =============================================================================
 
-pub async fn solodit_search(
-    query: &str,
-    impact: Option<&str>,
-    limit: Option<u32>,
-) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("solodit").subcommand("search").arg(query);
+pub async fn solodit_search(input: &crate::types::SoloditSearchInput) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("solodit").subcommand("search");
+    if !input.query.trim().is_empty() {
+        builder = builder.arg(&input.query);
+    }
 
-    if let Some(i) = impact {
-        builder = builder.opt("--impact", Some(i));
-    }
-    if let Some(l) = limit {
-        builder = builder.opt("--limit", Some(&l.to_string()));
-    }
+    let num = |v: Option<u32>| v.map(|n| n.to_string());
+    let limit = num(input.limit);
+    let page = num(input.page);
+    let min_quality = num(input.min_quality);
+    let min_rarity = num(input.min_rarity);
+
+    builder = builder
+        .opt("--impact", input.impact.as_deref())
+        .opt("--limit", limit.as_deref())
+        .opt("--page", page.as_deref())
+        .opt("--firm", input.firm.as_deref())
+        .opt("--tag", input.tag.as_deref())
+        .opt("--protocol", input.protocol.as_deref())
+        .opt("--protocol-category", input.protocol_category.as_deref())
+        .opt("--forked", input.forked.as_deref())
+        .opt("--language", input.language.as_deref())
+        .opt("--finder", input.finder.as_deref())
+        .opt("--reported", input.reported.as_deref())
+        .opt("--reported-after", input.reported_after.as_deref())
+        .opt("--sort", input.sort.as_deref())
+        .opt("--sort-dir", input.sort_dir.as_deref())
+        .opt("--min-quality", min_quality.as_deref())
+        .opt("--min-rarity", min_rarity.as_deref());
 
     builder.execute().await.map_err(ToolError::from)
 }
