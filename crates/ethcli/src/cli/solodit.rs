@@ -14,18 +14,18 @@ pub struct SoloditArgs {
 /// Search parameters struct to reduce enum variant size
 #[derive(Args)]
 pub struct SearchArgs {
-    /// Keywords to search for
-    pub keywords: String,
+    /// Keywords to search for in title and content (optional)
+    pub keywords: Option<String>,
 
-    /// Filter by impact level (HIGH, MEDIUM, LOW, GAS)
+    /// Filter by impact level (HIGH, MEDIUM, LOW, GAS; comma-separated)
     #[arg(long, short = 'i', value_delimiter = ',')]
     pub impact: Option<Vec<String>>,
 
-    /// Filter by audit firm name
+    /// Filter by audit firm name (comma-separated)
     #[arg(long, short = 'f', value_delimiter = ',')]
     pub firm: Option<Vec<String>>,
 
-    /// Filter by vulnerability tag (Reentrancy, Oracle, etc.)
+    /// Filter by vulnerability tag (Reentrancy, Oracle, etc.; comma-separated)
     #[arg(long, short = 't', value_delimiter = ',')]
     pub tag: Option<Vec<String>>,
 
@@ -33,13 +33,17 @@ pub struct SearchArgs {
     #[arg(long)]
     pub protocol: Option<String>,
 
-    /// Filter by protocol category (DeFi, NFT, Bridge, etc.)
+    /// Filter by protocol category (DeFi, NFT, Bridge, etc.; comma-separated)
     #[arg(long, value_delimiter = ',')]
     pub protocol_category: Option<Vec<String>>,
 
-    /// Filter by programming language (Solidity, Rust, etc.)
-    #[arg(long)]
-    pub language: Option<String>,
+    /// Filter by forked protocol (e.g. "Uniswap V2"; comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    pub forked: Option<Vec<String>>,
+
+    /// Filter by programming language (Solidity, Rust, Cairo, Vyper, Move; comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    pub language: Option<Vec<String>>,
 
     /// Filter by finder/auditor handle (partial match)
     #[arg(long)]
@@ -53,36 +57,36 @@ pub struct SearchArgs {
     #[arg(long)]
     pub max_finders: Option<u32>,
 
-    /// Filter by report date period (30, 60, 90 days, or "all")
-    #[arg(long)]
+    /// Filter by report date period: 30, 60, 90 (days), alltime, or after (requires --reported-after)
+    #[arg(long, value_parser = ["30", "60", "90", "after", "alltime", "all"], ignore_case = true)]
     pub reported: Option<String>,
 
-    /// Filter by reports after this date (ISO format: 2024-01-01)
+    /// Only findings reported after this date (ISO format: 2024-01-01). Implies --reported after
     #[arg(long)]
     pub reported_after: Option<String>,
 
     /// Page number (1-indexed)
-    #[arg(long, default_value = "1")]
+    #[arg(long, default_value = "1", value_parser = clap::value_parser!(u32).range(1..))]
     pub page: u32,
 
-    /// Results per page (max 100)
-    #[arg(long, default_value = "20")]
+    /// Results per page (1-100)
+    #[arg(long, default_value = "20", value_parser = clap::value_parser!(u32).range(1..=100))]
     pub limit: u32,
 
     /// Sort by: recency, quality, rarity
-    #[arg(long, default_value = "recency")]
+    #[arg(long, default_value = "recency", value_parser = ["recency", "quality", "rarity"], ignore_case = true)]
     pub sort: String,
 
-    /// Sort direction: asc or desc (default: desc)
-    #[arg(long, default_value = "desc")]
+    /// Sort direction: asc or desc
+    #[arg(long, default_value = "desc", value_parser = ["desc", "asc"], ignore_case = true)]
     pub sort_dir: String,
 
-    /// Minimum quality score (0-5)
-    #[arg(long)]
+    /// Minimum quality score (0-5, API default 1)
+    #[arg(long, value_parser = clap::value_parser!(u32).range(0..=5))]
     pub min_quality: Option<u32>,
 
-    /// Minimum rarity score (0-5)
-    #[arg(long)]
+    /// Minimum rarity score (0-5, API default 1)
+    #[arg(long, value_parser = clap::value_parser!(u32).range(0..=5))]
     pub min_rarity: Option<u32>,
 
     /// Output format
@@ -95,9 +99,14 @@ pub enum SoloditCommands {
     /// Search for vulnerability findings
     Search(Box<SearchArgs>),
 
-    /// Get a specific finding by slug
+    /// Get a specific finding by slug, ID, or Solodit URL (best-effort)
+    ///
+    /// The Solodit API has no get-by-id endpoint, so this searches using the
+    /// slug text as keywords and returns the exact slug/ID match. Costs 1-2
+    /// requests against the rate limit and may miss findings whose content
+    /// does not match their slug.
     Get {
-        /// Finding slug (from search results or URL)
+        /// Finding slug, ID, or URL (https://solodit.cyfrin.io/issues/<slug>)
         slug: String,
 
         /// Output format
@@ -105,7 +114,7 @@ pub enum SoloditCommands {
         format: OutputFormat,
     },
 
-    /// Check current API rate limit
+    /// Check current API rate limit (consumes one request)
     RateLimit,
 
     /// List common vulnerability tags
@@ -113,6 +122,22 @@ pub enum SoloditCommands {
 
     /// List common audit firms
     Firms,
+}
+
+/// Parse a CLI impact string into an [`sldt::Impact`].
+fn parse_impact(s: &str) -> anyhow::Result<sldt::Impact> {
+    match s.trim().to_uppercase().as_str() {
+        "HIGH" | "H" => Ok(sldt::Impact::High),
+        "MEDIUM" | "MED" | "M" => Ok(sldt::Impact::Medium),
+        "LOW" | "L" => Ok(sldt::Impact::Low),
+        "GAS" | "G" => Ok(sldt::Impact::Gas),
+        other => anyhow::bail!("Invalid impact '{other}'. Expected one of: HIGH, MEDIUM, LOW, GAS"),
+    }
+}
+
+/// Truncate a string to at most `max` characters (UTF-8 safe).
+fn truncate_chars(s: &str, max: usize) -> Option<&str> {
+    s.char_indices().nth(max).map(|(idx, _)| &s[..idx])
 }
 
 /// Execute Solodit command
@@ -148,6 +173,7 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
                 tag,
                 protocol,
                 protocol_category,
+                forked,
                 language,
                 finder,
                 min_finders,
@@ -163,21 +189,17 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
                 format,
             } = search_args.as_ref();
 
-            let mut filter = sldt::SearchFilter::new(keywords)
-                .page(*page)
-                .page_size(*limit);
+            let mut filter = match keywords {
+                Some(k) => sldt::SearchFilter::new(k),
+                None => sldt::SearchFilter::empty(),
+            }
+            .page(*page)
+            .page_size(*limit);
 
-            // Apply impact filters
+            // Apply impact filters (reject unknown values instead of silently dropping them)
             if let Some(impacts) = impact {
                 for i in impacts {
-                    let impact = match i.to_uppercase().as_str() {
-                        "HIGH" => sldt::Impact::High,
-                        "MEDIUM" => sldt::Impact::Medium,
-                        "LOW" => sldt::Impact::Low,
-                        "GAS" => sldt::Impact::Gas,
-                        _ => continue,
-                    };
-                    filter = filter.impact(impact);
+                    filter = filter.impact(parse_impact(i)?);
                 }
             }
 
@@ -207,9 +229,18 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
                 }
             }
 
-            // Apply language filter
-            if let Some(lang) = language {
-                filter = filter.language(lang.as_str());
+            // Apply forked protocol filters
+            if let Some(forks) = forked {
+                for f in forks {
+                    filter = filter.forked(f.as_str());
+                }
+            }
+
+            // Apply language filters
+            if let Some(langs) = language {
+                for l in langs {
+                    filter = filter.language(l.as_str());
+                }
             }
 
             // Apply finder/user filter
@@ -228,12 +259,23 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
                     "30" => sldt::ReportedPeriod::Days30,
                     "60" => sldt::ReportedPeriod::Days60,
                     "90" => sldt::ReportedPeriod::Days90,
+                    "after" => {
+                        if reported_after.is_none() {
+                            anyhow::bail!("--reported after requires --reported-after <DATE>");
+                        }
+                        sldt::ReportedPeriod::After
+                    }
                     _ => sldt::ReportedPeriod::AllTime,
                 };
+                if reported_after.is_some() && !matches!(period, sldt::ReportedPeriod::After) {
+                    anyhow::bail!(
+                        "--reported-after can only be combined with --reported after (or used alone)"
+                    );
+                }
                 filter = filter.reported(period);
             }
 
-            // Apply reported after date
+            // Apply reported after date (sets reported.value = "after")
             if let Some(date) = reported_after {
                 filter = filter.reported_after(date);
             }
@@ -271,11 +313,13 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
                     "page": results.page,
                     "page_size": results.page_size,
                     "total_pages": results.total_pages,
+                    "elapsed": results.elapsed,
                     "rate_limit": {
                         "remaining": results.rate_limit.remaining,
                         "limit": results.rate_limit.limit,
                         "reset": results.rate_limit.reset
-                    }
+                    },
+                    "rate_limit_headers": results.rate_limit_headers
                 });
                 if matches!(format, OutputFormat::Json) {
                     println!("{}", serde_json::to_string_pretty(&response)?);
@@ -286,7 +330,10 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
             }
 
             // Human-readable output
-            println!("Search Results: \"{}\"", keywords);
+            match keywords {
+                Some(k) => println!("Search Results: \"{}\"", k),
+                None => println!("Search Results"),
+            }
             println!("{}", "=".repeat(60));
             println!(
                 "Found {} results (page {}/{}) - Rate limit: {}/{}",
@@ -406,13 +453,12 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
             println!("{}", "-".repeat(60));
             if let Some(content) = &finding.content {
                 // Truncate long content for display
-                let display_content = if content.len() > 2000 {
-                    format!(
+                let display_content = match truncate_chars(content, 2000) {
+                    Some(head) => format!(
                         "{}...\n\n[Content truncated. Use --format json for full content]",
-                        &content[..2000]
-                    )
-                } else {
-                    content.clone()
+                        head
+                    ),
+                    None => content.clone(),
                 };
                 println!("{}", display_content);
             } else {
@@ -492,4 +538,26 @@ pub async fn execute(args: &SoloditArgs) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_impact_accepts_spec_values() {
+        assert_eq!(parse_impact("high").unwrap(), sldt::Impact::High);
+        assert_eq!(parse_impact("MEDIUM").unwrap(), sldt::Impact::Medium);
+        assert_eq!(parse_impact("Low").unwrap(), sldt::Impact::Low);
+        assert_eq!(parse_impact("gas").unwrap(), sldt::Impact::Gas);
+        assert!(parse_impact("critical").is_err());
+    }
+
+    #[test]
+    fn truncate_chars_is_utf8_safe() {
+        let s = "é".repeat(10);
+        assert_eq!(truncate_chars(&s, 3), Some("ééé"));
+        assert_eq!(truncate_chars(&s, 10), None);
+        assert_eq!(truncate_chars("abc", 5), None);
+    }
 }

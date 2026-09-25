@@ -1,26 +1,156 @@
 //! Type definitions for Solodit API responses
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
-/// Deserialize a field that can be either a string or an empty object (returns None for empty object)
-fn deserialize_string_or_empty_object<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+// ---------------------------------------------------------------------------
+// Tolerant deserialization helpers
+//
+// The Solodit API is loosely typed in practice: IDs are BigInts that may be
+// serialized as strings or numbers, `report_date` is sometimes `{}` (see
+// solodit/solodit_content#153), and nested relations may be `null`. These
+// helpers never fail on an unexpected *value*; they fall back to `None` /
+// default instead so that one odd field cannot fail a whole page.
+// ---------------------------------------------------------------------------
+
+/// Convert a JSON value to a string, accepting numbers/bools and treating
+/// `null`, `""` and objects/arrays (e.g. `{}`) as absent.
+fn value_to_string(value: Value) -> Option<String> {
+    match value {
+        Value::String(s) if !s.is_empty() => Some(s),
+        Value::Number(n) => Some(n.to_string()),
+        Value::Bool(b) => Some(b.to_string()),
+        _ => None,
+    }
+}
+
+/// Convert a JSON value (number or numeric string) to `f64`.
+fn value_to_f64(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(n) => n.as_f64(),
+        Value::String(s) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    }
+    .filter(|f| f.is_finite())
+}
+
+/// Convert a JSON value (number or numeric string) to `i64`.
+fn value_to_i64(value: &Value) -> Option<i64> {
+    match value {
+        Value::Number(n) => n.as_i64().or_else(|| {
+            n.as_f64()
+                .filter(|f| f.is_finite() && f.fract() == 0.0)
+                .map(|f| f as i64)
+        }),
+        Value::String(s) => s.trim().parse::<i64>().ok(),
+        _ => None,
+    }
+}
+
+/// Convert a JSON value (number or numeric string) to `u64`.
+fn value_to_u64(value: &Value) -> Option<u64> {
+    match value {
+        Value::Number(n) => n.as_u64(),
+        Value::String(s) => s.trim().parse::<u64>().ok(),
+        _ => None,
+    }
+    .or_else(|| value_to_i64(value).and_then(|i| u64::try_from(i).ok()))
+}
+
+/// `Option<String>` accepting string, number (e.g. BigInt IDs), `null` or `{}`.
+fn de_opt_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    use serde::de::Error;
-    use serde_json::Value;
+    Ok(value_to_string(Value::deserialize(deserializer)?))
+}
 
-    let value = Value::deserialize(deserializer)?;
-    match value {
-        Value::String(s) if !s.is_empty() => Ok(Some(s)),
-        Value::String(_) => Ok(None), // empty string
-        Value::Null => Ok(None),
-        Value::Object(map) if map.is_empty() => Ok(None), // empty object {}
-        Value::Object(_) => Err(D::Error::custom(
-            "expected string or empty object, got non-empty object",
-        )),
-        _ => Err(D::Error::custom("expected string or empty object")),
-    }
+/// `String` accepting string/number, defaulting to empty on anything else.
+fn de_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(value_to_string(Value::deserialize(deserializer)?).unwrap_or_default())
+}
+
+/// `Option<f64>` accepting number or numeric string.
+fn de_opt_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(value_to_f64(&Value::deserialize(deserializer)?))
+}
+
+/// `Option<i32>` accepting number or numeric string.
+fn de_opt_i32<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(value_to_i64(&Value::deserialize(deserializer)?).and_then(|i| i32::try_from(i).ok()))
+}
+
+/// `u32` accepting number or numeric string, defaulting to 0.
+fn de_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(value_to_u64(&Value::deserialize(deserializer)?)
+        .and_then(|u| u32::try_from(u).ok())
+        .unwrap_or_default())
+}
+
+/// `u64` accepting number or numeric string, defaulting to 0.
+fn de_u64<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(value_to_u64(&Value::deserialize(deserializer)?).unwrap_or_default())
+}
+
+/// `bool` defaulting to `false` on anything that is not a JSON boolean.
+fn de_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(matches!(
+        Value::deserialize(deserializer)?,
+        Value::Bool(true)
+    ))
+}
+
+/// `Option<T>` that becomes `None` if the value does not match `T`.
+fn de_opt_lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
+    Ok(serde_json::from_value(Value::deserialize(deserializer)?).ok())
+}
+
+/// `T` that falls back to `T::default()` if the value does not match `T`.
+fn de_lenient<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned + Default,
+{
+    Ok(serde_json::from_value(Value::deserialize(deserializer)?).unwrap_or_default())
+}
+
+/// `Vec<T>` that accepts `null`/non-arrays (empty) and skips elements that
+/// fail to deserialize instead of failing the whole vector.
+fn de_vec_lenient<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
+    Ok(match Value::deserialize(deserializer)? {
+        Value::Array(items) => items
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect(),
+        _ => Vec::new(),
+    })
 }
 
 /// Impact/severity level of a finding
@@ -172,10 +302,10 @@ impl From<String> for FilterValue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditFirm {
     /// Firm name
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub name: Option<String>,
     /// URL to firm's square logo
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub logo_square: Option<String>,
 }
 
@@ -183,10 +313,10 @@ pub struct AuditFirm {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolCategoryScore {
     /// The category information
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_lenient")]
     pub protocols_protocolcategory: Option<ProtocolCategory>,
     /// Score for this category
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_f64")]
     pub score: Option<f64>,
 }
 
@@ -194,7 +324,7 @@ pub struct ProtocolCategoryScore {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolCategory {
     /// Category title
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub title: Option<String>,
 }
 
@@ -202,10 +332,12 @@ pub struct ProtocolCategory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Protocol {
     /// Protocol name
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub name: Option<String>,
-    /// Category scores for the protocol
-    #[serde(default)]
+    /// Category scores for the protocol.
+    ///
+    /// Known upstream quirk: currently always `[]` (solodit/solodit_content#153).
+    #[serde(default, deserialize_with = "de_vec_lenient")]
     pub protocols_protocolcategoryscore: Vec<ProtocolCategoryScore>,
 }
 
@@ -213,6 +345,7 @@ pub struct Protocol {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Warden {
     /// Auditor handle/username
+    #[serde(default, deserialize_with = "de_string")]
     pub handle: String,
 }
 
@@ -220,7 +353,7 @@ pub struct Warden {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueFinder {
     /// The warden who found the issue
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_lenient")]
     pub wardens_warden: Option<Warden>,
 }
 
@@ -228,7 +361,7 @@ pub struct IssueFinder {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueTagScore {
     /// Tag information
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_lenient")]
     pub tags_tag: Option<IssueTag>,
 }
 
@@ -236,135 +369,141 @@ pub struct IssueTagScore {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueTag {
     /// Tag title
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub title: Option<String>,
 }
 
 /// A vulnerability report/finding from Solodit
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
-    /// Unique identifier
-    #[serde(default)]
+    /// Unique identifier.
+    ///
+    /// The API serializes BigInt IDs; both JSON strings and numbers are accepted
+    /// and normalized to a string.
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub id: Option<String>,
 
     /// URL-friendly slug
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub slug: Option<String>,
 
     /// Finding title
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub title: Option<String>,
 
     /// Full content/description (markdown)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub content: Option<String>,
 
     /// Summary of the finding
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub summary: Option<String>,
 
     /// Content kind (e.g., "MARKDOWN")
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub kind: Option<String>,
 
     /// Impact/severity level
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub impact: Option<String>,
 
     /// Quality score (0-5)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_f64")]
     pub quality_score: Option<f64>,
 
     /// General/rarity score (0-5)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_f64")]
     pub general_score: Option<f64>,
 
-    /// Report date
-    #[serde(default, deserialize_with = "deserialize_string_or_empty_object")]
+    /// Report date (ISO string).
+    ///
+    /// Known upstream quirk: sometimes returned as `{}`, which is mapped to `None`.
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub report_date: Option<String>,
 
     /// Audit firm ID
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub auditfirm_id: Option<String>,
 
     /// Firm name (flattened)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub firm_name: Option<String>,
 
     /// Firm logo URL (flattened)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub firm_logo_square: Option<String>,
 
     /// Audit firm that conducted the review
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_lenient")]
     pub auditfirms_auditfirm: Option<AuditFirm>,
 
     /// Protocol ID
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub protocol_id: Option<String>,
 
     /// Protocol name (flattened)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub protocol_name: Option<String>,
 
     /// Protocol that was audited
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_lenient")]
     pub protocols_protocol: Option<Protocol>,
 
     /// Contest ID (for competitive audits)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub contest_id: Option<String>,
 
     /// Contest link
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub contest_link: Option<String>,
 
     /// Contest prize text
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub contest_prize_txt: Option<String>,
 
     /// Sponsor name
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub sponsor_name: Option<String>,
 
     /// Sponsor link
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub sponsor_link: Option<String>,
 
     /// Number of finders
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub finders_count: Option<i32>,
 
     /// People who found this issue
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_vec_lenient")]
     pub issues_issue_finders: Vec<IssueFinder>,
 
-    /// Tags associated with the finding
-    #[serde(default)]
+    /// Tags associated with the finding (`issues_issuetagscore`; some docs
+    /// incorrectly call this `issues_issuetags`).
+    #[serde(default, deserialize_with = "de_vec_lenient")]
     pub issues_issuetagscore: Vec<IssueTagScore>,
 
     /// Source link (original report)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub source_link: Option<String>,
 
     /// GitHub link
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub github_link: Option<String>,
 
     /// PDF link
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_string")]
     pub pdf_link: Option<String>,
 
     /// PDF page start
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_i32")]
     pub pdf_page_from: Option<i32>,
 
     /// Whether bookmarked (always false for API)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_bool")]
     pub bookmarked: bool,
 
     /// Whether read (always false for API)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_bool")]
     pub read: bool,
 }
 
@@ -407,6 +546,7 @@ impl Finding {
         self.issues_issue_finders
             .iter()
             .filter_map(|f| f.wardens_warden.as_ref().map(|w| w.handle.as_str()))
+            .filter(|h| !h.is_empty())
             .collect()
     }
 
@@ -589,6 +729,12 @@ impl SearchFilter {
         self
     }
 
+    /// Filter by forked protocol (e.g. "Uniswap V2")
+    pub fn forked(mut self, forked: impl Into<FilterValue>) -> Self {
+        self.forked.push(forked.into());
+        self
+    }
+
     /// Filter by finder/auditor handle
     pub fn user(mut self, user: impl Into<String>) -> Self {
         self.user = Some(user.into());
@@ -668,82 +814,78 @@ impl SearchFilter {
 
     /// Create a copy of this filter with a different page number
     ///
-    /// Used internally by the paginator to avoid manual field-by-field cloning.
+    /// Used internally by the paginator.
     #[must_use]
     pub fn with_page(&self, page: u32) -> Self {
         Self {
-            keywords: self.keywords.clone(),
-            impacts: self.impacts.clone(),
-            firms: self.firms.clone(),
-            tags: self.tags.clone(),
-            protocol: self.protocol.clone(),
-            protocol_categories: self.protocol_categories.clone(),
-            forked: self.forked.clone(),
-            languages: self.languages.clone(),
-            user: self.user.clone(),
-            min_finders: self.min_finders,
-            max_finders: self.max_finders,
-            reported: self.reported,
-            reported_after: self.reported_after.clone(),
-            quality_score: self.quality_score,
-            rarity_score: self.rarity_score,
             page,
-            page_size: self.page_size,
-            sort_field: self.sort_field,
-            sort_direction: self.sort_direction,
+            ..self.clone()
         }
     }
 }
 
 /// Response metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// All fields are parsed leniently (numbers or numeric strings); missing or
+/// malformed values default to `0` / `None`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ResponseMetadata {
     /// Total findings matching the filter
-    #[serde(rename = "totalResults")]
+    #[serde(rename = "totalResults", default, deserialize_with = "de_u64")]
     pub total_results: u64,
 
     /// Current page number
-    #[serde(rename = "currentPage")]
+    #[serde(rename = "currentPage", default, deserialize_with = "de_u32")]
     pub current_page: u32,
 
     /// Results per page
-    #[serde(rename = "pageSize")]
+    #[serde(rename = "pageSize", default, deserialize_with = "de_u32")]
     pub page_size: u32,
 
     /// Total pages available
-    #[serde(rename = "totalPages")]
+    #[serde(rename = "totalPages", default, deserialize_with = "de_u32")]
     pub total_pages: u32,
 
     /// Query execution time in seconds
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_opt_f64")]
     pub elapsed: Option<f64>,
 }
 
 /// Rate limit information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// Available both in the response body (`rateLimit`) and in the
+/// `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset`
+/// response headers. The documented default is 20 requests per 60 seconds.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RateLimit {
     /// Maximum requests per window
+    #[serde(default, deserialize_with = "de_u32")]
     pub limit: u32,
 
     /// Remaining requests in current window
+    #[serde(default, deserialize_with = "de_u32")]
     pub remaining: u32,
 
     /// Unix timestamp when the window resets
+    #[serde(default, deserialize_with = "de_u64")]
     pub reset: u64,
 }
 
-/// API response wrapper
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// API response wrapper (raw `POST /findings` success body)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ApiResponse {
-    /// List of findings
+    /// List of findings. Individual entries that are not JSON objects are
+    /// skipped rather than failing the whole page.
+    #[serde(default, deserialize_with = "de_vec_lenient")]
     pub findings: Vec<Finding>,
 
     /// Response metadata
+    #[serde(default, deserialize_with = "de_lenient")]
     pub metadata: ResponseMetadata,
 
-    /// Rate limit information
-    #[serde(rename = "rateLimit")]
-    pub rate_limit: RateLimit,
+    /// Rate limit information from the body (`None` if absent or malformed)
+    #[serde(rename = "rateLimit", default, deserialize_with = "de_opt_lenient")]
+    pub rate_limit: Option<RateLimit>,
 }
 
 /// Search results (convenient wrapper around `ApiResponse`)
@@ -764,22 +906,57 @@ pub struct SearchResults {
     /// Total pages
     pub total_pages: u32,
 
-    /// Rate limit info
+    /// Query execution time in seconds (from `metadata.elapsed`)
+    pub elapsed: Option<f64>,
+
+    /// Effective rate limit info: the body's `rateLimit` if present, otherwise
+    /// the `X-RateLimit-*` headers, otherwise zeroes.
     pub rate_limit: RateLimit,
+
+    /// Rate limit info parsed from the `X-RateLimit-*` response headers, if any
+    pub rate_limit_headers: Option<RateLimit>,
 }
 
 impl SearchResults {
     /// Create from API response
     #[must_use]
     pub fn from_response(response: ApiResponse) -> Self {
+        let meta = response.metadata;
+        let mut total_pages = meta.total_pages;
+        // Derive total pages if the server omitted it.
+        if total_pages == 0 && meta.total_results > 0 && meta.page_size > 0 {
+            total_pages = u32::try_from(meta.total_results.div_ceil(u64::from(meta.page_size)))
+                .unwrap_or(u32::MAX);
+        }
         Self {
             findings: response.findings,
-            total: response.metadata.total_results,
-            page: response.metadata.current_page,
-            page_size: response.metadata.page_size,
-            total_pages: response.metadata.total_pages,
-            rate_limit: response.rate_limit,
+            total: meta.total_results,
+            page: meta.current_page,
+            page_size: meta.page_size,
+            total_pages,
+            elapsed: meta.elapsed,
+            rate_limit: response.rate_limit.unwrap_or_default(),
+            rate_limit_headers: None,
         }
+    }
+
+    /// Attach rate limit info parsed from response headers.
+    ///
+    /// If the body did not contain `rateLimit`, the header values become the
+    /// effective [`SearchResults::rate_limit`].
+    #[must_use]
+    pub fn with_header_rate_limit(
+        mut self,
+        body_had_rate_limit: bool,
+        headers: Option<RateLimit>,
+    ) -> Self {
+        if !body_had_rate_limit {
+            if let Some(h) = headers {
+                self.rate_limit = h;
+            }
+        }
+        self.rate_limit_headers = headers;
+        self
     }
 
     /// Check if there are more pages
@@ -792,5 +969,80 @@ impl SearchResults {
     #[must_use]
     pub fn rate_limit_remaining(&self) -> u32 {
         self.rate_limit.remaining
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finding_tolerates_odd_fields() {
+        let json = serde_json::json!({
+            "id": 12345678901234567_u64,
+            "slug": "h-01-foo",
+            "report_date": {},
+            "quality_score": "4.5",
+            "general_score": null,
+            "finders_count": "3",
+            "auditfirm_id": 42,
+            "auditfirms_auditfirm": null,
+            "protocols_protocol": "unexpected",
+            "issues_issue_finders": [
+                {"wardens_warden": {"handle": "alice"}},
+                {"wardens_warden": null},
+                "garbage",
+                {"wardens_warden": {"handle": 7}}
+            ],
+            "issues_issuetagscore": null,
+            "pdf_page_from": 1.0,
+            "bookmarked": "no"
+        });
+        let f: Finding = serde_json::from_value(json).unwrap();
+        assert_eq!(f.id.as_deref(), Some("12345678901234567"));
+        assert_eq!(f.report_date, None);
+        assert_eq!(f.quality_score, Some(4.5));
+        assert_eq!(f.general_score, None);
+        assert_eq!(f.finders_count, Some(3));
+        assert_eq!(f.auditfirm_id.as_deref(), Some("42"));
+        assert!(f.auditfirms_auditfirm.is_none());
+        assert!(f.protocols_protocol.is_none());
+        assert_eq!(f.finder_handles(), vec!["alice", "7"]);
+        assert!(f.tags().is_empty());
+        assert_eq!(f.pdf_page_from, Some(1));
+        assert!(!f.bookmarked);
+    }
+
+    #[test]
+    fn api_response_tolerates_missing_sections() {
+        let r: ApiResponse = serde_json::from_str(r#"{"findings":[{"id":"1"}, 5]}"#).unwrap();
+        assert_eq!(r.findings.len(), 1);
+        assert!(r.rate_limit.is_none());
+        assert_eq!(r.metadata.total_results, 0);
+    }
+
+    #[test]
+    fn total_pages_derived_when_missing() {
+        let r: ApiResponse = serde_json::from_str(
+            r#"{"findings":[],"metadata":{"totalResults":"101","currentPage":1,"pageSize":50}}"#,
+        )
+        .unwrap();
+        let s = SearchResults::from_response(r);
+        assert_eq!(s.total, 101);
+        assert_eq!(s.total_pages, 3);
+    }
+
+    #[test]
+    fn header_rate_limit_used_when_body_missing() {
+        let s = SearchResults::from_response(ApiResponse::default()).with_header_rate_limit(
+            false,
+            Some(RateLimit {
+                limit: 20,
+                remaining: 19,
+                reset: 1_700_000_000,
+            }),
+        );
+        assert_eq!(s.rate_limit.remaining, 19);
+        assert!(s.rate_limit_headers.is_some());
     }
 }

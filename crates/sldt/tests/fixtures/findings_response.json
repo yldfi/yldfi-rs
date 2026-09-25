@@ -1,0 +1,96 @@
+{
+  "findings": [
+    {
+      "id": "58291",
+      "slug": "h-01-reentrancy-in-withdraw-allows-draining-vault-code4rena-example-git",
+      "title": "Reentrancy in withdraw allows draining vault",
+      "content": "## Summary\nThe `withdraw` function performs an external call before updating state.",
+      "summary": null,
+      "kind": "MARKDOWN",
+      "impact": "HIGH",
+      "quality_score": 4.2,
+      "general_score": 3,
+      "report_date": "2024-03-15T00:00:00.000Z",
+      "auditfirm_id": "3",
+      "firm_name": "Code4rena",
+      "firm_logo_square": "https://solodit.cyfrin.io/firms/c4.png",
+      "auditfirms_auditfirm": {
+        "name": "Code4rena",
+        "logo_square": "https://solodit.cyfrin.io/firms/c4.png"
+      },
+      "protocol_id": "1201",
+      "protocol_name": "Example Vault",
+      "protocols_protocol": {
+        "name": "Example Vault",
+        "protocols_protocolcategoryscore": []
+      },
+      "contest_id": "311",
+      "contest_link": "https://code4rena.com/audits/2024-03-example",
+      "contest_prize_txt": "$50,000 USDC",
+      "sponsor_name": "Example",
+      "sponsor_link": "https://example.org",
+      "finders_count": 2,
+      "issues_issue_finders": [
+        { "wardens_warden": { "handle": "alice" } },
+        { "wardens_warden": { "handle": "bob" } }
+      ],
+      "issues_issuetagscore": [
+        { "tags_tag": { "title": "Reentrancy" } }
+      ],
+      "source_link": "https://code4rena.com/reports/2024-03-example",
+      "github_link": "https://github.com/code-423n4/2024-03-example-findings/issues/1",
+      "pdf_link": null,
+      "pdf_page_from": null,
+      "bookmarked": false,
+      "read": false
+    },
+    {
+      "id": 9007199254740993,
+      "slug": "m-02-stale-oracle-price-cyfrin-none-example-markdown",
+      "title": "Stale oracle price accepted",
+      "content": "Chainlink `latestRoundData` is not checked for staleness.",
+      "summary": "Missing staleness check",
+      "kind": "MARKDOWN",
+      "impact": "MEDIUM",
+      "quality_score": 3,
+      "general_score": 2.5,
+      "report_date": {},
+      "auditfirm_id": null,
+      "firm_name": null,
+      "firm_logo_square": null,
+      "auditfirms_auditfirm": { "name": "Cyfrin", "logo_square": null },
+      "protocol_id": null,
+      "protocol_name": null,
+      "protocols_protocol": { "name": null, "protocols_protocolcategoryscore": [] },
+      "contest_id": null,
+      "contest_link": null,
+      "contest_prize_txt": null,
+      "sponsor_name": null,
+      "sponsor_link": null,
+      "finders_count": 1,
+      "issues_issue_finders": [],
+      "issues_issuetagscore": [
+        { "tags_tag": { "title": "Oracle" } },
+        { "tags_tag": { "title": "Stale Price" } }
+      ],
+      "source_link": null,
+      "github_link": null,
+      "pdf_link": "https://github.com/Cyfrin/cyfrin-audit-reports/raw/main/reports/example.pdf",
+      "pdf_page_from": 12,
+      "bookmarked": false,
+      "read": false
+    }
+  ],
+  "metadata": {
+    "totalResults": 1234,
+    "currentPage": 1,
+    "pageSize": 2,
+    "totalPages": 617,
+    "elapsed": 0.123
+  },
+  "rateLimit": {
+    "limit": 20,
+    "remaining": 19,
+    "reset": 1735689600
+  }
+}
