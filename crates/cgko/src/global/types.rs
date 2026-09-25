@@ -1,7 +1,25 @@
 //! Types for global data endpoints
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
+
+/// Deserialize an optional ID that CoinGecko sends as either a string or an
+/// integer (e.g. trending categories use numeric IDs like `102120914`).
+fn string_or_number_opt<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    match Option::<serde_json::Value>::deserialize(deserializer)? {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(s)) => Ok(Some(s)),
+        Some(serde_json::Value::Number(n)) => Ok(Some(n.to_string())),
+        Some(other) => Err(D::Error::custom(format!(
+            "expected string or number id, got {other}"
+        ))),
+    }
+}
 
 /// Global data response
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -86,6 +104,8 @@ pub struct TrendingNft {
 /// Trending category
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TrendingCategory {
+    /// Category ID (the API sends an integer; strings are also accepted)
+    #[serde(default, deserialize_with = "string_or_number_opt")]
     pub id: Option<String>,
     pub name: Option<String>,
     pub market_cap_1h_change: Option<f64>,
@@ -126,6 +146,8 @@ pub struct SearchExchange {
 /// Search category result
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SearchCategory {
+    /// Category ID (string or integer depending on endpoint version)
+    #[serde(default, deserialize_with = "string_or_number_opt")]
     pub id: Option<String>,
     pub name: Option<String>,
 }
@@ -214,4 +236,32 @@ pub struct TokenListItem {
     pub decimals: u8,
     #[serde(rename = "logoURI")]
     pub logo_uri: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trending_category_accepts_integer_and_string_ids() {
+        // Live shape from /search/trending (id is an integer)
+        let c: TrendingCategory = serde_json::from_str(
+            r#"{"id":102120914,"name":"Robinhood Chain Meme","market_cap_1h_change":5.8,
+                "slug":"robinhood-chain-meme","coins_count":"336"}"#,
+        )
+        .unwrap();
+        assert_eq!(c.id.as_deref(), Some("102120914"));
+        let c: TrendingCategory = serde_json::from_str(r#"{"id":"defi"}"#).unwrap();
+        assert_eq!(c.id.as_deref(), Some("defi"));
+        let c: TrendingCategory = serde_json::from_str(r#"{"id":null}"#).unwrap();
+        assert!(c.id.is_none());
+        let c: TrendingCategory = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(c.id.is_none());
+    }
+
+    #[test]
+    fn search_category_accepts_integer_ids() {
+        let c: SearchCategory = serde_json::from_str(r#"{"id":42,"name":"x"}"#).unwrap();
+        assert_eq!(c.id.as_deref(), Some("42"));
+    }
 }

@@ -833,10 +833,28 @@ async fn execute_scan_portfolio(
     let chain = chain_str.parse::<Chain>().unwrap_or(Chain::Ethereum);
     let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
 
-    println!("Fetching portfolio for {}...", wallet_address);
+    // Progress goes to stderr so stdout only carries scan results.
+    eprintln!("Fetching portfolio for {}...", wallet_address);
 
     let chains = [chain_str];
     let portfolio_result = fetch_portfolio_all(wallet_address, &chains).await;
+
+    // Surface per-source failures instead of silently scanning a partial list.
+    for source in portfolio_result.sources.iter().filter(|s| !s.is_success()) {
+        if let Some(err) = &source.error {
+            eprintln!(
+                "Warning: portfolio source {} failed: {}",
+                source.source, err
+            );
+        }
+    }
+    if !portfolio_result.any_succeeded() {
+        anyhow::bail!(
+            "Could not fetch portfolio for {}: all portfolio sources failed",
+            wallet_address
+        );
+    }
+
     let portfolio = portfolio_result.aggregated;
 
     if portfolio.tokens.is_empty() {
@@ -855,8 +873,8 @@ async fn execute_scan_portfolio(
         })
         .collect();
 
-    println!("Found {} tokens to scan", tokens.len());
-    println!();
+    eprintln!("Found {} tokens to scan", tokens.len());
+    eprintln!();
 
     let mut scam_count = 0u32;
     let mut verified_count = 0u32;

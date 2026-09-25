@@ -4,8 +4,8 @@
 //! and merges them into a unified view.
 
 use super::{
-    chain_map::normalize_chain_for_source, get_cached_config, AggregatedResult, LatencyMeasure,
-    SourceResult,
+    chain_map::normalize_chain_for_source, fan_out_result, get_cached_config, sum_usd,
+    AggregatedResult, LatencyMeasure, SourceResult,
 };
 use futures::future::join_all;
 use secrecy::ExposeSecret;
@@ -64,6 +64,10 @@ pub struct PortfolioBalance {
     pub is_spam: Option<bool>,
     /// Logo URL
     pub logo: Option<String>,
+    /// Position identifier for NFT-based positions (e.g. Uniswap V3/V4
+    /// tokenId). `address` then holds the pool, not the position.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position_id: Option<String>,
 }
 
 impl PortfolioBalance {
@@ -81,7 +85,13 @@ impl PortfolioBalance {
             price_usd: None,
             is_spam: None,
             logo: None,
+            position_id: None,
         }
+    }
+
+    pub fn with_position_id(mut self, position_id: Option<String>) -> Self {
+        self.position_id = position_id;
+        self
     }
 
     pub fn with_name(mut self, name: Option<String>) -> Self {
@@ -148,6 +158,9 @@ pub struct MergedToken {
     pub logo: Option<String>,
     /// Sources that reported this token
     pub found_in: Vec<String>,
+    /// Position identifier for NFT-based positions (e.g. Uniswap V3/V4 tokenId)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position_id: Option<String>,
 }
 
 /// Fetch portfolio from all available sources in parallel
@@ -286,7 +299,11 @@ async fn fetch_alchemy_portfolio(
             }
             SourceResult::success("alchemy", balances, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error("alchemy", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error(
+            "alchemy",
+            super::price::classify_api_error("Alchemy", &e),
+            measure.elapsed_ms(),
+        ),
     }
 }
 
@@ -363,11 +380,11 @@ async fn fetch_moralis_portfolio(
                             .collect();
                         Ok(balances)
                     }
-                    Err(e) => {
-                        // Log error but continue with other chains
-                        eprintln!("Moralis error for chain {}: {}", chain, e);
-                        Err(e)
-                    }
+                    Err(e) => Err(format!(
+                        "{}: {}",
+                        chain,
+                        super::price::classify_api_error("Moralis", &e)
+                    )),
                 }
             }
         })
@@ -376,16 +393,28 @@ async fn fetch_moralis_portfolio(
     // Execute all chain queries in parallel
     let results = join_all(chain_futures).await;
 
-    // Flatten successful results
-    let all_balances: Vec<PortfolioBalance> = results
-        .into_iter()
-        .filter_map(|r| r.ok())
-        .flatten()
-        .collect();
+    let mut all_balances: Vec<PortfolioBalance> = Vec::new();
+    let mut errors = Vec::new();
+    let mut successes = 0;
+    for result in results {
+        match result {
+            Ok(balances) => {
+                successes += 1;
+                all_balances.extend(balances);
+            }
+            Err(e) => errors.push(e),
+        }
+    }
 
-    // Return empty success instead of error when no balances found
-    // An empty wallet is a valid state, not an error
-    SourceResult::success("moralis", all_balances, measure.elapsed_ms())
+    // An empty wallet is a valid success; but if every chain query failed the
+    // source failed and must be reported as such (not as "0 tokens").
+    fan_out_result(
+        "moralis",
+        all_balances,
+        successes,
+        errors,
+        measure.elapsed_ms(),
+    )
 }
 
 /// Fetch Uniswap LP positions (V2, V3, and V4)
@@ -423,6 +452,8 @@ async fn fetch_uniswap_portfolio(
             let chain = chain.clone();
             async move {
                 let mut balances = Vec::new();
+                let mut successes = 0usize;
+                let mut errors: Vec<String> = Vec::new();
                 let chain_lower = chain.to_lowercase();
 
                 // === V2 Positions (Ethereum mainnet only) ===
@@ -430,10 +461,19 @@ async fn fetch_uniswap_portfolio(
                     chain_lower.as_str(),
                     "ethereum" | "mainnet" | "eth" | "eth-mainnet"
                 ) {
-                    if let Ok(client) =
-                        unswp::SubgraphClient::new(unswp::SubgraphConfig::mainnet_v2(&api_key))
-                    {
-                        if let Ok(positions) = client.get_positions_v2(&address).await {
+                    let positions = match unswp::SubgraphClient::new(
+                        unswp::SubgraphConfig::mainnet_v2(&api_key),
+                    ) {
+                        Ok(client) => client
+                            .get_positions_v2(&address)
+                            .await
+                            .map_err(|e| format!("{} V2: {}", chain, e)),
+                        Err(e) => Err(format!("{} V2 client: {}", chain, e)),
+                    };
+                    match positions {
+                        Err(e) => errors.push(e),
+                        Ok(positions) => {
+                            successes += 1;
                             for pos in positions {
                                 let lp_balance: f64 =
                                     pos.liquidity_token_balance.parse().unwrap_or(0.0);
@@ -463,11 +503,17 @@ async fn fetch_uniswap_portfolio(
                                     pos.pair.token0.symbol, pos.pair.token1.symbol
                                 );
 
+                                // The subgraph reports the LP balance as a
+                                // decimal string ("0.123"); convert it to a raw
+                                // 18-decimal integer so `balance_raw` keeps its
+                                // documented meaning.
+                                let raw_balance = decimal_to_raw(&pos.liquidity_token_balance, 18)
+                                    .unwrap_or_else(|| pos.liquidity_token_balance.clone());
                                 let balance = PortfolioBalance::new(
                                     &pos.pair.id,
                                     &symbol,
                                     &chain,
-                                    &pos.liquidity_token_balance,
+                                    &raw_balance,
                                     18,
                                 )
                                 .with_name(Some(format!(
@@ -502,8 +548,17 @@ async fn fetch_uniswap_portfolio(
                 };
 
                 if let Some(config) = v3_config {
-                    if let Ok(client) = unswp::SubgraphClient::new(config) {
-                        if let Ok(positions) = client.get_positions(&address).await {
+                    let positions = match unswp::SubgraphClient::new(config) {
+                        Ok(client) => client
+                            .get_positions(&address)
+                            .await
+                            .map_err(|e| format!("{} V3: {}", chain, e)),
+                        Err(e) => Err(format!("{} V3 client: {}", chain, e)),
+                    };
+                    match positions {
+                        Err(e) => errors.push(e),
+                        Ok(positions) => {
+                            successes += 1;
                             for pos in positions {
                                 let liquidity: u128 = pos.liquidity.parse().unwrap_or(0);
                                 if liquidity == 0 {
@@ -530,16 +585,21 @@ async fn fetch_uniswap_portfolio(
                                     pos.pool.token0.symbol, pos.pool.token1.symbol, fee_tier
                                 );
 
+                                // `address` is the pool contract; the NFT
+                                // tokenId goes in `position_id` (it is not an
+                                // address). Liquidity is an abstract L value,
+                                // not an 18-decimal token amount.
                                 let balance = PortfolioBalance::new(
-                                    &pos.id,
+                                    &pos.pool.id,
                                     &symbol,
                                     &chain,
                                     &pos.liquidity,
-                                    18,
+                                    0,
                                 )
+                                .with_position_id(Some(pos.id.clone()))
                                 .with_name(Some(format!(
-                                    "Uniswap V3 LP: {}/{}",
-                                    pos.pool.token0.symbol, pos.pool.token1.symbol
+                                    "Uniswap V3 LP #{}: {}/{}",
+                                    pos.id, pos.pool.token0.symbol, pos.pool.token1.symbol
                                 )))
                                 .with_usd_value(usd_value);
 
@@ -565,21 +625,27 @@ async fn fetch_uniswap_portfolio(
                 };
 
                 if let Some(config) = v4_config {
-                    if let Ok(client) = unswp::SubgraphClient::new(config) {
-                        if let Ok(positions) = client.get_positions_v4(&address).await {
+                    let positions = match unswp::SubgraphClient::new(config) {
+                        Ok(client) => client
+                            .get_positions_v4(&address)
+                            .await
+                            .map_err(|e| format!("{} V4: {}", chain, e)),
+                        Err(e) => Err(format!("{} V4 client: {}", chain, e)),
+                    };
+                    match positions {
+                        Err(e) => errors.push(e),
+                        Ok(positions) => {
+                            successes += 1;
                             for pos in positions {
                                 let liquidity: u128 = pos.liquidity.parse().unwrap_or(0);
                                 if liquidity == 0 {
                                     continue;
                                 }
 
-                                // V4 has TVL in USD directly on pool
-                                let usd_value =
-                                    pos.pool.total_value_locked_usd.as_ref().and_then(|tvl| {
-                                        // Estimate position value as fraction of pool TVL
-                                        // This is rough - actual calculation would need more data
-                                        tvl.parse::<f64>().ok()
-                                    });
+                                // The subgraph only exposes the *pool's* TVL; the
+                                // position's share cannot be derived from it, so
+                                // do not report pool TVL as the user's value.
+                                let usd_value: Option<f64> = None;
 
                                 let fee: f64 = pos.pool.fee.parse().unwrap_or(0.0) / 10000.0;
 
@@ -589,15 +655,16 @@ async fn fetch_uniswap_portfolio(
                                 );
 
                                 let balance = PortfolioBalance::new(
-                                    &pos.id,
+                                    &pos.pool.id,
                                     &symbol,
                                     &chain,
                                     &pos.liquidity,
-                                    18,
+                                    0,
                                 )
+                                .with_position_id(Some(pos.id.clone()))
                                 .with_name(Some(format!(
-                                    "Uniswap V4 LP: {}/{}",
-                                    pos.pool.token0.symbol, pos.pool.token1.symbol
+                                    "Uniswap V4 LP #{}: {}/{}",
+                                    pos.id, pos.pool.token0.symbol, pos.pool.token1.symbol
                                 )))
                                 .with_usd_value(usd_value);
 
@@ -607,18 +674,31 @@ async fn fetch_uniswap_portfolio(
                     }
                 }
 
-                balances
+                (balances, successes, errors)
             }
         })
         .collect();
 
     // Execute all chain queries in parallel and flatten results
     let results = join_all(chain_futures).await;
-    let all_balances: Vec<PortfolioBalance> = results.into_iter().flatten().collect();
+    let mut all_balances: Vec<PortfolioBalance> = Vec::new();
+    let mut successes = 0;
+    let mut errors = Vec::new();
+    for (balances, ok, errs) in results {
+        all_balances.extend(balances);
+        successes += ok;
+        errors.extend(errs);
+    }
 
-    // Return empty success instead of error when no LP positions found
-    // An empty position list is a valid state, not an error
-    SourceResult::success("uniswap", all_balances, measure.elapsed_ms())
+    // An empty position list is a valid state, but "every subgraph query
+    // failed" is an error and must not be shown as "no positions".
+    fan_out_result(
+        "uniswap",
+        all_balances,
+        successes,
+        errors,
+        measure.elapsed_ms(),
+    )
 }
 
 /// Fetch Yearn vault positions via Kong API + on-chain multicall
@@ -922,7 +1002,8 @@ fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> P
         .map(|d| d.len())
         .sum();
     let initial_capacity = estimated_tokens.min(MAX_UNIQUE_TOKENS);
-    let mut token_map: HashMap<(String, String), Vec<(&str, &PortfolioBalance)>> =
+    type MergeKey = (String, String, Option<String>);
+    let mut token_map: HashMap<MergeKey, Vec<(&str, &PortfolioBalance)>> =
         HashMap::with_capacity(initial_capacity);
     let mut chains_set: std::collections::HashSet<String> = std::collections::HashSet::new();
 
@@ -930,7 +1011,11 @@ fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> P
         if let Some(balances) = &result.data {
             for balance in balances {
                 // Cap total unique tokens to prevent unbounded memory growth
-                let key = (balance.address.to_lowercase(), balance.chain.to_lowercase());
+                let key = (
+                    balance.address.to_lowercase(),
+                    balance.chain.to_lowercase(),
+                    balance.position_id.clone(),
+                );
                 if !token_map.contains_key(&key) && token_map.len() >= MAX_UNIQUE_TOKENS {
                     // Skip new tokens once limit is reached
                     continue;
@@ -946,7 +1031,7 @@ fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> P
 
     let mut tokens: Vec<MergedToken> = token_map
         .into_iter()
-        .map(|((addr, chain), entries)| {
+        .map(|((addr, chain, position_id), entries)| {
             // Take the first entry as base
             let first = entries[0].1;
             let found_in: Vec<String> = entries.iter().map(|(s, _)| s.to_string()).collect();
@@ -1021,6 +1106,7 @@ fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> P
                 price_usd: avg_price,
                 logo,
                 found_in,
+                position_id,
             }
         })
         .collect();
@@ -1033,7 +1119,7 @@ fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> P
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let total_usd_value: f64 = tokens.iter().filter_map(|t| t.usd_value).sum();
+    let total_usd_value = sum_usd(tokens.iter().filter_map(|t| t.usd_value));
     let token_count = tokens.len();
     let chains_covered: Vec<String> = chains_set.into_iter().collect();
 
@@ -1043,6 +1129,35 @@ fn merge_portfolio_results(results: &[SourceResult<Vec<PortfolioBalance>>]) -> P
         chains_covered,
         token_count,
     }
+}
+
+/// Convert a human-readable decimal amount (e.g. `"1.5"`) into a raw integer
+/// string with `decimals` fractional digits (e.g. `"1500000000000000000"`).
+///
+/// Returns `None` for malformed input. Excess fractional digits are truncated.
+fn decimal_to_raw(amount: &str, decimals: u8) -> Option<String> {
+    let amount = amount.trim();
+    let (int_part, frac_part) = amount.split_once('.').unwrap_or((amount, ""));
+    if int_part.is_empty() && frac_part.is_empty() {
+        return None;
+    }
+    if !int_part.chars().all(|c| c.is_ascii_digit())
+        || !frac_part.chars().all(|c| c.is_ascii_digit())
+    {
+        return None;
+    }
+    let decimals = decimals as usize;
+    let mut frac: String = frac_part.chars().take(decimals).collect();
+    while frac.len() < decimals {
+        frac.push('0');
+    }
+    let digits = format!("{int_part}{frac}");
+    let trimmed = digits.trim_start_matches('0');
+    Some(if trimmed.is_empty() {
+        "0".to_string()
+    } else {
+        trimmed.to_string()
+    })
 }
 
 /// Parse balance string to f64 with decimals.
@@ -1104,5 +1219,56 @@ fn estimate_lp_usd_value(
     } else {
         // Neither is stable - we'd need price data
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decimal_to_raw_converts_subgraph_decimals() {
+        assert_eq!(
+            decimal_to_raw("1.5", 18).as_deref(),
+            Some("1500000000000000000")
+        );
+        assert_eq!(
+            decimal_to_raw("0.000000000000000001", 18).as_deref(),
+            Some("1")
+        );
+        assert_eq!(decimal_to_raw("42", 6).as_deref(), Some("42000000"));
+        assert_eq!(decimal_to_raw("0", 18).as_deref(), Some("0"));
+        // Extra precision is truncated, not rounded.
+        assert_eq!(decimal_to_raw("1.1234567", 6).as_deref(), Some("1123456"));
+        assert_eq!(decimal_to_raw("abc", 18), None);
+        assert_eq!(decimal_to_raw("", 18), None);
+    }
+
+    #[test]
+    fn merge_keeps_distinct_positions_in_same_pool() {
+        let pool = "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640";
+        let a = PortfolioBalance::new(pool, "UNI-V3", "ethereum", "100", 0)
+            .with_position_id(Some("1".into()));
+        let b = PortfolioBalance::new(pool, "UNI-V3", "ethereum", "200", 0)
+            .with_position_id(Some("2".into()));
+        let results = vec![SourceResult::success("uniswap", vec![a, b], 1)];
+        let merged = merge_portfolio_results(&results);
+        assert_eq!(merged.token_count, 2);
+        assert!(merged.tokens.iter().all(|t| t.address == pool));
+        let mut ids: Vec<_> = merged
+            .tokens
+            .iter()
+            .filter_map(|t| t.position_id.clone())
+            .collect();
+        ids.sort();
+        assert_eq!(ids, vec!["1".to_string(), "2".to_string()]);
+    }
+
+    #[test]
+    fn merge_of_failed_sources_totals_positive_zero() {
+        let results: Vec<SourceResult<Vec<PortfolioBalance>>> =
+            vec![SourceResult::error("alchemy", "Rate limited", 1)];
+        let merged = merge_portfolio_results(&results);
+        assert_eq!(format!("{:.2}", merged.total_usd_value), "0.00");
     }
 }

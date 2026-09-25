@@ -168,6 +168,38 @@ impl<T, A> AggregatedResult<T, A> {
     }
 }
 
+/// Sum optional USD values, starting from `+0.0`.
+///
+/// `Iterator::sum::<f64>()` on an empty iterator yields `-0.0`, which prints
+/// as `$-0.00`; folding from `0.0` avoids that.
+pub fn sum_usd(values: impl IntoIterator<Item = f64>) -> f64 {
+    values.into_iter().fold(0.0, |acc, v| acc + v)
+}
+
+/// Build a [`SourceResult`] for a source that fans out into several
+/// sub-queries (e.g. one per chain).
+///
+/// * If at least one sub-query succeeded, the source is reported as a
+///   success (partial failures are logged to stderr as warnings).
+/// * If *no* sub-query succeeded and at least one failed, the source is
+///   reported as failed with all sub-query errors joined, so callers can
+///   distinguish "empty wallet" from "API rejected every request".
+pub fn fan_out_result<T>(
+    source: &'static str,
+    items: Vec<T>,
+    successes: usize,
+    errors: Vec<String>,
+    latency_ms: u64,
+) -> SourceResult<Vec<T>> {
+    if successes == 0 && !errors.is_empty() {
+        return SourceResult::error(source, errors.join("; "), latency_ms);
+    }
+    for err in &errors {
+        eprintln!("Warning: {source}: {err}");
+    }
+    SourceResult::success(source, items, latency_ms)
+}
+
 /// Helper to measure async operation latency
 pub struct LatencyMeasure {
     start: Instant,
@@ -276,6 +308,38 @@ impl std::fmt::Display for PriceSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sum_usd_empty_is_positive_zero() {
+        let total = sum_usd(std::iter::empty());
+        assert_eq!(total, 0.0);
+        assert!(total.is_sign_positive());
+        assert_eq!(format!("${:.2}", total), "$0.00");
+        assert_eq!(sum_usd([1.5, 2.5]), 4.0);
+    }
+
+    #[test]
+    fn test_fan_out_result_all_failed_is_error() {
+        let r: SourceResult<Vec<u8>> = fan_out_result(
+            "moralis",
+            vec![],
+            0,
+            vec!["ethereum: 401 free usage paused".into()],
+            3,
+        );
+        assert!(!r.is_success());
+        assert_eq!(r.error.as_deref(), Some("ethereum: 401 free usage paused"));
+    }
+
+    #[test]
+    fn test_fan_out_result_partial_or_empty_is_success() {
+        let r: SourceResult<Vec<u8>> =
+            fan_out_result("moralis", vec![1], 1, vec!["polygon: boom".into()], 3);
+        assert!(r.is_success());
+        // An empty wallet (no errors) is a valid success.
+        let r: SourceResult<Vec<u8>> = fan_out_result("moralis", vec![], 1, vec![], 3);
+        assert!(r.is_success());
+    }
 
     #[test]
     fn test_source_result_success() {

@@ -632,7 +632,7 @@ async fn fetch_alchemy_price(
             }
             Err(e) => SourceResult::error(
                 "alchemy",
-                classify_api_error("alchemy", &e),
+                classify_api_error("Alchemy", &e),
                 measure.elapsed_ms(),
             ),
         }
@@ -660,7 +660,7 @@ async fn fetch_alchemy_price(
             }
             Err(e) => SourceResult::error(
                 "alchemy",
-                classify_api_error("alchemy", &e),
+                classify_api_error("Alchemy", &e),
                 measure.elapsed_ms(),
             ),
         }
@@ -753,34 +753,58 @@ async fn fetch_moralis_price(
         }
         Err(e) => SourceResult::error(
             "moralis",
-            classify_api_error("moralis", &e),
+            classify_api_error("Moralis", &e),
             measure.elapsed_ms(),
         ),
     }
 }
 
-/// Classify API errors — turn common HTTP errors into clean messages
-fn classify_api_error(source: &str, error: &dyn std::fmt::Display) -> String {
-    let err_str = error.to_string();
-    let lower = err_str.to_lowercase();
-    if lower.contains("404") || lower.contains("not found") {
-        format!("Token not found on {}", source)
-    } else if lower.contains("401") || lower.contains("403") || lower.contains("unauthorized") {
-        "API key invalid or expired".to_string()
-    } else if lower.contains("429") || lower.contains("rate limit") {
-        "Rate limited".to_string()
-    } else if lower.contains("timeout") || lower.contains("timed out") {
-        "Request timed out".to_string()
-    } else if lower.contains("connection refused") || lower.contains("connection reset") {
-        "Connection failed".to_string()
-    } else if lower.contains("0 - h") || lower.contains("hyper") {
-        // Status 0 typically means the request never completed (timeout/connection issue)
-        "Request timed out".to_string()
-    } else if lower.contains("http error") {
-        // Upstream reqwest errors like "HTTP error: error sending request..."
-        format!("HTTP request failed for {}", source)
-    } else {
-        format!("API error: {}", err_str)
+/// Classify API errors into a concise, *accurate* message.
+///
+/// Classification is driven by the typed [`ApiError`](yldfi_common::api::ApiError)
+/// variant / HTTP status (never by substring-matching the rendered message,
+/// which previously turned e.g. any body containing "401" into
+/// "API key invalid or expired"). The upstream message is always preserved
+/// so that plan/billing problems such as Moralis' "Free usage is paused" are
+/// visible to the user.
+pub(crate) fn classify_api_error<E: std::error::Error>(
+    source: &str,
+    error: &yldfi_common::api::ApiError<E>,
+) -> String {
+    use yldfi_common::api::ApiError;
+
+    fn with_upstream(prefix: String, message: &str) -> String {
+        let message = message.trim();
+        if message.is_empty() {
+            prefix
+        } else {
+            format!("{prefix}: {message}")
+        }
+    }
+
+    match error {
+        ApiError::Api { status, message } => {
+            let prefix = match *status {
+                401 => format!("{source} returned 401 Unauthorized (check API key / plan)"),
+                402 => format!("{source} requires a paid plan (402)"),
+                403 => format!("{source} denied access (403)"),
+                404 => format!("Not found on {source} (404)"),
+                s => format!("{source} API error ({s})"),
+            };
+            with_upstream(prefix, message)
+        }
+        ApiError::RateLimited { retry_after } => match retry_after {
+            Some(secs) => format!("Rate limited by {source} (429, retry after {secs}s)"),
+            None => format!("Rate limited by {source} (429)"),
+        },
+        ApiError::ServerError { status, message } => {
+            with_upstream(format!("{source} server error ({status})"), message)
+        }
+        ApiError::Http(e) if e.is_timeout() => format!("Request to {source} timed out"),
+        ApiError::Http(e) if e.is_connect() => format!("Could not connect to {source}: {e}"),
+        ApiError::Http(e) => format!("HTTP request to {source} failed: {e}"),
+        ApiError::Json(e) => format!("Unexpected response from {source}: {e}"),
+        other => format!("{source}: {other}"),
     }
 }
 
@@ -832,14 +856,11 @@ async fn fetch_curve_price(
                 SourceResult::error("curve", "No usd_price in response", measure.elapsed_ms())
             }
         }
-        Err(e) => {
-            let err_str = e.to_string();
-            if err_str.contains("404") || err_str.contains("not found") {
-                SourceResult::error("curve", "Token not found on Curve", measure.elapsed_ms())
-            } else {
-                SourceResult::error("curve", format!("API error: {}", e), measure.elapsed_ms())
-            }
-        }
+        Err(e) => SourceResult::error(
+            "curve",
+            classify_api_error("Curve", &e),
+            measure.elapsed_ms(),
+        ),
     }
 }
 
@@ -1206,7 +1227,12 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
             .await
             .ok()?;
         let price = ticker.last?.0.to_f64()?;
-        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
+        // ccxt-rust reports Bitget's 24h change as a ratio; convert to percent.
+        let change = ticker
+            .percentage
+            .and_then(|p| p.to_f64())
+            .map(|p| crate::cli::ccxt::change_pct_value(crate::cli::ccxt::ExchangeId::Bitget, p))
+            .unwrap_or(0.0);
         Some((price, change, "ccxt-bitget"))
     }
 
@@ -1366,21 +1392,20 @@ async fn fetch_chainlink_streams(
     let file_config = get_cached_config();
     let chainlink_config = file_config.as_ref().and_then(|c| c.chainlink.as_ref());
 
-    let api_key = match chainlink_config.map(|c| c.api_key.expose_secret().to_string()) {
-        Some(key) => key,
-        None => match std::env::var("CHAINLINK_API_KEY")
-            .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
-        {
-            Ok(key) => key,
-            Err(_) => {
-                return SourceResult::error(
+    let api_key =
+        match chainlink_config.map(|c| c.api_key.expose_secret().to_string()) {
+            Some(key) => key,
+            None => match std::env::var("CHAINLINK_API_KEY")
+                .or_else(|_| std::env::var("CHAINLINK_CLIENT_ID"))
+            {
+                Ok(key) => key,
+                Err(_) => return SourceResult::error(
                     "chainlink",
-                    "No RPC feed, no Data Streams credentials",
+                    "No RPC feed; Data Streams credentials not set (ethcli config set-chainlink)",
                     measure.elapsed_ms(),
-                )
-            }
-        },
-    };
+                ),
+            },
+        };
 
     let user_secret = match chainlink_config.map(|c| c.user_secret.expose_secret().to_string()) {
         Some(secret) => secret,
@@ -1391,7 +1416,7 @@ async fn fetch_chainlink_streams(
             Err(_) => {
                 return SourceResult::error(
                     "chainlink",
-                    "CHAINLINK_USER_SECRET not configured",
+                    "No RPC feed; Data Streams needs CHAINLINK_USER_SECRET too (ethcli config set-chainlink)",
                     measure.elapsed_ms(),
                 )
             }
@@ -2060,4 +2085,49 @@ async fn fetch_kong_vault_price(
 
     let price = NormalizedPrice::new(vault_price);
     SourceResult::success("kong_vault", price, measure.elapsed_ms())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use yldfi_common::api::ApiError;
+
+    type TestError = ApiError;
+
+    #[test]
+    fn classify_keeps_upstream_message_for_401() {
+        // Moralis returns 401 when the free plan is paused; the message must survive.
+        let err = TestError::api(401, "Your Moralis Free usage is paused");
+        let msg = classify_api_error("Moralis", &err);
+        assert!(msg.contains("401"), "{msg}");
+        assert!(msg.contains("Free usage is paused"), "{msg}");
+        assert!(!msg.contains("invalid or expired"), "{msg}");
+    }
+
+    #[test]
+    fn classify_does_not_substring_match_status_codes() {
+        // A 400 whose body mentions "404"/"429" must not be misclassified.
+        let err = TestError::api(400, "token 0x404429 has no pool");
+        let msg = classify_api_error("Curve", &err);
+        assert!(msg.starts_with("Curve API error (400)"), "{msg}");
+        assert!(msg.contains("0x404429"), "{msg}");
+    }
+
+    #[test]
+    fn classify_rate_limited_uses_typed_variant() {
+        let msg = classify_api_error("Alchemy", &TestError::rate_limited(Some(60)));
+        assert_eq!(msg, "Rate limited by Alchemy (429, retry after 60s)");
+        let msg = classify_api_error("Alchemy", &TestError::rate_limited(None));
+        assert_eq!(msg, "Rate limited by Alchemy (429)");
+    }
+
+    #[test]
+    fn classify_not_found_and_server_errors() {
+        let msg = classify_api_error("CoinGecko", &TestError::api(404, "coin not found"));
+        assert_eq!(msg, "Not found on CoinGecko (404): coin not found");
+        let msg = classify_api_error("Kong", &TestError::server_error(502, "bad gateway"));
+        assert_eq!(msg, "Kong server error (502): bad gateway");
+        let msg = classify_api_error("Kong", &TestError::api(403, ""));
+        assert_eq!(msg, "Kong denied access (403)");
+    }
 }

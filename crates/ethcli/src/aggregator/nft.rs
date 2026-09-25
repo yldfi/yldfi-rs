@@ -327,7 +327,7 @@ pub async fn fetch_nfts_parallel(
         .into_iter()
         .collect();
 
-    let estimated_value: f64 = merged_nfts.iter().filter_map(|n| n.floor_price_usd).sum();
+    let estimated_value = super::sum_usd(merged_nfts.iter().filter_map(|n| n.floor_price_usd));
 
     let aggregation = NftResult {
         nft_count: merged_nfts.len(),
@@ -453,12 +453,13 @@ async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Ve
         .ok_or_else(|| anyhow::anyhow!("ALCHEMY_API_KEY not set in config or environment"))?;
 
     let mut all_nfts = Vec::new();
+    let mut outcome = ChainOutcome::default();
 
     for chain in chains {
         let network = match chain_to_alchemy_network(chain) {
             Some(n) => n,
             None => {
-                eprintln!("Alchemy: unsupported chain '{}'", chain);
+                outcome.fail(format!("unsupported chain '{}'", chain));
                 continue;
             }
         };
@@ -466,13 +467,14 @@ async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Ve
         let client = match alcmy::Client::new(&api_key, network) {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("Alchemy: Failed to create client for '{}': {}", chain, e);
+                outcome.fail(format!("{}: client error: {}", chain, e));
                 continue;
             }
         };
 
         match client.nft().get_nfts_for_owner(address).await {
             Ok(response) => {
+                outcome.ok();
                 for nft in response.owned_nfts {
                     // Get image URL from various sources
                     let image_url = nft
@@ -534,12 +536,15 @@ async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Ve
                     all_nfts.push(normalized);
                 }
             }
-            Err(e) => {
-                eprintln!("Alchemy NFT fetch error for {}: {}", chain, e);
-            }
+            Err(e) => outcome.fail(format!(
+                "{}: {}",
+                chain,
+                super::price::classify_api_error("Alchemy", &e)
+            )),
         }
     }
 
+    outcome.finish("alchemy")?;
     Ok(all_nfts)
 }
 
@@ -556,6 +561,7 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
 
     let client = mrls::Client::new(&api_key)?;
     let mut all_nfts = Vec::new();
+    let mut outcome = ChainOutcome::default();
 
     for chain in chains {
         let network = normalize_chain_for_source("moralis", chain);
@@ -563,6 +569,7 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
 
         match client.nft().get_wallet_nfts(address, Some(&query)).await {
             Ok(response) => {
+                outcome.ok();
                 for nft in response.result {
                     // Parse balance
                     let balance: u64 = nft
@@ -593,11 +600,44 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
                     all_nfts.push(normalized);
                 }
             }
-            Err(e) => {
-                eprintln!("Moralis NFT fetch error for {}: {}", chain, e);
-            }
+            Err(e) => outcome.fail(format!(
+                "{}: {}",
+                chain,
+                super::price::classify_api_error("Moralis", &e)
+            )),
         }
     }
 
+    outcome.finish("moralis")?;
     Ok(all_nfts)
+}
+
+/// Tracks per-chain outcomes for a source so that "every chain failed" is
+/// reported as a source error instead of "0 NFTs, OK".
+#[derive(Default)]
+struct ChainOutcome {
+    successes: usize,
+    errors: Vec<String>,
+}
+
+impl ChainOutcome {
+    fn ok(&mut self) {
+        self.successes += 1;
+    }
+
+    fn fail(&mut self, err: String) {
+        self.errors.push(err);
+    }
+
+    /// Err if nothing succeeded and something failed; otherwise warn about
+    /// partial failures on stderr and return Ok.
+    fn finish(self, source: &str) -> anyhow::Result<()> {
+        if self.successes == 0 && !self.errors.is_empty() {
+            anyhow::bail!("{}", self.errors.join("; "));
+        }
+        for err in &self.errors {
+            eprintln!("Warning: {} NFT fetch: {}", source, err);
+        }
+        Ok(())
+    }
 }
