@@ -354,34 +354,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         skipped += 1;
     }
 
-    // 4. abi() - currently returns None (stub)
-    print!("  contracts.abi()... ");
-    if let Some(ref c) = contracts {
-        // Use actual contracts for abi() as well
-        if let Some(contract) = c.iter().find(|c| c.is_contract()) {
-            if let (Some(net), Some(addr)) = (contract.network_id(), contract.address()) {
-                match client.contracts().abi(net, addr).await {
-                    Ok(a) => {
-                        println!("✓ ({:?})", a.is_some());
-                        passed += 1;
-                    }
-                    Err(e) => {
-                        println!("✗ {}", e);
-                        failed += 1;
-                    }
-                }
-            } else {
-                println!("SKIP (missing network_id/address)");
-                skipped += 1;
-            }
-        } else {
-            println!("SKIP (no actual contracts)");
-            skipped += 1;
-        }
-    } else {
-        println!("SKIP (list failed)");
-        skipped += 1;
-    }
+    // 4. abi() - no ABI endpoint in Tenderly's public API (deprecated)
+    println!("  contracts.abi()... SKIP (no public ABI endpoint)");
+    skipped += 1;
 
     // 5-12. Skip write operations
     println!("  contracts.add()... SKIP (modifies state)");

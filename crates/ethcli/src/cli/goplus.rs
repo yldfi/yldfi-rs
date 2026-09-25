@@ -243,8 +243,26 @@ pub async fn execute(args: &GoPlusArgs) -> anyhow::Result<()> {
             chain_id,
             format,
         } => {
-            let addrs: Vec<&str> = addresses.split(',').map(|s| s.trim()).collect();
+            let addrs: Vec<&str> = addresses
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if !client.is_authenticated() && addrs.len() > 1 {
+                eprintln!(
+                    "Note: no GoPlus app key/secret configured; querying {} addresses one at a time",
+                    addrs.len()
+                );
+            }
             let results = client.token_security_batch(*chain_id, &addrs).await?;
+            let missing = gplus::Client::missing_addresses(&addrs, &results);
+            if !missing.is_empty() {
+                eprintln!(
+                    "Warning: no GoPlus data returned for {} address(es): {}",
+                    missing.len(),
+                    missing.join(", ")
+                );
+            }
 
             if matches!(format, OutputFormat::Json) {
                 println!("{}", serde_json::to_string_pretty(&results)?);

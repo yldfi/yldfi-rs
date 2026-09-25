@@ -83,7 +83,7 @@ let bundle = BundleSimulationRequest::new(vec![tx1, tx2, tx3]);
 let results = client.simulation().simulate_bundle(&bundle).await?;
 
 // List saved simulations
-let sims = client.simulation().list(0, 10).await?;
+let sims = client.simulation().list(1, 10).await?; // page (1-indexed), per_page
 
 // Share a simulation
 let url = client.simulation().share("sim-id").await?;

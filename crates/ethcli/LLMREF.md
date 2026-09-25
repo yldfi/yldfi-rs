@@ -168,6 +168,8 @@ ethcli alchemy nft is-holder <addr> <contract>  # via getNFTsForOwner
 ethcli alchemy nft is-spam <contract>           # replaces retired spam-contracts
 ethcli alchemy transfers <addr> --category erc20
 ethcli alchemy trace-tx <hash>
+ethcli alchemy notify list-webhooks       # alias webhooks; needs ALCHEMY_NOTIFY_TOKEN (dashboard Data -> Webhooks, AUTH TOKEN)
+ethcli alchemy gas-manager list-policies  # alias gas-sponsorship; needs ALCHEMY_ACCESS_KEY (dashboard -> Security, Gas Manager perms)
 ```
 Removed 2026-09-30 (Alchemy NFT sunset, no replacement): `summarize-attributes`, `compute-rarity`, `invalidate-contract`, `is-airdrop`, `sales`.
 Removed 2026-09-30 (Alchemy Simulation API sunset): `ethcli alchemy simulation asset-changes|execution`; use `ethcli simulate call ... --via tenderly|debug|alchemy` or `ethcli alchemy debug trace-call`.
@@ -385,6 +387,8 @@ ethcli doctor                       # Diagnose issues
 | ETHERSCAN_API_KEY | Optional | Higher rate limits |
 | ETHCLI_NO_PROXY | Optional | Disable HTTP proxy auto-detection |
 | ALCHEMY_API_KEY | alchemy commands | Alchemy API |
+| ALCHEMY_NOTIFY_TOKEN | alchemy notify | Webhooks auth token (`config set-alchemy-notify-token`) |
+| ALCHEMY_ACCESS_KEY | alchemy gas-manager | Gas Manager access key (`config set-alchemy-access-key`) |
 | MORALIS_API_KEY | moralis commands | Moralis API |
 | COINGECKO_API_KEY | Optional | CoinGecko Pro |
 | DUNE_API_KEY | dune commands | Dune Analytics |
