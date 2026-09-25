@@ -83,13 +83,21 @@ pub async fn simulate_via_debug_rpc(
     // Handle dry-run mode - output request without executing
     if let Some(format) = dry_run {
         let headers = vec![("Content-Type", "application/json")];
-        let output = format_request(&rpc, "POST", &headers, &request, format, show_secrets);
+        let shown_rpc = if show_secrets {
+            rpc.clone()
+        } else {
+            crate::utils::url::redact_url(&rpc)
+        };
+        let output = format_request(&shown_rpc, "POST", &headers, &request, format, show_secrets);
         println!("{}", output);
         return Ok(());
     }
 
     if !quiet {
-        eprintln!("Calling debug_traceCall on {}...", rpc);
+        eprintln!(
+            "Calling debug_traceCall on {}...",
+            crate::utils::url::redact_url(&rpc)
+        );
     }
 
     let client = reqwest::Client::new();
@@ -133,7 +141,10 @@ pub async fn trace_tx_via_debug_rpc(
         ))?;
 
     if !quiet {
-        eprintln!("Calling debug_traceTransaction on {}...", rpc);
+        eprintln!(
+            "Calling debug_traceTransaction on {}...",
+            crate::utils::url::redact_url(&rpc)
+        );
     }
 
     let request = serde_json::json!({
@@ -264,13 +275,21 @@ pub async fn simulate_via_trace_rpc(
     // Handle dry-run mode - output request without executing
     if let Some(format) = dry_run {
         let headers = vec![("Content-Type", "application/json")];
-        let output = format_request(&rpc, "POST", &headers, &request, format, show_secrets);
+        let shown_rpc = if show_secrets {
+            rpc.clone()
+        } else {
+            crate::utils::url::redact_url(&rpc)
+        };
+        let output = format_request(&shown_rpc, "POST", &headers, &request, format, show_secrets);
         println!("{}", output);
         return Ok(());
     }
 
     if !quiet {
-        eprintln!("Calling trace_call on {}...", rpc);
+        eprintln!(
+            "Calling trace_call on {}...",
+            crate::utils::url::redact_url(&rpc)
+        );
     }
 
     let client = reqwest::Client::new();
@@ -310,7 +329,10 @@ pub async fn trace_tx_via_trace_rpc(
     })?;
 
     if !quiet {
-        eprintln!("Calling trace_transaction on {}...", rpc);
+        eprintln!(
+            "Calling trace_transaction on {}...",
+            crate::utils::url::redact_url(&rpc)
+        );
     }
 
     let request = serde_json::json!({

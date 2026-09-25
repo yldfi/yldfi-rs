@@ -78,6 +78,7 @@ fn load_config_with_warning() -> Option<ConfigFile> {
 }
 
 use ethcli::utils::format::format_thousands;
+use ethcli::utils::url::redact_url;
 
 /// Check if we should show interactive progress indicators.
 /// Returns true only if stderr is a TTY (not piped/redirected).
@@ -86,7 +87,21 @@ fn should_show_progress() -> bool {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
+    if let Err(e) = run().await {
+        // Error chains (notably reqwest's) embed full request URLs, which may
+        // carry API keys or basic-auth credentials. Redact before printing.
+        eprintln!(
+            "Error: {}",
+            ethcli::utils::url::redact_urls_in_text(&format!("{e:?}"))
+        );
+        std::process::exit(1);
+    }
+}
+
+// The dispatch below uses early `return` for uniformity across arms.
+#[allow(clippy::needless_return)]
+async fn run() -> anyhow::Result<()> {
     // Handle --help-json before clap parsing
     // This allows us to output JSON schema without normal argument validation
     let args: Vec<String> = std::env::args().collect();
@@ -1256,7 +1271,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
                     println!(
                         "  P{} {} {} {}",
-                        ep.priority, node_type_badge, debug_badge, ep.url
+                        ep.priority,
+                        node_type_badge,
+                        debug_badge,
+                        redact_url(&ep.url)
                     );
 
                     if *detailed {
@@ -1298,7 +1316,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
             // Check if already exists
             if config.endpoints.iter().any(|e| e.url == *url) {
-                println!("Endpoint already exists: {url}");
+                println!("Endpoint already exists: {}", redact_url(url));
                 return Ok(());
             }
 
@@ -1326,7 +1344,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 EndpointConfig::new(url).with_chain(chain)
             } else {
                 // Optimize to detect capabilities
-                println!("Optimizing endpoint: {url}\n");
+                println!("Optimizing endpoint: {}\n", redact_url(url));
 
                 let expected_chain: Option<Chain> =
                     chain_override.as_ref().map(|c| c.parse()).transpose()?;
@@ -1336,7 +1354,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 if !result.connectivity_ok {
                     println!(
                         "Failed to connect: {}",
-                        result.error.unwrap_or_else(|| "Unknown error".to_string())
+                        ethcli::utils::url::redact_urls_in_text(
+                            &result.error.unwrap_or_else(|| "Unknown error".to_string())
+                        )
                     );
                     return Ok(());
                 }
@@ -1390,12 +1410,12 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             config.endpoints.retain(|e| e.url != *url);
 
             if config.endpoints.len() == initial_len {
-                println!("Endpoint not found: {url}");
+                println!("Endpoint not found: {}", redact_url(url));
                 return Ok(());
             }
 
             config.save_default()?;
-            println!("Endpoint removed from config: {url}");
+            println!("Endpoint removed from config: {}", redact_url(url));
         }
 
         EndpointCommands::Optimize {
@@ -1449,7 +1469,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 let ep_url = config.endpoints[idx].url.clone();
                 let expected_chain = Some(config.endpoints[idx].chain);
 
-                print!("Testing {ep_url}... ");
+                print!("Testing {}... ", redact_url(&ep_url));
                 std::io::Write::flush(&mut std::io::stdout())?;
 
                 match optimize_endpoint(&ep_url, expected_chain, *timeout).await {
@@ -1471,12 +1491,17 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         } else {
                             println!(
                                 "FAILED: {}",
-                                result.error.unwrap_or_else(|| "Unknown".to_string())
+                                ethcli::utils::url::redact_urls_in_text(
+                                    &result.error.unwrap_or_else(|| "Unknown".to_string())
+                                )
                             );
                         }
                     }
                     Err(e) => {
-                        println!("ERROR: {e}");
+                        println!(
+                            "ERROR: {}",
+                            ethcli::utils::url::redact_urls_in_text(&e.to_string())
+                        );
                     }
                 }
             }
@@ -1486,7 +1511,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
         }
 
         EndpointCommands::Test { url } => {
-            println!("Testing endpoint: {url}\n");
+            println!("Testing endpoint: {}\n", redact_url(url));
 
             // Test connectivity
             print!("[1/3] Connectivity.............. ");
@@ -1505,7 +1530,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     p
                 }
                 Err(e) => {
-                    println!("FAILED: {e}");
+                    println!(
+                        "FAILED: {}",
+                        ethcli::utils::url::redact_urls_in_text(&e.to_string())
+                    );
                     return Ok(());
                 }
             };
@@ -1517,7 +1545,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             match pool.get_block_number().await {
                 Ok(block) => println!("Block {block}"),
                 Err(e) => {
-                    println!("FAILED: {e}");
+                    println!(
+                        "FAILED: {}",
+                        ethcli::utils::url::redact_urls_in_text(&e.to_string())
+                    );
                     return Ok(());
                 }
             }
@@ -1532,7 +1563,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             match endpoint.test_archive_support().await {
                 Ok(true) => println!("YES (historical state accessible)"),
                 Ok(false) => println!("NO (pruned node)"),
-                Err(e) => println!("UNKNOWN: {e}"),
+                Err(e) => println!(
+                    "UNKNOWN: {}",
+                    ethcli::utils::url::redact_urls_in_text(&e.to_string())
+                ),
             }
 
             println!("\nEndpoint test complete.");
@@ -1544,9 +1578,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             if let Some(ep) = config.endpoints.iter_mut().find(|e| e.url == *url) {
                 ep.enabled = true;
                 config.save_default()?;
-                println!("Endpoint enabled: {url}");
+                println!("Endpoint enabled: {}", redact_url(url));
             } else {
-                println!("Endpoint not found: {url}");
+                println!("Endpoint not found: {}", redact_url(url));
             }
         }
 
@@ -1556,9 +1590,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
             if let Some(ep) = config.endpoints.iter_mut().find(|e| e.url == *url) {
                 ep.enabled = false;
                 config.save_default()?;
-                println!("Endpoint disabled: {url}");
+                println!("Endpoint disabled: {}", redact_url(url));
             } else {
-                println!("Endpoint not found: {url}");
+                println!("Endpoint not found: {}", redact_url(url));
             }
         }
 
@@ -1670,7 +1704,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                             0.0
                         };
                         EndpointHealthJson {
-                            url: ep.url.clone(),
+                            url: redact_url(&ep.url),
                             chain: ep.chain.to_string(),
                             available: h.is_available(),
                             success_rate,
@@ -1701,12 +1735,8 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         0.0
                     };
 
-                    // Truncate/mask URL for display
-                    let display_url = if ep.url.len() > 60 {
-                        format!("{}...", &ep.url[..57])
-                    } else {
-                        ep.url.clone()
-                    };
+                    // Mask URL for display (may embed API keys / credentials)
+                    let display_url = redact_url(&ep.url);
 
                     println!("\n{display_url}");
                     println!("  Chain:        {}", ep.chain);
@@ -2007,7 +2037,7 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.add_debug_rpc(url.clone())?;
             println!("Debug RPC URL added to config file.");
-            println!("  URL: {url}");
+            println!("  URL: {}", redact_url(url));
         }
 
         ConfigCommands::RemoveDebugRpc { url } => {
@@ -2072,11 +2102,16 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                                 && !ep.url.starts_with("wss://")
                                 && !ep.url.starts_with("ws://")
                             {
-                                errors.push(format!("Invalid RPC URL scheme: {}", ep.url));
+                                errors.push(format!(
+                                    "Invalid RPC URL scheme: {}",
+                                    redact_url(&ep.url)
+                                ));
                             }
                             if ep.priority == 0 {
-                                warnings
-                                    .push(format!("Endpoint {} has priority 0 (lowest)", ep.url));
+                                warnings.push(format!(
+                                    "Endpoint {} has priority 0 (lowest)",
+                                    redact_url(&ep.url)
+                                ));
                             }
                         }
                         println!("RPC endpoints: {} configured", config.endpoints.len());

@@ -72,7 +72,7 @@ impl Endpoint {
                 "Proxy '{}' was configured but proxy support is not yet implemented. \
                  Remove the proxy configuration or traffic will fail. \
                  See: https://github.com/alloy-rs/alloy/issues/... for proxy support status.",
-                crate::error::sanitize_error_message(proxy_url)
+                crate::utils::url::redact_url(proxy_url)
             ))
             .into());
         }
@@ -81,7 +81,7 @@ impl Endpoint {
         let url: reqwest::Url = config.url.parse().map_err(|e| {
             RpcError::ConnectionFailed(format!(
                 "Invalid URL {}: {}",
-                crate::error::sanitize_error_message(&config.url),
+                crate::utils::url::redact_url(&config.url),
                 e
             ))
         })?;
@@ -158,7 +158,10 @@ impl Endpoint {
                     || err_str.contains("429")
                     || err_str.contains("too many")
                 {
-                    return Err(RpcError::RateLimited(self.config.url.clone()).into());
+                    return Err(RpcError::RateLimited(crate::utils::url::redact_url(
+                        &self.config.url,
+                    ))
+                    .into());
                 }
 
                 // Check for block range too large

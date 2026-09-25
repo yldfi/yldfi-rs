@@ -545,7 +545,7 @@ fn test_endpoints_list_with_temp_config() {
         .args(["endpoints", "list"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("https://eth.example.com/rpc"))
+        .stdout(predicate::str::contains("https://eth.example.com"))
         .stdout(predicate::str::contains("ETHEREUM"));
 }
 
@@ -558,14 +558,14 @@ fn test_endpoints_list_filter_by_chain() {
         .args(["endpoints", "list", "--chain", "ethereum"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("https://eth.example.com/rpc"));
+        .stdout(predicate::str::contains("https://eth.example.com"));
 
     // Filter for polygon - should show polygon endpoint
     ethcli_with_config(&temp_dir)
         .args(["endpoints", "list", "--chain", "polygon"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("https://polygon.example.com/rpc"));
+        .stdout(predicate::str::contains("https://polygon.example.com"));
 }
 
 #[test]
@@ -576,7 +576,7 @@ fn test_endpoints_list_filter_archive() {
         .args(["endpoints", "list", "--archive"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("https://eth.example.com/rpc"));
+        .stdout(predicate::str::contains("https://eth.example.com"));
 }
 
 #[test]
@@ -587,7 +587,7 @@ fn test_endpoints_list_filter_debug() {
         .args(["endpoints", "list", "--debug"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("https://eth.example.com/rpc"));
+        .stdout(predicate::str::contains("https://eth.example.com"));
 }
 
 #[test]
@@ -601,6 +601,39 @@ fn test_endpoints_list_detailed() {
         // Detailed view shows block range info
         .stdout(predicate::str::contains("Block range"))
         .stdout(predicate::str::contains("100,000"));
+}
+
+#[test]
+fn test_endpoints_output_redacts_credentialed_urls() {
+    const SECRET: &str = "SENTINEL_RPC_SECRET_0123456789abcdef";
+    let temp_dir = TempDir::new().unwrap();
+    let config_content = format!(
+        r#"
+[[endpoints]]
+url = "https://user:{SECRET}@secret.example.com:8545/v2/{SECRET}?apikey={SECRET}"
+priority = 10
+enabled = true
+chain = "ethereum"
+node_type = "archive"
+has_debug = true
+"#
+    );
+    fs::write(temp_dir.path().join("config.toml"), config_content).unwrap();
+
+    for args in [
+        vec!["endpoints", "list"],
+        vec!["endpoints", "list", "--detailed"],
+        vec!["endpoints", "health", "--probes", "1"],
+        vec!["endpoints", "health", "--probes", "1", "--json"],
+    ] {
+        ethcli_with_config(&temp_dir)
+            .args(&args)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("https://secret.example.com:8545"))
+            .stdout(predicate::str::contains(SECRET).not())
+            .stderr(predicate::str::contains(SECRET).not());
+    }
 }
 
 #[test]

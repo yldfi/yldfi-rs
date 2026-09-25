@@ -250,7 +250,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
-                eprintln!("Fetching pool state from {}...", rpc_url);
+                eprintln!(
+                    "Fetching pool state from {}...",
+                    crate::utils::url::redact_url(rpc_url)
+                );
             }
 
             let client = LensClient::mainnet(rpc_url)?;
@@ -275,7 +278,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
-                eprintln!("Fetching liquidity from {}...", rpc_url);
+                eprintln!(
+                    "Fetching liquidity from {}...",
+                    crate::utils::url::redact_url(rpc_url)
+                );
             }
 
             let client = LensClient::mainnet(rpc_url)?;
@@ -714,7 +720,10 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let account: Address = args.account.parse()?;
 
             if !quiet {
-                eprintln!("Fetching balance from {}...", rpc_url);
+                eprintln!(
+                    "Fetching balance from {}...",
+                    crate::utils::url::redact_url(rpc_url)
+                );
             }
 
             let client = LensClient::mainnet(rpc_url)?;
