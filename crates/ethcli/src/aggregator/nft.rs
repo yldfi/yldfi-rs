@@ -1,6 +1,6 @@
 //! NFT aggregation from multiple sources
 //!
-//! Fetches NFT holdings from Alchemy, Moralis, and Dune SIM in parallel
+//! Fetches NFT holdings from Alchemy and Moralis in parallel
 //! and merges results.
 
 use super::{get_cached_config, normalize_chain_for_source, AggregatedResult, SourceResult};
@@ -17,7 +17,6 @@ pub enum NftSource {
     All,
     Alchemy,
     Moralis,
-    DuneSim,
 }
 
 impl NftSource {
@@ -26,15 +25,10 @@ impl NftSource {
             NftSource::All => "all",
             NftSource::Alchemy => "alchemy",
             NftSource::Moralis => "moralis",
-            NftSource::DuneSim => "dsim",
         }
     }
 
     /// Default source set for `--source all`
-    ///
-    /// Dune Sim is excluded because the platform shuts down on 2026-08-01
-    /// (<https://github.com/yldfi/yldfi-rs/issues/64>); it can still be
-    /// queried explicitly via `--source dsim` until then.
     pub fn all_sources() -> Vec<NftSource> {
         vec![NftSource::Alchemy, NftSource::Moralis]
     }
@@ -263,13 +257,6 @@ pub async fn fetch_nfts_parallel(
                     }
                     NftSource::Moralis => {
                         fetch_nfts_moralis(
-                            &address,
-                            &chains.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-                        )
-                        .await
-                    }
-                    NftSource::DuneSim => {
-                        fetch_nfts_dsim(
                             &address,
                             &chains.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
                         )
@@ -609,75 +596,6 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
             Err(e) => {
                 eprintln!("Moralis NFT fetch error for {}: {}", chain, e);
             }
-        }
-    }
-
-    Ok(all_nfts)
-}
-
-/// Fetch NFTs from Dune SIM (Collectibles API)
-async fn fetch_nfts_dsim(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
-    // Get API key from config first, then fall back to env var. Dune Analytics
-    // keys are not valid Sim credentials, so there is intentionally no
-    // DUNE_API_KEY fallback.
-    let config = get_cached_config();
-    let api_key = config
-        .as_ref()
-        .and_then(|c| {
-            c.dune_sim
-                .as_ref()
-                .map(|d| d.api_key.expose_secret().to_string())
-        })
-        .or_else(|| std::env::var("DUNE_SIM_API_KEY").ok())
-        .ok_or_else(|| anyhow::anyhow!("DUNE_SIM_API_KEY not set in config or environment"))?;
-
-    let client = dnsim::Client::new(&api_key)?;
-    let mut all_nfts = Vec::new();
-
-    // Dune SIM doesn't support chain filter in the same way, it returns all chains
-    // We'll filter by requested chains after fetching
-    let requested_chains: std::collections::HashSet<String> = chains
-        .iter()
-        .map(|c| normalize_chain_for_source("dsim", c).to_lowercase())
-        .collect();
-
-    // Dune SIM collectibles endpoint - fetches all chains, we filter client-side
-    match client.collectibles().get(address).await {
-        Ok(response) => {
-            for collectible in response.entries {
-                // Filter by requested chains
-                let collectible_chain = collectible.chain.to_lowercase();
-                if !requested_chains.is_empty() && !requested_chains.contains(&collectible_chain) {
-                    continue;
-                }
-
-                // Parse balance (it's a String in the response)
-                let balance: u64 = collectible.balance.parse().unwrap_or(1);
-
-                let normalized = NftEntry::builder()
-                    .contract_address(collectible.contract_address.clone())
-                    .token_id(collectible.token_id.clone())
-                    .chain(collectible.chain.clone())
-                    .name(collectible.name.clone())
-                    .collection_name(None) // Not provided in Dune SIM response
-                    .symbol(collectible.symbol.clone())
-                    .token_type(Some(collectible.token_standard.clone()))
-                    .image_url(collectible.image_url.clone())
-                    .thumbnail_url(None) // Not provided in Dune SIM response
-                    .metadata_url(None)
-                    .balance(balance)
-                    .floor_price_eth(None)
-                    .floor_price_usd(None) // Not provided in Dune SIM response
-                    .is_spam(Some(collectible.is_spam))
-                    .is_verified(None)
-                    .source("dsim")
-                    .build();
-
-                all_nfts.push(normalized);
-            }
-        }
-        Err(e) => {
-            eprintln!("Dune SIM collectibles fetch error: {}", e);
         }
     }
 

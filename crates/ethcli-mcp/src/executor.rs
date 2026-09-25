@@ -370,7 +370,6 @@ fn is_mutating_command(args: &[&str]) -> bool {
                 | "set-moralis"
                 | "set-chainlink"
                 | "set-dune"
-                | "set-dune-sim"
                 | "set-solodit"
                 | "set-pyth"
                 | "add-debug-rpc"

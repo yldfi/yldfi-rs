@@ -270,10 +270,6 @@ async fn run() -> anyhow::Result<()> {
             return ethcli::cli::moralis::handle(action, cli.quiet).await;
         }
 
-        Commands::Dsim { action } => {
-            return ethcli::cli::dsim::handle(action, cli.quiet).await;
-        }
-
         Commands::Dune { action } => {
             return ethcli::cli::dune_cli::handle(action, cli.quiet).await;
         }
@@ -2066,27 +2062,6 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://dune.com/terms");
         }
 
-        ConfigCommands::SetDuneSim { key, stdin } => {
-            use ethcli::cli::config::read_from_stdin;
-            use ethcli::config::DuneSimConfig;
-            use secrecy::SecretString;
-            let api_key = if *stdin {
-                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
-            } else {
-                key.clone().ok_or_else(|| {
-                    anyhow::anyhow!("API key required (provide key or use --stdin)")
-                })?
-            };
-            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
-            cfg.dune_sim = Some(DuneSimConfig {
-                api_key: SecretString::new(api_key.into()),
-            });
-            cfg.save_default()?;
-            println!("Dune SIM API key saved to config file.");
-            println!("\nBy using Dune SIM, you agree to their Terms of Service.");
-            println!("See: https://sim.dune.com/terms");
-        }
-
         ConfigCommands::SetSolodit { key, stdin } => {
             use ethcli::cli::config::read_from_stdin;
             use ethcli::config::SoloditConfig;
@@ -2258,10 +2233,6 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                     if config.dune.is_some() {
                         api_keys_present += 1;
                         println!("Dune API key: configured");
-                    }
-                    if config.dune_sim.is_some() {
-                        api_keys_present += 1;
-                        println!("Dune SIM API key: configured");
                     }
                     if config.solodit.is_some() {
                         api_keys_present += 1;
