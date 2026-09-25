@@ -421,7 +421,7 @@ pub enum ContractCommands {
         function: String,
 
         /// Function arguments
-        #[arg(trailing_var_arg = true, value_name = "ARG")]
+        #[arg(value_name = "ARG", allow_negative_numbers = true)]
         args: Vec<String>,
 
         /// Block number or "latest" (default: latest)
@@ -1619,7 +1619,7 @@ async fn get_token_decimals<P: Provider>(provider: &P, address: Address) -> Opti
 }
 
 /// Format a DynSolValue for display
-fn format_value(value: &DynSolValue) -> String {
+pub(crate) fn format_value(value: &DynSolValue) -> String {
     format_value_internal(value, false, None)
 }
 
@@ -1714,6 +1714,46 @@ fn format_with_decimals(value: &alloy::primitives::U256, decimals: u8) -> String
 mod tests {
     use super::*;
     use alloy::json_abi::JsonAbi;
+
+    fn parse_call(argv: &[&str]) -> (Vec<String>, bool, String) {
+        use clap::Parser;
+        let cli = crate::cli::Cli::try_parse_from(argv).unwrap();
+        match cli.command {
+            crate::cli::Commands::Contract {
+                action:
+                    ContractCommands::Call {
+                        args, human, block, ..
+                    },
+            } => (args, human, block),
+            _ => panic!("expected contract call"),
+        }
+    }
+
+    #[test]
+    fn test_call_trailing_flags_not_swallowed() {
+        let (args, human, block) = parse_call(&[
+            "ethcli",
+            "contract",
+            "call",
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "balanceOf",
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "-H",
+            "--block",
+            "123",
+        ]);
+        assert_eq!(args, vec!["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"]);
+        assert!(human);
+        assert_eq!(block, "123");
+    }
+
+    #[test]
+    fn test_call_negative_number_args() {
+        let (args, human, _) =
+            parse_call(&["ethcli", "contract", "call", "0xabc", "foo", "-5", "7"]);
+        assert_eq!(args, vec!["-5", "7"]);
+        assert!(!human);
+    }
 
     fn parse_abi(json: &str) -> JsonAbi {
         serde_json::from_str(json).expect("valid ABI json")
