@@ -83,7 +83,8 @@ pub enum KyberCommands {
         /// Deadline in seconds from now
         #[arg(long, default_value = "1200")]
         deadline: u64,
-        /// Route summary from routes command (JSON)
+        /// Route summary JSON from the `routes` command, or the full
+        /// `route-data` output (`{"routeSummary": ...}`). Sent unmodified.
         #[arg(long)]
         route_summary: String,
     },
@@ -112,8 +113,9 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
                 request.exclude_dexs = Some(dexes);
             }
 
-            let routes = client.get_routes(kyber_chain, &request).await?;
-            output_json(&routes, args.format)?;
+            // Print the raw routeSummary so it can be passed to `build` unmodified
+            let route_data = client.get_route_data(kyber_chain, &request).await?;
+            output_json(&route_data.route_summary, args.format)?;
         }
 
         KyberCommands::RouteData {
@@ -139,20 +141,28 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
             recipient,
             chain,
             slippage_bps,
-            deadline: _deadline,
+            deadline,
             route_summary,
         } => {
             let kyber_chain = chain_name_to_kybr_chain(&chain)?;
 
-            // Parse route summary from JSON
-            let summary: kybr::RouteSummary = serde_json::from_str(&route_summary)?;
+            if slippage_bps > 2000 {
+                anyhow::bail!(
+                    "--slippage-bps {slippage_bps} is too high (KyberSwap max 2000 = 20%)"
+                );
+            }
+            let summary = extract_route_summary(&route_summary)?;
+            let deadline = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() + deadline)
+                .ok();
 
             let request = BuildRouteRequest {
                 route_summary: summary,
                 sender,
                 recipient,
                 slippage_tolerance_bps: Some(slippage_bps),
-                deadline: None,
+                deadline,
                 enable_permit: None,
             };
 
@@ -162,6 +172,18 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Accept either a bare routeSummary or the full route-data output.
+fn extract_route_summary(json: &str) -> anyhow::Result<serde_json::Value> {
+    let value: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| anyhow::anyhow!("Invalid route summary JSON: {e}"))?;
+    match value {
+        serde_json::Value::Object(mut map) => Ok(map
+            .remove("routeSummary")
+            .unwrap_or(serde_json::Value::Object(map))),
+        _ => anyhow::bail!("Invalid route summary JSON: expected an object"),
+    }
 }
 
 fn chain_name_to_kybr_chain(name: &str) -> anyhow::Result<kybr::Chain> {
@@ -192,4 +214,18 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
     };
     println!("{}", json);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_route_summary_accepts_both_shapes() {
+        let full = r#"{"routeSummary":{"checksum":"1","routeID":"x"},"routerAddress":"0x1"}"#;
+        let bare = r#"{"checksum":"1","routeID":"x"}"#;
+        assert_eq!(extract_route_summary(full).unwrap()["routeID"], "x");
+        assert_eq!(extract_route_summary(bare).unwrap()["checksum"], "1");
+        assert!(extract_route_summary("1").is_err());
+    }
 }

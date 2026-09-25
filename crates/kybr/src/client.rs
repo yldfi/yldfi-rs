@@ -93,10 +93,9 @@ impl Client {
             return Err(Error::api(response.code as u16, response.message));
         }
 
-        response
-            .data
-            .map(|d| d.route_summary)
-            .ok_or_else(error::no_route_found)
+        let data = response.data.ok_or_else(error::no_route_found)?;
+        data.summary()
+            .map_err(|e| error::invalid_param(format!("unexpected routeSummary shape: {e}")))
     }
 
     /// Get full route data including router address
@@ -148,11 +147,11 @@ impl Client {
     ///         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     ///         "1000000000000000000",
     ///     );
-    ///     let route_summary = client.get_routes(Chain::Ethereum, &request).await?;
+    ///     let route_data = client.get_route_data(Chain::Ethereum, &request).await?;
     ///
-    ///     // Then build the route to get tx data
+    ///     // Then build the route to get tx data (summary passed through unmodified)
     ///     let build_request = BuildRouteRequest {
-    ///         route_summary,
+    ///         route_summary: route_data.route_summary,
     ///         sender: "0xYourAddress".to_string(),
     ///         recipient: "0xYourAddress".to_string(),
     ///         slippage_tolerance_bps: Some(50), // 0.5%

@@ -300,14 +300,29 @@ pub struct RoutesResponse {
 }
 
 /// Route data
+///
+/// `route_summary` is kept as the raw JSON returned by the API: `/route/build`
+/// validates it (including `routeID`, `checksum` and `timestamp`), so it must
+/// be sent back unmodified. Use [`RouteData::summary`] for a typed view.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RouteData {
-    /// Route summary
-    pub route_summary: RouteSummary,
+    /// Route summary exactly as returned by the API
+    pub route_summary: serde_json::Value,
     /// Detailed router address
     #[serde(default)]
     pub router_address: Option<String>,
+}
+
+impl RouteData {
+    /// Typed view of the route summary
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the summary does not match the expected shape.
+    pub fn summary(&self) -> Result<RouteSummary, serde_json::Error> {
+        RouteSummary::deserialize(&self.route_summary)
+    }
 }
 
 /// Route summary
@@ -367,16 +382,17 @@ pub struct SwapStep {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BuildRouteRequest {
-    /// Route summary from `get_routes`
-    pub route_summary: RouteSummary,
+    /// Route summary from [`RouteData::route_summary`], passed through
+    /// unmodified (the API verifies its checksum)
+    pub route_summary: serde_json::Value,
     /// Sender address
     pub sender: String,
     /// Recipient address
     pub recipient: String,
-    /// Slippage tolerance in bips
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Slippage tolerance in bips (sent as `slippageTolerance`, 10 = 0.1%)
+    #[serde(rename = "slippageTolerance", skip_serializing_if = "Option::is_none")]
     pub slippage_tolerance_bps: Option<u32>,
-    /// Deadline timestamp
+    /// Deadline timestamp (unix seconds)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deadline: Option<u64>,
     /// Enable permit
@@ -404,12 +420,21 @@ pub struct BuildRouteData {
     pub router_address: String,
     /// Encoded call data
     pub data: String,
-    /// ETH value to send
-    #[serde(default)]
+    /// ETH value to send (API field `transactionValue`)
+    #[serde(default, rename = "transactionValue", alias = "value")]
     pub value: Option<String>,
     /// Gas limit
     #[serde(default)]
     pub gas: Option<String>,
+    /// Input amount
+    #[serde(default)]
+    pub amount_in: Option<String>,
+    /// Expected output amount
+    #[serde(default)]
+    pub amount_out: Option<String>,
+    /// Gas cost in USD
+    #[serde(default)]
+    pub gas_usd: Option<String>,
 }
 
 /// Token info
@@ -419,4 +444,49 @@ pub struct TokenInfo {
     pub symbol: String,
     pub name: String,
     pub decimals: u8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const LIVE_ROUTE_DATA: &str = r#"{"routeSummary":{"tokenIn":"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "amountIn":"1000000000000000000","amountInUsd":"2691.83","tokenOut":"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "amountOut":"2694223548","amountOutUsd":"2688.29","gas":"697210","gasPrice":"105254963","gasUsd":"0.19",
+        "l1FeeUsd":"0","extraFee":{"feeAmount":"","chargeFeeBy":"","isInBps":false,"feeReceiver":""},
+        "route":[[{"pool":"0xe6ff","tokenIn":"0xc02a","tokenOut":"0x2260","swapAmount":"1","amountOut":"2",
+        "exchange":"uniswapv3","poolType":"uniswapv3","poolExtra":{"swapFee":100},"extra":{"_cs":"1"}}]],
+        "routerAddress":"0x6131B5fae19EA4f9D964eAc0408E4408b66337b5","routeID":"e30c6d4ctNFIE6V9",
+        "checksum":"4239051851851966504","timestamp":1790368014},
+        "routerAddress":"0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"}"#;
+
+    #[test]
+    fn build_data_reads_transaction_value() {
+        let d: BuildRouteData = serde_json::from_str(
+            r#"{"routerAddress":"0x6131","data":"0x","transactionValue":"1000000000000000000","gas":"330498"}"#,
+        )
+        .unwrap();
+        assert_eq!(d.value.as_deref(), Some("1000000000000000000"));
+    }
+
+    #[test]
+    fn route_summary_is_preserved_for_build() {
+        let original: serde_json::Value = serde_json::from_str(LIVE_ROUTE_DATA).unwrap();
+        let data: RouteData = serde_json::from_str(LIVE_ROUTE_DATA).unwrap();
+        assert_eq!(data.summary().unwrap().amount_out, "2694223548");
+
+        let build = BuildRouteRequest {
+            route_summary: data.route_summary.clone(),
+            sender: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".into(),
+            recipient: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".into(),
+            slippage_tolerance_bps: Some(50),
+            deadline: None,
+            enable_permit: None,
+        };
+        let body = serde_json::to_value(&build).unwrap();
+        assert_eq!(body["routeSummary"], original["routeSummary"]);
+        assert_eq!(body["routeSummary"]["checksum"], "4239051851851966504");
+        assert_eq!(body["slippageTolerance"], 50);
+        assert!(body.get("slippageToleranceBps").is_none());
+    }
 }
