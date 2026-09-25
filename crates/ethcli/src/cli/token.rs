@@ -5,8 +5,10 @@
 use super::OutputFormat;
 use crate::config::{AddressBook, Chain};
 use crate::etherscan::TokenMetadataCache;
-use crate::rpc::get_rpc_endpoint;
 use crate::rpc::multicall::{selectors, MulticallBuilder};
+use crate::rpc::{
+    candidate_endpoints, get_rpc_endpoint, with_failover, SelectionOptions, MAX_FAILOVER_ATTEMPTS,
+};
 use crate::utils::address::resolve_from_book;
 use crate::utils::format::format_token_amount;
 use alloy::primitives::Address;
@@ -107,94 +109,56 @@ pub async fn handle(
             let cache = get_token_cache();
             let chain_name = chain.name();
 
-            // Check cache first
-            if let Some(cached) = cache.get(chain_name, &addr_str) {
-                if !quiet {
-                    eprintln!("Using cached token info for {}...", display);
-                }
-
-                let formatted_supply = match (cached.total_supply.as_ref(), cached.decimals) {
-                    (Some(supply), Some(dec)) => format_token_amount(supply, dec),
-                    (Some(supply), None) => supply.clone(),
-                    _ => "(unknown)".to_string(),
-                };
-
-                if output.is_json() {
-                    println!(
-                        "{}",
-                        serde_json::json!({
-                            "address": addr_str,
-                            "label": label,
-                            "name": cached.name,
-                            "symbol": cached.symbol,
-                            "decimals": cached.decimals,
-                            "totalSupply": cached.total_supply,
-                            "totalSupplyFormatted": formatted_supply,
-                            "cached": true
-                        })
-                    );
-                } else {
-                    println!("Token Info (cached)");
-                    println!("{}", "─".repeat(40));
-                    if let Some(lbl) = &label {
-                        println!("Label:    {}", lbl);
-                    }
-                    println!("Address:  {}", addr_str);
-                    println!(
-                        "Name:     {}",
-                        cached.name.as_deref().unwrap_or("(unknown)")
-                    );
-                    println!(
-                        "Symbol:   {}",
-                        cached.symbol.as_deref().unwrap_or("(unknown)")
-                    );
-                    println!(
-                        "Decimals: {}",
-                        cached
-                            .decimals
-                            .map(|d| d.to_string())
-                            .unwrap_or_else(|| "(unknown)".to_string())
-                    );
-                    println!("Supply:   {}", formatted_supply);
-
-                    if let Some(explorer) = chain.explorer_url() {
-                        println!("\nExplorer: {}/token/{}", explorer, addr_str);
-                    }
-                }
-                return Ok(());
-            }
+            // name/symbol/decimals are effectively immutable and cached;
+            // totalSupply changes every mint/burn and is always fetched live.
+            let cached = cache.get(chain_name, &addr_str);
 
             if !quiet {
                 eprintln!("Fetching token info for {}...", display);
             }
 
-            // Use RPC with Multicall3 for single request
-            let endpoint = get_rpc_endpoint(chain)?;
-            let provider = endpoint.provider();
+            // Use RPC with Multicall3 for single request, failing over across
+            // ranked endpoints on rate limits / transport errors.
+            let candidates =
+                candidate_endpoints(chain, &SelectionOptions::default(), MAX_FAILOVER_ATTEMPTS)?;
 
-            let multicall = MulticallBuilder::new()
-                .add_call_allow_failure(token_addr, selectors::name())
-                .add_call_allow_failure(token_addr, selectors::symbol())
-                .add_call_allow_failure(token_addr, selectors::decimals())
-                .add_call_allow_failure(token_addr, selectors::total_supply());
+            let (name, symbol, decimals, total_supply, from_cache) = if let Some(c) = cached {
+                let results = with_failover(candidates, |ep| async move {
+                    MulticallBuilder::new()
+                        .add_call_allow_failure(token_addr, selectors::total_supply())
+                        .execute_with_retry(ep.provider(), 1)
+                        .await
+                })
+                .await?;
+                let total_supply = results.first().and_then(|r| r.decode_uint256());
+                (c.name, c.symbol, c.decimals, total_supply, true)
+            } else {
+                let results = with_failover(candidates, |ep| async move {
+                    MulticallBuilder::new()
+                        .add_call_allow_failure(token_addr, selectors::name())
+                        .add_call_allow_failure(token_addr, selectors::symbol())
+                        .add_call_allow_failure(token_addr, selectors::decimals())
+                        .add_call_allow_failure(token_addr, selectors::total_supply())
+                        .execute_with_retry(ep.provider(), 1)
+                        .await
+                })
+                .await?;
 
-            // Execute with retry (up to 3 retries with exponential backoff)
-            let results = multicall.execute_with_retry(provider, 3).await?;
+                let name = results.first().and_then(|r| r.decode_string());
+                let symbol = results.get(1).and_then(|r| r.decode_string());
+                let decimals = results.get(2).and_then(|r| r.decode_uint8());
+                let total_supply = results.get(3).and_then(|r| r.decode_uint256());
 
-            let name = results.first().and_then(|r| r.decode_string());
-            let symbol = results.get(1).and_then(|r| r.decode_string());
-            let decimals = results.get(2).and_then(|r| r.decode_uint8());
-            let total_supply = results.get(3).and_then(|r| r.decode_uint256());
-
-            // Cache the result (token metadata is immutable)
-            cache.set(
-                chain_name,
-                &addr_str,
-                name.clone(),
-                symbol.clone(),
-                decimals,
-                total_supply.map(|s| s.to_string()),
-            );
+                // Cache only immutable metadata (never totalSupply)
+                cache.set(
+                    chain_name,
+                    &addr_str,
+                    name.clone(),
+                    symbol.clone(),
+                    decimals,
+                );
+                (name, symbol, decimals, total_supply, false)
+            };
 
             let formatted_supply = match (total_supply, decimals) {
                 (Some(supply), Some(dec)) => format_token_amount(&supply.to_string(), dec),
@@ -212,7 +176,8 @@ pub async fn handle(
                         "symbol": symbol,
                         "decimals": decimals,
                         "totalSupply": total_supply.map(|s| s.to_string()),
-                        "totalSupplyFormatted": formatted_supply
+                        "totalSupplyFormatted": formatted_supply,
+                        "cached": from_cache
                     })
                 );
             } else {

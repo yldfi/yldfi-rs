@@ -399,45 +399,150 @@ pub fn block_to_param(block: &str) -> anyhow::Result<String> {
     }
 }
 
-pub fn get_debug_rpc_url(rpc_url: &Option<String>, chain: Chain) -> Option<String> {
-    if rpc_url.is_some() {
-        return rpc_url.clone();
-    }
-    let config = ConfigFile::load_default().ok().flatten()?;
-    if let Some(ep) = config
+/// Configured endpoint URLs for `chain` matching `pred`, best first:
+/// higher priority first, random order within a priority tier (so one
+/// flaky/rate-limited node is not always tried first).
+fn ranked_urls(
+    config: &ConfigFile,
+    chain: Chain,
+    pred: impl Fn(&crate::config::EndpointConfig) -> bool,
+) -> Vec<String> {
+    use rand::seq::SliceRandom;
+    let mut eps: Vec<_> = config
         .endpoints
         .iter()
-        .find(|e| e.has_debug && e.enabled && e.chain == chain)
-    {
-        return Some(ep.url.clone());
-    }
-    if let Some(ep) = config
-        .endpoints
-        .iter()
-        .find(|e| e.has_trace && e.enabled && e.chain == chain)
-    {
-        return Some(ep.url.clone());
-    }
-    config.debug_rpc_urls.first().cloned()
+        .filter(|e| e.enabled && e.chain == chain && pred(e))
+        .collect();
+    eps.shuffle(&mut rand::thread_rng());
+    eps.sort_by_key(|e| std::cmp::Reverse(e.priority));
+    eps.into_iter().map(|e| e.url.clone()).collect()
 }
 
+fn push_unique(out: &mut Vec<String>, urls: impl IntoIterator<Item = String>) {
+    for u in urls {
+        if !out.contains(&u) {
+            out.push(u);
+        }
+    }
+}
+
+/// Debug-capable RPC URLs in failover order: `--rpc-url` if given, else
+/// `has_debug` endpoints (by priority), then `has_trace` endpoints, then
+/// `debug_rpc_urls` from the config file.
+pub fn get_debug_rpc_urls(rpc_url: &Option<String>, chain: Chain) -> Vec<String> {
+    if let Some(url) = rpc_url {
+        return vec![url.clone()];
+    }
+    let Some(config) = ConfigFile::load_default().ok().flatten() else {
+        return Vec::new();
+    };
+    debug_urls_from_config(&config, chain)
+}
+
+fn debug_urls_from_config(config: &ConfigFile, chain: Chain) -> Vec<String> {
+    let mut out = Vec::new();
+    push_unique(&mut out, ranked_urls(config, chain, |e| e.has_debug));
+    push_unique(&mut out, ranked_urls(config, chain, |e| e.has_trace));
+    push_unique(&mut out, config.debug_rpc_urls.iter().cloned());
+    out
+}
+
+/// Best debug-capable RPC URL (see [`get_debug_rpc_urls`])
+pub fn get_debug_rpc_url(rpc_url: &Option<String>, chain: Chain) -> Option<String> {
+    get_debug_rpc_urls(rpc_url, chain).into_iter().next()
+}
+
+/// Trace-capable RPC URLs in failover order (`has_trace` first, then `has_debug`)
+pub fn get_trace_rpc_urls(rpc_url: &Option<String>, chain: Chain) -> Vec<String> {
+    if let Some(url) = rpc_url {
+        return vec![url.clone()];
+    }
+    let Some(config) = ConfigFile::load_default().ok().flatten() else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    push_unique(&mut out, ranked_urls(&config, chain, |e| e.has_trace));
+    push_unique(&mut out, ranked_urls(&config, chain, |e| e.has_debug));
+    out
+}
+
+/// Best trace-capable RPC URL (see [`get_trace_rpc_urls`])
 pub fn get_trace_rpc_url(rpc_url: &Option<String>, chain: Chain) -> Option<String> {
-    if rpc_url.is_some() {
-        return rpc_url.clone();
+    get_trace_rpc_urls(rpc_url, chain).into_iter().next()
+}
+
+/// POST a JSON-RPC request, failing over across `urls` on transport errors,
+/// non-2xx responses and rate-limit/capacity JSON-RPC errors.
+///
+/// Returns the `result` value (or the whole response if it has no `result`).
+pub async fn post_jsonrpc_with_failover(
+    urls: &[String],
+    request: &serde_json::Value,
+    quiet: bool,
+) -> anyhow::Result<serde_json::Value> {
+    use crate::rpc::is_failover_error;
+    use crate::utils::url::redact_url;
+
+    let method = request
+        .get("method")
+        .and_then(|m| m.as_str())
+        .unwrap_or("request");
+    let client = crate::utils::get_shared_http_client()
+        .cloned()
+        .unwrap_or_else(|_| reqwest::Client::new());
+    let mut last_err: Option<anyhow::Error> = None;
+
+    for (i, url) in urls.iter().enumerate() {
+        let has_next = i + 1 < urls.len();
+        let host = redact_url(url);
+        if !quiet {
+            eprintln!("Calling {method} on {host}...");
+        }
+
+        let attempt: anyhow::Result<serde_json::Value> = async {
+            let response = client
+                .post(url)
+                .header("Content-Type", "application/json")
+                .json(request)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!("error sending request: {}", e.without_url()))?;
+            let status = response.status();
+            let body: serde_json::Value = response.json().await.map_err(|e| {
+                anyhow::anyhow!(
+                    "HTTP {status}: invalid JSON-RPC response: {}",
+                    e.without_url()
+                )
+            })?;
+            if let Some(error) = body.get("error") {
+                return Err(anyhow::anyhow!("RPC error: {}", error));
+            }
+            if !status.is_success() {
+                return Err(anyhow::anyhow!("HTTP {status}"));
+            }
+            Ok(body.get("result").cloned().unwrap_or(body))
+        }
+        .await;
+
+        match attempt {
+            Ok(v) => return Ok(v),
+            Err(e) => {
+                let msg = e.to_string();
+                let retryable =
+                    is_failover_error(&msg) || msg.starts_with("HTTP ") || msg.contains("-32601"); // method not found on this node
+                if has_next && retryable {
+                    if !quiet {
+                        eprintln!("  {host} failed ({msg}); trying next endpoint");
+                    }
+                    last_err = Some(e);
+                    continue;
+                }
+                return Err(e);
+            }
+        }
     }
-    let config = ConfigFile::load_default().ok().flatten()?;
-    if let Some(ep) = config
-        .endpoints
-        .iter()
-        .find(|e| e.has_trace && e.enabled && e.chain == chain)
-    {
-        return Some(ep.url.clone());
-    }
-    config
-        .endpoints
-        .iter()
-        .find(|e| e.has_debug && e.enabled && e.chain == chain)
-        .map(|e| e.url.clone())
+
+    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("No RPC endpoints available")))
 }
 
 pub fn get_tenderly_credentials(args: &TenderlyArgs) -> anyhow::Result<(String, String, String)> {
@@ -493,4 +598,83 @@ pub fn build_state_overrides(
     }
 
     Ok(state_objects)
+}
+
+#[cfg(test)]
+mod failover_tests {
+    use super::*;
+    use crate::config::EndpointConfig;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[test]
+    fn debug_urls_respect_priority_and_capability() {
+        let mut config = ConfigFile::default();
+        for (url, prio, debug, trace) in [
+            ("https://low-debug.io", 1u8, true, false),
+            ("https://high-debug.io", 9, true, false),
+            ("https://trace-only.io", 10, false, true),
+            ("https://plain.io", 10, false, false),
+        ] {
+            let mut e = EndpointConfig::new(url);
+            e.chain = Chain::Ethereum;
+            e.priority = prio;
+            e.has_debug = debug;
+            e.has_trace = trace;
+            config.endpoints.push(e);
+        }
+        config.debug_rpc_urls = vec!["https://extra.io".to_string()];
+        assert_eq!(
+            debug_urls_from_config(&config, Chain::Ethereum),
+            vec![
+                "https://high-debug.io",
+                "https://low-debug.io",
+                "https://trace-only.io",
+                "https://extra.io"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_fails_over_on_rate_limit() {
+        let limited = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(429).set_body_json(serde_json::json!({
+                "jsonrpc": "2.0", "id": 1,
+                "error": {"code": -32005, "message": "rate limited"}
+            })))
+            .mount(&limited)
+            .await;
+        let healthy = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "jsonrpc": "2.0", "id": 1, "result": {"ok": true}
+            })))
+            .mount(&healthy)
+            .await;
+
+        let req = serde_json::json!({"jsonrpc": "2.0", "method": "debug_traceCall", "id": 1});
+        let out = post_jsonrpc_with_failover(&[limited.uri(), healthy.uri()], &req, true)
+            .await
+            .unwrap();
+        assert_eq!(out, serde_json::json!({"ok": true}));
+    }
+
+    #[tokio::test]
+    async fn jsonrpc_non_retryable_error_is_returned() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "jsonrpc": "2.0", "id": 1,
+                "error": {"code": -32000, "message": "execution reverted"}
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let req = serde_json::json!({"jsonrpc": "2.0", "method": "debug_traceCall", "id": 1});
+        let err = post_jsonrpc_with_failover(&[server.uri(), server.uri()], &req, true)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("reverted"));
+    }
 }

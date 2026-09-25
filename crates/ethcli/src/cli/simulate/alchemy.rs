@@ -1,12 +1,17 @@
-//! Alchemy Simulation API handlers
+//! Alchemy backend for `ethcli simulate`
+//!
+//! Alchemy retired its Transaction Simulation API (`alchemy_simulateAssetChanges`,
+//! `alchemy_simulateExecution` and their bundle variants) on 2026-09-30, so this
+//! backend now uses Alchemy's `debug_traceCall` / `debug_traceTransaction` RPC
+//! methods (call-tracer output) instead.
 
 use super::{build_calldata, AlchemyArgs};
-use alcmy::simulation::{ExecutionFormat, SimulationTransaction};
+use alcmy::debug::TraceCallObject;
 
-/// Simulate a transaction via Alchemy's simulateAssetChanges API
+/// Simulate a call via Alchemy's `debug_traceCall` RPC method
 ///
-/// Returns a list of asset changes (transfers, approvals, etc.) that would occur
-/// if the transaction were executed.
+/// Prints the call-tracer frame (nested calls, gas used, output/revert data) as
+/// JSON.
 #[allow(clippy::too_many_arguments)]
 pub async fn simulate_via_alchemy(
     to: &str,
@@ -15,6 +20,7 @@ pub async fn simulate_via_alchemy(
     args: &[String],
     from: &Option<String>,
     value: &str,
+    block: &str,
     gas: Option<u64>,
     gas_price: Option<u64>,
     alchemy: &AlchemyArgs,
@@ -25,8 +31,7 @@ pub async fn simulate_via_alchemy(
     // Build calldata from signature or raw data
     let calldata = build_calldata(sig, data, args)?;
 
-    // Build the simulation transaction
-    let tx = SimulationTransaction {
+    let call = TraceCallObject {
         to: to.to_string(),
         from: from.clone(),
         data: Some(calldata),
@@ -39,135 +44,41 @@ pub async fn simulate_via_alchemy(
         gas_price: gas_price.map(|g| format!("0x{:x}", g)),
         ..Default::default()
     };
+    let block = format_block_param(block);
 
     if !quiet {
-        eprintln!("Simulating transaction via Alchemy...");
+        eprintln!("Simulating call via Alchemy debug_traceCall...");
         eprintln!("  To: {}", to);
         if let Some(ref f) = from {
             eprintln!("  From: {}", f);
         }
-        if let Some(ref d) = tx.data {
+        if let Some(ref d) = call.data {
             eprintln!("  Data: {}...", &d[..d.len().min(20)]);
         }
+        eprintln!("  Block: {}", block);
     }
 
-    // Call the Alchemy simulation API
-    let response = client
-        .simulation()
-        .simulate_asset_changes(&tx)
+    let frame = client
+        .debug()
+        .trace_call(&call, &block)
         .await
-        .map_err(|e| anyhow::anyhow!("Alchemy simulation failed: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Alchemy debug_traceCall failed: {}", e))?;
 
-    // Check for errors
-    if let Some(ref err) = response.error {
-        eprintln!("Simulation Error: {}", err.message);
-        if let Some(ref reason) = err.revert_reason {
-            eprintln!("Revert Reason: {}", reason);
-        }
-        return Ok(());
-    }
-
-    // Print results
-    if response.changes.is_empty() {
-        println!("No asset changes detected.");
-    } else {
-        println!("\nAsset Changes:");
-        println!("{}", "=".repeat(80));
-
-        for (i, change) in response.changes.iter().enumerate() {
-            println!(
-                "\n[{}] {} {}",
-                i + 1,
-                change.change_type.to_uppercase(),
-                change.asset_type
-            );
-            println!("  From: {}", change.from);
-            println!("  To:   {}", change.to);
-
-            if let Some(ref amount) = change.amount {
-                let symbol = change.symbol.as_deref().unwrap_or("tokens");
-                println!("  Amount: {} {}", amount, symbol);
-            }
-
-            if let Some(ref token_id) = change.token_id {
-                println!("  Token ID: {}", token_id);
-            }
-
-            if let Some(ref contract) = change.contract_address {
-                println!("  Contract: {}", contract);
-            }
-
-            if let Some(ref name) = change.name {
-                println!("  Name: {}", name);
-            }
-        }
-    }
-
-    if let Some(ref gas_used) = response.gas_used {
-        println!("\nGas Used: {}", gas_used);
-    }
+    println!("{}", serde_json::to_string_pretty(&frame)?);
 
     Ok(())
 }
 
-/// Simulate a transaction with full execution trace via Alchemy
-#[allow(clippy::too_many_arguments)]
-pub async fn simulate_execution_alchemy(
-    to: &str,
-    sig: &Option<String>,
-    data: &Option<String>,
-    args: &[String],
-    from: &Option<String>,
-    value: &str,
-    gas: Option<u64>,
-    gas_price: Option<u64>,
-    block: &str,
-    nested: bool,
-    alchemy: &AlchemyArgs,
-    quiet: bool,
-) -> anyhow::Result<()> {
-    let client = alchemy.create_client()?;
-
-    // Build calldata from signature or raw data
-    let calldata = build_calldata(sig, data, args)?;
-
-    // Build the simulation transaction
-    let tx = SimulationTransaction {
-        to: to.to_string(),
-        from: from.clone(),
-        data: Some(calldata),
-        value: if value == "0" {
-            None
-        } else {
-            Some(format_value_hex(value)?)
-        },
-        gas: gas.map(|g| format!("0x{:x}", g)),
-        gas_price: gas_price.map(|g| format!("0x{:x}", g)),
-        ..Default::default()
-    };
-
-    if !quiet {
-        eprintln!("Simulating execution via Alchemy...");
+/// Convert a block argument to a JSON-RPC block parameter
+///
+/// Decimal block numbers are converted to hex quantities; tags (`latest`,
+/// `pending`, ...) and hex values are passed through unchanged.
+fn format_block_param(block: &str) -> String {
+    let block = block.trim();
+    match block.parse::<u64>() {
+        Ok(n) => format!("0x{:x}", n),
+        Err(_) => block.to_string(),
     }
-
-    let format = if nested {
-        ExecutionFormat::Nested
-    } else {
-        ExecutionFormat::Flat
-    };
-
-    // Call the Alchemy simulation API
-    let response = client
-        .simulation()
-        .simulate_execution(&tx, format, block)
-        .await
-        .map_err(|e| anyhow::anyhow!("Alchemy simulation failed: {}", e))?;
-
-    // Pretty-print the result as JSON
-    let output = serde_json::to_string_pretty(&response)?;
-    println!("{}", output);
-
-    Ok(())
 }
 
 /// Trace an existing transaction via Alchemy's debug API
@@ -220,5 +131,24 @@ fn format_value_hex(value: &str) -> anyhow::Result<String> {
         // Assume wei (decimal)
         let wei: u128 = value.parse()?;
         Ok(format!("0x{:x}", wei))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn block_param_converts_decimal_to_hex() {
+        assert_eq!(format_block_param("19000000"), "0x121eac0");
+        assert_eq!(format_block_param("latest"), "latest");
+        assert_eq!(format_block_param("0x10"), "0x10");
+    }
+
+    #[test]
+    fn value_hex_handles_units() {
+        assert_eq!(format_value_hex("1").unwrap(), "0x1");
+        assert_eq!(format_value_hex("1gwei").unwrap(), "0x3b9aca00");
+        assert_eq!(format_value_hex("0xff").unwrap(), "0xff");
     }
 }

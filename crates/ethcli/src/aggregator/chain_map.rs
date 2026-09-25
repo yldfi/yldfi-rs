@@ -72,15 +72,6 @@ pub fn normalize_chain_for_source(source: &str, chain: &str) -> String {
             "xdai" | "gnosis-mainnet" => "gnosis".to_string(),
             _ => chain_lower,
         },
-        "dunesim" | "dsim" => match chain_lower.as_str() {
-            "eth-mainnet" | "mainnet" => "ethereum".to_string(),
-            "polygon-mainnet" | "matic" => "polygon".to_string(),
-            "arb-mainnet" | "arb" => "arbitrum".to_string(),
-            "opt-mainnet" | "op" => "optimism".to_string(),
-            "base-mainnet" => "base".to_string(),
-            "bnb-mainnet" => "bnb".to_string(),
-            _ => chain_lower,
-        },
         _ => chain_lower,
     }
 }

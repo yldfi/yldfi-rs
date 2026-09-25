@@ -62,6 +62,14 @@ pub enum DomainError {
          (supported: eth-mainnet, eth-sepolia, eth-holesky)"
     )]
     UnsupportedBeaconNetwork(&'static str),
+
+    /// Method not supported by Alchemy on the selected network
+    #[error("{method} is not supported on {network}: {reason}")]
+    UnsupportedMethod {
+        method: &'static str,
+        network: &'static str,
+        reason: &'static str,
+    },
 }
 
 /// Error type for Alchemy API operations
@@ -110,6 +118,19 @@ pub(crate) async fn rate_limited_from_response(response: reqwest::Response) -> E
     let retry_after = extract_retry_after(response.headers());
     let body = response.text().await.unwrap_or_default();
     rate_limited(retry_after, &body)
+}
+
+/// Create an unsupported-method error
+pub fn unsupported_method(
+    method: &'static str,
+    network: &'static str,
+    reason: &'static str,
+) -> Error {
+    ApiError::domain(DomainError::UnsupportedMethod {
+        method,
+        network,
+        reason,
+    })
 }
 
 #[cfg(test)]

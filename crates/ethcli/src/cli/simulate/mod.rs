@@ -789,7 +789,7 @@ pub async fn handle_with_via(
                         ));
                     }
                     simulate_via_alchemy(
-                        to, sig, data, args, from, value, *gas, *gas_price, alchemy, quiet,
+                        to, sig, data, args, from, value, block, *gas, *gas_price, alchemy, quiet,
                     )
                     .await
                 }

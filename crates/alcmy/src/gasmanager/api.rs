@@ -62,6 +62,13 @@ impl<'a> GasManagerApi<'a> {
     }
 
     /// Request paymaster data only (no gas estimation) for a v0.6 `UserOperation`
+    ///
+    /// Alchemy marks `alchemy_requestPaymasterAndData` as "to be deprecated";
+    /// prefer [`Self::request_gas_and_paymaster_data_v06`]
+    /// (`alchemy_requestGasAndPaymasterAndData`).
+    #[deprecated(
+        note = "alchemy_requestPaymasterAndData is being deprecated by Alchemy; use request_gas_and_paymaster_data_v06 (alchemy_requestGasAndPaymasterAndData)"
+    )]
     pub async fn request_paymaster_and_data_v06(
         &self,
         policy_id: &str,
@@ -79,6 +86,13 @@ impl<'a> GasManagerApi<'a> {
     }
 
     /// Request paymaster data only (no gas estimation) for a v0.7 `UserOperation`
+    ///
+    /// Alchemy marks `alchemy_requestPaymasterAndData` as "to be deprecated";
+    /// prefer [`Self::request_gas_and_paymaster_data_v07`]
+    /// (`alchemy_requestGasAndPaymasterAndData`).
+    #[deprecated(
+        note = "alchemy_requestPaymasterAndData is being deprecated by Alchemy; use request_gas_and_paymaster_data_v07 (alchemy_requestGasAndPaymasterAndData)"
+    )]
     pub async fn request_paymaster_and_data_v07(
         &self,
         policy_id: &str,

@@ -1,4 +1,4 @@
-//! NFT API for ownership, metadata, sales, and spam detection
+//! NFT API for ownership, metadata, floor prices, and spam detection
 
 mod api;
 mod types;
