@@ -71,6 +71,7 @@ impl<'a> TransactionApi<'a> {
     }
 
     /// Get transactions for an address
+    #[deprecated(note = "duplicate wrapper of GET /{address}; use WalletApi::get_transactions")]
     pub async fn get_wallet_transactions(
         &self,
         address: &str,

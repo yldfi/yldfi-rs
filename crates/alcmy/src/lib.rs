@@ -80,7 +80,7 @@ pub mod beacon;
 pub mod solana;
 
 pub use client::{Client, Config, Network};
-pub use error::{Error, Result};
+pub use error::{DomainError, Error, Result};
 pub use yldfi_common::http::HttpClientConfig;
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 

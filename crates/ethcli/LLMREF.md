@@ -168,6 +168,8 @@ ethcli alchemy nft is-holder <addr> <contract>  # via getNFTsForOwner
 ethcli alchemy nft is-spam <contract>           # replaces retired spam-contracts
 ethcli alchemy transfers <addr> --category erc20
 ethcli alchemy trace-tx <hash>
+ethcli alchemy notify list-webhooks       # alias webhooks; needs ALCHEMY_NOTIFY_TOKEN (dashboard Data -> Webhooks, AUTH TOKEN)
+ethcli alchemy gas-manager list-policies  # alias gas-sponsorship; needs ALCHEMY_ACCESS_KEY (dashboard -> Security, Gas Manager perms)
 ```
 Removed 2026-09-30 (Alchemy NFT sunset, no replacement): `summarize-attributes`, `compute-rarity`, `invalidate-contract`, `is-airdrop`, `sales`.
 Removed 2026-09-30 (Alchemy Simulation API sunset): `ethcli alchemy simulation asset-changes|execution`; use `ethcli simulate call ... --via tenderly|debug|alchemy` or `ethcli alchemy debug trace-call`.
@@ -187,12 +189,16 @@ ethcli llama yields --chain ethereum
 ```
 
 ### Moralis (requires MORALIS_API_KEY)
-Fantom is blocked for Moralis calls after Moralis' 2026-05-29 removal notice.
-Legacy Discovery, Volume, Market Data, selected ERC20 helper, and pair sniper
-commands are blocked ahead of the 2026-06-04 endpoint removal. The
-`token holders-historical` command is blocked ahead of the 2026-07-31 removal
-of `GET /erc20/{address}/holders/historical` (no documented replacement;
-`token holders` and `token holders-summary` remain supported).
+Fantom is blocked for Moralis calls (Moralis removed Fantom on 2026-05-29).
+The `moralis market` and `moralis volume` groups, the legacy `moralis discovery`
+list/filter commands, and `token stats|exchange-new-tokens|exchange-bonding-tokens|
+exchange-graduated-tokens|by-symbols|pairs-stats|pair-snipers|bonding-status`
+were removed after Moralis deleted those endpoints on 2026-06-04;
+`token holders-historical` was removed after its 2026-07-31 sunset.
+Replacements: `moralis token search` (Token Search), `moralis token trending`,
+`moralis analytics batch|timeseries` and `moralis discovery token-analytics`
+(Token Analytics), `moralis token pair-stats`, `moralis token holders-summary`.
+`moralis discovery token-score` remains (EVM chains only).
 
 ```bash
 ethcli moralis balance <addr>
@@ -351,7 +357,14 @@ ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --
 ethcli tenderly vnets admin --vnet <id> simulate-bundle '[{"from":"0x...","to":"0x..."}]' ...
 ethcli tenderly wallets list ...
 ethcli tenderly contracts add <addr> --network 1 ...
+ethcli tenderly contracts encode-state --network 1 '{"0xToken":{"value":{"balances[0xHolder]":"1000"}}}'
 ```
+Tenderly renamed Virtual TestNets to Virtual Environments
+(`/api/public/v1/.../environments`); the `/vnets` routes used here still work.
+Removed (no public Tenderly endpoint): `contracts verify|update`,
+`alerts add-destination|remove-destination`, `alerts webhooks test`,
+`actions enable|disable|invoke|logs|source|update-source` (use
+`actions stop|resume|get-call`), `simulate tx --via tenderly`.
 
 ## Configuration
 
@@ -380,6 +393,8 @@ ethcli doctor                       # Diagnose issues
 | ETHERSCAN_API_KEY | Optional | Higher rate limits |
 | ETHCLI_NO_PROXY | Optional | Disable HTTP proxy auto-detection |
 | ALCHEMY_API_KEY | alchemy commands | Alchemy API |
+| ALCHEMY_NOTIFY_TOKEN | alchemy notify | Webhooks auth token (`config set-alchemy-notify-token`) |
+| ALCHEMY_ACCESS_KEY | alchemy gas-manager | Gas Manager access key (`config set-alchemy-access-key`) |
 | MORALIS_API_KEY | moralis commands | Moralis API |
 | COINGECKO_API_KEY | Optional | CoinGecko Pro |
 | DUNE_API_KEY | dune commands | Dune Analytics |

@@ -49,10 +49,10 @@ impl<'a> SimulationApi<'a> {
     ///
     /// # Arguments
     ///
-    /// * `page` - Page number (0-indexed)
-    /// * `per_page` - Number of results per page (max 100)
+    /// * `page` - Page number (1-indexed; values below 1 are clamped to 1)
+    /// * `per_page` - Number of results per page (clamped to 1..=100)
     pub async fn list(&self, page: u32, per_page: u32) -> Result<SimulationListResponse> {
-        let query = SimulationListQuery { page, per_page };
+        let query = SimulationListQuery::new(page, per_page);
         self.client.get_with_query("/simulations", &query).await
     }
 
@@ -119,13 +119,6 @@ impl<'a> SimulationApi<'a> {
             )
             .await
     }
-
-    /// Trace an existing transaction
-    pub async fn trace(&self, hash: &str) -> Result<serde_json::Value> {
-        self.client
-            .get(&format!("/trace/{}", encode_path_segment(hash)))
-            .await
-    }
 }
 
 #[derive(serde::Serialize)]
@@ -135,9 +128,36 @@ struct SimulationListQuery {
     per_page: u32,
 }
 
+impl SimulationListQuery {
+    /// Maximum page size accepted by the API
+    const MAX_PER_PAGE: u32 = 100;
+
+    /// Build a query that satisfies the API constraints
+    /// (`page >= 1`, `1 <= perPage <= 100`).
+    fn new(page: u32, per_page: u32) -> Self {
+        Self {
+            page: page.max(1),
+            per_page: per_page.clamp(1, Self::MAX_PER_PAGE),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_simulation_list_query_clamps() {
+        let q = SimulationListQuery::new(0, 0);
+        assert_eq!((q.page, q.per_page), (1, 1));
+        let q = SimulationListQuery::new(3, 500);
+        assert_eq!((q.page, q.per_page), (3, 100));
+        let q = SimulationListQuery::new(2, 20);
+        assert_eq!(
+            serde_json::to_value(&q).unwrap(),
+            serde_json::json!({"page": 2, "perPage": 20})
+        );
+    }
     use crate::simulation::AccessListEntry;
 
     #[test]

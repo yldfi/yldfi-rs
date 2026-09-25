@@ -506,50 +506,6 @@ pub struct ListWebhooksResponse {
     pub webhooks: Vec<Webhook>,
 }
 
-/// Request to add a destination to an alert
-#[derive(Debug, Clone, Serialize)]
-pub struct AddDestinationRequest {
-    /// Destination type
-    pub destination_type: DestinationType,
-
-    /// Destination ID (webhook ID, email, etc.)
-    pub destination_id: String,
-}
-
-impl AddDestinationRequest {
-    /// Create a webhook destination
-    pub fn webhook(webhook_id: impl Into<String>) -> Self {
-        Self {
-            destination_type: DestinationType::Webhook,
-            destination_id: webhook_id.into(),
-        }
-    }
-
-    /// Create an email destination
-    pub fn email(email: impl Into<String>) -> Self {
-        Self {
-            destination_type: DestinationType::Email,
-            destination_id: email.into(),
-        }
-    }
-
-    /// Create a Slack destination
-    pub fn slack(webhook_url: impl Into<String>) -> Self {
-        Self {
-            destination_type: DestinationType::Slack,
-            destination_id: webhook_url.into(),
-        }
-    }
-
-    /// Create a Discord destination
-    pub fn discord(webhook_url: impl Into<String>) -> Self {
-        Self {
-            destination_type: DestinationType::Discord,
-            destination_id: webhook_url.into(),
-        }
-    }
-}
-
 /// Query parameters for alert history
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct AlertHistoryQuery {

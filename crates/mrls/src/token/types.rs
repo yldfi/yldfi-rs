@@ -293,40 +293,6 @@ pub struct TokenSwap {
     pub wallet_address: Option<String>,
 }
 
-/// Token stats
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TokenStats {
-    /// Token address
-    #[serde(alias = "token_address")]
-    pub token_address: Option<String>,
-    /// Total supply
-    #[serde(alias = "total_supply")]
-    pub total_supply: Option<String>,
-    /// Total supply formatted
-    #[serde(alias = "total_supply_formatted")]
-    pub total_supply_formatted: Option<String>,
-    /// Circulating supply
-    #[serde(alias = "circulating_supply")]
-    pub circulating_supply: Option<String>,
-    /// Market cap USD
-    #[serde(default, deserialize_with = "string_or_f64", alias = "market_cap_usd")]
-    pub market_cap_usd: Option<f64>,
-    /// Fully diluted valuation
-    #[serde(
-        default,
-        deserialize_with = "string_or_f64",
-        alias = "fully_diluted_valuation"
-    )]
-    pub fully_diluted_valuation: Option<f64>,
-    /// Holders count
-    #[serde(alias = "holders_count")]
-    pub holders_count: Option<i64>,
-    /// Transfer count
-    #[serde(alias = "transfer_count")]
-    pub transfer_count: Option<i64>,
-}
-
 /// Token search result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -481,32 +447,6 @@ pub struct TokenCategory {
     pub description: Option<String>,
 }
 
-/// New token on exchange
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NewToken {
-    /// Token address
-    pub token_address: Option<String>,
-    /// Token name
-    pub token_name: Option<String>,
-    /// Token symbol
-    pub token_symbol: Option<String>,
-    /// Token logo
-    pub token_logo: Option<String>,
-    /// Chain
-    pub chain: Option<String>,
-    /// Created at
-    pub created_at: Option<String>,
-    /// Pair address
-    pub pair_address: Option<String>,
-    /// Exchange name
-    pub exchange_name: Option<String>,
-    /// USD price
-    pub usd_price: Option<f64>,
-    /// Liquidity USD
-    pub liquidity_usd: Option<f64>,
-}
-
 /// Paginated token response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenResponse<T> {
@@ -537,13 +477,6 @@ pub struct TokenAddressInput {
     pub exchange: Option<String>,
 }
 
-/// Request for tokens by symbols
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetTokensBySymbolsRequest {
-    /// Token symbols to fetch
-    pub symbols: Vec<String>,
-}
-
 /// Token holders summary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -554,42 +487,6 @@ pub struct TokenHoldersSummary {
     pub holders_change_24h: Option<i64>,
     /// Holders change percentage 24h
     pub holders_change_percent_24h: Option<f64>,
-}
-
-/// Historical holders data point
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HistoricalHolders {
-    /// Timestamp
-    pub timestamp: Option<String>,
-    /// Total holders
-    pub total_holders: Option<i64>,
-}
-
-/// Aggregated token pair stats
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AggregatedPairStats {
-    /// Total pairs
-    #[serde(alias = "total_pairs")]
-    pub total_pairs: Option<i32>,
-    /// Total liquidity USD
-    #[serde(
-        default,
-        deserialize_with = "string_or_f64",
-        alias = "total_liquidity_usd"
-    )]
-    pub total_liquidity_usd: Option<f64>,
-    /// Total volume 24h USD
-    #[serde(
-        default,
-        deserialize_with = "string_or_f64",
-        alias = "total_volume_24h_usd"
-    )]
-    pub total_volume_24h_usd: Option<f64>,
-    /// Top pairs
-    #[serde(default, alias = "top_pairs")]
-    pub top_pairs: Option<Vec<PairStats>>,
 }
 
 /// Top trader for a token
@@ -643,42 +540,6 @@ pub struct TopTrader {
     /// Trade count
     #[serde(alias = "trade_count")]
     pub trade_count: Option<i64>,
-}
-
-/// Pair sniper
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PairSniper {
-    /// Wallet address
-    pub wallet_address: Option<String>,
-    /// Block number
-    pub block_number: Option<String>,
-    /// Transaction hash
-    pub transaction_hash: Option<String>,
-    /// Amount bought
-    pub amount_bought: Option<String>,
-    /// USD value
-    pub usd_value: Option<f64>,
-    /// Profit USD
-    pub profit_usd: Option<f64>,
-}
-
-/// Token bonding status (for pump.fun, etc)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TokenBondingStatus {
-    /// Token address
-    pub token_address: Option<String>,
-    /// Is bonding
-    pub is_bonding: Option<bool>,
-    /// Has graduated
-    pub graduated: Option<bool>,
-    /// Bonding progress percentage
-    pub bonding_progress: Option<f64>,
-    /// Bonding curve address
-    pub bonding_curve_address: Option<String>,
-    /// Market cap USD
-    pub market_cap_usd: Option<f64>,
 }
 
 #[cfg(test)]
@@ -759,20 +620,6 @@ mod tests {
         let pair: TokenPair = serde_json::from_str(json).unwrap();
         assert_eq!(pair.usd_price, Some(3500.50));
         assert_eq!(pair.liquidity_usd, Some(1000000.0));
-    }
-
-    #[test]
-    fn test_token_stats_camel_case() {
-        let json = r#"{
-            "tokenAddress": "0xtoken",
-            "totalSupply": "1000000",
-            "marketCapUsd": 5000000.0,
-            "holdersCount": 1500
-        }"#;
-        let stats: TokenStats = serde_json::from_str(json).unwrap();
-        assert_eq!(stats.token_address, Some("0xtoken".to_string()));
-        assert_eq!(stats.market_cap_usd, Some(5000000.0));
-        assert_eq!(stats.holders_count, Some(1500));
     }
 
     #[test]

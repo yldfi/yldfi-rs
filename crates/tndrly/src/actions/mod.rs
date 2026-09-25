@@ -15,7 +15,7 @@
 //!
 //! ```ignore
 //! use tndrly::{Client, Config};
-//! use tndrly::actions::{CreateActionRequest, ActionTrigger, TriggerConfig, InvokeActionRequest};
+//! use tndrly::actions::{CreateActionRequest, ActionTrigger, TriggerConfig};
 //!
 //! let client = Client::from_env()?;
 //!
@@ -41,19 +41,19 @@
 //!
 //! let action = client.actions().create(&request).await?;
 //!
-//! // Manually invoke for testing
-//! let result = client.actions()
-//!     .invoke(&action.id, &InvokeActionRequest::with_payload(serde_json::json!({
-//!         "test": true
-//!     })))
-//!     .await?;
+//! // Pause / resume it
+//! client.actions().stop(&action.id).await?;
+//! client.actions().resume(&action.id).await?;
 //!
-//! // Check execution logs
-//! let logs = client.actions().logs(&action.id).await?;
-//! for log in logs.logs {
-//!     println!("{:?}: {:?}", log.status, log.output);
-//! }
+//! // Inspect executions
+//! let calls = client.actions().calls(&action.id, None).await?;
 //! ```
+//!
+//! Tenderly's public API has no `PATCH /actions/action/{id}` (update/enable/
+//! disable), `/invoke`, `/logs` or `/source` endpoints. Use
+//! [`ActionsApi::stop`] / [`ActionsApi::resume`] instead of disable/enable,
+//! [`ActionsApi::calls`] / [`ActionsApi::get_call`] instead of logs, and
+//! re-publish with [`ActionsApi::create`] to change code.
 
 mod api;
 mod types;

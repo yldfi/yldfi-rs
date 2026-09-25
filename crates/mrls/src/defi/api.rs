@@ -63,6 +63,9 @@ impl<'a> DefiApi<'a> {
     }
 
     /// Get price between two tokens in a pair
+    #[deprecated(
+        note = "GET /{token0}/{token1}/price is no longer in the Moralis v2.2 OpenAPI spec (still routed as of 2026-09-25); use TokenApi::get_price or TokenApi::get_pair_stats"
+    )]
     pub async fn get_pair_price(
         &self,
         token0: &str,
@@ -78,6 +81,9 @@ impl<'a> DefiApi<'a> {
     }
 
     /// Get reserves for a pair
+    #[deprecated(
+        note = "GET /{pair_address}/reserves is no longer in the Moralis v2.2 OpenAPI spec (still routed as of 2026-09-25); use TokenApi::get_pair_stats"
+    )]
     pub async fn get_pair_reserves(
         &self,
         pair_address: &str,
@@ -93,6 +99,9 @@ impl<'a> DefiApi<'a> {
     }
 
     /// Get pair address for two tokens
+    #[deprecated(
+        note = "GET /{token0}/{token1}/pairAddress is no longer in the Moralis v2.2 OpenAPI spec (still routed as of 2026-09-25); use TokenApi::get_pairs"
+    )]
     pub async fn get_pair_address(
         &self,
         token0: &str,
