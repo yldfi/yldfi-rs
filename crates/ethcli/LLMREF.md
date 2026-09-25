@@ -262,6 +262,7 @@ Dune Sim shut down 2026-08-01 (yldfi-rs issue #64): `ethcli dsim`, `--source dsi
 ethcli curve pools                  # List pools
 ethcli curve pool <addr>            # Pool details
 ethcli curve volumes                # Volume data
+ethcli curve prices volume <chain> [--start ts] [--end ts] [--interval day]  # USD volume (prices API)
 ethcli curve router route <from> <to> # Find swap route
 ```
 
@@ -290,10 +291,11 @@ ethcli 1inch quote <src> <dst> <amt>
 ethcli 1inch swap <src> <dst> <amt> <from>
 ```
 
-### OpenOcean
+### De¹ (formerly OpenOcean)
 ```bash
-ethcli openocean quote <in> <out> <amt>
+ethcli openocean quote <in> <out> <amt>            # amt in wei; --gas-price in gwei
 ethcli openocean swap <in> <out> <amt> <account>
+ethcli openocean reverse-quote <in> <out> <amt>    # amt human-readable
 ```
 
 ### KyberSwap
@@ -311,6 +313,9 @@ ethcli 0x price <sell> <buy> <amt> <taker>
 ```bash
 ethcli cowswap quote <sell> <buy> <amt> <from>
 ethcli cowswap order <uid>
+ethcli cowswap trades <owner> [--limit N] [--offset N]
+ethcli cowswap competition [auction_id] [--tx-hash <tx>]   # omit both = latest
+ethcli cowswap cancel-orders --uid <uid,...> <signature>
 ```
 
 ### LI.FI (cross-chain)
@@ -321,7 +326,7 @@ ethcli lifi chains
 
 ### Velora/ParaSwap
 ```bash
-ethcli velora price <src> <dst> <amt>
+ethcli velora price <src> <dst> <amt>   # api.velora.xyz, Augustus v6.2 routes
 ```
 
 ### Enso (requires ENSO_API_KEY)

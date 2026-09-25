@@ -740,6 +740,22 @@ pub struct CurvePoolsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveChainVolumeInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Start timestamp (unix seconds, default: end - 30 days)
+    #[serde(default)]
+    pub start: Option<u64>,
+    /// End timestamp (unix seconds, default: now)
+    #[serde(default)]
+    pub end: Option<u64>,
+    /// Aggregation interval: "hour", "day" (default) or "week". Window max 300x interval.
+    #[serde(default)]
+    pub interval: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CurveRouteInput {
     /// Source token address
     pub from_token: String,
@@ -828,7 +844,8 @@ pub struct OpenoceanQuoteInput {
     pub in_token: String,
     /// Output token address
     pub out_token: String,
-    /// Amount
+    /// Amount in smallest units (wei) for quotes; for reverse quotes, the
+    /// human-readable desired output amount (e.g. "1")
     pub amount: String,
     /// Chain name
     #[serde(default = "default_chain")]
@@ -2764,7 +2781,7 @@ pub struct OpenoceanSwapInput {
     pub in_token: String,
     /// Output token address
     pub out_token: String,
-    /// Amount
+    /// Amount in smallest units (wei)
     pub amount: String,
     /// Account address
     pub account: String,
@@ -2863,9 +2880,43 @@ pub struct CowswapChainInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapTradesInput {
+    /// Owner address
+    pub owner: String,
+    /// Pagination offset
+    #[serde(default)]
+    pub offset: Option<u64>,
+    /// Max trades to return, 1-1000 (API default: 10)
+    #[serde(default)]
+    pub limit: Option<u32>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapOrderTradesInput {
+    /// Order UID
+    pub order_uid: String,
+    /// Pagination offset
+    #[serde(default)]
+    pub offset: Option<u64>,
+    /// Max trades to return, 1-1000 (API default: 10)
+    #[serde(default)]
+    pub limit: Option<u32>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CowswapAuctionInput {
-    /// Auction ID
-    pub auction_id: String,
+    /// Auction ID (omit both auction_id and tx_hash for the latest competition)
+    #[serde(default)]
+    pub auction_id: Option<String>,
+    /// Settlement transaction hash (alternative to auction_id)
+    #[serde(default)]
+    pub tx_hash: Option<String>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -2935,6 +2986,20 @@ pub struct CowswapCancelOrderInput {
     pub uid: String,
     /// EIP-712 signature proving ownership
     pub signature: String,
+    /// Chain name (ethereum, gnosis, arbitrum)
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapCancelOrdersInput {
+    /// Order UIDs to cancel (up to 128)
+    pub uids: Vec<String>,
+    /// Signature of `OrderCancellations(bytes[] orderUids)` from the orders' owner
+    pub signature: String,
+    /// Signing scheme: "eip712" or "ethsign"
+    #[serde(default)]
+    pub signing_scheme: Option<String>,
     /// Chain name (ethereum, gnosis, arbitrum)
     #[serde(default = "default_chain")]
     pub chain: String,

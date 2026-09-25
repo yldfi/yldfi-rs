@@ -15,7 +15,7 @@
 //! # Authentication
 //!
 //! The 1inch API requires an API key for authentication. Get your API key at
-//! [https://portal.1inch.dev](https://portal.1inch.dev).
+//! [https://business.1inch.com](https://business.1inch.com).
 //!
 //! # Rate Limits
 //!

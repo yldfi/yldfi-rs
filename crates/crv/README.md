@@ -23,7 +23,7 @@ Bindings to the Curve Finance REST APIs at `api.curve.finance` and `prices.curve
 - **Lending API** - Lending vault information
 - **Tokens API** - Token metadata from pools
 - **crvUSD API** - crvUSD and scrvUSD supply data
-- **Prices API** - Token pricing via prices.curve.finance
+- **Prices API** - Token pricing and chain volume (`get_chain_volume_range`) via prices.curve.finance ([OpenAPI](https://prices.curve.finance/feeds-docs))
 
 ### Local Router Implementation
 A Rust port of the routing algorithm from [curve-js](https://github.com/curvefi/curve-js):

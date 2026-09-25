@@ -73,7 +73,8 @@ pub enum OpenOceanCommands {
         in_token: String,
         /// Destination token address
         out_token: String,
-        /// Desired output amount in smallest units
+        /// Desired output amount, human-readable (e.g. "1" for 1 token; the
+        /// /reverseQuote endpoint only documents the legacy `amount` param)
         out_amount: String,
         /// Chain name
         #[arg(long, default_value = "ethereum")]
@@ -111,7 +112,7 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
             let mut request = QuoteRequest::new(&in_token, &out_token, &amount);
             request.slippage = Some(slippage);
             if let Some(gp) = gas_price {
-                request.gas_price = Some(gp);
+                request.gas_price = Some(gwei_to_wei(&gp)?);
             }
 
             let quote = client.get_quote(oo_chain, &request).await?;
@@ -132,7 +133,7 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
             let mut request = SwapRequest::new(&in_token, &out_token, &amount, &account);
             request.slippage = Some(slippage);
             if let Some(gp) = gas_price {
-                request.gas_price = Some(gp);
+                request.gas_price = Some(gwei_to_wei(&gp)?);
             }
             if let Some(r) = referrer {
                 request.referrer = Some(r);
@@ -202,4 +203,43 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
     };
     println!("{}", json);
     Ok(())
+}
+
+/// Convert a gwei amount (e.g. "30" or "0.5") to a wei string for `gasPriceDecimals`
+fn gwei_to_wei(gwei: &str) -> anyhow::Result<String> {
+    let gwei = gwei.trim();
+    let invalid = || anyhow::anyhow!("Invalid gas price in gwei: '{}'", gwei);
+    let (whole, frac) = gwei.split_once('.').unwrap_or((gwei, ""));
+    if frac.len() > 9 {
+        anyhow::bail!("Gas price '{}' has more than 9 decimal places", gwei);
+    }
+    let whole: u128 = if whole.is_empty() {
+        0
+    } else {
+        whole.parse().map_err(|_| invalid())?
+    };
+    let frac_wei: u128 = if frac.is_empty() {
+        0
+    } else {
+        format!("{:0<9}", frac).parse().map_err(|_| invalid())?
+    };
+    let wei = whole
+        .checked_mul(1_000_000_000)
+        .and_then(|w| w.checked_add(frac_wei))
+        .ok_or_else(|| anyhow::anyhow!("Gas price '{}' is too large", gwei))?;
+    Ok(wei.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::gwei_to_wei;
+
+    #[test]
+    fn converts_gwei_to_wei() {
+        assert_eq!(gwei_to_wei("30").unwrap(), "30000000000");
+        assert_eq!(gwei_to_wei("0.5").unwrap(), "500000000");
+        assert_eq!(gwei_to_wei("1.000000001").unwrap(), "1000000001");
+        assert!(gwei_to_wei("abc").is_err());
+        assert!(gwei_to_wei("1.0000000001").is_err());
+    }
 }

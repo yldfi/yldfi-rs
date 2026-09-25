@@ -121,10 +121,23 @@ let config = Config::new()
 let client = Client::with_config(config)?;
 ```
 
+### Router version
+
+The client talks to `https://api.velora.xyz` and requests Augustus v6.2
+routes by default (`version=6.2` on `/prices`). Without `version` the API
+falls back to the legacy v5 router. To opt back into v5:
+
+```rust
+let request = PriceRequest::sell(src, dest, amount).with_version("5");
+```
+
+The approval spender (`price_route.token_transfer_proxy`) and swap contract
+differ between versions, so always approve the address returned in the route.
+
 ## API Reference
 
-- [ParaSwap Docs](https://developers.paraswap.network/)
-- [API Reference](https://developers.paraswap.network/api/get-rate-for-a-token-pair)
+- [Velora Docs](https://www.velora.xyz/docs)
+- [Prices endpoint](https://www.velora.xyz/docs/api-reference/market/prices)
 
 ## Terms of Service
 

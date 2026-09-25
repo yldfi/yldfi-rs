@@ -113,7 +113,11 @@ pub struct CoinHistory {
     pub name: String,
     pub image: Option<CoinImage>,
     pub market_data: Option<HistoricalMarketData>,
+    /// Deprecated upstream: CoinGecko removed `community_data` from coin
+    /// endpoints effective 2026-08-28, so this is expected to be `None`.
     pub community_data: Option<serde_json::Value>,
+    /// Deprecated upstream: CoinGecko removed `developer_data` from coin
+    /// endpoints effective 2026-08-28, so this is expected to be `None`.
     pub developer_data: Option<serde_json::Value>,
     pub public_interest_stats: Option<serde_json::Value>,
 }

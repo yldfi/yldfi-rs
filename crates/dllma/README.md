@@ -68,8 +68,17 @@ let client = Client::with_api_key("your-api-key")?;
 let client = Client::from_env()?; // reads DEFILLAMA_API_KEY
 
 // Access Pro endpoints
-let yields = client.yields().pools().await?;
+let borrow = client.yields().pools_borrow().await?;
+let lst = client.yields().lst_rates().await?;
 ```
+
+Pro requests go to `https://pro-api.llama.fi/{API_KEY}/<path>`, following the
+[Pro OpenAPI spec](https://github.com/DefiLlama/api-docs/blob/main/defillama-openapi-pro.json):
+main-API endpoints are under `/api/...` (e.g. `/api/categories`,
+`/api/emissions`, `/api/overview/derivatives`), yields under `/yields/v1/...`,
+and ETFs under `/etfs/snapshot` / `/etfs/flows`. The removed
+`/etfs/overview*`, `/etfs/history*` and `/yields/lsdRates` methods are
+deprecated and return an error.
 
 ## Environment Variables
 

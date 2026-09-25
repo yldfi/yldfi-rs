@@ -6,8 +6,8 @@ use crate::client::Client;
 use crate::error::Result;
 
 use super::types::{
-    BorrowPool, LegacyPool, LendBorrowChartPoint, LsdRate, PerpRate, YieldChartPoint, YieldPool,
-    YieldsResponse,
+    BorrowPool, LegacyPool, LendBorrowChartPoint, LsdRate, LstRate, PerpRate, YieldChartPoint,
+    YieldPool, YieldsResponse,
 };
 
 /// Yields API client
@@ -81,7 +81,7 @@ impl<'a> YieldsApi<'a> {
     /// # }
     /// ```
     pub async fn pools_old(&self) -> Result<Vec<LegacyPool>> {
-        let resp: YieldsResponse<Vec<LegacyPool>> = self.client.get_pro("/yields/poolsOld").await?;
+        let resp: YieldsResponse<Vec<LegacyPool>> = self.client.get_pro("/yields/v1/pools").await?;
         Ok(resp.data)
     }
 
@@ -106,7 +106,7 @@ impl<'a> YieldsApi<'a> {
     /// ```
     pub async fn pools_borrow(&self) -> Result<Vec<BorrowPool>> {
         let resp: YieldsResponse<Vec<BorrowPool>> =
-            self.client.get_pro("/yields/poolsBorrow").await?;
+            self.client.get_pro("/yields/v1/poolsBorrow").await?;
         Ok(resp.data)
     }
 
@@ -128,7 +128,7 @@ impl<'a> YieldsApi<'a> {
     /// # }
     /// ```
     pub async fn chart_lend_borrow(&self, pool: &str) -> Result<Vec<LendBorrowChartPoint>> {
-        let path = format!("/yields/chartLendBorrow/{pool}");
+        let path = format!("/yields/v1/chartLendBorrow/{pool}");
         let resp: YieldsResponse<Vec<LendBorrowChartPoint>> = self.client.get_pro(&path).await?;
         Ok(resp.data)
     }
@@ -157,6 +157,23 @@ impl<'a> YieldsApi<'a> {
 
     /// Get liquid staking derivative rates
     ///
+    /// DefiLlama removed `/yields/lsdRates`; this returns an error without
+    /// making a request. Use [`Self::lst_rates`] (`/api/lstRates`), which
+    /// has a different response shape.
+    #[deprecated(
+        since = "0.1.5",
+        note = "DefiLlama removed /yields/lsdRates; use `lst_rates()` (/api/lstRates)"
+    )]
+    pub async fn lsd_rates(&self) -> Result<Vec<LsdRate>> {
+        Err(crate::error::Error::api(
+            410,
+            "DefiLlama removed /yields/lsdRates; use yields().lst_rates() (/api/lstRates)",
+        ))
+    }
+
+    /// Get liquid staking token exchange rates and ETH peg
+    /// (`GET /api/lstRates`)
+    ///
     /// **Requires Pro API key**
     ///
     /// # Example
@@ -164,15 +181,15 @@ impl<'a> YieldsApi<'a> {
     /// ```no_run
     /// # async fn example() -> dllma::error::Result<()> {
     /// let client = dllma::Client::with_api_key("your-api-key")?;
-    /// let lsd = client.yields().lsd_rates().await?;
-    /// for rate in lsd.iter().take(5) {
-    ///     println!("{}: {:.2}% APY", rate.name, rate.apy.unwrap_or(0.0));
+    /// let rates = client.yields().lst_rates().await?;
+    /// for rate in rates.iter().take(5) {
+    ///     println!("{}: peg {:.3}%", rate.name, rate.eth_peg.unwrap_or(0.0));
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn lsd_rates(&self) -> Result<Vec<LsdRate>> {
-        // lsdRates returns array directly, not wrapped in {status, data}
-        self.client.get_pro("/yields/lsdRates").await
+    pub async fn lst_rates(&self) -> Result<Vec<LstRate>> {
+        // Returns an array directly, not wrapped in {status, data}
+        self.client.get_pro("/api/lstRates").await
     }
 }

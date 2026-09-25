@@ -42,6 +42,7 @@ pub use error::{Error, Result};
 pub use types::{
     ApiErrorResponse, Chain, PriceRequest, PriceResponse, PriceRoute, Route, Side, Swap,
     SwapExchange, Token, TokenListResponse, TransactionRequest, TransactionResponse,
+    DEFAULT_PRICE_VERSION,
 };
 
 // Re-export common utilities
@@ -49,7 +50,8 @@ pub use yldfi_common::api::{ApiConfig, BaseClient};
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
 /// Default base URL for the Velora API
-pub const DEFAULT_BASE_URL: &str = "https://api.paraswap.io";
+/// (formerly `https://api.paraswap.io`, which still serves the same API)
+pub const DEFAULT_BASE_URL: &str = "https://api.velora.xyz";
 
 /// Native token address (used for ETH and other native tokens)
 pub const NATIVE_TOKEN_ADDRESS: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -276,6 +278,23 @@ mod tests {
     fn test_default_config() {
         let config = default_config();
         assert_eq!(config.base_url, DEFAULT_BASE_URL);
+    }
+
+    #[test]
+    fn test_price_request_version_param() {
+        let find = |params: &[(String, String)]| {
+            params
+                .iter()
+                .find(|(k, _)| k == "version")
+                .map(|(_, v)| v.clone())
+        };
+        let req = PriceRequest::sell("0xa", "0xb", "1");
+        assert_eq!(
+            find(&req.to_query_params(1)).as_deref(),
+            Some(DEFAULT_PRICE_VERSION)
+        );
+        let req = req.with_version("5");
+        assert_eq!(find(&req.to_query_params(1)).as_deref(), Some("5"));
     }
 
     #[test]

@@ -24,49 +24,49 @@ impl<'a> EcosystemApi<'a> {
     ///
     /// **Requires Pro API key**
     pub async fn categories(&self) -> Result<Vec<Category>> {
-        self.client.get_pro("/categories").await
+        self.client.get_pro("/api/categories").await
     }
 
     /// Get protocol fork relationships
     ///
     /// **Requires Pro API key**
     pub async fn forks(&self) -> Result<Vec<Fork>> {
-        self.client.get_pro("/forks").await
+        self.client.get_pro("/api/forks").await
     }
 
     /// Get oracle protocol data
     ///
     /// **Requires Pro API key**
     pub async fn oracles(&self) -> Result<Vec<Oracle>> {
-        self.client.get_pro("/oracles").await
+        self.client.get_pro("/api/oracles").await
     }
 
     /// Get entity/company information
     ///
     /// **Requires Pro API key**
     pub async fn entities(&self) -> Result<Vec<Entity>> {
-        self.client.get_pro("/entities").await
+        self.client.get_pro("/api/entities").await
     }
 
     /// Get protocol treasury balances
     ///
     /// **Requires Pro API key**
     pub async fn treasuries(&self) -> Result<Vec<Treasury>> {
-        self.client.get_pro("/treasuries").await
+        self.client.get_pro("/api/treasuries").await
     }
 
     /// Get historical exploits database
     ///
     /// **Requires Pro API key**
     pub async fn hacks(&self) -> Result<Vec<Hack>> {
-        self.client.get_pro("/hacks").await
+        self.client.get_pro("/api/hacks").await
     }
 
     /// Get funding rounds database
     ///
     /// **Requires Pro API key**
     pub async fn raises(&self) -> Result<Vec<Raise>> {
-        self.client.get_pro("/raises").await
+        self.client.get_pro("/api/raises").await
     }
 
     /// Get historical liquidity for a token
@@ -77,7 +77,7 @@ impl<'a> EcosystemApi<'a> {
     ///
     /// * `token` - Token symbol or address
     pub async fn liquidity(&self, token: &str) -> Result<LiquidityData> {
-        let path = format!("/historicalLiquidity/{token}");
+        let path = format!("/api/historicalLiquidity/{token}");
         self.client.get_pro(&path).await
     }
 
@@ -89,7 +89,7 @@ impl<'a> EcosystemApi<'a> {
     ///
     /// * `symbol` - Token symbol (e.g., "ETH", "USDC")
     pub async fn token_protocols(&self, symbol: &str) -> Result<TokenProtocols> {
-        let path = format!("/tokenProtocols/{symbol}");
+        let path = format!("/api/tokenProtocols/{symbol}");
         self.client.get_pro(&path).await
     }
 
@@ -102,7 +102,7 @@ impl<'a> EcosystemApi<'a> {
     /// * `protocol` - Protocol slug
     /// * `timestamp` - Unix timestamp
     pub async fn inflows(&self, protocol: &str, timestamp: u64) -> Result<ProtocolInflows> {
-        let path = format!("/inflows/{protocol}/{timestamp}");
+        let path = format!("/api/inflows/{protocol}/{timestamp}");
         self.client.get_pro(&path).await
     }
 
@@ -110,6 +110,6 @@ impl<'a> EcosystemApi<'a> {
     ///
     /// **Requires Pro API key**
     pub async fn chain_assets(&self) -> Result<Vec<ChainAssets>> {
-        self.client.get_pro("/chainAssets").await
+        self.client.get_pro("/api/chainAssets").await
     }
 }

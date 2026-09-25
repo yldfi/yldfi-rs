@@ -78,8 +78,9 @@ pub mod types;
 pub use client::{Client, Config};
 pub use error::{Error, Result};
 pub use types::{
-    ApiError, Chain, Order, OrderCreation, OrderKind, OrderResponse, OrderStatus, PriceQuality,
-    QuoteDetails, QuoteRequest, QuoteResponse, SigningScheme, Trade,
+    ApiError, Chain, EcdsaSigningScheme, Order, OrderCancellations, OrderCreation, OrderKind,
+    OrderResponse, OrderStatus, PriceQuality, QuoteDetails, QuoteRequest, QuoteResponse,
+    SigningScheme, Trade, TradesQuery,
 };
 
 // Re-export common utilities

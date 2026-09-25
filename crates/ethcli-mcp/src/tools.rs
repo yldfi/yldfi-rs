@@ -6036,10 +6036,21 @@ pub async fn curve_prices_history(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn curve_prices_top_volume() -> Result<String, ToolError> {
+pub async fn curve_prices_volume(
+    chain: &str,
+    start: Option<u64>,
+    end: Option<u64>,
+    interval: Option<&str>,
+) -> Result<String, ToolError> {
+    let start = start.map(|v| v.to_string());
+    let end = end.map(|v| v.to_string());
     ArgsBuilder::new("curve")
         .subcommand("prices")
-        .subcommand("top-volume")
+        .subcommand("volume")
+        .arg(chain)
+        .opt("--start", start.as_deref())
+        .opt("--end", end.as_deref())
+        .opt("--interval", interval)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6890,10 +6901,19 @@ pub async fn cowswap_orders(owner: &str, chain: Option<&str>) -> Result<String, 
         .map_err(ToolError::from)
 }
 
-pub async fn cowswap_trades(owner: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn cowswap_trades(
+    owner: &str,
+    offset: Option<u64>,
+    limit: Option<u32>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let offset = offset.map(|v| v.to_string());
+    let limit = limit.map(|v| v.to_string());
     ArgsBuilder::new("cow-swap")
         .subcommand("trades")
         .arg(owner)
+        .opt("--offset", offset.as_deref())
+        .opt("--limit", limit.as_deref())
         .chain(chain)
         .format_json()
         .execute()
@@ -6903,11 +6923,17 @@ pub async fn cowswap_trades(owner: &str, chain: Option<&str>) -> Result<String, 
 
 pub async fn cowswap_order_trades(
     order_uid: &str,
+    offset: Option<u64>,
+    limit: Option<u32>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    let offset = offset.map(|v| v.to_string());
+    let limit = limit.map(|v| v.to_string());
     ArgsBuilder::new("cow-swap")
         .subcommand("order-trades")
         .arg(order_uid)
+        .opt("--offset", offset.as_deref())
+        .opt("--limit", limit.as_deref())
         .chain(chain)
         .format_json()
         .execute()
@@ -6926,12 +6952,16 @@ pub async fn cowswap_auction(chain: Option<&str>) -> Result<String, ToolError> {
 }
 
 pub async fn cowswap_competition(
-    auction_id: &str,
+    auction_id: Option<&str>,
+    tx_hash: Option<&str>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
-    ArgsBuilder::new("cow-swap")
-        .subcommand("competition")
-        .arg(auction_id)
+    let mut builder = ArgsBuilder::new("cow-swap").subcommand("competition");
+    if let Some(id) = auction_id {
+        builder = builder.arg(id);
+    }
+    builder
+        .opt("--tx-hash", tx_hash)
         .chain(chain)
         .format_json()
         .execute()
@@ -7005,6 +7035,25 @@ pub async fn cowswap_cancel_order(
         .subcommand("cancel-order")
         .arg(uid)
         .arg(signature)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn cowswap_cancel_orders(
+    uids: &[String],
+    signature: &str,
+    signing_scheme: Option<&str>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let uids = uids.join(",");
+    ArgsBuilder::new("cow-swap")
+        .subcommand("cancel-orders")
+        .opt("--uid", Some(&uids))
+        .arg(signature)
+        .opt("--signing-scheme", signing_scheme)
         .chain(chain)
         .format_json()
         .execute()

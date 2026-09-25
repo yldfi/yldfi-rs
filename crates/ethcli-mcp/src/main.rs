@@ -884,7 +884,7 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get quote from OpenOcean DEX aggregator")]
+    #[tool(description = "Get quote from De¹ (formerly OpenOcean) DEX aggregator")]
     async fn openocean_quote(
         &self,
         Parameters(input): Parameters<OpenoceanQuoteInput>,
@@ -4828,9 +4828,21 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get top tokens by volume on Curve")]
-    async fn curve_prices_top_volume(&self) -> CallToolResult {
-        tools::curve_prices_top_volume().await.to_response()
+    #[tool(
+        description = "Get USD volume for a chain from the Curve Prices API (default: last 30 days, daily)"
+    )]
+    async fn curve_prices_volume(
+        &self,
+        Parameters(input): Parameters<CurveChainVolumeInput>,
+    ) -> CallToolResult {
+        tools::curve_prices_volume(
+            &input.chain,
+            input.start,
+            input.end,
+            input.interval.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     // --- OHLC additional ---
@@ -5145,7 +5157,7 @@ impl EthcliMcpServer {
     // OPENOCEAN (additional)
     // =========================================================================
 
-    #[tool(description = "Get swap calldata from OpenOcean")]
+    #[tool(description = "Get swap calldata from De¹ (formerly OpenOcean)")]
     async fn openocean_swap(
         &self,
         Parameters(input): Parameters<OpenoceanSwapInput>,
@@ -5161,7 +5173,7 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get reverse quote from OpenOcean")]
+    #[tool(description = "Get reverse quote from De¹ (formerly OpenOcean)")]
     async fn openocean_reverse_quote(
         &self,
         Parameters(input): Parameters<OpenoceanQuoteInput>,
@@ -5176,7 +5188,7 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get supported tokens from OpenOcean")]
+    #[tool(description = "Get supported tokens from De¹ (formerly OpenOcean)")]
     async fn openocean_tokens(
         &self,
         Parameters(input): Parameters<OpenoceanChainInput>,
@@ -5186,7 +5198,7 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get supported DEXes from OpenOcean")]
+    #[tool(description = "Get supported DEXes from De¹ (formerly OpenOcean)")]
     async fn openocean_dexes(
         &self,
         Parameters(input): Parameters<OpenoceanChainInput>,
@@ -5297,24 +5309,29 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get trades for an address from CoW Swap")]
+    #[tool(description = "Get trades for an address from CoW Swap (paginated, newest first)")]
     async fn cowswap_trades(
         &self,
-        Parameters(input): Parameters<CowswapOwnerInput>,
+        Parameters(input): Parameters<CowswapTradesInput>,
     ) -> CallToolResult {
-        tools::cowswap_trades(&input.owner, Some(&input.chain))
+        tools::cowswap_trades(&input.owner, input.offset, input.limit, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get trades for an order from CoW Swap")]
+    #[tool(description = "Get trades for an order from CoW Swap (paginated, newest first)")]
     async fn cowswap_order_trades(
         &self,
-        Parameters(input): Parameters<CowswapOrderInput>,
+        Parameters(input): Parameters<CowswapOrderTradesInput>,
     ) -> CallToolResult {
-        tools::cowswap_order_trades(&input.order_uid, Some(&input.chain))
-            .await
-            .to_response()
+        tools::cowswap_order_trades(
+            &input.order_uid,
+            input.offset,
+            input.limit,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get current auction from CoW Swap")]
@@ -5327,14 +5344,20 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get solver competition data from CoW Swap")]
+    #[tool(
+        description = "Get solver competition data from CoW Swap by auction ID, settlement tx hash, or latest"
+    )]
     async fn cowswap_competition(
         &self,
         Parameters(input): Parameters<CowswapAuctionInput>,
     ) -> CallToolResult {
-        tools::cowswap_competition(&input.auction_id, Some(&input.chain))
-            .await
-            .to_response()
+        tools::cowswap_competition(
+            input.auction_id.as_deref(),
+            input.tx_hash.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get native token price from CoW Swap")]
@@ -5373,7 +5396,9 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Cancel an existing CoW Swap order")]
+    #[tool(
+        description = "Cancel a single CoW Swap order (deprecated upstream API; prefer cowswap_cancel_orders)"
+    )]
     async fn cowswap_cancel_order(
         &self,
         Parameters(input): Parameters<CowswapCancelOrderInput>,
@@ -5381,6 +5406,23 @@ impl EthcliMcpServer {
         tools::cowswap_cancel_order(&input.uid, &input.signature, Some(&input.chain))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Cancel one or more CoW Swap orders (up to 128) with a signed OrderCancellations payload"
+    )]
+    async fn cowswap_cancel_orders(
+        &self,
+        Parameters(input): Parameters<CowswapCancelOrdersInput>,
+    ) -> CallToolResult {
+        tools::cowswap_cancel_orders(
+            &input.uids,
+            &input.signature,
+            input.signing_scheme.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================

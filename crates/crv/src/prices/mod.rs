@@ -192,15 +192,52 @@ impl PricesClient {
 
     // === Volume ===
 
-    /// Get volume for a chain
+    /// Get daily USD volume for a chain over the trailing 30 days
+    ///
+    /// Convenience wrapper around [`Self::get_chain_volume_range`]; the
+    /// endpoint requires explicit `start`/`end` bounds.
     pub async fn get_chain_volume(&self, chain: &str) -> Result<serde_json::Value> {
-        let path = format!("/volume/{chain}");
+        let end = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or_default();
+        let start = end.saturating_sub(30 * 86_400);
+        self.get_chain_volume_range(chain, start, end, Some(VolumeInterval::Day))
+            .await
+    }
+
+    /// Get USD-denominated aggregated volume for a chain
+    /// (`GET /v1/volume/{chain}?start=&end=&interval=`)
+    ///
+    /// `start`/`end` are unix timestamps (seconds). The API only allows a
+    /// time window of up to 300x the aggregation interval (e.g. 300 days for
+    /// `Day`); split larger ranges into several requests. `interval`
+    /// defaults to `Day` server-side.
+    pub async fn get_chain_volume_range(
+        &self,
+        chain: &str,
+        start: u64,
+        end: u64,
+        interval: Option<VolumeInterval>,
+    ) -> Result<serde_json::Value> {
+        let path = chain_volume_path(chain, start, end, interval);
         self.get(&path).await
     }
 
     /// Get top tokens by volume
+    ///
+    /// `/v1/volume/tokens/top` does not exist in the Curve Prices API (the
+    /// path is matched by the pool pair-volume route and always fails with
+    /// 422). This method returns an error without making a request.
+    #[deprecated(
+        since = "0.1.7",
+        note = "`/v1/volume/tokens/top` is not a Curve Prices API route; use `get_chain_volume_range` for chain volume"
+    )]
     pub async fn get_top_volume_tokens(&self) -> Result<serde_json::Value> {
-        self.get("/volume/tokens/top").await
+        Err(Error::api(
+            404,
+            "/v1/volume/tokens/top is not provided by the Curve Prices API; use get_chain_volume_range",
+        ))
     }
 
     // === crvUSD ===
@@ -267,5 +304,85 @@ impl PricesClient {
 impl Default for PricesClient {
     fn default() -> Self {
         Self::new().expect("Failed to create default PricesClient")
+    }
+}
+
+/// Aggregation interval for Curve Prices volume queries
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VolumeInterval {
+    /// Hourly buckets
+    Hour,
+    /// Daily buckets (API default)
+    #[default]
+    Day,
+    /// Weekly buckets
+    Week,
+}
+
+impl VolumeInterval {
+    /// Query-string value
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Hour => "hour",
+            Self::Day => "day",
+            Self::Week => "week",
+        }
+    }
+}
+
+impl std::str::FromStr for VolumeInterval {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "hour" => Ok(Self::Hour),
+            "day" => Ok(Self::Day),
+            "week" => Ok(Self::Week),
+            other => Err(Error::api(
+                400,
+                format!("invalid volume interval '{other}' (expected hour, day or week)"),
+            )),
+        }
+    }
+}
+
+fn chain_volume_path(
+    chain: &str,
+    start: u64,
+    end: u64,
+    interval: Option<VolumeInterval>,
+) -> String {
+    let mut path = format!("/volume/{chain}?start={start}&end={end}");
+    if let Some(interval) = interval {
+        path.push_str("&interval=");
+        path.push_str(interval.as_str());
+    }
+    path
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chain_volume_path_includes_required_bounds() {
+        assert_eq!(
+            chain_volume_path("ethereum", 1, 2, None),
+            "/volume/ethereum?start=1&end=2"
+        );
+        assert_eq!(
+            chain_volume_path("arbitrum", 10, 20, Some(VolumeInterval::Week)),
+            "/volume/arbitrum?start=10&end=20&interval=week"
+        );
+    }
+
+    #[test]
+    fn volume_interval_parses() {
+        assert_eq!(
+            "Hour".parse::<VolumeInterval>().unwrap(),
+            VolumeInterval::Hour
+        );
+        assert!("month".parse::<VolumeInterval>().is_err());
     }
 }

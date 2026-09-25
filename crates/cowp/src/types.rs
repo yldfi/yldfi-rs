@@ -509,3 +509,118 @@ pub struct Trade {
     /// Transaction hash
     pub tx_hash: String,
 }
+
+/// ECDSA signing scheme accepted for order cancellations
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EcdsaSigningScheme {
+    /// EIP-712 typed data signature
+    #[default]
+    Eip712,
+    /// `eth_sign` (EIP-191) signature
+    EthSign,
+}
+
+/// Signed bulk cancellation request for `DELETE /api/v1/orders`
+///
+/// The signature must be an EIP-712 signature of
+/// `OrderCancellations(bytes[] orderUids)` produced by the orders' owner.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderCancellations {
+    /// Up to 128 UIDs of orders to cancel
+    pub order_uids: Vec<String>,
+    /// `OrderCancellations` signature from the owner
+    pub signature: String,
+    /// Signing scheme used to produce `signature`
+    pub signing_scheme: EcdsaSigningScheme,
+}
+
+impl OrderCancellations {
+    /// Create a bulk cancellation signed with EIP-712
+    #[must_use]
+    pub fn new(order_uids: Vec<String>, signature: impl Into<String>) -> Self {
+        Self {
+            order_uids,
+            signature: signature.into(),
+            signing_scheme: EcdsaSigningScheme::Eip712,
+        }
+    }
+
+    /// Override the signing scheme
+    #[must_use]
+    pub fn with_signing_scheme(mut self, scheme: EcdsaSigningScheme) -> Self {
+        self.signing_scheme = scheme;
+        self
+    }
+}
+
+/// Filter for the paginated `GET /api/v2/trades` endpoint
+///
+/// Exactly one of `owner` or `order_uid` must be set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TradesQuery {
+    filter: TradesFilter,
+    /// Pagination offset (API default: 0)
+    pub offset: Option<u64>,
+    /// Maximum number of trades to return, 1-1000 (API default: 10)
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum TradesFilter {
+    Owner(String),
+    OrderUid(String),
+}
+
+impl TradesQuery {
+    /// Query trades by owner address
+    #[must_use]
+    pub fn by_owner(owner: impl Into<String>) -> Self {
+        Self {
+            filter: TradesFilter::Owner(owner.into()),
+            offset: None,
+            limit: None,
+        }
+    }
+
+    /// Query trades for an order UID
+    #[must_use]
+    pub fn by_order(order_uid: impl Into<String>) -> Self {
+        Self {
+            filter: TradesFilter::OrderUid(order_uid.into()),
+            offset: None,
+            limit: None,
+        }
+    }
+
+    /// Set the pagination offset
+    #[must_use]
+    pub fn offset(mut self, offset: u64) -> Self {
+        self.offset = Some(offset);
+        self
+    }
+
+    /// Set the page size (1-1000)
+    #[must_use]
+    pub fn limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Render as a URL query string (without leading `?`)
+    #[must_use]
+    pub fn to_query_string(&self) -> String {
+        let mut query = match &self.filter {
+            TradesFilter::Owner(owner) => format!("owner={owner}"),
+            TradesFilter::OrderUid(uid) => format!("orderUid={uid}"),
+        };
+        if let Some(offset) = self.offset {
+            query.push_str(&format!("&offset={offset}"));
+        }
+        if let Some(limit) = self.limit {
+            query.push_str(&format!("&limit={limit}"));
+        }
+        query
+    }
+}

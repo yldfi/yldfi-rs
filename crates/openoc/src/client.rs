@@ -62,22 +62,8 @@ impl Client {
     /// }
     /// ```
     pub async fn get_quote(&self, chain: Chain, request: &QuoteRequest) -> Result<QuoteData> {
-        let mut params: Vec<(&str, String)> = vec![
-            ("inTokenAddress", request.in_token_address.clone()),
-            ("outTokenAddress", request.out_token_address.clone()),
-            ("amount", request.amount.clone()),
-        ];
-
-        if let Some(slippage) = request.slippage {
-            params.push(("slippage", slippage.to_string()));
-        }
-        if let Some(ref gas_price) = request.gas_price {
-            params.push(("gasPrice", gas_price.clone()));
-        }
-        if let Some(ref disabled) = request.disabled_dex_ids {
-            params.push(("disabledDexIds", disabled.clone()));
-        }
-
+        let mut params = request.to_query_params();
+        self.ensure_gas_price(chain, &mut params).await?;
         let path = format!("/{}/quote", chain.as_str());
         let query_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
 
@@ -121,24 +107,9 @@ impl Client {
     /// }
     /// ```
     pub async fn get_swap_quote(&self, chain: Chain, request: &SwapRequest) -> Result<SwapData> {
-        let mut params: Vec<(&str, String)> = vec![
-            ("inTokenAddress", request.in_token_address.clone()),
-            ("outTokenAddress", request.out_token_address.clone()),
-            ("amount", request.amount.clone()),
-            ("account", request.account.clone()),
-        ];
-
-        if let Some(slippage) = request.slippage {
-            params.push(("slippage", slippage.to_string()));
-        }
-        if let Some(ref gas_price) = request.gas_price {
-            params.push(("gasPrice", gas_price.clone()));
-        }
-        if let Some(ref referrer) = request.referrer {
-            params.push(("referrer", referrer.clone()));
-        }
-
-        let path = format!("/{}/swap_quote", chain.as_str());
+        let mut params = request.to_query_params();
+        self.ensure_gas_price(chain, &mut params).await?;
+        let path = format!("/{}/swap", chain.as_str());
         let query_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
 
         let response: SwapResponse = self.base.get(&path, &query_refs).await?;
@@ -153,6 +124,35 @@ impl Client {
         }
 
         response.data.ok_or_else(error::no_route_found)
+    }
+
+    /// Get the current "standard" gas price for a chain, in wei.
+    ///
+    /// `/quote` and `/swap` require a gas price; [`Client::get_quote`] and
+    /// [`Client::get_swap_quote`] call this automatically when the request
+    /// doesn't set one.
+    pub async fn get_gas_price(&self, chain: Chain) -> Result<String> {
+        let path = format!("/{}/gasPrice", chain.as_str());
+        let response: serde_json::Value = self
+            .base
+            .get::<serde_json::Value, _>(&path, &[] as &[(&str, &str)])
+            .await?;
+        parse_standard_gas_price(&response).ok_or_else(|| {
+            error::invalid_param(format!("unexpected gasPrice response: {response}"))
+        })
+    }
+
+    /// Fill in `gasPriceDecimals` from `/gasPrice` if the caller didn't set it.
+    async fn ensure_gas_price(
+        &self,
+        chain: Chain,
+        params: &mut Vec<(&'static str, String)>,
+    ) -> Result<()> {
+        if !params.iter().any(|(k, _)| *k == "gasPriceDecimals") {
+            let gas_price = self.get_gas_price(chain).await?;
+            params.push(("gasPriceDecimals", gas_price));
+        }
+        Ok(())
     }
 
     /// Get list of supported tokens on a chain
@@ -218,6 +218,10 @@ impl Client {
     /// Get a reverse quote (specify output amount, calculate input)
     ///
     /// This is for "exact output" swaps where you want a specific amount of the output token.
+    ///
+    /// Note: the v4 docs only document the legacy `amount` parameter for
+    /// `/reverseQuote`, which is a human-readable amount (e.g. "1" for 1 BNB),
+    /// not smallest units. `out_amount` is passed through unchanged.
     pub async fn get_reverse_quote(
         &self,
         chain: Chain,
@@ -243,6 +247,23 @@ impl Client {
         }
 
         response.data.ok_or_else(error::no_route_found)
+    }
+}
+
+/// Extract the "standard" gas price in wei from a `/gasPrice` response.
+///
+/// EIP-1559 chains return `data.standard` as an object with `legacyGasPrice`;
+/// other chains return `data.standard` as a plain number.
+fn parse_standard_gas_price(response: &serde_json::Value) -> Option<String> {
+    let standard = response.get("data")?.get("standard")?;
+    let value = standard.get("legacyGasPrice").unwrap_or(standard);
+    match value {
+        serde_json::Value::Number(n) => n
+            .as_u64()
+            .map(|v| v.to_string())
+            .or_else(|| n.as_f64().map(|v| format!("{v:.0}"))),
+        serde_json::Value::String(s) => Some(s.clone()),
+        _ => None,
     }
 }
 
@@ -278,6 +299,35 @@ mod tests {
         assert_eq!(request.gas_price, Some("50000000000".to_string()));
     }
 
+    fn param<'a>(params: &'a [(&'static str, String)], key: &str) -> Option<&'a str> {
+        params
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| v.as_str())
+    }
+
+    #[test]
+    fn test_quote_params_use_decimals_fields() {
+        let params = QuoteRequest::new("0xin", "0xout", "1000000")
+            .with_gas_price("30000000000")
+            .to_query_params();
+        assert_eq!(param(&params, "amountDecimals"), Some("1000000"));
+        assert_eq!(param(&params, "gasPriceDecimals"), Some("30000000000"));
+        assert_eq!(param(&params, "amount"), None);
+        assert_eq!(param(&params, "gasPrice"), None);
+    }
+
+    #[test]
+    fn test_swap_params_use_decimals_fields() {
+        let params = SwapRequest::new("0xin", "0xout", "1000000", "0xacct")
+            .with_gas_price("1000000000")
+            .to_query_params();
+        assert_eq!(param(&params, "amountDecimals"), Some("1000000"));
+        assert_eq!(param(&params, "gasPriceDecimals"), Some("1000000000"));
+        assert_eq!(param(&params, "account"), Some("0xacct"));
+        assert_eq!(param(&params, "amount"), None);
+    }
+
     #[test]
     fn test_swap_request_builder() {
         let request = SwapRequest::new(
@@ -297,5 +347,26 @@ mod tests {
     fn test_default_config() {
         let config = crate::default_config();
         assert_eq!(config.base_url, crate::DEFAULT_BASE_URL);
+    }
+
+    #[test]
+    fn test_parse_standard_gas_price_eip1559_shape() {
+        let v = serde_json::json!({"code":200,"data":{"base":180676152,"standard":{"legacyGasPrice":180676152,"maxFeePerGas":181676152}}});
+        assert_eq!(parse_standard_gas_price(&v), Some("180676152".to_string()));
+    }
+
+    #[test]
+    fn test_parse_standard_gas_price_legacy_shape() {
+        let v = serde_json::json!({"code":200,"data":{"standard":277261410699u64,"fast":277261410699u64}});
+        assert_eq!(
+            parse_standard_gas_price(&v),
+            Some("277261410699".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_standard_gas_price_missing() {
+        let v = serde_json::json!({"code":400,"error":"bad"});
+        assert_eq!(parse_standard_gas_price(&v), None);
     }
 }

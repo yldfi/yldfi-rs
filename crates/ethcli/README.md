@@ -54,7 +54,7 @@
 
 ### Direct DEX Aggregator Access
 - **1inch**: Quote, swap, tokens, liquidity sources, approvals
-- **OpenOcean**: Quote, swap, reverse quote, tokens, DEX sources
+- **De¹ (formerly OpenOcean)**: Quote, swap, reverse quote, tokens, DEX sources
 - **KyberSwap**: Routes, route data, transaction building
 - **0x Protocol**: Quote, price, liquidity sources
 - **CowSwap**: MEV-protected quotes, orders, trades, auctions
@@ -606,7 +606,7 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 
 | Alias | Aggregator | Notes |
 |-------|------------|-------|
-| `openocean`, `oo` | OpenOcean | Multi-chain DEX aggregator |
+| `openocean`, `oo`, `de1` | De¹ (formerly OpenOcean) | Multi-chain DEX aggregator |
 | `kyberswap`, `kyber` | KyberSwap | Dynamic routing |
 | `0x`, `zerox` | 0x Protocol | Professional-grade liquidity |
 | `1inch`, `oneinch` | 1inch | Pathfinder algorithm |
@@ -807,6 +807,9 @@ ethcli curve pool 0x...
 # Volume and TVL
 ethcli curve volumes
 ethcli curve tvl
+
+# Chain USD volume from prices.curve.finance (default: last 30 days, daily)
+ethcli curve prices volume ethereum --interval day
 
 # Lending
 ethcli curve lending-pools
@@ -1194,19 +1197,21 @@ ethcli 1inch approve <token> --chain-id 1 --amount 1000000
 
 **Alias**: `ethcli oneinch`
 
-### OpenOcean - DEX Aggregator
+### De¹ (formerly OpenOcean) - DEX Aggregator
 
-Direct access to OpenOcean API. No API key required.
+Direct access to the De¹ (formerly OpenOcean) v4 API (`open-api.de1.exchange`). No API key required. Quote/swap amounts are
+in smallest units (sent as `amountDecimals`); `--gas-price` is in gwei and is
+converted to wei (`gasPriceDecimals`).
 
 ```bash
 # Get swap quote
 ethcli openocean quote <in_token> <out_token> <amount> --chain ethereum
-ethcli openocean quote 0xEee...EEeE 0xA0b8... 1000000000000000000 --slippage 1
+ethcli openocean quote 0xEee...EEeE 0xA0b8... 1000000000000000000 --slippage 1 --gas-price 30
 
-# Get swap transaction data
+# Get swap transaction data (/v4/{chain}/swap)
 ethcli openocean swap <in_token> <out_token> <amount> <account> --chain ethereum
 
-# Get reverse quote (specify output amount)
+# Get reverse quote (output amount is human-readable, e.g. 1 = 1 token)
 ethcli openocean reverse-quote <in_token> <out_token> <out_amount> --chain ethereum
 
 # Get supported tokens
@@ -1270,8 +1275,8 @@ ethcli cowswap order <uid> --chain ethereum
 # Get orders for an address
 ethcli cowswap orders <owner> --chain ethereum
 
-# Get trades for an address
-ethcli cowswap trades <owner> --chain ethereum
+# Get trades for an address (paginated via /api/v2/trades; API default limit 10)
+ethcli cowswap trades <owner> --chain ethereum --limit 100 --offset 0
 
 # Get trades for an order
 ethcli cowswap order-trades <uid> --chain ethereum
@@ -1279,11 +1284,16 @@ ethcli cowswap order-trades <uid> --chain ethereum
 # Get current auction
 ethcli cowswap auction --chain ethereum
 
-# Get solver competition
+# Get solver competition (v2 API): by auction ID, by settlement tx, or latest
 ethcli cowswap competition <auction_id> --chain ethereum
+ethcli cowswap competition --tx-hash <settlement_tx> --chain ethereum
+ethcli cowswap competition --chain ethereum
 
 # Get native token price
 ethcli cowswap native-price <token> --chain ethereum
+
+# Cancel orders (signature over OrderCancellations(bytes[] orderUids))
+ethcli cowswap cancel-orders --uid <uid1>,<uid2> <signature> --chain ethereum
 ```
 
 **Alias**: `ethcli cow`
@@ -1335,7 +1345,7 @@ ethcli lifi connections --from-chain 1 --to-chain 137
 
 ### Velora - ParaSwap DEX Aggregator
 
-Direct access to ParaSwap API. Optional `PARASWAP_API_KEY` or `VELORA_API_KEY` for higher rate limits.
+Direct access to the Velora (formerly ParaSwap) API at `api.velora.xyz`; prices request Augustus v6.2 routes. Optional `PARASWAP_API_KEY` or `VELORA_API_KEY` for higher rate limits.
 
 ```bash
 # Get swap price/route

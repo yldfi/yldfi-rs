@@ -200,7 +200,32 @@ pub struct PerpRate {
     pub funding_rate7d_average: Option<f64>,
 }
 
+/// Liquid staking token exchange rate and ETH peg (`/api/lstRates`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LstRate {
+    /// Name of the protocol issuing the LST
+    pub name: String,
+    /// LST symbol
+    pub symbol: Option<String>,
+    /// LST contract address
+    pub address: Option<String>,
+    /// LST type (rebase or accruing)
+    #[serde(rename = "type")]
+    pub lst_type: Option<String>,
+    /// ETH per token owed by the protocol (contract redemption rate)
+    pub expected_rate: Option<f64>,
+    /// Executable market rate in ETH per token
+    pub market_rate: Option<f64>,
+    /// Percent deviation of the market rate from the expected rate
+    pub eth_peg: Option<f64>,
+    /// Protocol fee percentage
+    pub fee: Option<f64>,
+}
+
 /// Liquid staking derivative rate
+///
+/// Response type of the removed `/yields/lsdRates` endpoint; see [`LstRate`].
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LsdRate {

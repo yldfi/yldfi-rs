@@ -877,12 +877,17 @@ ethcli cowswap quote <sell_token> <buy_token> <amount> <from> --chain ethereum -
 # Order and trade queries
 ethcli cowswap order <uid> --chain ethereum
 ethcli cowswap orders <owner> --chain ethereum
-ethcli cowswap trades <owner> --chain ethereum
+ethcli cowswap trades <owner> --chain ethereum --limit 100   # paginated, API default 10
 ethcli cowswap order-trades <uid> --chain ethereum
 
 # Auction data
 ethcli cowswap auction --chain ethereum
 ethcli cowswap competition <auction_id> --chain ethereum
+ethcli cowswap competition --tx-hash <tx> --chain ethereum
+ethcli cowswap competition --chain ethereum                  # latest
+
+# Cancel orders (signature over OrderCancellations(bytes[] orderUids))
+ethcli cowswap cancel-orders --uid <uid1>,<uid2> <signature> --chain ethereum
 
 # Get native token price
 ethcli cowswap native-price <token> --chain ethereum

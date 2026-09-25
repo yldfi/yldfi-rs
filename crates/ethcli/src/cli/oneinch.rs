@@ -129,7 +129,7 @@ pub async fn run(args: OneInchArgs, _chain: &str) -> anyhow::Result<()> {
     let Some(key) = api_key else {
         anyhow::bail!(
             "1inch API key required. Set ONEINCH_API_KEY or 1INCH_API_KEY environment variable.\n\
-             Get an API key at: https://portal.1inch.dev"
+             Get an API key at: https://business.1inch.com"
         );
     };
     let client = Client::new(&key)?;

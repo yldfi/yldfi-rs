@@ -5,7 +5,7 @@
 <h1 align="center">openoc</h1>
 
 <p align="center">
-  Unofficial Rust client for the <a href="https://openocean.finance/">OpenOcean</a> DEX Aggregator API
+  Unofficial Rust client for the <a href="https://de1.ai/">De¹</a> (formerly OpenOcean) DEX Aggregator API
 </p>
 
 <p align="center">
@@ -42,8 +42,8 @@ async fn main() -> Result<(), openoc::Error> {
     let request = QuoteRequest::new(
         "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // Native ETH
         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
-        "1", // 1 ETH (human readable)
-    ).with_gas_price("30000000000");
+        "1000000000000000000", // 1 ETH in wei (smallest units)
+    ).with_gas_price("30000000000"); // 30 gwei, in wei
 
     let quote = client.get_quote(Chain::Eth, &request).await?;
     println!("Output: {} USDC", quote.out_amount);
@@ -51,6 +51,17 @@ async fn main() -> Result<(), openoc::Error> {
     Ok(())
 }
 ```
+
+### Amount and gas price units
+
+Quote and swap requests use the v4 `amountDecimals` / `gasPriceDecimals`
+parameters (the human-unit `amount` / `gasPrice` are deprecated upstream):
+
+- `amount` is in the input token's smallest units (`"1000000"` = 1 USDC).
+- `gas_price` is in wei (`"30000000000"` = 30 gwei).
+
+`get_reverse_quote` still uses the documented legacy `amount` parameter,
+which is human-readable (`"1"` = 1 token).
 
 ## Getting Transaction Data
 
@@ -64,7 +75,7 @@ async fn main() -> Result<(), openoc::Error> {
     let request = SwapRequest::new(
         "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "1", // Human readable amount
+        "1000000000000000000", // smallest units (wei)
         "0xYourWalletAddress",
     ).with_slippage(1.0);
 
@@ -85,7 +96,7 @@ Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Fantom, Gnosis, zkS
 
 ## Terms of Service
 
-This is an **unofficial** client. By using this library, you agree to comply with [OpenOcean Terms of Service](https://openocean.finance/terms).
+This is an **unofficial** client. By using this library, you agree to comply with [De¹ (formerly OpenOcean) Terms of Service](https://de1.ai/).
 
 ## Disclaimer
 

@@ -4,7 +4,10 @@
 
 use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
-use cowp::{Client, OrderCreation, OrderKind, QuoteRequest, SigningScheme};
+use cowp::{
+    Client, EcdsaSigningScheme, OrderCancellations, OrderCreation, OrderKind, QuoteRequest,
+    SigningScheme, TradesQuery,
+};
 
 #[derive(Args, Clone)]
 pub struct CowSwapArgs {
@@ -63,19 +66,31 @@ pub enum CowSwapCommands {
         chain: String,
     },
 
-    /// Get trades for an address
+    /// Get trades for an address (paginated, newest first)
     Trades {
         /// Owner address
         owner: String,
+        /// Pagination offset
+        #[arg(long)]
+        offset: Option<u64>,
+        /// Max trades to return, 1-1000 (API default: 10)
+        #[arg(long)]
+        limit: Option<u32>,
         /// Chain
         #[arg(long, default_value = "ethereum")]
         chain: String,
     },
 
-    /// Get trades for an order
+    /// Get trades for an order (paginated, newest first)
     OrderTrades {
         /// Order UID
         uid: String,
+        /// Pagination offset
+        #[arg(long)]
+        offset: Option<u64>,
+        /// Max trades to return, 1-1000 (API default: 10)
+        #[arg(long)]
+        limit: Option<u32>,
         /// Chain
         #[arg(long, default_value = "ethereum")]
         chain: String,
@@ -88,10 +103,14 @@ pub enum CowSwapCommands {
         chain: String,
     },
 
-    /// Get solver competition for an auction
+    /// Get solver competition (by auction ID, by settlement tx hash, or latest)
     Competition {
-        /// Auction ID
-        auction_id: u64,
+        /// Auction ID (omit for the latest competition)
+        #[arg(conflicts_with = "tx_hash")]
+        auction_id: Option<u64>,
+        /// Settlement transaction hash
+        #[arg(long)]
+        tx_hash: Option<String>,
         /// Chain
         #[arg(long, default_value = "ethereum")]
         chain: String,
@@ -150,12 +169,31 @@ pub enum CowSwapCommands {
         chain: String,
     },
 
-    /// Cancel an order (requires EIP-712 signature)
+    /// Cancel a single order (deprecated API; prefer cancel-orders)
+    ///
+    /// Signature must be over `OrderCancellation(bytes orderUid)`.
     CancelOrder {
         /// Order UID to cancel
         uid: String,
         /// EIP-712 signature proving ownership
         signature: String,
+        /// Chain
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+
+    /// Cancel one or more orders (up to 128)
+    ///
+    /// Signature must be over `OrderCancellations(bytes[] orderUids)`.
+    CancelOrders {
+        /// Order UIDs to cancel (comma-separated or repeated)
+        #[arg(long = "uid", required = true, value_delimiter = ',')]
+        uids: Vec<String>,
+        /// Signature of `OrderCancellations` from the orders' owner
+        signature: String,
+        /// Signing scheme: eip712 or ethsign
+        #[arg(long, default_value = "eip712")]
+        signing_scheme: String,
         /// Chain
         #[arg(long, default_value = "ethereum")]
         chain: String,
@@ -204,15 +242,27 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
             output_json(&orders, args.format)?;
         }
 
-        CowSwapCommands::Trades { owner, chain } => {
+        CowSwapCommands::Trades {
+            owner,
+            offset,
+            limit,
+            chain,
+        } => {
             let cow_chain = chain_name_to_cow_chain(&chain)?;
-            let trades = client.get_trades_by_owner(Some(cow_chain), &owner).await?;
+            let query = paginate(TradesQuery::by_owner(owner), offset, limit);
+            let trades = client.get_trades(Some(cow_chain), &query).await?;
             output_json(&trades, args.format)?;
         }
 
-        CowSwapCommands::OrderTrades { uid, chain } => {
+        CowSwapCommands::OrderTrades {
+            uid,
+            offset,
+            limit,
+            chain,
+        } => {
             let cow_chain = chain_name_to_cow_chain(&chain)?;
-            let trades = client.get_trades_by_order(Some(cow_chain), &uid).await?;
+            let query = paginate(TradesQuery::by_order(uid), offset, limit);
+            let trades = client.get_trades(Some(cow_chain), &query).await?;
             output_json(&trades, args.format)?;
         }
 
@@ -222,11 +272,25 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
             output_json(&auction, args.format)?;
         }
 
-        CowSwapCommands::Competition { auction_id, chain } => {
+        CowSwapCommands::Competition {
+            auction_id,
+            tx_hash,
+            chain,
+        } => {
             let cow_chain = chain_name_to_cow_chain(&chain)?;
-            let competition = client
-                .get_solver_competition(Some(cow_chain), auction_id)
-                .await?;
+            let competition = match (auction_id, tx_hash) {
+                (Some(id), _) => client.get_solver_competition(Some(cow_chain), id).await?,
+                (None, Some(tx)) => {
+                    client
+                        .get_solver_competition_by_tx_hash(Some(cow_chain), &tx)
+                        .await?
+                }
+                (None, None) => {
+                    client
+                        .get_latest_solver_competition(Some(cow_chain))
+                        .await?
+                }
+            };
             output_json(&competition, args.format)?;
         }
 
@@ -294,14 +358,54 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
             chain,
         } => {
             let cow_chain = chain_name_to_cow_chain(&chain)?;
+            // The single-order endpoint is deprecated upstream but still served;
+            // keep it for signatures produced over `OrderCancellation(bytes)`.
+            #[allow(deprecated)]
             client
                 .cancel_order(Some(cow_chain), &uid, &signature)
                 .await?;
             println!("Order {} cancelled successfully", uid);
         }
+
+        CowSwapCommands::CancelOrders {
+            uids,
+            signature,
+            signing_scheme,
+            chain,
+        } => {
+            let cow_chain = chain_name_to_cow_chain(&chain)?;
+            let scheme = match signing_scheme.to_lowercase().as_str() {
+                "eip712" => EcdsaSigningScheme::Eip712,
+                "ethsign" => EcdsaSigningScheme::EthSign,
+                _ => anyhow::bail!(
+                    "Invalid signing scheme: {}. Use 'eip712' or 'ethsign'",
+                    signing_scheme
+                ),
+            };
+            if uids.len() > 128 {
+                anyhow::bail!("At most 128 orders can be cancelled per request");
+            }
+            let count = uids.len();
+            let cancellations =
+                OrderCancellations::new(uids, signature).with_signing_scheme(scheme);
+            client
+                .cancel_orders(Some(cow_chain), &cancellations)
+                .await?;
+            println!("{} order(s) cancelled successfully", count);
+        }
     }
 
     Ok(())
+}
+
+fn paginate(mut query: TradesQuery, offset: Option<u64>, limit: Option<u32>) -> TradesQuery {
+    if let Some(offset) = offset {
+        query = query.offset(offset);
+    }
+    if let Some(limit) = limit {
+        query = query.limit(limit);
+    }
+    query
 }
 
 fn chain_name_to_cow_chain(name: &str) -> anyhow::Result<cowp::Chain> {

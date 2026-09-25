@@ -5,7 +5,8 @@
 
 use crate::error::{self, Error, Result};
 use crate::types::{
-    ApiError, Chain, Order, OrderCreation, OrderResponse, QuoteRequest, QuoteResponse, Trade,
+    ApiError, Chain, Order, OrderCancellations, OrderCreation, OrderResponse, QuoteRequest,
+    QuoteResponse, Trade, TradesQuery,
 };
 use serde::de::DeserializeOwned;
 use std::time::Duration;
@@ -252,8 +253,11 @@ impl Client {
 
     /// Cancel order by UID
     ///
-    /// Note: This requires a signature proving ownership.
-    /// Uses DELETE method directly since `BaseClient` doesn't provide a delete helper.
+    /// Note: This requires an EIP-712 signature of `OrderCancellation(bytes orderUid)`.
+    #[deprecated(
+        since = "0.1.5",
+        note = "CoW Protocol deprecated `DELETE /api/v1/orders/{uid}`; use `cancel_orders` with a signed `OrderCancellations` payload"
+    )]
     pub async fn cancel_order(
         &self,
         chain: Option<Chain>,
@@ -261,14 +265,37 @@ impl Client {
         signature: &str,
     ) -> Result<()> {
         let path = format!("/api/v1/orders/{uid}");
-        let url = format!("{}{}", self.base_url(chain), path);
-
         let body = serde_json::json!({
             "signature": signature,
             "signingScheme": "eip712"
         });
+        self.delete(chain, &path, &body).await
+    }
 
-        let response = self.base.http().delete(&url).json(&body).send().await?;
+    /// Cancel one or more orders (`DELETE /api/v1/orders`)
+    ///
+    /// The signature must be an EIP-712 (or `eth_sign`) signature of
+    /// `OrderCancellations(bytes[] orderUids)` from the orders' owner. Up to
+    /// 128 orders can be cancelled per request. This is a best-effort
+    /// cancellation: solvers may still settle an order that is already part
+    /// of an in-flight settlement.
+    pub async fn cancel_orders(
+        &self,
+        chain: Option<Chain>,
+        cancellations: &OrderCancellations,
+    ) -> Result<()> {
+        self.delete(chain, "/api/v1/orders", cancellations).await
+    }
+
+    /// Send a DELETE request with a JSON body, expecting no response body
+    async fn delete<B: serde::Serialize + ?Sized>(
+        &self,
+        chain: Option<Chain>,
+        path: &str,
+        body: &B,
+    ) -> Result<()> {
+        let url = format!("{}{}", self.base_url(chain), path);
+        let response = self.base.http().delete(&url).json(body).send().await?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -279,7 +306,41 @@ impl Client {
         Ok(())
     }
 
+    /// Get trades (paginated, `GET /api/v2/trades`)
+    ///
+    /// Results are sorted newest first. When `limit` is unset the API
+    /// returns at most 10 trades; page through results by increasing
+    /// `offset` until a page shorter than `limit` is returned.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use cowp::{Client, TradesQuery};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), cowp::Error> {
+    ///     let client = Client::new()?;
+    ///     let query = TradesQuery::by_owner("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+    ///         .limit(100);
+    ///     let trades = client.get_trades(None, &query).await?;
+    ///     println!("{} trades", trades.len());
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_trades(
+        &self,
+        chain: Option<Chain>,
+        query: &TradesQuery,
+    ) -> Result<Vec<Trade>> {
+        let path = format!("/api/v2/trades?{}", query.to_query_string());
+        self.get(chain, &path).await
+    }
+
     /// Get trades by owner
+    #[deprecated(
+        since = "0.1.5",
+        note = "CoW Protocol deprecated unpaginated `GET /api/v1/trades`; use `get_trades(chain, &TradesQuery::by_owner(owner))`"
+    )]
     pub async fn get_trades_by_owner(
         &self,
         chain: Option<Chain>,
@@ -290,6 +351,10 @@ impl Client {
     }
 
     /// Get trades for an order
+    #[deprecated(
+        since = "0.1.5",
+        note = "CoW Protocol deprecated unpaginated `GET /api/v1/trades`; use `get_trades(chain, &TradesQuery::by_order(uid))`"
+    )]
     pub async fn get_trades_by_order(
         &self,
         chain: Option<Chain>,
@@ -305,12 +370,33 @@ impl Client {
     }
 
     /// Get solver competition data for a specific auction
+    /// (`GET /api/v2/solver_competition/{auction_id}`)
     pub async fn get_solver_competition(
         &self,
         chain: Option<Chain>,
         auction_id: u64,
     ) -> Result<serde_json::Value> {
-        let path = format!("/api/v1/solver_competition/{auction_id}");
+        let path = format!("/api/v2/solver_competition/{auction_id}");
+        self.get(chain, &path).await
+    }
+
+    /// Get solver competition data for the most recent auction
+    /// (`GET /api/v2/solver_competition/latest`)
+    pub async fn get_latest_solver_competition(
+        &self,
+        chain: Option<Chain>,
+    ) -> Result<serde_json::Value> {
+        self.get(chain, "/api/v2/solver_competition/latest").await
+    }
+
+    /// Get solver competition data by settlement transaction hash
+    /// (`GET /api/v2/solver_competition/by_tx_hash/{tx_hash}`)
+    pub async fn get_solver_competition_by_tx_hash(
+        &self,
+        chain: Option<Chain>,
+        tx_hash: &str,
+    ) -> Result<serde_json::Value> {
+        let path = format!("/api/v2/solver_competition/by_tx_hash/{tx_hash}");
         self.get(chain, &path).await
     }
 
@@ -369,6 +455,32 @@ mod tests {
         assert_eq!(request.kind, OrderKind::Buy);
         assert!(request.sell_amount_before_fee.is_none());
         assert!(request.buy_amount_after_fee.is_some());
+    }
+
+    #[test]
+    fn test_trades_query_string() {
+        let q = TradesQuery::by_owner("0xabc");
+        assert_eq!(q.to_query_string(), "owner=0xabc");
+        let q = TradesQuery::by_order("0xdef").offset(20).limit(10);
+        assert_eq!(q.to_query_string(), "orderUid=0xdef&offset=20&limit=10");
+    }
+
+    #[test]
+    fn test_order_cancellations_serialization() {
+        let c = OrderCancellations::new(vec!["0x01".into()], "0xsig");
+        assert_eq!(
+            serde_json::to_value(&c).unwrap(),
+            serde_json::json!({
+                "orderUids": ["0x01"],
+                "signature": "0xsig",
+                "signingScheme": "eip712"
+            })
+        );
+        let c = c.with_signing_scheme(crate::types::EcdsaSigningScheme::EthSign);
+        assert_eq!(
+            serde_json::to_value(&c).unwrap()["signingScheme"],
+            "ethsign"
+        );
     }
 
     #[test]

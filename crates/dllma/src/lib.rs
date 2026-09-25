@@ -273,7 +273,7 @@ impl Client {
     /// ```no_run
     /// # async fn example() -> dllma::error::Result<()> {
     /// let client = dllma::Client::with_api_key("your-key")?;
-    /// let btc_etfs = client.etf().overview().await?;
+    /// let etfs = client.etf().snapshot().await?;
     /// # Ok(())
     /// # }
     /// ```
