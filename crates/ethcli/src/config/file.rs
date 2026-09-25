@@ -107,10 +107,6 @@ pub struct ConfigFile {
     #[serde(default)]
     pub dune: Option<DuneConfig>,
 
-    /// Dune SIM configuration (separate from Dune Analytics)
-    #[serde(default)]
-    pub dune_sim: Option<DuneSimConfig>,
-
     /// Chainlink Data Streams configuration
     #[serde(default)]
     pub chainlink: Option<ChainlinkConfig>,
@@ -211,17 +207,6 @@ pub struct MoralisConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuneConfig {
     /// Dune API key
-    #[serde(
-        serialize_with = "serialize_secret",
-        deserialize_with = "deserialize_secret"
-    )]
-    pub api_key: SecretString,
-}
-
-/// Dune SIM API configuration (separate from Dune Analytics)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DuneSimConfig {
-    /// Dune SIM API key
     #[serde(
         serialize_with = "serialize_secret",
         deserialize_with = "deserialize_secret"
@@ -723,6 +708,25 @@ urls = ["https://disabled.com/rpc"]
         assert_eq!(
             config.etherscan_api_key.as_ref().map(|s| s.expose_secret()),
             Some("test_key")
+        );
+    }
+
+    #[test]
+    fn test_parse_config_ignores_retired_dune_sim_section() {
+        // Dune Sim support was removed; existing config files that still carry
+        // a [dune_sim] section must keep loading.
+        let toml = r#"
+[dune]
+api_key = "dune_key"
+
+[dune_sim]
+api_key = "old_sim_key"
+"#;
+
+        let config: ConfigFile = toml::from_str(toml).expect("legacy [dune_sim] should parse");
+        assert_eq!(
+            config.dune.as_ref().map(|d| d.api_key.expose_secret()),
+            Some("dune_key")
         );
     }
 
