@@ -882,14 +882,19 @@ async fn handle_chainlist(action: &ChainlistCommands) -> anyhow::Result<()> {
 #[derive(serde::Deserialize)]
 struct ChainlistEntry {
     name: String,
+    #[serde(default)]
     chain: String,
     #[serde(rename = "chainId")]
     chain_id: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_lenient_vec")]
     rpc: Vec<ChainlistRpc>,
-    #[serde(rename = "nativeCurrency")]
+    #[serde(
+        rename = "nativeCurrency",
+        default,
+        deserialize_with = "deserialize_lenient_option"
+    )]
     native_currency: Option<ChainlistCurrency>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_lenient_vec")]
     explorers: Vec<ChainlistExplorer>,
     #[serde(default)]
     status: Option<String>,
@@ -925,8 +930,47 @@ async fn fetch_chainlist() -> anyhow::Result<Vec<ChainlistEntry>> {
         .timeout(std::time::Duration::from_secs(30))
         .build()?;
     let resp = client.get("https://chainlist.org/rpcs.json").send().await?;
-    let chains: Vec<ChainlistEntry> = resp.json().await?;
-    Ok(chains)
+    let raw: Vec<serde_json::Value> = resp.json().await?;
+    Ok(parse_chainlist_entries(raw))
+}
+
+/// Parse chainlist entries one by one, skipping malformed ones.
+///
+/// chainlist.org is community-maintained; a single bad entry (e.g. missing
+/// `chainId`) must not make the whole command fail.
+fn parse_chainlist_entries(raw: Vec<serde_json::Value>) -> Vec<ChainlistEntry> {
+    raw.into_iter()
+        .filter_map(|v| serde_json::from_value::<ChainlistEntry>(v).ok())
+        .collect()
+}
+
+/// Deserialize a JSON array, silently dropping elements that fail to parse
+/// (and treating a non-array / null value as empty).
+fn deserialize_lenient_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    use serde::Deserialize;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Array(items) => items
+            .into_iter()
+            .filter_map(|item| serde_json::from_value(item).ok())
+            .collect(),
+        _ => Vec::new(),
+    })
+}
+
+/// Deserialize an optional value, mapping parse failures to `None`.
+fn deserialize_lenient_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    use serde::Deserialize;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 async fn chainlist_search(query: &str, testnets: bool) -> anyhow::Result<()> {
@@ -2600,4 +2644,33 @@ fn handle_help_json(args: &[String]) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod chainlist_tests {
+    use super::*;
+
+    #[test]
+    fn chainlist_skips_malformed_entries() {
+        let raw: Vec<serde_json::Value> = serde_json::from_str(
+            r#"[
+                {"name": "Ethereum", "chain": "ETH", "chainId": 1,
+                 "rpc": [{"url": "https://a.example"}, "https://legacy-string", {"nourl": 1}],
+                 "nativeCurrency": {"name": "Ether", "symbol": "ETH", "decimals": 18},
+                 "explorers": [{"name": "x", "url": "https://x"}, 5]},
+                {"name": "No chain field", "chainId": 2, "rpc": []},
+                {"name": "Bad chain id", "chain": "X", "chainId": "oops"},
+                {"name": "Bad currency", "chain": "Y", "chainId": 3, "nativeCurrency": 7},
+                42
+            ]"#,
+        )
+        .unwrap();
+        let entries = parse_chainlist_entries(raw);
+        let ids: Vec<u64> = entries.iter().map(|e| e.chain_id).collect();
+        assert_eq!(ids, vec![1, 2, 3]);
+        assert_eq!(entries[0].rpc.len(), 1);
+        assert_eq!(entries[0].explorers.len(), 1);
+        assert!(entries[1].chain.is_empty());
+        assert!(entries[2].native_currency.is_none());
+    }
 }
