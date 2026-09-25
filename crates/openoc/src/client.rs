@@ -217,25 +217,32 @@ impl Client {
 
     /// Get a reverse quote (specify output amount, calculate input)
     ///
-    /// This is for "exact output" swaps where you want a specific amount of the output token.
+    /// This is for "exact output" swaps: you want to receive `buy_amount` of
+    /// `buy_token` and need to know how much `sell_token` to spend.
     ///
-    /// Note: the v4 docs only document the legacy `amount` parameter for
-    /// `/reverseQuote`, which is a human-readable amount (e.g. "1" for 1 BNB),
-    /// not smallest units. `out_amount` is passed through unchanged.
+    /// Per the v4 docs, `/reverseQuote` is a buy flow whose token parameters
+    /// are *reversed* relative to a normal quote: `inTokenAddress` is the
+    /// token you want to receive and `outTokenAddress` the token you sell.
+    /// This method performs that swap for you. `buy_amount` is human-readable
+    /// (e.g. "1" for 1 token; the endpoint only documents the legacy `amount`
+    /// parameter). A gas price is fetched automatically - without one the API
+    /// returns `{"code":200}` with no data.
+    ///
+    /// In the returned [`QuoteData`], `in_token`/`in_amount` describe the
+    /// token being bought and `reverse_amount` is the required amount of
+    /// `sell_token` in its smallest units.
     pub async fn get_reverse_quote(
         &self,
         chain: Chain,
-        in_token: &str,
-        out_token: &str,
-        out_amount: &str,
+        sell_token: &str,
+        buy_token: &str,
+        buy_amount: &str,
     ) -> Result<QuoteData> {
         let path = format!("/{}/reverseQuote", chain.as_str());
-        let query: &[(&str, &str)] = &[
-            ("inTokenAddress", in_token),
-            ("outTokenAddress", out_token),
-            ("amount", out_amount),
-        ];
-        let response: QuoteResponse = self.base.get(&path, query).await?;
+        let mut params = reverse_quote_params(sell_token, buy_token, buy_amount);
+        self.ensure_gas_price(chain, &mut params).await?;
+        let query_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let response: QuoteResponse = self.base.get(&path, &query_refs).await?;
 
         if response.code != 200 {
             return Err(Error::api(
@@ -248,6 +255,20 @@ impl Client {
 
         response.data.ok_or_else(error::no_route_found)
     }
+}
+
+/// Build `/reverseQuote` params: the API's in/out tokens are reversed
+/// (`inTokenAddress` = token to receive).
+fn reverse_quote_params(
+    sell_token: &str,
+    buy_token: &str,
+    buy_amount: &str,
+) -> Vec<(&'static str, String)> {
+    vec![
+        ("inTokenAddress", buy_token.to_string()),
+        ("outTokenAddress", sell_token.to_string()),
+        ("amount", buy_amount.to_string()),
+    ]
 }
 
 /// Extract the "standard" gas price in wei from a `/gasPrice` response.
@@ -368,5 +389,34 @@ mod tests {
     fn test_parse_standard_gas_price_missing() {
         let v = serde_json::json!({"code":400,"error":"bad"});
         assert_eq!(parse_standard_gas_price(&v), None);
+    }
+
+    #[test]
+    fn test_reverse_quote_params_swap_tokens() {
+        // Selling USDC to receive 1 ETH: API wants inToken=ETH, outToken=USDC
+        let params = reverse_quote_params("0xUSDC", "0xETH", "1");
+        assert_eq!(params[0], ("inTokenAddress", "0xETH".to_string()));
+        assert_eq!(params[1], ("outTokenAddress", "0xUSDC".to_string()));
+        assert_eq!(params[2], ("amount", "1".to_string()));
+    }
+
+    #[test]
+    fn test_swap_data_accepts_numeric_estimated_gas() {
+        let json = r#"{"inToken":{"address":"0xe","decimals":18,"symbol":"ETH"},
+            "outToken":{"address":"0xa","decimals":6,"symbol":"USDC"},
+            "inAmount":"1","outAmount":"2","minOutAmount":"1","estimatedGas":690816,
+            "to":"0x6352","data":"0x","value":"1"}"#;
+        let data: crate::types::SwapData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.estimated_gas, "690816");
+    }
+
+    #[test]
+    fn test_quote_data_reverse_amount() {
+        let json = r#"{"inToken":{"address":"0xe","decimals":18,"symbol":"ETH"},
+            "outToken":{"address":"0xa","decimals":6,"symbol":"USDC"},
+            "inAmount":"1000000000000000000","outAmount":"2691463997",
+            "reverseAmount":"2773005623","estimatedGas":"334077"}"#;
+        let data: QuoteData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.reverse_amount.as_deref(), Some("2773005623"));
     }
 }

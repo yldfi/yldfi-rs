@@ -67,11 +67,12 @@ pub enum OpenOceanCommands {
         referrer: Option<String>,
     },
 
-    /// Get reverse quote (specify output amount)
+    /// Get reverse quote: how much of in_token to sell to receive out_amount
+    /// of out_token (reports requiredSellAmount in smallest units)
     ReverseQuote {
-        /// Source token address
+        /// Token to sell (source)
         in_token: String,
-        /// Destination token address
+        /// Token to receive (destination)
         out_token: String,
         /// Desired output amount, human-readable (e.g. "1" for 1 token; the
         /// /reverseQuote endpoint only documents the legacy `amount` param)
@@ -153,7 +154,18 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
             let quote = client
                 .get_reverse_quote(oo_chain, &in_token, &out_token, &out_amount)
                 .await?;
-            output_json(&quote, args.format)?;
+            // In the raw response in/out are reversed (inToken = token bought);
+            // surface the answer explicitly.
+            let summary = serde_json::json!({
+                "sellToken": quote.out_token.address,
+                "sellSymbol": quote.out_token.symbol,
+                "requiredSellAmount": quote.reverse_amount,
+                "buyToken": quote.in_token.address,
+                "buySymbol": quote.in_token.symbol,
+                "buyAmount": quote.in_amount,
+                "quote": quote,
+            });
+            output_json(&summary, args.format)?;
         }
 
         OpenOceanCommands::Tokens { chain } => {

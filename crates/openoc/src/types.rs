@@ -414,11 +414,15 @@ pub struct QuoteData {
     pub in_amount: String,
     /// Output amount (with decimals)
     pub out_amount: String,
-    /// Estimated gas
+    /// Estimated gas (the API returns a string or a number)
+    #[serde(deserialize_with = "deserialize_string_or_number")]
     pub estimated_gas: String,
     /// Minimum output after slippage
     #[serde(default)]
     pub min_out_amount: Option<String>,
+    /// Reverse quotes only: amount of the sold token required (smallest units)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reverse_amount: Option<String>,
     /// Price impact percentage
     #[serde(default)]
     pub price_impact: Option<String>,
@@ -452,7 +456,8 @@ pub struct SwapData {
     pub out_amount: String,
     /// Minimum output after slippage
     pub min_out_amount: String,
-    /// Estimated gas
+    /// Estimated gas (the v4 `/swap` endpoint returns a JSON number)
+    #[serde(deserialize_with = "deserialize_string_or_number")]
     pub estimated_gas: String,
     /// Contract address to call
     pub to: String,
@@ -543,6 +548,15 @@ pub struct DexInfo {
     pub code: String,
     /// DEX name
     pub name: String,
+}
+
+/// Deserialize a required value that can be a string or a number into String
+fn deserialize_string_or_number<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    deserialize_optional_string_or_number(deserializer)?
+        .ok_or_else(|| serde::de::Error::custom("expected a string or number, got null"))
 }
 
 /// Deserialize a value that can be either a string, integer, or null into Option<String>
