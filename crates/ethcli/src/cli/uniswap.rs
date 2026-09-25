@@ -222,6 +222,21 @@ fn resolve_rpc_url(arg: Option<&str>) -> String {
         .unwrap_or_else(|_| FALLBACK_RPC_URL.to_string())
 }
 
+/// Render an RPC URL for progress output without credentials.
+///
+/// Configured endpoints often embed API keys in userinfo, path or query, so
+/// only `scheme://host[:port]` is shown.
+fn rpc_display(url: &str) -> String {
+    match reqwest::Url::parse(url) {
+        Ok(u) => match (u.host_str(), u.port()) {
+            (Some(host), Some(port)) => format!("{}://{}:{}", u.scheme(), host, port),
+            (Some(host), None) => format!("{}://{}", u.scheme(), host),
+            _ => "RPC endpoint".to_string(),
+        },
+        Err(_) => "RPC endpoint".to_string(),
+    }
+}
+
 /// Resolve TheGraph API key from args, config, or env
 fn resolve_api_key(arg_key: &Option<String>) -> anyhow::Result<String> {
     // 1. Check arg
@@ -264,7 +279,7 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
-                eprintln!("Fetching pool state from {}...", rpc_url);
+                eprintln!("Fetching pool state from {}...", rpc_display(rpc_url));
             }
 
             let client = LensClient::mainnet(rpc_url)?;
@@ -290,7 +305,7 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
-                eprintln!("Fetching liquidity from {}...", rpc_url);
+                eprintln!("Fetching liquidity from {}...", rpc_display(rpc_url));
             }
 
             let client = LensClient::mainnet(rpc_url)?;
@@ -727,7 +742,7 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
             let account: Address = args.account.parse()?;
 
             if !quiet {
-                eprintln!("Fetching balance from {}...", rpc_url);
+                eprintln!("Fetching balance from {}...", rpc_display(rpc_url));
             }
 
             let client = LensClient::mainnet(rpc_url)?;
@@ -883,4 +898,30 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rpc_display_strips_credentials() {
+        assert_eq!(
+            rpc_display("https://user:secret@rpc.example.com/v2/abcdef0123456789?key=x"),
+            "https://rpc.example.com"
+        );
+        assert_eq!(
+            rpc_display("http://127.0.0.1:8545"),
+            "http://127.0.0.1:8545"
+        );
+        assert_eq!(rpc_display("not a url"), "RPC endpoint");
+    }
+
+    #[test]
+    fn explicit_rpc_url_wins() {
+        assert_eq!(
+            resolve_rpc_url(Some("https://example.invalid")),
+            "https://example.invalid"
+        );
+    }
 }
