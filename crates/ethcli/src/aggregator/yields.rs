@@ -420,8 +420,7 @@ async fn fetch_uniswap_v4_yields(chain: &str, api_key: &str) -> SourceResult<Vec
         "ethereum" | "mainnet" | "eth" => unswp::SubgraphConfig::mainnet_v4(api_key),
         "arbitrum" | "arb" => unswp::SubgraphConfig::arbitrum_v4(api_key),
         "base" => unswp::SubgraphConfig::base_v4(api_key),
-        "polygon" | "matic" => unswp::SubgraphConfig::mainnet_v4(api_key)
-            .with_subgraph_id(unswp::subgraph_ids::POLYGON_V4),
+        "polygon" | "matic" => unswp::SubgraphConfig::polygon_v4(api_key),
         _ => {
             return SourceResult::error(
                 "uniswap-v4",

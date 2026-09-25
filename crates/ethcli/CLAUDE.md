@@ -510,7 +510,9 @@ ethcli chainlink oracles
 ethcli chainlink oracles --chain ethereum
 ethcli chainlink oracles --chain arbitrum
 
-# Data Streams (requires API credentials)
+# Data Streams (requires API credentials). Defaults to mainnet
+# (api.dataengine.chain.link / ws.dataengine.chain.link); override with
+# CHAINLINK_REST_URL / CHAINLINK_WS_URL or [chainlink] rest_url / ws_url for testnet.
 ethcli chainlink streams feeds
 ethcli chainlink streams latest <feed_id>
 ethcli chainlink streams report <feed_id> <timestamp>

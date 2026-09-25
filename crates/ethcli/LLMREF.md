@@ -10,6 +10,10 @@ Condensed reference for LLM context. For full docs see CLAUDE.md.
 -q/--quiet           Suppress progress output
 ```
 
+Etherscan API no longer serves Scroll (534352), Moonbeam (1284), Moonriver (1285)
+or Swell (1923): Etherscan-backed commands (contract abi/source/creation/call,
+account history, gas) fail fast there; RPC commands still work.
+
 ## Core Commands
 
 ### Transaction Analysis
@@ -382,7 +386,7 @@ ethcli doctor                       # Diagnose issues
 | ENSO_API_KEY | enso commands | Enso Finance |
 | SOLODIT_API_KEY | solodit commands | Solodit DB |
 | PYTH_API_KEY | pyth price, price --source pyth | Pyth Hermes (required since Pyth Core upgrade) |
-| CHAINLINK_API_KEY | chainlink streams | Data Streams |
+| CHAINLINK_API_KEY | chainlink streams | Data Streams (mainnet by default) |
 | CHAINLINK_USER_SECRET | chainlink streams | Data Streams |
 
 ## Output Formats

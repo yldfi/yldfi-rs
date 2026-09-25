@@ -833,6 +833,9 @@ ethcli chainlink oracles
 ethcli chainlink oracles --chain arbitrum
 
 # Data Streams (requires CHAINLINK_API_KEY and CHAINLINK_USER_SECRET)
+# Defaults to mainnet (https://api.dataengine.chain.link / wss://ws.dataengine.chain.link).
+# For testnet, set CHAINLINK_REST_URL / CHAINLINK_WS_URL or
+# `ethcli config set-chainlink --rest-url ... --ws-url ...`.
 ethcli chainlink streams feeds
 ethcli chainlink streams latest <feed_id>
 ethcli chainlink streams report <feed_id> <timestamp>
@@ -1052,6 +1055,14 @@ ethcli --chain base gas oracle
 # Supported chains:
 # ethereum, polygon, arbitrum, optimism, base, bsc, avalanche
 ```
+
+**Etherscan API coverage:** Etherscan has ended API support for Scroll (534352,
+2026-04-16), Moonbeam (1284) and Moonriver (1285) (2026-07-31), and Swell
+(1923, 2026-02-25) — see the [Etherscan changelog](https://docs.etherscan.io/changelog).
+On those chains, Etherscan-backed commands (`contract abi/source/creation/call`,
+`account` history, `gas`) fail fast with an explanatory error; RPC-based
+commands keep working. If your Etherscan plan does not cover a chain or
+endpoint, the error is reported as an "Etherscan plan restriction".
 
 ## Configuration
 

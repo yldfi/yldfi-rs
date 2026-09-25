@@ -558,10 +558,9 @@ async fn fetch_uniswap_portfolio(
                         Some(unswp::SubgraphConfig::arbitrum_v4(&api_key))
                     }
                     "base" | "base-mainnet" => Some(unswp::SubgraphConfig::base_v4(&api_key)),
-                    "polygon" | "matic" | "polygon-mainnet" => Some(
-                        unswp::SubgraphConfig::mainnet_v4(&api_key)
-                            .with_subgraph_id(unswp::subgraph_ids::POLYGON_V4),
-                    ),
+                    "polygon" | "matic" | "polygon-mainnet" => {
+                        Some(unswp::SubgraphConfig::polygon_v4(&api_key))
+                    }
                     _ => None,
                 };
 
