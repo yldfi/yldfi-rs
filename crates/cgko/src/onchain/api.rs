@@ -120,8 +120,18 @@ impl<'a> OnchainApi<'a> {
     }
 
     /// Get top pools across all networks
+    ///
+    /// CoinGecko has no `/onchain/networks/pools` endpoint (it returns 404).
+    /// This now redirects to [`Self::megafilter`] sorted by 24h USD volume,
+    /// which requires an Analyst plan or above. Use [`Self::top_pools`] for
+    /// a single network on any plan.
+    #[deprecated(
+        since = "0.1.5",
+        note = "`/onchain/networks/pools` does not exist; use `top_pools(network)` or `megafilter(&MegafilterOptions::new().with_sort(\"h24_volume_usd_desc\"))`"
+    )]
     pub async fn top_pools_all(&self) -> Result<PoolsResponse> {
-        self.client.get("/onchain/networks/pools").await
+        self.megafilter(&MegafilterOptions::new().with_sort("h24_volume_usd_desc"))
+            .await
     }
 
     /// Get multiple pools by addresses

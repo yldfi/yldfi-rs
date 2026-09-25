@@ -245,7 +245,8 @@ pub enum OnchainCommands {
 
     /// Get top pools
     TopPools {
-        /// Network ID (optional, all networks if omitted)
+        /// Network ID. If omitted, uses the megafilter endpoint sorted by
+        /// 24h volume across all networks (requires Analyst plan or above)
         network: Option<String>,
     },
 
@@ -646,7 +647,16 @@ async fn handle_onchain(
             let response = if let Some(net) = network {
                 client.onchain().top_pools(net).await?
             } else {
-                client.onchain().top_pools_all().await?
+                // CoinGecko has no all-network top pools endpoint; megafilter
+                // sorted by 24h volume is the closest equivalent (paid plans).
+                let options =
+                    cgko::onchain::MegafilterOptions::new().with_sort("h24_volume_usd_desc");
+                client.onchain().megafilter(&options).await.map_err(|e| {
+                    anyhow::anyhow!(
+                        "{e}\nhint: top pools across all networks uses the megafilter \
+                         endpoint (Analyst plan or above); pass a network ID instead"
+                    )
+                })?
             };
             print_output(&response, args.format)?;
         }

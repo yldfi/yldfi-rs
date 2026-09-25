@@ -425,12 +425,21 @@ pub struct MegafilterOptions {
     pub dexes: Option<Vec<String>>,
     pub include: Option<Vec<String>>,
     pub page: Option<u32>,
+    /// Sort order, e.g. `h24_volume_usd_desc` (API default: `h6_trending`)
+    pub sort: Option<String>,
 }
 
 impl MegafilterOptions {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the sort order (e.g. `h24_volume_usd_desc`, `reserve_in_usd_desc`)
+    #[must_use]
+    pub fn with_sort(mut self, sort: impl Into<String>) -> Self {
+        self.sort = Some(sort.into());
+        self
     }
 
     #[must_use]
@@ -448,10 +457,32 @@ impl MegafilterOptions {
         if let Some(page) = self.page {
             params.push(format!("page={page}"));
         }
+        if let Some(ref sort) = self.sort {
+            params.push(format!("sort={sort}"));
+        }
         if params.is_empty() {
             String::new()
         } else {
             format!("?{}", params.join("&"))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MegafilterOptions;
+
+    #[test]
+    fn megafilter_query_includes_sort() {
+        assert_eq!(MegafilterOptions::new().to_query_string(), "");
+        let opts = MegafilterOptions {
+            networks: Some(vec!["eth".into()]),
+            ..MegafilterOptions::new()
+        }
+        .with_sort("h24_volume_usd_desc");
+        assert_eq!(
+            opts.to_query_string(),
+            "?networks=eth&sort=h24_volume_usd_desc"
+        );
     }
 }
