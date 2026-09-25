@@ -6,7 +6,8 @@ Unofficial Rust client for the [Solodit](https://solodit.cyfrin.io) smart contra
 
 - Search vulnerability findings by keywords
 - Filter by impact level (HIGH, MEDIUM, LOW, GAS)
-- Filter by audit firm, tags, protocol, language
+- Filter by audit firm, tags, protocol, protocol category, forked protocol, language
+- Filter by finder handle / finder count and report date (`30`/`60`/`90` days, `after` a date)
 - Filter by quality and rarity scores
 - Pagination support with rate limit tracking
 - Full response metadata and rate limit info
@@ -33,7 +34,7 @@ use sldt::Client;
 
 #[tokio::main]
 async fn main() -> sldt::Result<()> {
-    let client = Client::new("sk_your_api_key_here");
+    let client = Client::new("sk_your_api_key_here")?;
 
     let results = client.search("reentrancy").await?;
 
@@ -58,7 +59,7 @@ use sldt::{Client, SearchFilter, Impact};
 
 #[tokio::main]
 async fn main() -> sldt::Result<()> {
-    let client = Client::new("sk_your_api_key");
+    let client = Client::new("sk_your_api_key")?;
 
     let filter = SearchFilter::new("flash loan")
         .impact(Impact::High)
@@ -88,7 +89,7 @@ use sldt::{Client, SearchFilter};
 
 #[tokio::main]
 async fn main() -> sldt::Result<()> {
-    let client = Client::new("sk_your_api_key");
+    let client = Client::new("sk_your_api_key")?;
 
     let mut paginator = client.paginate(
         SearchFilter::new("oracle")
@@ -116,7 +117,7 @@ use sldt::{Client, SearchFilter, Impact, ReportedPeriod};
 
 #[tokio::main]
 async fn main() -> sldt::Result<()> {
-    let client = Client::new("sk_your_api_key");
+    let client = Client::new("sk_your_api_key")?;
 
     let filter = SearchFilter::new("price manipulation")
         // Impact levels
@@ -133,6 +134,7 @@ async fn main() -> sldt::Result<()> {
 
         // Protocol filters
         .protocol_category("DeFi")
+        .forked("Compound")
         .language("Solidity")
 
         // Date filter
@@ -157,33 +159,76 @@ async fn main() -> sldt::Result<()> {
 }
 ```
 
+### Fetching a Single Finding
+
+The official API only has `POST /findings` (no get-by-id endpoint).
+`Client::get_by_slug` is therefore a **best-effort** lookup: it searches using the
+slug text as keywords (then with dashes replaced by spaces) and returns the finding
+whose `slug` or `id` matches exactly. It accepts a slug, an ID, or a full
+`https://solodit.cyfrin.io/issues/<slug>` URL, costs 1-2 requests, and may return
+`Error::NotFound` for findings whose text does not match their slug.
+
 ## Rate Limiting
 
-The API has a rate limit of **20 requests per 60-second window**. The response includes rate limit information:
+The API has a rate limit of **20 requests per 60-second window**. Rate limit info is
+returned both in the body (`rateLimit`) and in `X-RateLimit-Limit` /
+`X-RateLimit-Remaining` / `X-RateLimit-Reset` headers:
 
 ```rust
 let results = client.search("test").await?;
-println!("Remaining: {}", results.rate_limit.remaining);
+println!("Remaining: {}", results.rate_limit.remaining); // body, falls back to headers
 println!("Limit: {}", results.rate_limit.limit);
 println!("Resets at: {}", results.rate_limit.reset); // Unix timestamp
+println!("Headers: {:?}", results.rate_limit_headers); // raw X-RateLimit-* values
 ```
 
 ## Error Handling
 
+Server error messages (`{"message": ...}`) are preserved. The API key is never
+included in error messages.
+
 ```rust
 use sldt::{Client, Error};
 
-async fn example() {
-    let client = Client::new("sk_your_api_key");
+async fn example() -> sldt::Result<()> {
+    let client = Client::new("sk_your_api_key")?;
 
     match client.search("test").await {
         Ok(results) => println!("Found {} results", results.total),
-        Err(Error::Unauthorized) => println!("Invalid API key"),
-        Err(Error::RateLimited) => println!("Rate limit exceeded, wait and retry"),
-        Err(Error::NotFound(slug)) => println!("Finding not found: {}", slug),
-        Err(e) => println!("Error: {}", e),
+        // 401: "Missing API key" or "Invalid API key". Keys are managed at
+        // solodit.cyfrin.io (Profile > API Keys); regenerating invalidates the old key.
+        Err(e) if e.is_invalid_api_key() => println!("Key rejected: {e}"),
+        Err(Error::Unauthorized { message }) => println!("Unauthorized: {message}"),
+        // 429: includes X-RateLimit-Reset when the server sends it
+        Err(Error::RateLimited { reset, .. }) => println!("Rate limited, resets at {reset:?}"),
+        // 400 and others: server message in `message`
+        Err(Error::Api { status, message }) => println!("{status}: {message}"),
+        Err(e) => println!("Error: {e}"),
     }
+    Ok(())
 }
+```
+
+## Response Tolerance and Known Upstream Quirks
+
+Response parsing is deliberately lenient so that one odd field cannot fail a whole
+page: IDs are accepted as JSON strings or numbers (the API serializes BigInts),
+numeric fields accept numeric strings, malformed nested objects become `None`,
+and array entries that fail to parse are skipped.
+
+Known upstream quirks ([solodit/solodit_content#153](https://github.com/solodit/solodit_content/issues/153)):
+
+- `report_date` is sometimes returned as `{}` (mapped to `None`)
+- `protocols_protocol.protocols_protocolcategoryscore` is currently always `[]`
+- The tags field is `issues_issuetagscore` (some docs call it `issues_issuetags`)
+
+## Testing
+
+`cargo test -p sldt` runs offline tests against a wiremock server using a fixture
+built from the spec's response schema. A live smoke test is available:
+
+```bash
+SOLODIT_API_KEY=sk_... cargo test -p sldt --test mock_api -- --ignored
 ```
 
 ## Terms of Service

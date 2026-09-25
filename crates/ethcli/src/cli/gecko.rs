@@ -316,22 +316,25 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
     let config = ConfigFile::load_default().ok().flatten();
     let gecko_config = config.as_ref().and_then(|c| c.coingecko.as_ref());
 
-    let client = if let Some(cfg) = gecko_config {
+    let (client, tier) = if let Some(cfg) = gecko_config {
         if cfg.use_pro {
             // Pro API - requires API key
             if let Some(ref api_key) = cfg.api_key {
-                cgko::Client::pro(api_key.expose_secret())?
+                (cgko::Client::pro(api_key.expose_secret())?, GeckoTier::Pro)
             } else if let Ok(api_key) = std::env::var("COINGECKO_API_KEY") {
-                cgko::Client::pro(&api_key)?
+                (cgko::Client::pro(&api_key)?, GeckoTier::Pro)
             } else {
                 anyhow::bail!("CoinGecko Pro enabled but no API key in config or COINGECKO_API_KEY environment")
             }
         } else if let Some(ref api_key) = cfg.api_key {
             // Demo API with key (higher rate limits than free)
-            cgko::Client::demo(Some(api_key.expose_secret().to_string()))?
+            (
+                cgko::Client::demo(Some(api_key.expose_secret().to_string()))?,
+                GeckoTier::Demo,
+            )
         } else {
             // Free public API
-            cgko::Client::new()?
+            (cgko::Client::new()?, GeckoTier::Public)
         }
     } else if let Ok(api_key) = std::env::var("COINGECKO_API_KEY") {
         // Env var present - check if pro mode
@@ -339,15 +342,16 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
             .map(|v| v == "true" || v == "1")
             .unwrap_or(false)
         {
-            cgko::Client::pro(&api_key)?
+            (cgko::Client::pro(&api_key)?, GeckoTier::Pro)
         } else {
-            cgko::Client::demo(Some(api_key))?
+            (cgko::Client::demo(Some(api_key))?, GeckoTier::Demo)
         }
     } else {
-        cgko::Client::new()?
+        (cgko::Client::new()?, GeckoTier::Public)
     };
 
-    match command {
+    let is_onchain = matches!(command, GeckoCommands::Onchain { .. });
+    let result = match command {
         GeckoCommands::Simple { action, args } => handle_simple(&client, action, args, quiet).await,
         GeckoCommands::Coins { action, args } => handle_coins(&client, action, args, quiet).await,
         GeckoCommands::Global { action, args } => handle_global(&client, action, args, quiet).await,
@@ -355,7 +359,20 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
         GeckoCommands::Onchain { action, args } => {
             handle_onchain(&client, action, args, quiet).await
         }
-    }
+    };
+    // Apply plan/key-aware error explanations to *every* gecko command.
+    result.map_err(|e| enhance_gecko_error(e, tier, is_onchain))
+}
+
+/// Which CoinGecko API tier the client is using
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GeckoTier {
+    /// Keyless public API
+    Public,
+    /// Demo key
+    Demo,
+    /// Pro (paid) key
+    Pro,
 }
 
 async fn handle_simple(
@@ -592,20 +609,77 @@ async fn handle_nfts(
     Ok(())
 }
 
-/// Helper to convert cgko errors to more helpful messages
-fn enhance_api_error(err: cgko::error::Error) -> anyhow::Error {
-    let err_str = err.to_string();
-    // Check for 401/unauthorized errors
-    if err_str.contains("401") || err_str.to_lowercase().contains("unauthorized") {
-        anyhow::anyhow!(
-            "API authentication failed (401 Unauthorized). \
-            The CoinGecko onchain API requires a Pro API key. \
-            Set COINGECKO_API_KEY environment variable or configure via: \
-            ethcli config set-gecko-key <your-pro-key>"
-        )
-    } else {
-        anyhow::Error::from(err)
+const GECKO_KEY_HINT: &str = "Set COINGECKO_API_KEY (and COINGECKO_PRO=1 for a Pro key) \
+     or configure via: ethcli config set-gecko-key <key>";
+
+/// Explain CoinGecko plan / key errors instead of passing raw JSON through.
+///
+/// Classification uses the typed error variant/status (see
+/// `cgko::error::Error`); the upstream message is always kept.
+fn enhance_gecko_error(err: anyhow::Error, tier: GeckoTier, is_onchain: bool) -> anyhow::Error {
+    let Some(api_err) = err.downcast_ref::<cgko::error::Error>() else {
+        return err;
+    };
+    match explain_gecko_error(api_err, tier, is_onchain) {
+        Some(msg) => anyhow::anyhow!(msg),
+        None => err,
     }
+}
+
+fn explain_gecko_error(
+    err: &cgko::error::Error,
+    tier: GeckoTier,
+    is_onchain: bool,
+) -> Option<String> {
+    use cgko::error::ApiError;
+
+    let (status, upstream) = match err {
+        ApiError::Api { status, message } => (*status, message.as_str()),
+        ApiError::RateLimited { .. } => (429, ""),
+        _ => return None,
+    };
+
+    // Keyless onchain (GeckoTerminal) requests are rejected by CoinGecko,
+    // often first as a 429 "retry after 60s", which wrongly suggests waiting
+    // will help.
+    if is_onchain && tier == GeckoTier::Public && matches!(status, 401 | 403 | 429) {
+        return Some(format!(
+            "CoinGecko onchain endpoints require an API key; keyless requests are rejected \
+             (upstream returned {status}{}). {GECKO_KEY_HINT}",
+            if upstream.is_empty() {
+                String::new()
+            } else {
+                format!(": {upstream}")
+            }
+        ));
+    }
+
+    if matches!(status, 401 | 403) {
+        let lower = upstream.to_lowercase();
+        // error_code 10005: "This request is limited Pro API subscribers"
+        let pro_only = upstream.contains("10005") || lower.contains("pro api");
+        let msg = if pro_only && tier != GeckoTier::Pro {
+            format!(
+                "This CoinGecko endpoint requires a paid Pro API plan \
+                 (current: {}). Upstream ({status}): {upstream}. {GECKO_KEY_HINT}",
+                match tier {
+                    GeckoTier::Public => "no API key",
+                    GeckoTier::Demo => "demo key",
+                    GeckoTier::Pro => "pro key",
+                }
+            )
+        } else if tier == GeckoTier::Public {
+            format!(
+                "CoinGecko rejected the keyless request ({status}): {upstream}. {GECKO_KEY_HINT}"
+            )
+        } else {
+            format!(
+                "CoinGecko rejected the API key or plan ({status}): {upstream}. {GECKO_KEY_HINT}"
+            )
+        };
+        return Some(msg);
+    }
+    None
 }
 
 async fn handle_onchain(
@@ -682,11 +756,7 @@ async fn handle_onchain(
             if !quiet {
                 eprintln!("Fetching token {} on {}...", address, network);
             }
-            let response = client
-                .onchain()
-                .token(network, address)
-                .await
-                .map_err(enhance_api_error)?;
+            let response = client.onchain().token(network, address).await?;
             print_output(&response, args.format)?;
         }
         OnchainCommands::TokenPrice { network, addresses } => {
@@ -743,4 +813,43 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+    use cgko::error::Error;
+
+    #[test]
+    fn keyless_onchain_rate_limit_explains_key_requirement() {
+        let msg =
+            explain_gecko_error(&Error::rate_limited(Some(60)), GeckoTier::Public, true).unwrap();
+        assert!(msg.contains("require an API key"), "{msg}");
+        assert!(msg.contains("config set-gecko-key"), "{msg}");
+    }
+
+    #[test]
+    fn pro_only_endpoint_is_explained_with_upstream_message() {
+        let body = r#"{"status":{"error_code":10005,"error_message":"This request is limited Pro API subscribers"}}"#;
+        let msg = explain_gecko_error(&Error::api(401, body), GeckoTier::Demo, false).unwrap();
+        assert!(msg.contains("paid Pro API plan"), "{msg}");
+        assert!(msg.contains("demo key"), "{msg}");
+        assert!(msg.contains("10005"), "{msg}");
+    }
+
+    #[test]
+    fn non_auth_errors_pass_through() {
+        assert!(explain_gecko_error(&Error::api(404, "nope"), GeckoTier::Public, false).is_none());
+        // A public (non-onchain) rate limit is a genuine rate limit.
+        assert!(
+            explain_gecko_error(&Error::rate_limited(None), GeckoTier::Public, false).is_none()
+        );
+    }
+
+    #[test]
+    fn enhance_downcasts_anyhow() {
+        let err = anyhow::Error::from(Error::api(401, "Requests without API key are not allowed"));
+        let out = enhance_gecko_error(err, GeckoTier::Public, true).to_string();
+        assert!(out.contains("require an API key"), "{out}");
+    }
 }

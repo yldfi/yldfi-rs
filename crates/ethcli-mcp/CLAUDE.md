@@ -81,12 +81,12 @@ pub async fn my_tool(param: &str, chain: Option<&str>) -> Result<String, ToolErr
 3. **Register tool** in `main.rs`:
 ```rust
 #[tool(description = "Description of my tool")]
-async fn my_tool(&self, Parameters(input): Parameters<MyToolInput>) -> String {
+async fn my_tool(&self, Parameters(input): Parameters<MyToolInput>) -> CallToolResult {
     tools::my_tool(&input.param, Some(&input.chain)).await.to_response()
 }
 ```
 
-Note: The `ToResponse` trait (from `tools.rs`) converts `Result<String, E>` to `String`.
+Note: The `ToResponse` trait (from `tools.rs`) converts `Result<String, E>` to a `CallToolResult`: `Ok` is a (size-capped, see `MAX_RESPONSE_BYTES`) success and `Err` sets `isError: true`. A static test (`crates/ethcli/tests/mcp_tool_paths.rs`) checks every `ArgsBuilder` path/flag against the ethcli clap tree.
 
 When adding a tool, decide whether it is safe in default read-only mode:
 - Mutating local or remote state must call `require_write_tools_enabled(...)` in `tools.rs` and be covered by `validate_command_policy(...)` in `executor.rs`.

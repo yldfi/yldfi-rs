@@ -107,6 +107,20 @@ pub async fn execute(args: &NftsArgs, quiet: bool) -> anyhow::Result<()> {
         }
     };
 
+    if let Some(msg) = all_nft_sources_failed(&result.sources) {
+        anyhow::bail!(msg);
+    }
+
+    // Failed sources are always reported (not only with --show-sources).
+    if !quiet {
+        for s in result.sources.iter().filter(|s| !s.is_success()) {
+            eprintln!(
+                "Warning: NFT source {} failed: {}",
+                s.source,
+                s.error.as_deref().unwrap_or("no data returned")
+            );
+        }
+    }
     // Apply filters
     let mut aggregation = result.aggregated;
 
@@ -255,18 +269,18 @@ fn print_table_output(
                 .as_ref()
                 .map(|d| format!("{} NFTs", d.len()))
                 .unwrap_or_else(|| "-".to_string());
-            let error_note = source
-                .error
-                .as_ref()
-                .map(|e| format!(" ({})", truncate_str(e, 30)))
-                .unwrap_or_default();
-
             println!(
-                "{:<10} {:>12} {:>8}ms {:>6}{}",
-                source.source, count_str, source.latency_ms, status, error_note
+                "{:<10} {:>12} {:>8}ms {:>6}",
+                source.source, count_str, source.latency_ms, status
             );
         }
         println!("{}", "-".repeat(50));
+        // Full error messages (not truncated) below the table.
+        for source in sources {
+            if let Some(err) = &source.error {
+                println!("  {}: {}", source.source, err);
+            }
+        }
     }
 
     println!("Total time: {}ms (parallel)", output.total_latency_ms);
@@ -274,3 +288,47 @@ fn print_table_output(
 }
 
 // Use truncate_str from utils::format for Unicode-safe truncation
+
+/// Error message when no NFT source succeeded.
+fn all_nft_sources_failed(
+    sources: &[crate::aggregator::SourceResult<Vec<NftEntry>>],
+) -> Option<String> {
+    if sources.is_empty() || sources.iter().any(|s| s.is_success()) {
+        return None;
+    }
+    let mut msg = String::from("NFTs unavailable: every source failed");
+    for s in sources {
+        msg.push_str(&format!(
+            "\n  {}: {}",
+            s.source,
+            s.error.as_deref().unwrap_or("no data returned")
+        ));
+    }
+    Some(msg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aggregator::SourceResult;
+
+    #[test]
+    fn all_failed_nft_sources_is_error() {
+        let sources: Vec<SourceResult<Vec<NftEntry>>> = vec![
+            SourceResult::error("alchemy", "ethereum: Rate limited (429)", 1),
+            SourceResult::error("moralis", "ethereum: 401 Free usage is paused", 1),
+        ];
+        let msg = all_nft_sources_failed(&sources).expect("error");
+        assert!(msg.contains("Free usage is paused"));
+        assert!(msg.contains("Rate limited (429)"));
+    }
+
+    #[test]
+    fn one_ok_source_is_not_error() {
+        let sources: Vec<SourceResult<Vec<NftEntry>>> = vec![
+            SourceResult::error("alchemy", "boom", 1),
+            SourceResult::success("moralis", vec![], 1),
+        ];
+        assert!(all_nft_sources_failed(&sources).is_none());
+    }
+}
