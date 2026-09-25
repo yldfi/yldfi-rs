@@ -173,8 +173,12 @@ pub enum ConfigCommands {
         url: String,
     },
 
-    /// Show current config
-    Show,
+    /// Show current config (API keys, tokens and keyed RPC URLs are masked)
+    Show {
+        /// Print the config file verbatim, including secrets
+        #[arg(long)]
+        show_secrets: bool,
+    },
 
     /// Validate config file syntax and structure
     Validate,

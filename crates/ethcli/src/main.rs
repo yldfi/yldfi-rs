@@ -2121,12 +2121,28 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("Debug RPC URL removed from config file.");
         }
 
-        ConfigCommands::Show => {
+        ConfigCommands::Show { show_secrets } => {
             let path = ConfigFile::default_path();
             if path.exists() {
                 let content = std::fs::read_to_string(&path)?;
                 println!("# {}\n", path.display());
-                println!("{content}");
+                if *show_secrets {
+                    println!("{content}");
+                } else {
+                    match ethcli::config::redact::redact_config_toml(&content) {
+                        Ok(redacted) => {
+                            println!("# Secrets are masked. Use --show-secrets to print them.\n");
+                            println!("{redacted}");
+                        }
+                        Err(e) => {
+                            // Never fall back to printing a file we couldn't redact
+                            println!(
+                                "Config file is not valid TOML ({e}); not printing it because \
+                                 secrets could not be masked. Use --show-secrets to print it anyway."
+                            );
+                        }
+                    }
+                }
             } else {
                 println!("No config file found at: {}", path.display());
                 println!("\nCreate one with:");
