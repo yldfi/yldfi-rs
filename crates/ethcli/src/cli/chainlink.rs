@@ -20,7 +20,7 @@
 
 use crate::chainlink::{
     self, denominations, Aggregator, ChainlinkError, DataStreamsClient, FeedRegistry, PriceData,
-    DEFAULT_STREAMS_REST_URL,
+    DEFAULT_STREAMS_REST_URL, DEFAULT_STREAMS_WS_URL,
 };
 use crate::cli::rpc::parse_block_id;
 use crate::cli::OutputFormat;
@@ -697,7 +697,7 @@ fn get_streams_credentials() -> anyhow::Result<(String, String, String, String)>
     let ws_url = chainlink_config
         .and_then(|c| c.ws_url.clone())
         .or_else(|| std::env::var("CHAINLINK_WS_URL").ok())
-        .unwrap_or_else(|| "wss://ws.testnet-dataengine.chain.link".to_string());
+        .unwrap_or_else(|| DEFAULT_STREAMS_WS_URL.to_string());
 
     Ok((api_key, user_secret, rest_url, ws_url))
 }

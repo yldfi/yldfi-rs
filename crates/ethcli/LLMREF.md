@@ -10,6 +10,10 @@ Condensed reference for LLM context. For full docs see CLAUDE.md.
 -q/--quiet           Suppress progress output
 ```
 
+Etherscan API no longer serves Scroll (534352), Moonbeam (1284), Moonriver (1285)
+or Swell (1923): Etherscan-backed commands (contract abi/source/creation/call,
+account history, gas) fail fast there; RPC commands still work.
+
 ## Core Commands
 
 ### Transaction Analysis
@@ -183,12 +187,16 @@ ethcli llama yields --chain ethereum
 ```
 
 ### Moralis (requires MORALIS_API_KEY)
-Fantom is blocked for Moralis calls after Moralis' 2026-05-29 removal notice.
-Legacy Discovery, Volume, Market Data, selected ERC20 helper, and pair sniper
-commands are blocked ahead of the 2026-06-04 endpoint removal. The
-`token holders-historical` command is blocked ahead of the 2026-07-31 removal
-of `GET /erc20/{address}/holders/historical` (no documented replacement;
-`token holders` and `token holders-summary` remain supported).
+Fantom is blocked for Moralis calls (Moralis removed Fantom on 2026-05-29).
+The `moralis market` and `moralis volume` groups, the legacy `moralis discovery`
+list/filter commands, and `token stats|exchange-new-tokens|exchange-bonding-tokens|
+exchange-graduated-tokens|by-symbols|pairs-stats|pair-snipers|bonding-status`
+were removed after Moralis deleted those endpoints on 2026-06-04;
+`token holders-historical` was removed after its 2026-07-31 sunset.
+Replacements: `moralis token search` (Token Search), `moralis token trending`,
+`moralis analytics batch|timeseries` and `moralis discovery token-analytics`
+(Token Analytics), `moralis token pair-stats`, `moralis token holders-summary`.
+`moralis discovery token-score` remains (EVM chains only).
 
 ```bash
 ethcli moralis balance <addr>
@@ -341,7 +349,14 @@ ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --
 ethcli tenderly vnets admin --vnet <id> simulate-bundle '[{"from":"0x...","to":"0x..."}]' ...
 ethcli tenderly wallets list ...
 ethcli tenderly contracts add <addr> --network 1 ...
+ethcli tenderly contracts encode-state --network 1 '{"0xToken":{"value":{"balances[0xHolder]":"1000"}}}'
 ```
+Tenderly renamed Virtual TestNets to Virtual Environments
+(`/api/public/v1/.../environments`); the `/vnets` routes used here still work.
+Removed (no public Tenderly endpoint): `contracts verify|update`,
+`alerts add-destination|remove-destination`, `alerts webhooks test`,
+`actions enable|disable|invoke|logs|source|update-source` (use
+`actions stop|resume|get-call`), `simulate tx --via tenderly`.
 
 ## Configuration
 
@@ -382,7 +397,7 @@ ethcli doctor                       # Diagnose issues
 | ENSO_API_KEY | enso commands | Enso Finance |
 | SOLODIT_API_KEY | solodit commands | Solodit DB |
 | PYTH_API_KEY | pyth price, price --source pyth | Pyth Hermes (required since Pyth Core upgrade) |
-| CHAINLINK_API_KEY | chainlink streams | Data Streams |
+| CHAINLINK_API_KEY | chainlink streams | Data Streams (mainnet by default) |
 | CHAINLINK_USER_SECRET | chainlink streams | Data Streams |
 
 ## Output Formats

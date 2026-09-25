@@ -8,7 +8,19 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{digest::InvalidLength, Digest, Sha256};
 use thiserror::Error;
 
-pub const DEFAULT_STREAMS_REST_URL: &str = "https://api.testnet-dataengine.chain.link";
+/// Default Data Streams REST endpoint (mainnet).
+///
+/// See <https://docs.chain.link/data-streams/reference/data-streams-api/interface-api>.
+/// Override with `[chainlink] rest_url` in the config or `CHAINLINK_REST_URL`
+/// (testnet: `https://api.testnet-dataengine.chain.link`).
+pub const DEFAULT_STREAMS_REST_URL: &str = "https://api.dataengine.chain.link";
+
+/// Default Data Streams WebSocket endpoint (mainnet).
+///
+/// See <https://docs.chain.link/data-streams/reference/data-streams-api/interface-ws>.
+/// Override with `[chainlink] ws_url` in the config or `CHAINLINK_WS_URL`
+/// (testnet: `wss://ws.testnet-dataengine.chain.link`).
+pub const DEFAULT_STREAMS_WS_URL: &str = "wss://ws.dataengine.chain.link";
 
 const API_V1_FEEDS: &str = "/api/v1/feeds";
 const API_V1_REPORTS: &str = "/api/v1/reports";

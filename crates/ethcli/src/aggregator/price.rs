@@ -1385,7 +1385,7 @@ async fn fetch_chainlink_streams(
     token: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
-    use crate::chainlink::{DataStreamsClient, DEFAULT_STREAMS_REST_URL};
+    use crate::chainlink::{DataStreamsClient, DEFAULT_STREAMS_REST_URL, DEFAULT_STREAMS_WS_URL};
     use chainlink_data_streams_report::feed_id::ID;
 
     // Get credentials from cached config first, then fall back to environment variables
@@ -1431,7 +1431,7 @@ async fn fetch_chainlink_streams(
     let _ws_url = chainlink_config
         .and_then(|c| c.ws_url.clone())
         .or_else(|| std::env::var("CHAINLINK_WS_URL").ok())
-        .unwrap_or_else(|| "wss://ws.testnet-dataengine.chain.link".to_string());
+        .unwrap_or_else(|| DEFAULT_STREAMS_WS_URL.to_string());
 
     let client = match DataStreamsClient::new(api_key, user_secret, rest_url) {
         Ok(c) => c,

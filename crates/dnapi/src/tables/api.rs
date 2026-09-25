@@ -18,9 +18,11 @@ impl<'a> TablesApi<'a> {
         Self { client }
     }
 
-    /// Create a new table
+    /// Create a new, empty uploaded table with a defined schema
+    ///
+    /// Calls `POST /v1/uploads`.
     pub async fn create(&self, request: &CreateTableRequest) -> Result<CreateTableResponse> {
-        let url = format!("{}/v1/datasets", self.client.base_url());
+        let url = format!("{}/v1/uploads", self.client.base_url());
         let response = self.client.http().post(&url).json(request).send().await?;
 
         if response.status().is_success() {
@@ -73,9 +75,11 @@ impl<'a> TablesApi<'a> {
     }
 
     /// Get a specific table
+    ///
+    /// Calls `GET /v1/datasets/{slug}` where the slug is `{namespace}.{table_name}`.
     pub async fn get(&self, namespace: &str, table_name: &str) -> Result<Table> {
         let url = format!(
-            "{}/v1/datasets/{}/{}",
+            "{}/v1/datasets/{}.{}",
             self.client.base_url(),
             namespace,
             table_name

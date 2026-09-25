@@ -5,15 +5,32 @@
 //! ## Features
 //!
 //! - **Wallet API** - Native balances, token balances, transactions, approvals, net worth, profitability
-//! - **Token API** - Metadata, prices, transfers, swaps, pairs, holders, stats, trending
+//! - **Token API** - Metadata, prices, transfers, swaps, pairs, holders, search, trending
 //! - **NFT API** - NFT metadata, transfers, owners, trades, floor prices, collections
 //! - **`DeFi` API** - Pair prices, reserves, positions, protocol summaries
 //! - **Block API** - Block data, timestamps, date-to-block lookups
 //! - **Transaction API** - Transaction details, decoded calls, internal transactions
 //! - **Resolve API** - ENS, Unstoppable Domains, domain resolution
-//! - **Market Data API** - Top tokens, movers, NFT collections, global stats
-//! - **Discovery API** - Token discovery, trending, analytics, scores
+//! - **Token Analytics API** - Batch/timeseries analytics, per-token analytics and scores
 //! - **Entities API** - Wallet/protocol/exchange labels and categories
+//!
+//! ## Removed endpoints
+//!
+//! Moralis removed the Discovery (`/discovery/*`), Volume (`/volume/*`) and
+//! Market Data (`/market-data/*`) APIs, plus `/erc20/{address}/stats`,
+//! `/erc20/exchange/{exchange}/new|bonding|graduated`,
+//! `/erc20/{address}/bondingStatus`, `/erc20/{address}/pairs/stats`,
+//! `/erc20/metadata/symbols` and `/pairs/{address}/snipers` on 2026-06-04, and
+//! `/erc20/{address}/holders/historical` on 2026-07-31. These wrappers have been
+//! deleted from this crate. Replacements:
+//!
+//! - Token discovery / lookup by symbol: [`TokenApi::search`] (`GET /tokens/search`)
+//!   and [`TokenApi::get_trending`] (`GET /tokens/trending`)
+//! - Token/pair statistics: [`AnalyticsApi`] (`POST /tokens/analytics`,
+//!   `POST /tokens/analytics/timeseries`), [`DiscoveryApi::get_token_analytics`]
+//!   (`GET /tokens/{address}/analytics`) and [`TokenApi::get_pair_stats`]
+//!   (`GET /pairs/{address}/stats`)
+//! - Holder data: [`TokenApi::get_holders_summary`] (`GET /erc20/{address}/holders`)
 //!
 //! ## Quick Start
 //!
@@ -80,7 +97,7 @@
 //! |------|-----------|
 //! | **Free** | Most basic endpoints |
 //! | **Starter** | `get_token_score` |
-//! | **Pro** | Volume stats, token discovery, analytics, search |
+//! | **Pro** | Token analytics, search |
 //!
 //! ## Automatic Retries
 //!
@@ -121,13 +138,11 @@ pub mod block;
 pub mod defi;
 pub mod discovery;
 pub mod entities;
-pub mod market;
 pub mod nft;
 pub mod resolve;
 pub mod token;
 pub mod transaction;
 pub mod utils;
-pub mod volume;
 pub mod wallet;
 
 // Re-exports
@@ -151,13 +166,11 @@ pub use block::{BlockApi, BlockQuery};
 pub use defi::{DefiApi, DefiQuery};
 pub use discovery::{DiscoveryApi, DiscoveryQuery};
 pub use entities::{EntitiesApi, EntityQuery};
-pub use market::{MarketApi, MarketQuery};
 pub use nft::{NftApi, NftQuery};
 pub use resolve::ResolveApi;
 pub use token::TokenApi;
 pub use transaction::{TransactionApi, TransactionQuery};
 pub use utils::{UtilsApi, UtilsQuery};
-pub use volume::{VolumeApi, VolumeQuery};
 pub use wallet::{WalletApi, WalletQuery};
 
 /// Result type alias for this crate

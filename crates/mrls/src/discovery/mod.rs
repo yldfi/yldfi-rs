@@ -1,4 +1,4 @@
-//! Discovery API - token discovery, trending, analytics, scores
+//! Per-token analytics and scores (the `/discovery/*` endpoints were removed by Moralis on 2026-06-04)
 
 mod api;
 mod types;
