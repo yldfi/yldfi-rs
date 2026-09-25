@@ -162,7 +162,24 @@ let hash = client.bundler().send_user_operation(&user_op, "0xEntryPoint").await?
 let receipt = client.bundler().get_user_operation_receipt(&hash).await?;
 ```
 
+### Notify & Gas Manager admin APIs
+
+These APIs authenticate with an account auth token / access key from the
+Alchemy dashboard, not the app API key:
+
+```rust
+let config = Config::new("your-api-key", Network::EthMainnet)
+    .with_auth_token("your-dashboard-auth-token");
+let client = Client::with_config(config)?;
+let webhooks = client.notify().list_webhooks().await?;
+```
+
+`Client::from_env` reads the token from `ALCHEMY_AUTH_TOKEN`.
+
 ### Beacon API
+
+Available on `EthMainnet`, `EthSepolia` and `EthHolesky`
+(`https://{network}beacon.g.alchemy.com/v2/{apiKey}/eth/v1/...`).
 
 ```rust
 // Get genesis info

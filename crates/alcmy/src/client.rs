@@ -5,7 +5,7 @@
 use crate::error::{self, Error, Result};
 use serde::{de::DeserializeOwned, Serialize};
 use std::time::Duration;
-use yldfi_common::api::{extract_retry_after, ApiConfig, SecretApiKey};
+use yldfi_common::api::{ApiConfig, SecretApiKey};
 
 /// Supported blockchain networks
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,6 +136,11 @@ pub struct Config {
     pub api_key: SecretApiKey,
     /// Target blockchain network
     pub network: Network,
+    /// Optional Alchemy auth token (dashboard "Auth Token" / access key).
+    ///
+    /// Required by the Notify (webhooks) API and the Gas Manager admin API,
+    /// which do not accept the app API key.
+    pub auth_token: Option<SecretApiKey>,
     /// Inner API configuration
     inner: ApiConfig,
 }
@@ -147,8 +152,25 @@ impl Config {
         Self {
             api_key: SecretApiKey::new(api_key),
             network,
+            auth_token: None,
             inner: ApiConfig::new("https://api.g.alchemy.com"),
         }
+    }
+
+    /// Set the Alchemy auth token used by the Notify and Gas Manager admin APIs
+    #[must_use]
+    pub fn with_auth_token(mut self, token: impl Into<String>) -> Self {
+        self.auth_token = Some(SecretApiKey::new(token));
+        self
+    }
+
+    /// Set an optional Alchemy auth token (empty strings are ignored)
+    #[must_use]
+    pub fn with_optional_auth_token(mut self, token: Option<String>) -> Self {
+        self.auth_token = token
+            .filter(|t| !t.trim().is_empty())
+            .map(SecretApiKey::new);
+        self
     }
 
     /// Set a custom timeout
@@ -178,6 +200,10 @@ impl std::fmt::Debug for Config {
         f.debug_struct("Config")
             .field("api_key", &"[REDACTED]")
             .field("network", &self.network)
+            .field(
+                "auth_token",
+                &self.auth_token.as_ref().map(|_| "[REDACTED]"),
+            )
             .field("inner", &self.inner)
             .finish()
     }
@@ -188,7 +214,21 @@ impl std::fmt::Debug for Config {
 pub struct Client {
     http: reqwest::Client,
     api_key: SecretApiKey,
+    auth_token: Option<SecretApiKey>,
     network: Network,
+}
+
+impl std::fmt::Debug for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("api_key", &"[REDACTED]")
+            .field(
+                "auth_token",
+                &self.auth_token.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("network", &self.network)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Client {
@@ -211,16 +251,20 @@ impl Client {
         Ok(Self {
             http,
             api_key: config.api_key,
+            auth_token: config.auth_token,
             network: config.network,
         })
     }
 
     /// Create a new client from environment variable
     ///
-    /// Uses `ALCHEMY_API_KEY` environment variable
+    /// Uses `ALCHEMY_API_KEY` environment variable, and the optional
+    /// `ALCHEMY_AUTH_TOKEN` environment variable for the Notify and
+    /// Gas Manager admin APIs.
     pub fn from_env(network: Network) -> Result<Self> {
         let api_key = std::env::var("ALCHEMY_API_KEY").map_err(|_| error::invalid_api_key())?;
-        Self::new(api_key, network)
+        let auth_token = std::env::var("ALCHEMY_AUTH_TOKEN").ok();
+        Self::with_config(Config::new(api_key, network).with_optional_auth_token(auth_token))
     }
 
     /// Get the API key (exposed for URL construction)
@@ -230,6 +274,20 @@ impl Client {
     #[must_use]
     pub fn api_key(&self) -> &str {
         self.api_key.expose()
+    }
+
+    /// Get the Alchemy auth token (exposed for header construction).
+    ///
+    /// `api` names the API requiring the token, used in the error message.
+    ///
+    /// # Errors
+    /// Returns [`DomainError::MissingAuthToken`](crate::DomainError::MissingAuthToken)
+    /// if no auth token was configured.
+    pub fn auth_token(&self, api: &'static str) -> Result<&str> {
+        self.auth_token
+            .as_ref()
+            .map(SecretApiKey::expose)
+            .ok_or_else(|| error::missing_auth_token(api))
     }
 
     /// Get the current network
@@ -307,8 +365,7 @@ impl Client {
         let response = self.http.post(self.rpc_url()).json(&request).send().await?;
 
         if response.status() == 429 {
-            let retry_after = extract_retry_after(response.headers());
-            return Err(Error::rate_limited(retry_after));
+            return Err(error::rate_limited_from_response(response).await);
         }
 
         let result: serde_json::Value = response.json().await?;
@@ -393,13 +450,12 @@ impl Client {
     }
 
     /// Handle API response using common utilities
-    async fn handle_response<R>(&self, response: reqwest::Response) -> Result<R>
+    pub(crate) async fn handle_response<R>(&self, response: reqwest::Response) -> Result<R>
     where
         R: DeserializeOwned,
     {
         if response.status() == 429 {
-            let retry_after = extract_retry_after(response.headers());
-            return Err(Error::rate_limited(retry_after));
+            return Err(error::rate_limited_from_response(response).await);
         }
 
         if response.status().is_success() {
@@ -409,5 +465,66 @@ impl Client {
             let message = response.text().await.unwrap_or_default();
             Err(Error::api(status, message))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::DomainError;
+
+    #[test]
+    fn auth_token_missing_gives_clean_error() {
+        let client = Client::new("app-key", Network::EthMainnet).unwrap();
+        let err = client.auth_token("Alchemy Notify API").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::Domain(DomainError::MissingAuthToken {
+                api: "Alchemy Notify API"
+            })
+        ));
+        assert!(err.to_string().contains("ALCHEMY_AUTH_TOKEN"));
+    }
+
+    #[test]
+    fn auth_token_is_separate_from_api_key() {
+        let config = Config::new("app-key", Network::EthMainnet).with_auth_token("dash-token");
+        let client = Client::with_config(config).unwrap();
+        assert_eq!(client.api_key(), "app-key");
+        assert_eq!(client.auth_token("x").unwrap(), "dash-token");
+    }
+
+    #[test]
+    fn optional_auth_token_ignores_empty() {
+        let config =
+            Config::new("k", Network::EthMainnet).with_optional_auth_token(Some("  ".into()));
+        assert!(config.auth_token.is_none());
+    }
+
+    #[test]
+    fn debug_redacts_secrets() {
+        let config =
+            Config::new("app-key-secret", Network::EthMainnet).with_auth_token("dash-token-secret");
+        let client = Client::with_config(config.clone()).unwrap();
+        for dbg in [format!("{config:?}"), format!("{client:?}")] {
+            assert!(!dbg.contains("app-key-secret"), "{dbg}");
+            assert!(!dbg.contains("dash-token-secret"), "{dbg}");
+            assert!(dbg.contains("REDACTED"), "{dbg}");
+        }
+    }
+
+    #[tokio::test]
+    async fn notify_and_gas_manager_require_auth_token() {
+        let client = Client::new("app-key", Network::EthMainnet).unwrap();
+        let err = client.notify().list_webhooks().await.unwrap_err();
+        assert!(matches!(
+            err,
+            Error::Domain(DomainError::MissingAuthToken { .. })
+        ));
+        let err = client.gas_manager().list_policies().await.unwrap_err();
+        assert!(matches!(
+            err,
+            Error::Domain(DomainError::MissingAuthToken { .. })
+        ));
     }
 }

@@ -196,7 +196,7 @@ impl<'a> GasManagerApi<'a> {
                 },
                 &url,
             )
-            .bearer_auth(self.client.api_key());
+            .bearer_auth(self.client.auth_token("Alchemy Gas Manager admin API")?);
 
         let request = if let Some(b) = body {
             request.json(b)
@@ -207,7 +207,7 @@ impl<'a> GasManagerApi<'a> {
         let response = request.send().await?;
 
         if response.status() == 429 {
-            return Err(Error::rate_limited(None));
+            return Err(crate::error::rate_limited_from_response(response).await);
         }
 
         if response.status().is_success() {
@@ -268,7 +268,7 @@ impl<'a> GasManagerApi<'a> {
     pub async fn get_policy_stats(&self, policy_id: &str) -> Result<PolicyStats> {
         self.admin_request(
             "GET",
-            &format!("/policy/{policy_id}/stats/details"),
+            &format!("/policy/{policy_id}/stats/detailed"),
             None::<&()>,
         )
         .await

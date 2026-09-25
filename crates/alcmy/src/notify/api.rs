@@ -20,8 +20,10 @@ impl<'a> NotifyApi<'a> {
         Self { client }
     }
 
-    fn auth_token(&self) -> String {
-        self.client.api_key().to_string()
+    /// The Notify API authenticates with the dashboard Auth Token
+    /// (`X-Alchemy-Token`), not the app API key.
+    fn auth_token(&self) -> Result<&str> {
+        self.client.auth_token("Alchemy Notify API")
     }
 
     async fn get<R>(&self, path: &str) -> Result<R>
@@ -33,12 +35,12 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .get(&url)
-            .header("X-Alchemy-Token", self.auth_token())
+            .header("X-Alchemy-Token", self.auth_token()?)
             .send()
             .await?;
 
         if response.status() == 429 {
-            return Err(Error::rate_limited(None));
+            return Err(crate::error::rate_limited_from_response(response).await);
         }
 
         if response.status().is_success() {
@@ -60,13 +62,13 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .post(&url)
-            .header("X-Alchemy-Token", self.auth_token())
+            .header("X-Alchemy-Token", self.auth_token()?)
             .json(body)
             .send()
             .await?;
 
         if response.status() == 429 {
-            return Err(Error::rate_limited(None));
+            return Err(crate::error::rate_limited_from_response(response).await);
         }
 
         if response.status().is_success() {
@@ -88,13 +90,13 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .put(&url)
-            .header("X-Alchemy-Token", self.auth_token())
+            .header("X-Alchemy-Token", self.auth_token()?)
             .json(body)
             .send()
             .await?;
 
         if response.status() == 429 {
-            return Err(Error::rate_limited(None));
+            return Err(crate::error::rate_limited_from_response(response).await);
         }
 
         if response.status().is_success() {
@@ -116,13 +118,13 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .patch(&url)
-            .header("X-Alchemy-Token", self.auth_token())
+            .header("X-Alchemy-Token", self.auth_token()?)
             .json(body)
             .send()
             .await?;
 
         if response.status() == 429 {
-            return Err(Error::rate_limited(None));
+            return Err(crate::error::rate_limited_from_response(response).await);
         }
 
         if response.status().is_success() {
@@ -140,12 +142,12 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .delete(&url)
-            .header("X-Alchemy-Token", self.auth_token())
+            .header("X-Alchemy-Token", self.auth_token()?)
             .send()
             .await?;
 
         if response.status() == 429 {
-            return Err(Error::rate_limited(None));
+            return Err(crate::error::rate_limited_from_response(response).await);
         }
 
         if response.status().is_success() {
@@ -182,7 +184,7 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .delete(&url)
-            .header("X-Alchemy-Token", self.auth_token())
+            .header("X-Alchemy-Token", self.auth_token()?)
             .json(&body)
             .send()
             .await?;
