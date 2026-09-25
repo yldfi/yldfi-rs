@@ -434,7 +434,7 @@ fn decode_output(data: &[u8], type_sig: &str) -> anyhow::Result<String> {
         .abi_decode(data)
         .map_err(|e| anyhow::anyhow!("Failed to decode: {}", e))?;
 
-    Ok(format!("{:?}", decoded))
+    Ok(super::contract::format_value(&decoded))
 }
 
 /// Format a wei amount as gwei with exact decimals (trailing zeros trimmed).
@@ -575,7 +575,7 @@ mod tests {
         let data = hex::decode("00000000000000000000000000000000000000000000000000000000000003e8")
             .unwrap();
         let result = decode_output(&data, "uint256").unwrap();
-        assert!(result.contains("1000"));
+        assert_eq!(result, "1000");
     }
 
     #[test]
