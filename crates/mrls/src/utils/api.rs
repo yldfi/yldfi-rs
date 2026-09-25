@@ -105,6 +105,9 @@ impl<'a> UtilsApi<'a> {
     }
 
     /// Get contract events by topic
+    #[deprecated(
+        note = "POST /{address}/events is no longer in the Moralis v2.2 OpenAPI spec (still routed as of 2026-09-25)"
+    )]
     pub async fn get_contract_events(
         &self,
         address: &str,
@@ -120,6 +123,9 @@ impl<'a> UtilsApi<'a> {
     }
 
     /// Get contract logs
+    #[deprecated(
+        note = "GET /{address}/logs is no longer in the Moralis v2.2 OpenAPI spec (still routed as of 2026-09-25)"
+    )]
     pub async fn get_contract_logs(
         &self,
         address: &str,
