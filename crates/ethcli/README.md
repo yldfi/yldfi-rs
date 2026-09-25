@@ -816,6 +816,9 @@ ethcli chainlink oracles
 ethcli chainlink oracles --chain arbitrum
 
 # Data Streams (requires CHAINLINK_API_KEY and CHAINLINK_USER_SECRET)
+# Defaults to mainnet (https://api.dataengine.chain.link / wss://ws.dataengine.chain.link).
+# For testnet, set CHAINLINK_REST_URL / CHAINLINK_WS_URL or
+# `ethcli config set-chainlink --rest-url ... --ws-url ...`.
 ethcli chainlink streams feeds
 ethcli chainlink streams latest <feed_id>
 ethcli chainlink streams report <feed_id> <timestamp>
