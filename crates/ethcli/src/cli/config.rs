@@ -148,6 +148,19 @@ pub enum ConfigCommands {
         stdin: bool,
     },
 
+    /// Set Pyth API key (required by Pyth Hermes since the Pyth Core upgrade)
+    #[command(
+        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-pyth --stdin\n\nGet an API key from the Pyth Terminal: https://pythdata.app\nAlternatively set the PYTH_API_KEY environment variable."
+    )]
+    SetPyth {
+        /// Pyth API key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read API key from stdin
+        #[arg(long)]
+        stdin: bool,
+    },
+
     /// Add a debug-capable RPC URL (for debug_traceCall, etc.)
     AddDebugRpc {
         /// RPC URL with debug namespace enabled
