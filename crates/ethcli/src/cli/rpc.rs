@@ -387,7 +387,7 @@ pub async fn handle(
                 .get_gas_price()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get gas price: {}", e))?;
-            println!("{} gwei", gas_price / 1_000_000_000);
+            println!("{} gwei", format_gwei(gas_price));
         }
     }
 
@@ -441,10 +441,34 @@ fn decode_output(data: &[u8], type_sig: &str) -> anyhow::Result<String> {
     Ok(format!("{:?}", decoded))
 }
 
+/// Format a wei amount as gwei with exact decimals (trailing zeros trimmed).
+///
+/// `180_000_000` -> `"0.18"`, `25_000_000_000` -> `"25"`.
+fn format_gwei(wei: u128) -> String {
+    const GWEI: u128 = 1_000_000_000;
+    let whole = wei / GWEI;
+    let frac = wei % GWEI;
+    if frac == 0 {
+        whole.to_string()
+    } else {
+        let frac = format!("{frac:09}");
+        format!("{whole}.{}", frac.trim_end_matches('0'))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloy::eips::{BlockId, BlockNumberOrTag};
+
+    #[test]
+    fn test_format_gwei() {
+        assert_eq!(format_gwei(180_000_000), "0.18");
+        assert_eq!(format_gwei(25_000_000_000), "25");
+        assert_eq!(format_gwei(1), "0.000000001");
+        assert_eq!(format_gwei(1_500_000_000), "1.5");
+        assert_eq!(format_gwei(0), "0");
+    }
 
     // ==================== parse_block_id tests ====================
 
