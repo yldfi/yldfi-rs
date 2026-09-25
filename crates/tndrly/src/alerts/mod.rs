@@ -31,7 +31,7 @@
 //! use tndrly::{Client, Config};
 //! use tndrly::alerts::{
 //!     CreateAlertRequest, AlertType, AlertTarget,
-//!     CreateWebhookRequest, AddDestinationRequest
+//!     CreateWebhookRequest,
 //! };
 //!
 //! let client = Client::from_env()?;
@@ -53,12 +53,12 @@
 //!         AlertTarget::Address,
 //!     ).address("0xMyContract"))
 //!     .await?;
-//!
-//! // Connect the webhook to the alert
-//! client.alerts()
-//!     .add_destination(&alert.id, &AddDestinationRequest::webhook(&webhook.id))
-//!     .await?;
 //! ```
+//!
+//! Tenderly has no public API to attach/detach alert destinations
+//! (`/alert/{id}/destinations`) or to fire a test webhook
+//! (`/webhooks/{id}/test`); configure destinations in the dashboard and use
+//! [`AlertsApi::test_alert`] to test an alert.
 
 mod api;
 mod types;

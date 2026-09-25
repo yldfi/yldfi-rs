@@ -16,29 +16,46 @@
 ## Features
 
 - **Wallet API** - Native balances, token balances, transactions, approvals, net worth, profitability
-- **Token API** - Metadata, prices, transfers, swaps, pairs, holders, trending
+- **Token API** - Metadata, prices, transfers, swaps, pairs, holders, search, trending
 - **NFT API** - NFT metadata, transfers, owners, trades, floor prices, collections
-- **DeFi API** - Pair prices, reserves, positions, protocol summaries
+- **DeFi API** - Positions and protocol summaries (legacy pair price/reserves/address helpers are deprecated)
 - **Block API** - Block data, timestamps, date-to-block lookups
 - **Transaction API** - Transaction details, decoded calls, internal transactions
 - **Resolve API** - ENS, Unstoppable Domains, domain resolution
-- **Market Data API** - Legacy endpoints scheduled for Moralis removal on 2026-06-04
-- **Discovery API** - Legacy discovery endpoints scheduled for Moralis removal on 2026-06-04
+- **Token Analytics API** - Batch and timeseries analytics (`client.analytics()`), per-token analytics and scores (`client.discovery()`)
 - **Entities API** - Wallet/protocol/exchange labels and categories
 
-## Moralis Deprecations
+## Removed Moralis Endpoints
 
-Moralis is removing Fantom support across all APIs on 2026-05-29. It is also
-removing Cortex and selected legacy Data API endpoints on 2026-06-04. The
-affected `mrls` methods are annotated with `#[deprecated]`, including legacy
-Discovery, Volume, Market Data, selected ERC20 stats/discovery helpers, and pair
-sniper endpoints.
+Moralis removed the following endpoints (they now return `404`), and the
+corresponding `mrls` wrappers have been deleted:
 
-Moralis also announced on 2026-06-30 that it is sunsetting
-`GET /erc20/{address}/holders/historical` on 2026-07-31, so
-`TokenApi::get_holders_historical` is annotated with `#[deprecated]`. There is
-no documented replacement; `get_holders` and `get_holders_summary` remain
-supported.
+| Removed on | Endpoints | Replacement |
+|------------|-----------|-------------|
+| 2026-06-04 | Discovery API: `/discovery/tokens/*`, `POST /discovery/tokens`, `/discovery/token` | Token Search `GET /tokens/search` (`TokenApi::search`), `GET /tokens/trending` (`TokenApi::get_trending`) |
+| 2026-06-04 | Volume API: `/volume/chains`, `/volume/categories`, `/volume/timeseries[/{category}]` | Token Analytics `POST /tokens/analytics[/timeseries]` (`AnalyticsApi`) |
+| 2026-06-04 | Market Data API: `/market-data/*` | Token Search / Trending, Token Analytics |
+| 2026-06-04 | `/erc20/{address}/stats`, `/erc20/{address}/pairs/stats` | Token Analytics `GET /tokens/{address}/analytics`, `GET /pairs/{address}/stats` |
+| 2026-06-04 | `/erc20/exchange/{exchange}/new\|bonding\|graduated`, `/erc20/{address}/bondingStatus`, `/pairs/{address}/snipers` | None documented |
+| 2026-06-04 | `/erc20/metadata/symbols` | Token Search `GET /tokens/search` |
+| 2026-07-31 | `/erc20/{address}/holders/historical` | `GET /erc20/{address}/holders` (`TokenApi::get_holders_summary`), `GET /erc20/{token}/owners` (`TokenApi::get_holders`) |
+
+`GET /tokens/{address}/analytics` and `GET /tokens/{address}/score` remain
+available via `client.discovery()`; token scores are EVM-only.
+
+Moralis removed Fantom support on 2026-05-29.
+
+### Deprecated (still routed, not in the OpenAPI spec)
+
+These methods still work but the endpoints were dropped from the Moralis v2.2
+OpenAPI spec, so they are marked `#[deprecated]`:
+
+- `DefiApi::get_pair_price` (`GET /{token0}/{token1}/price`)
+- `DefiApi::get_pair_reserves` (`GET /{pair}/reserves`)
+- `DefiApi::get_pair_address` (`GET /{token0}/{token1}/pairAddress`)
+- `UtilsApi::get_contract_events` (`POST /{address}/events`)
+- `UtilsApi::get_contract_logs` (`GET /{address}/logs`)
+- `TransactionApi::get_wallet_transactions` duplicates `WalletApi::get_transactions` (`GET /{address}`)
 
 ## Installation
 

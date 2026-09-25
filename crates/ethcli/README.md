@@ -418,6 +418,21 @@ ethcli tenderly contracts list --project <slug> --account <slug>
 ethcli tenderly alerts list --project <slug> --account <slug>
 ```
 
+Tenderly has renamed Virtual TestNets to **Virtual Environments** (documented
+under `/api/public/v1/account/{account}/project/{project}/environments`); the
+legacy `/vnets` routes used by `ethcli tenderly vnets` are still live.
+
+The following commands were removed because Tenderly's public API has no
+matching endpoint: `tenderly contracts verify|update`,
+`tenderly alerts add-destination|remove-destination`,
+`tenderly alerts webhooks test`,
+`tenderly actions enable|disable|invoke|logs|source|update-source` (use
+`actions stop|resume|get-call`), and `simulate tx --via tenderly` (no
+trace-by-hash API; use `--via debug|trace|alchemy|cast`).
+`tenderly contracts encode-state` now calls `POST /contracts/encode-states`
+and takes named-variable overrides, e.g.
+`'{"0xToken": {"value": {"balances[0xHolder]": "1000"}}}'`.
+
 ### Endpoints - Manage RPC Endpoints
 
 ```bash
@@ -700,14 +715,24 @@ ethcli llama stablecoin-history tether
 
 Requires `MORALIS_API_KEY` environment variable.
 
-Moralis is removing Fantom support on 2026-05-29 and selected legacy Data API
-endpoints on 2026-06-04. `ethcli moralis` blocks Fantom chain aliases and the
-legacy Discovery, Volume, Market Data, pair sniper, and selected ERC20 helper
-commands affected by that changelog. Moralis is also sunsetting
-`GET /erc20/{address}/holders/historical` on 2026-07-31, so
-`ethcli moralis token holders-historical` is blocked as well; there is no
-documented replacement, and `token holders` and `token holders-summary` remain
-supported.
+Moralis removed Fantom support on 2026-05-29; `ethcli moralis` blocks Fantom
+chain aliases. Moralis deleted its Discovery, Volume and Market Data APIs and
+several ERC20 helper endpoints on 2026-06-04, and
+`GET /erc20/{address}/holders/historical` on 2026-07-31. The corresponding
+commands have been removed:
+
+| Removed command | Replacement |
+|-----------------|-------------|
+| `moralis market *`, `moralis volume *` | `moralis token trending`, `moralis analytics batch\|timeseries` (Token Analytics) |
+| `moralis discovery rising-liquidity\|buying-pressure\|solid-performers\|experienced-buyers\|risky-bets\|blue-chip\|top-gainers\|top-losers\|trending\|filter\|token` | `moralis token search` (Token Search, `/tokens/search`), `moralis token trending` |
+| `moralis token stats`, `moralis token pairs-stats` | `moralis discovery token-analytics` (`/tokens/{address}/analytics`), `moralis token pair-stats` |
+| `moralis token by-symbols` | `moralis token search <symbol>` |
+| `moralis token holders-historical` | `moralis token holders-summary`, `moralis token holders` (no historical replacement) |
+| `moralis token exchange-new-tokens\|exchange-bonding-tokens\|exchange-graduated-tokens\|bonding-status\|pair-snipers` | none documented |
+
+`moralis discovery token-analytics` and `moralis discovery token-score` remain
+(token scores are EVM-only). `moralis defi pair-price|pair-reserves|pair-address`
+still work but call endpoints Moralis has dropped from its OpenAPI spec.
 
 ```bash
 # Wallet data

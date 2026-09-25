@@ -2,11 +2,6 @@
 //!
 //! Run with: MORALIS_API_KEY=your_key cargo test -p mrls --test live_api -- --ignored
 
-#![allow(deprecated)]
-
-// These ignored live tests intentionally cover Moralis legacy endpoints until
-// their 2026-06-04 sunset date.
-
 use mrls::Client;
 
 /// Vitalik's address for testing
@@ -342,96 +337,6 @@ async fn test_reverse_resolve() {
         .expect("Failed to reverse resolve");
 
     println!("{} resolves to: {:?}", VITALIK, resolved.name);
-}
-
-// =============================================================================
-// Market Data API Tests
-// =============================================================================
-
-#[tokio::test]
-#[ignore]
-async fn test_get_top_tokens() {
-    let client = Client::from_env().expect("MORALIS_API_KEY must be set");
-    let tokens = client
-        .market()
-        .get_top_tokens(None)
-        .await
-        .expect("Failed to get top tokens");
-
-    println!("Top tokens by market cap:");
-    for token in tokens.iter().take(10) {
-        println!(
-            "  {} ({}) - ${:?} (mcap: ${:?})",
-            token.token_name.as_deref().unwrap_or("?"),
-            token.token_symbol.as_deref().unwrap_or("?"),
-            token.price_usd,
-            token.market_cap_usd
-        );
-    }
-}
-
-#[tokio::test]
-#[ignore]
-async fn test_get_global_market_cap() {
-    let client = Client::from_env().expect("MORALIS_API_KEY must be set");
-    let market_cap = client
-        .market()
-        .get_global_market_cap()
-        .await
-        .expect("Failed to get global market cap");
-
-    println!(
-        "Global crypto market cap: ${:?}",
-        market_cap.total_market_cap_usd
-    );
-    println!("24h change: {:?}%", market_cap.market_cap_change_24h);
-}
-
-// =============================================================================
-// Discovery API Tests
-// =============================================================================
-
-#[tokio::test]
-#[ignore]
-async fn test_get_blue_chip_tokens() {
-    let client = Client::from_env().expect("MORALIS_API_KEY must be set");
-    let tokens = client
-        .discovery()
-        .get_blue_chip(None)
-        .await
-        .expect("Failed to get blue chip tokens");
-
-    println!("Blue chip tokens: {} found", tokens.result.len());
-    for token in tokens.result.iter().take(5) {
-        println!(
-            "  {} ({}) - ${:?}",
-            token.token_name.as_deref().unwrap_or("?"),
-            token.token_symbol.as_deref().unwrap_or("?"),
-            token.price_usd
-        );
-    }
-}
-
-#[tokio::test]
-#[ignore]
-async fn test_get_top_gainers() {
-    let client = Client::from_env().expect("MORALIS_API_KEY must be set");
-    let tokens = client
-        .discovery()
-        .get_top_gainers(None)
-        .await
-        .expect("Failed to get top gainers");
-
-    println!("Top gainers: {} found", tokens.result.len());
-    for token in tokens.result.iter().take(5) {
-        println!(
-            "  {} ({}) - ${:?} (+{:?}%)",
-            token.token_name.as_deref().unwrap_or("?"),
-            token.token_symbol.as_deref().unwrap_or("?"),
-            token.price_usd,
-            token.price_change_24h
-        );
-    }
 }
 
 // =============================================================================

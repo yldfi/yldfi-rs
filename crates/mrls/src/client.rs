@@ -6,13 +6,11 @@ use crate::defi::DefiApi;
 use crate::discovery::DiscoveryApi;
 use crate::entities::EntitiesApi;
 use crate::error::{self, Error, Result};
-use crate::market::MarketApi;
 use crate::nft::NftApi;
 use crate::resolve::ResolveApi;
 use crate::token::TokenApi;
 use crate::transaction::TransactionApi;
 use crate::utils::UtilsApi;
-use crate::volume::VolumeApi;
 use crate::wallet::WalletApi;
 use reqwest::Client as HttpClient;
 use secrecy::{ExposeSecret, SecretString};
@@ -327,13 +325,10 @@ impl Client {
         ResolveApi::new(self)
     }
 
-    /// Access the Market Data API
-    #[must_use]
-    pub fn market(&self) -> MarketApi<'_> {
-        MarketApi::new(self)
-    }
-
-    /// Access the Discovery API
+    /// Access the per-token analytics and score API
+    ///
+    /// Only `GET /tokens/{address}/analytics` and `GET /tokens/{address}/score`
+    /// remain; Moralis removed the `/discovery/*` endpoints on 2026-06-04.
     #[must_use]
     pub fn discovery(&self) -> DiscoveryApi<'_> {
         DiscoveryApi::new(self)
@@ -349,12 +344,6 @@ impl Client {
     #[must_use]
     pub fn utils(&self) -> UtilsApi<'_> {
         UtilsApi::new(self)
-    }
-
-    /// Access the Volume API
-    #[must_use]
-    pub fn volume(&self) -> VolumeApi<'_> {
-        VolumeApi::new(self)
     }
 
     /// Access the Analytics API

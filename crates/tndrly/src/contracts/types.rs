@@ -217,137 +217,6 @@ pub struct TokenData {
     pub decimals: Option<u8>,
 }
 
-/// Request to update a contract
-#[derive(Debug, Clone, Serialize)]
-pub struct UpdateContractRequest {
-    /// New display name
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub display_name: Option<String>,
-
-    /// New tags (replaces existing)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tags: Option<Vec<String>>,
-}
-
-impl UpdateContractRequest {
-    /// Create a new update request
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            display_name: None,
-            tags: None,
-        }
-    }
-
-    /// Set display name
-    #[must_use]
-    pub fn display_name(mut self, name: impl Into<String>) -> Self {
-        self.display_name = Some(name.into());
-        self
-    }
-
-    /// Set tags
-    #[must_use]
-    pub fn tags(mut self, tags: Vec<String>) -> Self {
-        self.tags = Some(tags);
-        self
-    }
-}
-
-impl Default for UpdateContractRequest {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Request to verify a contract
-#[derive(Debug, Clone, Serialize)]
-pub struct VerifyContractRequest {
-    /// Network ID
-    pub network_id: String,
-
-    /// Contract address
-    pub address: String,
-
-    /// Contract name
-    pub contract_name: String,
-
-    /// Solidity source code
-    pub source_code: String,
-
-    /// Compiler version (e.g., "v0.8.19+commit.7dd6d404")
-    pub compiler_version: String,
-
-    /// Optimization settings
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub optimization: Option<OptimizationSettings>,
-
-    /// Constructor arguments (ABI-encoded)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub constructor_arguments: Option<String>,
-
-    /// Libraries used
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub libraries: Option<HashMap<String, String>>,
-
-    /// EVM version
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub evm_version: Option<String>,
-}
-
-impl VerifyContractRequest {
-    /// Create a new verify request
-    pub fn new(
-        network_id: impl Into<String>,
-        address: impl Into<String>,
-        contract_name: impl Into<String>,
-        source_code: impl Into<String>,
-        compiler_version: impl Into<String>,
-    ) -> Self {
-        Self {
-            network_id: network_id.into(),
-            address: address.into(),
-            contract_name: contract_name.into(),
-            source_code: source_code.into(),
-            compiler_version: compiler_version.into(),
-            optimization: None,
-            constructor_arguments: None,
-            libraries: None,
-            evm_version: None,
-        }
-    }
-
-    /// Set optimization settings
-    #[must_use]
-    pub fn optimization(mut self, enabled: bool, runs: u32) -> Self {
-        self.optimization = Some(OptimizationSettings { enabled, runs });
-        self
-    }
-
-    /// Set constructor arguments
-    #[must_use]
-    pub fn constructor_arguments(mut self, args: impl Into<String>) -> Self {
-        self.constructor_arguments = Some(args.into());
-        self
-    }
-
-    /// Add a library
-    #[must_use]
-    pub fn library(mut self, name: impl Into<String>, address: impl Into<String>) -> Self {
-        self.libraries
-            .get_or_insert_with(HashMap::new)
-            .insert(name.into(), address.into());
-        self
-    }
-
-    /// Set EVM version
-    #[must_use]
-    pub fn evm_version(mut self, version: impl Into<String>) -> Self {
-        self.evm_version = Some(version.into());
-        self
-    }
-}
-
 /// Optimization settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationSettings {
@@ -357,34 +226,54 @@ pub struct OptimizationSettings {
     pub runs: u32,
 }
 
-/// Verification result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VerificationResult {
-    /// Whether verification succeeded
-    pub success: bool,
-
-    /// Error message (if failed)
-    #[serde(default)]
-    pub error: Option<String>,
-
-    /// Contract details (if successful)
-    #[serde(default)]
-    pub contract: Option<Contract>,
-}
-
-/// Request to encode state overrides
+/// Request to encode state overrides (`POST /contracts/encode-states`)
 #[derive(Debug, Clone, Serialize)]
 pub struct EncodeStateRequest {
     /// Network ID
+    #[serde(rename = "networkID")]
     pub network_id: String,
 
-    /// State overrides to encode
+    /// State overrides to encode, keyed by contract address
+    #[serde(rename = "stateOverrides")]
     pub state_overrides: HashMap<String, StateOverrideInput>,
+
+    /// Block number to encode against (`"-1"` or omitted for latest)
+    #[serde(rename = "blockNumber", skip_serializing_if = "Option::is_none")]
+    pub block_number: Option<String>,
+}
+
+impl EncodeStateRequest {
+    /// Create a new encode-state request for the latest block
+    #[must_use]
+    pub fn new(
+        network_id: impl Into<String>,
+        state_overrides: HashMap<String, StateOverrideInput>,
+    ) -> Self {
+        Self {
+            network_id: network_id.into(),
+            state_overrides,
+            block_number: None,
+        }
+    }
+
+    /// Encode against a specific block number
+    #[must_use]
+    pub fn block_number(mut self, block_number: impl Into<String>) -> Self {
+        self.block_number = Some(block_number.into());
+        self
+    }
 }
 
 /// Input format for state overrides
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateOverrideInput {
+    /// Named-variable overrides, e.g. `{"balances[0xabc...]": "1000"}`
+    ///
+    /// This is the human-readable form that `POST /contracts/encode-states`
+    /// converts into raw storage slots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<HashMap<String, String>>,
+
     /// Storage slot values to override
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage: Option<HashMap<String, String>>,
@@ -407,11 +296,21 @@ impl StateOverrideInput {
     #[must_use]
     pub fn new() -> Self {
         Self {
+            value: None,
             storage: None,
             balance: None,
             nonce: None,
             code: None,
         }
+    }
+
+    /// Set a named-variable override (e.g. `balances[0xabc...]` -> `1000`)
+    #[must_use]
+    pub fn value(mut self, variable: impl Into<String>, value: impl Into<String>) -> Self {
+        self.value
+            .get_or_insert_with(HashMap::new)
+            .insert(variable.into(), value.into());
+        self
     }
 
     /// Set a storage slot
@@ -455,6 +354,9 @@ impl Default for StateOverrideInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncodeStateResponse {
     /// Encoded state overrides ready for use in simulations
+    ///
+    /// Tenderly returns these under `stateOverrides`.
+    #[serde(alias = "stateOverrides", default)]
     pub encoded_state: serde_json::Value,
 }
 

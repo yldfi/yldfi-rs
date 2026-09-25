@@ -622,32 +622,6 @@ pub enum ContractsCommands {
         network: String,
     },
 
-    /// Verify contract source code
-    Verify {
-        /// Contract address
-        address: String,
-
-        /// Network ID
-        #[arg(long, default_value = "1")]
-        network: String,
-
-        /// Contract name (as in source file)
-        #[arg(long)]
-        name: String,
-
-        /// Source code file path
-        #[arg(long)]
-        source: String,
-
-        /// Compiler version (e.g., "0.8.19")
-        #[arg(long)]
-        compiler: String,
-
-        /// Optimization runs (omit to disable optimization)
-        #[arg(long)]
-        optimize_runs: Option<u32>,
-    },
-
     /// Get contract ABI
     Abi {
         /// Contract address
@@ -686,24 +660,6 @@ pub enum ContractsCommands {
         name: String,
     },
 
-    /// Update contract metadata (display name and/or tags)
-    Update {
-        /// Contract address
-        address: String,
-
-        /// Network ID
-        #[arg(long, default_value = "1")]
-        network: String,
-
-        /// Display name
-        #[arg(long)]
-        name: Option<String>,
-
-        /// Tags (can be repeated)
-        #[arg(long = "tag", action = clap::ArgAction::Append)]
-        tags: Vec<String>,
-    },
-
     /// Remove a tag from a contract
     RemoveTag {
         /// Contract address
@@ -740,13 +696,18 @@ pub enum ContractsCommands {
         contract_ids: Vec<String>,
     },
 
-    /// Encode contract state for simulation overrides
+    /// Encode named-variable state overrides into raw storage slots
+    /// (POST /contracts/encode-states)
     EncodeState {
         /// Network ID
         #[arg(long, default_value = "1")]
         network: String,
 
-        /// State overrides as JSON: {"0xAddr": {"balance": "0x...", "storage": {"0x0": "0x1"}}}
+        /// Block number to encode against (default: latest)
+        #[arg(long)]
+        block_number: Option<String>,
+
+        /// State overrides as JSON: {"0xAddr": {"value": {"balances[0xHolder]": "1000"}}}
         state_json: String,
     },
 }
@@ -856,29 +817,6 @@ pub enum AlertsCommands {
         addresses: Vec<String>,
     },
 
-    /// Add a delivery destination to an alert
-    AddDestination {
-        /// Alert ID
-        id: String,
-
-        /// Destination type: webhook, slack, email, telegram, discord, pagerduty
-        #[arg(long)]
-        destination_type: String,
-
-        /// Destination ID (webhook/channel ID)
-        #[arg(long)]
-        destination_id: String,
-    },
-
-    /// Remove a delivery destination from an alert
-    RemoveDestination {
-        /// Alert ID
-        id: String,
-
-        /// Destination ID to remove
-        destination_id: String,
-    },
-
     /// Manage webhooks
     Webhooks {
         #[command(subcommand)]
@@ -912,20 +850,6 @@ pub enum WebhookCommands {
     Delete {
         /// Webhook ID
         id: String,
-    },
-
-    /// Test a webhook
-    Test {
-        /// Webhook ID
-        id: String,
-
-        /// Transaction hash to test with
-        #[arg(long)]
-        tx_hash: String,
-
-        /// Network ID
-        #[arg(long, default_value = "1")]
-        network: String,
     },
 }
 
@@ -963,50 +887,6 @@ pub enum ActionsCommands {
     Delete {
         /// Action ID
         id: String,
-    },
-
-    /// Enable an Action
-    Enable {
-        /// Action ID
-        id: String,
-    },
-
-    /// Disable an Action
-    Disable {
-        /// Action ID
-        id: String,
-    },
-
-    /// Invoke an Action manually
-    Invoke {
-        /// Action ID
-        id: String,
-
-        /// Payload JSON
-        #[arg(long)]
-        payload: Option<String>,
-    },
-
-    /// View Action logs
-    Logs {
-        /// Action ID
-        id: String,
-    },
-
-    /// Get Action source code
-    Source {
-        /// Action ID
-        id: String,
-    },
-
-    /// Update Action source code
-    UpdateSource {
-        /// Action ID
-        id: String,
-
-        /// Source code file path
-        #[arg(long)]
-        source: String,
     },
 
     /// Stop an Action
@@ -1844,34 +1724,6 @@ async fn handle_contracts(
             println!("Contract {} deleted.", address);
         }
 
-        ContractsCommands::Verify {
-            address,
-            network,
-            name,
-            source,
-            compiler,
-            optimize_runs,
-        } => {
-            validate_address(address)?;
-            if !quiet {
-                eprintln!("Verifying contract {} on network {}...", address, network);
-            }
-            let source_code = std::fs::read_to_string(source)
-                .with_context(|| format!("Failed to read source file: {}", source))?;
-            let mut request = tndrly::contracts::VerifyContractRequest::new(
-                network,
-                address,
-                name,
-                &source_code,
-                compiler,
-            );
-            if let Some(runs) = optimize_runs {
-                request = request.optimization(true, *runs);
-            }
-            let result = client.contracts().verify(&request).await?;
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        }
-
         ContractsCommands::Abi { address, network } => {
             validate_address(address)?;
             if !quiet {
@@ -1905,30 +1757,6 @@ async fn handle_contracts(
             }
             client.contracts().rename(network, address, name).await?;
             println!("Contract renamed successfully");
-        }
-
-        ContractsCommands::Update {
-            address,
-            network,
-            name,
-            tags,
-        } => {
-            validate_address(address)?;
-            if !quiet {
-                eprintln!("Updating contract {}...", address);
-            }
-            let mut request = tndrly::contracts::UpdateContractRequest::default();
-            if let Some(n) = name {
-                request.display_name = Some(n.clone());
-            }
-            if !tags.is_empty() {
-                request.tags = Some(tags.clone());
-            }
-            let result = client
-                .contracts()
-                .update(network, address, &request)
-                .await?;
-            println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
         ContractsCommands::RemoveTag {
@@ -1974,6 +1802,7 @@ async fn handle_contracts(
 
         ContractsCommands::EncodeState {
             network,
+            block_number,
             state_json,
         } => {
             if !quiet {
@@ -1983,10 +1812,11 @@ async fn handle_contracts(
                 String,
                 tndrly::contracts::StateOverrideInput,
             > = serde_json::from_str(state_json).context("Invalid state overrides JSON")?;
-            let request = tndrly::contracts::EncodeStateRequest {
-                network_id: network.clone(),
-                state_overrides,
-            };
+            let mut request =
+                tndrly::contracts::EncodeStateRequest::new(network.clone(), state_overrides);
+            if let Some(block) = block_number {
+                request = request.block_number(block.clone());
+            }
             let result = client.contracts().encode_state(&request).await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
@@ -2125,39 +1955,6 @@ async fn handle_alerts(
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
-        AlertsCommands::AddDestination {
-            id,
-            destination_type,
-            destination_id,
-        } => {
-            if !quiet {
-                eprintln!("Adding destination to alert {}...", id);
-            }
-            let dest_type: tndrly::alerts::DestinationType = destination_type
-                .parse()
-                .map_err(|e: String| anyhow::anyhow!(e))?;
-            let request = tndrly::alerts::AddDestinationRequest {
-                destination_type: dest_type,
-                destination_id: destination_id.clone(),
-            };
-            let result = client.alerts().add_destination(id, &request).await?;
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        }
-
-        AlertsCommands::RemoveDestination { id, destination_id } => {
-            if !quiet {
-                eprintln!(
-                    "Removing destination {} from alert {}...",
-                    destination_id, id
-                );
-            }
-            client
-                .alerts()
-                .remove_destination(id, destination_id)
-                .await?;
-            println!("Destination removed from alert {}.", id);
-        }
-
         AlertsCommands::Webhooks { action } => {
             handle_webhooks(action, &client, quiet).await?;
         }
@@ -2203,18 +2000,6 @@ async fn handle_webhooks(
             }
             client.alerts().delete_webhook(id).await?;
             println!("Webhook {} deleted.", id);
-        }
-
-        WebhookCommands::Test {
-            id,
-            tx_hash,
-            network,
-        } => {
-            if !quiet {
-                eprintln!("Testing webhook {}...", id);
-            }
-            client.alerts().test_webhook(id, tx_hash, network).await?;
-            println!("Webhook test triggered for {}.", id);
         }
     }
 
@@ -2276,65 +2061,6 @@ async fn handle_actions(
             }
             client.actions().delete(id).await?;
             println!("Action {} deleted.", id);
-        }
-
-        ActionsCommands::Enable { id } => {
-            if !quiet {
-                eprintln!("Enabling Action {}...", id);
-            }
-            client.actions().enable(id).await?;
-            println!("Action {} enabled.", id);
-        }
-
-        ActionsCommands::Disable { id } => {
-            if !quiet {
-                eprintln!("Disabling Action {}...", id);
-            }
-            client.actions().disable(id).await?;
-            println!("Action {} disabled.", id);
-        }
-
-        ActionsCommands::Invoke { id, payload } => {
-            if !quiet {
-                eprintln!("Invoking Action {}...", id);
-            }
-
-            let request = match payload {
-                Some(p) => {
-                    let payload_value: serde_json::Value = serde_json::from_str(p)?;
-                    tndrly::actions::InvokeActionRequest::with_payload(payload_value)
-                }
-                None => tndrly::actions::InvokeActionRequest::new(),
-            };
-
-            let result = client.actions().invoke(id, &request).await?;
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        }
-
-        ActionsCommands::Logs { id } => {
-            if !quiet {
-                eprintln!("Getting logs for Action {}...", id);
-            }
-            let logs = client.actions().logs(id).await?;
-            println!("{}", serde_json::to_string_pretty(&logs)?);
-        }
-
-        ActionsCommands::Source { id } => {
-            if !quiet {
-                eprintln!("Getting source for Action {}...", id);
-            }
-            let source = client.actions().source(id).await?;
-            println!("{}", source);
-        }
-
-        ActionsCommands::UpdateSource { id, source } => {
-            if !quiet {
-                eprintln!("Updating source for Action {}...", id);
-            }
-            let source_code = std::fs::read_to_string(source)
-                .with_context(|| format!("Failed to read action source file: {}", source))?;
-            client.actions().update_source(id, &source_code).await?;
-            println!("Action {} source updated.", id);
         }
 
         ActionsCommands::Stop { id } => {
