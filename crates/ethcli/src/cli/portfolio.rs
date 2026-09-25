@@ -6,7 +6,7 @@
 use crate::aggregator::portfolio::{
     fetch_portfolio_all, fetch_portfolio_parallel, MergedToken, PortfolioResult, PortfolioSource,
 };
-use crate::aggregator::AggregatedResult;
+use crate::aggregator::{sum_usd, AggregatedResult};
 use crate::cli::OutputFormat;
 use crate::config::{AddressBook, TokenBlacklist};
 use crate::utils::format::truncate_str;
@@ -115,6 +115,10 @@ pub struct WalletPortfolio {
     pub latency_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blacklisted_count: Option<usize>,
+    /// Per-source status (always serialized when a source failed, so errors
+    /// are never silently dropped; otherwise only with --show-sources)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<SourcePortfolio>,
 }
 
 /// Multi-wallet portfolio output
@@ -156,7 +160,7 @@ pub struct PortfolioOutput {
     pub blacklisted_count: Option<usize>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SourcePortfolio {
     pub source: String,
     pub token_count: Option<usize>,
@@ -220,8 +224,29 @@ pub async fn execute(args: &PortfolioArgs, quiet: bool) -> anyhow::Result<()> {
         .map(|(wallet, result)| apply_filters(wallet, result, &blacklist, args, quiet))
         .collect();
 
+    // If every queried source failed for every wallet, there is no data at
+    // all: fail instead of printing "Tokens: 0" with exit code 0.
+    if let Some(msg) = all_sources_failed_error(&wallet_portfolios) {
+        anyhow::bail!(msg);
+    }
+
+    // Surface every failed source on stderr (regardless of --show-sources).
+    if !quiet {
+        for wallet in &wallet_portfolios {
+            let label = wallet.label.as_ref().unwrap_or(&wallet.address);
+            for src in wallet.sources.iter().filter(|s| s.error.is_some()) {
+                eprintln!(
+                    "Warning: {} source {} failed: {}",
+                    label,
+                    src.source,
+                    src.error.as_deref().unwrap_or_default()
+                );
+            }
+        }
+    }
+
     // Calculate grand total
-    let grand_total: f64 = wallet_portfolios.iter().map(|w| w.total_usd_value).sum();
+    let grand_total = sum_usd(wallet_portfolios.iter().map(|w| w.total_usd_value));
 
     // Build output based on aggregation mode
     if args.aggregate && wallet_portfolios.len() > 1 {
@@ -269,7 +294,11 @@ pub async fn execute(args: &PortfolioArgs, quiet: bool) -> anyhow::Result<()> {
             address: wp.address.clone(),
             chains: args.chain.clone(),
             aggregation: legacy,
-            sources: None,
+            sources: if wp.sources.is_empty() {
+                None
+            } else {
+                Some(wp.sources.clone())
+            },
             total_latency_ms: wp.latency_ms,
             blacklisted_count: wp.blacklisted_count,
         };
@@ -407,8 +436,20 @@ fn apply_filters(
         tokens.retain(|t| t.usd_value.map(|v| v >= min_value).unwrap_or(false));
     }
 
-    let total_usd_value: f64 = tokens.iter().filter_map(|t| t.usd_value).sum();
+    let total_usd_value = sum_usd(tokens.iter().filter_map(|t| t.usd_value));
     let token_count = tokens.len();
+
+    let source_status: Vec<SourcePortfolio> = result
+        .sources
+        .iter()
+        .map(|s| SourcePortfolio {
+            source: s.source.to_string(),
+            token_count: s.data.as_ref().map(|d| d.len()),
+            error: s.error.clone(),
+            latency_ms: s.latency_ms,
+        })
+        .collect();
+    let any_failed = source_status.iter().any(|s| s.error.is_some());
 
     WalletPortfolio {
         label: wallet.label,
@@ -422,7 +463,35 @@ fn apply_filters(
         } else {
             None
         },
+        sources: if args.show_sources || any_failed {
+            source_status
+        } else {
+            Vec::new()
+        },
     }
+}
+
+/// Error message when every source failed for every wallet (no data at all).
+fn all_sources_failed_error(wallets: &[WalletPortfolio]) -> Option<String> {
+    let all_failed = !wallets.is_empty()
+        && wallets
+            .iter()
+            .all(|w| !w.sources.is_empty() && w.sources.iter().all(|s| s.error.is_some()));
+    if !all_failed {
+        return None;
+    }
+    let mut msg = String::from("Portfolio unavailable: every source failed");
+    for w in wallets {
+        for s in &w.sources {
+            msg.push_str(&format!(
+                "\n  {} ({}): {}",
+                s.source,
+                w.label.as_ref().unwrap_or(&w.address),
+                s.error.as_deref().unwrap_or_default()
+            ));
+        }
+    }
+    Some(msg)
 }
 
 /// Aggregate multiple wallet portfolios into one combined view
@@ -437,9 +506,10 @@ fn aggregate_wallets(wallets: &[WalletPortfolio]) -> AggregatedPortfolio {
 
         for token in &wallet.tokens {
             let key = format!(
-                "{}:{}",
+                "{}:{}:{}",
                 token.chain.to_lowercase(),
-                token.address.to_lowercase()
+                token.address.to_lowercase(),
+                token.position_id.as_deref().unwrap_or("")
             );
 
             if let Some(existing) = token_map.get_mut(&key) {
@@ -468,7 +538,7 @@ fn aggregate_wallets(wallets: &[WalletPortfolio]) -> AggregatedPortfolio {
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let total_usd_value: f64 = tokens.iter().filter_map(|t| t.usd_value).sum();
+    let total_usd_value = sum_usd(tokens.iter().filter_map(|t| t.usd_value));
     let addresses: Vec<String> = wallets.iter().map(|w| w.address.clone()).collect();
 
     AggregatedPortfolio {
@@ -495,6 +565,29 @@ fn print_single_wallet_table(output: &PortfolioOutput) {
     println!();
 
     print_token_table(&output.aggregation.tokens);
+
+    if let Some(sources) = &output.sources {
+        println!("Per-Source Results:");
+        println!("{}", "-".repeat(60));
+        for s in sources {
+            let count = s
+                .token_count
+                .map(|c| format!("{} tokens", c))
+                .unwrap_or_else(|| "-".to_string());
+            let status = if s.error.is_some() { "ERR" } else { "OK" };
+            println!(
+                "{:<10} {:>12} {:>8}ms {:>5}",
+                s.source, count, s.latency_ms, status
+            );
+        }
+        println!("{}", "-".repeat(60));
+        for s in sources {
+            if let Some(err) = &s.error {
+                println!("  {}: {}", s.source, err);
+            }
+        }
+        println!();
+    }
 
     println!("Total time: {}ms (parallel)", output.total_latency_ms);
     println!();
@@ -627,5 +720,51 @@ fn format_balance(balance: f64) -> String {
         format!("{:.2}K", balance / 1_000.0)
     } else {
         format!("{:.4}", balance)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wallet(sources: Vec<SourcePortfolio>) -> WalletPortfolio {
+        WalletPortfolio {
+            label: None,
+            address: "0xabc".into(),
+            total_usd_value: 0.0,
+            token_count: 0,
+            tokens: vec![],
+            latency_ms: 1,
+            blacklisted_count: None,
+            sources,
+        }
+    }
+
+    fn src(name: &str, error: Option<&str>) -> SourcePortfolio {
+        SourcePortfolio {
+            source: name.into(),
+            token_count: if error.is_some() { None } else { Some(0) },
+            error: error.map(String::from),
+            latency_ms: 1,
+        }
+    }
+
+    #[test]
+    fn all_failed_is_error_with_upstream_messages() {
+        let w = wallet(vec![
+            src("alchemy", Some("Rate limited by Alchemy (429)")),
+            src("moralis", Some("ethereum: 401 Free usage is paused")),
+        ]);
+        let msg = all_sources_failed_error(&[w]).expect("should fail");
+        assert!(msg.contains("Rate limited by Alchemy (429)"), "{msg}");
+        assert!(msg.contains("Free usage is paused"), "{msg}");
+    }
+
+    #[test]
+    fn partial_failure_or_empty_wallet_is_not_error() {
+        let w = wallet(vec![src("alchemy", Some("boom")), src("yearn", None)]);
+        assert!(all_sources_failed_error(&[w]).is_none());
+        // No source status recorded (all OK, --show-sources off)
+        assert!(all_sources_failed_error(&[wallet(vec![])]).is_none());
     }
 }
