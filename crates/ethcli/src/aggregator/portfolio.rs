@@ -610,69 +610,11 @@ async fn fetch_uniswap_portfolio(
                 }
 
                 // === V4 Positions ===
-                let v4_config = match chain_lower.as_str() {
-                    "ethereum" | "mainnet" | "eth" | "eth-mainnet" => {
-                        Some(unswp::SubgraphConfig::mainnet_v4(&api_key))
-                    }
-                    "arbitrum" | "arb" | "arb-mainnet" | "arbitrum-mainnet" => {
-                        Some(unswp::SubgraphConfig::arbitrum_v4(&api_key))
-                    }
-                    "base" | "base-mainnet" => Some(unswp::SubgraphConfig::base_v4(&api_key)),
-                    "polygon" | "matic" | "polygon-mainnet" => {
-                        Some(unswp::SubgraphConfig::polygon_v4(&api_key))
-                    }
-                    _ => None,
-                };
-
-                if let Some(config) = v4_config {
-                    let positions = match unswp::SubgraphClient::new(config) {
-                        Ok(client) => client
-                            .get_positions_v4(&address)
-                            .await
-                            .map_err(|e| format!("{} V4: {}", chain, e)),
-                        Err(e) => Err(format!("{} V4 client: {}", chain, e)),
-                    };
-                    match positions {
-                        Err(e) => errors.push(e),
-                        Ok(positions) => {
-                            successes += 1;
-                            for pos in positions {
-                                let liquidity: u128 = pos.liquidity.parse().unwrap_or(0);
-                                if liquidity == 0 {
-                                    continue;
-                                }
-
-                                // The subgraph only exposes the *pool's* TVL; the
-                                // position's share cannot be derived from it, so
-                                // do not report pool TVL as the user's value.
-                                let usd_value: Option<f64> = None;
-
-                                let fee: f64 = pos.pool.fee.parse().unwrap_or(0.0) / 10000.0;
-
-                                let symbol = format!(
-                                    "UNI-V4 {}/{} ({}%)",
-                                    pos.pool.token0.symbol, pos.pool.token1.symbol, fee
-                                );
-
-                                let balance = PortfolioBalance::new(
-                                    &pos.pool.id,
-                                    &symbol,
-                                    &chain,
-                                    &pos.liquidity,
-                                    0,
-                                )
-                                .with_position_id(Some(pos.id.clone()))
-                                .with_name(Some(format!(
-                                    "Uniswap V4 LP #{}: {}/{}",
-                                    pos.id, pos.pool.token0.symbol, pos.pool.token1.symbol
-                                )))
-                                .with_usd_value(usd_value);
-
-                                balances.push(balance);
-                            }
-                        }
-                    }
-                }
+                // Not included: the V4 subgraph only indexes position NFT
+                // ownership (no pool, liquidity or value), so V4 LP positions
+                // cannot be valued here. The previous code used the *whole
+                // pool's* TVL as the position value, and its query never
+                // matched the V4 schema anyway.
 
                 (balances, successes, errors)
             }

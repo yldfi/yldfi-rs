@@ -41,7 +41,8 @@ pub enum LiFiCommands {
         /// Receiver address (defaults to sender)
         #[arg(long)]
         to_address: Option<String>,
-        /// Slippage in percent (e.g., 0.5)
+        /// Slippage tolerance in percent (e.g., 0.5 = 0.5%). Converted to the
+        /// decimal fraction LI.FI expects before sending.
         #[arg(long, default_value = "0.5")]
         slippage: f64,
         /// Integrator identifier
@@ -66,7 +67,8 @@ pub enum LiFiCommands {
         /// Receiver address
         #[arg(long)]
         to_address: Option<String>,
-        /// Slippage in percent
+        /// Slippage tolerance in percent (e.g., 0.5 = 0.5%). Converted to the
+        /// decimal fraction LI.FI expects before sending.
         #[arg(long, default_value = "0.5")]
         slippage: f64,
     },
@@ -147,7 +149,8 @@ pub enum LiFiCommands {
         from_amount: String,
         /// Sender address
         from_address: String,
-        /// Slippage in percent
+        /// Slippage tolerance in percent (e.g., 0.5 = 0.5%). Converted to the
+        /// decimal fraction LI.FI expects before sending.
         #[arg(long, default_value = "0.5")]
         slippage: f64,
     },
@@ -204,7 +207,7 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
                 &from_address,
             );
             request.to_address = to_address;
-            request.slippage = Some(slippage);
+            request.slippage = Some(percent_to_fraction(slippage)?);
             if let Some(int) = int_override.or(integrator) {
                 request.integrator = Some(int);
             }
@@ -233,7 +236,7 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
             );
             request.to_address = to_address;
             let mut options = lfi::RoutesOptions::new();
-            options.slippage = Some(slippage);
+            options.slippage = Some(percent_to_fraction(slippage)?);
             request.options = Some(options);
 
             let routes = client.get_routes(&request).await?;
@@ -341,7 +344,7 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
                 &from_amount,
                 &from_address,
             );
-            request.slippage = Some(slippage);
+            request.slippage = Some(percent_to_fraction(slippage)?);
             if let Some(int) = integrator {
                 request.integrator = Some(int);
             }
@@ -351,9 +354,14 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
         }
 
         LiFiCommands::StepTransaction { step_json } => {
-            let step: lfi::Step = serde_json::from_str(&step_json)
+            // Pass the step through untouched: LI.FI validates the full step
+            // (e.g. token priceUSD), and a typed round-trip drops fields.
+            let step: serde_json::Value = serde_json::from_str(&step_json)
                 .map_err(|e| anyhow::anyhow!("Invalid step JSON: {}", e))?;
-            let updated_step = client.get_step_transaction(&step).await?;
+            if !step.is_object() {
+                anyhow::bail!("Invalid step JSON: expected an object");
+            }
+            let updated_step = client.get_step_transaction_raw(&step).await?;
             output_json(&updated_step, args.format)?;
         }
 
@@ -387,6 +395,20 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Maximum slippage (in percent) accepted by the CLI.
+const MAX_SLIPPAGE_PERCENT: f64 = 50.0;
+
+/// Convert a user-facing slippage percentage into LI.FI's decimal fraction.
+fn percent_to_fraction(percent: f64) -> anyhow::Result<f64> {
+    if percent > MAX_SLIPPAGE_PERCENT {
+        anyhow::bail!(
+            "--slippage {percent}% is too high (max {MAX_SLIPPAGE_PERCENT}%); \
+             note --slippage is in percent, e.g. 0.5 = 0.5%"
+        );
+    }
+    lfi::slippage_percent_to_fraction(percent).map_err(|e| anyhow::anyhow!("--slippage: {e}"))
+}
+
 fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::Result<()> {
     let json = if format.is_table() {
         serde_json::to_string_pretty(value)?
@@ -395,4 +417,23 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
     };
     println!("{}", json);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_slippage_is_half_a_percent() {
+        let f = percent_to_fraction(0.5).unwrap();
+        assert!((f - 0.005).abs() < 1e-12);
+    }
+
+    #[test]
+    fn slippage_out_of_range_is_rejected() {
+        assert!(percent_to_fraction(0.0).is_err());
+        assert!(percent_to_fraction(-0.5).is_err());
+        assert!(percent_to_fraction(51.0).is_err());
+        assert!((percent_to_fraction(50.0).unwrap() - 0.5).abs() < 1e-12);
+    }
 }

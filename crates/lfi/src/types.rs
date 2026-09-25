@@ -8,6 +8,61 @@ use serde::{Deserialize, Serialize};
 /// Chain ID type - uses numeric chain IDs
 pub type ChainId = u64;
 
+/// Serialize an optional list as a single comma-separated value.
+///
+/// `serde_urlencoded` (used for GET query strings) cannot serialize sequences,
+/// and LI.FI accepts list-valued query parameters as comma-joined strings
+/// (e.g. `chains=1,8453`, `allowBridges=hop,across`).
+fn serialize_comma_list<T, S>(value: &Option<Vec<T>>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    T: std::fmt::Display,
+    S: serde::Serializer,
+{
+    match value {
+        Some(items) => {
+            let joined = items
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            serializer.serialize_some(&joined)
+        }
+        None => serializer.serialize_none(),
+    }
+}
+
+/// Validate a slippage value expressed as a decimal fraction.
+///
+/// LI.FI expects slippage as a fraction (`0.005` = 0.5%). Returns an error
+/// message if the value is outside `(0, 1)`.
+///
+/// # Errors
+///
+/// Returns an error string if the value is not finite or not in `(0, 1)`.
+pub fn validate_slippage_fraction(slippage: f64) -> Result<(), String> {
+    if !slippage.is_finite() || slippage <= 0.0 || slippage >= 1.0 {
+        return Err(format!(
+            "slippage must be a fraction between 0 and 1 (e.g. 0.005 = 0.5%), got {slippage}"
+        ));
+    }
+    Ok(())
+}
+
+/// Convert a slippage percentage (e.g. `0.5` for 0.5%) to the decimal
+/// fraction LI.FI expects (`0.005`).
+///
+/// # Errors
+///
+/// Returns an error string if the percentage is not in `(0, 100)`.
+pub fn slippage_percent_to_fraction(percent: f64) -> Result<f64, String> {
+    if !percent.is_finite() || percent <= 0.0 || percent >= 100.0 {
+        return Err(format!(
+            "slippage percent must be between 0 and 100 (e.g. 0.5 = 0.5%), got {percent}"
+        ));
+    }
+    Ok(percent / 100.0)
+}
+
 /// Common chain IDs
 pub mod chains {
     use super::ChainId;
@@ -67,13 +122,13 @@ pub struct Token {
     /// Token name
     pub name: String,
     /// Coin key (optional, used by LI.FI for token identification)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coin_key: Option<String>,
     /// Logo URI
-    #[serde(default)]
+    #[serde(default, rename = "logoURI", skip_serializing_if = "Option::is_none")]
     pub logo_uri: Option<String>,
     /// USD price
-    #[serde(default)]
+    #[serde(default, rename = "priceUSD", skip_serializing_if = "Option::is_none")]
     pub price_usd: Option<String>,
     /// Tags (e.g., "stablecoin", "`major_asset`")
     #[serde(default)]
@@ -90,7 +145,7 @@ pub struct TokenAmount {
     /// Amount in base units (wei)
     pub amount: String,
     /// Amount in human-readable format
-    #[serde(default)]
+    #[serde(default, rename = "amountUSD", skip_serializing_if = "Option::is_none")]
     pub amount_usd: Option<String>,
 }
 
@@ -117,7 +172,10 @@ pub struct QuoteRequest {
     /// Recipient address (defaults to `from_address` if not specified)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_address: Option<String>,
-    /// Slippage tolerance in percent (e.g., 0.5 for 0.5%)
+    /// Slippage tolerance as a decimal fraction (e.g., `0.005` for 0.5%).
+    ///
+    /// This is sent to LI.FI unchanged; LI.FI interprets `0.5` as **50%**.
+    /// Use [`slippage_percent_to_fraction`] to convert from percent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slippage: Option<f64>,
     /// Integrator identifier
@@ -130,16 +188,28 @@ pub struct QuoteRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub referrer: Option<String>,
     /// Allowed bridges
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
     pub allow_bridges: Option<Vec<String>>,
     /// Denied bridges
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
     pub deny_bridges: Option<Vec<String>>,
     /// Allowed exchanges
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
     pub allow_exchanges: Option<Vec<String>>,
     /// Denied exchanges
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
     pub deny_exchanges: Option<Vec<String>>,
     /// Prefer specific route types
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -187,7 +257,7 @@ impl QuoteRequest {
         self
     }
 
-    /// Set slippage tolerance in percent
+    /// Set slippage tolerance as a decimal fraction (`0.005` = 0.5%)
     #[must_use]
     pub fn with_slippage(mut self, slippage: f64) -> Self {
         self.slippage = Some(slippage);
@@ -278,20 +348,20 @@ pub struct Quote {
     /// Tool used (bridge/exchange name)
     pub tool: String,
     /// Tool details
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_details: Option<ToolDetails>,
     /// Action details
     pub action: Action,
     /// Estimate of the swap/bridge
     pub estimate: Estimate,
     /// Transaction request to execute
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transaction_request: Option<TransactionRequest>,
     /// Included steps
     #[serde(default)]
     pub included_steps: Vec<Step>,
     /// Integrator
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub integrator: Option<String>,
 }
 
@@ -364,7 +434,7 @@ impl RoutesRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutesOptions {
-    /// Slippage tolerance in percent
+    /// Slippage tolerance as a decimal fraction (e.g., `0.005` for 0.5%)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slippage: Option<f64>,
     /// Integrator identifier
@@ -400,7 +470,7 @@ impl RoutesOptions {
         Self::default()
     }
 
-    /// Set slippage tolerance
+    /// Set slippage tolerance as a decimal fraction (`0.005` = 0.5%)
     #[must_use]
     pub fn with_slippage(mut self, slippage: f64) -> Self {
         self.slippage = Some(slippage);
@@ -467,7 +537,7 @@ pub struct RoutesResponse {
     /// Available routes
     pub routes: Vec<Route>,
     /// Unavailable routes (with reasons)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unavailable_routes: Option<UnavailableRoutes>,
 }
 
@@ -487,23 +557,48 @@ pub struct UnavailableRoutes {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FilteredRoute {
-    /// Tool name
-    pub tool: String,
+    /// Path identifier (e.g. `1:ETH-across-42161:ETH`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overall_path: Option<String>,
     /// Reason for filtering
-    pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// A route that failed
+///
+/// LI.FI reports failures per overall path, with a map of sub-path to the
+/// tool errors encountered for that sub-path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FailedRoute {
-    /// Tool name
-    pub tool: String,
-    /// Error message
-    pub error_message: String,
-    /// Error code
+    /// Path identifier (e.g. `1:ETH~1:USDC-1:USDC-across-42161:USDC`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overall_path: Option<String>,
+    /// Errors keyed by sub-path
     #[serde(default)]
-    pub error_code: Option<String>,
+    pub subpaths: std::collections::HashMap<String, Vec<ToolError>>,
+}
+
+/// An error returned by a tool while computing a (sub-)route
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolError {
+    /// Error type (e.g. `NO_QUOTE`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_type: Option<String>,
+    /// Error code (e.g. `TOOL_SPECIFIC_ERROR`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Tool that produced the error
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
+    /// Human-readable message
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Action that was attempted (raw)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<serde_json::Value>,
 }
 
 // ============================================================================
@@ -523,7 +618,11 @@ pub struct Route {
     /// Source amount
     pub from_amount: String,
     /// Source amount in USD
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "fromAmountUSD",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub from_amount_usd: Option<String>,
     /// Sender address
     pub from_address: String,
@@ -534,26 +633,34 @@ pub struct Route {
     /// Destination amount (estimated)
     pub to_amount: String,
     /// Destination amount in USD (estimated)
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "toAmountUSD",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub to_amount_usd: Option<String>,
     /// Minimum destination amount (after slippage)
     pub to_amount_min: String,
     /// Recipient address
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub to_address: Option<String>,
     /// Route steps
     pub steps: Vec<Step>,
     /// Gas cost in USD
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "gasCostUSD",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub gas_cost_usd: Option<String>,
     /// Total execution time in seconds
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_duration: Option<u64>,
     /// Tags for this route
     #[serde(default)]
     pub tags: Vec<String>,
     /// Insurance available
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub insurance: Option<Insurance>,
 }
 
@@ -564,7 +671,11 @@ pub struct Insurance {
     /// Insurance state
     pub state: String,
     /// Fee in USD
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "feeAmountUSD",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub fee_amount_usd: Option<String>,
 }
 
@@ -584,14 +695,14 @@ pub struct Step {
     /// Tool used for this step
     pub tool: String,
     /// Tool details
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_details: Option<ToolDetails>,
     /// Action details
     pub action: Action,
     /// Estimate for this step
     pub estimate: Estimate,
     /// Transaction request (if available)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transaction_request: Option<TransactionRequest>,
     /// Included steps (for composite steps)
     #[serde(default)]
@@ -623,7 +734,7 @@ pub struct ToolDetails {
     /// Tool name
     pub name: String,
     /// Tool logo URI
-    #[serde(default)]
+    #[serde(default, rename = "logoURI", skip_serializing_if = "Option::is_none")]
     pub logo_uri: Option<String>,
 }
 
@@ -646,16 +757,16 @@ pub struct Action {
     /// Destination token
     pub to_token: Token,
     /// Slippage tolerance (may not be present for some steps)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slippage: Option<f64>,
     /// Sender address
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_address: Option<String>,
     /// Recipient address
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub to_address: Option<String>,
     /// Destination call data (for contract interactions on destination)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub destination_call_data: Option<String>,
 }
 
@@ -668,43 +779,51 @@ pub struct Action {
 #[serde(rename_all = "camelCase")]
 pub struct Estimate {
     /// Tool used for this estimate
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool: Option<String>,
     /// Source amount
     pub from_amount: String,
     /// Source amount in USD
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "fromAmountUSD",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub from_amount_usd: Option<String>,
     /// Destination amount
     pub to_amount: String,
     /// Destination amount in USD
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "toAmountUSD",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub to_amount_usd: Option<String>,
     /// Minimum destination amount (after slippage)
     pub to_amount_min: String,
     /// Approval address (for token approvals)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval_address: Option<String>,
     /// Execution duration in seconds
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_duration: Option<u64>,
     /// Fee costs
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fee_costs: Option<Vec<FeeCost>>,
     /// Gas costs
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gas_costs: Option<Vec<GasCost>>,
     /// Data
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<EstimateData>,
     /// Whether approval needs to be reset (for tokens with non-standard approval)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval_reset: Option<bool>,
     /// Whether to skip the approval step
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skip_approval: Option<bool>,
     /// Whether to skip permit signing
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skip_permit: Option<bool>,
 }
 
@@ -715,23 +834,23 @@ pub struct FeeCost {
     /// Fee name
     pub name: String,
     /// Fee description
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Fee token
     pub token: Token,
     /// Fee amount
     pub amount: String,
     /// Fee amount in USD
-    #[serde(default)]
+    #[serde(default, rename = "amountUSD", skip_serializing_if = "Option::is_none")]
     pub amount_usd: Option<String>,
     /// Percentage fee
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub percentage: Option<String>,
     /// Whether included in source amount
     #[serde(default)]
     pub included: bool,
     /// Fee split between integrator and LI.FI
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fee_split: Option<FeeSplit>,
 }
 
@@ -753,18 +872,18 @@ pub struct GasCost {
     #[serde(rename = "type")]
     pub gas_type: String,
     /// Estimate gas
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub estimate: Option<String>,
     /// Gas limit
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<String>,
     /// Gas amount
     pub amount: String,
     /// Amount in USD
-    #[serde(default)]
+    #[serde(default, rename = "amountUSD", skip_serializing_if = "Option::is_none")]
     pub amount_usd: Option<String>,
     /// Gas price
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price: Option<String>,
     /// Token used for gas
     pub token: Token,
@@ -775,10 +894,10 @@ pub struct GasCost {
 #[serde(rename_all = "camelCase")]
 pub struct EstimateData {
     /// Exchange rate
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exchange_rate: Option<String>,
     /// Price impact percentage
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price_impact: Option<String>,
 }
 
@@ -797,22 +916,22 @@ pub struct TransactionRequest {
     /// ETH value to send (in wei)
     pub value: String,
     /// Sender address
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<String>,
     /// Chain ID
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chain_id: Option<ChainId>,
     /// Gas limit
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gas_limit: Option<String>,
     /// Gas price
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gas_price: Option<String>,
     /// Max fee per gas (EIP-1559)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_fee_per_gas: Option<String>,
     /// Max priority fee per gas (EIP-1559)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_priority_fee_per_gas: Option<String>,
 }
 
@@ -875,36 +994,36 @@ impl StatusRequest {
 #[serde(rename_all = "camelCase")]
 pub struct StatusResponse {
     /// Transaction ID
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transaction_id: Option<String>,
     /// Sending transaction details
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sending: Option<TransactionInfo>,
     /// Receiving transaction details
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receiving: Option<TransactionInfo>,
     /// LI.FI explorer link
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lifi_explorer_link: Option<String>,
     /// Source chain ID
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_chain_id: Option<ChainId>,
     /// Destination chain ID
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub to_chain_id: Option<ChainId>,
     /// Bridge used
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bridge: Option<String>,
     /// Overall status
     pub status: TransactionStatus,
     /// Substatus
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub substatus: Option<String>,
     /// Substatus message
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub substatus_message: Option<String>,
     /// Metadata
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<StatusMetadata>,
 }
 
@@ -915,28 +1034,32 @@ pub struct TransactionInfo {
     /// Transaction hash
     pub tx_hash: String,
     /// Transaction link
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tx_link: Option<String>,
     /// Amount
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub amount: Option<String>,
     /// Token
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token: Option<Token>,
     /// Chain ID
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chain_id: Option<ChainId>,
     /// Gas price
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gas_price: Option<String>,
     /// Gas used
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gas_used: Option<String>,
     /// Gas amount in USD
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "gasAmountUSD",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub gas_amount_usd: Option<String>,
     /// Timestamp
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<u64>,
 }
 
@@ -963,7 +1086,7 @@ pub enum TransactionStatus {
 #[serde(rename_all = "camelCase")]
 pub struct StatusMetadata {
     /// Integrator
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub integrator: Option<String>,
 }
 
@@ -984,13 +1107,13 @@ pub struct Chain {
     /// Coin symbol (native token)
     pub coin: String,
     /// Chain type (EVM, SVM, etc.)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chain_type: Option<String>,
     /// Logo URI
-    #[serde(default)]
+    #[serde(default, rename = "logoURI", skip_serializing_if = "Option::is_none")]
     pub logo_uri: Option<String>,
     /// Native token
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_token: Option<Token>,
     /// Tokens on this chain (when fetching with tokens)
     #[serde(default)]
@@ -999,10 +1122,10 @@ pub struct Chain {
     #[serde(default)]
     pub mainnet: bool,
     /// Multicall address
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multicall_address: Option<String>,
     /// Metamask settings
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metamask: Option<MetamaskChainInfo>,
 }
 
@@ -1015,7 +1138,7 @@ pub struct MetamaskChainInfo {
     /// Chain name
     pub chain_name: String,
     /// Native currency
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_currency: Option<NativeCurrency>,
     /// RPC URLs
     #[serde(default)]
@@ -1065,10 +1188,16 @@ pub struct ConnectionsRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_token: Option<String>,
     /// Allow specific bridges
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
     pub allow_bridges: Option<Vec<String>>,
     /// Deny specific bridges
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
     pub deny_bridges: Option<Vec<String>>,
 }
 
@@ -1125,9 +1254,33 @@ pub struct Connection {
     /// Destination chain ID
     pub to_chain_id: ChainId,
     /// Source tokens
-    pub from_tokens: Vec<Token>,
+    #[serde(default)]
+    pub from_tokens: Vec<ConnectionToken>,
     /// Destination tokens
-    pub to_tokens: Vec<Token>,
+    #[serde(default)]
+    pub to_tokens: Vec<ConnectionToken>,
+}
+
+/// Token reference in a connection.
+///
+/// `/v1/connections` only returns `address` and `chainId` for each token;
+/// the remaining metadata is optional.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionToken {
+    /// Token contract address
+    pub address: String,
+    /// Chain ID
+    pub chain_id: ChainId,
+    /// Token symbol (if provided)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
+    /// Token decimals (if provided)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decimals: Option<u8>,
+    /// Token name (if provided)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 // ============================================================================
@@ -1138,8 +1291,11 @@ pub struct Connection {
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokensRequest {
-    /// Filter by chains
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Filter by chains (sent as a comma-separated list)
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
     pub chains: Option<Vec<ChainId>>,
 }
 
@@ -1202,7 +1358,7 @@ pub struct Tool {
     #[serde(rename = "type", default)]
     pub tool_type: Option<ToolType>,
     /// Logo URI
-    #[serde(default)]
+    #[serde(default, rename = "logoURI", skip_serializing_if = "Option::is_none")]
     pub logo_uri: Option<String>,
     /// Supported chains (can be chain pairs for bridges or single IDs for exchanges)
     #[serde(default)]
@@ -1242,16 +1398,16 @@ pub struct ToolsResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GasPrice {
     /// Standard gas price (wei)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standard: Option<u64>,
     /// Fast gas price (wei)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fast: Option<u64>,
     /// Fastest gas price (wei)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fastest: Option<u64>,
     /// Last updated timestamp (unix seconds)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<u64>,
 }
 
@@ -1269,7 +1425,114 @@ pub type GasPricesResponse = std::collections::HashMap<String, GasPrice>;
 pub struct ApiError {
     /// Error message
     pub message: String,
-    /// Error code
-    #[serde(default)]
-    pub code: Option<String>,
+    /// Error code (LI.FI returns numeric codes, e.g. `1001`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<serde_json::Value>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn query_string<Q: Serialize>(q: &Q) -> String {
+        reqwest::Client::new()
+            .get("https://example.invalid/x")
+            .query(q)
+            .build()
+            .expect("query must serialize")
+            .url()
+            .query()
+            .unwrap_or_default()
+            .to_string()
+    }
+
+    #[test]
+    fn slippage_percent_converts_to_fraction() {
+        assert!((slippage_percent_to_fraction(0.5).unwrap() - 0.005).abs() < 1e-12);
+        assert!((slippage_percent_to_fraction(3.0).unwrap() - 0.03).abs() < 1e-12);
+        assert!(slippage_percent_to_fraction(0.0).is_err());
+        assert!(slippage_percent_to_fraction(-1.0).is_err());
+        assert!(slippage_percent_to_fraction(100.0).is_err());
+        assert!(slippage_percent_to_fraction(f64::NAN).is_err());
+    }
+
+    #[test]
+    fn slippage_fraction_validation() {
+        assert!(validate_slippage_fraction(0.005).is_ok());
+        assert!(validate_slippage_fraction(0.0).is_err());
+        assert!(validate_slippage_fraction(1.0).is_err());
+    }
+
+    #[test]
+    fn token_uses_lifi_field_names() {
+        let json = r#"{"address":"0x0000000000000000000000000000000000000000","chainId":1,
+            "symbol":"ETH","decimals":18,"name":"ETH","coinKey":"ETH",
+            "logoURI":"https://logo","priceUSD":"2692.34","tags":[]}"#;
+        let token: Token = serde_json::from_str(json).unwrap();
+        assert_eq!(token.price_usd.as_deref(), Some("2692.34"));
+        assert_eq!(token.logo_uri.as_deref(), Some("https://logo"));
+        let out = serde_json::to_value(&token).unwrap();
+        assert_eq!(out["priceUSD"], "2692.34");
+        assert_eq!(out["logoURI"], "https://logo");
+        assert!(out.get("priceUsd").is_none());
+    }
+
+    #[test]
+    fn estimate_usd_fields_parse() {
+        let json = r#"{"fromAmount":"1","fromAmountUSD":"2692.34","toAmount":"2","toAmountUSD":"2686.5",
+            "toAmountMin":"1","gasCosts":[{"type":"SEND","amount":"1","amountUSD":"0.5",
+            "token":{"address":"0x0","chainId":1,"symbol":"ETH","decimals":18,"name":"ETH"}}]}"#;
+        let est: Estimate = serde_json::from_str(json).unwrap();
+        assert_eq!(est.from_amount_usd.as_deref(), Some("2692.34"));
+        assert_eq!(est.to_amount_usd.as_deref(), Some("2686.5"));
+        assert_eq!(est.gas_costs.unwrap()[0].amount_usd.as_deref(), Some("0.5"));
+    }
+
+    #[test]
+    fn unavailable_routes_parse_live_shape() {
+        let json = r#"{
+            "filteredOut":[{"overallPath":"1:ETH-across-42161:ETH","reason":"Across does not send ETH to contracts"}],
+            "failed":[{"overallPath":"1:ETH~1:USDC-1:USDC-across-42161:USDC",
+                "subpaths":{"1:ETH~1:USDC":[{"errorType":"NO_QUOTE","code":"TOOL_SPECIFIC_ERROR",
+                "tool":"lifiIntentsDex","message":"empty quote","durationMs":28,"action":{"fromChainId":1}}]}}]
+        }"#;
+        let u: UnavailableRoutes = serde_json::from_str(json).unwrap();
+        assert_eq!(u.filtered_out.len(), 1);
+        let failed = &u.failed[0];
+        let errs = &failed.subpaths["1:ETH~1:USDC"];
+        assert_eq!(errs[0].tool.as_deref(), Some("lifiIntentsDex"));
+        assert_eq!(errs[0].code.as_deref(), Some("TOOL_SPECIFIC_ERROR"));
+    }
+
+    #[test]
+    fn connection_tokens_accept_address_only() {
+        let json = r#"{"fromChainId":1,"toChainId":42161,
+            "fromTokens":[{"address":"0x0000000000000000000000000000000000000000","chainId":1}],
+            "toTokens":[{"address":"0xaf88d065e77c8cC2239327C5EDb3A432268e5831","chainId":42161}]}"#;
+        let c: Connection = serde_json::from_str(json).unwrap();
+        assert_eq!(c.from_tokens[0].chain_id, 1);
+        assert!(c.to_tokens[0].symbol.is_none());
+    }
+
+    #[test]
+    fn tokens_request_serializes_comma_joined_chains() {
+        let q = query_string(&TokensRequest::new().with_chains(vec![1, 8453]));
+        assert_eq!(q, "chains=1%2C8453");
+        assert_eq!(query_string(&TokensRequest::new()), "");
+    }
+
+    #[test]
+    fn quote_request_serializes_fraction_and_lists() {
+        let mut req = QuoteRequest::new(1, 42161, "0xa", "0xb", "100", "0xc").with_slippage(0.005);
+        req.allow_bridges = Some(vec!["hop".into(), "across".into()]);
+        let q = query_string(&req);
+        assert!(q.contains("slippage=0.005"), "{q}");
+        assert!(q.contains("allowBridges=hop%2Cacross"), "{q}");
+    }
+
+    #[test]
+    fn api_error_accepts_numeric_code() {
+        let e: ApiError = serde_json::from_str(r#"{"message":"No routes","code":1001}"#).unwrap();
+        assert_eq!(e.message, "No routes");
+    }
 }

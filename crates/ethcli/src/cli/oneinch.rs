@@ -5,6 +5,7 @@
 use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
 use oinch::{Client, QuoteRequest, SwapRequest};
+use secrecy::ExposeSecret;
 
 #[derive(Args, Clone)]
 pub struct OneInchArgs {
@@ -32,9 +33,9 @@ pub enum OneInchCommands {
         dst: String,
         /// Amount in smallest units (wei)
         amount: String,
-        /// Chain ID (1=Ethereum, 56=BSC, 137=Polygon, etc.)
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (1=Ethereum, 56=BSC, 137=Polygon, etc.; defaults to global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
         /// Include gas estimation
         #[arg(long)]
         include_gas: bool,
@@ -56,9 +57,9 @@ pub enum OneInchCommands {
         amount: String,
         /// Wallet address that will execute the swap
         from: String,
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
         /// Slippage tolerance in percent (e.g., 1 = 1%)
         #[arg(long, default_value = "1")]
         slippage: f64,
@@ -78,23 +79,23 @@ pub enum OneInchCommands {
 
     /// Get list of supported tokens
     Tokens {
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
     },
 
     /// Get list of liquidity sources (DEXes)
     Sources {
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
     },
 
     /// Get approval spender address (router contract)
     Spender {
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
     },
 
     /// Check token approval allowance
@@ -103,32 +104,37 @@ pub enum OneInchCommands {
         token: String,
         /// Wallet address
         wallet: String,
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
     },
 
     /// Get approval transaction data
     Approve {
         /// Token address to approve
         token: String,
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
         /// Amount to approve (omit for unlimited)
         #[arg(long)]
         amount: Option<String>,
     },
 }
 
-pub async fn run(args: OneInchArgs, _chain: &str) -> anyhow::Result<()> {
-    let api_key = std::env::var("ONEINCH_API_KEY")
-        .or_else(|_| std::env::var("1INCH_API_KEY"))
-        .ok();
+pub async fn run(args: OneInchArgs, chain: &str) -> anyhow::Result<()> {
+    // Config first (same as the quote aggregator), then env vars
+    let api_key = crate::aggregator::get_cached_config()
+        .as_ref()
+        .and_then(|c| c.oneinch.as_ref())
+        .map(|o| o.api_key.expose_secret().to_string())
+        .or_else(|| std::env::var("ONEINCH_API_KEY").ok())
+        .or_else(|| std::env::var("1INCH_API_KEY").ok())
+        .filter(|k| !k.is_empty());
 
     let Some(key) = api_key else {
         anyhow::bail!(
-            "1inch API key required. Set ONEINCH_API_KEY or 1INCH_API_KEY environment variable.\n\
+            "1inch API key required. Add [oneinch] to the config or set ONEINCH_API_KEY / 1INCH_API_KEY.\n\
              Get an API key at: https://business.1inch.com"
         );
     };
@@ -144,7 +150,7 @@ pub async fn run(args: OneInchArgs, _chain: &str) -> anyhow::Result<()> {
             connector_tokens,
             fee,
         } => {
-            let chain = chain_id_to_oinch_chain(chain_id)?;
+            let chain = chain_id_to_oinch_chain(super::resolve_chain_id(chain_id, chain)?)?;
             let mut request = QuoteRequest::new(&src, &dst, &amount);
             request.include_gas = Some(include_gas);
             if let Some(tokens) = connector_tokens {
@@ -170,7 +176,7 @@ pub async fn run(args: OneInchArgs, _chain: &str) -> anyhow::Result<()> {
             disable_estimate,
             allow_partial_fill,
         } => {
-            let chain = chain_id_to_oinch_chain(chain_id)?;
+            let chain = chain_id_to_oinch_chain(super::resolve_chain_id(chain_id, chain)?)?;
             let mut request = SwapRequest::new(&src, &dst, &amount, &from, slippage);
             request.dest_receiver = receiver;
             request.referrer = referrer;
@@ -182,19 +188,19 @@ pub async fn run(args: OneInchArgs, _chain: &str) -> anyhow::Result<()> {
         }
 
         OneInchCommands::Tokens { chain_id } => {
-            let chain = chain_id_to_oinch_chain(chain_id)?;
+            let chain = chain_id_to_oinch_chain(super::resolve_chain_id(chain_id, chain)?)?;
             let tokens = client.get_tokens(chain).await?;
             output_json(&tokens, args.format)?;
         }
 
         OneInchCommands::Sources { chain_id } => {
-            let chain = chain_id_to_oinch_chain(chain_id)?;
+            let chain = chain_id_to_oinch_chain(super::resolve_chain_id(chain_id, chain)?)?;
             let sources = client.get_liquidity_sources(chain).await?;
             output_json(&sources, args.format)?;
         }
 
         OneInchCommands::Spender { chain_id } => {
-            let chain = chain_id_to_oinch_chain(chain_id)?;
+            let chain = chain_id_to_oinch_chain(super::resolve_chain_id(chain_id, chain)?)?;
             let spender = client.get_approve_spender(chain).await?;
             if args.format.is_json() {
                 println!("{{\"spender\": \"{}\"}}", spender);
@@ -208,7 +214,7 @@ pub async fn run(args: OneInchArgs, _chain: &str) -> anyhow::Result<()> {
             wallet,
             chain_id,
         } => {
-            let chain = chain_id_to_oinch_chain(chain_id)?;
+            let chain = chain_id_to_oinch_chain(super::resolve_chain_id(chain_id, chain)?)?;
             let allowance = client.get_approve_allowance(chain, &token, &wallet).await?;
             if args.format.is_json() {
                 println!("{{\"allowance\": \"{}\"}}", allowance);
@@ -222,7 +228,7 @@ pub async fn run(args: OneInchArgs, _chain: &str) -> anyhow::Result<()> {
             chain_id,
             amount,
         } => {
-            let chain = chain_id_to_oinch_chain(chain_id)?;
+            let chain = chain_id_to_oinch_chain(super::resolve_chain_id(chain_id, chain)?)?;
             let tx = client
                 .get_approve_transaction(chain, &token, amount.as_deref())
                 .await?;

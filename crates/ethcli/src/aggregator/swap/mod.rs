@@ -4,6 +4,7 @@
 //! and provides the best quote based on output amount and gas costs.
 
 mod fetchers;
+pub mod tokens;
 mod types;
 
 pub use fetchers::*;
@@ -19,6 +20,7 @@ pub async fn fetch_quotes_all(
     token_out: &str,
     amount_in: &str,
     sender: Option<&str>,
+    slippage_bps: u32,
 ) -> AggregatedResult<NormalizedQuote, QuoteAggregation> {
     let sources = vec![
         SwapSource::OpenOcean,
@@ -31,7 +33,16 @@ pub async fn fetch_quotes_all(
         SwapSource::Enso,
     ];
 
-    fetch_quotes_parallel(chain, token_in, token_out, amount_in, sender, &sources).await
+    fetch_quotes_parallel(
+        chain,
+        token_in,
+        token_out,
+        amount_in,
+        sender,
+        slippage_bps,
+        &sources,
+    )
+    .await
 }
 
 /// Fetch quotes from specified sources in parallel
@@ -41,6 +52,7 @@ pub async fn fetch_quotes_parallel(
     token_out: &str,
     amount_in: &str,
     sender: Option<&str>,
+    slippage_bps: u32,
     sources: &[SwapSource],
 ) -> AggregatedResult<NormalizedQuote, QuoteAggregation> {
     let start = LatencyMeasure::start();
@@ -62,6 +74,7 @@ pub async fn fetch_quotes_parallel(
                     &token_out,
                     &amount_in,
                     sender.as_deref(),
+                    slippage_bps,
                     source,
                 )
                 .await
@@ -79,12 +92,17 @@ pub async fn fetch_quotes_parallel(
 }
 
 /// Fetch quote from a single source
+///
+/// `slippage_bps` is the slippage tolerance in basis points (50 = 0.5%). It is
+/// converted to each provider's unit (bps for 0x/Enso, fraction for LI.FI)
+/// for sources that return transaction data.
 pub async fn fetch_quote_from_source(
     chain: u64,
     token_in: &str,
     token_out: &str,
     amount_in: &str,
     sender: Option<&str>,
+    slippage_bps: u32,
     source: SwapSource,
 ) -> SourceResult<NormalizedQuote> {
     let measure = LatencyMeasure::start();
@@ -98,8 +116,16 @@ pub async fn fetch_quote_from_source(
             fetchers::fetch_kyber_quote(chain, token_in, token_out, amount_in, measure).await
         }
         SwapSource::Zerox => {
-            fetchers::fetch_zerox_quote(chain, token_in, token_out, amount_in, sender, measure)
-                .await
+            fetchers::fetch_zerox_quote(
+                chain,
+                token_in,
+                token_out,
+                amount_in,
+                sender,
+                slippage_bps,
+                measure,
+            )
+            .await
         }
         SwapSource::OneInch => {
             fetchers::fetch_oneinch_quote(chain, token_in, token_out, amount_in, sender, measure)
@@ -110,15 +136,35 @@ pub async fn fetch_quote_from_source(
                 .await
         }
         SwapSource::LiFi => {
-            fetchers::fetch_lifi_quote(chain, token_in, token_out, amount_in, sender, measure).await
+            fetchers::fetch_lifi_quote(
+                chain,
+                token_in,
+                token_out,
+                amount_in,
+                sender,
+                slippage_bps,
+                measure,
+            )
+            .await
         }
         SwapSource::Velora => {
             fetchers::fetch_velora_quote(chain, token_in, token_out, amount_in, sender, measure)
                 .await
         }
         SwapSource::Enso => {
-            fetchers::fetch_enso_quote(chain, token_in, token_out, amount_in, sender, measure).await
+            fetchers::fetch_enso_quote(
+                chain,
+                token_in,
+                token_out,
+                amount_in,
+                sender,
+                slippage_bps,
+                measure,
+            )
+            .await
         }
-        SwapSource::All => SourceResult::error("all", "Use fetch_quotes_all instead", 0),
+        // A single-source call cannot represent "all"; callers should use
+        // fetch_quotes_all (ethcli quote from all does this).
+        SwapSource::All => SourceResult::error("all", "Use fetch_quotes_all for all sources", 0),
     }
 }

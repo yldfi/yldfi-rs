@@ -17,13 +17,41 @@ pub enum TvlPeriod {
 }
 
 impl TvlPeriod {
-    fn as_str(&self) -> &'static str {
+    /// Kong API period value (`"1 day"`, `"1 week"`, `"1 month"`)
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
         match self {
-            TvlPeriod::Day => "day",
-            TvlPeriod::Week => "week",
-            TvlPeriod::Month => "month",
+            TvlPeriod::Day => "1 day",
+            TvlPeriod::Week => "1 week",
+            TvlPeriod::Month => "1 month",
         }
     }
+
+    /// Approximate period length in seconds
+    #[must_use]
+    pub fn seconds(&self) -> u64 {
+        match self {
+            TvlPeriod::Day => 86_400,
+            TvlPeriod::Week => 7 * 86_400,
+            TvlPeriod::Month => 31 * 86_400,
+        }
+    }
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Start timestamp so that `limit` points of `period` end at `now`.
+///
+/// Kong returns points in ascending time order starting at `timestamp`
+/// (or at inception when omitted), so without a start the *oldest* points
+/// are returned.
+fn history_start(now: u64, period: TvlPeriod, limit: u32) -> u64 {
+    now.saturating_sub(period.seconds() * u64::from(limit))
 }
 
 /// TVLs API
@@ -38,7 +66,7 @@ impl<'a> TvlsApi<'a> {
         Self { client }
     }
 
-    /// Get TVL history for a vault or strategy
+    /// Get the most recent `limit` TVL points for a vault or strategy
     ///
     /// # Example
     ///
@@ -61,32 +89,9 @@ impl<'a> TvlsApi<'a> {
         period: TvlPeriod,
         limit: u32,
     ) -> Result<Vec<Tvl>> {
-        let query = format!(
-            r#"{{
-                tvls(chainId: {}, address: "{}", period: "{}", limit: {}) {{
-                    chainId
-                    address
-                    value
-                    priceUsd
-                    priceSource
-                    period
-                    blockNumber
-                    time
-                }}
-            }}"#,
-            chain_id,
-            address,
-            period.as_str(),
-            limit
-        );
-
-        #[derive(Deserialize)]
-        struct Response {
-            tvls: Vec<Tvl>,
-        }
-
-        let response: Response = self.client.query(&query).await?;
-        Ok(response.tvls)
+        let start = history_start(now_secs(), period, limit);
+        self.history_from(chain_id, address, period, limit, start)
+            .await
     }
 
     /// Get TVL history starting from a specific timestamp
@@ -100,7 +105,7 @@ impl<'a> TvlsApi<'a> {
     ) -> Result<Vec<Tvl>> {
         let query = format!(
             r#"{{
-                tvls(chainId: {}, address: "{}", period: "{}", limit: {}, timestamp: {}) {{
+                tvls(chainId: {}, address: "{}", period: "{}", limit: {}, timestamp: "{}") {{
                     chainId
                     address
                     value
@@ -144,9 +149,30 @@ impl<'a> TvlsApi<'a> {
             .await
     }
 
-    /// Get the latest TVL value
+    /// Get the latest TVL value (most recent daily point)
     pub async fn current(&self, chain_id: u64, address: &str) -> Result<Option<Tvl>> {
-        let tvls = self.history(chain_id, address, TvlPeriod::Day, 1).await?;
-        Ok(tvls.into_iter().next())
+        let tvls = self.history(chain_id, address, TvlPeriod::Day, 3).await?;
+        Ok(tvls.into_iter().max_by_key(|t| t.time.unwrap_or(0)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn periods_use_kong_values() {
+        assert_eq!(TvlPeriod::Day.as_str(), "1 day");
+        assert_eq!(TvlPeriod::Week.as_str(), "1 week");
+        assert_eq!(TvlPeriod::Month.as_str(), "1 month");
+    }
+
+    #[test]
+    fn history_starts_limit_periods_ago() {
+        assert_eq!(
+            history_start(1_000_000, TvlPeriod::Day, 3),
+            1_000_000 - 3 * 86_400
+        );
+        assert_eq!(history_start(10, TvlPeriod::Week, 3), 0);
     }
 }

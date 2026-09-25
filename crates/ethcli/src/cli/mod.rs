@@ -154,6 +154,22 @@ pub struct Cli {
     pub quiet: bool,
 }
 
+/// Resolve the chain ID for a command that has its own optional `--chain-id`
+/// flag: an explicit `--chain-id` wins, otherwise the global `--chain`
+/// (name or numeric ID) is used.
+///
+/// # Errors
+///
+/// Returns an error if the global chain cannot be parsed.
+pub fn resolve_chain_id(explicit: Option<u64>, global_chain: &str) -> anyhow::Result<u64> {
+    if let Some(id) = explicit {
+        return Ok(id);
+    }
+    crate::config::Chain::from_str_or_id(global_chain)
+        .map(|c| c.chain_id())
+        .map_err(|e| anyhow::anyhow!("Invalid --chain '{global_chain}': {e}"))
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
     /// Fetch historical logs from contracts
@@ -500,5 +516,24 @@ mod env_secret_tests {
             offenders.is_empty(),
             "env-backed args missing hide_env_values: {offenders:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod resolve_chain_tests {
+    use super::resolve_chain_id;
+
+    #[test]
+    fn explicit_chain_id_wins() {
+        assert_eq!(resolve_chain_id(Some(8453), "arbitrum").unwrap(), 8453);
+    }
+
+    #[test]
+    fn falls_back_to_global_chain() {
+        assert_eq!(resolve_chain_id(None, "ethereum").unwrap(), 1);
+        assert_eq!(resolve_chain_id(None, "arbitrum").unwrap(), 42161);
+        assert_eq!(resolve_chain_id(None, "base").unwrap(), 8453);
+        assert_eq!(resolve_chain_id(None, "10").unwrap(), 10);
+        assert!(resolve_chain_id(None, "not-a-chain").is_err());
     }
 }

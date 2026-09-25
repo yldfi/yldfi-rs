@@ -51,6 +51,19 @@ pub use types::{
 pub use yldfi_common::api::{ApiConfig, BaseClient};
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
+/// Percent-encode a query value (RFC 3986 unreserved characters kept)
+fn urlencode(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for b in value.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 /// Default base URL for the Enso Finance API
 pub const DEFAULT_BASE_URL: &str = "https://api.enso.build";
 
@@ -177,9 +190,14 @@ impl Client {
     /// }
     /// ```
     pub async fn bundle(&self, request: &BundleRequest) -> Result<BundleResponse> {
-        self.base
-            .post_json("/api/v1/shortcuts/bundle", request)
-            .await
+        let query = request
+            .query_params()
+            .iter()
+            .map(|(k, v)| format!("{k}={}", urlencode(v)))
+            .collect::<Vec<_>>()
+            .join("&");
+        let path = format!("/api/v1/shortcuts/bundle?{query}");
+        self.base.post_json(&path, request.body()).await
     }
 
     /// Get token price

@@ -3,7 +3,8 @@
 //! Combines yield data from Curve and DefiLlama for comprehensive DeFi yield information.
 
 use crate::aggregator::{
-    compare_curve_yields, fetch_lending_yields, fetch_yields_aggregated, YieldSource,
+    compare_curve_yields, fetch_lending_yields, fetch_yields_aggregated, NormalizedYield,
+    YieldFilters, YieldSource,
 };
 use crate::cli::OutputFormat;
 use clap::Args;
@@ -14,7 +15,8 @@ pub struct YieldsArgs {
     #[arg(long, short)]
     pub chain: Option<String>,
 
-    /// Filter by project/protocol name
+    /// Filter by project/protocol name (applies to all sources; `uniswap`
+    /// also matches `uniswap-v2/v3/v4`)
     #[arg(long, short)]
     pub project: Option<String>,
 
@@ -30,7 +32,7 @@ pub struct YieldsArgs {
     #[arg(long)]
     pub compare: bool,
 
-    /// Minimum APY to show (filter out low yields)
+    /// Minimum APY in percent (applied before aggregation and to all outputs)
     #[arg(long)]
     pub min_apy: Option<f64>,
 
@@ -69,24 +71,22 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
         eprintln!("Fetching yields from {}...", source);
     }
 
-    let result =
-        fetch_yields_aggregated(args.chain.as_deref(), args.project.as_deref(), source).await;
+    let filters = YieldFilters {
+        project: args.project.as_deref(),
+        min_apy: args.min_apy,
+    };
+    let result = fetch_yields_aggregated(args.chain.as_deref(), &filters, source).await;
 
-    // Filter by min APY if specified
-    let filtered_yields: Vec<_> = result
-        .sources
-        .iter()
-        .filter_map(|s| s.data.as_ref())
-        .flatten()
-        .filter(|y| {
-            if let Some(min) = args.min_apy {
-                y.apy_total.unwrap_or(0.0) >= min
-            } else {
-                true
-            }
-        })
-        .take(args.limit)
-        .collect();
+    // Filters are already applied per source; merge, sort by APY across
+    // sources, then limit.
+    let filtered_yields = top_yields(
+        result
+            .sources
+            .iter()
+            .filter_map(|s| s.data.as_ref())
+            .flatten(),
+        args.limit,
+    );
 
     match args.format {
         OutputFormat::Json => {
@@ -192,18 +192,9 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
                         })
                         .unwrap_or_else(|| "N/A".to_string());
 
-                    // Determine source based on project name
-                    let source = if y.project.to_lowercase().starts_with("uniswap") {
-                        "uniswap"
-                    } else if y.project.to_lowercase() == "curve" && y.tvl_usd.is_none() {
-                        "curve"
-                    } else {
-                        "llama"
-                    };
-
                     println!(
                         "{:<40} {:<12} {:<10} {:<10} {:<12} {:<12}",
-                        symbol, project, chain, apy, tvl, source
+                        symbol, project, chain, apy, tvl, y.source
                     );
                 }
             }
@@ -211,6 +202,21 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Merge rows from all sources, sort by total APY (descending) and limit
+fn top_yields<'a>(
+    rows: impl Iterator<Item = &'a NormalizedYield>,
+    limit: usize,
+) -> Vec<&'a NormalizedYield> {
+    let mut all: Vec<&NormalizedYield> = rows.collect();
+    all.sort_by(|a, b| {
+        b.apy_total
+            .unwrap_or(f64::NEG_INFINITY)
+            .total_cmp(&a.apy_total.unwrap_or(f64::NEG_INFINITY))
+    });
+    all.truncate(limit);
+    all
 }
 
 /// Handle lending yields
@@ -345,4 +351,40 @@ async fn handle_compare(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(source: &str, apy: Option<f64>) -> NormalizedYield {
+        NormalizedYield {
+            pool_id: "p".into(),
+            symbol: "s".into(),
+            project: "x".into(),
+            chain: "ethereum".into(),
+            apy_base: apy,
+            apy_reward: None,
+            apy_total: apy,
+            tvl_usd: None,
+            underlying_tokens: vec![],
+            stablecoin: None,
+            url: None,
+            source: source.into(),
+        }
+    }
+
+    #[test]
+    fn top_yields_sorts_across_sources() {
+        let rows = [
+            row("curve", Some(1.0)),
+            row("llama", Some(9.0)),
+            row("yearn", None),
+            row("uniswap", Some(5.0)),
+        ];
+        let top = top_yields(rows.iter(), 2);
+        assert_eq!(top.len(), 2);
+        assert_eq!(top[0].source, "llama");
+        assert_eq!(top[1].source, "uniswap");
+    }
 }

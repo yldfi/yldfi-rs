@@ -68,7 +68,7 @@ impl<'a> ReportsApi<'a> {
                     totalRefundsUsd
                     priceUsd
                     priceSource
-                    apr {{ gross net forward }}
+                    apr {{ gross net }}
                     blockNumber
                     blockTime
                     logIndex
@@ -122,7 +122,7 @@ impl<'a> ReportsApi<'a> {
                     debtOutstanding
                     protocolFees
                     performanceFees
-                    apr {{ gross net forward }}
+                    apr {{ gross net }}
                     profitUsd
                     lossUsd
                     debtPaymentUsd

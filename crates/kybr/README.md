@@ -55,12 +55,12 @@ async fn main() -> Result<(), kybr::Error> {
 ```rust
 use kybr::{Client, Chain, RouteRequest, BuildRouteRequest};
 
-// First get routes
-let route_summary = client.get_routes(Chain::Ethereum, &request).await?;
+// First get route data (routeSummary is kept as raw JSON)
+let route_data = client.get_route_data(Chain::Ethereum, &request).await?;
 
-// Then build for execution
+// Then build for execution - the summary must be sent back unmodified
 let build_request = BuildRouteRequest {
-    route_summary,
+    route_summary: route_data.route_summary,
     sender: "0xYourAddress".to_string(),
     recipient: "0xYourAddress".to_string(),
     slippage_tolerance_bps: Some(50),

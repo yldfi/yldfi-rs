@@ -266,12 +266,12 @@ fn checker_detects_group_without_leaf_and_bad_flag() {
         "{problems:?}"
     );
 
-    // The pre-fix curve_crvusd_markets tool body (--chain is positional there).
+    // A flag the leaf command doesn't define must be reported.
     let body = r#"ArgsBuilder::new("curve").subcommand("crvusd").subcommand("markets");
-        builder = builder.opt("--chain", Some(c));"#;
+        builder = builder.opt("--not-a-real-flag", Some(c));"#;
     let problems = check_function(&root, "curve_crvusd_markets", body);
     assert!(
-        problems.iter().any(|p| p.contains("--chain")),
+        problems.iter().any(|p| p.contains("--not-a-real-flag")),
         "{problems:?}"
     );
 

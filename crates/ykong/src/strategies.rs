@@ -5,6 +5,15 @@ use crate::error::Result;
 use crate::types::Strategy;
 use serde::Deserialize;
 
+/// Fields selected for `Strategy` (validated against the live Kong schema:
+/// `Strategy` has no `activation`, `totalGain`, `totalLoss` or `debtRatio`;
+/// `risk` is `RiskScoreLegacy`; `tvl` is a `SparklinePoint`).
+const STRATEGY_FIELDS: &str = "address name chainId apiVersion vault v3 inceptTime inceptBlock \
+    lastReport totalDebt performanceFee estimatedTotalAssets isActive isShutdown keeper strategist \
+    risk { label auditScore codeReviewScore complexityScore protocolSafetyScore teamKnowledgeScore testingScore } \
+    apy { net weeklyNet monthlyNet inceptionNet grossApr } \
+    tvl { close blockTime }";
+
 /// Strategy query builder for filtering strategies
 #[derive(Debug, Default, Clone)]
 pub struct StrategyFilter {
@@ -49,28 +58,26 @@ impl StrategyFilter {
         self
     }
 
-    /// Build the GraphQL arguments string
+    /// Build the GraphQL arguments string.
+    ///
+    /// Kong's `strategies` query only accepts `chainId`, `apiVersion` and
+    /// `erc4626`; vault filtering uses `vaultStrategies(chainId, vault)` and
+    /// `v3`/`addresses` are applied client-side (see [`Self::retain`]).
     fn build_args(&self) -> String {
-        let mut args = Vec::new();
+        match self.chain_id {
+            Some(chain_id) => format!("(chainId: {chain_id})"),
+            None => String::new(),
+        }
+    }
 
-        if let Some(chain_id) = self.chain_id {
-            args.push(format!("chainId: {chain_id}"));
-        }
-        if let Some(ref vault) = self.vault {
-            args.push(format!("vault: \"{vault}\""));
-        }
+    /// Apply the client-side parts of the filter
+    fn retain(&self, strategies: &mut Vec<Strategy>) {
         if let Some(v3) = self.v3 {
-            args.push(format!("v3: {v3}"));
+            strategies.retain(|s| s.v3.unwrap_or(false) == v3);
         }
         if let Some(ref addresses) = self.addresses {
-            let addr_str: Vec<String> = addresses.iter().map(|a| format!("\"{a}\"")).collect();
-            args.push(format!("addresses: [{}]", addr_str.join(", ")));
-        }
-
-        if args.is_empty() {
-            String::new()
-        } else {
-            format!("({})", args.join(", "))
+            let wanted: Vec<String> = addresses.iter().map(|a| a.to_lowercase()).collect();
+            strategies.retain(|s| wanted.contains(&s.address.to_lowercase()));
         }
     }
 }
@@ -102,44 +109,43 @@ impl<'a> StrategiesApi<'a> {
     /// # }
     /// ```
     pub async fn list(&self, filter: Option<StrategyFilter>) -> Result<Vec<Strategy>> {
-        let args = filter.unwrap_or_default().build_args();
-        let query = format!(
-            r"{{
+        let filter = filter.unwrap_or_default();
+
+        let mut strategies = if let Some(ref vault) = filter.vault {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct Response {
+                vault_strategies: Vec<Strategy>,
+            }
+            let chain_id = filter.chain_id.unwrap_or(1);
+            let query = format!(
+                r#"{{
+                vaultStrategies(chainId: {chain_id}, vault: "{vault}") {{
+                    {STRATEGY_FIELDS}
+                }}
+            }}"#
+            );
+            let response: Response = self.client.query(&query).await?;
+            response.vault_strategies
+        } else {
+            #[derive(Deserialize)]
+            struct Response {
+                strategies: Vec<Strategy>,
+            }
+            let args = filter.build_args();
+            let query = format!(
+                r"{{
                 strategies{args} {{
-                    address
-                    name
-                    chainId
-                    apiVersion
-                    vault
-                    v3
-                    activation
-                    inceptTime
-                    inceptBlock
-                    lastReport
-                    totalDebt
-                    totalGain
-                    totalLoss
-                    performanceFee
-                    debtRatio
-                    estimatedTotalAssets
-                    isActive
-                    isShutdown
-                    keeper
-                    strategist
-                    risk {{ riskLevel riskGroup }}
-                    apy {{ net weeklyNet monthlyNet }}
-                    tvl {{ close blockNumber blockTime }}
+                    {STRATEGY_FIELDS}
                 }}
             }}"
-        );
+            );
+            let response: Response = self.client.query(&query).await?;
+            response.strategies
+        };
 
-        #[derive(Deserialize)]
-        struct Response {
-            strategies: Vec<Strategy>,
-        }
-
-        let response: Response = self.client.query(&query).await?;
-        Ok(response.strategies)
+        filter.retain(&mut strategies);
+        Ok(strategies)
     }
 
     /// Get strategies for a specific chain
@@ -159,29 +165,7 @@ impl<'a> StrategiesApi<'a> {
         let query = format!(
             r#"{{
                 strategy(chainId: {chain_id}, address: "{address}") {{
-                    address
-                    name
-                    chainId
-                    apiVersion
-                    vault
-                    v3
-                    activation
-                    inceptTime
-                    inceptBlock
-                    lastReport
-                    totalDebt
-                    totalGain
-                    totalLoss
-                    performanceFee
-                    debtRatio
-                    estimatedTotalAssets
-                    isActive
-                    isShutdown
-                    keeper
-                    strategist
-                    risk {{ riskLevel riskGroup tvlImpact auditScore codeReviewScore complexityScore longevityImpact protocolSafetyScore teamKnowledgeScore testingScore }}
-                    apy {{ net weeklyNet monthlyNet inceptionNet grossApr }}
-                    tvl {{ close blockNumber blockTime }}
+                    {STRATEGY_FIELDS}
                 }}
             }}"#
         );
@@ -193,5 +177,31 @@ impl<'a> StrategiesApi<'a> {
 
         let response: Response = self.client.query(&query).await?;
         Ok(response.strategy)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_supported_server_args_are_sent() {
+        let f = StrategyFilter::new().chain_id(1).vault("0xv").v3(true);
+        assert_eq!(f.build_args(), "(chainId: 1)");
+        assert_eq!(StrategyFilter::new().build_args(), "");
+    }
+
+    #[test]
+    fn strategy_fields_exclude_removed_fields() {
+        for bad in [
+            "activation",
+            "totalGain",
+            "totalLoss",
+            "debtRatio",
+            "riskLevel",
+            "blockNumber",
+        ] {
+            assert!(!STRATEGY_FIELDS.contains(bad), "{bad}");
+        }
     }
 }

@@ -15,9 +15,21 @@ impl<'a> CrvUsdApi<'a> {
         Self { client }
     }
 
-    /// Get circulating supply of crvUSD
-    pub async fn get_circulating_supply(&self) -> Result<serde_json::Value> {
+    /// Get the circulating supply of **CRV** (not crvUSD).
+    ///
+    /// Calls `/getCrvCircSupply`. The Curve API has no crvUSD circulating
+    /// supply endpoint; use [`Self::get_total_supply`] for crvUSD.
+    pub async fn get_crv_circulating_supply(&self) -> Result<serde_json::Value> {
         self.client.get("/getCrvCircSupply").await
+    }
+
+    /// Deprecated: this returns the **CRV** circulating supply, not crvUSD.
+    #[deprecated(
+        since = "0.1.5",
+        note = "returns CRV (not crvUSD) circulating supply; use get_crv_circulating_supply"
+    )]
+    pub async fn get_circulating_supply(&self) -> Result<serde_json::Value> {
+        self.get_crv_circulating_supply().await
     }
 
     /// Get total supply of crvUSD

@@ -327,7 +327,9 @@ pub async fn fetch_prices_all(
         PriceSource::Chainlink,
         PriceSource::Pyth,
         PriceSource::Uniswap,
-        PriceSource::Kong,
+        // PriceSource::Kong is not queried by default: Kong's prices() query
+        // currently returns [] for every token. Vault tokens are still priced
+        // via KongVault (pricePerShare x underlying price).
         PriceSource::KongVault,
         PriceSource::Enso,
     ];
@@ -703,7 +705,7 @@ async fn fetch_moralis_price(
             "BTC" | "BITCOIN" => "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599".to_string(),  // WBTC
             "USDC" => "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string(),
             "USDT" => "0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string(),
-            "DAI" => "0x6B175474E89094C44Da98b954EecdeCB5BE3d823".to_string(),
+            "DAI" => "0x6B175474E89094C44Da98b954EedeAC495271d0F".to_string(),
             "LINK" => "0x514910771AF9Ca656af840dff83E8264EcF986CA".to_string(),
             _ => {
                 // Try to resolve using our symbol_to_eth_address mapping
@@ -1045,7 +1047,7 @@ pub fn symbol_to_eth_address(symbol: &str) -> Option<&'static str> {
     match symbol.to_uppercase().as_str() {
         "USDC" => Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
         "USDT" => Some("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
-        "DAI" => Some("0x6B175474E89094C44Da98b954EecdeCB5BE3d823"),
+        "DAI" => Some("0x6B175474E89094C44Da98b954EedeAC495271d0F"),
         "WETH" => Some("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
         "WBTC" => Some("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"),
         "LINK" => Some("0x514910771AF9Ca656af840dff83E8264EcF986CA"),
@@ -1070,7 +1072,7 @@ pub fn eth_address_to_symbol(address: &str) -> Option<&'static str> {
     match address.to_lowercase().as_str() {
         "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" => Some("USDC"),
         "0xdac17f958d2ee523a2206206994597c13d831ec7" => Some("USDT"),
-        "0x6b175474e89094c44da98b954eecdecb5be3d823" => Some("DAI"),
+        "0x6b175474e89094c44da98b954eedeac495271d0f" => Some("DAI"),
         "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2" => Some("WETH"),
         "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599" => Some("WBTC"),
         "0x514910771af9ca656af840dff83e8264ecf986ca" => Some("LINK"),

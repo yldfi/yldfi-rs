@@ -461,8 +461,10 @@ ethcli quote best ETH USDC 1.5 --decimals 18 --chain ethereum
 # Include transaction data in output
 ethcli quote best ETH USDC 1000000000000000000 --show-tx
 
-# Set slippage tolerance (basis points, default 50 = 0.5%)
+# Set slippage tolerance (basis points, default 50 = 0.5%; applied to 0x, LI.FI and Enso tx data)
 ethcli quote best ETH USDC 1000000000000000000 --slippage 100
+
+# `quote from all` behaves like `quote compare`
 
 # Provide sender address for more accurate quotes
 ethcli quote best ETH USDC 1000000000000000000 --sender 0xYourAddress
@@ -489,6 +491,7 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 - **No API keys required** for basic usage (some sources may have higher rate limits with keys)
 - **MEV protection**: CowSwap uses batch auctions to protect against MEV
 - **Amount format**: Pass raw amounts (wei) or use `--decimals` for human-readable input
+- **Symbols**: ETH (native), WETH, USDC, USDT, DAI, WBTC, ... resolve per chain (ethereum, optimism, bsc, polygon, base, arbitrum, avalanche); otherwise pass addresses
 - **Chains**: Supports Ethereum, Polygon, Arbitrum, Optimism, Base, and more
 
 ## Chainlink Commands
@@ -549,22 +552,21 @@ ethcli kong vaults list --erc4626              # ERC4626 compliant vaults
 # Get specific vault details
 ethcli kong vaults get --chain-id 1 0x7B5A0182E400b241b317e781a4e9dEdFc1429822
 
-# Get user positions in vaults (DEPRECATED - Kong API removed this endpoint in 2024)
-# This command returns empty results. Use `ethcli portfolio` for vault positions instead.
-# ethcli kong vaults accounts --chain-id 1 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+# User vault positions are not available from Kong; use `ethcli portfolio`.
 
 # List strategies
 ethcli kong strategies list --chain-id 1
-ethcli kong strategies list --vault 0x...      # Strategies for specific vault
+ethcli kong strategies list --vault 0x... -c 1 # Strategies for a vault (vaultStrategies)
 ethcli kong strategies get --chain-id 1 0x...  # Get strategy details
 
-# Token prices (contract addresses only)
+# Token prices (contract addresses only; Kong currently returns no price data
+# for most tokens - the command errors instead of printing null)
 ethcli kong prices current --chain-id 1 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 ethcli kong prices historical --chain-id 1 0x... 1700000000  # At timestamp
 
 # TVL data
 ethcli kong tvl current --chain-id 1 0x...
-ethcli kong tvl history --chain-id 1 0x... --period day --limit 30
+ethcli kong tvl history --chain-id 1 0x... --period day --limit 30   # most recent 30 points
 
 # Vault/strategy reports (harvests)
 ethcli kong reports vault --chain-id 1 0x...
@@ -740,6 +742,18 @@ ethcli dune tables --namespace dune
 Direct access to Curve Finance API. No API key required.
 
 ```bash
+# Optional positional chain: omit for all chains
+ethcli curve pools big [CHAIN]
+ethcli curve crvusd markets [CHAIN]
+
+# OHLC / trades need two pool coins
+ethcli curve ohlc pool ethereum <pool> --main-token <addr> --reference-token <addr>
+ethcli curve trades get ethereum <pool> --main-token <addr> --reference-token <addr>
+ethcli curve ohlc lp-token ethereum <pool>          # start/end default to last 7 days
+
+# CRV (not crvUSD) circulating supply
+ethcli curve crvusd crv-circulating-supply
+
 # Pool data
 ethcli curve pools
 ethcli curve pools --chain ethereum
@@ -789,7 +803,7 @@ Binance, Bitget, OKX, Hyperliquid, and many more via CCXT library.
 
 ### 1inch Commands
 
-Direct access to 1inch DEX Aggregator API. Requires `ONEINCH_API_KEY` or `1INCH_API_KEY`.
+Direct access to 1inch DEX Aggregator API. Requires an API key: `[oneinch]` in config, or `ONEINCH_API_KEY` / `1INCH_API_KEY`. `--chain-id` defaults to the global `--chain`.
 
 ```bash
 # Get swap quote
@@ -821,7 +835,7 @@ ethcli openocean quote <in_token> <out_token> <amount> --chain ethereum --slippa
 # Get swap transaction
 ethcli openocean swap <in_token> <out_token> <amount> <account> --chain ethereum
 
-# Get reverse quote
+# Get reverse quote: how much in_token to sell to receive out_amount (human units) of out_token
 ethcli openocean reverse-quote <in_token> <out_token> <out_amount> --chain ethereum
 
 # List tokens and DEXes
@@ -843,6 +857,7 @@ ethcli kyberswap routes <token_in> <token_out> <amount_in> --chain ethereum
 ethcli kyberswap route-data <token_in> <token_out> <amount_in> --chain ethereum
 
 # Build swap transaction
+# --route-summary takes the `routes` output or the full `route-data` output, sent unmodified
 ethcli kyberswap build <token_in> <token_out> <amount_in> <sender> <recipient> \
   --chain ethereum --slippage-bps 50 --route-summary '<json>'
 ```
@@ -851,7 +866,7 @@ ethcli kyberswap build <token_in> <token_out> <amount_in> <sender> <recipient> \
 
 ### 0x Protocol Commands
 
-Direct access to 0x API. Optional `ZEROX_API_KEY` or `0X_API_KEY` for higher limits.
+Direct access to 0x API. Requires an API key: `[zerox]` in config, or `ZEROX_API_KEY` / `0X_API_KEY`.
 
 ```bash
 # Get swap quote with tx data
@@ -900,7 +915,8 @@ ethcli cowswap native-price <token> --chain ethereum
 Direct access to LI.FI cross-chain aggregator API. Optional `LIFI_INTEGRATOR` for analytics.
 
 ```bash
-# Cross-chain quote
+# Cross-chain quote (--slippage is in percent, default 0.5 = 0.5%; converted to
+# LI.FI's decimal fraction, max 50%)
 ethcli lifi quote <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
 
 # Routes
@@ -931,7 +947,8 @@ Direct access to ParaSwap API. Optional `PARASWAP_API_KEY` or `VELORA_API_KEY` f
 # Get swap price/route
 ethcli velora price <src_token> <dest_token> <amount> --chain ethereum --side SELL
 
-# Build swap transaction
+# Build swap transaction (--price-route: full `price` output or its priceRoute, sent unmodified;
+# non-mainnet token decimals are auto-detected via RPC)
 ethcli velora transaction <user_address> --chain ethereum --slippage 100 --price-route '<json>'
 
 # List tokens
@@ -953,7 +970,12 @@ ethcli enso price <token> --chain-id 1
 
 # Get balances
 ethcli enso balances <address> --chain-id 1
+
+# Bundle actions (defaults to the EOA-executable `router` strategy)
+ethcli enso bundle <from_address> '[{"protocol":"enso","action":"route","args":{...}}]'
 ```
+
+`--chain-id` defaults to the global `--chain`.
 
 ### Pyth Network Commands
 
@@ -985,7 +1007,7 @@ ethcli pyth known-feeds
 Query Uniswap V2, V3, and V4 pools via on-chain lens queries and The Graph subgraph.
 
 ```bash
-# On-chain queries (no API key needed)
+# On-chain queries (no API key needed; honour --chain, e.g. --chain arbitrum)
 ethcli uniswap pool 0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640        # Get V3 pool state
 ethcli uniswap liquidity 0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640  # Get pool liquidity
 ethcli uniswap balance <token> <account>                              # Get token balance

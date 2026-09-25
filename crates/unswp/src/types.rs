@@ -76,8 +76,12 @@ pub struct Token {
 // ============================================================================
 
 /// Historical swap event from subgraph
+///
+/// Deserializes V3/V4 swaps directly and V2 swaps (`pair`, `to`,
+/// `amount{0,1}{In,Out}`) via `RawSwap`, normalizing V2 amounts to signed
+/// pool deltas (`amount = in - out`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", from = "RawSwap")]
 pub struct Swap {
     /// Swap ID
     pub id: String,
@@ -85,19 +89,89 @@ pub struct Swap {
     pub transaction: SwapTransaction,
     /// Block timestamp (as string from subgraph)
     pub timestamp: String,
-    /// Pool info (nested object)
+    /// Pool info (nested object; the pair for V2)
     pub pool: SwapPool,
     /// Sender address
     pub sender: String,
-    /// Recipient address
-    pub recipient: String,
-    /// Amount of token0
+    /// Recipient address (V2 `to`, V3 `recipient`; not indexed by V4)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recipient: Option<String>,
+    /// EOA that initiated the transaction (V3/V4 `origin`, V2 `from`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+    /// Amount of token0 (signed pool delta)
     pub amount0: String,
-    /// Amount of token1
+    /// Amount of token1 (signed pool delta)
     pub amount1: String,
     /// USD value of the swap
     #[serde(rename = "amountUSD")]
     pub amount_usd: Option<String>,
+}
+
+/// Wire format covering V2, V3 and V4 swap entities
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawSwap {
+    id: String,
+    transaction: SwapTransaction,
+    timestamp: String,
+    #[serde(default)]
+    pool: Option<SwapPool>,
+    #[serde(default)]
+    pair: Option<SwapPool>,
+    sender: String,
+    #[serde(default)]
+    recipient: Option<String>,
+    #[serde(default)]
+    to: Option<String>,
+    #[serde(default)]
+    origin: Option<String>,
+    #[serde(default)]
+    from: Option<String>,
+    #[serde(default)]
+    amount0: Option<String>,
+    #[serde(default)]
+    amount1: Option<String>,
+    #[serde(default)]
+    amount0_in: Option<String>,
+    #[serde(default)]
+    amount1_in: Option<String>,
+    #[serde(default)]
+    amount0_out: Option<String>,
+    #[serde(default)]
+    amount1_out: Option<String>,
+    #[serde(default, rename = "amountUSD")]
+    amount_usd: Option<String>,
+}
+
+/// `in - out` as a decimal string (subgraph `BigDecimal` values)
+fn signed_delta(amount_in: Option<&str>, amount_out: Option<&str>) -> String {
+    let parse = |v: Option<&str>| v.and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+    let delta = parse(amount_in) - parse(amount_out);
+    delta.to_string()
+}
+
+impl From<RawSwap> for Swap {
+    fn from(r: RawSwap) -> Self {
+        let amount0 = r
+            .amount0
+            .unwrap_or_else(|| signed_delta(r.amount0_in.as_deref(), r.amount0_out.as_deref()));
+        let amount1 = r
+            .amount1
+            .unwrap_or_else(|| signed_delta(r.amount1_in.as_deref(), r.amount1_out.as_deref()));
+        Self {
+            id: r.id,
+            transaction: r.transaction,
+            timestamp: r.timestamp,
+            pool: r.pool.or(r.pair).unwrap_or(SwapPool { id: String::new() }),
+            sender: r.sender,
+            recipient: r.recipient.or(r.to),
+            origin: r.origin.or(r.from),
+            amount0,
+            amount1,
+            amount_usd: r.amount_usd,
+        }
+    }
 }
 
 /// Transaction reference in swap
@@ -319,22 +393,26 @@ pub struct PairDataV2 {
     pub tx_count: String,
 }
 
-/// V4 Position (similar to V3 but with pool key instead of pool address)
+/// V4 position NFT as indexed by the V4 subgraph
+///
+/// The V4 subgraph only tracks ownership; pool key, ticks and liquidity are
+/// stored on-chain in the `PositionManager` (see Uniswap/v4-subgraph
+/// `schema.graphql`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PositionV4 {
     /// Position ID (NFT token ID)
     pub id: String,
-    /// Owner address
+    /// NFT token ID
+    pub token_id: String,
+    /// Current owner address
     pub owner: String,
-    /// Pool this position is in
-    pub pool: PoolV4,
-    /// Liquidity amount
-    pub liquidity: String,
-    /// Lower tick
-    pub tick_lower: i32,
-    /// Upper tick
-    pub tick_upper: i32,
+    /// EOA that minted the position
+    #[serde(default)]
+    pub origin: Option<String>,
+    /// Creation timestamp (unix seconds, as string)
+    #[serde(default)]
+    pub created_at_timestamp: Option<String>,
 }
 
 /// V4 Pool data (for positions)

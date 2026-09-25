@@ -68,7 +68,7 @@ let price = client.get_price(Chain::Ethereum, &price_request).await?;
 
 // 2. Build the transaction
 let tx_request = TransactionRequest::new(
-    &price.price_route,
+    &price,
     "0xYourWalletAddress",
     100, // 1% slippage in basis points
 );
