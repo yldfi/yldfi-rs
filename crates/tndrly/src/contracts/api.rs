@@ -6,7 +6,7 @@ use super::types::{
     UpdateContractRequest, VerificationResult, VerifyContractRequest,
 };
 use crate::client::{encode_path_segment, Client};
-use crate::error::Result;
+use crate::error::{self, Result};
 
 /// Contract API client
 pub struct ContractsApi<'a> {
@@ -138,17 +138,25 @@ impl<'a> ContractsApi<'a> {
 
     /// Get the ABI for a contract
     ///
-    /// Returns None if the contract is not verified or ABI is not available.
-    /// Note: ABI data is not included in the standard contract response.
-    /// You may need to fetch it separately from the verification endpoint.
+    /// # Errors
+    ///
+    /// Always returns an [`InvalidParam`](crate::error::DomainError::InvalidParam)
+    /// error: the public Tenderly REST API (OpenAPI spec) has no endpoint that
+    /// returns a contract ABI. Fetch ABIs from a block explorer (e.g. Etherscan)
+    /// instead.
+    #[deprecated(
+        since = "0.3.9",
+        note = "Tenderly's public API has no contract ABI endpoint; this always errors"
+    )]
     pub async fn abi(
         &self,
         _network_id: &str,
         _address: &str,
     ) -> Result<Option<serde_json::Value>> {
-        // ABI is not included in the standard contract response
-        // This would require a separate API call to fetch ABI data
-        Ok(None)
+        Err(error::invalid_param(
+            "Tenderly's public API does not provide a contract ABI endpoint; \
+             fetch the ABI from a block explorer (e.g. Etherscan) instead",
+        ))
     }
 
     /// Rename a contract
