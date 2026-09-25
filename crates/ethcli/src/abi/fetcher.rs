@@ -231,16 +231,47 @@ impl AbiFetcher {
         contract: &str,
         event_name: &str,
     ) -> Result<String> {
-        let abi = self.fetch_from_etherscan(chain, contract).await?;
+        // 1. The contract's own ABI
+        let own_abi = self.fetch_from_etherscan(chain, contract).await;
+        if let Ok(abi) = &own_abi {
+            if let Some(event) = Self::find_event(abi, event_name) {
+                return Ok(Self::event_signature_string(event));
+            }
+        }
 
-        let event = Self::find_event(&abi, event_name).ok_or_else(|| {
-            crate::error::AbiError::EventNotFound(format!(
-                "Event '{}' not found in contract ABI",
-                event_name
+        // 2. Proxy: follow Etherscan's `Implementation` field
+        if let Ok(meta) = self.get_contract_metadata(chain, contract).await {
+            if let Some(implementation) = meta.implementation {
+                if !implementation.eq_ignore_ascii_case(contract) {
+                    tracing::debug!(
+                        "Event '{}' not in proxy ABI; checking implementation {}",
+                        event_name,
+                        implementation
+                    );
+                    if let Ok(impl_abi) = self.fetch_from_etherscan(chain, &implementation).await {
+                        if let Some(event) = Self::find_event(&impl_abi, event_name) {
+                            return Ok(Self::event_signature_string(event));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Well-known standard events
+        if let Some(sig) = well_known_event_signature(event_name) {
+            tracing::debug!("Using well-known signature for '{}': {}", event_name, sig);
+            return Ok(sig.to_string());
+        }
+
+        match own_abi {
+            Err(e) => Err(e),
+            Ok(_) => Err(crate::error::AbiError::EventNotFound(format!(
+                "Event '{}' not found in contract (or implementation) ABI. \
+                 Pass the full signature, e.g. -e \"{}(address,uint256)\"",
+                event_name, event_name
             ))
-        })?;
-
-        Ok(Self::event_signature_string(event))
+            .into()),
+        }
     }
 
     /// Get contract creation info from Etherscan API v2
@@ -725,6 +756,41 @@ pub struct DecodedFunction {
     pub params: Vec<(String, String, String)>, // (name, type, value)
 }
 
+/// Canonical signatures for widely used standard events (ERC-20/721/1155,
+/// WETH, OpenZeppelin Ownable, ERC-1967 proxies), keyed case-insensitively by
+/// name. Used as a last resort when an event name cannot be found in the
+/// contract (or implementation) ABI.
+const WELL_KNOWN_EVENTS: &[(&str, &str)] = &[
+    ("transfer", "Transfer(address,address,uint256)"),
+    ("approval", "Approval(address,address,uint256)"),
+    ("approvalforall", "ApprovalForAll(address,address,bool)"),
+    (
+        "transfersingle",
+        "TransferSingle(address,address,address,uint256,uint256)",
+    ),
+    (
+        "transferbatch",
+        "TransferBatch(address,address,address,uint256[],uint256[])",
+    ),
+    ("deposit", "Deposit(address,uint256)"),
+    ("withdrawal", "Withdrawal(address,uint256)"),
+    (
+        "ownershiptransferred",
+        "OwnershipTransferred(address,address)",
+    ),
+    ("upgraded", "Upgraded(address)"),
+    ("adminchanged", "AdminChanged(address,address)"),
+];
+
+/// Look up a well-known event signature by (case-insensitive) name.
+pub fn well_known_event_signature(name: &str) -> Option<&'static str> {
+    let lower = name.to_ascii_lowercase();
+    WELL_KNOWN_EVENTS
+        .iter()
+        .find(|(n, _)| *n == lower)
+        .map(|(_, sig)| *sig)
+}
+
 /// Decode function parameters using the function definition
 fn decode_function_params(
     func: &alloy::json_abi::Function,
@@ -807,6 +873,23 @@ fn format_sol_value(value: &alloy::dyn_abi::DynSolValue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_well_known_event_signature() {
+        assert_eq!(
+            well_known_event_signature("Transfer"),
+            Some("Transfer(address,address,uint256)")
+        );
+        assert_eq!(
+            well_known_event_signature("APPROVAL"),
+            Some("Approval(address,address,uint256)")
+        );
+        assert_eq!(well_known_event_signature("TokenExchange"), None);
+        // Every entry must parse as a valid event signature
+        for (_, sig) in WELL_KNOWN_EVENTS {
+            crate::abi::EventSignature::parse(sig).unwrap();
+        }
+    }
 
     #[test]
     fn test_fetcher_creation() {
