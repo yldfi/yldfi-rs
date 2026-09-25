@@ -120,6 +120,42 @@ fn test_simulate_tx_help_foundry_options() {
         .stdout(predicate::str::contains("--etherscan-api-key"));
 }
 
+/// Secrets supplied via environment variables must never be echoed in --help
+/// output (clap prints `[env: NAME=value]` unless `hide_env_values` is set).
+#[test]
+fn test_help_does_not_leak_env_secret_values() {
+    const SENTINEL: &str = "SENTINEL_SECRET_VALUE_d34db33f";
+    let cases: &[&[&str]] = &[
+        &["--help"],
+        &["simulate", "call", "--help"],
+        &["simulate", "tx", "--help"],
+        &["uniswap", "pool", "--help"],
+        &["uniswap", "liquidity", "--help"],
+        &["uniswap", "eth-price", "--help"],
+        &["uniswap", "top-pools", "--help"],
+        &["uniswap", "balance", "--help"],
+    ];
+    for args in cases {
+        ethcli()
+            .env_clear()
+            .env("PATH", std::env::var("PATH").unwrap_or_default())
+            .env("ETHERSCAN_API_KEY", SENTINEL)
+            .env("ALCHEMY_API_KEY", SENTINEL)
+            .env("TENDERLY_ACCESS_KEY", SENTINEL)
+            .env("TENDERLY_ACCOUNT", SENTINEL)
+            .env("TENDERLY_PROJECT", SENTINEL)
+            .env(
+                "ETH_RPC_URL",
+                format!("https://user:{SENTINEL}@rpc.example.com/{SENTINEL}"),
+            )
+            .env("THEGRAPH_API_KEY", SENTINEL)
+            .args(*args)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(SENTINEL).not());
+    }
+}
+
 // ==================== Cast conversion tests ====================
 
 #[test]
