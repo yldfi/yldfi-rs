@@ -851,7 +851,9 @@ impl EthcliMcpServer {
     // PYTH
     // =========================================================================
 
-    #[tool(description = "Get price from Pyth Network oracle")]
+    #[tool(
+        description = "Get price from Pyth Network oracle (requires PYTH_API_KEY or config_set_pyth)"
+    )]
     async fn pyth_price(&self, Parameters(input): Parameters<PythPriceInput>) -> String {
         tools::pyth_price(&input.symbols).await.to_response()
     }
@@ -5918,6 +5920,13 @@ impl EthcliMcpServer {
     #[tool(description = "Set Solodit API key in config")]
     async fn config_set_solodit(&self, Parameters(input): Parameters<ConfigKeyInput>) -> String {
         tools::config_set_solodit(&input.key).await.to_response()
+    }
+
+    #[tool(
+        description = "Set Pyth API key in config (required by Pyth Hermes since the Pyth Core upgrade; get one at https://pythdata.app)"
+    )]
+    async fn config_set_pyth(&self, Parameters(input): Parameters<ConfigKeyInput>) -> String {
+        tools::config_set_pyth(&input.key).await.to_response()
     }
 
     #[tool(description = "Set Chainlink Data Streams credentials")]

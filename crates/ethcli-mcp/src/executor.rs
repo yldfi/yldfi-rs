@@ -372,6 +372,7 @@ fn is_mutating_command(args: &[&str]) -> bool {
                 | "set-dune"
                 | "set-dune-sim"
                 | "set-solodit"
+                | "set-pyth"
                 | "add-debug-rpc"
                 | "remove-debug-rpc"
         ),

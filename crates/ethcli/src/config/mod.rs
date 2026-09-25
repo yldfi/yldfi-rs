@@ -15,7 +15,8 @@ pub use endpoint::{
 };
 pub use file::{
     AlchemyConfig, ChainlinkConfig, ConfigFile, DuneConfig, DuneSimConfig, GeckoConfig,
-    LlamaConfig, MoralisConfig, OneInchConfig, SoloditConfig, TenderlyConfig, ZeroxConfig,
+    LlamaConfig, MoralisConfig, OneInchConfig, PythConfig, SoloditConfig, TenderlyConfig,
+    ZeroxConfig,
 };
 
 use crate::error::{ConfigError, Result};
