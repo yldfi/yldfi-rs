@@ -1368,43 +1368,7 @@ pub struct TenderlyAlertsUpdateInput {
     pub addresses: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[schemars(title = "TenderlyAlertsAddDestinationInput")]
-pub struct TenderlyAlertsAddDestinationInput {
-    /// Alert ID
-    pub id: String,
-    /// Destination type (e.g., "webhook", "email", "slack", "telegram")
-    pub destination_type: String,
-    /// Destination ID
-    pub destination_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[schemars(title = "TenderlyAlertsRemoveDestinationInput")]
-pub struct TenderlyAlertsRemoveDestinationInput {
-    /// Alert ID
-    pub id: String,
-    /// Destination ID to remove
-    pub destination_id: String,
-}
-
 // --- Tenderly Contracts Batch ---
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[schemars(title = "TenderlyContractsUpdateInput")]
-pub struct TenderlyContractsUpdateInput {
-    /// Contract address
-    pub address: String,
-    /// Network name
-    #[serde(default)]
-    pub network: Option<String>,
-    /// New display name
-    #[serde(default)]
-    pub name: Option<String>,
-    /// Tags to set on the contract
-    #[serde(default)]
-    pub tags: Vec<String>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[schemars(title = "TenderlyContractsRemoveTagInput")]
@@ -1430,10 +1394,14 @@ pub struct TenderlyContractsBulkTagInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[schemars(title = "TenderlyContractsEncodeStateInput")]
 pub struct TenderlyContractsEncodeStateInput {
-    /// Network name
+    /// Network ID (default: 1)
     #[serde(default)]
     pub network: Option<String>,
-    /// State overrides as JSON string
+    /// Block number to encode against (default: latest)
+    #[serde(default)]
+    pub block_number: Option<String>,
+    /// Named-variable state overrides as JSON, keyed by contract address, e.g.
+    /// {"0xToken": {"value": {"balances[0xHolder]": "1000"}}}
     pub state_json: String,
 }
 
@@ -2248,24 +2216,6 @@ pub struct MoralisAddressesInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct MoralisExchangeInput {
-    /// Exchange name (e.g., uniswapv2, uniswapv3, pancakeswap)
-    pub exchange: String,
-    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
-    #[serde(default = "default_moralis_chain")]
-    pub chain: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct MoralisSymbolsInput {
-    /// Comma-separated token symbols (e.g., USDC,WETH,DAI)
-    pub symbols: String,
-    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
-    #[serde(default = "default_moralis_chain")]
-    pub chain: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisNftContractInput {
     /// NFT contract address
     pub contract: String,
@@ -2386,29 +2336,6 @@ pub struct MoralisProtocolPositionsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct MoralisDiscoveryFilterInput {
-    /// Minimum market cap
-    pub min_market_cap: Option<f64>,
-    /// Maximum market cap
-    pub max_market_cap: Option<f64>,
-    /// Minimum liquidity
-    pub min_liquidity: Option<f64>,
-    /// Maximum liquidity
-    pub max_liquidity: Option<f64>,
-    /// Minimum 24h volume
-    pub min_volume_24h: Option<f64>,
-    /// Maximum 24h volume
-    pub max_volume_24h: Option<f64>,
-    /// Minimum holders
-    pub min_holders: Option<i64>,
-    /// Minimum security score
-    pub min_security_score: Option<i32>,
-    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
-    #[serde(default = "default_moralis_chain")]
-    pub chain: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisAnalyticsTimeseriesInput {
     /// Comma-separated token addresses
     pub addresses: String,
@@ -2436,34 +2363,6 @@ pub struct MoralisEntityIdInput {
 pub struct MoralisCategoryIdInput {
     /// Category ID
     pub category_id: String,
-    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
-    #[serde(default = "default_moralis_chain")]
-    pub chain: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct MoralisVolumeTimeseriesInput {
-    /// Timeframe (e.g., 1h, 4h, 1d)
-    pub timeframe: Option<String>,
-    /// From date (ISO 8601)
-    pub from_date: Option<String>,
-    /// To date (ISO 8601)
-    pub to_date: Option<String>,
-    /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
-    #[serde(default = "default_moralis_chain")]
-    pub chain: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct MoralisVolumeCategoryTimeseriesInput {
-    /// Category ID
-    pub category_id: String,
-    /// Timeframe (e.g., 1h, 4h, 1d)
-    pub timeframe: Option<String>,
-    /// From date (ISO 8601)
-    pub from_date: Option<String>,
-    /// To date (ISO 8601)
-    pub to_date: Option<String>,
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
@@ -3409,7 +3308,8 @@ pub struct SimulateTxInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
-    /// Simulation backend (cast, tenderly, debug, trace, alchemy)
+    /// Simulation backend (cast, debug, trace, alchemy). `tenderly` is not
+    /// supported for historical transactions (Tenderly has no trace-by-hash API).
     pub via: Option<String>,
     /// RPC URL
     pub rpc_url: Option<String>,

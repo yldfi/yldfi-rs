@@ -66,7 +66,7 @@ fn resolve_fork_urls(
         if let Ok(configured_rpc) = get_rpc_url(chain) {
             fork_urls.push(configured_rpc);
         } else if chain == Chain::Ethereum {
-            fork_urls.push("https://eth.llamarpc.com".to_string());
+            fork_urls.push("https://ethereum-rpc.publicnode.com".to_string());
         } else {
             anyhow::bail!(
                 "No fork RPC URL configured for {}. Pass --rpc-url or --fork-url.",

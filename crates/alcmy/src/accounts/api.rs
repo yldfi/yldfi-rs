@@ -35,7 +35,7 @@ impl<'a> AccountsApi<'a> {
             .await?;
 
         if response.status() == 429 {
-            return Err(Error::rate_limited(None));
+            return Err(crate::error::rate_limited_from_response(response).await);
         }
 
         if response.status().is_success() {

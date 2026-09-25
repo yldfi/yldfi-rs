@@ -31,7 +31,7 @@ use clap::Subcommand;
   ethcli simulate call 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D --sig "swapExactETHForTokens(uint256,address[],address,uint256)" 0 '[...]' 0x... 9999999999 --via tenderly --balance-override 0x123=1000000000000000000
 
   # Trace an existing transaction
-  ethcli simulate tx 0x123abc... --via tenderly
+  ethcli simulate tx 0x123abc... --via debug
 
   # Simulate using Anvil fork
   ethcli simulate call 0x... --sig "foo()" --via anvil"#)]
@@ -397,12 +397,12 @@ pub enum SimulateCommands {
 
     /// List saved simulations (Tenderly only)
     List {
-        /// Number of simulations to list
-        #[arg(long, short, default_value = "20")]
+        /// Number of simulations to list per page (1-100)
+        #[arg(long, short, default_value = "20", value_parser = clap::value_parser!(u32).range(1..=100))]
         limit: u32,
 
-        /// Page number (0-indexed)
-        #[arg(long, short, default_value = "0")]
+        /// Page number (1-indexed)
+        #[arg(long, short, default_value = "1", value_parser = clap::value_parser!(u32).range(1..))]
         page: u32,
 
         /// Tenderly credentials
@@ -420,7 +420,7 @@ pub enum SimulateCommands {
         tenderly: TenderlyArgs,
     },
 
-    /// Get simulation info/metadata by ID (Tenderly only)
+    /// Get info (transaction_info, block header) for a saved simulation by ID (Tenderly only; the simulation must have been saved, e.g. with --save)
     Info {
         /// Simulation ID
         id: String,
@@ -454,6 +454,34 @@ pub enum SimulateCommands {
 
 pub async fn handle(
     action: &SimulateCommands,
+    chain: Chain,
+    etherscan_key: Option<String>,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    handle_with_via(action, None, chain, etherscan_key, quiet).await
+}
+
+/// Resolve the backend to use: a forced backend (e.g. from the
+/// `ethcli tenderly simulate` alias) overrides the `--via` flag.
+fn effective_via(via: SimulateVia, forced: Option<SimulateVia>, quiet: bool) -> SimulateVia {
+    match forced {
+        Some(forced) => {
+            // `cast` is the clap default, so only warn for an explicit other backend
+            if !quiet && !matches!(via, SimulateVia::Cast) && via != forced {
+                eprintln!("Warning: ignoring --via {via:?}; this command always uses {forced:?}");
+            }
+            forced
+        }
+        None => via,
+    }
+}
+
+/// Like [`handle`], but optionally forces the simulation backend for
+/// `call` and `tx` (used by `ethcli tenderly simulate`, which is documented
+/// as `ethcli simulate --via tenderly`).
+pub async fn handle_with_via(
+    action: &SimulateCommands,
+    forced_via: Option<SimulateVia>,
     chain: Chain,
     etherscan_key: Option<String>,
     quiet: bool,
@@ -521,6 +549,7 @@ pub async fn handle(
             block_base_fee,
             ..
         } => {
+            let via = &effective_via(*via, forced_via, quiet);
             // Warn if Tenderly-exclusive flags are used with non-Tenderly backends
             if !matches!(via, SimulateVia::Tenderly) {
                 let mut tenderly_only = Vec::new();
@@ -790,7 +819,7 @@ pub async fn handle(
             disable_block_gas_limit,
             etherscan_api_key,
             raw,
-        } => match via {
+        } => match effective_via(*via, forced_via, quiet) {
             SimulateVia::Cast | SimulateVia::Anvil => {
                 let cast_options = CastTxOptions {
                     chain,
@@ -813,7 +842,14 @@ pub async fn handle(
                 };
                 trace_tx_via_cast(hash, rpc_url, &cast_options, quiet).await
             }
-            SimulateVia::Tenderly => trace_tx_via_tenderly(hash, tenderly, quiet).await,
+            SimulateVia::Tenderly => {
+                let _ = tenderly;
+                anyhow::bail!(
+                    "Tenderly has no public API to trace an existing transaction by hash \
+                     (GET /trace/{{hash}} does not exist). Use --via debug, --via trace, \
+                     --via alchemy or --via cast instead."
+                )
+            }
             SimulateVia::Debug => {
                 let key = etherscan_api_key.clone().or_else(|| etherscan_key.clone());
                 trace_tx_via_debug_rpc(hash, rpc_url, chain, key, *raw, quiet).await
@@ -865,5 +901,52 @@ pub async fn handle(
         SimulateCommands::Unshare { id, tenderly } => {
             unshare_simulation_tenderly(id, tenderly, quiet).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        cmd: SimulateCommands,
+    }
+
+    #[test]
+    fn effective_via_forces_backend() {
+        assert_eq!(
+            effective_via(SimulateVia::Cast, Some(SimulateVia::Tenderly), true),
+            SimulateVia::Tenderly
+        );
+        assert_eq!(
+            effective_via(SimulateVia::Anvil, Some(SimulateVia::Tenderly), true),
+            SimulateVia::Tenderly
+        );
+        assert_eq!(
+            effective_via(SimulateVia::Anvil, None, true),
+            SimulateVia::Anvil
+        );
+    }
+
+    #[test]
+    fn list_defaults_are_valid_for_tenderly_api() {
+        let cli = TestCli::try_parse_from(["t", "list"]).unwrap();
+        match cli.cmd {
+            SimulateCommands::List { limit, page, .. } => {
+                assert_eq!(limit, 20);
+                assert_eq!(page, 1);
+            }
+            _ => panic!("expected list"),
+        }
+    }
+
+    #[test]
+    fn list_rejects_out_of_range_values() {
+        assert!(TestCli::try_parse_from(["t", "list", "--page", "0"]).is_err());
+        assert!(TestCli::try_parse_from(["t", "list", "--limit", "0"]).is_err());
+        assert!(TestCli::try_parse_from(["t", "list", "--limit", "101"]).is_err());
     }
 }

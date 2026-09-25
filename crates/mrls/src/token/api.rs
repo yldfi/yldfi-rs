@@ -1,11 +1,9 @@
 //! Token API client
 
 use super::types::{
-    AggregatedPairStats, GetMultiplePricesRequest, HistoricalHolders, NewToken, PairOhlcv,
-    PairSniper, PairStats, TokenBondingStatus, TokenCategory, TokenHoldersResponse,
+    GetMultiplePricesRequest, PairOhlcv, PairStats, TokenCategory, TokenHoldersResponse,
     TokenHoldersSummary, TokenMetadata, TokenPair, TokenPairsResponse, TokenPrice, TokenResponse,
-    TokenSearchResult, TokenStats, TokenSwap, TokenTransfer, TokenTransferResponse, TopTrader,
-    TrendingToken,
+    TokenSearchResult, TokenSwap, TokenTransfer, TokenTransferResponse, TopTrader, TrendingToken,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -241,18 +239,6 @@ impl<'a> TokenApi<'a> {
         }
     }
 
-    /// Get token stats
-    #[deprecated(note = "Moralis is sunsetting GET /erc20/{address}/stats on 2026-06-04")]
-    pub async fn get_stats(&self, address: &str, chain: Option<&str>) -> Result<TokenStats> {
-        let path = format!("/erc20/{address}/stats");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
-    }
-
     /// Search tokens
     pub async fn search(
         &self,
@@ -323,60 +309,6 @@ impl<'a> TokenApi<'a> {
         }
     }
 
-    /// Get new tokens on an exchange
-    #[deprecated(
-        note = "Moralis is sunsetting GET /erc20/exchange/{exchangeName}/new on 2026-06-04"
-    )]
-    pub async fn get_exchange_new_tokens(
-        &self,
-        exchange_name: &str,
-        chain: Option<&str>,
-    ) -> Result<TokenResponse<NewToken>> {
-        let path = format!("/erc20/exchange/{exchange_name}/new");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
-    }
-
-    /// Get bonding tokens on an exchange (e.g., pump.fun)
-    #[deprecated(
-        note = "Moralis is sunsetting GET /erc20/exchange/{exchangeName}/bonding on 2026-06-04"
-    )]
-    pub async fn get_exchange_bonding_tokens(
-        &self,
-        exchange_name: &str,
-        chain: Option<&str>,
-    ) -> Result<TokenResponse<NewToken>> {
-        let path = format!("/erc20/exchange/{exchange_name}/bonding");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
-    }
-
-    /// Get graduated tokens on an exchange
-    #[deprecated(
-        note = "Moralis is sunsetting GET /erc20/exchange/{exchangeName}/graduated on 2026-06-04"
-    )]
-    pub async fn get_exchange_graduated_tokens(
-        &self,
-        exchange_name: &str,
-        chain: Option<&str>,
-    ) -> Result<TokenResponse<NewToken>> {
-        let path = format!("/erc20/exchange/{exchange_name}/graduated");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
-    }
-
     /// Get multiple token prices (batch)
     pub async fn get_multiple_prices(
         &self,
@@ -391,35 +323,6 @@ impl<'a> TokenApi<'a> {
         } else {
             self.client.post("/erc20/prices", request).await
         }
-    }
-
-    /// Get tokens by symbols
-    #[deprecated(
-        note = "Moralis is sunsetting GET /erc20/metadata/symbols on 2026-06-04; use token search instead"
-    )]
-    pub async fn get_by_symbols(
-        &self,
-        symbols: &[&str],
-        chain: Option<&str>,
-    ) -> Result<Vec<TokenMetadata>> {
-        #[derive(Serialize)]
-        struct SymbolsQuery {
-            symbols: Vec<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            chain: Option<String>,
-        }
-
-        let query = SymbolsQuery {
-            symbols: symbols
-                .iter()
-                .map(std::string::ToString::to_string)
-                .collect(),
-            chain: chain.map(std::string::ToString::to_string),
-        };
-
-        self.client
-            .get_with_query("/erc20/metadata/symbols", &query)
-            .await
     }
 
     /// Get contract transfers for a token (not wallet transfers)
@@ -452,42 +355,6 @@ impl<'a> TokenApi<'a> {
         }
     }
 
-    /// Get historical holders data for a token
-    #[deprecated(
-        note = "Moralis is sunsetting GET /erc20/{address}/holders/historical on 2026-07-31"
-    )]
-    pub async fn get_holders_historical(
-        &self,
-        address: &str,
-        chain: Option<&str>,
-    ) -> Result<Vec<HistoricalHolders>> {
-        let path = format!("/erc20/{address}/holders/historical");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
-    }
-
-    /// Get aggregated token pair stats
-    #[deprecated(
-        note = "Moralis is sunsetting GET /erc20/{token_address}/pairs/stats on 2026-06-04; migrate to /tokens/{tokenAddress}/analytics"
-    )]
-    pub async fn get_pairs_stats(
-        &self,
-        address: &str,
-        chain: Option<&str>,
-    ) -> Result<AggregatedPairStats> {
-        let path = format!("/erc20/{address}/pairs/stats");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
-    }
-
     /// Get top traders/gainers for a token
     pub async fn get_top_gainers(
         &self,
@@ -495,40 +362,6 @@ impl<'a> TokenApi<'a> {
         chain: Option<&str>,
     ) -> Result<Vec<TopTrader>> {
         let path = format!("/erc20/{address}/top-gainers");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
-    }
-
-    /// Get pair snipers
-    #[deprecated(note = "Moralis is sunsetting GET /pairs/{address}/snipers on 2026-06-04")]
-    pub async fn get_pair_snipers(
-        &self,
-        pair_address: &str,
-        chain: Option<&str>,
-    ) -> Result<Vec<PairSniper>> {
-        let path = format!("/pairs/{pair_address}/snipers");
-        if let Some(chain) = chain {
-            let query = TokenQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
-    }
-
-    /// Get token bonding status (for pump.fun, etc)
-    #[deprecated(
-        note = "Moralis is sunsetting GET /erc20/{tokenAddress}/bondingStatus on 2026-06-04"
-    )]
-    pub async fn get_bonding_status(
-        &self,
-        address: &str,
-        chain: Option<&str>,
-    ) -> Result<TokenBondingStatus> {
-        let path = format!("/erc20/{address}/bondingStatus");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
             self.client.get_with_query(&path, &query).await

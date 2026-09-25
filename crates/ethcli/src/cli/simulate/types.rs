@@ -179,7 +179,7 @@ pub enum DryRunFormat {
 }
 
 /// Simulation backend
-#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
 pub enum SimulateVia {
     /// Use cast call --trace (default, works everywhere)
     #[default]

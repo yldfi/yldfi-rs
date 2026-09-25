@@ -1963,9 +1963,16 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                 })?
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            // Preserve previously configured Notify token / access key
+            let previous = cfg.alchemy.take();
+            let (notify_token, access_key) = previous
+                .map(|a| (a.notify_token, a.access_key))
+                .unwrap_or_default();
             cfg.alchemy = Some(AlchemyConfig {
                 api_key: SecretString::new(api_key.into()),
                 default_network: network.clone(),
+                notify_token,
+                access_key,
             });
             cfg.save_default()?;
             println!("Alchemy API key saved to config file.");
@@ -1974,6 +1981,50 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             }
             println!("\nBy using Alchemy, you agree to their Terms of Service.");
             println!("See: https://www.alchemy.com/terms-conditions");
+        }
+
+        ConfigCommands::SetAlchemyNotifyToken { token, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            use secrecy::SecretString;
+            let value = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+            } else {
+                token.clone().ok_or_else(|| {
+                    anyhow::anyhow!("Notify token required (provide token or use --stdin)")
+                })?
+            };
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            let alchemy = cfg.alchemy.as_mut().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No Alchemy API key configured. Run `ethcli config set-alchemy` first."
+                )
+            })?;
+            alchemy.notify_token = Some(SecretString::new(value.into()));
+            cfg.save_default()?;
+            println!("Alchemy Notify (Webhooks) auth token saved to config file.");
+            println!("  Used by: ethcli alchemy notify (alias: webhooks)");
+        }
+
+        ConfigCommands::SetAlchemyAccessKey { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            use secrecy::SecretString;
+            let value = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+            } else {
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("Access key required (provide key or use --stdin)")
+                })?
+            };
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            let alchemy = cfg.alchemy.as_mut().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No Alchemy API key configured. Run `ethcli config set-alchemy` first."
+                )
+            })?;
+            alchemy.access_key = Some(SecretString::new(value.into()));
+            cfg.save_default()?;
+            println!("Alchemy access key saved to config file.");
+            println!("  Used by: ethcli alchemy gas-manager (alias: gas-sponsorship)");
         }
 
         ConfigCommands::SetMoralis { key, stdin } => {
@@ -2218,9 +2269,17 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                         api_keys_present += 1;
                         println!("Tenderly credentials: configured");
                     }
-                    if config.alchemy.is_some() {
+                    if let Some(alchemy) = &config.alchemy {
                         api_keys_present += 1;
                         println!("Alchemy API key: configured");
+                        if alchemy.notify_token.is_some() {
+                            println!("Alchemy Notify (Webhooks) token: configured");
+                        }
+                        if alchemy.access_key.is_some() {
+                            println!(
+                                "Alchemy access key (Gas Manager / Gas Sponsorship): configured"
+                            );
+                        }
                     }
                     if config.moralis.is_some() {
                         api_keys_present += 1;
@@ -2345,15 +2404,7 @@ debug_rpc_urls = []
 # Ethereum Mainnet
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://eth-mainnet.public.blastapi.io"
-chain = "ethereum"
-priority = 10
-max_block_range = 18303
-max_logs = 200000
-note = "Excellent - highest log limit"
-
-[[endpoints]]
-url = "https://ethereum.publicnode.com"
+url = "https://ethereum-rpc.publicnode.com"
 chain = "ethereum"
 priority = 8
 max_block_range = 44864
@@ -2370,28 +2421,35 @@ max_logs = 5000
 # Polygon
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://polygon-mainnet.public.blastapi.io"
+url = "https://polygon-bor-rpc.publicnode.com"
 chain = "polygon"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
 
 [[endpoints]]
-url = "https://polygon.publicnode.com"
+url = "https://polygon.drpc.org"
 chain = "polygon"
-priority = 5
+priority = 6
 max_block_range = 10000
-max_logs = 10000
+max_logs = 5000
 
 # -----------------------------------------------------------------------------
 # Arbitrum
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://arbitrum-mainnet.public.blastapi.io"
+url = "https://arbitrum-one-rpc.publicnode.com"
 chain = "arbitrum"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://arbitrum.drpc.org"
+chain = "arbitrum"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://arb1.arbitrum.io/rpc"
@@ -2404,11 +2462,18 @@ max_logs = 10000
 # Base
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://base-mainnet.public.blastapi.io"
+url = "https://base-rpc.publicnode.com"
 chain = "base"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://base.drpc.org"
+chain = "base"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://mainnet.base.org"
@@ -2422,11 +2487,18 @@ note = "Official Base RPC"
 # Optimism
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://optimism-mainnet.public.blastapi.io"
+url = "https://optimism-rpc.publicnode.com"
 chain = "optimism"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://optimism.drpc.org"
+chain = "optimism"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://mainnet.optimism.io"

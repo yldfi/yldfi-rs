@@ -439,7 +439,15 @@ impl Client {
             .ok_or_else(|| token_not_found(&address))
     }
 
-    /// Get token security for multiple addresses (requires authentication for >1 token)
+    /// Get token security for multiple addresses
+    ///
+    /// Unauthenticated requests only return a result for one address per
+    /// call (extra comma-separated addresses are silently dropped by the
+    /// API), so without credentials each address is queried individually.
+    /// With credentials a single batched request is made.
+    ///
+    /// Addresses the API has no data for are simply absent from the result;
+    /// use [`missing_addresses`](Self::missing_addresses) to find them.
     ///
     /// # Arguments
     /// * `chain_id` - The chain ID
@@ -453,12 +461,46 @@ impl Client {
             return Ok(TokenSecurityResponse::new());
         }
 
+        if !self.is_authenticated() && addresses.len() > 1 {
+            let mut seen = std::collections::HashSet::new();
+            let mut merged = TokenSecurityResponse::new();
+            for address in addresses {
+                let address = address.to_lowercase();
+                if !seen.insert(address.clone()) {
+                    continue;
+                }
+                merged.extend(self.token_security_request(chain_id, &address).await?);
+            }
+            return Ok(merged);
+        }
+
         let addresses_str = addresses
             .iter()
             .map(|a| a.to_lowercase())
             .collect::<Vec<_>>()
             .join(",");
+        self.token_security_request(chain_id, &addresses_str).await
+    }
 
+    /// Return the requested addresses (lowercased, deduplicated, in request
+    /// order) that are missing from a [`token_security_batch`](Self::token_security_batch)
+    /// result.
+    #[must_use]
+    pub fn missing_addresses(requested: &[&str], results: &TokenSecurityResponse) -> Vec<String> {
+        let mut seen = std::collections::HashSet::new();
+        requested
+            .iter()
+            .map(|a| a.to_lowercase())
+            .filter(|a| !results.contains_key(a) && seen.insert(a.clone()))
+            .collect()
+    }
+
+    /// Single `token_security` request for one or more comma-separated addresses
+    async fn token_security_request(
+        &self,
+        chain_id: u64,
+        addresses_str: &str,
+    ) -> Result<TokenSecurityResponse> {
         let path = format!("/token_security/{chain_id}?contract_addresses={addresses_str}");
 
         let body: Response<TokenSecurityResponse> = self.get(&path).await?;

@@ -166,13 +166,26 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `PYTH_API_KEY` | `pyth_price` (required since the Pyth Core upgrade; or `config_set_pyth`), sent with `pyth_search`/`pyth_feeds` when set |
 | `THEGRAPH_API_KEY` | `uniswap_top_pools`, etc. |
 
-Moralis is removing Fantom support on 2026-05-29 and selected legacy Data API
-endpoints on 2026-06-04. The MCP `moralis_*` tools inherit the same ethcli
-guards for Fantom and deprecated Discovery, Volume, Market Data, pair sniper,
-and selected ERC20 helper endpoints. `moralis_token_holders_historical`
-inherits the guard for the 2026-07-31 sunset of
-`GET /erc20/{address}/holders/historical`; `moralis_token_holders` and
-`moralis_token_holders_summary` remain supported.
+Moralis removed Fantom support on 2026-05-29 (the `moralis_*` tools inherit
+ethcli's Fantom guard). Moralis deleted its Discovery, Volume and Market Data
+APIs and several ERC20 helper endpoints on 2026-06-04, and
+`GET /erc20/{address}/holders/historical` on 2026-07-31, so these MCP tools
+were removed: `moralis_market_*`, `moralis_volume_*`, `moralis_discovery_*`
+(except `moralis_discovery_token_analytics` and `moralis_discovery_token_score`),
+`moralis_token_stats`, `moralis_token_exchange_*`, `moralis_token_bonding_status`,
+`moralis_token_pairs_stats`, `moralis_token_by_symbols`,
+`moralis_token_pair_snipers` and `moralis_token_holders_historical`. Use
+`moralis_token_search` (Token Search), `moralis_token_trending`,
+`moralis_analytics_batch` / `moralis_analytics_timeseries` /
+`moralis_discovery_token_analytics` (Token Analytics),
+`moralis_token_pair_stats` and `moralis_token_holders_summary` instead.
+
+Tenderly's public API has no alert-destination or contract PATCH endpoints, so
+`tenderly_alerts_add_destination`, `tenderly_alerts_remove_destination` and
+`tenderly_contracts_update` were removed (use `tenderly_contracts_remove_tag` /
+`tenderly_contracts_bulk_tag` and the Tenderly dashboard). Tenderly has renamed
+Virtual TestNets to Virtual Environments (`/api/public/v1/.../environments`);
+the `tenderly_vnets_*` tools still use the live `/vnets` routes.
 
 Alchemy retired several NFT API endpoints on 2026-09-30, so these tools were
 removed: `alchemy_nft_collections_for_owner` (use
