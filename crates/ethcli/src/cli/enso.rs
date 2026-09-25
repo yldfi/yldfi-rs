@@ -36,9 +36,9 @@ pub enum EnsoCommands {
         amount_in: String,
         /// Sender address
         from_address: String,
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
         /// Slippage in basis points (e.g., 50 = 0.5%)
         #[arg(long, default_value = "50")]
         slippage: u16,
@@ -51,18 +51,18 @@ pub enum EnsoCommands {
     Price {
         /// Token address
         token: String,
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
     },
 
     /// Get token balances for an address
     Balances {
         /// Wallet address
         address: String,
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
     },
 
     /// Bundle multiple DeFi actions into one transaction
@@ -71,16 +71,16 @@ pub enum EnsoCommands {
         from_address: String,
         /// Actions as JSON array: [{"protocol":"...","action":"...","args":{...}}]
         actions_json: String,
-        /// Chain ID
-        #[arg(long, default_value = "1")]
-        chain_id: u64,
+        /// Chain ID (defaults to the global --chain)
+        #[arg(long)]
+        chain_id: Option<u64>,
         /// Routing strategy (router, delegate, ensowallet)
         #[arg(long)]
         routing_strategy: Option<String>,
     },
 }
 
-pub async fn run(args: EnsoArgs, _chain: &str) -> anyhow::Result<()> {
+pub async fn run(args: EnsoArgs, chain: &str) -> anyhow::Result<()> {
     // Get API key from config first, then fall back to env var
     let config = get_cached_config();
     let api_key = config
@@ -108,6 +108,7 @@ pub async fn run(args: EnsoArgs, _chain: &str) -> anyhow::Result<()> {
             slippage,
             routing_strategy,
         } => {
+            let chain_id = super::resolve_chain_id(chain_id, chain)?;
             let mut request = RouteRequest::new(
                 chain_id,
                 &from_address,
@@ -125,11 +126,13 @@ pub async fn run(args: EnsoArgs, _chain: &str) -> anyhow::Result<()> {
         }
 
         EnsoCommands::Price { token, chain_id } => {
+            let chain_id = super::resolve_chain_id(chain_id, chain)?;
             let price = client.get_token_price(chain_id, &token).await?;
             output_json(&price, args.format)?;
         }
 
         EnsoCommands::Balances { address, chain_id } => {
+            let chain_id = super::resolve_chain_id(chain_id, chain)?;
             let balances = client.get_balances(chain_id, &address).await?;
             output_json(&balances, args.format)?;
         }
@@ -140,6 +143,7 @@ pub async fn run(args: EnsoArgs, _chain: &str) -> anyhow::Result<()> {
             chain_id,
             routing_strategy,
         } => {
+            let chain_id = super::resolve_chain_id(chain_id, chain)?;
             let actions: Vec<BundleAction> = serde_json::from_str(&actions_json)
                 .map_err(|e| anyhow::anyhow!("Invalid actions JSON: {}", e))?;
             let mut request = BundleRequest::new(chain_id, &from_address, actions);

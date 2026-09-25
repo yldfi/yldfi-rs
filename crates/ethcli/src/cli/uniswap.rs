@@ -68,7 +68,7 @@ pub struct PoolArgs {
     pub pool: String,
 
     /// RPC URL (defaults to public endpoint)
-    #[arg(long, env = "ETH_RPC_URL")]
+    #[arg(long, env = "ETH_RPC_URL", hide_env_values = true)]
     pub rpc_url: Option<String>,
 }
 
@@ -79,7 +79,7 @@ pub struct LiquidityArgs {
     pub pool: String,
 
     /// RPC URL
-    #[arg(long, env = "ETH_RPC_URL")]
+    #[arg(long, env = "ETH_RPC_URL", hide_env_values = true)]
     pub rpc_url: Option<String>,
 }
 
@@ -87,7 +87,7 @@ pub struct LiquidityArgs {
 #[derive(Args, Debug)]
 pub struct EthPriceArgs {
     /// The Graph API key (or set THEGRAPH_API_KEY env var, or add [thegraph] to config)
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version
@@ -103,7 +103,7 @@ pub struct TopPoolsArgs {
     pub limit: u32,
 
     /// The Graph API key (or set THEGRAPH_API_KEY env var, or add [thegraph] to config)
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version
@@ -122,7 +122,7 @@ pub struct SwapsArgs {
     pub limit: u32,
 
     /// The Graph API key (or set THEGRAPH_API_KEY env var, or add [thegraph] to config)
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version
@@ -141,7 +141,7 @@ pub struct DayDataArgs {
     pub days: u32,
 
     /// The Graph API key (or set THEGRAPH_API_KEY env var, or add [thegraph] to config)
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version
@@ -156,7 +156,7 @@ pub struct PositionsArgs {
     pub address: String,
 
     /// The Graph API key
-    #[arg(long, env = "THEGRAPH_API_KEY")]
+    #[arg(long, env = "THEGRAPH_API_KEY", hide_env_values = true)]
     pub api_key: Option<String>,
 
     /// Uniswap version (omit to query all versions)
@@ -182,7 +182,7 @@ pub struct BalanceArgs {
     pub account: String,
 
     /// RPC URL
-    #[arg(long, env = "ETH_RPC_URL")]
+    #[arg(long, env = "ETH_RPC_URL", hide_env_values = true)]
     pub rpc_url: Option<String>,
 }
 

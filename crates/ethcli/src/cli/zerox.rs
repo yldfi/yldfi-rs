@@ -4,6 +4,7 @@
 
 use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
+use secrecy::ExposeSecret;
 use zrxswap::{Client, PriceRequest, QuoteRequest};
 
 #[derive(Args, Clone)]
@@ -75,15 +76,23 @@ pub enum ZeroXCommands {
 }
 
 pub async fn run(args: ZeroXArgs, _chain: &str) -> anyhow::Result<()> {
-    let api_key = std::env::var("ZEROX_API_KEY")
-        .or_else(|_| std::env::var("0X_API_KEY"))
-        .ok();
+    // Config first (same as the quote aggregator), then env vars. The 0x v2
+    // API rejects unauthenticated requests, so fail fast without a key.
+    let api_key = crate::aggregator::get_cached_config()
+        .as_ref()
+        .and_then(|c| c.zerox.as_ref())
+        .map(|z| z.api_key.expose_secret().to_string())
+        .or_else(|| std::env::var("ZEROX_API_KEY").ok())
+        .or_else(|| std::env::var("0X_API_KEY").ok())
+        .filter(|k| !k.is_empty());
 
-    let client = if let Some(key) = api_key {
-        Client::with_api_key(&key)?
-    } else {
-        Client::new()?
+    let Some(key) = api_key else {
+        anyhow::bail!(
+            "0x API key required. Add [zerox] to the config or set ZEROX_API_KEY / 0X_API_KEY.\n\
+             Get an API key at: https://dashboard.0x.org"
+        );
     };
+    let client = Client::with_api_key(&key)?;
 
     match args.action {
         ZeroXCommands::Quote {
