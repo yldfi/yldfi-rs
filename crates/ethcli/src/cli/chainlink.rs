@@ -147,7 +147,11 @@ pub enum StreamsCommands {
     /// Get reports for multiple feeds at a timestamp
     Bulk {
         /// Feed IDs (comma-separated hex strings)
-        #[arg(value_delimiter = ',')]
+        ///
+        /// A single required comma-separated argument: an optional
+        /// multi-value positional before the required timestamp is invalid
+        /// in clap (debug-assert panic) and ambiguous to parse.
+        #[arg(value_delimiter = ',', required = true, num_args = 1)]
         feed_ids: Vec<String>,
 
         /// Unix timestamp (seconds)
