@@ -295,6 +295,9 @@ ethcli 0x price <sell> <buy> <amt> <taker>
 ```bash
 ethcli cowswap quote <sell> <buy> <amt> <from>
 ethcli cowswap order <uid>
+ethcli cowswap trades <owner> [--limit N] [--offset N]
+ethcli cowswap competition [auction_id] [--tx-hash <tx>]   # omit both = latest
+ethcli cowswap cancel-orders --uid <uid,...> <signature>
 ```
 
 ### LI.FI (cross-chain)

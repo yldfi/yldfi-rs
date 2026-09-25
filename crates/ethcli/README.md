@@ -1193,8 +1193,8 @@ ethcli cowswap order <uid> --chain ethereum
 # Get orders for an address
 ethcli cowswap orders <owner> --chain ethereum
 
-# Get trades for an address
-ethcli cowswap trades <owner> --chain ethereum
+# Get trades for an address (paginated via /api/v2/trades; API default limit 10)
+ethcli cowswap trades <owner> --chain ethereum --limit 100 --offset 0
 
 # Get trades for an order
 ethcli cowswap order-trades <uid> --chain ethereum
@@ -1202,11 +1202,16 @@ ethcli cowswap order-trades <uid> --chain ethereum
 # Get current auction
 ethcli cowswap auction --chain ethereum
 
-# Get solver competition
+# Get solver competition (v2 API): by auction ID, by settlement tx, or latest
 ethcli cowswap competition <auction_id> --chain ethereum
+ethcli cowswap competition --tx-hash <settlement_tx> --chain ethereum
+ethcli cowswap competition --chain ethereum
 
 # Get native token price
 ethcli cowswap native-price <token> --chain ethereum
+
+# Cancel orders (signature over OrderCancellations(bytes[] orderUids))
+ethcli cowswap cancel-orders --uid <uid1>,<uid2> <signature> --chain ethereum
 ```
 
 **Alias**: `ethcli cow`

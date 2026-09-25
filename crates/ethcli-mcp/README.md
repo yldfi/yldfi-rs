@@ -92,7 +92,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `uniswap_*` | 9 | V2/V3/V4 pool queries |
 | `rpc_*` | 9 | Direct blockchain calls |
 | `tenderly_*` | 34 | Simulation, VNets (CRUD + Admin RPC + RPC Simulation) |
-| `cowswap_*` | 8 | MEV-protected trading |
+| `cowswap_*` | 11 | MEV-protected trading |
 | `account_*` | 8 | Balance, transactions |
 | `oneinch_*` | 7 | DEX aggregator |
 | `goplus_*` | 6 | Security analysis |
@@ -112,7 +112,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | tenderly_* | 34 |
 | simulate_* | 8 |
 | endpoints_* | 8 |
-| cowswap_* | 8 |
+| cowswap_* | 11 |
 | account_* | 8 |
 | oneinch_* | 7 |
 | dsim_* | 6 |

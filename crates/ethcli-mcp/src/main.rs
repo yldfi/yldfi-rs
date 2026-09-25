@@ -5565,21 +5565,26 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get trades for an address from CoW Swap")]
-    async fn cowswap_trades(&self, Parameters(input): Parameters<CowswapOwnerInput>) -> String {
-        tools::cowswap_trades(&input.owner, Some(&input.chain))
+    #[tool(description = "Get trades for an address from CoW Swap (paginated, newest first)")]
+    async fn cowswap_trades(&self, Parameters(input): Parameters<CowswapTradesInput>) -> String {
+        tools::cowswap_trades(&input.owner, input.offset, input.limit, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get trades for an order from CoW Swap")]
+    #[tool(description = "Get trades for an order from CoW Swap (paginated, newest first)")]
     async fn cowswap_order_trades(
         &self,
-        Parameters(input): Parameters<CowswapOrderInput>,
+        Parameters(input): Parameters<CowswapOrderTradesInput>,
     ) -> String {
-        tools::cowswap_order_trades(&input.order_uid, Some(&input.chain))
-            .await
-            .to_response()
+        tools::cowswap_order_trades(
+            &input.order_uid,
+            input.offset,
+            input.limit,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get current auction from CoW Swap")]
@@ -5589,14 +5594,20 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get solver competition data from CoW Swap")]
+    #[tool(
+        description = "Get solver competition data from CoW Swap by auction ID, settlement tx hash, or latest"
+    )]
     async fn cowswap_competition(
         &self,
         Parameters(input): Parameters<CowswapAuctionInput>,
     ) -> String {
-        tools::cowswap_competition(&input.auction_id, Some(&input.chain))
-            .await
-            .to_response()
+        tools::cowswap_competition(
+            input.auction_id.as_deref(),
+            input.tx_hash.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get native token price from CoW Swap")]
@@ -5635,7 +5646,9 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Cancel an existing CoW Swap order")]
+    #[tool(
+        description = "Cancel a single CoW Swap order (deprecated upstream API; prefer cowswap_cancel_orders)"
+    )]
     async fn cowswap_cancel_order(
         &self,
         Parameters(input): Parameters<CowswapCancelOrderInput>,
@@ -5643,6 +5656,23 @@ impl EthcliMcpServer {
         tools::cowswap_cancel_order(&input.uid, &input.signature, Some(&input.chain))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Cancel one or more CoW Swap orders (up to 128) with a signed OrderCancellations payload"
+    )]
+    async fn cowswap_cancel_orders(
+        &self,
+        Parameters(input): Parameters<CowswapCancelOrdersInput>,
+    ) -> String {
+        tools::cowswap_cancel_orders(
+            &input.uids,
+            &input.signature,
+            input.signing_scheme.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
