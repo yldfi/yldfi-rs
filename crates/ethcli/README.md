@@ -752,6 +752,9 @@ ethcli curve pool 0x...
 ethcli curve volumes
 ethcli curve tvl
 
+# Chain USD volume from prices.curve.finance (default: last 30 days, daily)
+ethcli curve prices volume ethereum --interval day
+
 # Lending
 ethcli curve lending-pools
 ethcli curve lending-pool 0x...

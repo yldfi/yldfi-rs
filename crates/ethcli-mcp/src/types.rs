@@ -713,6 +713,22 @@ pub struct CurvePoolsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveChainVolumeInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Start timestamp (unix seconds, default: end - 30 days)
+    #[serde(default)]
+    pub start: Option<u64>,
+    /// End timestamp (unix seconds, default: now)
+    #[serde(default)]
+    pub end: Option<u64>,
+    /// Aggregation interval: "hour", "day" (default) or "week". Window max 300x interval.
+    #[serde(default)]
+    pub interval: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CurveRouteInput {
     /// Source token address
     pub from_token: String,

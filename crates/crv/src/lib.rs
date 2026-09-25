@@ -129,4 +129,4 @@ impl Client {
 }
 
 // Prices API client (separate base URL)
-pub use prices::PricesClient;
+pub use prices::{PricesClient, VolumeInterval};

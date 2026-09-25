@@ -40,6 +40,15 @@ impl<'a> VolumesApi<'a> {
     }
 
     /// Get volumes from subgraph
+    ///
+    /// Curve is transitioning `/getSubgraphData/{chain}` to
+    /// `/getVolumes/{chain}`; once complete it remains only as a proxy for
+    /// `/getVolumes`. Note `/getVolumes` currently covers fewer chains
+    /// (ethereum, polygon, arbitrum, base, optimism, fantom).
+    #[deprecated(
+        since = "0.1.7",
+        note = "Curve is folding /getSubgraphData into /getVolumes; use `get_volumes` (check chain coverage)"
+    )]
     pub async fn get_subgraph_data(&self, chain: &str) -> Result<VolumesResponse> {
         let path = format!("/getSubgraphData/{chain}");
         self.client.get(&path).await

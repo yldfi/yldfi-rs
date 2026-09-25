@@ -5153,9 +5153,21 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get top tokens by volume on Curve")]
-    async fn curve_prices_top_volume(&self) -> String {
-        tools::curve_prices_top_volume().await.to_response()
+    #[tool(
+        description = "Get USD volume for a chain from the Curve Prices API (default: last 30 days, daily)"
+    )]
+    async fn curve_prices_volume(
+        &self,
+        Parameters(input): Parameters<CurveChainVolumeInput>,
+    ) -> String {
+        tools::curve_prices_volume(
+            &input.chain,
+            input.start,
+            input.end,
+            input.interval.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     // --- OHLC additional ---

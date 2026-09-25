@@ -311,8 +311,20 @@ pub enum PricesCommands {
         end: Option<u64>,
     },
 
-    /// Get top tokens by volume
-    TopVolume,
+    /// Get USD volume for a chain (Curve Prices API, default: last 30 days, daily)
+    Volume {
+        /// Chain name (e.g., "ethereum", "arbitrum")
+        chain: String,
+        /// Start timestamp (unix seconds, default: end - 30 days)
+        #[arg(long)]
+        start: Option<u64>,
+        /// End timestamp (unix seconds, default: now)
+        #[arg(long)]
+        end: Option<u64>,
+        /// Aggregation interval: hour, day, week (window max 300x interval)
+        #[arg(long, default_value = "day")]
+        interval: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -866,11 +878,26 @@ async fn handle_prices(
                 .await?;
             print_output(&response, args.format)?;
         }
-        PricesCommands::TopVolume => {
+        PricesCommands::Volume {
+            chain,
+            start,
+            end,
+            interval,
+        } => {
+            let interval: crv::VolumeInterval = interval.parse()?;
+            let end = match end {
+                Some(e) => *e,
+                None => std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)?
+                    .as_secs(),
+            };
+            let start = start.unwrap_or_else(|| end.saturating_sub(30 * 86_400));
             if !quiet {
-                eprintln!("Fetching top tokens by volume...");
+                eprintln!("Fetching {} volume on {}...", interval.as_str(), chain);
             }
-            let response = client.get_top_volume_tokens().await?;
+            let response = client
+                .get_chain_volume_range(chain, start, end, Some(interval))
+                .await?;
             print_output(&response, args.format)?;
         }
     }

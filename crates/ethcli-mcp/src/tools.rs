@@ -6674,10 +6674,21 @@ pub async fn curve_prices_history(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn curve_prices_top_volume() -> Result<String, ToolError> {
+pub async fn curve_prices_volume(
+    chain: &str,
+    start: Option<u64>,
+    end: Option<u64>,
+    interval: Option<&str>,
+) -> Result<String, ToolError> {
+    let start = start.map(|v| v.to_string());
+    let end = end.map(|v| v.to_string());
     ArgsBuilder::new("curve")
         .subcommand("prices")
-        .subcommand("top-volume")
+        .subcommand("volume")
+        .arg(chain)
+        .opt("--start", start.as_deref())
+        .opt("--end", end.as_deref())
+        .opt("--interval", interval)
         .execute()
         .await
         .map_err(ToolError::from)

@@ -246,6 +246,7 @@ ethcli dsim collectibles <addr>     # NFTs
 ethcli curve pools                  # List pools
 ethcli curve pool <addr>            # Pool details
 ethcli curve volumes                # Volume data
+ethcli curve prices volume <chain> [--start ts] [--end ts] [--interval day]  # USD volume (prices API)
 ethcli curve router route <from> <to> # Find swap route
 ```
 
