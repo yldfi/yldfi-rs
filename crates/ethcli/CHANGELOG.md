@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.23.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.22.4...ethcli-v0.23.0) (2026-09-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sldt:** Error::Unauthorized and Error::RateLimited now carry data; ApiResponse.rate_limit is Option<RateLimit>; SearchResults gains fields.
+* the `volume` and `market` modules, `Client::volume()`, `Client::market()`, the DiscoveryApi list/filter/token methods and their types, and TokenApi::{get_stats, get_exchange_*_tokens, get_by_symbols, get_holders_historical, get_pairs_stats, get_pair_snipers, get_bonding_status} (plus their response types) are removed. DiscoveryApi keeps get_token_analytics and get_token_score, which are still in the spec (scores are EVM-only).
+* **pythc:** the default endpoint changed and price requests now fail with DomainError::Unauthorized unless an API key is configured.
+* the removed alcmy methods/types, ethcli subcommands and MCP tools no longer exist. Use contracts-for-owner, contract-metadata (openSeaMetadata), is-spam and nfts-for-contract instead.
+
+### Features
+
+* remove sunset Alchemy NFT/Simulation APIs and Dune Sim integration ([#71](https://github.com/yldfi/yldfi-rs/issues/71)) ([416d973](https://github.com/yldfi/yldfi-rs/commit/416d97332c5e39696b10d522465a2b3e65b152b4))
+
+
+### Bug Fixes
+
+* DEX aggregator, Curve, Uniswap, yields and Kong bugs found by live smoke test ([#81](https://github.com/yldfi/yldfi-rs/issues/81)) ([730e9eb](https://github.com/yldfi/yldfi-rs/commit/730e9eb388557e434fd530c64d8fc1df17e7b9e8))
+* **ethcli,unswp:** replace dead RPCs, fix V4 subgraph IDs, mainnet Data Streams, Etherscan sunset chains ([#72](https://github.com/yldfi/yldfi-rs/issues/72)) ([64ff968](https://github.com/yldfi/yldfi-rs/commit/64ff968a4d7166ab9a9c4e3f896bf8d816f53721))
+* **ethcli:** stop leaking secrets, add RPC failover, fix bugs found by live smoke test ([#77](https://github.com/yldfi/yldfi-rs/issues/77)) ([ce2267b](https://github.com/yldfi/yldfi-rs/commit/ce2267b2d36712b9d883801eb8aead6fb271df06))
+* market-data aggregators, DefiLlama/CoinGecko parsing, ccxt workarounds, MCP errors ([#78](https://github.com/yldfi/yldfi-rs/issues/78)) ([25af322](https://github.com/yldfi/yldfi-rs/commit/25af322ecce9f7bc291a2b685c1666ed855ee383))
+* migrate DEX/aggregator clients off deprecated endpoints (cowp, oinch, vlra, openoc, crv, cgko, dllma) ([#74](https://github.com/yldfi/yldfi-rs/issues/74)) ([1981119](https://github.com/yldfi/yldfi-rs/commit/19811196ca836fa14a4364c8c758895da8411347))
+* provider client bugs found by live smoke test (alcmy, tndrly, mrls, gplus) ([#75](https://github.com/yldfi/yldfi-rs/issues/75)) ([8b50186](https://github.com/yldfi/yldfi-rs/commit/8b50186a012a7dbdec8409f0e93287ef1c88c1f7))
+* **pythc:** require API key for Pyth Hermes (Pyth Core upgrade) ([#70](https://github.com/yldfi/yldfi-rs/issues/70)) ([91d1d88](https://github.com/yldfi/yldfi-rs/commit/91d1d8861434b157804dc0b52199e2f33bc0ada4))
+* remove dead Moralis/Tenderly endpoints, fix Dune API paths ([#73](https://github.com/yldfi/yldfi-rs/issues/73)) ([78db18e](https://github.com/yldfi/yldfi-rs/commit/78db18e22b7eadb8ad71ce3cefdbc21bf4ea117c))
+* **sldt:** align Solodit client with the Findings API spec ([#76](https://github.com/yldfi/yldfi-rs/issues/76)) ([a04476e](https://github.com/yldfi/yldfi-rs/commit/a04476e9f20f42b034d0f6fa981dd34181e1765d))
+
 ## [0.22.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.22.3...ethcli-v0.22.4) (2026-07-13)
 
 

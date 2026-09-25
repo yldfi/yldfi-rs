@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.1.4...cgko-v0.1.5) (2026-09-25)
+
+
+### Bug Fixes
+
+* market-data aggregators, DefiLlama/CoinGecko parsing, ccxt workarounds, MCP errors ([#78](https://github.com/yldfi/yldfi-rs/issues/78)) ([25af322](https://github.com/yldfi/yldfi-rs/commit/25af322ecce9f7bc291a2b685c1666ed855ee383))
+* migrate DEX/aggregator clients off deprecated endpoints (cowp, oinch, vlra, openoc, crv, cgko, dllma) ([#74](https://github.com/yldfi/yldfi-rs/issues/74)) ([1981119](https://github.com/yldfi/yldfi-rs/commit/19811196ca836fa14a4364c8c758895da8411347))
+
 ## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.1.3...cgko-v0.1.4) (2026-02-13)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/crv-v0.1.6...crv-v0.1.7) (2026-09-25)
+
+
+### Bug Fixes
+
+* DEX aggregator, Curve, Uniswap, yields and Kong bugs found by live smoke test ([#81](https://github.com/yldfi/yldfi-rs/issues/81)) ([730e9eb](https://github.com/yldfi/yldfi-rs/commit/730e9eb388557e434fd530c64d8fc1df17e7b9e8))
+* migrate DEX/aggregator clients off deprecated endpoints (cowp, oinch, vlra, openoc, crv, cgko, dllma) ([#74](https://github.com/yldfi/yldfi-rs/issues/74)) ([1981119](https://github.com/yldfi/yldfi-rs/commit/19811196ca836fa14a4364c8c758895da8411347))
+
 ## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/crv-v0.1.5...crv-v0.1.6) (2026-04-22)
 
 

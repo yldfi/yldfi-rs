@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/ykong-v0.1.4...ykong-v0.1.5) (2026-09-25)
+
+
+### Bug Fixes
+
+* DEX aggregator, Curve, Uniswap, yields and Kong bugs found by live smoke test ([#81](https://github.com/yldfi/yldfi-rs/issues/81)) ([730e9eb](https://github.com/yldfi/yldfi-rs/commit/730e9eb388557e434fd530c64d8fc1df17e7b9e8))
+
 ## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/ykong-v0.1.3...ykong-v0.1.4) (2026-02-14)
 
 

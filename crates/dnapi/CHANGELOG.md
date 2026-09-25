@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/dnapi-v0.1.3...dnapi-v0.2.0) (2026-09-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* the `volume` and `market` modules, `Client::volume()`, `Client::market()`, the DiscoveryApi list/filter/token methods and their types, and TokenApi::{get_stats, get_exchange_*_tokens, get_by_symbols, get_holders_historical, get_pairs_stats, get_pair_snipers, get_bonding_status} (plus their response types) are removed. DiscoveryApi keeps get_token_analytics and get_token_score, which are still in the spec (scores are EVM-only).
+
+### Bug Fixes
+
+* remove dead Moralis/Tenderly endpoints, fix Dune API paths ([#73](https://github.com/yldfi/yldfi-rs/issues/73)) ([78db18e](https://github.com/yldfi/yldfi-rs/commit/78db18e22b7eadb8ad71ce3cefdbc21bf4ea117c))
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/dnapi-v0.1.2...dnapi-v0.1.3) (2026-02-15)
 
 
