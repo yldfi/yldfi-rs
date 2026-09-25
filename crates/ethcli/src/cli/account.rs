@@ -856,8 +856,8 @@ pub async fn handle(
 
         AccountCommands::MinedBlocks {
             address,
-            page: _page,
-            limit: _limit,
+            page,
+            limit,
             output,
         } => {
             let addr = Address::from_str(address)
@@ -868,16 +868,16 @@ pub async fn handle(
                 let _ = std::io::stderr().flush();
             }
 
-            // Note: get_mined_blocks API expects BlockType, not page/limit
-            // Using None for pagination to get default results
-            let blocks = client.get_mined_blocks(&addr, None, None).await?;
+            let blocks = client
+                .get_mined_blocks(&addr, None, Some((*page, *limit)))
+                .await?;
 
             if output.is_json() {
                 println!("{}", serde_json::to_string_pretty(&blocks)?);
             } else {
                 println!("Blocks Mined by {}", address);
                 println!("{}", "─".repeat(60));
-                for block in blocks.iter().take(20) {
+                for block in &blocks {
                     let reward_eth = format_wei_to_eth(&block.block_reward.to_string());
                     let block_num = block
                         .block_number
@@ -891,8 +891,8 @@ pub async fn handle(
                         chain.native_symbol()
                     );
                 }
-                if blocks.len() > 20 {
-                    println!("... and {} more", blocks.len() - 20);
+                if blocks.len() as u64 >= *limit {
+                    println!("(page {page}; use --page {} for more)", page + 1);
                 }
             }
         }
