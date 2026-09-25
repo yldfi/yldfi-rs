@@ -16,6 +16,14 @@ pub enum DomainError {
     /// Invalid API key
     #[error("Invalid API key")]
     InvalidApiKey,
+
+    /// Method not supported by Alchemy on the selected network
+    #[error("{method} is not supported on {network}: {reason}")]
+    UnsupportedMethod {
+        method: &'static str,
+        network: &'static str,
+        reason: &'static str,
+    },
 }
 
 /// Error type for Alchemy API operations
@@ -36,4 +44,17 @@ pub fn rpc(code: i64, message: impl Into<String>) -> Error {
 /// Create an invalid API key error
 pub fn invalid_api_key() -> Error {
     ApiError::domain(DomainError::InvalidApiKey)
+}
+
+/// Create an unsupported-method error
+pub fn unsupported_method(
+    method: &'static str,
+    network: &'static str,
+    reason: &'static str,
+) -> Error {
+    ApiError::domain(DomainError::UnsupportedMethod {
+        method,
+        network,
+        reason,
+    })
 }

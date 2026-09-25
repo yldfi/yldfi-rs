@@ -3,7 +3,7 @@
 //! Commands for reading blockchain state
 
 use crate::cli::OutputFormat;
-use crate::config::{Chain, ConfigFile, EndpointConfig};
+use crate::config::{Chain, EndpointConfig};
 use crate::rpc::Endpoint;
 use alloy::primitives::{Address, B256, U256};
 use alloy::providers::Provider;
@@ -139,30 +139,26 @@ pub async fn handle(
     rpc_url: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    // Get RPC endpoint
-    let endpoint = if let Some(url) = rpc_url {
-        Endpoint::new(EndpointConfig::new(url), 30, None)?
+    // Explicit --rpc-url: use it alone. Otherwise try ranked configured
+    // endpoints, failing over on rate limits / transport errors.
+    let candidates = if let Some(url) = rpc_url {
+        vec![Endpoint::new(EndpointConfig::new(url), 30, None)?]
     } else {
-        // Use config endpoints
-        let config = ConfigFile::load_default()
-            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-            .unwrap_or_default();
-
-        let chain_endpoints: Vec<_> = config
-            .endpoints
-            .into_iter()
-            .filter(|e| e.enabled && e.chain == chain)
-            .collect();
-
-        if chain_endpoints.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                chain.display_name()
-            ));
-        }
-        Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+        crate::rpc::candidate_endpoints(
+            chain,
+            &crate::rpc::SelectionOptions::default(),
+            crate::rpc::MAX_FAILOVER_ATTEMPTS,
+        )?
     };
 
+    crate::rpc::with_failover(candidates, |endpoint| async move {
+        run_action(action, &endpoint, quiet).await
+    })
+    .await
+}
+
+/// Execute a (read-only) RPC command against a single endpoint
+async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> anyhow::Result<()> {
     let provider = endpoint.provider();
 
     match action {
@@ -387,7 +383,7 @@ pub async fn handle(
                 .get_gas_price()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get gas price: {}", e))?;
-            println!("{} gwei", gas_price / 1_000_000_000);
+            println!("{} gwei", format_gwei(gas_price));
         }
     }
 
@@ -438,13 +434,37 @@ fn decode_output(data: &[u8], type_sig: &str) -> anyhow::Result<String> {
         .abi_decode(data)
         .map_err(|e| anyhow::anyhow!("Failed to decode: {}", e))?;
 
-    Ok(format!("{:?}", decoded))
+    Ok(super::contract::format_value(&decoded))
+}
+
+/// Format a wei amount as gwei with exact decimals (trailing zeros trimmed).
+///
+/// `180_000_000` -> `"0.18"`, `25_000_000_000` -> `"25"`.
+fn format_gwei(wei: u128) -> String {
+    const GWEI: u128 = 1_000_000_000;
+    let whole = wei / GWEI;
+    let frac = wei % GWEI;
+    if frac == 0 {
+        whole.to_string()
+    } else {
+        let frac = format!("{frac:09}");
+        format!("{whole}.{}", frac.trim_end_matches('0'))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloy::eips::{BlockId, BlockNumberOrTag};
+
+    #[test]
+    fn test_format_gwei() {
+        assert_eq!(format_gwei(180_000_000), "0.18");
+        assert_eq!(format_gwei(25_000_000_000), "25");
+        assert_eq!(format_gwei(1), "0.000000001");
+        assert_eq!(format_gwei(1_500_000_000), "1.5");
+        assert_eq!(format_gwei(0), "0");
+    }
 
     // ==================== parse_block_id tests ====================
 
@@ -555,7 +575,7 @@ mod tests {
         let data = hex::decode("00000000000000000000000000000000000000000000000000000000000003e8")
             .unwrap();
         let result = decode_output(&data, "uint256").unwrap();
-        assert!(result.contains("1000"));
+        assert_eq!(result, "1000");
     }
 
     #[test]

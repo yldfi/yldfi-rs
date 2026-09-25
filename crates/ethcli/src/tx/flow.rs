@@ -62,6 +62,7 @@ fn parse_transfer_log(log: &Log) -> Option<TokenFlow> {
         to,
         to_label: get_label(&to).map(String::from),
         amount: amount.to_string(),
+        decimals: None,
         log_index: log.log_index.unwrap_or(0),
     })
 }
@@ -166,6 +167,7 @@ mod tests {
                 to: addr,
                 to_label: None,
                 amount: "1000".to_string(),
+                decimals: None,
                 log_index: 0,
             },
             TokenFlow {
@@ -176,6 +178,7 @@ mod tests {
                 to: other,
                 to_label: None,
                 amount: "400".to_string(),
+                decimals: None,
                 log_index: 1,
             },
         ];

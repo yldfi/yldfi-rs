@@ -2480,64 +2480,6 @@ pub async fn alchemy_nft_contract_metadata(
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_nft_collection_metadata(
-    slug: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("collection-metadata")
-        .arg(slug)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_search_contract_metadata(
-    query: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("search-contract-metadata")
-        .arg(query)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_compute_rarity(
-    contract: &str,
-    token_id: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("compute-rarity")
-        .arg(contract)
-        .arg(token_id)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_summarize_attributes(
-    contract: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("summarize-attributes")
-        .arg(contract)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 pub async fn alchemy_nft_refresh_metadata(
     contract: &str,
     token_id: &str,
@@ -2554,40 +2496,6 @@ pub async fn alchemy_nft_refresh_metadata(
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_nft_sales(
-    contract: &str,
-    token_id: Option<&str>,
-    from_block: Option<u64>,
-    to_block: Option<u64>,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("sales")
-        .arg(contract);
-    if let Some(tid) = token_id {
-        builder = builder.opt("--token-id", Some(tid));
-    }
-    if let Some(fb) = from_block {
-        builder = builder.opt("--from-block", Some(&fb.to_string()));
-    }
-    if let Some(tb) = to_block {
-        builder = builder.opt("--to-block", Some(&tb.to_string()));
-    }
-    builder.execute().await.map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_spam_contracts(network: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("spam-contracts")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 pub async fn alchemy_nft_is_spam(
     contract: &str,
     network: Option<&str>,
@@ -2597,22 +2505,6 @@ pub async fn alchemy_nft_is_spam(
         .network(network)
         .subcommand("is-spam")
         .arg(contract)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_is_airdrop(
-    contract: &str,
-    token_id: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("is-airdrop")
-        .arg(contract)
-        .arg(token_id)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2650,34 +2542,6 @@ pub async fn alchemy_nft_nfts_for_collection(
         builder = builder.opt("--limit", Some(&l.to_string()));
     }
     builder.execute().await.map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_collections_for_owner(
-    address: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("collections-for-owner")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_invalidate_contract(
-    contract: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("invalidate-contract")
-        .arg(contract)
-        .execute()
-        .await
-        .map_err(ToolError::from)
 }
 
 // =============================================================================
@@ -3066,59 +2930,6 @@ pub async fn alchemy_trace_filter(
         builder = builder.opt("--count", Some(&c.to_string()));
     }
     builder.execute().await.map_err(ToolError::from)
-}
-
-// =============================================================================
-// ALCHEMY SIMULATION
-// =============================================================================
-
-pub async fn alchemy_sim_asset_changes(
-    to: &str,
-    from: Option<&str>,
-    data: Option<&str>,
-    value: Option<&str>,
-    gas: Option<&str>,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("simulation")
-        .network(network)
-        .subcommand("asset-changes")
-        .arg(to)
-        .opt("--from", from)
-        .opt("--data", data)
-        .opt("--value", value)
-        .opt("--gas", gas)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn alchemy_sim_execution(
-    to: &str,
-    from: Option<&str>,
-    data: Option<&str>,
-    value: Option<&str>,
-    gas: Option<&str>,
-    block: Option<&str>,
-    trace_format: Option<&str>,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("simulation")
-        .network(network)
-        .subcommand("execution")
-        .arg(to)
-        .opt("--from", from)
-        .opt("--data", data)
-        .opt("--value", value)
-        .opt("--gas", gas)
-        .opt("--block", block)
-        .opt("--trace-format", trace_format)
-        .execute()
-        .await
-        .map_err(ToolError::from)
 }
 
 // =============================================================================
@@ -5913,73 +5724,6 @@ pub async fn moralis_volume_category_timeseries(
 }
 
 // =============================================================================
-// DSIM (6 subcommands) - Dune Sim (platform shuts down 2026-08-01, issue #64)
-// =============================================================================
-
-pub async fn dsim_chains() -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("chains")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_balances(address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("balances")
-        .subcommand("get")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_collectibles(address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("collectibles")
-        .subcommand("get")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_activity(address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("activity")
-        .subcommand("get")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_token(address: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("token")
-        .subcommand("info")
-        .arg(address)
-        .opt("--chain-id", chain_id)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_holders(token: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("holders")
-        .subcommand("get")
-        .arg(token)
-        .opt("--chain-id", chain_id)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-// dsim_defi was removed: Dune Sim DeFi Positions was deprecated 2026-06-01
-// and the Sim platform shuts down 2026-08-01. See issue #64.
-
-// =============================================================================
 // DUNE (3 subcommands)
 // =============================================================================
 
@@ -8171,22 +7915,22 @@ pub async fn config_set_dune(key: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn config_set_dune_sim(key: &str) -> Result<String, ToolError> {
-    require_write_tools_enabled("config_set_dune_sim")?;
+pub async fn config_set_solodit(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_solodit")?;
 
     ArgsBuilder::new("config")
-        .subcommand("set-dune-sim")
+        .subcommand("set-solodit")
         .arg(key)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn config_set_solodit(key: &str) -> Result<String, ToolError> {
-    require_write_tools_enabled("config_set_solodit")?;
+pub async fn config_set_pyth(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_pyth")?;
 
     ArgsBuilder::new("config")
-        .subcommand("set-solodit")
+        .subcommand("set-pyth")
         .arg(key)
         .execute()
         .await

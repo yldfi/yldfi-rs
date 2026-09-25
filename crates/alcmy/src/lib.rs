@@ -3,7 +3,7 @@
 //! This crate provides a comprehensive type-safe interface to Alchemy's blockchain APIs:
 //!
 //! ## Core APIs
-//! - **NFT API**: NFT ownership, metadata, sales, and spam detection
+//! - **NFT API**: NFT ownership, metadata, floor prices, and spam detection
 //! - **Prices API**: Token prices by symbol/address and historical data
 //! - **Portfolio API**: Multi-chain wallet balances and NFT holdings
 //! - **Token API**: ERC-20 token balances, metadata, and allowances
@@ -12,7 +12,6 @@
 //! ## Debugging & Tracing
 //! - **Debug API**: Transaction and block tracing (debug_* methods)
 //! - **Trace API**: Parity-style tracing (trace_* methods)
-//! - **Simulation API**: Transaction simulation and asset change prediction
 //!
 //! ## Account Abstraction (ERC-4337)
 //! - **Bundler API**: `UserOperation` submission and gas estimation
@@ -49,10 +48,6 @@
 //!     let trace = client.debug().trace_transaction("0x...").await?;
 //!     println!("Trace: {:?}", trace);
 //!
-//!     // Simulate a transaction
-//!     let sim = client.simulation().simulate_asset_changes(&Default::default()).await?;
-//!     println!("Asset changes: {:?}", sim.changes);
-//!
 //!     Ok(())
 //! }
 //! ```
@@ -69,7 +64,6 @@ pub mod transfers;
 
 // Debugging & Tracing
 pub mod debug;
-pub mod simulation;
 pub mod trace;
 
 // Account Abstraction (ERC-4337)
@@ -147,12 +141,6 @@ impl Client {
     #[must_use]
     pub fn trace(&self) -> trace::TraceApi<'_> {
         trace::TraceApi::new(self)
-    }
-
-    /// Access the Simulation API
-    #[must_use]
-    pub fn simulation(&self) -> simulation::SimulationApi<'_> {
-        simulation::SimulationApi::new(self)
     }
 
     // ========== Account Abstraction (ERC-4337) ==========
@@ -250,7 +238,6 @@ mod tests {
         let _ = client.transfers();
         let _ = client.debug();
         let _ = client.trace();
-        let _ = client.simulation();
         let _ = client.bundler();
         let _ = client.gas_manager();
         let _ = client.wallet();

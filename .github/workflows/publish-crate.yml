@@ -21,7 +21,6 @@ on:
       - 'crv-v*'
       - 'dllma-v*'
       - 'dnapi-v*'
-      - 'dnsim-v*'
       - 'ensof-v*'
       - 'ethcli-mcp-v*'
       - 'gplus-v*'

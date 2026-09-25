@@ -97,7 +97,52 @@ impl Default for EndpointHealth {
     }
 }
 
+/// Status of an endpoint derived from observed probe results (as opposed to
+/// the circuit breaker, which only opens after several consecutive failures
+/// and would report a 0%-success endpoint as available after 3 probes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProbeStatus {
+    /// Every probe succeeded
+    Healthy,
+    /// Some probes failed
+    Degraded,
+    /// No probe succeeded (or no probes ran)
+    Unavailable,
+    /// Circuit breaker is open
+    CircuitOpen,
+}
+
+impl ProbeStatus {
+    /// Human-readable label with status glyph
+    pub fn label(self) -> &'static str {
+        match self {
+            ProbeStatus::Healthy => "✓ Available",
+            ProbeStatus::Degraded => "⚠ Degraded",
+            ProbeStatus::Unavailable => "✗ Unavailable",
+            ProbeStatus::CircuitOpen => "⚠ Circuit Open",
+        }
+    }
+
+    /// Whether the endpoint answered at least one probe
+    pub fn is_usable(self) -> bool {
+        matches!(self, ProbeStatus::Healthy | ProbeStatus::Degraded)
+    }
+}
+
 impl EndpointHealth {
+    /// Classify the endpoint from its recorded request outcomes
+    pub fn probe_status(&self) -> ProbeStatus {
+        if self.circuit_open {
+            ProbeStatus::CircuitOpen
+        } else if self.total_requests == 0 || self.successful_requests == 0 {
+            ProbeStatus::Unavailable
+        } else if self.successful_requests < self.total_requests {
+            ProbeStatus::Degraded
+        } else {
+            ProbeStatus::Healthy
+        }
+    }
+
     /// Calculate error rate (0.0 - 1.0)
     pub fn error_rate(&self) -> f64 {
         if self.total_requests == 0 {
@@ -375,6 +420,34 @@ impl Default for HealthTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_probe_status_reflects_results() {
+        let tracker = HealthTracker::new();
+        // 3 failed probes: below the default circuit threshold (5), but
+        // the endpoint must still be reported as unavailable.
+        for _ in 0..3 {
+            tracker.record_failure("https://dead.test", false, false);
+        }
+        let h = tracker.get_health("https://dead.test").unwrap();
+        assert!(h.is_available()); // circuit breaker alone says "ok"
+        assert_eq!(h.probe_status(), ProbeStatus::Unavailable);
+        assert!(!h.probe_status().is_usable());
+
+        tracker.record_success("https://flaky.test", Duration::from_millis(10));
+        tracker.record_failure("https://flaky.test", true, false);
+        let h = tracker.get_health("https://flaky.test").unwrap();
+        assert_eq!(h.probe_status(), ProbeStatus::Degraded);
+
+        tracker.record_success("https://ok.test", Duration::from_millis(10));
+        let h = tracker.get_health("https://ok.test").unwrap();
+        assert_eq!(h.probe_status(), ProbeStatus::Healthy);
+
+        assert_eq!(
+            EndpointHealth::default().probe_status(),
+            ProbeStatus::Unavailable
+        );
+    }
 
     #[test]
     fn test_health_tracking() {

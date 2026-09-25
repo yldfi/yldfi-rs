@@ -1,10 +1,45 @@
 //! Direct Pyth Network API commands
 //!
 //! Provides 1:1 access to Pyth Network Hermes API endpoints for price feeds.
+//!
+//! Since the Pyth Core upgrade (2026-08-26) Hermes requires an API key on every
+//! request. The key is read from the config file (`[pyth] api_key`, set via
+//! `ethcli config set-pyth`) or the `PYTH_API_KEY` environment variable.
 
 use crate::cli::OutputFormat;
+use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
-use pyth::{feed_ids, Client};
+use pyth::{feed_ids, Client, Config};
+use secrecy::ExposeSecret;
+
+/// Help text shown when a Pyth API key is required but not configured.
+pub const MISSING_API_KEY_HELP: &str = "Pyth API key not configured. Since the Pyth Core upgrade (2026-08-26) \
+     Pyth Hermes requires an API key for price data.\n\
+     Get a key from the Pyth Terminal: https://pythdata.app\n\
+     Then set it via: ethcli config set-pyth <key>  (or: echo $KEY | ethcli config set-pyth --stdin)\n\
+     or export PYTH_API_KEY=<key>";
+
+/// Resolve the Pyth API key: config file `[pyth] api_key` first, then the
+/// `PYTH_API_KEY` environment variable. Blank values are ignored.
+pub fn resolve_api_key(config: Option<&ConfigFile>) -> Option<String> {
+    let non_empty = |k: &str| {
+        let k = k.trim();
+        (!k.is_empty()).then(|| k.to_string())
+    };
+    config
+        .and_then(|c| c.pyth.as_ref())
+        .and_then(|p| non_empty(p.api_key.expose_secret()))
+        .or_else(|| {
+            std::env::var(pyth::API_KEY_ENV_VAR)
+                .ok()
+                .and_then(|k| non_empty(&k))
+        })
+}
+
+/// Build a Pyth Hermes client, attaching the API key when one is available.
+pub fn build_client(api_key: Option<String>) -> pyth::Result<Client> {
+    Client::with_config(Config::mainnet().with_optional_api_key(api_key))
+}
 
 #[derive(Args, Clone)]
 pub struct PythArgs {
@@ -48,7 +83,16 @@ pub enum PythCommands {
 }
 
 pub async fn run(args: PythArgs, _chain: &str) -> anyhow::Result<()> {
-    let client = Client::new()?;
+    let config = ConfigFile::load_default().ok().flatten();
+    let api_key = resolve_api_key(config.as_ref());
+
+    if api_key.is_none() && matches!(args.action, PythCommands::Price { .. }) {
+        anyhow::bail!(MISSING_API_KEY_HELP);
+    }
+
+    // Feed metadata (search/feeds) may still work without a key; send it when available.
+    // Known feeds are static and need no API access.
+    let client = build_client(api_key)?;
 
     match args.action {
         PythCommands::Price { feeds } => {
@@ -158,4 +202,49 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
     };
     println!("{}", json);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::PythConfig;
+    use secrecy::SecretString;
+
+    fn config_with_key(key: &str) -> ConfigFile {
+        ConfigFile {
+            pyth: Some(PythConfig {
+                api_key: SecretString::new(key.into()),
+            }),
+            ..ConfigFile::default()
+        }
+    }
+
+    #[test]
+    fn config_key_takes_precedence_and_is_trimmed() {
+        let cfg = config_with_key("  from-config  ");
+        assert_eq!(resolve_api_key(Some(&cfg)).as_deref(), Some("from-config"));
+    }
+
+    #[test]
+    fn blank_config_key_falls_back_to_env() {
+        let cfg = config_with_key("   ");
+        let env = std::env::var(pyth::API_KEY_ENV_VAR)
+            .ok()
+            .map(|k| k.trim().to_string())
+            .filter(|k| !k.is_empty());
+        assert_eq!(resolve_api_key(Some(&cfg)), env);
+    }
+
+    #[test]
+    fn build_client_attaches_key() {
+        assert!(build_client(Some("k".into())).unwrap().has_api_key());
+        assert!(!build_client(None).unwrap().has_api_key());
+    }
+
+    #[test]
+    fn missing_key_help_is_actionable() {
+        assert!(MISSING_API_KEY_HELP.contains("PYTH_API_KEY"));
+        assert!(MISSING_API_KEY_HELP.contains("ethcli config set-pyth"));
+        assert!(MISSING_API_KEY_HELP.contains("https://pythdata.app"));
+    }
 }

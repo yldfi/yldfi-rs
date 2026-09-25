@@ -6,6 +6,7 @@ pub mod address;
 pub mod format;
 pub mod progress;
 pub mod table;
+pub mod url;
 
 use std::borrow::Cow;
 use std::sync::OnceLock;
