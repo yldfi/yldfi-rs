@@ -131,6 +131,10 @@ pub struct ConfigFile {
     #[serde(default)]
     pub solodit: Option<SoloditConfig>,
 
+    /// Pyth Hermes API configuration (API key required since the Pyth Core upgrade)
+    #[serde(default)]
+    pub pyth: Option<PythConfig>,
+
     /// Debug-capable RPC endpoints (for debug_traceCall, etc.)
     #[serde(default)]
     pub debug_rpc_urls: Vec<String>,
@@ -306,6 +310,17 @@ pub struct TheGraphConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SoloditConfig {
     /// Solodit API key (from solodit.cyfrin.io)
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
+    pub api_key: SecretString,
+}
+
+/// Pyth Hermes API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PythConfig {
+    /// Pyth API key (from the Pyth Terminal, https://pythdata.app), sent as a Bearer token
     #[serde(
         serialize_with = "serialize_secret",
         deserialize_with = "deserialize_secret"
@@ -1027,6 +1042,28 @@ concurrency = 20
         assert_eq!(loaded.settings.concurrency, 15);
         assert_eq!(loaded.endpoints.len(), 1);
         assert_eq!(loaded.endpoints[0].url, "https://test.example.com/rpc");
+    }
+
+    #[test]
+    fn test_pyth_config_parse_and_roundtrip() {
+        let toml = r#"
+[pyth]
+api_key = "pyth-test-key"
+"#;
+        let config: ConfigFile = toml::from_str(toml).expect("Failed to parse pyth config");
+        let pyth = config.pyth.as_ref().expect("pyth section missing");
+        assert_eq!(pyth.api_key.expose_secret(), "pyth-test-key");
+        // Secret must not leak through Debug
+        assert!(!format!("{pyth:?}").contains("pyth-test-key"));
+
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let config_path = temp_dir.path().join("config.toml");
+        config.save(&config_path).expect("Failed to save config");
+        let loaded = ConfigFile::load(&config_path).expect("Failed to load config");
+        assert_eq!(
+            loaded.pyth.as_ref().map(|p| p.api_key.expose_secret()),
+            Some("pyth-test-key")
+        );
     }
 
     #[test]

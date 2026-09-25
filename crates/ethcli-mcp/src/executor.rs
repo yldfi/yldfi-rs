@@ -373,6 +373,7 @@ fn is_mutating_command(args: &[&str]) -> bool {
                 | "set-chainlink"
                 | "set-dune"
                 | "set-solodit"
+                | "set-pyth"
                 | "add-debug-rpc"
                 | "remove-debug-rpc"
         ),

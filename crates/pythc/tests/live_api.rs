@@ -1,8 +1,9 @@
 //! Live API integration tests for Pyth Hermes client
 //!
-//! These tests hit the real Pyth Hermes API. Run with:
+//! These tests hit the real Pyth Hermes API, which requires an API key since
+//! the Pyth Core upgrade. Run with:
 //! ```bash
-//! cargo test -p pythc --test live_api -- --ignored --nocapture
+//! PYTH_API_KEY=... cargo test -p pythc --test live_api -- --ignored --nocapture
 //! ```
 
 use pythc::{feed_ids, symbol_to_feed_id, Client, Config};
@@ -34,7 +35,7 @@ async fn test_custom_config_client() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_get_latest_price_eth() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let result = client.get_latest_price(feed_ids::ETH_USD).await;
     assert!(
@@ -71,7 +72,7 @@ async fn test_get_latest_price_eth() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_get_latest_price_btc() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let result = client.get_latest_price(feed_ids::BTC_USD).await;
     assert!(
@@ -93,7 +94,7 @@ async fn test_get_latest_price_btc() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_get_latest_price_sol() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let result = client.get_latest_price(feed_ids::SOL_USD).await;
     assert!(
@@ -114,7 +115,7 @@ async fn test_get_latest_price_sol() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_get_latest_prices_multiple() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let feed_ids_list = &[feed_ids::BTC_USD, feed_ids::ETH_USD, feed_ids::SOL_USD];
 
@@ -143,7 +144,7 @@ async fn test_get_latest_prices_multiple() {
 /// Test fetching empty list returns empty
 #[tokio::test]
 async fn test_get_latest_prices_empty() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let result = client.get_latest_prices(&[]).await;
     assert!(result.is_ok(), "Empty request should succeed");
@@ -156,7 +157,7 @@ async fn test_get_latest_prices_empty() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_confidence_interval() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let feed = client
         .get_latest_price(feed_ids::ETH_USD)
@@ -185,7 +186,7 @@ async fn test_confidence_interval() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_stale_detection() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let feed = client
         .get_latest_price(feed_ids::ETH_USD)
@@ -212,7 +213,7 @@ async fn test_stale_detection() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_get_price_feed_ids() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let result = client.get_price_feed_ids().await;
     assert!(result.is_ok(), "Failed to get feed IDs: {:?}", result.err());
@@ -238,7 +239,7 @@ async fn test_get_price_feed_ids() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_search_feeds() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let result = client.search_feeds("BTC").await;
     assert!(result.is_ok(), "Failed to search feeds: {:?}", result.err());
@@ -268,7 +269,7 @@ async fn test_search_feeds() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_get_feeds_by_asset_type() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let result = client.get_feeds_by_asset_type("crypto").await;
     assert!(
@@ -319,7 +320,7 @@ async fn test_symbol_to_feed_id() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_symbol_lookup_integration() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     // Use symbol lookup to get feed ID, then fetch price
     let feed_id = symbol_to_feed_id("ETH").expect("ETH should be mapped");
@@ -342,7 +343,7 @@ async fn test_symbol_lookup_integration() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_feed_id_normalization() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     // Feed ID with 0x prefix
     let with_prefix = feed_ids::ETH_USD;
@@ -374,7 +375,7 @@ async fn test_feed_id_normalization() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_all_known_feed_ids() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let known_feeds = vec![
         ("BTC", feed_ids::BTC_USD),
@@ -440,7 +441,7 @@ async fn test_all_known_feed_ids() {
 /// Test error handling for invalid feed ID
 #[tokio::test]
 async fn test_invalid_feed_id() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     // Invalid feed ID format (too short)
     let result = client.get_latest_price("0x1234").await;
@@ -457,7 +458,7 @@ async fn test_invalid_feed_id() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_publish_time_recent() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let feed = client
         .get_latest_price(feed_ids::ETH_USD)
@@ -486,7 +487,7 @@ async fn test_publish_time_recent() {
 #[tokio::test]
 #[ignore = "requires live Pyth Hermes API"]
 async fn test_ema_price_available() {
-    let client = Client::new().expect("Failed to create client");
+    let client = Client::from_env().expect("Failed to create client");
 
     let feed = client
         .get_latest_price(feed_ids::ETH_USD)

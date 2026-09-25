@@ -315,7 +315,7 @@ ethcli velora price <src> <dst> <amt>
 ethcli enso route <in> <out> <amt> <from>
 ```
 
-### Pyth
+### Pyth (requires PYTH_API_KEY or `ethcli config set-pyth <k>`; key from https://pythdata.app)
 ```bash
 ethcli pyth price BTC/USD
 ethcli pyth search "ETH"
@@ -354,6 +354,7 @@ ethcli config show                  # Display config (secrets masked; --show-sec
 ethcli config validate              # Validate config
 ethcli config set-etherscan-key <k> # Set API key
 ethcli config set-tenderly --key <k> --account <a> --project <p>
+ethcli config set-pyth <k>          # Pyth Hermes API key (or --stdin)
 ethcli endpoints add <url>          # Add RPC endpoint (auto-detects)
 ethcli endpoints add <url> --node-type archive  # Mark as archive node
 ethcli endpoints add <url> --node-type full --has-debug --priority 10
@@ -384,6 +385,7 @@ ethcli doctor                       # Diagnose issues
 | ZEROX_API_KEY | Optional | 0x higher limits |
 | ENSO_API_KEY | enso commands | Enso Finance |
 | SOLODIT_API_KEY | solodit commands | Solodit DB |
+| PYTH_API_KEY | pyth price, price --source pyth | Pyth Hermes (required since Pyth Core upgrade) |
 | CHAINLINK_API_KEY | chainlink streams | Data Streams |
 | CHAINLINK_USER_SECRET | chainlink streams | Data Streams |
 

@@ -3,12 +3,33 @@
 //! These tests verify client behavior without hitting the real Pyth API.
 
 use pythc::{Client, Config};
-use wiremock::matchers::{method, path, query_param};
+use wiremock::matchers::{header, header_exists, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-/// Create a client configured to use the mock server
+const TEST_API_KEY: &str = "test-pyth-key-123";
+
+/// Create an authenticated client configured to use the mock server.
+///
+/// Every mock below matches on the `Authorization: Bearer <key>` header, so a
+/// request without the header would not match and the test would fail.
 fn mock_client(server: &MockServer) -> Client {
-    Client::with_config(Config::default().with_base_url(server.uri())).unwrap()
+    Client::with_config(
+        Config::default()
+            .with_base_url(server.uri())
+            .with_api_key(TEST_API_KEY),
+    )
+    .unwrap()
+}
+
+fn latest_eth_body() -> serde_json::Value {
+    serde_json::json!({
+        "binary": { "encoding": "hex", "data": [] },
+        "parsed": [{
+            "id": "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+            "price": { "price": "325000000000", "conf": "100000000", "expo": -8, "publish_time": 1704067200 },
+            "ema_price": { "price": "324500000000", "conf": "150000000", "expo": -8, "publish_time": 1704067200 }
+        }]
+    })
 }
 
 #[tokio::test]
@@ -39,6 +60,7 @@ async fn test_get_latest_price_success() {
     });
 
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/updates/price/latest"))
         .and(query_param(
             "ids[]",
@@ -114,6 +136,7 @@ async fn test_get_latest_prices_multiple() {
     });
 
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/updates/price/latest"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
         .mount(&mock_server)
@@ -173,6 +196,7 @@ async fn test_rate_limiting_with_retry() {
 
     // First two requests get rate limited, third succeeds
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/updates/price/latest"))
         .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
         .up_to_n_times(2)
@@ -189,6 +213,7 @@ async fn test_rate_limiting_with_retry() {
     });
 
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/updates/price/latest"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
         .mount(&mock_server)
@@ -207,6 +232,7 @@ async fn test_server_error_retry() {
 
     // First request gets 500, second succeeds
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/updates/price/latest"))
         .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
         .up_to_n_times(1)
@@ -223,6 +249,7 @@ async fn test_server_error_retry() {
     });
 
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/updates/price/latest"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
         .mount(&mock_server)
@@ -251,6 +278,7 @@ async fn test_search_feeds() {
     ]);
 
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/price_feeds"))
         .and(query_param("query", "ETH"))
         .and(query_param("asset_type", "crypto"))
@@ -287,6 +315,7 @@ async fn test_get_price_feed_ids() {
     ]);
 
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/price_feeds"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
         .mount(&mock_server)
@@ -305,6 +334,7 @@ async fn test_404_error() {
     let mock_server = MockServer::start().await;
 
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/updates/price/latest"))
         .respond_with(ResponseTemplate::new(404).set_body_string("Not found"))
         .mount(&mock_server)
@@ -333,6 +363,7 @@ async fn test_feed_id_normalization() {
 
     // Test that uppercase feed IDs are normalized to lowercase
     Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
         .and(path("/v2/updates/price/latest"))
         .and(query_param(
             "ids[]",
@@ -386,4 +417,128 @@ async fn test_symbol_to_feed_id() {
 
     // Unknown symbol
     assert_eq!(pythc::symbol_to_feed_id("UNKNOWN_TOKEN_XYZ"), None);
+}
+
+#[tokio::test]
+async fn test_default_base_url_is_upgraded_endpoint() {
+    assert_eq!(
+        pythc::base_urls::MAINNET,
+        "https://pyth.dourolabs.app/hermes"
+    );
+    assert_eq!(pythc::base_urls::LEGACY, "https://hermes.pyth.network");
+}
+
+#[tokio::test]
+async fn test_base_url_path_prefix_preserved() {
+    // The upgraded endpoint lives under a path prefix (/hermes); make sure
+    // request paths are appended rather than replacing it.
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/hermes/v2/updates/price/latest"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(latest_eth_body()))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = Client::with_config(
+        Config::default()
+            .with_base_url(format!("{}/hermes", mock_server.uri()))
+            .with_api_key(TEST_API_KEY),
+    )
+    .unwrap();
+    let feed = client
+        .get_latest_price(pythc::feed_ids::ETH_USD)
+        .await
+        .unwrap();
+    assert!(feed.is_some());
+}
+
+#[tokio::test]
+async fn test_no_auth_header_without_key() {
+    let mock_server = MockServer::start().await;
+
+    // Any request carrying an Authorization header would hit this mock
+    Mock::given(method("GET"))
+        .and(header_exists("authorization"))
+        .respond_with(ResponseTemplate::new(500))
+        .expect(0)
+        .mount(&mock_server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v2/price_feeds"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = Client::with_config(Config::default().with_base_url(mock_server.uri())).unwrap();
+    assert!(!client.has_api_key());
+    let feeds = client.get_price_feed_ids().await.unwrap();
+    assert!(feeds.is_empty());
+}
+
+#[tokio::test]
+async fn test_401_without_key_is_actionable_and_not_retried() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/v2/updates/price/latest"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("Unauthorized"))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = Client::with_config(Config::default().with_base_url(mock_server.uri())).unwrap();
+    let err = client
+        .get_latest_price(pythc::feed_ids::ETH_USD)
+        .await
+        .unwrap_err();
+
+    assert!(pythc::is_unauthorized(&err));
+    let msg = err.to_string();
+    assert!(msg.contains("401"), "{msg}");
+    assert!(msg.contains("API key is required"), "{msg}");
+    assert!(msg.contains("PYTH_API_KEY"), "{msg}");
+}
+
+#[tokio::test]
+async fn test_401_with_key_reports_rejected_key_without_leaking_it() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/v2/updates/price/latest"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("invalid token test-pyth-key-123"))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = mock_client(&mock_server);
+    let err = client
+        .get_latest_price(pythc::feed_ids::ETH_USD)
+        .await
+        .unwrap_err();
+
+    assert!(pythc::is_unauthorized(&err));
+    let msg = err.to_string();
+    assert!(msg.contains("rejected"), "{msg}");
+    assert!(!msg.contains(TEST_API_KEY), "{msg}");
+    assert!(!format!("{err:?}").contains(TEST_API_KEY));
+}
+
+#[tokio::test]
+async fn test_api_key_redacted_in_debug() {
+    let config = Config::mainnet().with_api_key(TEST_API_KEY);
+    assert!(config.has_api_key());
+    assert!(!format!("{config:?}").contains(TEST_API_KEY));
+
+    let client = Client::with_config(config).unwrap();
+    assert!(client.has_api_key());
+    assert!(!format!("{client:?}").contains(TEST_API_KEY));
+
+    // Blank keys are treated as "no key"
+    assert!(!Config::mainnet().with_api_key("   ").has_api_key());
+    assert!(!Config::mainnet().with_optional_api_key(None).has_api_key());
 }

@@ -443,8 +443,9 @@ pub enum Commands {
 
     /// Direct Pyth Network Price Feeds API access
     ///
-    /// Real-time and historical price data from Pyth Network.
-    /// No API key required.
+    /// Real-time price data from Pyth Network Hermes.
+    /// Requires a Pyth API key (PYTH_API_KEY or `ethcli config set-pyth`);
+    /// get one at https://pythdata.app.
     Pyth(pyth::PythArgs),
 
     /// Generate shell completions
