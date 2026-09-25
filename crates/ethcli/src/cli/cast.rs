@@ -371,7 +371,21 @@ fn abi_decode(signature: &str, data: &str) -> anyhow::Result<String> {
         .abi_decode_params(data_to_decode)
         .map_err(|e| anyhow::anyhow!("Failed to decode: {}", e))?;
 
-    Ok(format!("{:?}", decoded))
+    Ok(format_decoded_params(&decoded))
+}
+
+/// Render decoded parameters as plain values, one per line (like `cast
+/// abi-decode`), instead of Rust Debug output such as `Uint(1000, 256)`.
+fn format_decoded_params(decoded: &alloy::dyn_abi::DynSolValue) -> String {
+    use alloy::dyn_abi::DynSolValue;
+    match decoded {
+        DynSolValue::Tuple(items) if !items.is_empty() => items
+            .iter()
+            .map(super::contract::format_value)
+            .collect::<Vec<_>>()
+            .join("\n"),
+        other => super::contract::format_value(other),
+    }
 }
 
 /// Split comma-separated types, handling nested parentheses
@@ -603,7 +617,7 @@ mod tests {
         // Encoded value of 1000 as uint256
         let data = "0x00000000000000000000000000000000000000000000000000000000000003e8";
         let result = abi_decode("(uint256)", data).unwrap();
-        assert!(result.contains("1000"));
+        assert_eq!(result, "1000"); // plain value, not Debug `Uint(1000, 256)`
     }
 
     #[test]
@@ -617,7 +631,10 @@ mod tests {
         let data =
             "0xa9059cbb000000000000000000000000000000000000000000000000000000000000dead00000000000000000000000000000000000000000000000000000000000003e8";
         let result = abi_decode("transfer(address,uint256)", data).unwrap();
-        assert!(result.contains("0x000000000000000000000000000000000000dead"));
+        assert_eq!(
+            result.to_lowercase(),
+            "0x000000000000000000000000000000000000dead\n1000"
+        );
         assert!(result.contains("1000"));
     }
 

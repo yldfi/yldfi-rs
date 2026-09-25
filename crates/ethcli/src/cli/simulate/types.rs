@@ -6,7 +6,7 @@ use tndrly::simulation::SimulationType as TndrlySimulationType;
 #[derive(Args, Clone, Debug)]
 pub struct AlchemyArgs {
     /// Alchemy API key (or use ALCHEMY_API_KEY env)
-    #[arg(long, env = "ALCHEMY_API_KEY")]
+    #[arg(long, env = "ALCHEMY_API_KEY", hide_env_values = true)]
     pub alchemy_key: Option<String>,
 
     /// Alchemy network (e.g., eth-mainnet, polygon-mainnet)
@@ -88,15 +88,15 @@ impl AlchemyArgs {
 #[derive(Args, Clone, Debug)]
 pub struct TenderlyArgs {
     /// Tenderly API key (or use TENDERLY_ACCESS_KEY env)
-    #[arg(long, env = "TENDERLY_ACCESS_KEY")]
+    #[arg(long, env = "TENDERLY_ACCESS_KEY", hide_env_values = true)]
     pub tenderly_key: Option<String>,
 
     /// Tenderly account slug
-    #[arg(long, env = "TENDERLY_ACCOUNT")]
+    #[arg(long, env = "TENDERLY_ACCOUNT", hide_env_values = true)]
     pub tenderly_account: Option<String>,
 
     /// Tenderly project slug
-    #[arg(long, env = "TENDERLY_PROJECT")]
+    #[arg(long, env = "TENDERLY_PROJECT", hide_env_values = true)]
     pub tenderly_project: Option<String>,
 }
 
