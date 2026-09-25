@@ -1948,55 +1948,7 @@ pub async fn tenderly_alerts_update(
     builder.execute().await.map_err(ToolError::from)
 }
 
-pub async fn tenderly_alerts_add_destination(
-    id: &str,
-    destination_type: &str,
-    destination_id: &str,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("tenderly")
-        .subcommand("alerts")
-        .subcommand("add-destination")
-        .arg(id)
-        .opt("--destination-type", Some(destination_type))
-        .opt("--destination-id", Some(destination_id))
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn tenderly_alerts_remove_destination(
-    id: &str,
-    destination_id: &str,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("tenderly")
-        .subcommand("alerts")
-        .subcommand("remove-destination")
-        .arg(id)
-        .arg(destination_id)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 // --- Tenderly Contracts Batch ---
-
-pub async fn tenderly_contracts_update(
-    address: &str,
-    network: Option<&str>,
-    name: Option<&str>,
-    tags: &[String],
-) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("tenderly")
-        .subcommand("contracts")
-        .subcommand("update")
-        .arg(address);
-    builder = builder.opt("--network", network);
-    builder = builder.opt("--name", name);
-    for tag in tags {
-        builder = builder.opt("--tag", Some(tag));
-    }
-    builder.execute().await.map_err(ToolError::from)
-}
 
 pub async fn tenderly_contracts_remove_tag(
     address: &str,
@@ -2028,12 +1980,14 @@ pub async fn tenderly_contracts_bulk_tag(
 
 pub async fn tenderly_contracts_encode_state(
     network: Option<&str>,
+    block_number: Option<&str>,
     state_json: &str,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("tenderly")
         .subcommand("contracts")
         .subcommand("encode-state");
     builder = builder.opt("--network", network);
+    builder = builder.opt("--block-number", block_number);
     builder = builder.arg(state_json);
     builder.execute().await.map_err(ToolError::from)
 }
@@ -4318,7 +4272,7 @@ pub async fn llama_stablecoins() -> Result<String, ToolError> {
 }
 
 // =============================================================================
-// MORALIS (12 subcommands)
+// MORALIS (10 subcommands)
 // =============================================================================
 
 // --- Moralis Token ---
@@ -4475,38 +4429,6 @@ pub async fn moralis_resolve_address(
         .map_err(ToolError::from)
 }
 
-// --- Moralis Market ---
-
-pub async fn moralis_market_top_tokens(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("market")
-        .opt("--chain", chain)
-        .subcommand("top-tokens")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_market_top_movers(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("market")
-        .opt("--chain", chain)
-        .subcommand("top-movers")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_market_top_nfts(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("market")
-        .opt("--chain", chain)
-        .subcommand("top-nfts")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 // --- Moralis Wallet (additional) ---
 
 pub async fn moralis_wallet_transactions(
@@ -4583,17 +4505,6 @@ pub async fn moralis_token_swaps(address: &str, chain: Option<&str>) -> Result<S
         .subcommand("token")
         .opt("--chain", chain)
         .subcommand("swaps")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_token_stats(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("stats")
         .arg(address)
         .execute()
         .await
@@ -4826,48 +4737,6 @@ pub async fn moralis_token_categories(chain: Option<&str>) -> Result<String, Too
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_exchange_new_tokens(
-    exchange: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("exchange-new-tokens")
-        .arg(exchange)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_token_exchange_bonding_tokens(
-    exchange: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("exchange-bonding-tokens")
-        .arg(exchange)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_token_exchange_graduated_tokens(
-    exchange: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("exchange-graduated-tokens")
-        .arg(exchange)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 pub async fn moralis_token_multiple_prices(
     addresses: &str,
     chain: Option<&str>,
@@ -4877,20 +4746,6 @@ pub async fn moralis_token_multiple_prices(
         .opt("--chain", chain)
         .subcommand("multiple-prices")
         .arg(addresses)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_token_by_symbols(
-    symbols: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("by-symbols")
-        .arg(symbols)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4924,34 +4779,6 @@ pub async fn moralis_token_holders_summary(
         .map_err(ToolError::from)
 }
 
-pub async fn moralis_token_holders_historical(
-    address: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("holders-historical")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_token_pairs_stats(
-    address: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("pairs-stats")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 pub async fn moralis_token_top_gainers(
     address: &str,
     chain: Option<&str>,
@@ -4960,34 +4787,6 @@ pub async fn moralis_token_top_gainers(
         .subcommand("token")
         .opt("--chain", chain)
         .subcommand("top-gainers")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_token_pair_snipers(
-    address: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("pair-snipers")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_token_bonding_status(
-    address: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("token")
-        .opt("--chain", chain)
-        .subcommand("bonding-status")
         .arg(address)
         .execute()
         .await
@@ -5304,38 +5103,6 @@ pub async fn moralis_resolve_ens_domain(
         .map_err(ToolError::from)
 }
 
-// --- Moralis Market (new) ---
-
-pub async fn moralis_market_hottest_nfts(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("market")
-        .opt("--chain", chain)
-        .subcommand("hottest-nfts")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_market_global_market_cap(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("market")
-        .opt("--chain", chain)
-        .subcommand("global-market-cap")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_market_global_volume(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("market")
-        .opt("--chain", chain)
-        .subcommand("global-volume")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 // --- Moralis Transaction ---
 
 pub async fn moralis_transaction_get(
@@ -5538,98 +5305,6 @@ pub async fn moralis_defi_protocol_positions(
 
 // --- Moralis Discovery ---
 
-pub async fn moralis_discovery_rising_liquidity(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("rising-liquidity")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_buying_pressure(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("buying-pressure")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_solid_performers(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("solid-performers")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_experienced_buyers(
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("experienced-buyers")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_risky_bets(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("risky-bets")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_blue_chip(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("blue-chip")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_top_gainers(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("top-gainers")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_top_losers(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("top-losers")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_trending(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("trending")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 pub async fn moralis_discovery_token_analytics(
     address: &str,
     chain: Option<&str>,
@@ -5652,65 +5327,6 @@ pub async fn moralis_discovery_token_score(
         .subcommand("discovery")
         .opt("--chain", chain)
         .subcommand("token-score")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn moralis_discovery_filter(
-    min_market_cap: Option<f64>,
-    max_market_cap: Option<f64>,
-    min_liquidity: Option<f64>,
-    max_liquidity: Option<f64>,
-    min_volume_24h: Option<f64>,
-    max_volume_24h: Option<f64>,
-    min_holders: Option<i64>,
-    min_security_score: Option<i32>,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("filter");
-
-    if let Some(v) = min_market_cap {
-        builder = builder.arg("--min-market-cap").arg(&v.to_string());
-    }
-    if let Some(v) = max_market_cap {
-        builder = builder.arg("--max-market-cap").arg(&v.to_string());
-    }
-    if let Some(v) = min_liquidity {
-        builder = builder.arg("--min-liquidity").arg(&v.to_string());
-    }
-    if let Some(v) = max_liquidity {
-        builder = builder.arg("--max-liquidity").arg(&v.to_string());
-    }
-    if let Some(v) = min_volume_24h {
-        builder = builder.arg("--min-volume-24h").arg(&v.to_string());
-    }
-    if let Some(v) = max_volume_24h {
-        builder = builder.arg("--max-volume-24h").arg(&v.to_string());
-    }
-    if let Some(v) = min_holders {
-        builder = builder.arg("--min-holders").arg(&v.to_string());
-    }
-    if let Some(v) = min_security_score {
-        builder = builder.arg("--min-security-score").arg(&v.to_string());
-    }
-
-    builder.execute().await.map_err(ToolError::from)
-}
-
-pub async fn moralis_discovery_token(
-    address: &str,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("discovery")
-        .opt("--chain", chain)
-        .subcommand("token")
         .arg(address)
         .execute()
         .await
@@ -5802,66 +5418,6 @@ pub async fn moralis_entities_category_entities(
         .opt("--chain", chain)
         .subcommand("category-entities")
         .arg(category_id)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-// --- Moralis Volume ---
-
-pub async fn moralis_volume_chains(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("volume")
-        .opt("--chain", chain)
-        .subcommand("chains")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_volume_categories(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("volume")
-        .opt("--chain", chain)
-        .subcommand("categories")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_volume_timeseries(
-    timeframe: Option<&str>,
-    from_date: Option<&str>,
-    to_date: Option<&str>,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("volume")
-        .opt("--chain", chain)
-        .subcommand("timeseries")
-        .opt("--timeframe", timeframe)
-        .opt("--from-date", from_date)
-        .opt("--to-date", to_date)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn moralis_volume_category_timeseries(
-    category_id: &str,
-    timeframe: Option<&str>,
-    from_date: Option<&str>,
-    to_date: Option<&str>,
-    chain: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("moralis")
-        .subcommand("volume")
-        .opt("--chain", chain)
-        .subcommand("category-timeseries")
-        .arg(category_id)
-        .opt("--timeframe", timeframe)
-        .opt("--from-date", from_date)
-        .opt("--to-date", to_date)
         .execute()
         .await
         .map_err(ToolError::from)

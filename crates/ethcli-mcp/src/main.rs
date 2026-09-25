@@ -1669,46 +1669,7 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Add a notification destination to a Tenderly alert")]
-    async fn tenderly_alerts_add_destination(
-        &self,
-        Parameters(input): Parameters<TenderlyAlertsAddDestinationInput>,
-    ) -> String {
-        tools::tenderly_alerts_add_destination(
-            &input.id,
-            &input.destination_type,
-            &input.destination_id,
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(description = "Remove a notification destination from a Tenderly alert")]
-    async fn tenderly_alerts_remove_destination(
-        &self,
-        Parameters(input): Parameters<TenderlyAlertsRemoveDestinationInput>,
-    ) -> String {
-        tools::tenderly_alerts_remove_destination(&input.id, &input.destination_id)
-            .await
-            .to_response()
-    }
-
     // --- Tenderly Contracts Batch ---
-
-    #[tool(description = "Update a Tenderly contract (name, network, tags)")]
-    async fn tenderly_contracts_update(
-        &self,
-        Parameters(input): Parameters<TenderlyContractsUpdateInput>,
-    ) -> String {
-        tools::tenderly_contracts_update(
-            &input.address,
-            input.network.as_deref(),
-            input.name.as_deref(),
-            &input.tags,
-        )
-        .await
-        .to_response()
-    }
 
     #[tool(description = "Remove a tag from a Tenderly contract")]
     async fn tenderly_contracts_remove_tag(
@@ -1730,14 +1691,20 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Encode state overrides for Tenderly contract simulation")]
+    #[tool(
+        description = "Encode named-variable state overrides (e.g. balances[0xHolder]) into raw storage slots for Tenderly simulations via POST /contracts/encode-states"
+    )]
     async fn tenderly_contracts_encode_state(
         &self,
         Parameters(input): Parameters<TenderlyContractsEncodeStateInput>,
     ) -> String {
-        tools::tenderly_contracts_encode_state(input.network.as_deref(), &input.state_json)
-            .await
-            .to_response()
+        tools::tenderly_contracts_encode_state(
+            input.network.as_deref(),
+            input.block_number.as_deref(),
+            &input.state_json,
+        )
+        .await
+        .to_response()
     }
 
     // --- Tenderly VNets Admin Batch ---
@@ -3430,40 +3397,6 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
-    // MORALIS MARKET
-    // =========================================================================
-
-    #[tool(description = "Get top ERC20 tokens by market cap via Moralis")]
-    async fn moralis_market_top_tokens(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_market_top_tokens(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get top price movers (gainers/losers) via Moralis")]
-    async fn moralis_market_top_movers(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_market_top_movers(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get top NFT collections by market cap via Moralis")]
-    async fn moralis_market_top_nfts(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_market_top_nfts(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    // =========================================================================
     // MORALIS WALLET (additional)
     // =========================================================================
 
@@ -3527,16 +3460,6 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
         tools::moralis_token_swaps(&input.address, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get token stats (holders, transactions, liquidity) via Moralis")]
-    async fn moralis_token_stats(
-        &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
-    ) -> String {
-        tools::moralis_token_stats(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3723,38 +3646,6 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get newly listed tokens on a DEX exchange (e.g., uniswapv2, uniswapv3, pancakeswap) via Moralis"
-    )]
-    async fn moralis_token_exchange_new_tokens(
-        &self,
-        Parameters(input): Parameters<MoralisExchangeInput>,
-    ) -> String {
-        tools::moralis_token_exchange_new_tokens(&input.exchange, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get tokens in bonding phase on an exchange (e.g., pump.fun) via Moralis")]
-    async fn moralis_token_exchange_bonding_tokens(
-        &self,
-        Parameters(input): Parameters<MoralisExchangeInput>,
-    ) -> String {
-        tools::moralis_token_exchange_bonding_tokens(&input.exchange, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get graduated tokens on an exchange via Moralis")]
-    async fn moralis_token_exchange_graduated_tokens(
-        &self,
-        Parameters(input): Parameters<MoralisExchangeInput>,
-    ) -> String {
-        tools::moralis_token_exchange_graduated_tokens(&input.exchange, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(
         description = "Get prices for multiple tokens in batch (comma-separated addresses) via Moralis"
     )]
     async fn moralis_token_multiple_prices(
@@ -3762,18 +3653,6 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<MoralisAddressesInput>,
     ) -> String {
         tools::moralis_token_multiple_prices(&input.addresses, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(
-        description = "Get tokens by their symbols (comma-separated, e.g., USDC,WETH,DAI) via Moralis"
-    )]
-    async fn moralis_token_by_symbols(
-        &self,
-        Parameters(input): Parameters<MoralisSymbolsInput>,
-    ) -> String {
-        tools::moralis_token_by_symbols(&input.symbols, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -3798,54 +3677,12 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(
-        description = "Get historical holders data for a token via Moralis (Moralis is sunsetting this endpoint on 2026-07-31 and the call is blocked; use moralis_token_holders or moralis_token_holders_summary for current holder data)"
-    )]
-    async fn moralis_token_holders_historical(
-        &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
-    ) -> String {
-        tools::moralis_token_holders_historical(&input.address, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get aggregated pair stats for a token via Moralis")]
-    async fn moralis_token_pairs_stats(
-        &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
-    ) -> String {
-        tools::moralis_token_pairs_stats(&input.address, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
     #[tool(description = "Get top gainers/traders for a token via Moralis")]
     async fn moralis_token_top_gainers(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
         tools::moralis_token_top_gainers(&input.address, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get pair snipers (early buyers) via Moralis")]
-    async fn moralis_token_pair_snipers(
-        &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
-    ) -> String {
-        tools::moralis_token_pair_snipers(&input.address, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get token bonding status (pump.fun graduation status, etc.) via Moralis")]
-    async fn moralis_token_bonding_status(
-        &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
-    ) -> String {
-        tools::moralis_token_bonding_status(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4097,40 +3934,6 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
-    // MORALIS MARKET (new)
-    // =========================================================================
-
-    #[tool(description = "Get hottest NFT collections via Moralis")]
-    async fn moralis_market_hottest_nfts(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_market_hottest_nfts(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get global crypto market capitalization via Moralis")]
-    async fn moralis_market_global_market_cap(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_market_global_market_cap(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get global crypto trading volume via Moralis")]
-    async fn moralis_market_global_volume(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_market_global_volume(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    // =========================================================================
     // MORALIS TRANSACTION
     // =========================================================================
 
@@ -4307,96 +4110,6 @@ impl EthcliMcpServer {
     // MORALIS DISCOVERY
     // =========================================================================
 
-    #[tool(description = "Get tokens with rising liquidity via Moralis discovery")]
-    async fn moralis_discovery_rising_liquidity(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_rising_liquidity(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get tokens with buying pressure via Moralis discovery")]
-    async fn moralis_discovery_buying_pressure(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_buying_pressure(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get solid performer tokens via Moralis discovery")]
-    async fn moralis_discovery_solid_performers(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_solid_performers(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get tokens with experienced buyers via Moralis discovery")]
-    async fn moralis_discovery_experienced_buyers(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_experienced_buyers(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get risky bet tokens via Moralis discovery")]
-    async fn moralis_discovery_risky_bets(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_risky_bets(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get blue chip tokens via Moralis discovery")]
-    async fn moralis_discovery_blue_chip(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_blue_chip(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get top gainer tokens via Moralis discovery")]
-    async fn moralis_discovery_top_gainers(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_top_gainers(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get top loser tokens via Moralis discovery")]
-    async fn moralis_discovery_top_losers(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_top_losers(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get trending tokens via Moralis discovery")]
-    async fn moralis_discovery_trending(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_discovery_trending(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
     #[tool(
         description = "Get token analytics (buyers, sellers, volume) for a specific token via Moralis discovery"
     )]
@@ -4417,38 +4130,6 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<MoralisAddressInput>,
     ) -> String {
         tools::moralis_discovery_token_score(&input.address, Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(
-        description = "Filter tokens by custom criteria (market cap, liquidity, volume, holders, security) via Moralis discovery"
-    )]
-    async fn moralis_discovery_filter(
-        &self,
-        Parameters(input): Parameters<MoralisDiscoveryFilterInput>,
-    ) -> String {
-        tools::moralis_discovery_filter(
-            input.min_market_cap,
-            input.max_market_cap,
-            input.min_liquidity,
-            input.max_liquidity,
-            input.min_volume_24h,
-            input.max_volume_24h,
-            input.min_holders,
-            input.min_security_score,
-            Some(input.chain.as_str()),
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(description = "Get single token details from Moralis discovery")]
-    async fn moralis_discovery_token(
-        &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
-    ) -> String {
-        tools::moralis_discovery_token(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
     }
@@ -4529,65 +4210,6 @@ impl EthcliMcpServer {
         tools::moralis_entities_category_entities(&input.category_id, Some(input.chain.as_str()))
             .await
             .to_response()
-    }
-
-    // =========================================================================
-    // MORALIS VOLUME
-    // =========================================================================
-
-    #[tool(description = "Get trading volume by chain via Moralis")]
-    async fn moralis_volume_chains(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_volume_chains(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get trading volume by category via Moralis")]
-    async fn moralis_volume_categories(
-        &self,
-        Parameters(input): Parameters<MoralisChainOnlyInput>,
-    ) -> String {
-        tools::moralis_volume_categories(Some(input.chain.as_str()))
-            .await
-            .to_response()
-    }
-
-    #[tool(
-        description = "Get overall trading volume timeseries (optional timeframe and date range) via Moralis"
-    )]
-    async fn moralis_volume_timeseries(
-        &self,
-        Parameters(input): Parameters<MoralisVolumeTimeseriesInput>,
-    ) -> String {
-        tools::moralis_volume_timeseries(
-            input.timeframe.as_deref(),
-            input.from_date.as_deref(),
-            input.to_date.as_deref(),
-            Some(input.chain.as_str()),
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(
-        description = "Get trading volume timeseries for a specific category (optional timeframe and date range) via Moralis"
-    )]
-    async fn moralis_volume_category_timeseries(
-        &self,
-        Parameters(input): Parameters<MoralisVolumeCategoryTimeseriesInput>,
-    ) -> String {
-        tools::moralis_volume_category_timeseries(
-            &input.category_id,
-            input.timeframe.as_deref(),
-            input.from_date.as_deref(),
-            input.to_date.as_deref(),
-            Some(input.chain.as_str()),
-        )
-        .await
-        .to_response()
     }
 
     // =========================================================================
