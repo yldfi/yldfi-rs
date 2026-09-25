@@ -7,6 +7,7 @@ pub mod format;
 pub mod progress;
 pub mod table;
 pub mod token_meta;
+pub mod url;
 
 use std::borrow::Cow;
 use std::sync::OnceLock;

@@ -107,10 +107,6 @@ pub struct ConfigFile {
     #[serde(default)]
     pub dune: Option<DuneConfig>,
 
-    /// Dune SIM configuration (separate from Dune Analytics)
-    #[serde(default)]
-    pub dune_sim: Option<DuneSimConfig>,
-
     /// Chainlink Data Streams configuration
     #[serde(default)]
     pub chainlink: Option<ChainlinkConfig>,
@@ -134,6 +130,10 @@ pub struct ConfigFile {
     /// Solodit API configuration
     #[serde(default)]
     pub solodit: Option<SoloditConfig>,
+
+    /// Pyth Hermes API configuration (API key required since the Pyth Core upgrade)
+    #[serde(default)]
+    pub pyth: Option<PythConfig>,
 
     /// Debug-capable RPC endpoints (for debug_traceCall, etc.)
     #[serde(default)]
@@ -218,17 +218,6 @@ pub struct DuneConfig {
     pub api_key: SecretString,
 }
 
-/// Dune SIM API configuration (separate from Dune Analytics)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DuneSimConfig {
-    /// Dune SIM API key
-    #[serde(
-        serialize_with = "serialize_secret",
-        deserialize_with = "deserialize_secret"
-    )]
-    pub api_key: SecretString,
-}
-
 /// Chainlink Data Streams API configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChainlinkConfig {
@@ -300,6 +289,17 @@ pub struct TheGraphConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SoloditConfig {
     /// Solodit API key (from solodit.cyfrin.io)
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
+    pub api_key: SecretString,
+}
+
+/// Pyth Hermes API configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PythConfig {
+    /// Pyth API key (from the Pyth Terminal, https://pythdata.app), sent as a Bearer token
     #[serde(
         serialize_with = "serialize_secret",
         deserialize_with = "deserialize_secret"
@@ -727,6 +727,25 @@ urls = ["https://disabled.com/rpc"]
     }
 
     #[test]
+    fn test_parse_config_ignores_retired_dune_sim_section() {
+        // Dune Sim support was removed; existing config files that still carry
+        // a [dune_sim] section must keep loading.
+        let toml = r#"
+[dune]
+api_key = "dune_key"
+
+[dune_sim]
+api_key = "old_sim_key"
+"#;
+
+        let config: ConfigFile = toml::from_str(toml).expect("legacy [dune_sim] should parse");
+        assert_eq!(
+            config.dune.as_ref().map(|d| d.api_key.expose_secret()),
+            Some("dune_key")
+        );
+    }
+
+    #[test]
     fn test_default_path() {
         let path = ConfigFile::default_path();
         assert!(path.to_string_lossy().contains("ethcli"));
@@ -955,6 +974,28 @@ concurrency = 20
         assert_eq!(loaded.settings.concurrency, 15);
         assert_eq!(loaded.endpoints.len(), 1);
         assert_eq!(loaded.endpoints[0].url, "https://test.example.com/rpc");
+    }
+
+    #[test]
+    fn test_pyth_config_parse_and_roundtrip() {
+        let toml = r#"
+[pyth]
+api_key = "pyth-test-key"
+"#;
+        let config: ConfigFile = toml::from_str(toml).expect("Failed to parse pyth config");
+        let pyth = config.pyth.as_ref().expect("pyth section missing");
+        assert_eq!(pyth.api_key.expose_secret(), "pyth-test-key");
+        // Secret must not leak through Debug
+        assert!(!format!("{pyth:?}").contains("pyth-test-key"));
+
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let config_path = temp_dir.path().join("config.toml");
+        config.save(&config_path).expect("Failed to save config");
+        let loaded = ConfigFile::load(&config_path).expect("Failed to load config");
+        assert_eq!(
+            loaded.pyth.as_ref().map(|p| p.api_key.expose_secret()),
+            Some("pyth-test-key")
+        );
     }
 
     #[test]

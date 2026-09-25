@@ -72,7 +72,7 @@ impl Endpoint {
                 "Proxy '{}' was configured but proxy support is not yet implemented. \
                  Remove the proxy configuration or traffic will fail. \
                  See: https://github.com/alloy-rs/alloy/issues/... for proxy support status.",
-                crate::error::sanitize_error_message(proxy_url)
+                crate::utils::url::redact_url(proxy_url)
             ))
             .into());
         }
@@ -81,7 +81,7 @@ impl Endpoint {
         let url: reqwest::Url = config.url.parse().map_err(|e| {
             RpcError::ConnectionFailed(format!(
                 "Invalid URL {}: {}",
-                crate::error::sanitize_error_message(&config.url),
+                crate::utils::url::redact_url(&config.url),
                 e
             ))
         })?;
@@ -158,7 +158,10 @@ impl Endpoint {
                     || err_str.contains("429")
                     || err_str.contains("too many")
                 {
-                    return Err(RpcError::RateLimited(self.config.url.clone()).into());
+                    return Err(RpcError::RateLimited(crate::utils::url::redact_url(
+                        &self.config.url,
+                    ))
+                    .into());
                 }
 
                 // Check for block range too large
@@ -203,6 +206,27 @@ impl Endpoint {
 
         match result {
             Ok(Ok(tx)) => Ok(tx),
+            Ok(Err(e)) => Err(RpcError::Provider(
+                crate::error::sanitize_error_message(&e.to_string()).into_owned(),
+            )
+            .into()),
+            Err(_) => Err(RpcError::Timeout(self.timeout.as_millis() as u64).into()),
+        }
+    }
+
+    /// Execute a read-only `eth_call` against the latest block
+    pub async fn call(
+        &self,
+        to: alloy::primitives::Address,
+        data: alloy::primitives::Bytes,
+    ) -> Result<alloy::primitives::Bytes> {
+        let tx = alloy::rpc::types::TransactionRequest::default()
+            .to(to)
+            .input(data.into());
+        let result = tokio::time::timeout(self.timeout, self.provider.call(tx)).await;
+
+        match result {
+            Ok(Ok(out)) => Ok(out),
             Ok(Err(e)) => Err(RpcError::Provider(
                 crate::error::sanitize_error_message(&e.to_string()).into_owned(),
             )

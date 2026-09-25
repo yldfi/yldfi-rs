@@ -51,6 +51,10 @@ fn format_token_amount(amount_str: &str, decimals: usize) -> String {
         return "0.00".to_string();
     }
 
+    if decimals == 0 {
+        return amount_str.to_string();
+    }
+
     if amount_str.len() > decimals {
         let int_part = &amount_str[..amount_str.len() - decimals];
         let frac_part = &amount_str[amount_str.len() - decimals..];
@@ -65,12 +69,38 @@ fn format_token_amount(amount_str: &str, decimals: usize) -> String {
         // Amount is less than 1 whole token
         let padding = "0".repeat(decimals - amount_str.len());
         let padded = format!("{}{}", padding, amount_str);
-        let frac_display = if padded.len() >= 2 {
-            &padded[..2]
-        } else {
-            &padded
+        // Dust amounts: show two significant digits instead of "0.00"
+        let first_nonzero = padded.find(|c: char| c != '0');
+        let frac_display = match first_nonzero {
+            Some(i) if i >= 2 => padded[..(i + 2).min(padded.len())].trim_end_matches('0'),
+            _ if padded.len() >= 2 => &padded[..2],
+            _ => &padded,
         };
         format!("0.{}", frac_display)
+    }
+}
+
+/// Decode an ABI-encoded `uint8` return value from `decimals()`.
+///
+/// Returns `None` for short/empty data or values that don't fit in `u8`
+/// (non-ERC20 contracts sometimes return garbage).
+fn decode_decimals(data: &[u8]) -> Option<u8> {
+    if data.len() < 32 {
+        return None;
+    }
+    let word = U256::from_be_slice(&data[..32]);
+    if word > U256::from(77u8) {
+        // No real token uses > 77 decimals (U256::MAX has 78 digits).
+        return None;
+    }
+    Some(word.to::<u8>())
+}
+
+/// Render a token flow amount using its decimals, or raw units if unknown.
+fn format_flow_amount(amount: &str, decimals: Option<u8>) -> String {
+    match decimals {
+        Some(d) => format_token_amount(amount, d as usize),
+        None => format!("{amount} (raw units)"),
     }
 }
 
@@ -244,6 +274,9 @@ impl TxAnalyzer {
             }
         }
 
+        // Resolve token decimals so amounts render correctly (USDC = 6, etc.)
+        self.resolve_token_decimals(&mut analysis.token_flows).await;
+
         // Decode function call if there's input data
         if let Some(to) = analysis.to {
             let input = raw.tx.inner.input();
@@ -367,6 +400,52 @@ impl TxAnalyzer {
                         contracts[i].category = ContractCategory::Protocol;
                     }
                 }
+            }
+        }
+    }
+
+    /// Look up `decimals()` for every distinct token in `flows` via RPC.
+    ///
+    /// Failures leave `decimals = None`; the formatter then prints raw units
+    /// rather than guessing 18.
+    async fn resolve_token_decimals(&self, flows: &mut [crate::tx::types::TokenFlow]) {
+        use futures::stream::{self, StreamExt};
+        const MAX_CONCURRENT_REQUESTS: usize = 8;
+        // decimals() selector
+        const DECIMALS_SELECTOR: [u8; 4] = [0x31, 0x3c, 0xe5, 0x67];
+
+        let tokens: HashSet<Address> = flows
+            .iter()
+            .filter(|f| f.decimals.is_none())
+            .map(|f| f.token)
+            .collect();
+        if tokens.is_empty() {
+            return;
+        }
+
+        let pool = &self.pool;
+        let results: Vec<(Address, Option<u8>)> =
+            stream::iter(tokens.into_iter().map(|token| async move {
+                let out = pool
+                    .call(
+                        token,
+                        alloy::primitives::Bytes::from_static(&DECIMALS_SELECTOR),
+                    )
+                    .await
+                    .ok();
+                (token, out.and_then(|b| decode_decimals(&b)))
+            }))
+            .buffer_unordered(MAX_CONCURRENT_REQUESTS)
+            .collect()
+            .await;
+
+        let map: HashMap<Address, u8> = results
+            .into_iter()
+            .filter_map(|(t, d)| d.map(|d| (t, d)))
+            .collect();
+        for flow in flows.iter_mut() {
+            if flow.decimals.is_none() {
+                flow.decimals = map.get(&flow.token).copied();
             }
         }
     }
@@ -730,7 +809,7 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
             };
 
             // LOW-002 fix: Use safe token amount formatting
-            let amount_display = format_token_amount(&flow.amount, 18);
+            let amount_display = format_flow_amount(&flow.amount, flow.decimals);
 
             output.push_str(&format!(
                 "  {} {}... → {}... {} {}\n",
@@ -776,6 +855,26 @@ mod tests {
     use crate::tx::types::{AnalyzedEvent, FunctionCall, FunctionParam};
     use alloy::primitives::{address, b256, B256, U256};
     use std::collections::HashMap;
+
+    #[test]
+    fn test_flow_amount_uses_token_decimals() {
+        // 2.82 USDC (6 decimals) previously rendered as 0.00 with 18 decimals
+        assert_eq!(format_flow_amount("2820000", Some(6)), "2.82");
+        assert_eq!(format_flow_amount("1230000000000000000", Some(18)), "1.23");
+        assert_eq!(format_flow_amount("5", Some(0)), "5");
+        assert_eq!(format_flow_amount("2820000", None), "2820000 (raw units)");
+        // Dust keeps two significant digits
+        assert_eq!(format_flow_amount("28340421969401", Some(18)), "0.000028");
+    }
+
+    #[test]
+    fn test_decode_decimals() {
+        let mut word = [0u8; 32];
+        word[31] = 6;
+        assert_eq!(decode_decimals(&word), Some(6));
+        assert_eq!(decode_decimals(&[]), None);
+        assert_eq!(decode_decimals(&[0xff; 32]), None);
+    }
 
     fn make_test_analysis() -> TransactionAnalysis {
         TransactionAnalysis {
@@ -882,7 +981,7 @@ mod tests {
         // Very small amount (less than 0.01)
         let amount = "1000000000000";
         let result = format_token_amount(amount, 18);
-        assert_eq!(result, "0.00");
+        assert_eq!(result, "0.000001");
     }
 
     #[test]
@@ -941,6 +1040,7 @@ mod tests {
                 to: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
                 to_label: None,
                 amount: "1000000".to_string(),
+                decimals: None,
                 log_index: i as u64,
             });
         }

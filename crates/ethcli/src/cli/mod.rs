@@ -15,7 +15,6 @@ pub mod contract;
 pub mod cowswap;
 pub mod curve;
 pub mod doctor;
-pub mod dsim;
 pub mod dune_cli;
 pub mod endpoints;
 pub mod ens;
@@ -344,12 +343,6 @@ pub enum Commands {
         action: moralis::MoralisCommands,
     },
 
-    /// Direct Dune SIM API access
-    Dsim {
-        #[command(subcommand)]
-        action: dsim::DsimCommands,
-    },
-
     /// Direct Dune Analytics API access
     Dune {
         #[command(subcommand)]
@@ -466,8 +459,9 @@ pub enum Commands {
 
     /// Direct Pyth Network Price Feeds API access
     ///
-    /// Real-time and historical price data from Pyth Network.
-    /// No API key required.
+    /// Real-time price data from Pyth Network Hermes.
+    /// Requires a Pyth API key (PYTH_API_KEY or `ethcli config set-pyth`);
+    /// get one at https://pythdata.app.
     Pyth(pyth::PythArgs),
 
     /// Generate shell completions
@@ -496,6 +490,36 @@ impl Cli {
 }
 
 #[cfg(test)]
+mod env_secret_tests {
+    use super::Cli;
+    use clap::CommandFactory;
+
+    fn walk(cmd: &clap::Command, path: &str, offenders: &mut Vec<String>) {
+        for arg in cmd.get_arguments() {
+            if arg.get_env().is_some() && !arg.is_hide_env_values_set() {
+                offenders.push(format!("{path} --{}", arg.get_id()));
+            }
+        }
+        for sub in cmd.get_subcommands() {
+            walk(sub, &format!("{path} {}", sub.get_name()), offenders);
+        }
+    }
+
+    /// Every env-backed argument may carry a secret (API key, credentialed
+    /// RPC URL). clap prints the live value in `--help` unless
+    /// `hide_env_values = true` is set, so enforce it for the whole tree.
+    #[test]
+    fn all_env_args_hide_values() {
+        let mut offenders = Vec::new();
+        walk(&Cli::command(), "ethcli", &mut offenders);
+        assert!(
+            offenders.is_empty(),
+            "env-backed args missing hide_env_values: {offenders:?}"
+        );
+    }
+}
+
+#[cfg(test)]
 mod resolve_chain_tests {
     use super::resolve_chain_id;
 
@@ -511,16 +535,5 @@ mod resolve_chain_tests {
         assert_eq!(resolve_chain_id(None, "base").unwrap(), 8453);
         assert_eq!(resolve_chain_id(None, "10").unwrap(), 10);
         assert!(resolve_chain_id(None, "not-a-chain").is_err());
-    }
-
-    #[test]
-    fn env_values_are_hidden_in_help() {
-        use clap::CommandFactory;
-        let cmd = super::Cli::command();
-        let arg = cmd
-            .get_arguments()
-            .find(|a| a.get_id() == "etherscan_key")
-            .expect("etherscan_key arg");
-        assert!(arg.is_hide_env_values_set());
     }
 }
