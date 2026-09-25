@@ -214,6 +214,27 @@ impl Endpoint {
         }
     }
 
+    /// Execute a read-only `eth_call` against the latest block
+    pub async fn call(
+        &self,
+        to: alloy::primitives::Address,
+        data: alloy::primitives::Bytes,
+    ) -> Result<alloy::primitives::Bytes> {
+        let tx = alloy::rpc::types::TransactionRequest::default()
+            .to(to)
+            .input(data.into());
+        let result = tokio::time::timeout(self.timeout, self.provider.call(tx)).await;
+
+        match result {
+            Ok(Ok(out)) => Ok(out),
+            Ok(Err(e)) => Err(RpcError::Provider(
+                crate::error::sanitize_error_message(&e.to_string()).into_owned(),
+            )
+            .into()),
+            Err(_) => Err(RpcError::Timeout(self.timeout.as_millis() as u64).into()),
+        }
+    }
+
     /// Get a transaction receipt by hash
     pub async fn get_transaction_receipt(&self, hash: B256) -> Result<Option<TransactionReceipt>> {
         let result =

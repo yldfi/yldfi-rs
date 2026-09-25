@@ -54,6 +54,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
+/// Maximum endpoints tried for a single read-only `eth_call`.
+const MAX_CALL_ATTEMPTS: usize = 6;
+
 /// Global mutex to serialize config file updates within a single process.
 ///
 /// This prevents race conditions between concurrent async tasks. For multi-process
@@ -332,6 +335,40 @@ impl RpcPool {
 
         // No endpoint had the transaction
         Ok(None)
+    }
+
+    /// Execute a read-only `eth_call` at the latest block, failing over
+    /// across endpoints on error.
+    pub async fn call(
+        &self,
+        to: alloy::primitives::Address,
+        data: alloy::primitives::Bytes,
+    ) -> Result<alloy::primitives::Bytes> {
+        let endpoints = self.select_endpoints(MAX_CALL_ATTEMPTS);
+        let mut last_err: Option<Error> = None;
+
+        for endpoint in endpoints {
+            match endpoint.call(to, data.clone()).await {
+                Ok(out) => {
+                    self.health
+                        .record_success(endpoint.url(), Duration::from_millis(100));
+                    return Ok(out);
+                }
+                Err(e) => {
+                    let is_rate_limit = e.to_string().contains("429");
+                    self.health
+                        .record_failure(endpoint.url(), is_rate_limit, false);
+                    tracing::debug!(
+                        "eth_call failed on {}: {}",
+                        crate::utils::url::redact_url(endpoint.url()),
+                        e
+                    );
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| RpcError::AllEndpointsFailed.into()))
     }
 
     /// Get a transaction receipt by hash (tries multiple endpoints)

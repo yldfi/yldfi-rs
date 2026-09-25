@@ -574,7 +574,8 @@ impl AbiFetcher {
 
     /// Decode function call data using the contract ABI
     ///
-    /// Returns (function_name, signature, decoded_params) or None if decoding fails
+    /// Returns `None` if the ABI is unavailable or does not contain the selector
+    /// (e.g. a proxy ABI), so callers can fall back to a signature database.
     pub async fn decode_function_call(
         &self,
         chain: Chain,
@@ -591,7 +592,7 @@ impl AbiFetcher {
         // Try to get ABI from Etherscan
         let abi = match self.fetch_from_etherscan(chain, contract).await {
             Ok(abi) => abi,
-            Err(_) => return Some(DecodedFunction::unknown(selector_hex)),
+            Err(_) => return None,
         };
 
         // Find the function by selector
@@ -615,7 +616,7 @@ impl AbiFetcher {
         }
 
         // Selector not found in ABI
-        Some(DecodedFunction::unknown(selector_hex))
+        None
     }
 
     /// Lookup function selector from cache first, then 4byte.directory
@@ -722,17 +723,6 @@ pub struct DecodedFunction {
     pub signature: Option<String>,
     /// Decoded parameters
     pub params: Vec<(String, String, String)>, // (name, type, value)
-}
-
-impl DecodedFunction {
-    fn unknown(selector: String) -> Self {
-        Self {
-            selector,
-            name: None,
-            signature: None,
-            params: Vec::new(),
-        }
-    }
 }
 
 /// Decode function parameters using the function definition
