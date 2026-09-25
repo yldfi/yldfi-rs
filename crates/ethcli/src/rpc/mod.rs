@@ -9,7 +9,7 @@ pub mod retry;
 pub mod selector;
 
 pub use endpoint::Endpoint;
-pub use health::{EndpointHealth, HealthTracker};
+pub use health::{EndpointHealth, HealthTracker, ProbeStatus};
 pub use multicall::{MulticallBuilder, MulticallResult, MULTICALL3_ADDRESS};
 pub use optimizer::{optimize_endpoint, test_connectivity, OptimizationResult};
 pub use pool::RpcPool;

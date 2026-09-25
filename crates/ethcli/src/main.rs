@@ -1722,13 +1722,20 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         .unwrap_or_else(|_| "http://localhost:8545".parse().unwrap());
                     let provider = ProviderBuilder::new().connect_http(url_parsed);
 
-                    let result: Result<u64, _> = provider.get_block_number().await;
+                    let result = tokio::time::timeout(
+                        std::time::Duration::from_secs(10),
+                        provider.get_block_number(),
+                    )
+                    .await;
                     match result {
-                        Ok(_) => {
+                        Ok(Ok(_)) => {
                             let latency = start.elapsed();
                             health_tracker.record_success(url, latency);
                         }
-                        Err(e) => {
+                        Err(_) => {
+                            health_tracker.record_failure(url, false, true);
+                        }
+                        Ok(Err(e)) => {
                             let err_str = e.to_string();
                             let is_timeout = err_str.contains("timeout");
                             let is_rate_limit =
@@ -1752,6 +1759,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     url: String,
                     chain: String,
                     available: bool,
+                    status: String,
                     success_rate: f64,
                     avg_latency_ms: f64,
                     total_requests: u64,
@@ -1776,7 +1784,8 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                         EndpointHealthJson {
                             url: redact_url(&ep.url),
                             chain: ep.chain.to_string(),
-                            available: h.is_available(),
+                            available: h.probe_status().is_usable(),
+                            status: format!("{:?}", h.probe_status()).to_lowercase(),
                             success_rate,
                             avg_latency_ms: h.avg_latency_ms,
                             total_requests: h.total_requests,
@@ -1812,13 +1821,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     println!("  Chain:        {}", ep.chain);
 
                     // Status indicator
-                    let status = if h.circuit_open {
-                        "⚠ Circuit Open"
-                    } else if h.is_available() {
-                        "✓ Available"
-                    } else {
-                        "✗ Unavailable"
-                    };
+                    // Based on actual probe results, not just the circuit
+                    // breaker (which needs 5 consecutive failures to open).
+                    let status = h.probe_status().label();
                     println!("  Status:       {status}");
 
                     // Success rate
