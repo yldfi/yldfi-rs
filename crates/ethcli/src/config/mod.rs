@@ -5,6 +5,7 @@ mod blacklist;
 mod chain;
 mod endpoint;
 mod file;
+pub mod redact;
 
 pub use addressbook::{AddressBook, AddressEntry};
 pub use blacklist::{BlacklistEntry, TokenBlacklist};
