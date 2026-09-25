@@ -4,7 +4,8 @@
 
 use crate::aggregator::chain_name_to_id;
 use crate::aggregator::swap::{
-    fetch_quote_from_source, fetch_quotes_all, NormalizedQuote, QuoteAggregation, SwapSource,
+    fetch_quote_from_source, fetch_quotes_all, tokens::resolve_token, NormalizedQuote,
+    QuoteAggregation, SwapSource,
 };
 use crate::cli::OutputFormat;
 use crate::utils::format::truncate_str;
@@ -95,10 +96,10 @@ pub enum QuoteCommands {
 
 #[derive(Args, Clone)]
 pub struct QuoteArgs {
-    /// Input token address (or symbol like ETH, USDC)
+    /// Input token address (or symbol like ETH, USDC, WETH - resolved per chain)
     pub token_in: String,
 
-    /// Output token address (or symbol like ETH, USDC)
+    /// Output token address (or symbol like ETH, USDC, WETH - resolved per chain)
     pub token_out: String,
 
     /// Input amount with decimals (e.g., 1000000000000000000 for 1 ETH)
@@ -118,8 +119,9 @@ pub struct QuoteArgs {
     #[arg(long, short)]
     pub decimals: Option<u8>,
 
-    /// Slippage tolerance in basis points (e.g., 50 = 0.5%)
-    #[arg(long, default_value = "50")]
+    /// Slippage tolerance in basis points (e.g., 50 = 0.5%). Applied to sources
+    /// that return transaction data (0x, LI.FI, Enso).
+    #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..=5000))]
     pub slippage: u32,
 
     /// Output format
@@ -165,9 +167,18 @@ pub async fn execute(cmd: &QuoteCommands, quiet: bool) -> anyhow::Result<()> {
     }
 }
 
+/// Resolve both token arguments (address or symbol) for the chain
+fn resolve_tokens(args: &QuoteArgs, chain_id: u64) -> anyhow::Result<(String, String)> {
+    Ok((
+        resolve_token(&args.token_in, chain_id)?,
+        resolve_token(&args.token_out, chain_id)?,
+    ))
+}
+
 async fn execute_best(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
     let (chain_id, chain_name) = resolve_chain(&args.chain)?;
     let amount = resolve_amount(&args.amount, args.decimals)?;
+    let (token_in, token_out) = resolve_tokens(args, chain_id)?;
 
     if !quiet {
         eprintln!(
@@ -178,10 +189,11 @@ async fn execute_best(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
 
     let result = fetch_quotes_all(
         chain_id,
-        &args.token_in,
-        &args.token_out,
+        &token_in,
+        &token_out,
         &amount,
         args.sender.as_deref(),
+        args.slippage,
     )
     .await;
 
@@ -203,8 +215,14 @@ async fn execute_best(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
 }
 
 async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
+    // "all" is not a single source: behave like `quote compare`
+    if source == SwapSourceArg::All {
+        return execute_compare(args, quiet).await;
+    }
+
     let (chain_id, chain_name) = resolve_chain(&args.chain)?;
     let amount = resolve_amount(&args.amount, args.decimals)?;
+    let (token_in, token_out) = resolve_tokens(args, chain_id)?;
     let swap_source: SwapSource = source.into();
 
     if !quiet {
@@ -216,10 +234,11 @@ async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> a
 
     let result = fetch_quote_from_source(
         chain_id,
-        &args.token_in,
-        &args.token_out,
+        &token_in,
+        &token_out,
         &amount,
         args.sender.as_deref(),
+        args.slippage,
         swap_source,
     )
     .await;
@@ -313,6 +332,7 @@ async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> a
 async fn execute_compare(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
     let (chain_id, chain_name) = resolve_chain(&args.chain)?;
     let amount = resolve_amount(&args.amount, args.decimals)?;
+    let (token_in, token_out) = resolve_tokens(args, chain_id)?;
 
     if !quiet {
         eprintln!(
@@ -323,10 +343,11 @@ async fn execute_compare(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
 
     let result = fetch_quotes_all(
         chain_id,
-        &args.token_in,
-        &args.token_out,
+        &token_in,
+        &token_out,
         &amount,
         args.sender.as_deref(),
+        args.slippage,
     )
     .await;
 
@@ -663,3 +684,32 @@ fn format_large_number(s: &str) -> String {
 }
 
 // Use truncate_str from utils::format for Unicode-safe truncation
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct TestCli {
+        #[command(flatten)]
+        args: QuoteArgs,
+    }
+
+    #[test]
+    fn slippage_is_bounded_bps() {
+        assert!(TestCli::try_parse_from(["t", "ETH", "USDC", "1", "--slippage", "50"]).is_ok());
+        assert!(TestCli::try_parse_from(["t", "ETH", "USDC", "1", "--slippage", "0"]).is_err());
+        assert!(TestCli::try_parse_from(["t", "ETH", "USDC", "1", "--slippage", "6000"]).is_err());
+    }
+
+    #[test]
+    fn symbols_are_resolved_for_the_chain() {
+        let cli =
+            TestCli::try_parse_from(["t", "ETH", "USDC", "1", "--chain", "arbitrum"]).unwrap();
+        let (chain_id, _) = resolve_chain(&cli.args.chain).unwrap();
+        let (tin, tout) = resolve_tokens(&cli.args, chain_id).unwrap();
+        assert_eq!(tin, crate::aggregator::swap::NATIVE_TOKEN);
+        assert_eq!(tout, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831");
+    }
+}

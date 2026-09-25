@@ -10,6 +10,11 @@ pub const NATIVE_TOKEN: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 /// WETH address on Ethereum mainnet
 pub const WETH_MAINNET: &str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
+/// Convert basis points to a decimal fraction (50 bps -> 0.005)
+pub fn bps_to_fraction(bps: u32) -> f64 {
+    f64::from(bps) / 10_000.0
+}
+
 /// Check if an address is the native token placeholder
 fn is_native_token(addr: &str) -> bool {
     addr.to_lowercase() == NATIVE_TOKEN.to_lowercase()
@@ -212,6 +217,7 @@ pub async fn fetch_zerox_quote(
     token_out: &str,
     amount_in: &str,
     sender: Option<&str>,
+    slippage_bps: u32,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
     // Get API key from config or env
@@ -252,7 +258,8 @@ pub async fn fetch_zerox_quote(
         }
     };
 
-    let request = zrxswap::QuoteRequest::sell(token_in, token_out, amount_in);
+    let request =
+        zrxswap::QuoteRequest::sell(token_in, token_out, amount_in).with_slippage_bps(slippage_bps);
 
     // 0x Permit2 /quote endpoint requires taker address
     // Use /price for indicative pricing when no sender provided
@@ -577,6 +584,7 @@ pub async fn fetch_lifi_quote(
     token_out: &str,
     amount_in: &str,
     sender: Option<&str>,
+    slippage_bps: u32,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
     // LI.FI requires a valid sender address (rejects zero address)
@@ -617,7 +625,9 @@ pub async fn fetch_lifi_quote(
         token_out,
         amount_in,
         from_address,
-    );
+    )
+    // LI.FI expects slippage as a decimal fraction (0.005 = 0.5%)
+    .with_slippage(bps_to_fraction(slippage_bps));
 
     match client.get_quote(&request).await {
         Ok(response) => {
@@ -777,6 +787,7 @@ pub async fn fetch_enso_quote(
     token_out: &str,
     amount_in: &str,
     sender: Option<&str>,
+    slippage_bps: u32,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
     // Enso requires a valid sender address
@@ -830,13 +841,16 @@ pub async fn fetch_enso_quote(
         token_in,
         token_out,
         amount_in,
-        100, // 1% slippage in basis points
+        u16::try_from(slippage_bps).unwrap_or(u16::MAX), // basis points
     );
 
     match client.get_route(&request).await {
         Ok(response) => {
             let mut quote =
                 NormalizedQuote::new("enso", token_in, token_out, amount_in, &response.amount_out);
+            if let Some(min_out) = &response.min_amount_out {
+                quote = quote.with_min_out(min_out);
+            }
 
             // gas is Option<String>
             if let Some(ref gas_str) = response.gas {
@@ -860,5 +874,16 @@ pub async fn fetch_enso_quote(
             SourceResult::success("enso", quote, measure.elapsed_ms())
         }
         Err(e) => SourceResult::error("enso", format!("API error: {}", e), measure.elapsed_ms()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bps_convert_to_fraction() {
+        assert!((bps_to_fraction(50) - 0.005).abs() < 1e-12);
+        assert!((bps_to_fraction(100) - 0.01).abs() < 1e-12);
     }
 }

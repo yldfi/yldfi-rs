@@ -42,10 +42,21 @@ pub async fn fetch_token_decimals(chain_id: u64, token: &str) -> anyhow::Result<
     let tx = alloy::rpc::types::TransactionRequest::default()
         .to(address)
         .input(alloy::primitives::Bytes::from_static(&[0x31, 0x3c, 0xe5, 0x67]).into());
-    let result = provider
-        .call(tx)
-        .await
-        .map_err(|e| anyhow::anyhow!("decimals() call failed for {token}: {e}"))?;
+    // Retry briefly: this often runs alongside many parallel aggregator
+    // requests and shared RPC endpoints may rate-limit (HTTP 429).
+    let mut attempt = 0u64;
+    let result = loop {
+        match provider.call(tx.clone()).await {
+            Ok(r) => break r,
+            Err(e) if attempt >= 2 => {
+                anyhow::bail!("decimals() call failed for {token}: {e}");
+            }
+            Err(_) => {
+                attempt += 1;
+                tokio::time::sleep(std::time::Duration::from_millis(300 * attempt)).await;
+            }
+        }
+    };
     decode_decimals(&result)
         .ok_or_else(|| anyhow::anyhow!("decimals() returned malformed data for {token}"))
 }
