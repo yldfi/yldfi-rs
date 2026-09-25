@@ -15,7 +15,6 @@ pub mod contract;
 pub mod cowswap;
 pub mod curve;
 pub mod doctor;
-pub mod dsim;
 pub mod dune_cli;
 pub mod endpoints;
 pub mod ens;
@@ -143,7 +142,7 @@ pub struct Cli {
     pub chain: String,
 
     /// Etherscan API key
-    #[arg(long, env = "ETHERSCAN_API_KEY", global = true)]
+    #[arg(long, env = "ETHERSCAN_API_KEY", hide_env_values = true, global = true)]
     pub etherscan_key: Option<String>,
 
     /// Increase verbosity (-v, -vv, -vvv)
@@ -328,12 +327,6 @@ pub enum Commands {
         action: moralis::MoralisCommands,
     },
 
-    /// Direct Dune SIM API access
-    Dsim {
-        #[command(subcommand)]
-        action: dsim::DsimCommands,
-    },
-
     /// Direct Dune Analytics API access
     Dune {
         #[command(subcommand)]
@@ -450,8 +443,9 @@ pub enum Commands {
 
     /// Direct Pyth Network Price Feeds API access
     ///
-    /// Real-time and historical price data from Pyth Network.
-    /// No API key required.
+    /// Real-time price data from Pyth Network Hermes.
+    /// Requires a Pyth API key (PYTH_API_KEY or `ethcli config set-pyth`);
+    /// get one at https://pythdata.app.
     Pyth(pyth::PythArgs),
 
     /// Generate shell completions
@@ -476,5 +470,35 @@ impl Cli {
     /// Generate shell completions to stdout
     pub fn generate_completions(shell: Shell) {
         clap_complete::generate(shell, &mut Cli::command(), "ethcli", &mut std::io::stdout());
+    }
+}
+
+#[cfg(test)]
+mod env_secret_tests {
+    use super::Cli;
+    use clap::CommandFactory;
+
+    fn walk(cmd: &clap::Command, path: &str, offenders: &mut Vec<String>) {
+        for arg in cmd.get_arguments() {
+            if arg.get_env().is_some() && !arg.is_hide_env_values_set() {
+                offenders.push(format!("{path} --{}", arg.get_id()));
+            }
+        }
+        for sub in cmd.get_subcommands() {
+            walk(sub, &format!("{path} {}", sub.get_name()), offenders);
+        }
+    }
+
+    /// Every env-backed argument may carry a secret (API key, credentialed
+    /// RPC URL). clap prints the live value in `--help` unless
+    /// `hide_env_values = true` is set, so enforce it for the whole tree.
+    #[test]
+    fn all_env_args_hide_values() {
+        let mut offenders = Vec::new();
+        walk(&Cli::command(), "ethcli", &mut offenders);
+        assert!(
+            offenders.is_empty(),
+            "env-backed args missing hide_env_values: {offenders:?}"
+        );
     }
 }

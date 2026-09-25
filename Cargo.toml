@@ -9,7 +9,6 @@ members = [
     "crates/mrls",
     "crates/dllma",
     "crates/cgko",
-    "crates/dnsim",
     "crates/dnapi",
     "crates/alcmy",
     # DEX aggregator crates

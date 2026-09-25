@@ -118,6 +118,9 @@ pub struct TokenFlow {
     pub to_label: Option<String>,
     /// Amount transferred (as string to preserve precision)
     pub amount: String,
+    /// Token decimals (resolved via `decimals()`); `None` if unknown
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decimals: Option<u8>,
     /// Log index where this transfer occurred
     pub log_index: u64,
 }

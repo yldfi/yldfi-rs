@@ -67,17 +67,6 @@
       "draft": false,
       "prerelease": false
     },
-    "crates/dnsim": {
-      "release-type": "rust",
-      "component": "dnsim",
-      "tag-separator": "-",
-      "include-component-in-tag": true,
-      "changelog-path": "CHANGELOG.md",
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
-      "draft": false,
-      "prerelease": false
-    },
     "crates/ensof": {
       "release-type": "rust",
       "component": "ensof",

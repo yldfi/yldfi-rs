@@ -5,6 +5,7 @@ mod blacklist;
 mod chain;
 mod endpoint;
 mod file;
+pub mod redact;
 
 pub use addressbook::{AddressBook, AddressEntry};
 pub use blacklist::{BlacklistEntry, TokenBlacklist};
@@ -14,8 +15,8 @@ pub use endpoint::{
     MIN_TX_FETCH_CONCURRENCY,
 };
 pub use file::{
-    AlchemyConfig, ChainlinkConfig, ConfigFile, DuneConfig, DuneSimConfig, GeckoConfig,
-    LlamaConfig, MoralisConfig, OneInchConfig, SoloditConfig, TenderlyConfig, ZeroxConfig,
+    AlchemyConfig, ChainlinkConfig, ConfigFile, DuneConfig, GeckoConfig, LlamaConfig,
+    MoralisConfig, OneInchConfig, PythConfig, SoloditConfig, TenderlyConfig, ZeroxConfig,
 };
 
 use crate::error::{ConfigError, Result};
