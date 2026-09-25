@@ -224,7 +224,7 @@ impl Client {
     ///         "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // USDC on Arbitrum
     ///         "1000000000000000000", // 1 ETH
     ///         "0xYourAddress",
-    ///     ).with_slippage(0.5);
+    ///     ).with_slippage(0.005); // 0.5% (fraction)
     ///
     ///     let quote = client.get_quote(&request).await?;
     ///     println!("Estimated output: {}", quote.estimate.to_amount);
@@ -267,7 +267,7 @@ impl Client {
     ///     let client = Client::with_integrator("my-app")?;
     ///
     ///     let options = RoutesOptions::new()
-    ///         .with_slippage(0.5)
+    ///         .with_slippage(0.005) // 0.5% (fraction)
     ///         .with_order(RouteOrder::Cheapest);
     ///
     ///     let request = RoutesRequest::new(
@@ -313,10 +313,27 @@ impl Client {
     ///
     /// After selecting a route, use this to get updated transaction data
     /// for a specific step.
+    ///
+    /// Note: re-serializing a typed [`Step`](crate::types::Step) drops any
+    /// fields not modelled by this crate. Prefer
+    /// [`get_step_transaction_raw`](Self::get_step_transaction_raw) when the
+    /// step comes straight from an API response.
     pub async fn get_step_transaction(
         &self,
         step: &crate::types::Step,
     ) -> Result<crate::types::Step> {
+        self.post("/advanced/stepTransaction", step).await
+    }
+
+    /// Get a step's transaction data, passing the step JSON through untouched.
+    ///
+    /// LI.FI validates the step it receives (e.g. `action.fromToken.priceUSD`
+    /// is required), so the step returned by `/quote` or `/advanced/routes`
+    /// should be sent back unmodified.
+    pub async fn get_step_transaction_raw(
+        &self,
+        step: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
         self.post("/advanced/stepTransaction", step).await
     }
 
@@ -649,13 +666,13 @@ mod tests {
             "1000000000000000000",
             "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
         )
-        .with_slippage(0.5)
+        .with_slippage(0.005)
         .with_integrator("test-app")
         .with_order(RouteOrder::Cheapest);
 
         assert_eq!(request.from_chain, chains::ETHEREUM);
         assert_eq!(request.to_chain, chains::ARBITRUM);
-        assert_eq!(request.slippage, Some(0.5));
+        assert_eq!(request.slippage, Some(0.005));
         assert_eq!(request.integrator, Some("test-app".to_string()));
         assert_eq!(request.order, Some(RouteOrder::Cheapest));
     }
@@ -663,7 +680,7 @@ mod tests {
     #[test]
     fn test_routes_request_builder() {
         let options = RoutesOptions::new()
-            .with_slippage(1.0)
+            .with_slippage(0.01)
             .with_order(RouteOrder::Fastest);
 
         let request = RoutesRequest::new(

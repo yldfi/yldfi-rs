@@ -30,7 +30,7 @@
 //!         "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",      // USDC on Arbitrum
 //!         "1000000000000000000",                             // 1 ETH in wei
 //!         "0xYourWalletAddress",
-//!     ).with_slippage(0.5);
+//!     ).with_slippage(0.005); // 0.5% as a fraction
 //!
 //!     let quote = client.get_quote(&request).await?;
 //!     println!("Estimated output: {}", quote.estimate.to_amount);
@@ -58,7 +58,7 @@
 //!     let client = Client::with_integrator("my-app")?;
 //!
 //!     let options = RoutesOptions::new()
-//!         .with_slippage(0.5)
+//!         .with_slippage(0.005) // 0.5% as a fraction
 //!         .with_order(RouteOrder::Cheapest);  // Sort by best output
 //!
 //!     let request = RoutesRequest::new(
@@ -223,6 +223,9 @@ pub use error::{Error, Result};
 pub use types::{
     // Chain types
     chains,
+    // Slippage helpers
+    slippage_percent_to_fraction,
+    validate_slippage_fraction,
     // Step types
     Action,
     // Other types
@@ -232,11 +235,14 @@ pub use types::{
     ChainsResponse,
     // Connection types
     Connection,
+    ConnectionToken,
     ConnectionsRequest,
     ConnectionsResponse,
     Estimate,
     ExchangeOptions,
+    FailedRoute,
     FeeCost,
+    FilteredRoute,
     GasCost,
     GasPrice,
     GasPricesResponse,
@@ -264,6 +270,7 @@ pub use types::{
     // Tool types
     Tool,
     ToolDetails,
+    ToolError,
     ToolType,
     ToolsResponse,
     TransactionInfo,
