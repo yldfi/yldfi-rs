@@ -2083,6 +2083,31 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://www.cyfrin.io/terms-of-service");
         }
 
+        ConfigCommands::SetPyth { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            use ethcli::config::PythConfig;
+            use secrecy::SecretString;
+            let api_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+            } else {
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
+            };
+            let api_key = api_key.trim().to_string();
+            if api_key.is_empty() {
+                anyhow::bail!("API key must not be empty");
+            }
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.pyth = Some(PythConfig {
+                api_key: SecretString::new(api_key.into()),
+            });
+            cfg.save_default()?;
+            println!("Pyth API key saved to config file.");
+            println!("\nBy using Pyth, you agree to the Pyth Network Terms of Use.");
+            println!("See: https://pyth.network/terms-of-use");
+        }
+
         ConfigCommands::AddDebugRpc { url } => {
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.add_debug_rpc(url.clone())?;
@@ -2213,6 +2238,10 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                         api_keys_present += 1;
                         println!("Solodit API key: configured");
                     }
+                    if config.pyth.is_some() {
+                        api_keys_present += 1;
+                        println!("Pyth API key: configured");
+                    }
                     if api_keys_present == 0 {
                         warnings.push(
                             "No API keys configured - some features will be unavailable"
@@ -2316,15 +2345,7 @@ debug_rpc_urls = []
 # Ethereum Mainnet
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://eth-mainnet.public.blastapi.io"
-chain = "ethereum"
-priority = 10
-max_block_range = 18303
-max_logs = 200000
-note = "Excellent - highest log limit"
-
-[[endpoints]]
-url = "https://ethereum.publicnode.com"
+url = "https://ethereum-rpc.publicnode.com"
 chain = "ethereum"
 priority = 8
 max_block_range = 44864
@@ -2341,28 +2362,35 @@ max_logs = 5000
 # Polygon
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://polygon-mainnet.public.blastapi.io"
+url = "https://polygon-bor-rpc.publicnode.com"
 chain = "polygon"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
 
 [[endpoints]]
-url = "https://polygon.publicnode.com"
+url = "https://polygon.drpc.org"
 chain = "polygon"
-priority = 5
+priority = 6
 max_block_range = 10000
-max_logs = 10000
+max_logs = 5000
 
 # -----------------------------------------------------------------------------
 # Arbitrum
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://arbitrum-mainnet.public.blastapi.io"
+url = "https://arbitrum-one-rpc.publicnode.com"
 chain = "arbitrum"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://arbitrum.drpc.org"
+chain = "arbitrum"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://arb1.arbitrum.io/rpc"
@@ -2375,11 +2403,18 @@ max_logs = 10000
 # Base
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://base-mainnet.public.blastapi.io"
+url = "https://base-rpc.publicnode.com"
 chain = "base"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://base.drpc.org"
+chain = "base"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://mainnet.base.org"
@@ -2393,11 +2428,18 @@ note = "Official Base RPC"
 # Optimism
 # -----------------------------------------------------------------------------
 [[endpoints]]
-url = "https://optimism-mainnet.public.blastapi.io"
+url = "https://optimism-rpc.publicnode.com"
 chain = "optimism"
-priority = 10
-max_block_range = 100000
+priority = 8
+max_block_range = 10000
 max_logs = 10000
+
+[[endpoints]]
+url = "https://optimism.drpc.org"
+chain = "optimism"
+priority = 6
+max_block_range = 10000
+max_logs = 5000
 
 [[endpoints]]
 url = "https://mainnet.optimism.io"

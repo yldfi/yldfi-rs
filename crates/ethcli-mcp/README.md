@@ -96,7 +96,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `account_*` | 8 | Balance, transactions |
 | `oneinch_*` | 7 | DEX aggregator |
 | `goplus_*` | 6 | Security analysis |
-| Other | 175 | See full list below |
+| Other | 176 | See full list below |
 
 <details>
 <summary>All 42 tool categories</summary>
@@ -104,7 +104,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | Category | Count |
 |----------|-------|
 | cast_* | 14 |
-| config_* | 14 |
+| config_* | 15 |
 | lifi_* | 12 |
 | curve_* | 10 |
 | uniswap_* | 9 |
@@ -163,6 +163,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `DUNE_API_KEY` | `dune_*` tools |
 | `MORALIS_API_KEY` | `moralis_*` tools |
 | `SOLODIT_API_KEY` | `solodit_*` tools |
+| `PYTH_API_KEY` | `pyth_price` (required since the Pyth Core upgrade; or `config_set_pyth`), sent with `pyth_search`/`pyth_feeds` when set |
 | `THEGRAPH_API_KEY` | `uniswap_top_pools`, etc. |
 
 Moralis removed Fantom support on 2026-05-29 (the `moralis_*` tools inherit

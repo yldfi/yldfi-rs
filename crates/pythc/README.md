@@ -1,8 +1,25 @@
-# pyth
+# pythc
 
 Rust client for the [Pyth Network](https://pyth.network/) Hermes API.
 
 Pyth Network provides real-time price feeds for crypto, equities, FX, and commodities. This crate interfaces with the Hermes REST API to fetch price data.
+
+## API Key Required
+
+Since the **Pyth Core upgrade (2026-08-26)**, Hermes requires an API key on every
+request, sent as `Authorization: Bearer <key>`. Unauthenticated requests fail with
+`401 Unauthorized`, which this crate surfaces as `DomainError::Unauthorized` with an
+actionable message.
+
+- Get a key from the Pyth Terminal: <https://pythdata.app>
+- Pass it with `Client::with_api_key(key)` / `Config::with_api_key(key)`, or set
+  `PYTH_API_KEY` and use `Client::from_env()`
+- The key is stored as a `SecretApiKey` and redacted from `Debug` output
+
+The default base URL is now `https://pyth.dourolabs.app/hermes` (a drop-in
+replacement: routes and response shapes are unchanged). The legacy
+`https://hermes.pyth.network` host is available as `base_urls::LEGACY` and also
+requires a key.
 
 ## Installation
 
@@ -10,17 +27,17 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-pyth = { version = "0.1", path = "../pyth" }
+pythc = "0.1"
 ```
 
 ## Quick Start
 
 ```rust
-use pyth::{Client, feed_ids};
+use pythc::{Client, feed_ids};
 
 #[tokio::main]
-async fn main() -> pyth::Result<()> {
-    let client = Client::new()?;
+async fn main() -> pythc::Result<()> {
+    let client = Client::with_api_key(std::env::var("PYTH_API_KEY").unwrap_or_default())?;
 
     // Get ETH/USD price
     if let Some(feed) = client.get_latest_price(feed_ids::ETH_USD).await? {
@@ -35,7 +52,7 @@ async fn main() -> pyth::Result<()> {
 
 ## Features
 
-- **No API key required** - Hermes API is free to use
+- **API key auth** - Bearer token support (required since the Pyth Core upgrade), redacted from debug output
 - **Multiple price feeds** - Fetch prices for multiple assets in a single request
 - **Symbol mapping** - Use common symbols (ETH, BTC) instead of feed IDs
 - **Stale detection** - Built-in check for outdated price data
@@ -88,9 +105,9 @@ let price = client.get_latest_price(
 ### Fetch Multiple Prices
 
 ```rust
-use pyth::{Client, feed_ids};
+use pythc::{Client, feed_ids};
 
-let client = Client::new()?;
+let client = Client::from_env()?; // reads PYTH_API_KEY
 
 let feeds = client.get_latest_prices(&[
     feed_ids::BTC_USD,
@@ -106,9 +123,9 @@ for feed in feeds {
 ### Search for Feeds
 
 ```rust
-use pyth::Client;
+use pythc::Client;
 
-let client = Client::new()?;
+let client = Client::from_env()?; // reads PYTH_API_KEY
 
 // Search for BTC-related feeds
 let feeds = client.search_feeds("BTC").await?;
@@ -121,9 +138,9 @@ for feed in feeds {
 ### Symbol Lookup
 
 ```rust
-use pyth::{Client, symbol_to_feed_id};
+use pythc::{Client, symbol_to_feed_id};
 
-let client = Client::new()?;
+let client = Client::from_env()?; // reads PYTH_API_KEY
 
 // Convert symbol to feed ID
 if let Some(feed_id) = symbol_to_feed_id("ETH") {
@@ -135,9 +152,9 @@ if let Some(feed_id) = symbol_to_feed_id("ETH") {
 ### Check Price Staleness
 
 ```rust
-use pyth::{Client, feed_ids};
+use pythc::{Client, feed_ids};
 
-let client = Client::new()?;
+let client = Client::from_env()?; // reads PYTH_API_KEY
 
 if let Some(feed) = client.get_latest_price(feed_ids::ETH_USD).await? {
     // Check if price is older than 60 seconds
@@ -155,22 +172,29 @@ if let Some(feed) = client.get_latest_price(feed_ids::ETH_USD).await? {
 }
 ```
 
-### Use Testnet
+### Use the Legacy Host
 
 ```rust
-use pyth::Client;
+use pythc::{base_urls, Client, Config};
 
-let client = Client::testnet()?;
-let price = client.get_latest_price(pyth::feed_ids::ETH_USD).await?;
+let config = Config::mainnet()
+    .with_base_url(base_urls::LEGACY)
+    .with_api_key("your-pyth-api-key");
+let client = Client::with_config(config)?;
 ```
+
+`Client::testnet()` / `base_urls::TESTNET` (`hermes-beta.pyth.network`) are kept for
+backwards compatibility only; Pyth no longer documents a beta endpoint, so treat it
+as legacy/unverified.
 
 ### Custom Configuration
 
 ```rust
-use pyth::{Client, Config};
+use pythc::{Client, Config};
 use std::time::Duration;
 
 let config = Config::mainnet()
+    .with_api_key("your-pyth-api-key")
     .with_timeout(Duration::from_secs(60))
     .with_proxy("http://proxy:8080");
 
@@ -181,17 +205,18 @@ let client = Client::with_config(config)?;
 
 ### Base URLs
 
-| Network | URL |
-|---------|-----|
-| Mainnet | `https://hermes.pyth.network` |
-| Testnet | `https://hermes-beta.pyth.network` |
+| Constant | URL | Notes |
+|----------|-----|-------|
+| `MAINNET` (default) | `https://pyth.dourolabs.app/hermes` | Pyth Core upgraded endpoint, API key required |
+| `LEGACY` | `https://hermes.pyth.network` | Legacy host, API key required |
+| `TESTNET` | `https://hermes-beta.pyth.network` | Legacy/unverified, not documented post-upgrade |
 
 ### Timeouts
 
 Default timeout is 30 seconds. Configure with:
 
 ```rust
-use pyth::Config;
+use pythc::Config;
 use std::time::Duration;
 
 let config = Config::mainnet()
@@ -201,13 +226,16 @@ let config = Config::mainnet()
 ## Error Handling
 
 ```rust
-use pyth::{Client, Error};
+use pythc::{Client, DomainError, Error};
 
-let client = Client::new()?;
+let client = Client::from_env()?; // reads PYTH_API_KEY
 
-match client.get_latest_price("invalid-feed-id").await {
+match client.get_latest_price(pythc::feed_ids::ETH_USD).await {
     Ok(Some(feed)) => println!("Price: {:?}", feed),
     Ok(None) => println!("No price data"),
+    Err(Error::Domain(DomainError::Unauthorized { .. })) => {
+        println!("Set PYTH_API_KEY (get a key at https://pythdata.app)");
+    }
     Err(Error::Api { status, message }) => {
         println!("API error {}: {}", status, message);
     }

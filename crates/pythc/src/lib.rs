@@ -7,13 +7,26 @@
 //! Pyth Network provides real-time price feeds for crypto, equities, FX, and commodities.
 //! This crate interfaces with the Hermes REST API to fetch price data.
 //!
+//! ## API key required
+//!
+//! Since the Pyth Core upgrade (2026-08-26), Hermes requires an API key on
+//! **every** request, sent as `Authorization: Bearer <key>`. Unauthenticated
+//! requests fail with `401 Unauthorized` (surfaced as
+//! [`DomainError::Unauthorized`]). Get a key from the Pyth Terminal at
+//! <https://pythdata.app>, then use [`Client::with_api_key`] or set
+//! `PYTH_API_KEY` and use [`Client::from_env`].
+//!
+//! The default base URL is [`base_urls::MAINNET`]
+//! (`https://pyth.dourolabs.app/hermes`), a drop-in replacement for the legacy
+//! `https://hermes.pyth.network` host ([`base_urls::LEGACY`]).
+//!
 //! ## Quick Start
 //!
 //! ```no_run
 //! # async fn example() -> pythc::error::Result<()> {
 //! use pythc::Client;
 //!
-//! let client = Client::new()?;
+//! let client = Client::with_api_key("your-pyth-api-key")?;
 //!
 //! // Get ETH/USD price
 //! let eth = client.get_latest_price(pythc::feed_ids::ETH_USD).await?;
@@ -40,7 +53,8 @@
 //! # async fn example() -> pythc::error::Result<()> {
 //! use pythc::{Client, symbol_to_feed_id};
 //!
-//! let client = Client::new()?;
+//! // Reads PYTH_API_KEY from the environment
+//! let client = Client::from_env()?;
 //!
 //! if let Some(feed_id) = symbol_to_feed_id("ETH") {
 //!     let price = client.get_latest_price(feed_id).await?;
@@ -56,7 +70,7 @@
 //! # async fn example() -> pythc::error::Result<()> {
 //! use pythc::Client;
 //!
-//! let client = Client::new()?;
+//! let client = Client::from_env()?;
 //!
 //! // Search for feeds matching a query
 //! let feeds = client.search_feeds("BTC").await?;
@@ -71,7 +85,11 @@ pub mod client;
 pub mod error;
 pub mod types;
 
-pub use client::{base_urls, feed_ids, symbol_to_feed_id, Client, Config};
-pub use error::{feed_not_found, invalid_feed_id, stale_price, Error, Result};
+pub use client::{
+    base_urls, feed_ids, symbol_to_feed_id, Client, Config, API_KEY_ENV_VAR, API_KEY_URL,
+};
+pub use error::{
+    feed_not_found, invalid_feed_id, is_unauthorized, stale_price, DomainError, Error, Result,
+};
 pub use types::{LatestPriceResponse, ParsedPriceFeed, PriceData, PriceFeedId};
 pub use yldfi_common::http::HttpClientConfig;

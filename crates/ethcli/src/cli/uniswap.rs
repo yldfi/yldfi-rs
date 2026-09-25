@@ -206,8 +206,21 @@ pub struct AddressesArgs {
     pub version: Option<Version>,
 }
 
-/// Default RPC URL for Ethereum mainnet
-const DEFAULT_RPC_URL: &str = "https://eth.llamarpc.com";
+/// Fallback public RPC URL for Ethereum mainnet, used only when neither
+/// `--rpc-url`/`ETH_RPC_URL` nor a configured Ethereum endpoint is available.
+const FALLBACK_RPC_URL: &str = "https://ethereum-rpc.publicnode.com";
+
+/// Resolve the Ethereum RPC URL for lens queries.
+///
+/// Precedence: explicit `--rpc-url` (or `ETH_RPC_URL`), then the user's
+/// configured endpoint pool, then [`FALLBACK_RPC_URL`].
+fn resolve_rpc_url(arg: Option<&str>) -> String {
+    if let Some(url) = arg.filter(|u| !u.is_empty()) {
+        return url.to_string();
+    }
+    crate::rpc::get_rpc_url(crate::config::Chain::Ethereum)
+        .unwrap_or_else(|_| FALLBACK_RPC_URL.to_string())
+}
 
 /// Resolve TheGraph API key from args, config, or env
 fn resolve_api_key(arg_key: &Option<String>) -> anyhow::Result<String> {
@@ -246,7 +259,8 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
 
     match action {
         UniswapCommands::Pool(args) => {
-            let rpc_url = args.rpc_url.as_deref().unwrap_or(DEFAULT_RPC_URL);
+            let rpc_url = resolve_rpc_url(args.rpc_url.as_deref());
+            let rpc_url = rpc_url.as_str();
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
@@ -274,7 +288,8 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
         }
 
         UniswapCommands::Liquidity(args) => {
-            let rpc_url = args.rpc_url.as_deref().unwrap_or(DEFAULT_RPC_URL);
+            let rpc_url = resolve_rpc_url(args.rpc_url.as_deref());
+            let rpc_url = rpc_url.as_str();
             let pool: Address = args.pool.parse()?;
 
             if !quiet {
@@ -572,10 +587,7 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
                     "ethereum" | "mainnet" | "eth" => Some(SubgraphConfig::mainnet_v4(&api_key)),
                     "arbitrum" | "arb" => Some(SubgraphConfig::arbitrum_v4(&api_key)),
                     "base" => Some(SubgraphConfig::base_v4(&api_key)),
-                    "polygon" | "matic" => Some(
-                        SubgraphConfig::mainnet_v4(&api_key)
-                            .with_subgraph_id(subgraph_ids::POLYGON_V4),
-                    ),
+                    "polygon" | "matic" => Some(SubgraphConfig::polygon_v4(&api_key)),
                     _ => None,
                 };
 
@@ -715,7 +727,8 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
         }
 
         UniswapCommands::Balance(args) => {
-            let rpc_url = args.rpc_url.as_deref().unwrap_or(DEFAULT_RPC_URL);
+            let rpc_url = resolve_rpc_url(args.rpc_url.as_deref());
+            let rpc_url = rpc_url.as_str();
             let token: Address = args.token.parse()?;
             let account: Address = args.account.parse()?;
 
@@ -879,4 +892,17 @@ pub async fn handle(action: &UniswapCommands, quiet: bool) -> anyhow::Result<()>
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn explicit_rpc_url_wins() {
+        assert_eq!(
+            resolve_rpc_url(Some("https://example.invalid")),
+            "https://example.invalid"
+        );
+    }
 }

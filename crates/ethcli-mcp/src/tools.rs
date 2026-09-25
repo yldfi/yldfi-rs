@@ -7436,6 +7436,17 @@ pub async fn config_set_solodit(key: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
+pub async fn config_set_pyth(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_pyth")?;
+
+    ArgsBuilder::new("config")
+        .subcommand("set-pyth")
+        .arg(key)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn config_add_debug_rpc(url: &str) -> Result<String, ToolError> {
     require_write_tools_enabled("config_add_debug_rpc")?;
 

@@ -36,6 +36,8 @@ pub async fn handle(
     quiet: bool,
 ) -> anyhow::Result<()> {
     let client = Client::new(chain, api_key)?;
+    // Both gas subcommands use the Etherscan gas tracker.
+    client.ensure_api_supported()?;
 
     match action {
         GasCommands::Oracle { output } => {

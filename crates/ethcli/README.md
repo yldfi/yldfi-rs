@@ -485,6 +485,9 @@ ethcli config set-etherscan-key YOUR_KEY
 
 # Set Tenderly credentials
 ethcli config set-tenderly --key KEY --account ACCOUNT --project PROJECT
+
+# Set Pyth API key (required for Pyth prices)
+echo $PYTH_API_KEY | ethcli config set-pyth --stdin
 ```
 
 ### Update & Doctor
@@ -529,7 +532,7 @@ ethcli price ETH -o json
 ethcli price ETH -o table
 ```
 
-**Sources**: CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, CCXT
+**Sources**: CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth (requires `PYTH_API_KEY`), CCXT
 
 ### Portfolio - Multi-Source Balance Aggregation
 
@@ -855,6 +858,9 @@ ethcli chainlink oracles
 ethcli chainlink oracles --chain arbitrum
 
 # Data Streams (requires CHAINLINK_API_KEY and CHAINLINK_USER_SECRET)
+# Defaults to mainnet (https://api.dataengine.chain.link / wss://ws.dataengine.chain.link).
+# For testnet, set CHAINLINK_REST_URL / CHAINLINK_WS_URL or
+# `ethcli config set-chainlink --rest-url ... --ws-url ...`.
 ethcli chainlink streams feeds
 ethcli chainlink streams latest <feed_id>
 ethcli chainlink streams report <feed_id> <timestamp>
@@ -1075,6 +1081,14 @@ ethcli --chain base gas oracle
 # ethereum, polygon, arbitrum, optimism, base, bsc, avalanche
 ```
 
+**Etherscan API coverage:** Etherscan has ended API support for Scroll (534352,
+2026-04-16), Moonbeam (1284) and Moonriver (1285) (2026-07-31), and Swell
+(1923, 2026-02-25) — see the [Etherscan changelog](https://docs.etherscan.io/changelog).
+On those chains, Etherscan-backed commands (`contract abi/source/creation/call`,
+`account` history, `gas`) fail fast with an explanatory error; RPC-based
+commands keep working. If your Etherscan plan does not cover a chain or
+endpoint, the error is reported as an "Etherscan plan restriction".
+
 ## Configuration
 
 Config file: `~/.config/ethcli/config.toml`
@@ -1114,6 +1128,7 @@ ethcli config set-etherscan-key YOUR_KEY
 | `GOPLUS_APP_KEY` | Optional | GoPlus batch queries (higher rate limits) |
 | `GOPLUS_APP_SECRET` | Optional | GoPlus batch queries (higher rate limits) |
 | `SOLODIT_API_KEY` | `ethcli solodit` | Solodit vulnerability database |
+| `PYTH_API_KEY` | `ethcli pyth price`, `price --source pyth` | Pyth Hermes (required since the Pyth Core upgrade; or `ethcli config set-pyth`) |
 | `ONEINCH_API_KEY` / `1INCH_API_KEY` | `ethcli 1inch` | 1inch DEX Aggregator (required) |
 | `ZEROX_API_KEY` / `0X_API_KEY` | `ethcli 0x` | 0x Protocol (optional, higher limits) |
 | `LIFI_INTEGRATOR` | `ethcli lifi` | LI.FI analytics tracking (optional) |
@@ -1330,7 +1345,12 @@ ethcli enso balances <address> --chain-id 1
 
 ### Pyth Network - Price Feeds
 
-Direct access to Pyth Network Hermes API. No API key required.
+Direct access to the Pyth Network Hermes API (`https://pyth.dourolabs.app/hermes`).
+
+**API key required**: since the Pyth Core upgrade (2026-08-26) Hermes requires an
+API key on every request. Get one from the Pyth Terminal (<https://pythdata.app>),
+then either run `ethcli config set-pyth <key>` (or `echo $KEY | ethcli config set-pyth --stdin`)
+or set `PYTH_API_KEY`. The config file key takes precedence over the environment variable.
 
 ```bash
 # Get latest price for one or more feeds
@@ -1352,6 +1372,8 @@ ethcli pyth known-feeds
 **Notes**:
 - Supports common symbols: BTC, ETH, SOL, USDC, USDT, DAI, AVAX, ARB, OP, LINK, UNI, AAVE, CRV, CVX, etc.
 - Use `ethcli pyth search` to find additional feeds by name
+- `ethcli pyth price` fails with setup instructions when no key is configured; `known-feeds` works offline
+- In `ethcli price` aggregation, Pyth is reported as `PYTH_API_KEY not configured` and skipped when no key is set
 
 ## License
 

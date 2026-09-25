@@ -101,10 +101,15 @@ src/
 | Network | On-chain | Subgraph V2 | Subgraph V3 | Subgraph V4 |
 |---------|----------|-------------|-------------|-------------|
 | Ethereum | Yes | Yes | Yes | Yes |
-| Arbitrum | Yes | Yes | Yes | Yes |
-| Optimism | Yes | Yes | Yes | - |
-| Polygon | Yes | Yes | Yes | - |
+| Arbitrum | Yes | - | Yes | Yes |
+| Optimism | Yes | - | Yes | - |
+| Polygon | Yes | - | Yes | Yes |
 | Base | Yes | - | Yes | Yes |
+
+Subgraph IDs live in `subgraph::subgraph_ids`. Uniswap's docs
+(`content/ecosystem/subgraphs/overview.mdx`) list only the mainnet V2/V3/V4
+deployments; the Arbitrum/Base/Polygon V4 IDs are from the same Graph Network
+publisher as the docs-listed mainnet V4 subgraph.
 
 ## Key Dependencies
 

@@ -55,7 +55,8 @@ static LLAMA_CLIENT: OnceLock<Result<dllma::Client, String>> = OnceLock::new();
 /// Cached Curve Prices client (no API key required)
 static CURVE_PRICES_CLIENT: OnceLock<Result<crv::PricesClient, String>> = OnceLock::new();
 
-/// Cached Pyth client (no API key required)
+/// Cached Pyth client (requires PYTH_API_KEY or `[pyth] api_key` since the
+/// Pyth Core upgrade; the source is skipped when no key is configured)
 static PYTH_CLIENT: OnceLock<Result<pyth::Client, String>> = OnceLock::new();
 
 /// Cached Uniswap SubgraphClient for mainnet
@@ -182,11 +183,20 @@ fn get_curve_prices_client() -> Result<&'static crv::PricesClient, &'static str>
 }
 
 /// Get or create the cached Pyth client
-fn get_pyth_client() -> Result<&'static pyth::Client, &'static str> {
+///
+/// Returns an error (without making any request) when no Pyth API key is
+/// configured, so the aggregator reports the source as unconfigured like other
+/// keyed sources instead of hitting Hermes and getting a 401.
+fn get_pyth_client() -> Result<&'static pyth::Client, String> {
     PYTH_CLIENT
-        .get_or_init(|| pyth::Client::new().map_err(|e| e.to_string()))
+        .get_or_init(|| {
+            let config = get_cached_config();
+            let api_key = crate::cli::pyth::resolve_api_key(config.as_ref())
+                .ok_or_else(|| "PYTH_API_KEY not configured".to_string())?;
+            crate::cli::pyth::build_client(Some(api_key)).map_err(|e| format!("Client error: {e}"))
+        })
         .as_ref()
-        .map_err(|_| "Failed to create Pyth client")
+        .map_err(Clone::clone)
 }
 
 /// Get or create the cached CoinGecko client (PERF-001/PERF-013 fix)
@@ -1349,7 +1359,7 @@ async fn fetch_chainlink_streams(
     token: &str,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedPrice> {
-    use crate::chainlink::{DataStreamsClient, DEFAULT_STREAMS_REST_URL};
+    use crate::chainlink::{DataStreamsClient, DEFAULT_STREAMS_REST_URL, DEFAULT_STREAMS_WS_URL};
     use chainlink_data_streams_report::feed_id::ID;
 
     // Get credentials from cached config first, then fall back to environment variables
@@ -1396,7 +1406,7 @@ async fn fetch_chainlink_streams(
     let _ws_url = chainlink_config
         .and_then(|c| c.ws_url.clone())
         .or_else(|| std::env::var("CHAINLINK_WS_URL").ok())
-        .unwrap_or_else(|| "wss://ws.testnet-dataengine.chain.link".to_string());
+        .unwrap_or_else(|| DEFAULT_STREAMS_WS_URL.to_string());
 
     let client = match DataStreamsClient::new(api_key, user_secret, rest_url) {
         Ok(c) => c,
@@ -1511,6 +1521,13 @@ async fn fetch_chainlink_streams(
 
 /// Fetch price from Pyth Network Hermes API
 async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<NormalizedPrice> {
+    // Use cached client (PERF-001 fix). Checked first so an unconfigured API key
+    // is reported consistently regardless of the token requested.
+    let client = match get_pyth_client() {
+        Ok(c) => c,
+        Err(e) => return SourceResult::error("pyth", e, measure.elapsed_ms()),
+    };
+
     // Try to map the token to a Pyth feed ID
     let feed_id = if token.starts_with("0x") && token.len() == 66 {
         // Already a Pyth feed ID
@@ -1553,18 +1570,6 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
                     measure.elapsed_ms(),
                 );
             }
-        }
-    };
-
-    // Use cached client (PERF-001 fix)
-    let client = match get_pyth_client() {
-        Ok(c) => c,
-        Err(e) => {
-            return SourceResult::error(
-                "pyth",
-                format!("Client error: {}", e),
-                measure.elapsed_ms(),
-            );
         }
     };
 

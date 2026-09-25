@@ -229,6 +229,15 @@ impl Client {
         self.chain
     }
 
+    /// Fail fast if Etherscan no longer serves this client's chain.
+    ///
+    /// Call before using Etherscan API methods (via `Deref` to the inner
+    /// client). Signature lookups (4byte/cache) do not need this.
+    pub fn ensure_api_supported(&self) -> Result<()> {
+        super::support::ensure_etherscan_supported(self.chain.chain_id())?;
+        Ok(())
+    }
+
     /// Get cache statistics
     pub fn cache_stats(&self) -> crate::etherscan::CacheStats {
         self.cache.stats()
@@ -434,6 +443,7 @@ impl Client {
 
     /// Make an eth_call via Etherscan proxy
     async fn eth_call(&self, chain_id: u64, to: &str, data: &str) -> Result<String> {
+        super::support::ensure_etherscan_supported(chain_id)?;
         let encoded_to: Cow<str> = urlencoding_encode(to);
         let encoded_data: Cow<str> = urlencoding_encode(data);
 
