@@ -5533,6 +5533,7 @@ dependencies = [
  "tokio",
  "url",
  "urlencoding",
+ "wiremock",
 ]
 
 [[package]]
