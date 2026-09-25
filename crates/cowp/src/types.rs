@@ -441,7 +441,8 @@ pub struct Order {
     pub kind: OrderKind,
     /// Order status
     pub status: OrderStatus,
-    /// Created timestamp
+    /// Creation time (ISO 8601 UTC; API field `creationDate`)
+    #[serde(rename = "creationDate", alias = "createdDate")]
     pub created_date: String,
     /// Executed sell amount
     #[serde(default)]
@@ -459,9 +460,9 @@ pub struct Order {
     pub receiver: Option<String>,
 }
 
-/// Order status
+/// Order status (see `OrderStatus` in cowprotocol/services `openapi.yml`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum OrderStatus {
     /// Order is open
@@ -472,8 +473,10 @@ pub enum OrderStatus {
     Cancelled,
     /// Order expired
     Expired,
-    /// Order is presigning
-    Presignaturepending,
+    /// Pre-signed order awaiting its on-chain pre-signature
+    /// (API value `presignaturePending`)
+    #[serde(alias = "presignaturepending")]
+    PresignaturePending,
 }
 
 /// API error response

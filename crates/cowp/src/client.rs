@@ -365,8 +365,17 @@ impl Client {
     }
 
     /// Get the current auction
+    ///
+    /// Note: `GET /api/v1/auction` is permissioned upstream (the public API
+    /// returns 403); access must be requested from the `CoW` team.
     pub async fn get_auction(&self, chain: Option<Chain>) -> Result<serde_json::Value> {
-        self.get(chain, "/api/v1/auction").await
+        match self.get(chain, "/api/v1/auction").await {
+            Err(e) if e.status_code() == Some(403) => Err(error::invalid_param(
+                "the CoW Protocol /api/v1/auction endpoint is permissioned (HTTP 403); \
+                 request access from the CoW team, or use `competition` for recent auction data",
+            )),
+            other => other,
+        }
     }
 
     /// Get solver competition data for a specific auction
@@ -490,5 +499,32 @@ mod tests {
         assert_eq!(Chain::try_from_str("gnosis"), Some(Chain::Gnosis));
         assert_eq!(Chain::try_from_str("arbitrum"), Some(Chain::Arbitrum));
         assert_eq!(Chain::try_from_str("unknown"), None);
+    }
+
+    #[test]
+    fn test_order_parses_live_shape() {
+        let json = r#"{"uid":"0xcfeb","sellToken":"0xa","buyToken":"0xb","sellAmount":"1",
+            "buyAmount":"2","kind":"sell","status":"presignaturePending",
+            "creationDate":"2026-09-25T10:00:00.000000Z","executedSellAmount":"0",
+            "executedBuyAmount":"0","executedFeeAmount":"0","owner":"0xo","receiver":"0xo"}"#;
+        let order: crate::types::Order = serde_json::from_str(json).unwrap();
+        assert_eq!(order.created_date, "2026-09-25T10:00:00.000000Z");
+        assert_eq!(order.status, crate::types::OrderStatus::PresignaturePending);
+        let out = serde_json::to_value(&order).unwrap();
+        assert_eq!(out["creationDate"], "2026-09-25T10:00:00.000000Z");
+        assert_eq!(out["status"], "presignaturePending");
+    }
+
+    #[test]
+    fn test_order_status_values() {
+        use crate::types::OrderStatus;
+        for (s, v) in [
+            ("\"open\"", OrderStatus::Open),
+            ("\"fulfilled\"", OrderStatus::Fulfilled),
+            ("\"cancelled\"", OrderStatus::Cancelled),
+            ("\"expired\"", OrderStatus::Expired),
+        ] {
+            assert_eq!(serde_json::from_str::<OrderStatus>(s).unwrap(), v);
+        }
     }
 }
