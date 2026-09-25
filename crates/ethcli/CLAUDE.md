@@ -282,19 +282,20 @@ ethcli sld search "reentrancy" --page 2 --limit 50
 | `--firm`, `-f` | Audit firm(s) | `--firm "Cyfrin,Sherlock"` |
 | `--tag`, `-t` | Vulnerability tag(s) | `--tag Reentrancy,Oracle` |
 | `--protocol` | Protocol name (partial) | `--protocol Aave` |
-| `--protocol-category` | Protocol category | `--protocol-category DeFi` |
-| `--language` | Programming language | `--language Solidity` |
+| `--protocol-category` | Protocol category(ies) | `--protocol-category DeFi` |
+| `--forked` | Forked protocol(s) | `--forked Compound` |
+| `--language` | Programming language(s) | `--language Solidity,Vyper` |
 | `--finder` | Auditor handle (partial) | `--finder username` |
 | `--min-finders` | Min number of finders | `--min-finders 1` |
 | `--max-finders` | Max number of finders | `--max-finders 5` |
-| `--reported` | Report period (30/60/90 days) | `--reported 30` |
+| `--reported` | Report period (30/60/90/alltime/after) | `--reported 30` |
 | `--reported-after` | Reports after date (ISO) | `--reported-after 2024-01-01` |
 | `--min-quality` | Min quality score (0-5) | `--min-quality 3` |
 | `--min-rarity` | Min rarity score (0-5) | `--min-rarity 2` |
 | `--sort` | Sort field | `--sort quality` |
 | `--sort-dir` | Sort direction (asc/desc) | `--sort-dir asc` |
-| `--page` | Page number | `--page 2` |
-| `--limit` | Results per page (max 100) | `--limit 50` |
+| `--page` | Page number (>= 1) | `--page 2` |
+| `--limit` | Results per page (1-100) | `--limit 50` |
 | `--format`, `-o` | Output format (table, json, ndjson) | `--format json` |
 
 ### Notes
@@ -303,7 +304,11 @@ ethcli sld search "reentrancy" --page 2 --limit 50
 - **Get API key**: https://solodit.cyfrin.io (Profile > API Keys)
 - **Rate limit**: 20 requests per 60 seconds
 - **Alias**: `ethcli sld` works as an alias for `ethcli solodit`
-- **Impact levels**: HIGH, MEDIUM, LOW, GAS
+- **Impact levels**: HIGH, MEDIUM, LOW, GAS (invalid values are rejected)
+- **Keywords optional**: `ethcli sld search --impact HIGH` works without keywords
+- **`get` is best-effort**: the API has only `POST /findings`; `get` searches by slug text and matches slug/ID exactly
+- **401 errors** show the server message ("Missing API key" vs "Invalid API key"); regenerating a key at solodit.cyfrin.io invalidates the old one
+- **Upstream quirks**: `report_date` may be `{}`; `protocols_protocolcategoryscore` is always `[]` (solodit/solodit_content#153)
 - **Sort options**: recency (default), quality, rarity
 
 ## Simulation Commands

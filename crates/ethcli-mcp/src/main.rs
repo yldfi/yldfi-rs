@@ -660,14 +660,16 @@ impl EthcliMcpServer {
     // SOLODIT (Security Database)
     // =========================================================================
 
-    #[tool(description = "Search security findings in Solodit database")]
+    #[tool(
+        description = "Search security findings in Solodit database (filters: impact, firm, tag, protocol, protocol_category, forked, language, finder, reported, sort)"
+    )]
     async fn solodit_search(&self, Parameters(input): Parameters<SoloditSearchInput>) -> String {
-        tools::solodit_search(&input.query, input.impact.as_deref(), input.limit)
-            .await
-            .to_response()
+        tools::solodit_search(&input).await.to_response()
     }
 
-    #[tool(description = "Get details of a specific Solodit finding")]
+    #[tool(
+        description = "Get a Solodit finding by slug, ID, or URL (best-effort: the API has no get-by-id endpoint, so this searches and matches exactly)"
+    )]
     async fn solodit_get(&self, Parameters(input): Parameters<SoloditGetInput>) -> String {
         tools::solodit_get(&input.slug).await.to_response()
     }

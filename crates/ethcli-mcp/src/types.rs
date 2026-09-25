@@ -649,17 +649,45 @@ pub struct GoplusInput {
 // --- Solodit ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SoloditSearchInput {
-    /// Search query
+    /// Keywords to search in title and content (empty string = no keyword filter)
     pub query: String,
-    /// Filter by impact (critical, high, medium, low)
+    /// Filter by impact: HIGH, MEDIUM, LOW, GAS (comma-separated)
     pub impact: Option<String>,
-    /// Maximum results
+    /// Results per page (1-100, default 20)
     pub limit: Option<u32>,
+    /// Page number (1-indexed)
+    pub page: Option<u32>,
+    /// Filter by audit firm(s), comma-separated (e.g. "Cyfrin,Sherlock")
+    pub firm: Option<String>,
+    /// Filter by tag(s), comma-separated (e.g. "Reentrancy,Oracle")
+    pub tag: Option<String>,
+    /// Filter by protocol name (partial match)
+    pub protocol: Option<String>,
+    /// Filter by protocol category(ies), comma-separated (e.g. "DeFi,Lending")
+    pub protocol_category: Option<String>,
+    /// Filter by forked protocol(s), comma-separated
+    pub forked: Option<String>,
+    /// Filter by language(s), comma-separated (Solidity, Rust, Cairo, Vyper, Move)
+    pub language: Option<String>,
+    /// Filter by finder/auditor handle (partial match)
+    pub finder: Option<String>,
+    /// Report date period: 30, 60, 90, alltime, or after (with reported_after)
+    pub reported: Option<String>,
+    /// Only findings reported after this ISO date (e.g. 2024-01-01)
+    pub reported_after: Option<String>,
+    /// Sort field: recency, quality, rarity
+    pub sort: Option<String>,
+    /// Sort direction: desc or asc
+    pub sort_dir: Option<String>,
+    /// Minimum quality score (0-5)
+    pub min_quality: Option<u32>,
+    /// Minimum rarity score (0-5)
+    pub min_rarity: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SoloditGetInput {
-    /// Finding slug/ID
+    /// Finding slug, ID, or Solodit URL (best-effort lookup via search)
     pub slug: String,
 }
 

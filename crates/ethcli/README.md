@@ -971,10 +971,14 @@ ethcli solodit search "oracle manipulation" --impact HIGH,MEDIUM
 ethcli solodit search "flash loan" --firm "Trail of Bits" --tag Reentrancy
 
 # Filter by various criteria
-ethcli solodit search "access control" --protocol "Aave" --language Solidity
+ethcli solodit search "access control" --protocol "Aave" --language Solidity,Vyper
 ethcli solodit search "price" --min-quality 3 --sort quality
+ethcli solodit search "oracle" --protocol-category DeFi --forked "Compound"
+ethcli solodit search --impact HIGH --reported 30          # keywords are optional
+ethcli solodit search "reentrancy" --reported-after 2024-01-01
 
-# Get a specific finding
+# Get a specific finding (slug, ID, or solodit.cyfrin.io/issues/<slug> URL).
+# Best-effort: the API has no get-by-id endpoint, so this searches and matches exactly.
 ethcli solodit get <finding-slug>
 
 # Check API rate limit
@@ -984,6 +988,10 @@ ethcli solodit rate-limit
 ethcli solodit tags
 ethcli solodit firms
 ```
+
+On a 401 the server message is shown ("Missing API key" vs "Invalid API key").
+If your key is rejected, check it at solodit.cyfrin.io (Profile > API Keys):
+regenerating a key invalidates the previous one.
 
 **Alias**: `ethcli sld`
 
