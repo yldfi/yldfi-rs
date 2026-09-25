@@ -15,57 +15,6 @@ fn is_native_token(addr: &str) -> bool {
     addr.to_lowercase() == NATIVE_TOKEN.to_lowercase()
 }
 
-/// Get decimals for known tokens across chains
-/// Returns Some(decimals) for well-known tokens, None for unknown tokens
-fn get_known_token_decimals(token: &str) -> Option<u8> {
-    let token_lower = token.to_lowercase();
-    match token_lower.as_str() {
-        // Native token placeholder - always 18 decimals
-        "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" => Some(18),
-
-        // USDC on various chains (6 decimals)
-        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" => Some(6), // Ethereum USDC
-        "0x2791bca1f2de4661ed88a30c99a7a9449aa84174" => Some(6), // Polygon USDC.e
-        "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359" => Some(6), // Polygon USDC (native)
-        "0xaf88d065e77c8cc2239327c5edb3a432268e5831" => Some(6), // Arbitrum USDC (native)
-        "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8" => Some(6), // Arbitrum USDC.e
-        "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913" => Some(6), // Base USDC
-        "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca" => Some(6), // Base USDbC
-        "0x0b2c639c533813f4aa9d7837caf62653d097ff85" => Some(6), // Optimism USDC (native)
-        "0x7f5c764cbc14f9669b88837ca1490cca17c31607" => Some(6), // Optimism USDC.e
-        "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e" => Some(6), // Avalanche USDC
-        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d" => Some(18), // BSC USDC (18 decimals on BSC)
-        "0xddafbb505ad214d7b80b1f830fccc89b60fb7a83" => Some(6), // Gnosis USDC
-
-        // USDT on various chains (6 decimals)
-        "0xdac17f958d2ee523a2206206994597c13d831ec7" => Some(6), // Ethereum USDT
-        "0xc2132d05d31c914a87c6611c10748aeb04b58e8f" => Some(6), // Polygon USDT
-        "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9" => Some(6), // Arbitrum USDT
-        "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58" => Some(6), // Optimism USDT
-        "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7" => Some(6), // Avalanche USDT
-        "0x55d398326f99059ff775485246999027b3197955" => Some(18), // BSC USDT (18 decimals on BSC)
-        "0x4ecaba5870353805a9f068101a40e0f32ed605c6" => Some(6), // Gnosis USDT
-
-        // WBTC (8 decimals)
-        "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599" => Some(8), // Ethereum WBTC
-        "0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6" => Some(8), // Polygon WBTC
-        "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f" => Some(8), // Arbitrum WBTC
-        "0x68f180fcce6836688e9084f035309e29bf0a2095" => Some(8), // Optimism WBTC
-        "0x50b7545627a5162f82a992c33b87adc75187b218" => Some(8), // Avalanche WBTC
-        "0x8e5bbbb09ed1ebde8674cda39a0c169401db4252" => Some(8), // Gnosis WBTC
-
-        // DAI (18 decimals)
-        "0x6b175474e89094c44da98b954eedeac495271d0f" => Some(18), // Ethereum DAI
-        "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063" => Some(18), // Polygon DAI
-        "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1" => Some(18), // Arbitrum/Optimism DAI
-        "0xd586e7f844cea2f87f50152665bcbc2c279d8d70" => Some(18), // Avalanche DAI
-        "0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3" => Some(18), // BSC DAI
-        "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d" => Some(18), // Gnosis wxDAI
-
-        _ => None,
-    }
-}
-
 /// Get WETH address for a chain (for protocols that don't support native ETH)
 fn get_weth_address(chain_id: u64) -> Option<&'static str> {
     match chain_id {
@@ -79,8 +28,8 @@ fn get_weth_address(chain_id: u64) -> Option<&'static str> {
 
 /// Fetch quote from OpenOcean
 ///
-/// NOTE: OpenOcean API expects human-readable amounts (e.g., "1" for 1 ETH),
-/// not wei amounts. The amount is converted before sending to the API.
+/// `amount_in` is in smallest units (wei); openoc forwards it as the v4
+/// `amountDecimals` parameter unchanged.
 pub async fn fetch_openocean_quote(
     chain_id: u64,
     token_in: &str,
@@ -117,39 +66,19 @@ pub async fn fetch_openocean_quote(
         }
     };
 
-    // OpenOcean expects human-readable amounts, not wei amounts
-    // Use known token decimals, or default to 18 for unknown tokens
-    let decimals = get_known_token_decimals(token_in).unwrap_or(18);
+    // openoc sends `amountDecimals`, which takes smallest units (wei) directly,
+    // so no decimals lookup/conversion is needed.
+    if amount_in.parse::<u128>().is_err() {
+        return SourceResult::error(
+            "openocean",
+            format!("Invalid amount format '{}'", amount_in),
+            measure.elapsed_ms(),
+        );
+    }
 
-    // Convert wei amount to human-readable (divide by 10^decimals)
-    let human_amount = match amount_in.parse::<u128>() {
-        Ok(wei_amount) => {
-            let divisor = 10u128.pow(decimals as u32);
-            // Format with full precision to avoid losing fractional amounts
-            let whole = wei_amount / divisor;
-            let frac = wei_amount % divisor;
-            if frac > 0 {
-                // Format fractional part with leading zeros
-                format!("{}.{:0>width$}", whole, frac, width = decimals as usize)
-                    .trim_end_matches('0')
-                    .trim_end_matches('.')
-                    .to_string()
-            } else {
-                whole.to_string()
-            }
-        }
-        Err(e) => {
-            return SourceResult::error(
-                "openocean",
-                format!("Invalid amount format '{}': {}", amount_in, e),
-                measure.elapsed_ms(),
-            )
-        }
-    };
-
-    // OpenOcean requires a gas price - use a default value
+    // OpenOcean requires a gas price (`gasPriceDecimals`, in wei) - use a default value
     let request =
-        openoc::QuoteRequest::new(token_in, token_out, &human_amount).with_gas_price("30000000000"); // 30 gwei default
+        openoc::QuoteRequest::new(token_in, token_out, amount_in).with_gas_price("30000000000"); // 30 gwei default
 
     match client.get_quote(chain, &request).await {
         Ok(response) => {

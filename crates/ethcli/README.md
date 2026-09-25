@@ -1119,17 +1119,19 @@ ethcli 1inch approve <token> --chain-id 1 --amount 1000000
 
 ### OpenOcean - DEX Aggregator
 
-Direct access to OpenOcean API. No API key required.
+Direct access to OpenOcean v4 API. No API key required. Quote/swap amounts are
+in smallest units (sent as `amountDecimals`); `--gas-price` is in gwei and is
+converted to wei (`gasPriceDecimals`).
 
 ```bash
 # Get swap quote
 ethcli openocean quote <in_token> <out_token> <amount> --chain ethereum
-ethcli openocean quote 0xEee...EEeE 0xA0b8... 1000000000000000000 --slippage 1
+ethcli openocean quote 0xEee...EEeE 0xA0b8... 1000000000000000000 --slippage 1 --gas-price 30
 
-# Get swap transaction data
+# Get swap transaction data (/v4/{chain}/swap)
 ethcli openocean swap <in_token> <out_token> <amount> <account> --chain ethereum
 
-# Get reverse quote (specify output amount)
+# Get reverse quote (output amount is human-readable, e.g. 1 = 1 token)
 ethcli openocean reverse-quote <in_token> <out_token> <out_amount> --chain ethereum
 
 # Get supported tokens

@@ -183,12 +183,14 @@ pub struct QuoteRequest {
     pub in_token_address: String,
     /// Output token address
     pub out_token_address: String,
-    /// Amount with decimals (e.g., "1000000000000000000" for 1 ETH)
+    /// Amount in the token's smallest units (e.g., "1000000000000000000" for
+    /// 1 ETH, "1000000" for 1 USDC). Sent as the v4 `amountDecimals` parameter.
     pub amount: String,
     /// Slippage in percentage (e.g., 1 for 1%)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slippage: Option<f64>,
-    /// Gas price in Gwei with decimals
+    /// Gas price in wei (i.e. gwei with decimals, e.g. "1000000000" = 1 gwei).
+    /// Sent as the v4 `gasPriceDecimals` parameter.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_price: Option<String>,
     /// Disabled DEX IDs (comma-separated)
@@ -197,7 +199,32 @@ pub struct QuoteRequest {
 }
 
 impl QuoteRequest {
+    /// Build the `/v4/{chain}/quote` query parameters
+    ///
+    /// Uses `amountDecimals`/`gasPriceDecimals`; the human-unit
+    /// `amount`/`gasPrice` parameters are deprecated by `OpenOcean`.
+    #[must_use]
+    pub fn to_query_params(&self) -> Vec<(&'static str, String)> {
+        let mut params = vec![
+            ("inTokenAddress", self.in_token_address.clone()),
+            ("outTokenAddress", self.out_token_address.clone()),
+            ("amountDecimals", self.amount.clone()),
+        ];
+        if let Some(slippage) = self.slippage {
+            params.push(("slippage", slippage.to_string()));
+        }
+        if let Some(ref gas_price) = self.gas_price {
+            params.push(("gasPriceDecimals", gas_price.clone()));
+        }
+        if let Some(ref disabled) = self.disabled_dex_ids {
+            params.push(("disabledDexIds", disabled.clone()));
+        }
+        params
+    }
+
     /// Create a new quote request
+    ///
+    /// `amount` is in the input token's smallest units (wei for ETH).
     pub fn new(
         in_token: impl Into<String>,
         out_token: impl Into<String>,
@@ -240,7 +267,7 @@ impl QuoteRequest {
         Ok(self)
     }
 
-    /// Set gas price in Gwei
+    /// Set gas price in wei (gwei with decimals, e.g. "30000000000" = 30 gwei)
     #[must_use]
     pub fn with_gas_price(mut self, gas_price: impl Into<String>) -> Self {
         self.gas_price = Some(gas_price.into());
@@ -262,14 +289,14 @@ pub struct SwapRequest {
     pub in_token_address: String,
     /// Output token address
     pub out_token_address: String,
-    /// Amount with decimals
+    /// Amount in the token's smallest units (sent as `amountDecimals`)
     pub amount: String,
     /// User's wallet address
     pub account: String,
     /// Slippage in percentage
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slippage: Option<f64>,
-    /// Gas price in Gwei with decimals
+    /// Gas price in wei (gwei with decimals; sent as `gasPriceDecimals`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_price: Option<String>,
     /// Referrer address
@@ -278,7 +305,33 @@ pub struct SwapRequest {
 }
 
 impl SwapRequest {
+    /// Build the `/v4/{chain}/swap` query parameters
+    ///
+    /// Uses `amountDecimals`/`gasPriceDecimals`; the human-unit
+    /// `amount`/`gasPrice` parameters are deprecated by `OpenOcean`.
+    #[must_use]
+    pub fn to_query_params(&self) -> Vec<(&'static str, String)> {
+        let mut params = vec![
+            ("inTokenAddress", self.in_token_address.clone()),
+            ("outTokenAddress", self.out_token_address.clone()),
+            ("amountDecimals", self.amount.clone()),
+            ("account", self.account.clone()),
+        ];
+        if let Some(slippage) = self.slippage {
+            params.push(("slippage", slippage.to_string()));
+        }
+        if let Some(ref gas_price) = self.gas_price {
+            params.push(("gasPriceDecimals", gas_price.clone()));
+        }
+        if let Some(ref referrer) = self.referrer {
+            params.push(("referrer", referrer.clone()));
+        }
+        params
+    }
+
     /// Create a new swap request
+    ///
+    /// `amount` is in the input token's smallest units (wei for ETH).
     pub fn new(
         in_token: impl Into<String>,
         out_token: impl Into<String>,
@@ -323,7 +376,7 @@ impl SwapRequest {
         Ok(self)
     }
 
-    /// Set gas price
+    /// Set gas price in wei (gwei with decimals, e.g. "30000000000" = 30 gwei)
     #[must_use]
     pub fn with_gas_price(mut self, gas_price: impl Into<String>) -> Self {
         self.gas_price = Some(gas_price.into());

@@ -801,7 +801,8 @@ pub struct OpenoceanQuoteInput {
     pub in_token: String,
     /// Output token address
     pub out_token: String,
-    /// Amount
+    /// Amount in smallest units (wei) for quotes; for reverse quotes, the
+    /// human-readable desired output amount (e.g. "1")
     pub amount: String,
     /// Chain name
     #[serde(default = "default_chain")]
@@ -2936,7 +2937,7 @@ pub struct OpenoceanSwapInput {
     pub in_token: String,
     /// Output token address
     pub out_token: String,
-    /// Amount
+    /// Amount in smallest units (wei)
     pub amount: String,
     /// Account address
     pub account: String,

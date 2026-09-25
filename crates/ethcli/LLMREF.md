@@ -276,8 +276,9 @@ ethcli 1inch swap <src> <dst> <amt> <from>
 
 ### OpenOcean
 ```bash
-ethcli openocean quote <in> <out> <amt>
+ethcli openocean quote <in> <out> <amt>            # amt in wei; --gas-price in gwei
 ethcli openocean swap <in> <out> <amt> <account>
+ethcli openocean reverse-quote <in> <out> <amt>    # amt human-readable
 ```
 
 ### KyberSwap
