@@ -1263,7 +1263,7 @@ ethcli lifi connections --from-chain 1 --to-chain 137
 
 ### Velora - ParaSwap DEX Aggregator
 
-Direct access to ParaSwap API. Optional `PARASWAP_API_KEY` or `VELORA_API_KEY` for higher rate limits.
+Direct access to the Velora (formerly ParaSwap) API at `api.velora.xyz`; prices request Augustus v6.2 routes. Optional `PARASWAP_API_KEY` or `VELORA_API_KEY` for higher rate limits.
 
 ```bash
 # Get swap price/route

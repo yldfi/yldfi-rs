@@ -308,7 +308,7 @@ ethcli lifi chains
 
 ### Velora/ParaSwap
 ```bash
-ethcli velora price <src> <dst> <amt>
+ethcli velora price <src> <dst> <amt>   # api.velora.xyz, Augustus v6.2 routes
 ```
 
 ### Enso (requires ENSO_API_KEY)

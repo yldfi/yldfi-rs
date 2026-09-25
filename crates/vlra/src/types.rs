@@ -139,9 +139,18 @@ pub enum Side {
     Buy,
 }
 
+/// Default Augustus router version requested from `/prices`
+///
+/// When `version` is omitted the Velora API falls back to the legacy v5
+/// router, so requests default to Augustus v6.2.
+pub const DEFAULT_PRICE_VERSION: &str = "6.2";
+
 /// Price request parameters for getting swap quotes
 #[derive(Debug, Clone, Default)]
 pub struct PriceRequest {
+    /// Augustus router version (`"6.2"` or legacy `"5"`).
+    /// `None` sends [`DEFAULT_PRICE_VERSION`].
+    pub version: Option<String>,
     /// Address of the source token
     pub src_token: String,
     /// Address of the destination token
@@ -234,6 +243,16 @@ impl PriceRequest {
         self
     }
 
+    /// Set the Augustus router version (e.g. `"6.2"`, or `"5"` for legacy)
+    ///
+    /// Note that the approval spender (`tokenTransferProxy`) and swap
+    /// contract in the returned route depend on this version.
+    #[must_use]
+    pub fn with_version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
     /// Convert to query parameters
     #[must_use]
     pub fn to_query_params(&self, network: u64) -> Vec<(String, String)> {
@@ -249,6 +268,12 @@ impl PriceRequest {
                 },
             ),
             ("network".to_string(), network.to_string()),
+            (
+                "version".to_string(),
+                self.version
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_PRICE_VERSION.to_string()),
+            ),
         ];
 
         if let Some(decimals) = self.src_decimals {
