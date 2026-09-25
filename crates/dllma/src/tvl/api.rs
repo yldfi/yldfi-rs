@@ -164,7 +164,7 @@ impl<'a> TvlApi<'a> {
     /// # }
     /// ```
     pub async fn token_protocols(&self, symbol: &str) -> Result<Vec<TokenProtocol>> {
-        let path = format!("/tokenProtocols/{symbol}");
+        let path = format!("/api/tokenProtocols/{symbol}");
         self.client.get_pro(&path).await
     }
 
@@ -192,7 +192,7 @@ impl<'a> TvlApi<'a> {
     /// # }
     /// ```
     pub async fn inflows(&self, protocol: &str, timestamp: u64) -> Result<ProtocolInflows> {
-        let path = format!("/inflows/{protocol}/{timestamp}");
+        let path = format!("/api/inflows/{protocol}/{timestamp}");
         self.client.get_pro(&path).await
     }
 
@@ -217,6 +217,6 @@ impl<'a> TvlApi<'a> {
     /// # }
     /// ```
     pub async fn chain_assets(&self) -> Result<ChainAssets> {
-        self.client.get_pro("/chainAssets").await
+        self.client.get_pro("/api/chainAssets").await
     }
 }

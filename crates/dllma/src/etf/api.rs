@@ -5,6 +5,14 @@ use crate::error::Result;
 
 use super::types::{EtfFlow, EtfHistoryPoint, EtfOverview, EtfSnapshot, FdvPerformance};
 
+/// Error for ETF endpoints DefiLlama has removed from the Pro API
+fn removed(path: &str, replacement: &str) -> crate::error::Error {
+    crate::error::Error::api(
+        410,
+        format!("DefiLlama removed {path}; use {replacement} instead"),
+    )
+}
+
 /// ETF API client (Pro only)
 pub struct EtfApi<'a> {
     client: &'a Client,
@@ -19,90 +27,46 @@ impl<'a> EtfApi<'a> {
 
     /// Get Bitcoin ETF overview
     ///
-    /// **Requires Pro API key**
-    ///
-    /// Returns current snapshot of all BTC ETFs with AUM, flows, fees, and volume.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # async fn example() -> dllma::error::Result<()> {
-    /// let client = dllma::Client::with_api_key("your-api-key")?;
-    /// let overview = client.etf().overview().await?;
-    /// println!("Total BTC ETF AUM: ${:.0}B", overview.total_aum.unwrap_or(0.0) / 1_000_000_000.0);
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Removed upstream: always returns an error without making a request.
+    #[deprecated(
+        since = "0.1.5",
+        note = "DefiLlama removed /etfs/overview; use `snapshot()` (/etfs/snapshot) and filter by asset"
+    )]
     pub async fn overview(&self) -> Result<EtfOverview> {
-        self.client.get_pro("/etfs/overview").await
+        Err(removed("/etfs/overview", "snapshot() (/etfs/snapshot)"))
     }
 
     /// Get Ethereum ETF overview
     ///
-    /// **Requires Pro API key**
-    ///
-    /// Returns current snapshot of all ETH ETFs with AUM, flows, fees, and volume.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # async fn example() -> dllma::error::Result<()> {
-    /// let client = dllma::Client::with_api_key("your-api-key")?;
-    /// let overview = client.etf().overview_eth().await?;
-    /// println!("Total ETH ETF AUM: ${:.0}B", overview.total_aum.unwrap_or(0.0) / 1_000_000_000.0);
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Removed upstream: always returns an error without making a request.
+    #[deprecated(
+        since = "0.1.5",
+        note = "DefiLlama removed /etfs/overviewEth; use `snapshot()` (/etfs/snapshot) and filter by asset"
+    )]
     pub async fn overview_eth(&self) -> Result<EtfOverview> {
-        self.client.get_pro("/etfs/overviewEth").await
+        Err(removed("/etfs/overviewEth", "snapshot() (/etfs/snapshot)"))
     }
 
     /// Get Bitcoin ETF historical data
     ///
-    /// **Requires Pro API key**
-    ///
-    /// Returns daily historical data for all BTC ETFs.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # async fn example() -> dllma::error::Result<()> {
-    /// let client = dllma::Client::with_api_key("your-api-key")?;
-    /// let history = client.etf().history().await?;
-    /// for point in history.iter().take(5) {
-    ///     println!("{}: ${:.0}B AUM",
-    ///         point.date.as_deref().unwrap_or("?"),
-    ///         point.total_aum.unwrap_or(0.0) / 1_000_000_000.0);
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Removed upstream: always returns an error without making a request.
+    #[deprecated(
+        since = "0.1.5",
+        note = "DefiLlama removed /etfs/history; use `flows()` (/etfs/flows) for daily per-asset flows"
+    )]
     pub async fn history(&self) -> Result<Vec<EtfHistoryPoint>> {
-        self.client.get_pro("/etfs/history").await
+        Err(removed("/etfs/history", "flows() (/etfs/flows)"))
     }
 
     /// Get Ethereum ETF historical data
     ///
-    /// **Requires Pro API key**
-    ///
-    /// Returns daily historical data for all ETH ETFs.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # async fn example() -> dllma::error::Result<()> {
-    /// let client = dllma::Client::with_api_key("your-api-key")?;
-    /// let history = client.etf().history_eth().await?;
-    /// for point in history.iter().take(5) {
-    ///     println!("{}: ${:.0}B AUM",
-    ///         point.date.as_deref().unwrap_or("?"),
-    ///         point.total_aum.unwrap_or(0.0) / 1_000_000_000.0);
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Removed upstream: always returns an error without making a request.
+    #[deprecated(
+        since = "0.1.5",
+        note = "DefiLlama removed /etfs/historyEth; use `flows()` (/etfs/flows) for daily per-asset flows"
+    )]
     pub async fn history_eth(&self) -> Result<Vec<EtfHistoryPoint>> {
-        self.client.get_pro("/etfs/historyEth").await
+        Err(removed("/etfs/historyEth", "flows() (/etfs/flows)"))
     }
 
     /// Get FDV performance metrics by category

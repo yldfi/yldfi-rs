@@ -179,7 +179,7 @@ impl<'a> VolumesApi<'a> {
     /// # }
     /// ```
     pub async fn derivatives_overview(&self) -> Result<VolumeOverview> {
-        self.client.get_pro("/overview/derivatives").await
+        self.client.get_pro("/api/overview/derivatives").await
     }
 
     /// Get volume summary for a specific derivatives protocol
@@ -200,7 +200,7 @@ impl<'a> VolumesApi<'a> {
     /// # }
     /// ```
     pub async fn derivatives_protocol(&self, protocol: &str) -> Result<ProtocolVolumeSummary> {
-        let path = format!("/summary/derivatives/{protocol}");
+        let path = format!("/api/summary/derivatives/{protocol}");
         self.client.get_pro(&path).await
     }
 

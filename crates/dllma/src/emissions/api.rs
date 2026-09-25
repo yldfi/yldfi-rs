@@ -21,7 +21,7 @@ impl<'a> EmissionsApi<'a> {
     ///
     /// **Requires Pro API key**
     pub async fn list(&self) -> Result<Vec<EmissionsSummary>> {
-        self.client.get_pro("/emissions").await
+        self.client.get_pro("/api/emissions").await
     }
 
     /// Get detailed vesting schedule for a protocol
@@ -32,7 +32,7 @@ impl<'a> EmissionsApi<'a> {
     ///
     /// * `protocol` - Protocol slug
     pub async fn get(&self, protocol: &str) -> Result<EmissionDetail> {
-        let path = format!("/emission/{protocol}");
+        let path = format!("/api/emission/{protocol}");
         self.client.get_pro(&path).await
     }
 }
