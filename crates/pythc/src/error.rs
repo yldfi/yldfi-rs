@@ -30,6 +30,28 @@ pub enum DomainError {
     /// Invalid URL configuration
     #[error("Invalid URL: {0}")]
     InvalidUrl(String),
+
+    /// Hermes rejected the request (HTTP 401/403).
+    ///
+    /// Since the Pyth Core upgrade (2026-08-26) all Hermes endpoints require
+    /// an API key sent as `Authorization: Bearer <key>`.
+    #[error("Pyth Hermes returned HTTP {status}: {}", unauthorized_hint(.api_key_set))]
+    Unauthorized {
+        /// HTTP status code (401 or 403)
+        status: u16,
+        /// Whether an API key was sent with the request
+        api_key_set: bool,
+    },
+}
+
+fn unauthorized_hint(api_key_set: &bool) -> &'static str {
+    if *api_key_set {
+        "the configured Pyth API key was rejected. Check that the key (PYTH_API_KEY or config) \
+         is valid; manage keys at https://pythdata.app"
+    } else {
+        "an API key is required since the Pyth Core upgrade. Get one at https://pythdata.app \
+         and set PYTH_API_KEY or use Client::with_api_key()"
+    }
 }
 
 /// Error type for Pyth API operations
@@ -65,6 +87,21 @@ pub fn invalid_url(msg: impl Into<String>) -> Error {
     ApiError::domain(DomainError::InvalidUrl(msg.into()))
 }
 
+/// Create an unauthorized error (missing or rejected API key)
+#[must_use]
+pub fn unauthorized(status: u16, api_key_set: bool) -> Error {
+    ApiError::domain(DomainError::Unauthorized {
+        status,
+        api_key_set,
+    })
+}
+
+/// Returns true if the error indicates a missing or rejected API key.
+#[must_use]
+pub fn is_unauthorized(err: &Error) -> bool {
+    matches!(err, ApiError::Domain(DomainError::Unauthorized { .. }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,6 +118,20 @@ mod tests {
         let err = invalid_feed_id("bad-id");
         assert!(err.to_string().contains("Invalid feed ID"));
         assert!(err.to_string().contains("bad-id"));
+    }
+
+    #[test]
+    fn test_unauthorized_messages() {
+        let missing = unauthorized(401, false).to_string();
+        assert!(missing.contains("401"));
+        assert!(missing.contains("API key is required"));
+        assert!(missing.contains("PYTH_API_KEY"));
+
+        let rejected = unauthorized(403, true);
+        assert!(rejected.to_string().contains("rejected"));
+        assert!(is_unauthorized(&rejected));
+        assert!(!rejected.is_retryable());
+        assert!(!is_unauthorized(&stale_price()));
     }
 
     #[test]

@@ -931,7 +931,9 @@ ethcli enso balances <address> --chain-id 1
 
 ### Pyth Network Commands
 
-Direct access to Pyth Network Hermes API. No API key required.
+Direct access to the Pyth Network Hermes API (`https://pyth.dourolabs.app/hermes`).
+**API key required** since the Pyth Core upgrade (2026-08-26): set `PYTH_API_KEY` or run
+`ethcli config set-pyth <key>` (config takes precedence). Keys: https://pythdata.app
 
 ```bash
 # Get latest prices
@@ -949,6 +951,8 @@ ethcli pyth known-feeds
 
 **Notes**:
 - Supports common symbols: BTC, ETH, SOL, USDC, USDT, DAI, AVAX, ARB, OP, LINK, UNI, AAVE, CRV, CVX, etc.
+- Without a key, `pyth price` errors with setup instructions and the `price` aggregator reports Pyth as `PYTH_API_KEY not configured`
+- `pyth search`/`feeds` send the key when available
 
 ## Uniswap Commands
 
@@ -1111,7 +1115,7 @@ src/
 - **evm-disassembler**: EVM opcode disassembly
 - **foundry-block-explorers**: Etherscan API client
 - **chainlink-data-streams-sdk**: Chainlink Data Streams API (optional, requires API key)
-- **pyth**: Pyth Network Hermes API client (no API key needed)
+- **pyth** (`pythc`): Pyth Network Hermes API client (API key required, `Authorization: Bearer`)
 - **tndrly**: Tenderly API client
 - **alcmy**: Alchemy API client
 - **gecko**: CoinGecko API client
@@ -1207,6 +1211,7 @@ ethcli chainlink oracles --chain arbitrum
 | `GOPLUS_APP_KEY` | Optional | GoPlus batch queries (>1 token) |
 | `GOPLUS_APP_SECRET` | Optional | GoPlus batch queries (>1 token) |
 | `SOLODIT_API_KEY` | `ethcli solodit` | Solodit vulnerability database |
+| `PYTH_API_KEY` | `ethcli pyth price`, Pyth price source | Pyth Hermes (required since the Pyth Core upgrade) |
 | `ONEINCH_API_KEY` / `1INCH_API_KEY` | `ethcli 1inch` | 1inch DEX Aggregator (required) |
 | `ZEROX_API_KEY` / `0X_API_KEY` | Optional | 0x Protocol (higher rate limits) |
 | `LIFI_INTEGRATOR` | Optional | LI.FI analytics tracking |
