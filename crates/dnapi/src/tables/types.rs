@@ -74,6 +74,12 @@ pub struct Table {
     pub updated_at: Option<String>,
     /// Purge timestamp
     pub purged_at: Option<String>,
+    /// Dataset type (returned by `GET /v1/datasets/{slug}`)
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub table_type: Option<String>,
+    /// Dataset metadata (returned by `GET /v1/datasets/{slug}`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 /// Request to create a table

@@ -192,7 +192,7 @@ ethcli goplus token 0x... --chain-id 1 -o ndjson
 ### Notes
 
 - **Free API**: No API key required for basic usage
-- **Authenticated mode**: Set `GOPLUS_APP_KEY` and `GOPLUS_APP_SECRET` for batch queries and higher rate limits
+- **Authenticated mode**: Set `GOPLUS_APP_KEY` and `GOPLUS_APP_SECRET` for batch queries and higher rate limits (without them `token-batch` queries each address individually and warns about addresses with no data)
 - **Alias**: `ethcli gp` works as an alias for `ethcli goplus`
 - **Chain IDs**: 1=Ethereum, 56=BSC, 137=Polygon, 42161=Arbitrum, 8453=Base, etc.
 
@@ -382,7 +382,8 @@ ethcli tenderly wallets get <address> --network 1 --project <slug> --account <sl
 ethcli tenderly contracts list --project <slug> --account <slug>
 ethcli tenderly contracts get <address> --network 1 --project <slug> --account <slug>
 ethcli tenderly contracts add <address> --network 1 --project <slug> --account <slug>
-ethcli tenderly contracts verify <address> --network 1 --name <name> --source <file> --compiler <ver> --project <slug> --account <slug>
+ethcli tenderly contracts rename <address> --network 1 --name <name> --project <slug> --account <slug>
+ethcli tenderly contracts encode-state --network 1 '{"0xToken": {"value": {"balances[0xHolder]": "1000"}}}' --project <slug> --account <slug>
 
 # Alerts
 ethcli tenderly alerts list --project <slug> --account <slug>
@@ -394,8 +395,9 @@ ethcli tenderly alerts webhooks create --name "Hook" --url https://... --project
 # Web3 Actions
 ethcli tenderly actions list --project <slug> --account <slug>
 ethcli tenderly actions get <action-id> --project <slug> --account <slug>
-ethcli tenderly actions invoke <action-id> --project <slug> --account <slug>
-ethcli tenderly actions logs <action-id> --project <slug> --account <slug>
+ethcli tenderly actions stop <action-id> --project <slug> --account <slug>
+ethcli tenderly actions resume <action-id> --project <slug> --account <slug>
+ethcli tenderly actions get-call <action-id> <execution-id> --project <slug> --account <slug>
 
 # Networks
 ethcli tenderly networks list
@@ -406,7 +408,7 @@ ethcli tenderly channels list --project <slug> --account <slug>
 ethcli tenderly channels account --project <slug> --account <slug>
 ethcli tenderly channels project --project <slug> --account <slug>
 
-# Simulation (alias to ethcli simulate)
+# Simulation (alias to ethcli simulate --via tenderly; always uses Tenderly)
 ethcli tenderly simulate call <contract> --sig "balanceOf(address)" <args>
 ```
 
@@ -513,7 +515,9 @@ ethcli chainlink oracles
 ethcli chainlink oracles --chain ethereum
 ethcli chainlink oracles --chain arbitrum
 
-# Data Streams (requires API credentials)
+# Data Streams (requires API credentials). Defaults to mainnet
+# (api.dataengine.chain.link / ws.dataengine.chain.link); override with
+# CHAINLINK_REST_URL / CHAINLINK_WS_URL or [chainlink] rest_url / ws_url for testnet.
 ethcli chainlink streams feeds
 ethcli chainlink streams latest <feed_id>
 ethcli chainlink streams report <feed_id> <timestamp>
@@ -591,8 +595,22 @@ ethcli alchemy transfers 0x... --category erc20
 
 # Debug traces
 ethcli alchemy trace-tx 0x...
+
+# Notify (dashboard: Webhooks) - needs the Webhooks auth token
+ethcli alchemy notify list-webhooks            # alias: ethcli alchemy webhooks ...
+# Gas Manager (dashboard: Gas Sponsorship) - needs an access key
+ethcli alchemy gas-manager list-policies       # alias: ethcli alchemy gas-sponsorship ...
 ```
 
+`alchemy notify` and `alchemy gas-manager` do not accept the app API key:
+
+- **Notify / Webhooks**: copy the Auth Token from the AUTH TOKEN button at the top
+  right of the dashboard Webhooks page (sidebar Data -> Webhooks,
+  https://dashboard.alchemy.com/webhooks). Set it with
+  `ethcli config set-alchemy-notify-token --stdin` or `ALCHEMY_NOTIFY_TOKEN`.
+- **Gas Manager / Gas Sponsorship**: create an Access Key under dashboard ->
+  Security with Gas Manager permissions (billing/team admins only). Set it with
+  `ethcli config set-alchemy-access-key --stdin` or `ALCHEMY_ACCESS_KEY`.
 Alchemy retired several NFT API endpoints on 2026-09-30, and the matching
 `ethcli alchemy nft` subcommands were removed:
 
@@ -1226,6 +1244,8 @@ ethcli chainlink oracles --chain arbitrum
 | `ETHERSCAN_API_KEY` | Optional | Increases Etherscan rate limit |
 | `TENDERLY_ACCESS_KEY` | `ethcli tenderly` | Tenderly API access |
 | `ALCHEMY_API_KEY` | `ethcli alchemy`, `--via alcmy` | Alchemy API access |
+| `ALCHEMY_NOTIFY_TOKEN` | `alchemy notify` (`webhooks`) | Webhooks auth token (dashboard Data -> Webhooks, AUTH TOKEN button); or `ethcli config set-alchemy-notify-token --stdin` |
+| `ALCHEMY_ACCESS_KEY` | `alchemy gas-manager` (`gas-sponsorship`) | Access key with Gas Manager permissions (dashboard -> Security); or `ethcli config set-alchemy-access-key --stdin` |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (increases rate limit) |
 | `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |

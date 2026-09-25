@@ -271,28 +271,6 @@ pub async fn simulate_via_tenderly(
     Ok(())
 }
 
-/// Trace existing tx via Tenderly
-pub async fn trace_tx_via_tenderly(
-    hash: &str,
-    tenderly_args: &TenderlyArgs,
-    quiet: bool,
-) -> anyhow::Result<()> {
-    if !quiet {
-        eprintln!("Fetching trace from Tenderly API...");
-    }
-
-    let client = create_tenderly_client(tenderly_args)?;
-    let result = client
-        .simulation()
-        .trace(hash)
-        .await
-        .map_err(|e| anyhow::anyhow!("Tenderly API error: {}", e))?;
-
-    println!("{}", serde_json::to_string_pretty(&result)?);
-
-    Ok(())
-}
-
 /// Simulate a bundle of transactions via Tenderly API
 #[allow(clippy::too_many_arguments)]
 pub async fn simulate_bundle_tenderly(
@@ -449,7 +427,8 @@ pub async fn list_simulations_tenderly(
         eprintln!("Listing Tenderly simulations...");
     }
     let client = create_tenderly_client(tenderly_args)?;
-    let result = client.simulation().list(limit, page).await?;
+    // tndrly's signature is list(page, per_page)
+    let result = client.simulation().list(page, limit).await?;
     println!("{}", serde_json::to_string_pretty(&result)?);
     Ok(())
 }

@@ -30,8 +30,9 @@ use crate::types::{
 /// Subgraph IDs for Uniswap on various chains
 pub mod subgraph_ids {
     // === V2 Subgraphs ===
-    /// Ethereum Mainnet V2
-    pub const MAINNET_V2: &str = "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu";
+    /// Ethereum Mainnet V2 (as listed in Uniswap's docs,
+    /// `content/ecosystem/subgraphs/overview.mdx`)
+    pub const MAINNET_V2: &str = "A3Np3RQbaBA6oKJgiwDJeo5T3zrYfGHPWFYayMwtNDum";
 
     // === V3 Subgraphs ===
     /// Ethereum Mainnet V3
@@ -47,15 +48,21 @@ pub mod subgraph_ids {
     /// BSC V3
     pub const BSC_V3: &str = "F85MNzUGYqgSHSHRGgeVMNsdnW1KtZSVgFULumXRZTw2";
 
-    // === V4 Subgraphs (Official Uniswap deployments) ===
-    /// Ethereum Mainnet V4
+    // === V4 Subgraphs ===
+    //
+    // Uniswap's docs list only the mainnet V4 subgraph. The non-mainnet IDs
+    // below are published on The Graph Network by the same publisher account
+    // (0x29ff57f9730fe51cf107fa3e6348250596100662) as the docs-listed mainnet
+    // deployment, and were checked to index the matching network.
+
+    /// Ethereum Mainnet V4 (`uniswap-v4-ethereum`, listed in Uniswap's docs)
     pub const MAINNET_V4: &str = "DiYPVdygkfjDWhbxGSqAQxwBKmfKnkWQojqeM2rkLb3G";
-    /// Arbitrum V4 (placeholder - check docs.uniswap.org for official ID)
-    pub const ARBITRUM_V4: &str = "DiYPVdygkfjDWhbxGSqAQxwBKmfKnkWQojqeM2rkLb3G";
-    /// Base V4 (placeholder - check docs.uniswap.org for official ID)
-    pub const BASE_V4: &str = "DiYPVdygkfjDWhbxGSqAQxwBKmfKnkWQojqeM2rkLb3G";
-    /// Polygon V4 (placeholder - check docs.uniswap.org for official ID)
-    pub const POLYGON_V4: &str = "DiYPVdygkfjDWhbxGSqAQxwBKmfKnkWQojqeM2rkLb3G";
+    /// Arbitrum One V4 (`uniswap-v4-arbitrum`)
+    pub const ARBITRUM_V4: &str = "G5TsTKNi8yhPSV7kycaE23oWbqv9zzNqR49FoEQjzq1r";
+    /// Base V4 (`uniswap-v4-base`)
+    pub const BASE_V4: &str = "HNCFA9TyBqpo5qpe6QreQABAA1kV8g46mhkCcicu6v2R";
+    /// Polygon PoS V4 (`uniswap-v4-polygon`)
+    pub const POLYGON_V4: &str = "CwpebM66AH5uqS5sreKij8yEkkPcHvmyEs7EwFtdM5ND";
 }
 
 /// The Graph gateway base URL
@@ -156,6 +163,16 @@ impl SubgraphConfig {
         Self {
             api_key: api_key.into(),
             subgraph_id: subgraph_ids::BASE_V4.to_string(),
+            version: UniswapVersion::V4,
+            http: HttpClientConfig::default(),
+        }
+    }
+
+    /// Create config for Polygon V4
+    pub fn polygon_v4(api_key: impl Into<String>) -> Self {
+        Self {
+            api_key: api_key.into(),
+            subgraph_id: subgraph_ids::POLYGON_V4.to_string(),
             version: UniswapVersion::V4,
             http: HttpClientConfig::default(),
         }
@@ -798,6 +815,25 @@ mod tests {
         let q = swaps_query(UniswapVersion::V2, "0xB4e1", 3);
         assert!(q.contains(r#"pair: "0xb4e1""#));
         assert!(q.contains("amount0In") && !q.contains("recipient"));
+    }
+
+    #[test]
+    fn test_v4_chain_ids_are_distinct() {
+        // Non-mainnet V4 configs must not silently fall back to Ethereum data.
+        let ids = [
+            subgraph_ids::MAINNET_V4,
+            subgraph_ids::ARBITRUM_V4,
+            subgraph_ids::BASE_V4,
+            subgraph_ids::POLYGON_V4,
+        ];
+        for (i, a) in ids.iter().enumerate() {
+            for b in &ids[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+        let polygon = SubgraphConfig::polygon_v4("k");
+        assert_eq!(polygon.subgraph_id, subgraph_ids::POLYGON_V4);
+        assert_eq!(polygon.version, UniswapVersion::V4);
     }
 
     #[test]

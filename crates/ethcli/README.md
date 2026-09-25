@@ -418,6 +418,21 @@ ethcli tenderly contracts list --project <slug> --account <slug>
 ethcli tenderly alerts list --project <slug> --account <slug>
 ```
 
+Tenderly has renamed Virtual TestNets to **Virtual Environments** (documented
+under `/api/public/v1/account/{account}/project/{project}/environments`); the
+legacy `/vnets` routes used by `ethcli tenderly vnets` are still live.
+
+The following commands were removed because Tenderly's public API has no
+matching endpoint: `tenderly contracts verify|update`,
+`tenderly alerts add-destination|remove-destination`,
+`tenderly alerts webhooks test`,
+`tenderly actions enable|disable|invoke|logs|source|update-source` (use
+`actions stop|resume|get-call`), and `simulate tx --via tenderly` (no
+trace-by-hash API; use `--via debug|trace|alchemy|cast`).
+`tenderly contracts encode-state` now calls `POST /contracts/encode-states`
+and takes named-variable overrides, e.g.
+`'{"0xToken": {"value": {"balances[0xHolder]": "1000"}}}'`.
+
 ### Endpoints - Manage RPC Endpoints
 
 ```bash
@@ -625,8 +640,22 @@ ethcli alchemy transfers 0x... --category erc20
 
 # Debug traces
 ethcli alchemy trace-tx 0x...
+
+# Notify (dashboard: Webhooks) - needs the Webhooks auth token
+ethcli alchemy notify list-webhooks            # alias: ethcli alchemy webhooks ...
+# Gas Manager (dashboard: Gas Sponsorship) - needs an access key
+ethcli alchemy gas-manager list-policies       # alias: ethcli alchemy gas-sponsorship ...
 ```
 
+`alchemy notify` and `alchemy gas-manager` do not accept the app API key:
+
+- **Notify / Webhooks**: copy the Auth Token from the AUTH TOKEN button at the top
+  right of the dashboard Webhooks page (sidebar Data -> Webhooks,
+  https://dashboard.alchemy.com/webhooks). Set it with
+  `ethcli config set-alchemy-notify-token --stdin` or `ALCHEMY_NOTIFY_TOKEN`.
+- **Gas Manager / Gas Sponsorship**: create an Access Key under dashboard ->
+  Security with Gas Manager permissions (billing/team admins only). Set it with
+  `ethcli config set-alchemy-access-key --stdin` or `ALCHEMY_ACCESS_KEY`.
 Alchemy retired several NFT API endpoints on 2026-09-30, and the matching
 `ethcli alchemy nft` subcommands were removed:
 
@@ -700,14 +729,24 @@ ethcli llama stablecoin-history tether
 
 Requires `MORALIS_API_KEY` environment variable.
 
-Moralis is removing Fantom support on 2026-05-29 and selected legacy Data API
-endpoints on 2026-06-04. `ethcli moralis` blocks Fantom chain aliases and the
-legacy Discovery, Volume, Market Data, pair sniper, and selected ERC20 helper
-commands affected by that changelog. Moralis is also sunsetting
-`GET /erc20/{address}/holders/historical` on 2026-07-31, so
-`ethcli moralis token holders-historical` is blocked as well; there is no
-documented replacement, and `token holders` and `token holders-summary` remain
-supported.
+Moralis removed Fantom support on 2026-05-29; `ethcli moralis` blocks Fantom
+chain aliases. Moralis deleted its Discovery, Volume and Market Data APIs and
+several ERC20 helper endpoints on 2026-06-04, and
+`GET /erc20/{address}/holders/historical` on 2026-07-31. The corresponding
+commands have been removed:
+
+| Removed command | Replacement |
+|-----------------|-------------|
+| `moralis market *`, `moralis volume *` | `moralis token trending`, `moralis analytics batch\|timeseries` (Token Analytics) |
+| `moralis discovery rising-liquidity\|buying-pressure\|solid-performers\|experienced-buyers\|risky-bets\|blue-chip\|top-gainers\|top-losers\|trending\|filter\|token` | `moralis token search` (Token Search, `/tokens/search`), `moralis token trending` |
+| `moralis token stats`, `moralis token pairs-stats` | `moralis discovery token-analytics` (`/tokens/{address}/analytics`), `moralis token pair-stats` |
+| `moralis token by-symbols` | `moralis token search <symbol>` |
+| `moralis token holders-historical` | `moralis token holders-summary`, `moralis token holders` (no historical replacement) |
+| `moralis token exchange-new-tokens\|exchange-bonding-tokens\|exchange-graduated-tokens\|bonding-status\|pair-snipers` | none documented |
+
+`moralis discovery token-analytics` and `moralis discovery token-score` remain
+(token scores are EVM-only). `moralis defi pair-price|pair-reserves|pair-address`
+still work but call endpoints Moralis has dropped from its OpenAPI spec.
 
 ```bash
 # Wallet data
@@ -836,6 +875,9 @@ ethcli chainlink oracles
 ethcli chainlink oracles --chain arbitrum
 
 # Data Streams (requires CHAINLINK_API_KEY and CHAINLINK_USER_SECRET)
+# Defaults to mainnet (https://api.dataengine.chain.link / wss://ws.dataengine.chain.link).
+# For testnet, set CHAINLINK_REST_URL / CHAINLINK_WS_URL or
+# `ethcli config set-chainlink --rest-url ... --ws-url ...`.
 ethcli chainlink streams feeds
 ethcli chainlink streams latest <feed_id>
 ethcli chainlink streams report <feed_id> <timestamp>
@@ -1056,6 +1098,14 @@ ethcli --chain base gas oracle
 # ethereum, polygon, arbitrum, optimism, base, bsc, avalanche
 ```
 
+**Etherscan API coverage:** Etherscan has ended API support for Scroll (534352,
+2026-04-16), Moonbeam (1284) and Moonriver (1285) (2026-07-31), and Swell
+(1923, 2026-02-25) — see the [Etherscan changelog](https://docs.etherscan.io/changelog).
+On those chains, Etherscan-backed commands (`contract abi/source/creation/call`,
+`account` history, `gas`) fail fast with an explanatory error; RPC-based
+commands keep working. If your Etherscan plan does not cover a chain or
+endpoint, the error is reported as an "Etherscan plan restriction".
+
 ## Configuration
 
 Config file: `~/.config/ethcli/config.toml`
@@ -1085,6 +1135,8 @@ ethcli config set-etherscan-key YOUR_KEY
 | `ETHCLI_NO_PROXY` | Optional | Set to `1`/`true` to disable HTTP proxy auto-detection |
 | `TENDERLY_ACCESS_KEY` | `ethcli tenderly` | Tenderly API access |
 | `ALCHEMY_API_KEY` | `ethcli alchemy`, aggregation | Alchemy API access |
+| `ALCHEMY_NOTIFY_TOKEN` | `ethcli alchemy notify` | Webhooks auth token (dashboard Data -> Webhooks, AUTH TOKEN button) |
+| `ALCHEMY_ACCESS_KEY` | `ethcli alchemy gas-manager` | Access key with Gas Manager (Gas Sponsorship) permissions (dashboard -> Security) |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (higher rate limits) |
 | `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |

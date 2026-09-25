@@ -169,6 +169,9 @@ pub enum AbiError {
     #[error("Failed to fetch ABI from Etherscan: {0}")]
     EtherscanFetch(String),
 
+    #[error("Etherscan API does not support {0}")]
+    EtherscanUnsupportedChain(String),
+
     #[error("Contract not verified on Etherscan: {0}")]
     ContractNotVerified(String),
 

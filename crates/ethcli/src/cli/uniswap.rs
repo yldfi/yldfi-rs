@@ -206,8 +206,9 @@ pub struct AddressesArgs {
     pub version: Option<Version>,
 }
 
-/// Default RPC URL for Ethereum mainnet
-const DEFAULT_RPC_URL: &str = "https://eth.llamarpc.com";
+/// Fallback public RPC URL for Ethereum mainnet, used only when neither
+/// `--rpc-url`/`ETH_RPC_URL` nor a configured Ethereum endpoint is available.
+const FALLBACK_RPC_URL: &str = "https://ethereum-rpc.publicnode.com";
 
 /// Resolve TheGraph API key from args, config, or env
 fn resolve_api_key(arg_key: &Option<String>) -> anyhow::Result<String> {
@@ -267,7 +268,7 @@ fn resolve_lens_target(
         Some(u) => u.to_string(),
         None => match crate::rpc::selector::get_rpc_url(chain) {
             Ok(u) => u,
-            Err(_) if chain_id == 1 => DEFAULT_RPC_URL.to_string(),
+            Err(_) if chain_id == 1 => FALLBACK_RPC_URL.to_string(),
             Err(e) => anyhow::bail!(
                 "No RPC endpoint configured for {chain}: {e}. Pass --rpc-url or add one with `ethcli endpoints add`"
             ),
@@ -610,10 +611,7 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                     "ethereum" | "mainnet" | "eth" => Some(SubgraphConfig::mainnet_v4(&api_key)),
                     "arbitrum" | "arb" => Some(SubgraphConfig::arbitrum_v4(&api_key)),
                     "base" => Some(SubgraphConfig::base_v4(&api_key)),
-                    "polygon" | "matic" => Some(
-                        SubgraphConfig::mainnet_v4(&api_key)
-                            .with_subgraph_id(subgraph_ids::POLYGON_V4),
-                    ),
+                    "polygon" | "matic" => Some(SubgraphConfig::polygon_v4(&api_key)),
                     _ => None,
                 };
 
@@ -888,4 +886,17 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn explicit_rpc_url_wins() {
+        let (url, _, chain) =
+            resolve_lens_target(Some("https://example.invalid"), "ethereum").unwrap();
+        assert_eq!(url, "https://example.invalid");
+        assert_eq!(chain.chain_id(), 1);
+    }
 }

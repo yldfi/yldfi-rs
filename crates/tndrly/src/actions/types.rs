@@ -398,35 +398,6 @@ where
     Ok(opt.unwrap_or_default())
 }
 
-/// Action execution log entry
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActionLog {
-    /// Log ID
-    pub id: String,
-
-    /// Action ID
-    pub action_id: String,
-
-    /// Execution status
-    pub status: ActionLogStatus,
-
-    /// Execution timestamp
-    #[serde(default)]
-    pub executed_at: Option<String>,
-
-    /// Duration in milliseconds
-    #[serde(default)]
-    pub duration_ms: Option<u64>,
-
-    /// Error message (if failed)
-    #[serde(default)]
-    pub error: Option<String>,
-
-    /// Console output
-    #[serde(default)]
-    pub output: Option<String>,
-}
-
 /// Action execution status
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -477,52 +448,6 @@ impl std::str::FromStr for ActionLogStatus {
             _ => Err(format!("Invalid action log status: {s}")),
         }
     }
-}
-
-/// Response when listing action logs
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListActionLogsResponse {
-    /// List of execution logs
-    #[serde(default)]
-    pub logs: Vec<ActionLog>,
-}
-
-/// Request to invoke an action manually
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct InvokeActionRequest {
-    /// Custom payload to pass to the action
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload: Option<serde_json::Value>,
-}
-
-impl InvokeActionRequest {
-    /// Create an empty invoke request
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Create with a payload
-    #[must_use]
-    pub fn with_payload(payload: serde_json::Value) -> Self {
-        Self {
-            payload: Some(payload),
-        }
-    }
-}
-
-/// Response from invoking an action
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InvokeActionResponse {
-    /// Execution ID
-    pub execution_id: String,
-
-    /// Status
-    pub status: ActionLogStatus,
-
-    /// Result (if synchronous)
-    #[serde(default)]
-    pub result: Option<serde_json::Value>,
 }
 
 /// Request to stop or resume multiple actions

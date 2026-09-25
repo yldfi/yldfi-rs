@@ -3,6 +3,12 @@
 //! Create and manage Virtual `TestNets` - isolated blockchain environments
 //! that fork from mainnet or other networks for development and testing.
 //!
+//! **Note:** Tenderly has renamed Virtual `TestNets` to *Virtual Environments*,
+//! now documented under
+//! `/api/public/v1/account/{account}/project/{project}/environments`. The
+//! legacy `/vnets` routes used by this module are still live, so this module
+//! keeps using them.
+//!
 //! # Features
 //!
 //! - Create `VNets` forked from any EVM network at any block
