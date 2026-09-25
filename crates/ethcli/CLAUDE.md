@@ -574,8 +574,11 @@ Direct access to Alchemy API. Requires `ALCHEMY_API_KEY` environment variable.
 
 ```bash
 # NFT queries
-ethcli alchemy nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
-ethcli alchemy nft-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+ethcli alchemy nft get-nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli alchemy nft metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+ethcli alchemy nft contracts-for-owner 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli alchemy nft contract-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d
+ethcli alchemy nft is-holder 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d
 
 # Token data
 ethcli alchemy balances 0x...
@@ -587,6 +590,20 @@ ethcli alchemy transfers 0x... --category erc20
 # Debug traces
 ethcli alchemy trace-tx 0x...
 ```
+
+Alchemy retired several NFT API endpoints on 2026-09-30, and the matching
+`ethcli alchemy nft` subcommands were removed:
+
+| Removed | Use instead |
+|---------|-------------|
+| `collections-for-owner` | `contracts-for-owner` |
+| `collection-metadata`, `search-contract-metadata` | `contract-metadata` (OpenSea data is in `openSeaMetadata`) |
+| `spam-contracts` | `is-spam <contract>` |
+| `summarize-attributes`, `compute-rarity` | no direct replacement; aggregate `nfts-for-contract` output |
+| `invalidate-contract` | no replacement; `refresh-metadata` still refreshes single tokens |
+| `is-airdrop`, `sales` | no replacement |
+
+`is-holder` is kept and now uses `getNFTsForOwner` filtered to the contract.
 
 ## Gecko (CoinGecko) Commands
 

@@ -3,7 +3,7 @@
 //! This crate provides a comprehensive type-safe interface to Alchemy's blockchain APIs:
 //!
 //! ## Core APIs
-//! - **NFT API**: NFT ownership, metadata, sales, and spam detection
+//! - **NFT API**: NFT ownership, metadata, floor prices, and spam detection
 //! - **Prices API**: Token prices by symbol/address and historical data
 //! - **Portfolio API**: Multi-chain wallet balances and NFT holdings
 //! - **Token API**: ERC-20 token balances, metadata, and allowances

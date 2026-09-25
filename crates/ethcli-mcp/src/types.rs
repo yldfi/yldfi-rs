@@ -1587,39 +1587,6 @@ pub struct AlchemyNftForContractInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemyNftSlugInput {
-    /// OpenSea collection slug
-    pub slug: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemyNftSearchInput {
-    /// Search query
-    pub query: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemyNftSalesInput {
-    /// Contract address
-    pub contract: String,
-    /// Optional token ID
-    pub token_id: Option<String>,
-    /// Optional from block number
-    pub from_block: Option<u64>,
-    /// Optional to block number
-    pub to_block: Option<u64>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyNftForCollectionInput {
     /// Collection slug
     pub slug: String,

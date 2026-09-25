@@ -1842,7 +1842,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Check if an address holds an NFT from a contract via Alchemy")]
+    #[tool(
+        description = "Check if an address holds an NFT from a contract via Alchemy (uses getNFTsForOwner)"
+    )]
     async fn alchemy_nft_is_holder(
         &self,
         Parameters(input): Parameters<AlchemyNftIsHolderInput>,
@@ -1916,7 +1918,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT contracts owned by an address via Alchemy")]
+    #[tool(
+        description = "Get NFT contracts owned by an address via Alchemy (replaces the retired collections-for-owner)"
+    )]
     async fn alchemy_nft_contracts_for_owner(
         &self,
         Parameters(input): Parameters<AlchemyNftAddressInput>,
@@ -1941,52 +1945,14 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get contract metadata for an NFT contract via Alchemy")]
+    #[tool(
+        description = "Get contract metadata for an NFT contract via Alchemy, incl. OpenSea collection data in openSeaMetadata (replaces the retired collection-metadata/search-contract-metadata)"
+    )]
     async fn alchemy_nft_contract_metadata(
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
         tools::alchemy_nft_contract_metadata(&input.contract, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get collection metadata by OpenSea slug via Alchemy")]
-    async fn alchemy_nft_collection_metadata(
-        &self,
-        Parameters(input): Parameters<AlchemyNftSlugInput>,
-    ) -> String {
-        tools::alchemy_nft_collection_metadata(&input.slug, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Search NFT contract metadata by keyword via Alchemy")]
-    async fn alchemy_nft_search_contract_metadata(
-        &self,
-        Parameters(input): Parameters<AlchemyNftSearchInput>,
-    ) -> String {
-        tools::alchemy_nft_search_contract_metadata(&input.query, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Compute rarity for an NFT via Alchemy")]
-    async fn alchemy_nft_compute_rarity(
-        &self,
-        Parameters(input): Parameters<AlchemyNftMetadataInput>,
-    ) -> String {
-        tools::alchemy_nft_compute_rarity(&input.contract, &input.token_id, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Summarize NFT attributes for a contract via Alchemy")]
-    async fn alchemy_nft_summarize_attributes(
-        &self,
-        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
-    ) -> String {
-        tools::alchemy_nft_summarize_attributes(&input.contract, Some(&input.network))
             .await
             .to_response()
     }
@@ -2002,49 +1968,13 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get NFT sales for a contract with optional token ID and block range via Alchemy"
+        description = "Check if an NFT contract is spam via Alchemy (replaces the retired spam-contracts list)"
     )]
-    async fn alchemy_nft_sales(
-        &self,
-        Parameters(input): Parameters<AlchemyNftSalesInput>,
-    ) -> String {
-        tools::alchemy_nft_sales(
-            &input.contract,
-            input.token_id.as_deref(),
-            input.from_block,
-            input.to_block,
-            Some(&input.network),
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(description = "Get list of known spam NFT contracts via Alchemy")]
-    async fn alchemy_nft_spam_contracts(
-        &self,
-        Parameters(input): Parameters<AlchemyChainOnlyInput>,
-    ) -> String {
-        tools::alchemy_nft_spam_contracts(Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Check if an NFT contract is spam via Alchemy")]
     async fn alchemy_nft_is_spam(
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
     ) -> String {
         tools::alchemy_nft_is_spam(&input.contract, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Check if an NFT is an airdrop via Alchemy")]
-    async fn alchemy_nft_is_airdrop(
-        &self,
-        Parameters(input): Parameters<AlchemyNftMetadataInput>,
-    ) -> String {
-        tools::alchemy_nft_is_airdrop(&input.contract, &input.token_id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2072,26 +2002,6 @@ impl EthcliMcpServer {
         )
         .await
         .to_response()
-    }
-
-    #[tool(description = "Get collections owned by an address via Alchemy")]
-    async fn alchemy_nft_collections_for_owner(
-        &self,
-        Parameters(input): Parameters<AlchemyNftAddressInput>,
-    ) -> String {
-        tools::alchemy_nft_collections_for_owner(&input.address, Some(&input.network))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Invalidate cached metadata for an NFT contract via Alchemy")]
-    async fn alchemy_nft_invalidate_contract(
-        &self,
-        Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
-    ) -> String {
-        tools::alchemy_nft_invalidate_contract(&input.contract, Some(&input.network))
-            .await
-            .to_response()
     }
 
     // =========================================================================

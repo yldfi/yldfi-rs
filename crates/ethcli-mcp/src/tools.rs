@@ -2435,64 +2435,6 @@ pub async fn alchemy_nft_contract_metadata(
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_nft_collection_metadata(
-    slug: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("collection-metadata")
-        .arg(slug)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_search_contract_metadata(
-    query: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("search-contract-metadata")
-        .arg(query)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_compute_rarity(
-    contract: &str,
-    token_id: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("compute-rarity")
-        .arg(contract)
-        .arg(token_id)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_summarize_attributes(
-    contract: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("summarize-attributes")
-        .arg(contract)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 pub async fn alchemy_nft_refresh_metadata(
     contract: &str,
     token_id: &str,
@@ -2509,40 +2451,6 @@ pub async fn alchemy_nft_refresh_metadata(
         .map_err(ToolError::from)
 }
 
-pub async fn alchemy_nft_sales(
-    contract: &str,
-    token_id: Option<&str>,
-    from_block: Option<u64>,
-    to_block: Option<u64>,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("sales")
-        .arg(contract);
-    if let Some(tid) = token_id {
-        builder = builder.opt("--token-id", Some(tid));
-    }
-    if let Some(fb) = from_block {
-        builder = builder.opt("--from-block", Some(&fb.to_string()));
-    }
-    if let Some(tb) = to_block {
-        builder = builder.opt("--to-block", Some(&tb.to_string()));
-    }
-    builder.execute().await.map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_spam_contracts(network: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("spam-contracts")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
 pub async fn alchemy_nft_is_spam(
     contract: &str,
     network: Option<&str>,
@@ -2552,22 +2460,6 @@ pub async fn alchemy_nft_is_spam(
         .network(network)
         .subcommand("is-spam")
         .arg(contract)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_is_airdrop(
-    contract: &str,
-    token_id: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("is-airdrop")
-        .arg(contract)
-        .arg(token_id)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -2605,34 +2497,6 @@ pub async fn alchemy_nft_nfts_for_collection(
         builder = builder.opt("--limit", Some(&l.to_string()));
     }
     builder.execute().await.map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_collections_for_owner(
-    address: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("collections-for-owner")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn alchemy_nft_invalidate_contract(
-    contract: &str,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("nft")
-        .network(network)
-        .subcommand("invalidate-contract")
-        .arg(contract)
-        .execute()
-        .await
-        .map_err(ToolError::from)
 }
 
 // =============================================================================

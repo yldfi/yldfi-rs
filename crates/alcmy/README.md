@@ -12,7 +12,7 @@
 
 ## Features
 
-- **NFT API** - Ownership, metadata, sales, spam detection
+- **NFT API** - Ownership, metadata, floor prices, spam detection
 - **Prices API** - Token prices by symbol/address, historical data
 - **Portfolio API** - Multi-chain token balances and NFT holdings
 - **Token API** - ERC-20 balances, metadata, allowances
@@ -82,12 +82,20 @@ let nfts = client.nft().get_nfts_for_owner("0x...").await?;
 // Get NFT metadata
 let nft = client.nft().get_nft_metadata("0xcontract", "1").await?;
 
-// Check if address owns NFT from collection
+// Check if address owns NFT from collection (built on getNFTsForOwner)
 let is_holder = client.nft().is_holder_of_contract("0xwallet", "0xcontract").await?;
 
 // Get floor price
 let floor = client.nft().get_floor_price("0xcontract").await?;
 ```
+
+Alchemy retired `getCollectionsForOwner`, `getCollectionMetadata`,
+`isHolderOfContract`, `getSpamContracts`, `searchContractMetadata`,
+`summarizeNFTAttributes`, `computeRarity`, `invalidateContract`,
+`isAirdropNFT` and `getNFTSales` on 2026-09-30, and the corresponding methods
+were removed. Use `get_contracts_for_owner`, `get_contract_metadata`
+(`opensea_metadata`), `is_spam_contract` and `get_nfts_for_contract` instead.
+`is_holder_of_contract` remains and is implemented on top of `getNFTsForOwner`.
 
 ### Token API
 

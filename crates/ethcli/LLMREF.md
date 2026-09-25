@@ -157,10 +157,15 @@ ethcli nfts <wallet> --chain ethereum
 ### Alchemy (requires ALCHEMY_API_KEY)
 ```bash
 ethcli alchemy balances <addr>
-ethcli alchemy nfts <addr>
+ethcli alchemy nft get-nfts <addr>
+ethcli alchemy nft contracts-for-owner <addr>   # replaces retired collections-for-owner
+ethcli alchemy nft contract-metadata <contract> # replaces retired collection-metadata/search-contract-metadata
+ethcli alchemy nft is-holder <addr> <contract>  # via getNFTsForOwner
+ethcli alchemy nft is-spam <contract>           # replaces retired spam-contracts
 ethcli alchemy transfers <addr> --category erc20
 ethcli alchemy trace-tx <hash>
 ```
+Removed 2026-09-30 (Alchemy NFT sunset, no replacement): `summarize-attributes`, `compute-rarity`, `invalidate-contract`, `is-airdrop`, `sales`.
 
 ### CoinGecko (optional COINGECKO_API_KEY)
 ```bash

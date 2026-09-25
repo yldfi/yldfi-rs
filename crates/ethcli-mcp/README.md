@@ -175,6 +175,16 @@ inherits the guard for the 2026-07-31 sunset of
 `GET /erc20/{address}/holders/historical`; `moralis_token_holders` and
 `moralis_token_holders_summary` remain supported.
 
+Alchemy retired several NFT API endpoints on 2026-09-30, so these tools were
+removed: `alchemy_nft_collections_for_owner` (use
+`alchemy_nft_contracts_for_owner`), `alchemy_nft_collection_metadata` and
+`alchemy_nft_search_contract_metadata` (use `alchemy_nft_contract_metadata`),
+`alchemy_nft_spam_contracts` (use `alchemy_nft_is_spam`), and
+`alchemy_nft_summarize_attributes`, `alchemy_nft_compute_rarity`,
+`alchemy_nft_invalidate_contract`, `alchemy_nft_is_airdrop`,
+`alchemy_nft_sales` (no replacement). `alchemy_nft_is_holder` remains and is
+now backed by `getNFTsForOwner`.
+
 Dune is shutting down the Sim platform on 2026-08-01. The remaining `dsim_*`
 tools keep working until then (with a stderr sunset warning from ethcli), but
 the `dsim_defi` tool was removed because the DeFi Positions endpoints were

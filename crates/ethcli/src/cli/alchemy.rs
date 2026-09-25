@@ -74,9 +74,24 @@ pub struct AlchemyArgs {
     pub format: OutputFormat,
 }
 
+/// Help text pointing users of NFT commands retired with Alchemy's
+/// 2026-09-30 NFT API sunset to their replacements.
+const ALCHEMY_NFT_RETIRED_HELP: &str = "\
+Retired 2026-09-30 (Alchemy NFT API sunset):
+  collections-for-owner     -> use `contracts-for-owner`
+  collection-metadata       -> use `contract-metadata` (see openSeaMetadata)
+  search-contract-metadata  -> use `contract-metadata`
+  spam-contracts            -> use `is-spam <contract>`
+  summarize-attributes      -> removed; use `nfts-for-contract` and aggregate locally
+  compute-rarity            -> removed; use `nfts-for-contract` and aggregate locally
+  invalidate-contract       -> removed; use `refresh-metadata` per token
+  is-airdrop, sales         -> removed (no replacement)
+  is-holder                 -> now implemented via getNFTsForOwner";
+
 #[derive(Subcommand)]
 pub enum AlchemyCommands {
     /// NFT operations
+    #[command(after_help = ALCHEMY_NFT_RETIRED_HELP)]
     Nft {
         #[command(subcommand)]
         action: NftCommands,
@@ -228,7 +243,7 @@ pub enum NftCommands {
         token_id: String,
     },
 
-    /// Check if address owns contract NFT
+    /// Check if address owns any NFT from a contract (via getNFTsForOwner)
     IsHolder {
         /// Address to check
         address: String,
@@ -242,7 +257,7 @@ pub enum NftCommands {
         contract: String,
     },
 
-    /// Get NFT contracts owned by an address
+    /// Get NFT contracts owned by an address (replaces collections-for-owner)
     ContractsForOwner {
         /// Owner address
         address: String,
@@ -260,34 +275,9 @@ pub enum NftCommands {
         limit: Option<u32>,
     },
 
-    /// Get contract metadata
+    /// Get contract metadata incl. OpenSea data in `openSeaMetadata`
+    /// (replaces collection-metadata and search-contract-metadata)
     ContractMetadata {
-        /// Contract address
-        contract: String,
-    },
-
-    /// Get collection metadata by OpenSea slug
-    CollectionMetadata {
-        /// OpenSea collection slug
-        slug: String,
-    },
-
-    /// Search contract metadata by keyword
-    SearchContractMetadata {
-        /// Search query
-        query: String,
-    },
-
-    /// Compute rarity for an NFT
-    ComputeRarity {
-        /// Contract address
-        contract: String,
-        /// Token ID
-        token_id: String,
-    },
-
-    /// Summarize NFT attributes for a contract
-    SummarizeAttributes {
         /// Contract address
         contract: String,
     },
@@ -300,36 +290,10 @@ pub enum NftCommands {
         token_id: String,
     },
 
-    /// Get NFT sales for a contract
-    Sales {
-        /// Contract address
-        contract: String,
-        /// Optional token ID
-        #[arg(long)]
-        token_id: Option<String>,
-        /// Optional from block number
-        #[arg(long)]
-        from_block: Option<u64>,
-        /// Optional to block number
-        #[arg(long)]
-        to_block: Option<u64>,
-    },
-
-    /// Get list of spam contracts
-    SpamContracts,
-
-    /// Check if a contract is spam
+    /// Check if a contract is spam (replaces spam-contracts)
     IsSpam {
         /// Contract address
         contract: String,
-    },
-
-    /// Check if an NFT is an airdrop
-    IsAirdrop {
-        /// Contract address
-        contract: String,
-        /// Token ID
-        token_id: String,
     },
 
     /// Report a contract as spam
@@ -348,18 +312,6 @@ pub enum NftCommands {
         /// Maximum number of NFTs to return
         #[arg(long)]
         limit: Option<u32>,
-    },
-
-    /// Get collections owned by an address
-    CollectionsForOwner {
-        /// Owner address
-        address: String,
-    },
-
-    /// Invalidate cached metadata for a contract
-    InvalidateContract {
-        /// Contract address
-        contract: String,
     },
 }
 
@@ -1219,34 +1171,6 @@ async fn handle_nft(
             let response = client.nft().get_contract_metadata(contract).await?;
             print_output(&response, args.format)?;
         }
-        NftCommands::CollectionMetadata { slug } => {
-            if !quiet {
-                eprintln!("Fetching collection metadata for slug {}...", slug);
-            }
-            let response = client.nft().get_collection_metadata(slug).await?;
-            print_output(&response, args.format)?;
-        }
-        NftCommands::SearchContractMetadata { query } => {
-            if !quiet {
-                eprintln!("Searching contract metadata for '{}'...", query);
-            }
-            let response = client.nft().search_contract_metadata(query).await?;
-            print_output(&response, args.format)?;
-        }
-        NftCommands::ComputeRarity { contract, token_id } => {
-            if !quiet {
-                eprintln!("Computing rarity for {}:{}...", contract, token_id);
-            }
-            let response = client.nft().compute_rarity(contract, token_id).await?;
-            print_output(&response, args.format)?;
-        }
-        NftCommands::SummarizeAttributes { contract } => {
-            if !quiet {
-                eprintln!("Summarizing NFT attributes for {}...", contract);
-            }
-            let response = client.nft().summarize_nft_attributes(contract).await?;
-            print_output(&response, args.format)?;
-        }
         NftCommands::RefreshMetadata { contract, token_id } => {
             if !quiet {
                 eprintln!("Refreshing metadata for {}:{}...", contract, token_id);
@@ -1257,40 +1181,11 @@ async fn handle_nft(
                 .await?;
             print_output(&response, args.format)?;
         }
-        NftCommands::Sales {
-            contract,
-            token_id,
-            from_block,
-            to_block,
-        } => {
-            if !quiet {
-                eprintln!("Fetching NFT sales for {}...", contract);
-            }
-            let response = client
-                .nft()
-                .get_nft_sales_with_options(contract, token_id.as_deref(), *from_block, *to_block)
-                .await?;
-            print_output(&response, args.format)?;
-        }
-        NftCommands::SpamContracts => {
-            if !quiet {
-                eprintln!("Fetching spam contracts...");
-            }
-            let response = client.nft().get_spam_contracts().await?;
-            print_output(&response, args.format)?;
-        }
         NftCommands::IsSpam { contract } => {
             if !quiet {
                 eprintln!("Checking if {} is spam...", contract);
             }
             let response = client.nft().is_spam_contract(contract).await?;
-            print_output(&response, args.format)?;
-        }
-        NftCommands::IsAirdrop { contract, token_id } => {
-            if !quiet {
-                eprintln!("Checking if {}:{} is an airdrop...", contract, token_id);
-            }
-            let response = client.nft().is_airdrop_nft(contract, token_id).await?;
             print_output(&response, args.format)?;
         }
         NftCommands::ReportSpam { contract } => {
@@ -1312,20 +1207,6 @@ async fn handle_nft(
                 .nft()
                 .get_nfts_for_collection_with_options(slug, start_token.as_deref(), *limit)
                 .await?;
-            print_output(&response, args.format)?;
-        }
-        NftCommands::CollectionsForOwner { address } => {
-            if !quiet {
-                eprintln!("Fetching collections for owner {}...", address);
-            }
-            let response = client.nft().get_collections_for_owner(address).await?;
-            print_output(&response, args.format)?;
-        }
-        NftCommands::InvalidateContract { contract } => {
-            if !quiet {
-                eprintln!("Invalidating contract cache for {}...", contract);
-            }
-            let response = client.nft().invalidate_contract(contract).await?;
             print_output(&response, args.format)?;
         }
     }
