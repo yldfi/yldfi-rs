@@ -167,17 +167,27 @@ pub struct AlchemyConfig {
     /// Default network (e.g., eth-mainnet, polygon-mainnet)
     #[serde(default)]
     pub default_network: Option<String>,
-    /// Alchemy account auth token / access key (from the dashboard).
-    ///
-    /// Required by the Notify (webhooks) and Gas Manager admin APIs, which do
-    /// not accept the app API key. Falls back to `ALCHEMY_AUTH_TOKEN`.
+    /// Notify API auth token (AUTH TOKEN button on the dashboard Webhooks
+    /// page), sent as `X-Alchemy-Token`. Falls back to `ALCHEMY_NOTIFY_TOKEN`.
+    /// `auth_token` is accepted as an alias.
+    #[serde(
+        default,
+        alias = "auth_token",
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_secret_option",
+        deserialize_with = "deserialize_secret_option"
+    )]
+    pub notify_token: Option<SecretString>,
+    /// Access key (Dashboard -> Security, Gas Manager permissions) for the
+    /// Gas Manager Admin API, sent as `Authorization: Bearer`.
+    /// Falls back to `ALCHEMY_ACCESS_KEY`.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_secret_option",
         deserialize_with = "deserialize_secret_option"
     )]
-    pub auth_token: Option<SecretString>,
+    pub access_key: Option<SecretString>,
 }
 
 /// CoinGecko API configuration
@@ -709,28 +719,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_alchemy_auth_token_roundtrip_and_redaction() {
+    fn test_alchemy_notify_token_and_access_key() {
         let toml_in = r#"
 [alchemy]
 api_key = "app-key-secret"
-auth_token = "dash-token-secret"
+notify_token = "notify-token-secret"
+access_key = "access-key-secret"
 "#;
         let config: ConfigFile = toml::from_str(toml_in).expect("parse");
         let alchemy = config.alchemy.as_ref().expect("alchemy section");
         assert_eq!(
-            alchemy.auth_token.as_ref().map(|s| s.expose_secret()),
-            Some("dash-token-secret")
+            alchemy.notify_token.as_ref().map(|s| s.expose_secret()),
+            Some("notify-token-secret")
+        );
+        assert_eq!(
+            alchemy.access_key.as_ref().map(|s| s.expose_secret()),
+            Some("access-key-secret")
         );
         let dbg = format!("{alchemy:?}");
-        assert!(!dbg.contains("dash-token-secret"), "{dbg}");
-        assert!(!dbg.contains("app-key-secret"), "{dbg}");
+        for secret in ["app-key-secret", "notify-token-secret", "access-key-secret"] {
+            assert!(!dbg.contains(secret), "{dbg}");
+        }
 
-        // Round-trips, and is optional for existing configs
+        // Round-trips under the new key names
         let out = toml::to_string(&config).expect("serialize");
-        assert!(out.contains("auth_token"));
+        assert!(out.contains("notify_token") && out.contains("access_key"));
+        assert!(!out.contains("auth_token"));
+
+        // Optional for existing configs
         let legacy: ConfigFile =
             toml::from_str("[alchemy]\napi_key = \"k\"\n").expect("parse legacy");
-        assert!(legacy.alchemy.unwrap().auth_token.is_none());
+        let legacy = legacy.alchemy.unwrap();
+        assert!(legacy.notify_token.is_none() && legacy.access_key.is_none());
+    }
+
+    #[test]
+    fn test_alchemy_auth_token_alias_maps_to_notify_token() {
+        let config: ConfigFile =
+            toml::from_str("[alchemy]\napi_key = \"k\"\nauth_token = \"t\"\n").expect("parse");
+        let alchemy = config.alchemy.unwrap();
+        assert_eq!(
+            alchemy.notify_token.as_ref().map(|s| s.expose_secret()),
+            Some("t")
+        );
+        assert!(alchemy.access_key.is_none());
     }
 
     #[test]

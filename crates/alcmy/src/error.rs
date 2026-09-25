@@ -33,17 +33,28 @@ pub enum DomainError {
         message: String,
     },
 
-    /// An Alchemy auth token (dashboard auth token / access key) is required
-    /// for this API but was not configured.
+    /// The Notify API (dashboard: Webhooks) requires the account's Notify auth token
+    /// (sent as `X-Alchemy-Token`), which was not configured.
     #[error(
-        "{api} requires an Alchemy auth token (not the app API key). \
-         Create one in the Alchemy dashboard and configure it with \
-         `Config::with_auth_token` or the ALCHEMY_AUTH_TOKEN environment variable"
+        "Alchemy Notify API (dashboard: Webhooks) requires the Webhooks auth token \
+         (not the app API key). Copy it from the AUTH TOKEN button at the top right of the Alchemy dashboard Webhooks page \
+         (sidebar Data -> Webhooks, https://dashboard.alchemy.com/webhooks) \
+         and configure it with \
+         `Config::with_notify_token` or the ALCHEMY_NOTIFY_TOKEN environment variable"
     )]
-    MissingAuthToken {
-        /// Name of the API that requires the token
-        api: &'static str,
-    },
+    MissingNotifyToken,
+
+    /// The Gas Manager Admin API (dashboard: Gas Sponsorship) requires an access key (sent as
+    /// `Authorization: Bearer`), which was not configured.
+    #[error(
+        "Alchemy Gas Manager Admin API (dashboard: Gas Sponsorship) requires an access key \
+         (not the app API key). Create one under Alchemy dashboard -> Security -> \
+         Create Access Key with Gas Manager (Gas Sponsorship) permissions \
+         (billing/team admins only; https://www.alchemy.com/docs/how-to-create-access-keys) \
+         and configure it with \
+         `Config::with_access_key` or the ALCHEMY_ACCESS_KEY environment variable"
+    )]
+    MissingAccessKey,
 
     /// The requested network has no Beacon (consensus layer) endpoint
     #[error(
@@ -73,9 +84,14 @@ pub fn invalid_api_key() -> Error {
     ApiError::domain(DomainError::InvalidApiKey)
 }
 
-/// Create a missing auth token error
-pub fn missing_auth_token(api: &'static str) -> Error {
-    ApiError::domain(DomainError::MissingAuthToken { api })
+/// Create a missing Notify auth token error
+pub fn missing_notify_token() -> Error {
+    ApiError::domain(DomainError::MissingNotifyToken)
+}
+
+/// Create a missing Gas Manager access key error
+pub fn missing_access_key() -> Error {
+    ApiError::domain(DomainError::MissingAccessKey)
 }
 
 /// Create a rate limited error from a `Retry-After` value and raw body.

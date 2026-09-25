@@ -196,7 +196,7 @@ impl<'a> GasManagerApi<'a> {
                 },
                 &url,
             )
-            .bearer_auth(self.client.auth_token("Alchemy Gas Manager admin API")?);
+            .bearer_auth(self.client.access_key()?);
 
         let request = if let Some(b) = body {
             request.json(b)

@@ -1862,12 +1862,16 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                 })?
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
-            // Preserve a previously configured auth token
-            let auth_token = cfg.alchemy.take().and_then(|a| a.auth_token);
+            // Preserve previously configured Notify token / access key
+            let previous = cfg.alchemy.take();
+            let (notify_token, access_key) = previous
+                .map(|a| (a.notify_token, a.access_key))
+                .unwrap_or_default();
             cfg.alchemy = Some(AlchemyConfig {
                 api_key: SecretString::new(api_key.into()),
                 default_network: network.clone(),
-                auth_token,
+                notify_token,
+                access_key,
             });
             cfg.save_default()?;
             println!("Alchemy API key saved to config file.");
@@ -1878,14 +1882,14 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://www.alchemy.com/terms-conditions");
         }
 
-        ConfigCommands::SetAlchemyAuthToken { token, stdin } => {
+        ConfigCommands::SetAlchemyNotifyToken { token, stdin } => {
             use ethcli::cli::config::read_from_stdin;
             use secrecy::SecretString;
-            let auth_token = if *stdin {
+            let value = if *stdin {
                 read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
             } else {
                 token.clone().ok_or_else(|| {
-                    anyhow::anyhow!("Auth token required (provide token or use --stdin)")
+                    anyhow::anyhow!("Notify token required (provide token or use --stdin)")
                 })?
             };
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
@@ -1894,10 +1898,32 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                     "No Alchemy API key configured. Run `ethcli config set-alchemy` first."
                 )
             })?;
-            alchemy.auth_token = Some(SecretString::new(auth_token.into()));
+            alchemy.notify_token = Some(SecretString::new(value.into()));
             cfg.save_default()?;
-            println!("Alchemy auth token saved to config file.");
-            println!("  Used by: ethcli alchemy notify, ethcli alchemy gas-manager");
+            println!("Alchemy Notify (Webhooks) auth token saved to config file.");
+            println!("  Used by: ethcli alchemy notify (alias: webhooks)");
+        }
+
+        ConfigCommands::SetAlchemyAccessKey { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            use secrecy::SecretString;
+            let value = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+            } else {
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("Access key required (provide key or use --stdin)")
+                })?
+            };
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            let alchemy = cfg.alchemy.as_mut().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No Alchemy API key configured. Run `ethcli config set-alchemy` first."
+                )
+            })?;
+            alchemy.access_key = Some(SecretString::new(value.into()));
+            cfg.save_default()?;
+            println!("Alchemy access key saved to config file.");
+            println!("  Used by: ethcli alchemy gas-manager (alias: gas-sponsorship)");
         }
 
         ConfigCommands::SetMoralis { key, stdin } => {
@@ -2120,8 +2146,13 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                     if let Some(alchemy) = &config.alchemy {
                         api_keys_present += 1;
                         println!("Alchemy API key: configured");
-                        if alchemy.auth_token.is_some() {
-                            println!("Alchemy auth token: configured");
+                        if alchemy.notify_token.is_some() {
+                            println!("Alchemy Notify (Webhooks) token: configured");
+                        }
+                        if alchemy.access_key.is_some() {
+                            println!(
+                                "Alchemy access key (Gas Manager / Gas Sponsorship): configured"
+                            );
                         }
                     }
                     if config.moralis.is_some() {

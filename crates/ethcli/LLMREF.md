@@ -160,6 +160,8 @@ ethcli alchemy balances <addr>
 ethcli alchemy nfts <addr>
 ethcli alchemy transfers <addr> --category erc20
 ethcli alchemy trace-tx <hash>
+ethcli alchemy notify list-webhooks       # alias webhooks; needs ALCHEMY_NOTIFY_TOKEN (dashboard Data -> Webhooks, AUTH TOKEN)
+ethcli alchemy gas-manager list-policies  # alias gas-sponsorship; needs ALCHEMY_ACCESS_KEY (dashboard -> Security, Gas Manager perms)
 ```
 
 ### CoinGecko (optional COINGECKO_API_KEY)
@@ -369,6 +371,8 @@ ethcli doctor                       # Diagnose issues
 | ETHERSCAN_API_KEY | Optional | Higher rate limits |
 | ETHCLI_NO_PROXY | Optional | Disable HTTP proxy auto-detection |
 | ALCHEMY_API_KEY | alchemy commands | Alchemy API |
+| ALCHEMY_NOTIFY_TOKEN | alchemy notify | Webhooks auth token (`config set-alchemy-notify-token`) |
+| ALCHEMY_ACCESS_KEY | alchemy gas-manager | Gas Manager access key (`config set-alchemy-access-key`) |
 | MORALIS_API_KEY | moralis commands | Moralis API |
 | COINGECKO_API_KEY | Optional | CoinGecko Pro |
 | DUNE_API_KEY | dune commands | Dune Analytics |

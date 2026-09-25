@@ -83,18 +83,36 @@ pub enum ConfigCommands {
         network: Option<String>,
     },
 
-    /// Set Alchemy auth token (dashboard auth token / access key)
+    /// Set Alchemy Notify (dashboard: Webhooks) auth token, used by `alchemy notify`
     ///
-    /// Required by `alchemy notify` and `alchemy gas-manager`, which do not
-    /// accept the app API key. Can also be provided via ALCHEMY_AUTH_TOKEN.
+    /// Copy it from the AUTH TOKEN button at the top right of the Alchemy
+    /// dashboard Webhooks page (sidebar Data -> Webhooks). Can also be provided
+    /// via ALCHEMY_NOTIFY_TOKEN.
     #[command(
-        after_help = "To avoid exposing the token in shell history:\n  echo $TOKEN | ethcli config set-alchemy-auth-token --stdin"
+        after_help = "Get it from the AUTH TOKEN button (top right) on https://dashboard.alchemy.com/webhooks (sidebar Data -> Webhooks)\n\nTo avoid exposing the token in shell history:\n  echo $TOKEN | ethcli config set-alchemy-notify-token --stdin"
     )]
-    SetAlchemyAuthToken {
-        /// Alchemy auth token (omit if using --stdin)
+    SetAlchemyNotifyToken {
+        /// Notify auth token (omit if using --stdin)
         token: Option<String>,
 
-        /// Read auth token from stdin
+        /// Read token from stdin
+        #[arg(long)]
+        stdin: bool,
+    },
+
+    /// Set Alchemy access key for the Gas Manager (dashboard: Gas Sponsorship) Admin API, used by `alchemy gas-manager`
+    ///
+    /// Create it under Alchemy dashboard -> Security -> Create Access Key with
+    /// Gas Manager (Gas Sponsorship) permissions (billing/team admins only).
+    /// Can also be provided via ALCHEMY_ACCESS_KEY.
+    #[command(
+        after_help = "Create one under Alchemy dashboard -> Security (https://www.alchemy.com/docs/how-to-create-access-keys)\n\nTo avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-alchemy-access-key --stdin"
+    )]
+    SetAlchemyAccessKey {
+        /// Access key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read access key from stdin
         #[arg(long)]
         stdin: bool,
     },

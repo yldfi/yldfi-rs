@@ -157,7 +157,8 @@ pub enum AlchemyCommands {
         args: AlchemyArgs,
     },
 
-    /// Gas Manager policy management (read-only)
+    /// Gas Manager (dashboard: Gas Sponsorship) policy management (read-only; needs an access key)
+    #[command(visible_alias = "gas-sponsorship")]
     GasManager {
         #[command(subcommand)]
         action: GasManagerCommands,
@@ -166,7 +167,8 @@ pub enum AlchemyCommands {
         args: AlchemyArgs,
     },
 
-    /// Webhook/Notify operations (read-only)
+    /// Notify (dashboard: Webhooks) operations (read-only; needs the Webhooks auth token)
+    #[command(visible_alias = "webhooks")]
     Notify {
         #[command(subcommand)]
         action: NotifyCommands,
@@ -1075,49 +1077,70 @@ pub enum SolanaCommands {
 // Main Handler
 // =============================================================================
 
-/// Handle Alchemy commands
-/// Resolve the Alchemy auth token (dashboard auth token / access key) used by
-/// the Notify and Gas Manager admin APIs: config `alchemy.auth_token` first,
-/// then the `ALCHEMY_AUTH_TOKEN` environment variable.
-fn resolve_auth_token(
-    config_token: Option<&secrecy::SecretString>,
-    env_token: Option<String>,
+/// Where to obtain the Notify API auth token
+const NOTIFY_TOKEN_HELP: &str = "Copy the Auth Token from the AUTH TOKEN button at the top right of the \
+Alchemy dashboard Webhooks page (sidebar Data -> Webhooks, https://dashboard.alchemy.com/webhooks), then run \
+`ethcli config set-alchemy-notify-token --stdin` or set ALCHEMY_NOTIFY_TOKEN.";
+
+/// Where to obtain the Gas Manager Admin API access key
+const ACCESS_KEY_HELP: &str = "Create an Access Key under Alchemy dashboard -> Security -> \
+Create Access Key with Gas Manager (dashboard: Gas Sponsorship) permissions (billing/team admins only; \
+https://www.alchemy.com/docs/how-to-create-access-keys), then run \
+`ethcli config set-alchemy-access-key --stdin` or set ALCHEMY_ACCESS_KEY.";
+
+/// Resolve an Alchemy credential: config value first, then environment
+/// variable; empty values are ignored.
+fn resolve_credential(
+    config_value: Option<&secrecy::SecretString>,
+    env_value: Option<String>,
 ) -> Option<String> {
     use secrecy::ExposeSecret;
-    config_token
+    config_value
         .map(|t| t.expose_secret().to_string())
-        .or(env_token)
         .filter(|t| !t.trim().is_empty())
+        .or_else(|| env_value.filter(|t| !t.trim().is_empty()))
 }
 
-fn load_auth_token() -> Option<String> {
-    let config = ConfigFile::load_default().ok().flatten();
-    let config_token = config
-        .as_ref()
-        .and_then(|c| c.alchemy.as_ref())
-        .and_then(|a| a.auth_token.as_ref());
-    resolve_auth_token(config_token, std::env::var("ALCHEMY_AUTH_TOKEN").ok())
+fn load_alchemy_config() -> Option<crate::config::AlchemyConfig> {
+    ConfigFile::load_default()
+        .ok()
+        .flatten()
+        .and_then(|c| c.alchemy)
 }
 
-/// Build an Alchemy client carrying the auth token, failing early with a
-/// CLI-oriented message if no auth token is configured.
-fn client_with_auth_token(
-    api_key: &str,
-    network: AlchemyNetwork,
-    api_name: &str,
-) -> anyhow::Result<alcmy::Client> {
-    let token = load_auth_token().ok_or_else(|| {
+/// Build a client for the Notify API (requires the Notify auth token)
+fn notify_client(api_key: &str, network: AlchemyNetwork) -> anyhow::Result<alcmy::Client> {
+    let cfg = load_alchemy_config();
+    let token = resolve_credential(
+        cfg.as_ref().and_then(|a| a.notify_token.as_ref()),
+        std::env::var("ALCHEMY_NOTIFY_TOKEN").ok(),
+    )
+    .ok_or_else(|| {
         anyhow::anyhow!(
-            "{api_name} requires an Alchemy auth token (from the Alchemy dashboard), \
-             not the app API key.\n\
-             Set it with `ethcli config set-alchemy-auth-token --stdin` \
-             or the ALCHEMY_AUTH_TOKEN environment variable."
+            "Alchemy Notify API (dashboard: Webhooks) requires the Webhooks auth token (not the app API key).\n{NOTIFY_TOKEN_HELP}"
         )
     })?;
-    let config = alcmy::Config::new(api_key, network.into()).with_auth_token(token);
+    let config = alcmy::Config::new(api_key, network.into()).with_notify_token(token);
     Ok(alcmy::Client::with_config(config)?)
 }
 
+/// Build a client for the Gas Manager Admin API (requires an access key)
+fn gas_manager_client(api_key: &str, network: AlchemyNetwork) -> anyhow::Result<alcmy::Client> {
+    let cfg = load_alchemy_config();
+    let key = resolve_credential(
+        cfg.as_ref().and_then(|a| a.access_key.as_ref()),
+        std::env::var("ALCHEMY_ACCESS_KEY").ok(),
+    )
+    .ok_or_else(|| {
+        anyhow::anyhow!(
+            "Alchemy Gas Manager Admin API (dashboard: Gas Sponsorship) requires an access key (not the app API key).\n{ACCESS_KEY_HELP}"
+        )
+    })?;
+    let config = alcmy::Config::new(api_key, network.into()).with_access_key(key);
+    Ok(alcmy::Client::with_config(config)?)
+}
+
+/// Handle Alchemy commands
 pub async fn handle(command: &AlchemyCommands, quiet: bool) -> anyhow::Result<()> {
     use secrecy::ExposeSecret;
 
@@ -2008,7 +2031,7 @@ async fn handle_gas_manager(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = client_with_auth_token(api_key, args.network, "Alchemy Gas Manager admin API")?;
+    let client = gas_manager_client(api_key, args.network)?;
 
     match action {
         GasManagerCommands::ListPolicies => {
@@ -2054,7 +2077,7 @@ async fn handle_notify(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = client_with_auth_token(api_key, args.network, "Alchemy Notify API")?;
+    let client = notify_client(api_key, args.network)?;
 
     match action {
         NotifyCommands::ListWebhooks => {
@@ -2450,17 +2473,31 @@ mod tests {
     use secrecy::SecretString;
 
     #[test]
-    fn auth_token_prefers_config_then_env() {
+    fn credential_prefers_config_then_env() {
         let cfg = SecretString::new("from-config".into());
         assert_eq!(
-            resolve_auth_token(Some(&cfg), Some("from-env".into())).as_deref(),
+            resolve_credential(Some(&cfg), Some("from-env".into())).as_deref(),
             Some("from-config")
         );
         assert_eq!(
-            resolve_auth_token(None, Some("from-env".into())).as_deref(),
+            resolve_credential(None, Some("from-env".into())).as_deref(),
             Some("from-env")
         );
-        assert_eq!(resolve_auth_token(None, None), None);
-        assert_eq!(resolve_auth_token(None, Some("  ".into())), None);
+        let empty = SecretString::new("  ".into());
+        assert_eq!(
+            resolve_credential(Some(&empty), Some("from-env".into())).as_deref(),
+            Some("from-env")
+        );
+        assert_eq!(resolve_credential(None, None), None);
+        assert_eq!(resolve_credential(None, Some("  ".into())), None);
+    }
+
+    #[test]
+    fn help_texts_name_dashboard_locations() {
+        assert!(NOTIFY_TOKEN_HELP.contains("AUTH TOKEN"));
+        assert!(NOTIFY_TOKEN_HELP.contains("set-alchemy-notify-token"));
+        assert!(ACCESS_KEY_HELP.contains("Security"));
+        assert!(ACCESS_KEY_HELP.contains("Gas Manager"));
+        assert!(ACCESS_KEY_HELP.contains("set-alchemy-access-key"));
     }
 }

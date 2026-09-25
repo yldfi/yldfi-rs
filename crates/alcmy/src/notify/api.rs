@@ -22,8 +22,8 @@ impl<'a> NotifyApi<'a> {
 
     /// The Notify API authenticates with the dashboard Auth Token
     /// (`X-Alchemy-Token`), not the app API key.
-    fn auth_token(&self) -> Result<&str> {
-        self.client.auth_token("Alchemy Notify API")
+    fn notify_token(&self) -> Result<&str> {
+        self.client.notify_token()
     }
 
     async fn get<R>(&self, path: &str) -> Result<R>
@@ -35,7 +35,7 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .get(&url)
-            .header("X-Alchemy-Token", self.auth_token()?)
+            .header("X-Alchemy-Token", self.notify_token()?)
             .send()
             .await?;
 
@@ -62,7 +62,7 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .post(&url)
-            .header("X-Alchemy-Token", self.auth_token()?)
+            .header("X-Alchemy-Token", self.notify_token()?)
             .json(body)
             .send()
             .await?;
@@ -90,7 +90,7 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .put(&url)
-            .header("X-Alchemy-Token", self.auth_token()?)
+            .header("X-Alchemy-Token", self.notify_token()?)
             .json(body)
             .send()
             .await?;
@@ -118,7 +118,7 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .patch(&url)
-            .header("X-Alchemy-Token", self.auth_token()?)
+            .header("X-Alchemy-Token", self.notify_token()?)
             .json(body)
             .send()
             .await?;
@@ -142,7 +142,7 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .delete(&url)
-            .header("X-Alchemy-Token", self.auth_token()?)
+            .header("X-Alchemy-Token", self.notify_token()?)
             .send()
             .await?;
 
@@ -184,7 +184,7 @@ impl<'a> NotifyApi<'a> {
             .client
             .http()
             .delete(&url)
-            .header("X-Alchemy-Token", self.auth_token()?)
+            .header("X-Alchemy-Token", self.notify_token()?)
             .json(&body)
             .send()
             .await?;

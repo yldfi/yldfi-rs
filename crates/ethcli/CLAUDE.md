@@ -586,7 +586,22 @@ ethcli alchemy transfers 0x... --category erc20
 
 # Debug traces
 ethcli alchemy trace-tx 0x...
+
+# Notify (dashboard: Webhooks) - needs the Webhooks auth token
+ethcli alchemy notify list-webhooks            # alias: ethcli alchemy webhooks ...
+# Gas Manager (dashboard: Gas Sponsorship) - needs an access key
+ethcli alchemy gas-manager list-policies       # alias: ethcli alchemy gas-sponsorship ...
 ```
+
+`alchemy notify` and `alchemy gas-manager` do not accept the app API key:
+
+- **Notify / Webhooks**: copy the Auth Token from the AUTH TOKEN button at the top
+  right of the dashboard Webhooks page (sidebar Data -> Webhooks,
+  https://dashboard.alchemy.com/webhooks). Set it with
+  `ethcli config set-alchemy-notify-token --stdin` or `ALCHEMY_NOTIFY_TOKEN`.
+- **Gas Manager / Gas Sponsorship**: create an Access Key under dashboard ->
+  Security with Gas Manager permissions (billing/team admins only). Set it with
+  `ethcli config set-alchemy-access-key --stdin` or `ALCHEMY_ACCESS_KEY`.
 
 ## Gecko (CoinGecko) Commands
 
@@ -1180,7 +1195,8 @@ ethcli chainlink oracles --chain arbitrum
 | `ETHERSCAN_API_KEY` | Optional | Increases Etherscan rate limit |
 | `TENDERLY_ACCESS_KEY` | `ethcli tenderly` | Tenderly API access |
 | `ALCHEMY_API_KEY` | `ethcli alchemy`, `--via alcmy` | Alchemy API access |
-| `ALCHEMY_AUTH_TOKEN` | `alchemy notify`, `alchemy gas-manager` | Alchemy dashboard auth token (not the app API key); or `ethcli config set-alchemy-auth-token --stdin` |
+| `ALCHEMY_NOTIFY_TOKEN` | `alchemy notify` (`webhooks`) | Webhooks auth token (dashboard Data -> Webhooks, AUTH TOKEN button); or `ethcli config set-alchemy-notify-token --stdin` |
+| `ALCHEMY_ACCESS_KEY` | `alchemy gas-manager` (`gas-sponsorship`) | Access key with Gas Manager permissions (dashboard -> Security); or `ethcli config set-alchemy-access-key --stdin` |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (increases rate limit) |
 | `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
