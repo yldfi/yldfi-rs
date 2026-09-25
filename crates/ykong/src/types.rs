@@ -197,35 +197,23 @@ pub struct Strategy {
     pub vault: Option<String>,
     /// Whether this is a v3 strategy
     pub v3: Option<bool>,
-    /// Activation timestamp
-    #[serde(default)]
-    pub activation: Option<u64>,
     /// Inception timestamp
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_u64")]
     pub incept_time: Option<u64>,
     /// Inception block
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_u64")]
     pub incept_block: Option<u64>,
     /// Last report timestamp
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_u64")]
     pub last_report: Option<u64>,
     /// Total debt
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_flexible_string")]
     pub total_debt: Option<String>,
-    /// Total gain
-    #[serde(default)]
-    pub total_gain: Option<String>,
-    /// Total loss
-    #[serde(default)]
-    pub total_loss: Option<String>,
     /// Performance fee
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_flexible_string")]
     pub performance_fee: Option<String>,
-    /// Debt ratio
-    #[serde(default)]
-    pub debt_ratio: Option<String>,
     /// Estimated total assets
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_flexible_string")]
     pub estimated_total_assets: Option<String>,
     /// Whether the strategy is active
     pub is_active: Option<bool>,
@@ -235,12 +223,40 @@ pub struct Strategy {
     pub keeper: Option<String>,
     /// Strategist address
     pub strategist: Option<String>,
-    /// Risk score
-    pub risk: Option<RiskScore>,
+    /// Risk score (Kong `RiskScoreLegacy`)
+    #[serde(default)]
+    pub risk: Option<StrategyRisk>,
     /// APY data
     pub apy: Option<Apy>,
     /// TVL data
     pub tvl: Option<SparklinePoint>,
+}
+
+/// Strategy risk scores (Kong `RiskScoreLegacy`)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StrategyRisk {
+    /// Risk label
+    #[serde(default)]
+    pub label: Option<String>,
+    /// Audit score
+    #[serde(default)]
+    pub audit_score: Option<f64>,
+    /// Code review score
+    #[serde(default)]
+    pub code_review_score: Option<f64>,
+    /// Complexity score
+    #[serde(default)]
+    pub complexity_score: Option<f64>,
+    /// Protocol safety score
+    #[serde(default)]
+    pub protocol_safety_score: Option<f64>,
+    /// Team knowledge score
+    #[serde(default)]
+    pub team_knowledge_score: Option<f64>,
+    /// Testing score
+    #[serde(default)]
+    pub testing_score: Option<f64>,
 }
 
 /// APY (Annual Percentage Yield) data
@@ -272,9 +288,12 @@ pub struct Apy {
 pub struct SparklinePoint {
     /// Value in USD
     pub close: Option<f64>,
-    /// Block number (returned as string from API)
+    /// Block number (returned as string from API; not available on all
+    /// sparklines)
+    #[serde(default)]
     pub block_number: Option<String>,
     /// Block timestamp (returned as string from API)
+    #[serde(default)]
     pub block_time: Option<String>,
 }
 
@@ -436,10 +455,13 @@ pub struct VaultReport {
     /// APR data
     pub apr: Option<ReportApr>,
     /// Block number
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub block_number: u64,
     /// Block timestamp
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub block_time: u64,
     /// Log index
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub log_index: u64,
     /// Transaction hash
     pub transaction_hash: String,
@@ -486,10 +508,13 @@ pub struct StrategyReport {
     /// Price source
     pub price_source: Option<String>,
     /// Block number
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub block_number: u64,
     /// Block timestamp
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub block_time: u64,
     /// Log index
+    #[serde(deserialize_with = "deserialize_string_or_u64")]
     pub log_index: u64,
     /// Transaction hash
     pub transaction_hash: String,
@@ -503,8 +528,6 @@ pub struct ReportApr {
     pub gross: Option<f64>,
     /// Net APR
     pub net: Option<f64>,
-    /// Forward APR
-    pub forward: Option<f64>,
 }
 
 /// TVL timeseries entry (legacy format)
@@ -576,4 +599,28 @@ pub struct GraphQLLocation {
     pub line: u32,
     /// Column number
     pub column: u32,
+}
+
+#[cfg(test)]
+mod report_tests {
+    use super::*;
+
+    #[test]
+    fn report_bigints_accept_strings() {
+        let apr: ReportApr = serde_json::from_str(r#"{"gross":0.05,"net":0.04}"#).unwrap();
+        assert_eq!(apr.net, Some(0.04));
+        let v: serde_json::Value = serde_json::json!({
+            "blockNumber": "23000000", "blockTime": "1790313695", "logIndex": "12"
+        });
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct T {
+            #[serde(deserialize_with = "deserialize_string_or_u64")]
+            block_number: u64,
+            #[serde(deserialize_with = "deserialize_string_or_u64")]
+            block_time: u64,
+        }
+        let t: T = serde_json::from_value(v).unwrap();
+        assert_eq!((t.block_number, t.block_time), (23_000_000, 1_790_313_695));
+    }
 }

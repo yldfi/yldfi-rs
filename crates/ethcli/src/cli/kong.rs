@@ -111,7 +111,8 @@ pub enum KongCommands {
   ethcli kong vaults list --chain-id 1 --yearn         # Official Yearn vaults on mainnet
   ethcli kong vaults list --v3 --erc4626               # V3 ERC4626 vaults
   ethcli kong vaults get -c 1 0x7B5A...                # Get specific vault details
-  ethcli kong vaults accounts -c 1 0xd8dA...           # Get user positions")]
+
+User vault positions are not available from Kong; use `ethcli portfolio`.")]
 #[non_exhaustive]
 pub enum VaultCommands {
     /// List all vaults (optionally filtered)
@@ -142,16 +143,6 @@ pub enum VaultCommands {
         /// Vault address
         address: String,
     },
-
-    /// Get user positions in vaults
-    Accounts {
-        /// Chain ID
-        #[arg(long, short = 'c', default_value = "1")]
-        chain_id: u64,
-
-        /// User wallet address
-        address: String,
-    },
 }
 
 #[derive(Subcommand)]
@@ -163,7 +154,7 @@ pub enum StrategyCommands {
         #[arg(long, short = 'c')]
         chain_id: Option<u64>,
 
-        /// Filter by vault address
+        /// Filter by vault address (uses --chain-id, default 1)
         #[arg(long)]
         vault: Option<String>,
 
@@ -258,7 +249,7 @@ pub enum TvlCommands {
         #[arg(long, short, default_value = "day")]
         period: TvlPeriodArg,
 
-        /// Number of data points to return
+        /// Number of most recent data points to return
         #[arg(long, short, default_value = "30")]
         limit: u32,
     },
@@ -352,23 +343,6 @@ async fn handle_vaults(
             let vault = client.vaults().get(*chain_id, address).await?;
             print_output(&vault, args.format)?;
         }
-        VaultCommands::Accounts { chain_id, address } => {
-            validate_address(address)?;
-            validate_chain_id(*chain_id)?;
-            // Note: Kong API removed user position queries in 2024.
-            // This command now returns empty results.
-            // Use `ethcli portfolio` with Alchemy/Moralis for vault balances.
-            eprintln!("Warning: Kong API no longer provides user position data.");
-            eprintln!(
-                "User vault balances must be queried on-chain. Use `ethcli portfolio` instead."
-            );
-            #[allow(deprecated)]
-            let accounts = client.vaults().accounts(*chain_id, address).await?;
-            if !quiet {
-                eprintln!("Found {} positions", accounts.len());
-            }
-            print_output(&accounts, args.format)?;
-        }
     }
     Ok(())
 }
@@ -434,8 +408,15 @@ async fn handle_prices(
             if !quiet {
                 eprintln!("Fetching price for {} on chain {}...", address, chain_id);
             }
+            // Kong's prices() query currently returns [] for most tokens
             let price = client.prices().current(*chain_id, address).await?;
-            print_output(&price, args.format)?;
+            match price {
+                Some(p) => print_output(&p, args.format)?,
+                None => anyhow::bail!(
+                    "Kong has no price for {address} on chain {chain_id} (the Kong prices endpoint \
+                     currently returns no data); try `ethcli price {address}`"
+                ),
+            }
         }
         PriceCommands::Historical {
             chain_id,
@@ -454,6 +435,12 @@ async fn handle_prices(
                 .prices()
                 .at_timestamp(*chain_id, address, *timestamp)
                 .await?;
+            if prices.is_empty() {
+                anyhow::bail!(
+                    "Kong has no price for {address} on chain {chain_id} at {timestamp} \
+                     (the Kong prices endpoint currently returns no data)"
+                );
+            }
             print_output(&prices, args.format)?;
         }
     }
@@ -477,7 +464,10 @@ async fn handle_tvl(
                 );
             }
             let tvl = client.tvls().current(*chain_id, address).await?;
-            print_output(&tvl, args.format)?;
+            match tvl {
+                Some(t) => print_output(&t, args.format)?,
+                None => anyhow::bail!("No TVL data for {address} on chain {chain_id}"),
+            }
         }
         TvlCommands::History {
             chain_id,

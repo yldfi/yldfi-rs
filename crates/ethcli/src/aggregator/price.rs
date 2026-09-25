@@ -317,7 +317,9 @@ pub async fn fetch_prices_all(
         PriceSource::Chainlink,
         PriceSource::Pyth,
         PriceSource::Uniswap,
-        PriceSource::Kong,
+        // PriceSource::Kong is not queried by default: Kong's prices() query
+        // currently returns [] for every token. Vault tokens are still priced
+        // via KongVault (pricePerShare x underlying price).
         PriceSource::KongVault,
         PriceSource::Enso,
     ];

@@ -216,33 +216,80 @@ impl Client {
             message: format!("Failed to read response body: {e}"),
         })?;
 
-        let gql_response: GraphQLResponse<T> =
-            serde_json::from_str(&body).map_err(|e| Error::Api {
-                status,
-                message: format!(
-                    "Failed to parse GraphQL response for query '{query_preview}...': {e}"
-                ),
-            })?;
+        decode_graphql_body(&body, status, &query_preview)
+    }
+}
 
-        // Check for GraphQL errors - preserve ALL error messages
-        if let Some(errors) = gql_response.errors {
-            if !errors.is_empty() {
-                let error_messages: Vec<&str> = errors.iter().map(|e| e.message.as_str()).collect();
-                let combined = if error_messages.len() == 1 {
-                    error_messages[0].to_string()
-                } else {
-                    format!(
-                        "{} errors: {}",
-                        error_messages.len(),
-                        error_messages.join("; ")
-                    )
-                };
-                return Err(graphql_error(combined));
-            }
+/// Decode a GraphQL response body.
+///
+/// GraphQL `errors` are checked **before** `data` is deserialized into `T`:
+/// when a query fails, `data` is typically `null` (or has null fields), and
+/// deserializing it first produced misleading errors such as
+/// "invalid type: null, expected a sequence" instead of the real message.
+fn decode_graphql_body<T: serde::de::DeserializeOwned>(
+    body: &str,
+    status: u16,
+    query_preview: &str,
+) -> Result<T> {
+    let gql_response: GraphQLResponse<serde_json::Value> =
+        serde_json::from_str(body).map_err(|e| Error::Api {
+            status,
+            message: format!(
+                "Failed to parse GraphQL response for query '{query_preview}...': {e}"
+            ),
+        })?;
+
+    if let Some(errors) = gql_response.errors {
+        if !errors.is_empty() {
+            let error_messages: Vec<&str> = errors.iter().map(|e| e.message.as_str()).collect();
+            let combined = if error_messages.len() == 1 {
+                error_messages[0].to_string()
+            } else {
+                format!(
+                    "{} errors: {}",
+                    error_messages.len(),
+                    error_messages.join("; ")
+                )
+            };
+            return Err(graphql_error(combined));
         }
+    }
 
-        gql_response
-            .data
-            .ok_or_else(|| graphql_error("No data in GraphQL response"))
+    let data = gql_response
+        .data
+        .filter(|d| !d.is_null())
+        .ok_or_else(|| graphql_error("No data in GraphQL response"))?;
+
+    serde_json::from_value(data).map_err(|e| Error::Api {
+        status,
+        message: format!("Failed to decode GraphQL data for query '{query_preview}...': {e}"),
+    })
+}
+
+#[cfg(test)]
+mod decode_tests {
+    use super::*;
+
+    #[derive(Debug, serde::Deserialize)]
+    struct Tvls {
+        #[allow(dead_code)]
+        tvls: Vec<serde_json::Value>,
+    }
+
+    #[test]
+    fn graphql_errors_win_over_null_data() {
+        let body = r#"{"errors":[{"message":"invalid period: day"}],"data":{"tvls":null}}"#;
+        let err = decode_graphql_body::<Tvls>(body, 200, "q")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("invalid period: day"), "{err}");
+        assert!(!err.contains("expected a sequence"), "{err}");
+    }
+
+    #[test]
+    fn data_is_decoded_when_no_errors() {
+        let body = r#"{"data":{"tvls":[{"value":1}]}}"#;
+        let r: Tvls = decode_graphql_body(body, 200, "q").unwrap();
+        assert_eq!(r.tvls.len(), 1);
     }
 }
