@@ -12,7 +12,7 @@ This is a Cargo workspace containing multiple crates:
 | `ethcli-mcp` | MCP server wrapping ethcli |
 | `yldfi-common` | Shared utilities |
 | `openoc`, `cowp`, `kybr`, `zrxswap`, `oinch`, `vlra`, `ensof`, `lfi` | DEX aggregator clients |
-| `tndrly`, `dllma`, `cgko`, `dnsim`, `dnapi`, `alcmy`, `pythc`, `unswp`, `ykong`, `gplus`, `sldt` | Various API clients |
+| `tndrly`, `dllma`, `cgko`, `dnapi`, `alcmy`, `pythc`, `unswp`, `ykong`, `gplus`, `sldt` | Various API clients |
 | `crv`, `mrls` | Curve Finance and Moralis clients |
 
 ## Development Setup

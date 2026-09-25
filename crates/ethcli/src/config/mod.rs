@@ -14,8 +14,8 @@ pub use endpoint::{
     MIN_TX_FETCH_CONCURRENCY,
 };
 pub use file::{
-    AlchemyConfig, ChainlinkConfig, ConfigFile, DuneConfig, DuneSimConfig, GeckoConfig,
-    LlamaConfig, MoralisConfig, OneInchConfig, SoloditConfig, TenderlyConfig, ZeroxConfig,
+    AlchemyConfig, ChainlinkConfig, ConfigFile, DuneConfig, GeckoConfig, LlamaConfig,
+    MoralisConfig, OneInchConfig, SoloditConfig, TenderlyConfig, ZeroxConfig,
 };
 
 use crate::error::{ConfigError, Result};

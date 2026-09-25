@@ -4467,48 +4467,6 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
-    // DSIM (Dune Sim) - platform shuts down 2026-08-01
-    // (https://github.com/yldfi/yldfi-rs/issues/64)
-    // =========================================================================
-
-    #[tool(description = "List supported chains for Dune Simulator")]
-    async fn dsim_chains(&self) -> String {
-        tools::dsim_chains().await.to_response()
-    }
-
-    #[tool(description = "Get token balances via Dune Simulator")]
-    async fn dsim_balances(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_balances(&input.address).await.to_response()
-    }
-
-    #[tool(description = "Get NFT collectibles via Dune Simulator")]
-    async fn dsim_collectibles(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_collectibles(&input.address).await.to_response()
-    }
-
-    #[tool(description = "Get wallet activity via Dune Simulator")]
-    async fn dsim_activity(&self, Parameters(input): Parameters<DsimAddressInput>) -> String {
-        tools::dsim_activity(&input.address).await.to_response()
-    }
-
-    #[tool(description = "Get token info via Dune Simulator")]
-    async fn dsim_token(&self, Parameters(input): Parameters<DsimTokenInfoInput>) -> String {
-        tools::dsim_token(&input.address, Some(&input.chain_id))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get token holders via Dune Simulator")]
-    async fn dsim_holders(&self, Parameters(input): Parameters<DsimTokenInput>) -> String {
-        tools::dsim_holders(&input.token, Some(&input.chain_id))
-            .await
-            .to_response()
-    }
-
-    // dsim_defi was removed: Dune Sim DeFi Positions was deprecated 2026-06-01
-    // and the Sim platform shuts down 2026-08-01. See issue #64.
-
-    // =========================================================================
     // DUNE
     // =========================================================================
 
@@ -5784,11 +5742,6 @@ impl EthcliMcpServer {
     #[tool(description = "Set Dune API key in config")]
     async fn config_set_dune(&self, Parameters(input): Parameters<ConfigKeyInput>) -> String {
         tools::config_set_dune(&input.key).await.to_response()
-    }
-
-    #[tool(description = "Set Dune simulation API key in config")]
-    async fn config_set_dune_sim(&self, Parameters(input): Parameters<ConfigKeyInput>) -> String {
-        tools::config_set_dune_sim(&input.key).await.to_response()
     }
 
     #[tool(description = "Set Solodit API key in config")]

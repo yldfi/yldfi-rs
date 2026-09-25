@@ -2397,20 +2397,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dnsim"
-version = "0.1.4"
-dependencies = [
- "reqwest 0.12.28",
- "secrecy",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "url",
- "yldfi-common",
-]
-
-[[package]]
 name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2613,7 +2599,6 @@ dependencies = [
  "dirs",
  "dllma",
  "dnapi",
- "dnsim",
  "ensof",
  "evm-disassembler",
  "evmole",

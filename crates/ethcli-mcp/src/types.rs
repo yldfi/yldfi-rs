@@ -470,8 +470,7 @@ pub struct PortfolioInput {
     pub aggregate: bool,
     /// Chain(s) to query (default: ethereum)
     pub chain: Option<String>,
-    /// Source to query: all, alchemy, moralis, dsim, uniswap, yearn.
-    /// "all" excludes dsim (Dune Sim shuts down 2026-08-01, issue #64).
+    /// Source to query: all, alchemy, moralis, uniswap, yearn
     pub source: Option<String>,
     /// Minimum USD value to show (filter small balances)
     pub min_value: Option<f64>,
@@ -2451,31 +2450,6 @@ pub struct MoralisVolumeCategoryTimeseriesInput {
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
-}
-
-// --- Dsim ---
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct DsimAddressInput {
-    /// Address to query
-    pub address: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct DsimTokenInfoInput {
-    /// Token/contract address to query
-    pub address: String,
-    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
-    #[serde(default = "default_chain_id")]
-    pub chain_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct DsimTokenInput {
-    /// Token address
-    pub token: String,
-    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
-    #[serde(default = "default_chain_id")]
-    pub chain_id: String,
 }
 
 // --- Dune ---

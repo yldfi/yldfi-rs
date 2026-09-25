@@ -15,7 +15,6 @@ pub mod contract;
 pub mod cowswap;
 pub mod curve;
 pub mod doctor;
-pub mod dsim;
 pub mod dune_cli;
 pub mod endpoints;
 pub mod ens;
@@ -326,12 +325,6 @@ pub enum Commands {
     Moralis {
         #[command(subcommand)]
         action: moralis::MoralisCommands,
-    },
-
-    /// Direct Dune SIM API access
-    Dsim {
-        #[command(subcommand)]
-        action: dsim::DsimCommands,
     },
 
     /// Direct Dune Analytics API access

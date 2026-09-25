@@ -5679,73 +5679,6 @@ pub async fn moralis_volume_category_timeseries(
 }
 
 // =============================================================================
-// DSIM (6 subcommands) - Dune Sim (platform shuts down 2026-08-01, issue #64)
-// =============================================================================
-
-pub async fn dsim_chains() -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("chains")
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_balances(address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("balances")
-        .subcommand("get")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_collectibles(address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("collectibles")
-        .subcommand("get")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_activity(address: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("activity")
-        .subcommand("get")
-        .arg(address)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_token(address: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("token")
-        .subcommand("info")
-        .arg(address)
-        .opt("--chain-id", chain_id)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn dsim_holders(token: &str, chain_id: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("dsim")
-        .subcommand("holders")
-        .subcommand("get")
-        .arg(token)
-        .opt("--chain-id", chain_id)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-// dsim_defi was removed: Dune Sim DeFi Positions was deprecated 2026-06-01
-// and the Sim platform shuts down 2026-08-01. See issue #64.
-
-// =============================================================================
 // DUNE (3 subcommands)
 // =============================================================================
 
@@ -7930,17 +7863,6 @@ pub async fn config_set_dune(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-dune")
-        .arg(key)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-pub async fn config_set_dune_sim(key: &str) -> Result<String, ToolError> {
-    require_write_tools_enabled("config_set_dune_sim")?;
-
-    ArgsBuilder::new("config")
-        .subcommand("set-dune-sim")
         .arg(key)
         .execute()
         .await

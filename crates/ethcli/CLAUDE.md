@@ -55,8 +55,8 @@ ethcli completions # Generate shell completions (bash, zsh, fish, powershell)
 ### Aggregation Commands (parallel queries to multiple APIs)
 ```
 ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, CCXT
-ethcli portfolio  # Portfolio balances from Alchemy, Dune SIM, Moralis
-ethcli nfts       # NFT holdings from Alchemy, CoinGecko, Moralis, Dune SIM
+ethcli portfolio  # Portfolio balances from Alchemy, Moralis
+ethcli nfts       # NFT holdings from Alchemy, CoinGecko, Moralis
 ethcli yields     # DeFi yields from DefiLlama and Curve
 ethcli quote      # Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora, Enso
 ```
@@ -68,7 +68,6 @@ ethcli alchemy    # Alchemy API (NFTs, prices, portfolio, transfers, debug)
 ethcli gecko      # CoinGecko API (coins, prices, NFTs, exchanges)
 ethcli llama      # DefiLlama API (TVL, prices, yields, stablecoins)
 ethcli moralis    # Moralis API (wallet, token, NFT, DeFi, transactions)
-ethcli dsim       # Dune SIM API (balances, activity, collectibles, DeFi)
 ethcli dune       # Dune Analytics API (queries, executions, tables)
 ethcli curve      # Curve Finance API (pools, volumes, lending, tokens, router)
 ethcli chainlink  # Chainlink price feeds (RPC-based, no API key needed)
@@ -684,18 +683,13 @@ ethcli moralis token-metadata 0x...
 ethcli moralis defi-positions 0x...
 ```
 
-## Dsim (Dune SIM) Commands
+## Dune Sim (removed)
 
-Direct access to Dune SIM API. Requires `DUNE_SIM_API_KEY` environment variable
-(`DUNE_API_KEY` is not a fallback). Dune Sim shuts down 2026-08-01 (issue #64);
-`ethcli dsim defi` is blocked because DeFi Positions was deprecated 2026-06-01.
-
-```bash
-# Wallet simulation
-ethcli dsim balances 0x...
-ethcli dsim activity 0x...
-ethcli dsim collectibles 0x...
-```
+Dune Sim (sim.dune.com) was shut down on 2026-08-01, so `ethcli dsim`,
+`--source dsim`, `ethcli config set-dune-sim` and the `DUNE_SIM_API_KEY`
+variable were removed (see <https://github.com/yldfi/yldfi-rs/issues/64>).
+Use `ethcli portfolio` / `ethcli nfts` (Alchemy, Moralis) instead. Dune
+Analytics (`ethcli dune`, `DUNE_API_KEY`) is unaffected.
 
 ## Dune Commands
 
@@ -1088,7 +1082,6 @@ src/
     ├── gecko.rs      # Direct CoinGecko API
     ├── llama.rs      # Direct DefiLlama API
     ├── moralis.rs    # Direct Moralis API
-    ├── dsim.rs       # Direct Dune SIM API
     ├── dune_cli.rs   # Direct Dune Analytics API
     ├── curve.rs      # Direct Curve Finance API
     ├── chainlink.rs  # Chainlink price feeds (RPC + Data Streams)
@@ -1122,7 +1115,6 @@ src/
 - **gecko**: CoinGecko API client
 - **llama**: DefiLlama API client
 - **mrls**: Moralis API client
-- **dsim**: Dune SIM API client
 - **dune**: Dune Analytics API client
 - **crv**: Curve Finance API client
 - **ykong**: Yearn Kong GraphQL API client
@@ -1196,7 +1188,6 @@ ethcli chainlink oracles --chain arbitrum
 ## Environment Variables
 
 **Note:** Some services have similar-named keys that serve different purposes:
-- `DUNE_API_KEY` (Dune Analytics queries) vs `DUNE_SIM_API_KEY` (Dune SIM wallet simulation)
 - `CHAINLINK_API_KEY` + `CHAINLINK_USER_SECRET` are only for Data Streams (premium), not needed for RPC-based price feeds
 
 | Variable | Required For | Description |
@@ -1207,7 +1198,6 @@ ethcli chainlink oracles --chain arbitrum
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (increases rate limit) |
 | `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
-| `DUNE_SIM_API_KEY` | `ethcli dsim` | Dune SIM wallet simulation |
 | `DUNE_API_KEY` | `ethcli dune` | Dune Analytics queries |
 | `CHAINLINK_API_KEY` | `chainlink streams` only | Data Streams API key |
 | `CHAINLINK_USER_SECRET` | `chainlink streams` only | Data Streams secret |
