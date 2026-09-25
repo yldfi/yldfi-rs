@@ -63,10 +63,12 @@
 //! - [`client`] - Unified client combining on-chain and subgraph
 //! - [`lens`] - On-chain queries via ephemeral contracts
 //! - [`subgraph`] - Historical data via The Graph
+//! - [`daystats`] - Recent per-day pool stats (fee APY estimation)
 //! - [`types`] - Data types for pools, swaps, etc.
 //! - [`error`] - Error types
 
 pub mod client;
+pub mod daystats;
 pub mod error;
 pub mod lens;
 pub mod subgraph;
@@ -80,6 +82,7 @@ pub use types::{
 };
 
 // Re-export commonly used items from submodules
+pub use daystats::PoolDayStats;
 pub use lens::{factories, pools, tokens, LensClient};
 pub use subgraph::{subgraph_ids, SubgraphClient, SubgraphConfig, UniswapVersion};
 
