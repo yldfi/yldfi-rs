@@ -2888,59 +2888,6 @@ pub async fn alchemy_trace_filter(
 }
 
 // =============================================================================
-// ALCHEMY SIMULATION
-// =============================================================================
-
-pub async fn alchemy_sim_asset_changes(
-    to: &str,
-    from: Option<&str>,
-    data: Option<&str>,
-    value: Option<&str>,
-    gas: Option<&str>,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("simulation")
-        .network(network)
-        .subcommand("asset-changes")
-        .arg(to)
-        .opt("--from", from)
-        .opt("--data", data)
-        .opt("--value", value)
-        .opt("--gas", gas)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn alchemy_sim_execution(
-    to: &str,
-    from: Option<&str>,
-    data: Option<&str>,
-    value: Option<&str>,
-    gas: Option<&str>,
-    block: Option<&str>,
-    trace_format: Option<&str>,
-    network: Option<&str>,
-) -> Result<String, ToolError> {
-    ArgsBuilder::new("alchemy")
-        .subcommand("simulation")
-        .network(network)
-        .subcommand("execution")
-        .arg(to)
-        .opt("--from", from)
-        .opt("--data", data)
-        .opt("--value", value)
-        .opt("--gas", gas)
-        .opt("--block", block)
-        .opt("--trace-format", trace_format)
-        .execute()
-        .await
-        .map_err(ToolError::from)
-}
-
-// =============================================================================
 // ALCHEMY BUNDLER (ERC-4337)
 // =============================================================================
 

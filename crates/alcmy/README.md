@@ -19,7 +19,6 @@
 - **Transfers API** - Historical transaction data
 - **Debug API** - Transaction and block tracing
 - **Trace API** - Parity-style tracing
-- **Simulation API** - Simulate transactions and asset changes
 - **Bundler API** - ERC-4337 Account Abstraction
 - **Gas Manager API** - Gas sponsorship and policy management
 - **Wallet API** - Smart wallet operations
@@ -97,6 +96,25 @@ were removed. Use `get_contracts_for_owner`, `get_contract_metadata`
 (`opensea_metadata`), `is_spam_contract` and `get_nfts_for_contract` instead.
 `is_holder_of_contract` remains and is implemented on top of `getNFTsForOwner`.
 
+The Transaction Simulation API (`alchemy_simulateAssetChanges`,
+`alchemy_simulateAssetChangesBundle`, `alchemy_simulateExecution`,
+`alchemy_simulateExecutionBundle`) was also retired on 2026-09-30 and the
+`simulation` module was removed. Use `client.debug().trace_call(...)`
+(`debug_traceCall`) instead.
+
+Other Alchemy platform changes reflected here:
+
+- The Signer `POST /signup` endpoint was turned off on 2026-06-18, so
+  `accounts().signup()` was removed.
+- `gas_manager().request_paymaster_and_data_v06/_v07`
+  (`alchemy_requestPaymasterAndData`) are `#[deprecated]` because Alchemy marks
+  the method "to be deprecated"; use `request_gas_and_paymaster_data_v06/_v07`
+  (`alchemy_requestGasAndPaymasterAndData`).
+- `trace().filter()`, `trace().get()` and `trace().raw_transaction()` return an
+  error without sending a request on `polygon-mainnet`/`polygon-amoy`: Alchemy
+  stopped serving `trace_filter`, `trace_get` and `trace_rawTransaction` there on
+  2026-08-01 (Erigon to Bor migration). The other `trace_*` methods still work.
+
 ### Token API
 
 ```rust
@@ -136,22 +154,6 @@ let trace = client.debug().trace_transaction("0xtxhash").await?;
 // Trace a call
 let call = TraceCallObject::new("0xfrom", "0xto").data("0xcalldata");
 let trace = client.debug().trace_call(&call, "latest").await?;
-```
-
-### Simulation API
-
-```rust
-use alcmy::simulation::SimulationTransaction;
-
-// Simulate asset changes
-let tx = SimulationTransaction::new("0xfrom", "0xto")
-    .data("0xcalldata")
-    .value("1000000000000000000");
-let result = client.simulation().simulate_asset_changes(&tx).await?;
-
-for change in result.changes {
-    println!("{}: {} {}", change.asset_type, change.amount, change.symbol.unwrap_or_default());
-}
 ```
 
 ### Bundler API (ERC-4337)

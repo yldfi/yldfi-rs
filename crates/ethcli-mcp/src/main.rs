@@ -2221,7 +2221,9 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get a specific trace by position in a transaction via Alchemy")]
+    #[tool(
+        description = "Get a specific trace by position in a transaction via Alchemy (trace_get; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+    )]
     async fn alchemy_trace_get(
         &self,
         Parameters(input): Parameters<AlchemyTraceGetInput>,
@@ -2231,7 +2233,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Trace a raw transaction without executing via Alchemy")]
+    #[tool(
+        description = "Trace a raw transaction without executing via Alchemy (trace_rawTransaction; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+    )]
     async fn alchemy_trace_raw_transaction(
         &self,
         Parameters(input): Parameters<AlchemyTraceRawTxInput>,
@@ -2283,7 +2287,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Filter traces by criteria (block range, addresses) via Alchemy")]
+    #[tool(
+        description = "Filter traces by criteria (block range, addresses) via Alchemy (trace_filter; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+    )]
     async fn alchemy_trace_filter(
         &self,
         Parameters(input): Parameters<AlchemyTraceFilterInput>,
@@ -2295,46 +2301,6 @@ impl EthcliMcpServer {
             input.to_address.as_deref(),
             input.after,
             input.count,
-            Some(&input.network),
-        )
-        .await
-        .to_response()
-    }
-
-    // =========================================================================
-    // ALCHEMY SIMULATION
-    // =========================================================================
-
-    #[tool(description = "Simulate a transaction and return asset changes via Alchemy")]
-    async fn alchemy_sim_asset_changes(
-        &self,
-        Parameters(input): Parameters<AlchemySimAssetChangesInput>,
-    ) -> String {
-        tools::alchemy_sim_asset_changes(
-            &input.to,
-            input.from.as_deref(),
-            input.data.as_deref(),
-            input.value.as_deref(),
-            input.gas.as_deref(),
-            Some(&input.network),
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(description = "Simulate execution with decoded traces and logs via Alchemy")]
-    async fn alchemy_sim_execution(
-        &self,
-        Parameters(input): Parameters<AlchemySimExecutionInput>,
-    ) -> String {
-        tools::alchemy_sim_execution(
-            &input.to,
-            input.from.as_deref(),
-            input.data.as_deref(),
-            input.value.as_deref(),
-            input.gas.as_deref(),
-            input.block.as_deref(),
-            input.trace_format.as_deref(),
             Some(&input.network),
         )
         .await

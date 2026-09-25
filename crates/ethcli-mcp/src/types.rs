@@ -1850,46 +1850,6 @@ pub struct AlchemyTraceFilterInput {
     pub network: String,
 }
 
-// --- Alchemy Simulation ---
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemySimAssetChangesInput {
-    /// Recipient address
-    pub to: String,
-    /// Sender address
-    pub from: Option<String>,
-    /// Call data (hex)
-    pub data: Option<String>,
-    /// Value to send (hex)
-    pub value: Option<String>,
-    /// Gas limit (hex)
-    pub gas: Option<String>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct AlchemySimExecutionInput {
-    /// Recipient address
-    pub to: String,
-    /// Sender address
-    pub from: Option<String>,
-    /// Call data (hex)
-    pub data: Option<String>,
-    /// Value to send (hex)
-    pub value: Option<String>,
-    /// Gas limit (hex)
-    pub gas: Option<String>,
-    /// Block tag (e.g., "latest")
-    pub block: Option<String>,
-    /// Output format: nested or flat (default: nested)
-    pub trace_format: Option<String>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
-    pub network: String,
-}
-
 // --- Alchemy Bundler ---
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

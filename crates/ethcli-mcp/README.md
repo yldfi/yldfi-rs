@@ -183,7 +183,10 @@ removed: `alchemy_nft_collections_for_owner` (use
 `alchemy_nft_summarize_attributes`, `alchemy_nft_compute_rarity`,
 `alchemy_nft_invalidate_contract`, `alchemy_nft_is_airdrop`,
 `alchemy_nft_sales` (no replacement). `alchemy_nft_is_holder` remains and is
-now backed by `getNFTsForOwner`.
+now backed by `getNFTsForOwner`. The Alchemy Transaction Simulation API was
+retired on the same date, so `alchemy_sim_asset_changes` and
+`alchemy_sim_execution` were removed; use `simulate_call` (Tenderly or
+`debug_traceCall` backends) or `alchemy_debug_trace_call` instead.
 
 Dune is shutting down the Sim platform on 2026-08-01. The remaining `dsim_*`
 tools keep working until then (with a stderr sunset warning from ethcli), but

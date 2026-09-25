@@ -154,15 +154,6 @@ pub enum AlchemyCommands {
         args: AlchemyArgs,
     },
 
-    /// Transaction simulation
-    Simulation {
-        #[command(subcommand)]
-        action: SimulationCommands,
-
-        #[command(flatten)]
-        args: AlchemyArgs,
-    },
-
     /// ERC-4337 Bundler operations
     Bundler {
         #[command(subcommand)]
@@ -593,7 +584,7 @@ pub enum TraceCommands {
         trace_types: String,
     },
 
-    /// Get a specific trace by position in a transaction
+    /// Get a specific trace by position in a transaction (not on Polygon since 2026-08-01)
     Get {
         /// Transaction hash
         hash: String,
@@ -601,7 +592,7 @@ pub enum TraceCommands {
         indices: String,
     },
 
-    /// Trace a raw transaction without executing
+    /// Trace a raw transaction without executing (not on Polygon since 2026-08-01)
     RawTransaction {
         /// Raw signed transaction (hex)
         raw_tx: String,
@@ -634,7 +625,7 @@ pub enum TraceCommands {
         hash: String,
     },
 
-    /// Filter traces by criteria
+    /// Filter traces by criteria (not on Polygon since 2026-08-01)
     Filter {
         /// From block (hex or tag)
         #[arg(long)]
@@ -654,55 +645,6 @@ pub enum TraceCommands {
         /// Maximum traces to return
         #[arg(long)]
         count: Option<u32>,
-    },
-}
-
-// =============================================================================
-// Simulation Commands
-// =============================================================================
-
-#[derive(Subcommand)]
-pub enum SimulationCommands {
-    /// Simulate a transaction and return asset changes
-    AssetChanges {
-        /// Recipient address
-        to: String,
-        /// Sender address
-        #[arg(long)]
-        from: Option<String>,
-        /// Call data (hex)
-        #[arg(long)]
-        data: Option<String>,
-        /// Value to send (hex)
-        #[arg(long)]
-        value: Option<String>,
-        /// Gas limit (hex)
-        #[arg(long)]
-        gas: Option<String>,
-    },
-
-    /// Simulate execution with decoded traces and logs
-    Execution {
-        /// Recipient address
-        to: String,
-        /// Sender address
-        #[arg(long)]
-        from: Option<String>,
-        /// Call data (hex)
-        #[arg(long)]
-        data: Option<String>,
-        /// Value to send (hex)
-        #[arg(long)]
-        value: Option<String>,
-        /// Gas limit (hex)
-        #[arg(long)]
-        gas: Option<String>,
-        /// Block tag (e.g., "latest")
-        #[arg(long, default_value = "latest")]
-        block: String,
-        /// Output format: nested or flat
-        #[arg(long, default_value = "nested")]
-        trace_format: String,
     },
 }
 
@@ -1063,9 +1005,6 @@ pub async fn handle(command: &AlchemyCommands, quiet: bool) -> anyhow::Result<()
         }
         AlchemyCommands::Trace { action, args } => {
             handle_trace(action, args, &api_key, quiet).await
-        }
-        AlchemyCommands::Simulation { action, args } => {
-            handle_simulation(action, args, &api_key, quiet).await
         }
         AlchemyCommands::Bundler { action, args } => {
             handle_bundler(action, args, &api_key, quiet).await
@@ -1701,75 +1640,6 @@ async fn handle_trace(
                 count: *count,
             };
             let response = client.trace().filter(&filter).await?;
-            print_output(&response, args.format)?;
-        }
-    }
-
-    Ok(())
-}
-
-// =============================================================================
-// Simulation Handler
-// =============================================================================
-
-async fn handle_simulation(
-    action: &SimulationCommands,
-    args: &AlchemyArgs,
-    api_key: &str,
-    quiet: bool,
-) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
-
-    match action {
-        SimulationCommands::AssetChanges {
-            to,
-            from,
-            data,
-            value,
-            gas,
-        } => {
-            if !quiet {
-                eprintln!("Simulating asset changes for call to {}...", to);
-            }
-            let tx = alcmy::simulation::SimulationTransaction {
-                to: to.clone(),
-                from: from.clone(),
-                data: data.clone(),
-                value: value.clone(),
-                gas: gas.clone(),
-                ..Default::default()
-            };
-            let response = client.simulation().simulate_asset_changes(&tx).await?;
-            print_output(&response, args.format)?;
-        }
-        SimulationCommands::Execution {
-            to,
-            from,
-            data,
-            value,
-            gas,
-            block,
-            trace_format,
-        } => {
-            if !quiet {
-                eprintln!("Simulating execution for call to {}...", to);
-            }
-            let tx = alcmy::simulation::SimulationTransaction {
-                to: to.clone(),
-                from: from.clone(),
-                data: data.clone(),
-                value: value.clone(),
-                gas: gas.clone(),
-                ..Default::default()
-            };
-            let format = match trace_format.to_lowercase().as_str() {
-                "flat" => alcmy::simulation::ExecutionFormat::Flat,
-                _ => alcmy::simulation::ExecutionFormat::Nested,
-            };
-            let response = client
-                .simulation()
-                .simulate_execution(&tx, format, block)
-                .await?;
             print_output(&response, args.format)?;
         }
     }

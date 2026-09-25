@@ -166,6 +166,7 @@ ethcli alchemy transfers <addr> --category erc20
 ethcli alchemy trace-tx <hash>
 ```
 Removed 2026-09-30 (Alchemy NFT sunset, no replacement): `summarize-attributes`, `compute-rarity`, `invalidate-contract`, `is-airdrop`, `sales`.
+Removed 2026-09-30 (Alchemy Simulation API sunset): `ethcli alchemy simulation asset-changes|execution`; use `ethcli simulate call ... --via tenderly|debug|alchemy` or `ethcli alchemy debug trace-call`.
 
 ### CoinGecko (optional COINGECKO_API_KEY)
 ```bash
@@ -328,7 +329,7 @@ ethcli pyth search "ETH"
 
 ```bash
 ethcli simulate call <contract> --sig "fn(types)" <args>
-ethcli simulate call ... --via tenderly|anvil|debug|trace
+ethcli simulate call ... --via tenderly|anvil|debug|trace|alchemy   # alchemy = debug_traceCall
 ethcli simulate call ... --trace --decode-internal --label 0x...:name
 ethcli simulate call ... --via anvil --fork-url <rpc> --fork-block-number -10
 ethcli simulate tx <hash> --decode-internal --trace-depth 6

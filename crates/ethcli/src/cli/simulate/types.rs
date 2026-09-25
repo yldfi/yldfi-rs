@@ -192,7 +192,8 @@ pub enum SimulateVia {
     Debug,
     /// Use trace_call RPC (requires Erigon/OpenEthereum-compatible node)
     Trace,
-    /// Use Alchemy Simulation API (asset changes, decoded traces)
+    /// Use Alchemy debug_traceCall / debug_traceTransaction (the Alchemy
+    /// Simulation API was retired 2026-09-30)
     Alchemy,
 }
 

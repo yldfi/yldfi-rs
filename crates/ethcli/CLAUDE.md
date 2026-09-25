@@ -328,6 +328,7 @@ ethcli simulate call ... --via anvil     # Forks mainnet with Anvil
 ethcli simulate call ... --via tenderly  # Uses Tenderly API (rich output)
 ethcli simulate call ... --via debug     # Uses debug_traceCall RPC
 ethcli simulate call ... --via trace     # Uses trace_call RPC (Erigon/OpenEthereum)
+ethcli simulate call ... --via alchemy   # Uses Alchemy debug_traceCall (Simulation API retired 2026-09-30)
 ```
 
 ## Tenderly Commands
@@ -604,6 +605,12 @@ Alchemy retired several NFT API endpoints on 2026-09-30, and the matching
 | `is-airdrop`, `sales` | no replacement |
 
 `is-holder` is kept and now uses `getNFTsForOwner` filtered to the contract.
+
+The Alchemy Transaction Simulation API was retired on the same date, so
+`ethcli alchemy simulation asset-changes|execution` were removed. Use
+`ethcli simulate call ... --via tenderly` (rich decoded output),
+`--via debug` (`debug_traceCall` on any RPC), `--via alchemy` (Alchemy's
+`debug_traceCall`), or `ethcli alchemy debug trace-call`.
 
 ## Gecko (CoinGecko) Commands
 
