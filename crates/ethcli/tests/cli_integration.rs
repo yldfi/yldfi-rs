@@ -167,6 +167,19 @@ fn test_cast_to_wei_eth() {
         .stdout(predicate::str::contains("1000000000000000000"));
 }
 
+/// Regression: tracing logs must be written to stderr, never stdout, so that
+/// `-o json` output (and the MCP wrapper that parses stdout) is not polluted
+/// when `-v` is passed.
+#[test]
+fn test_verbose_logs_go_to_stderr_not_stdout() {
+    ethcli()
+        .args(["-vv", "cast", "to-wei", "1", "eth"])
+        .assert()
+        .success()
+        .stdout(predicate::str::diff("1000000000000000000\n"))
+        .stderr(predicate::str::contains("logging initialized"));
+}
+
 #[test]
 fn test_cast_to_wei_decimal() {
     ethcli()

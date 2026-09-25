@@ -104,10 +104,14 @@ async fn main() -> anyhow::Result<()> {
         _ => "trace",
     };
 
+    // Logs MUST go to stderr: stdout is reserved for command output so that
+    // `-o json` (and the MCP wrapper, which parses stdout) stays machine-readable
+    // even when `-v` is set or a dependency logs at WARN/ERROR level.
     tracing_subscriber::registry()
-        .with(fmt::layer().with_target(false))
+        .with(fmt::layer().with_target(false).with_writer(std::io::stderr))
         .with(EnvFilter::new(filter))
         .init();
+    tracing::debug!("logging initialized (verbosity {})", cli.verbose);
 
     // Parse chain once for use in handlers
     let chain: Chain = cli.chain.parse()?;
