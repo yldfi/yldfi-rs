@@ -1,5 +1,71 @@
 # Changelog
 
+## [0.4.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.3.0...ethcli-mcp-v0.4.0) (2026-09-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sldt:** Error::Unauthorized and Error::RateLimited now carry data; ApiResponse.rate_limit is Option<RateLimit>; SearchResults gains fields.
+* the `volume` and `market` modules, `Client::volume()`, `Client::market()`, the DiscoveryApi list/filter/token methods and their types, and TokenApi::{get_stats, get_exchange_*_tokens, get_by_symbols, get_holders_historical, get_pairs_stats, get_pair_snipers, get_bonding_status} (plus their response types) are removed. DiscoveryApi keeps get_token_analytics and get_token_score, which are still in the spec (scores are EVM-only).
+* **pythc:** the default endpoint changed and price requests now fail with DomainError::Unauthorized unless an API key is configured.
+* the removed alcmy methods/types, ethcli subcommands and MCP tools no longer exist. Use contracts-for-owner, contract-metadata (openSeaMetadata), is-spam and nfts-for-contract instead.
+
+### Features
+
+* add 130+ CLI commands for Alchemy & Moralis, fix formatting ([b580a6e](https://github.com/yldfi/yldfi-rs/commit/b580a6edb67179787771d854bc44dcec5ddfc8c0))
+* add 169 MCP tools, fix deserialization bugs across Moralis/CoinGecko/Curve ([92085a1](https://github.com/yldfi/yldfi-rs/commit/92085a1fa7639eb1e2d62f8a0f2a836af264a257))
+* add 87 large-effort MCP tools — Curve, CoinGecko, Alchemy, Moralis ([380f7b9](https://github.com/yldfi/yldfi-rs/commit/380f7b9053292570a5e3b3321071d60fc938bcb4))
+* add medium-effort API coverage — Tenderly batch, Dune CRUD, CowSwap orders ([5cdcf89](https://github.com/yldfi/yldfi-rs/commit/5cdcf892aab53199aa061021bac41d963be593ce))
+* add multi-chain support and chainlist.org integration ([48c3e09](https://github.com/yldfi/yldfi-rs/commit/48c3e0943105f6680e65ec5743362649165b0f52))
+* **ethcli-mcp:** add MCP server for ethcli ([f54f4be](https://github.com/yldfi/yldfi-rs/commit/f54f4be0e6b79ef2c18e6738bfeec7c4c73292a2))
+* **ethcli-mcp:** expose missing CLI parameters for feature parity ([fb85ffe](https://github.com/yldfi/yldfi-rs/commit/fb85ffe9ad6252119de3c65e92b11b1fe26db3d0))
+* **ethcli-mcp:** full feature parity with CLI ([1e5f704](https://github.com/yldfi/yldfi-rs/commit/1e5f704892550f5d95ec9d785964b89bd18ac657))
+* **ethcli:** add bytecode analysis and fix MCP bugs ([b74a17c](https://github.com/yldfi/yldfi-rs/commit/b74a17c2c0865fd335506f19fe4711a7c828ac4e))
+* **ethcli:** add bytecode guard analysis and stabilize rpc selection ([7b4e3d1](https://github.com/yldfi/yldfi-rs/commit/7b4e3d1f5d96b11b3659d88d7d0f6399c099ec6e))
+* **ethcli:** decode debug_traceTransaction traces into labeled call trees ([#65](https://github.com/yldfi/yldfi-rs/issues/65)) ([a3b7319](https://github.com/yldfi/yldfi-rs/commit/a3b731981d2f4d9c267c9af43f1a8e1f7c268475))
+* remove sunset Alchemy NFT/Simulation APIs and Dune Sim integration ([#71](https://github.com/yldfi/yldfi-rs/issues/71)) ([416d973](https://github.com/yldfi/yldfi-rs/commit/416d97332c5e39696b10d522465a2b3e65b152b4))
+* **simulate:** support Foundry 1.7 options ([541d308](https://github.com/yldfi/yldfi-rs/commit/541d3081c1d3011c63112cf5c8666b2c88c8e614))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([dac43e2](https://github.com/yldfi/yldfi-rs/commit/dac43e202028861fcb80474bf3b807560b6722bd))
+* **tenderly:** full VNet integration with Admin RPC and simulation ([bb6d849](https://github.com/yldfi/yldfi-rs/commit/bb6d84985bf33a126c71fbcc0176c9605b219a85))
+
+
+### Bug Fixes
+
+* add clippy allow for too_many_arguments ([926fab1](https://github.com/yldfi/yldfi-rs/commit/926fab171926c54bd88d104daf18f6b60f65db67))
+* address Copilot review feedback for merged PRs ([4bec07c](https://github.com/yldfi/yldfi-rs/commit/4bec07cc1974b1ecb841cad2455ebaf7dbb5cf30))
+* address Copilot review feedback for merged PRs ([b497355](https://github.com/yldfi/yldfi-rs/commit/b4973555548a5d2dd7fbcd0cdfcdaa90cdd62a58))
+* address Copilot review feedback on PR [#38](https://github.com/yldfi/yldfi-rs/issues/38) ([79c9900](https://github.com/yldfi/yldfi-rs/commit/79c99002ad070ec849364e4194d68d210f1f633f))
+* DEX aggregator, Curve, Uniswap, yields and Kong bugs found by live smoke test ([#81](https://github.com/yldfi/yldfi-rs/issues/81)) ([730e9eb](https://github.com/yldfi/yldfi-rs/commit/730e9eb388557e434fd530c64d8fc1df17e7b9e8))
+* **dsim:** guard Dune Sim sunset, disable removed DeFi Positions ([#66](https://github.com/yldfi/yldfi-rs/issues/66)) ([00cddb0](https://github.com/yldfi/yldfi-rs/commit/00cddb0ae59dbfb87c48d44da5d87aa44b57d61c))
+* **ethcli-mcp:** fix clippy and formatting issues ([ed6bc0a](https://github.com/yldfi/yldfi-rs/commit/ed6bc0a81865061e55d93dbacae2271744b2041d))
+* **ethcli-mcp:** harden MCP execution policy ([8f166a6](https://github.com/yldfi/yldfi-rs/commit/8f166a686cd22d8ecc721f290802d55f2cb8a7a1))
+* **ethcli-mcp:** prevent data truncation in MCP tool outputs ([12da461](https://github.com/yldfi/yldfi-rs/commit/12da4612be2f9826971498a3c7a0c7a1c475e5f4))
+* **ethcli-mcp:** require amount for set_erc20_balance tool ([47e2528](https://github.com/yldfi/yldfi-rs/commit/47e252830b47a8cea0963e3c75d270a9742e2f45))
+* **ethcli:** satisfy workspace clippy ([0296cbb](https://github.com/yldfi/yldfi-rs/commit/0296cbbbf988a5a4ed9d121a00d9c4b85be7bb22))
+* market-data aggregators, DefiLlama/CoinGecko parsing, ccxt workarounds, MCP errors ([#78](https://github.com/yldfi/yldfi-rs/issues/78)) ([25af322](https://github.com/yldfi/yldfi-rs/commit/25af322ecce9f7bc291a2b685c1666ed855ee383))
+* **mcp:** add missing from_address param to enso_route ([#34](https://github.com/yldfi/yldfi-rs/issues/34)) ([88c4738](https://github.com/yldfi/yldfi-rs/commit/88c473835585bb4c731d5e1c8ee0728dc1766e2f))
+* **mcp:** correct CLI flag names and placement for Alchemy and Moralis tools ([ff55e4d](https://github.com/yldfi/yldfi-rs/commit/ff55e4d074d01d6a6e578bbeae8b098b3d1c3f64))
+* **mcp:** correct CLI flag names and placement for Alchemy and Moralis tools ([0ec24b8](https://github.com/yldfi/yldfi-rs/commit/0ec24b8e9b64969c1ae879f58bff695e56ccad1e))
+* **mcp:** correct CLI flag names and placement for Alchemy and Moralis tools ([#39](https://github.com/yldfi/yldfi-rs/issues/39)) ([ff55e4d](https://github.com/yldfi/yldfi-rs/commit/ff55e4d074d01d6a6e578bbeae8b098b3d1c3f64))
+* **mcp:** fix ~45 critical parameter mismatches across all MCP tool wrappers ([c1ee10b](https://github.com/yldfi/yldfi-rs/commit/c1ee10bca0ef977bd1a7a9f48387d5fe9f48b5cf)), closes [#36](https://github.com/yldfi/yldfi-rs/issues/36)
+* **mcp:** pass function signature as positional arg in contract_call ([1a2b72a](https://github.com/yldfi/yldfi-rs/commit/1a2b72a81073b9bdd99874eeb5de65271dc72e59)), closes [#15](https://github.com/yldfi/yldfi-rs/issues/15)
+* **mcp:** place -n/--network at correct subcommand level for Alchemy tools ([#43](https://github.com/yldfi/yldfi-rs/issues/43)) ([19c7a7d](https://github.com/yldfi/yldfi-rs/commit/19c7a7d9fcf45118ecb984f6b5b79baf5be0fd3c))
+* **mcp:** restore --network flag for Alchemy and Tenderly tools ([ff62ab6](https://github.com/yldfi/yldfi-rs/commit/ff62ab664c3d4db0c7d74c0673f810c068f441ec))
+* **mcp:** restore --network flag for Alchemy and Tenderly tools ([4997517](https://github.com/yldfi/yldfi-rs/commit/4997517c07281a1a02961b76c8e267e16c6f3e4b))
+* **mcp:** restore --network flag for Alchemy and Tenderly tools ([#41](https://github.com/yldfi/yldfi-rs/issues/41)) ([ff62ab6](https://github.com/yldfi/yldfi-rs/commit/ff62ab664c3d4db0c7d74c0673f810c068f441ec))
+* migrate DEX/aggregator clients off deprecated endpoints (cowp, oinch, vlra, openoc, crv, cgko, dllma) ([#74](https://github.com/yldfi/yldfi-rs/issues/74)) ([1981119](https://github.com/yldfi/yldfi-rs/commit/19811196ca836fa14a4364c8c758895da8411347))
+* provider client bugs found by live smoke test (alcmy, tndrly, mrls, gplus) ([#75](https://github.com/yldfi/yldfi-rs/issues/75)) ([8b50186](https://github.com/yldfi/yldfi-rs/commit/8b50186a012a7dbdec8409f0e93287ef1c88c1f7))
+* **pythc:** require API key for Pyth Hermes (Pyth Core upgrade) ([#70](https://github.com/yldfi/yldfi-rs/issues/70)) ([91d1d88](https://github.com/yldfi/yldfi-rs/commit/91d1d8861434b157804dc0b52199e2f33bc0ada4))
+* remove dead Moralis/Tenderly endpoints, fix Dune API paths ([#73](https://github.com/yldfi/yldfi-rs/issues/73)) ([78db18e](https://github.com/yldfi/yldfi-rs/commit/78db18e22b7eadb8ad71ce3cefdbc21bf4ea117c))
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+* resolve ~45 MCP parameter mismatches + 6 critical CLI bugs ([#38](https://github.com/yldfi/yldfi-rs/issues/38)) ([5d86ba6](https://github.com/yldfi/yldfi-rs/commit/5d86ba6384323977b49ea4c05342f92c5d1489a6))
+* resolve clippy warnings ([3dcea82](https://github.com/yldfi/yldfi-rs/commit/3dcea82e8af3dcfe0f077365b90098e88f16a75b))
+* resolve clippy warnings for too_many_arguments and useless_format ([68ac6d0](https://github.com/yldfi/yldfi-rs/commit/68ac6d035360d87061507928db95dcaf346648ac))
+* satisfy latest clippy lints ([c97038b](https://github.com/yldfi/yldfi-rs/commit/c97038b9129d8ddc901fbbf38fbcd8aa05af7d10))
+* **sldt:** align Solodit client with the Findings API spec ([#76](https://github.com/yldfi/yldfi-rs/issues/76)) ([a04476e](https://github.com/yldfi/yldfi-rs/commit/a04476e9f20f42b034d0f6fa981dd34181e1765d))
+* support explicit contract signatures and dynamic abi decode ([f453b86](https://github.com/yldfi/yldfi-rs/commit/f453b86ce319f74d8a582501574f2c2352c474c2))
+* update Enso API client for new endpoints ([1c631e9](https://github.com/yldfi/yldfi-rs/commit/1c631e9eacc6d43813cd5d8160f37a0eb27706f1))
+
 ## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.2.4...ethcli-mcp-v0.3.0) (2026-09-25)
 
 
