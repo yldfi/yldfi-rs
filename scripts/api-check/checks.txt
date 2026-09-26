@@ -1,0 +1,50 @@
+# Weekly live API check: one or two read-only ethcli calls per provider/API.
+#
+# Format:  provider | required env vars | ethcli arguments
+#   - required env vars: "-" for none; "A,B" = all of; "A|B" = any of.
+#     Checks whose keys are missing are skipped (reported, not failed).
+#   - Checks must be read-only and cheap: no orders, sends, writes or
+#     paid-credit-heavy queries.
+#
+# Addresses: vitalik.eth, WETH, USDC, Uniswap V3 USDC/WETH 0.05% pool.
+
+# --- Public RPC / on-chain (uses endpoints from ethcli-config.toml)
+rpc              | -                  | rpc block-number
+ens              | -                  | ens resolve vitalik.eth
+chainlink-onchain| -                  | chainlink price ETH
+uniswap-onchain  | -                  | uniswap pool 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640
+
+# --- Keyless public APIs
+4byte/openchain  | -                  | sig fn 0xa9059cbb
+chainlist        | -                  | chainlist search base
+coingecko        | -                  | gecko global ping
+coingecko        | -                  | gecko simple price ethereum
+defillama        | -                  | llama coins current ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+defillama        | -                  | llama tvl protocol-tvl aave
+defillama-yields | -                  | yields --project curve-dex --limit 3
+curve            | -                  | curve pools big ethereum
+curve-prices     | -                  | curve prices chains
+kong             | -                  | kong vaults list --chain-id 1 --yearn
+goplus           | -                  | goplus token 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ccxt-okx         | -                  | ccxt ticker BTC/USDT --exchange okx
+velora           | -                  | velora price 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1000000000000000000
+openocean        | -                  | open-ocean quote 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1
+kyberswap        | -                  | kyber-swap routes 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1000000000000000000
+cowswap          | -                  | cow-swap quote 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1000000000000000000 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+lifi             | -                  | lifi chains
+aggregate-price  | -                  | price ETH
+
+# --- Keyed APIs (skipped when the secret is not configured)
+etherscan        | ETHERSCAN_API_KEY  | contract abi 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+etherscan        | ETHERSCAN_API_KEY  | gas oracle
+alchemy          | ALCHEMY_API_KEY    | alchemy prices by-symbol ETH
+moralis          | MORALIS_API_KEY    | moralis token price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+dune             | DUNE_API_KEY       | dune usage
+pyth             | PYTH_API_KEY       | pyth price ETH/USD
+solodit          | SOLODIT_API_KEY    | solodit search reentrancy
+thegraph-uniswap | THEGRAPH_API_KEY   | uniswap top-pools 3
+tenderly         | TENDERLY_ACCESS_KEY,TENDERLY_ACCOUNT,TENDERLY_PROJECT | tenderly networks mainnets
+0x               | ZEROX_API_KEY|0X_API_KEY | 0x price 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1000000000000000000 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+1inch            | ONEINCH_API_KEY|1INCH_API_KEY | 1inch quote 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1000000000000000000
+enso             | ENSO_API_KEY       | enso price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+chainlink-streams| CHAINLINK_API_KEY,CHAINLINK_USER_SECRET | chainlink streams feeds
