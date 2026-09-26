@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.0...ethcli-v0.23.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **ethcli:** install upgraded binaries via temp file + rename ([#83](https://github.com/yldfi/yldfi-rs/issues/83)) ([804089e](https://github.com/yldfi/yldfi-rs/commit/804089e96bc33b4549f3067cadf67c9c1fc97faf))
+
 ## [0.23.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.22.4...ethcli-v0.23.0) (2026-09-25)
 
 
