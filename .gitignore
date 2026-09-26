@@ -8,3 +8,6 @@
 # Ignore nested target directories
 **/target/
 **/.claude/
+
+# Python
+__pycache__/
