@@ -82,14 +82,14 @@ fs2 = "0.4"  # MED-003 fix: File locking for config persistence
 chrono = "0.4"  # Timestamp formatting for CCXT commands
 
 # API clients
-alcmy = { version = "0.1", path = "../alcmy" }
+alcmy = { version = "0.2", path = "../alcmy" }
 cgko = { version = "0.1", path = "../cgko" }
 dllma = { version = "0.1", path = "../dllma" }
-mrls = { version = "0.1", path = "../mrls" }
-dnapi = { version = "0.1", path = "../dnapi" }
+mrls = { version = "0.2", path = "../mrls" }
+dnapi = { version = "0.2", path = "../dnapi" }
 crv = { version = "0.1", path = "../crv" }
-pyth = { version = "0.1", path = "../pythc", package = "pythc" }
-tndrly = { version = "0.3", path = "../tndrly" }
+pyth = { version = "0.2", path = "../pythc", package = "pythc" }
+tndrly = { version = "0.4", path = "../tndrly" }
 yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 # DEX aggregator clients
@@ -112,7 +112,7 @@ ykong = { version = "0.1", path = "../ykong" }
 gplus = { version = "0.1", path = "../gplus" }
 
 # Solodit vulnerability database client
-sldt = { version = "0.1", path = "../sldt" }
+sldt = { version = "0.2", path = "../sldt" }
 
 # Bytecode analysis
 evmole = { version = "0.8", features = ["serde"] }
