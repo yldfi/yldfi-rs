@@ -2622,7 +2622,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.23.0"
+version = "0.23.1"
 dependencies = [
  "alcmy",
  "alloy 2.0.4",
