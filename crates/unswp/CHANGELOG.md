@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.5...unswp-v0.1.6) (2026-09-25)
+
+
+### Bug Fixes
+
+* DEX aggregator, Curve, Uniswap, yields and Kong bugs found by live smoke test ([#81](https://github.com/yldfi/yldfi-rs/issues/81)) ([730e9eb](https://github.com/yldfi/yldfi-rs/commit/730e9eb388557e434fd530c64d8fc1df17e7b9e8))
+* **ethcli,unswp:** replace dead RPCs, fix V4 subgraph IDs, mainnet Data Streams, Etherscan sunset chains ([#72](https://github.com/yldfi/yldfi-rs/issues/72)) ([64ff968](https://github.com/yldfi/yldfi-rs/commit/64ff968a4d7166ab9a9c4e3f896bf8d816f53721))
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.4...unswp-v0.1.5) (2026-05-10)
 
 

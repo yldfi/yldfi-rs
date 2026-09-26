@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/pythc-v0.1.3...pythc-v0.2.0) (2026-09-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **pythc:** the default endpoint changed and price requests now fail with DomainError::Unauthorized unless an API key is configured.
+
+### Bug Fixes
+
+* **pythc:** require API key for Pyth Hermes (Pyth Core upgrade) ([#70](https://github.com/yldfi/yldfi-rs/issues/70)) ([91d1d88](https://github.com/yldfi/yldfi-rs/commit/91d1d8861434b157804dc0b52199e2f33bc0ada4))
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/pythc-v0.1.2...pythc-v0.1.3) (2026-02-02)
 
 

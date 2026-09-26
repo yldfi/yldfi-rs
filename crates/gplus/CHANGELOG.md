@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/gplus-v0.1.1...gplus-v0.1.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* provider client bugs found by live smoke test (alcmy, tndrly, mrls, gplus) ([#75](https://github.com/yldfi/yldfi-rs/issues/75)) ([8b50186](https://github.com/yldfi/yldfi-rs/commit/8b50186a012a7dbdec8409f0e93287ef1c88c1f7))
+
 ## [0.1.1](https://github.com/yldfi/yldfi-rs/compare/gplus-v0.1.0...gplus-v0.1.1) (2026-01-27)
 
 

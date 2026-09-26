@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/oinch-v0.1.3...oinch-v0.1.4) (2026-09-25)
+
+
+### Bug Fixes
+
+* migrate DEX/aggregator clients off deprecated endpoints (cowp, oinch, vlra, openoc, crv, cgko, dllma) ([#74](https://github.com/yldfi/yldfi-rs/issues/74)) ([1981119](https://github.com/yldfi/yldfi-rs/commit/19811196ca836fa14a4364c8c758895da8411347))
+
 ## [0.1.3](https://github.com/yldfi/yldfi-rs/compare/oinch-v0.1.2...oinch-v0.1.3) (2026-02-15)
 
 

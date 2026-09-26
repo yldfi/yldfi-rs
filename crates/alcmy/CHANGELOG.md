@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.1.6...alcmy-v0.2.0) (2026-09-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* the removed alcmy methods/types, ethcli subcommands and MCP tools no longer exist. Use contracts-for-owner, contract-metadata (openSeaMetadata), is-spam and nfts-for-contract instead.
+
+### Features
+
+* remove sunset Alchemy NFT/Simulation APIs and Dune Sim integration ([#71](https://github.com/yldfi/yldfi-rs/issues/71)) ([416d973](https://github.com/yldfi/yldfi-rs/commit/416d97332c5e39696b10d522465a2b3e65b152b4))
+
+
+### Bug Fixes
+
+* provider client bugs found by live smoke test (alcmy, tndrly, mrls, gplus) ([#75](https://github.com/yldfi/yldfi-rs/issues/75)) ([8b50186](https://github.com/yldfi/yldfi-rs/commit/8b50186a012a7dbdec8409f0e93287ef1c88c1f7))
+
 ## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.1.5...alcmy-v0.1.6) (2026-02-16)
 
 
