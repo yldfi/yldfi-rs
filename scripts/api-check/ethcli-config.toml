@@ -1,0 +1,32 @@
+# Minimal ethcli config for the weekly API check: public RPC endpoints only.
+# API keys come from environment variables (repository secrets).
+[settings]
+concurrency = 2
+timeout_seconds = 15
+retry_attempts = 2
+checkpoint_interval = 1000
+debug_rpc_urls = []
+
+[[endpoints]]
+url = "https://eth.drpc.org"
+chain = "ethereum"
+priority = 10
+max_block_range = 10000
+max_logs = 5000
+
+[[endpoints]]
+url = "https://ethereum-rpc.publicnode.com"
+chain = "ethereum"
+priority = 8
+max_block_range = 44864
+max_logs = 20000
+
+[[endpoints]]
+url = "https://eth-mainnet.public.blastapi.io"
+chain = "ethereum"
+priority = 4
+max_block_range = 18303
+max_logs = 20000
+
+[disabled_endpoints]
+urls = []

@@ -1,0 +1,123 @@
+name: Weekly API check
+
+# Calls every upstream API that ethcli depends on with a read-only command and
+# fails when one has changed or disappeared (404/410, DNS failure, response no
+# longer parses, keyless API now requiring auth). Rate limits, 5xx and plan/key
+# problems are reported as warnings. See scripts/api-check/.
+#
+# Optional repository secrets enable the keyed checks; without them those
+# checks are skipped: ETHERSCAN_API_KEY, ALCHEMY_API_KEY, MORALIS_API_KEY,
+# DUNE_API_KEY, PYTH_API_KEY, SOLODIT_API_KEY, THEGRAPH_API_KEY,
+# TENDERLY_ACCESS_KEY, TENDERLY_ACCOUNT, TENDERLY_PROJECT, ZEROX_API_KEY,
+# ONEINCH_API_KEY, ENSO_API_KEY, CHAINLINK_API_KEY, CHAINLINK_USER_SECRET.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'  # Monday 07:00 UTC, after the weekly security audit
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/api-check/**'
+      - '.github/workflows/api-check.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  api-check:
+    name: API check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Classifier unit tests
+        run: python3 -m unittest discover -s scripts/api-check -p 'test_*.py' -v
+
+      - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: api-check-release
+
+      - name: Build ethcli
+        run: cargo build --release --locked -p ethcli
+
+      - name: Install check config
+        run: install -D -m 0600 scripts/api-check/ethcli-config.toml "$HOME/.config/ethcli/config.toml"
+
+      - name: Run API checks
+        id: check
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+          MORALIS_API_KEY: ${{ secrets.MORALIS_API_KEY }}
+          DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }}
+          PYTH_API_KEY: ${{ secrets.PYTH_API_KEY }}
+          SOLODIT_API_KEY: ${{ secrets.SOLODIT_API_KEY }}
+          THEGRAPH_API_KEY: ${{ secrets.THEGRAPH_API_KEY }}
+          TENDERLY_ACCESS_KEY: ${{ secrets.TENDERLY_ACCESS_KEY }}
+          TENDERLY_ACCOUNT: ${{ secrets.TENDERLY_ACCOUNT }}
+          TENDERLY_PROJECT: ${{ secrets.TENDERLY_PROJECT }}
+          ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
+          ONEINCH_API_KEY: ${{ secrets.ONEINCH_API_KEY }}
+          ENSO_API_KEY: ${{ secrets.ENSO_API_KEY }}
+          CHAINLINK_API_KEY: ${{ secrets.CHAINLINK_API_KEY }}
+          CHAINLINK_USER_SECRET: ${{ secrets.CHAINLINK_USER_SECRET }}
+        run: |
+          python3 scripts/api-check/run.py \
+            --ethcli target/release/ethcli \
+            --json api-check.json \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: api-check-results
+          path: api-check.json
+          if-no-files-found: ignore
+
+      # Scheduled/manual runs on main keep one tracking issue in sync: open or
+      # update it on failure, close it once everything passes again.
+      - name: Update tracking issue
+        if: always() && github.event_name != 'pull_request' && hashFiles('api-check.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.check.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Weekly API check failing"
+          existing=$(gh issue list --state open --search "\"$title\" in:title" --json number -q '.[0].number')
+          if [ "$OUTCOME" = "failure" ]; then
+            body=$(python3 - <<'PY'
+          import json, os
+          d = json.load(open("api-check.json"))
+          rows = [r for r in d["results"] if r["status"] == "FAIL"]
+          lines = [f"The weekly API check found {len(rows)} failing check(s): {os.environ['RUN_URL']}", "",
+                   "| Provider | Command | Detail |", "|---|---|---|"]
+          lines += [f"| {r['provider']} | `ethcli {r['args']}` | {r['detail'].replace('|', '/')} |" for r in rows]
+          lines += ["", "FAIL means the API changed or disappeared (404/410, DNS failure, unparseable response, "
+                    "or a keyless API now requiring auth). See scripts/api-check/run.py."]
+          print("\n".join(lines))
+          PY
+            )
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "$body"
+            else
+              gh issue create --title "$title" --body "$body"
+            fi
+          elif [ "$OUTCOME" = "success" ] && [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "All API checks pass again: $RUN_URL"
+          fi
