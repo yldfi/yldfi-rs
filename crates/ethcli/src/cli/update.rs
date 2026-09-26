@@ -366,18 +366,29 @@ fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        // Make the new binary executable
-        std::fs::set_permissions(source, std::fs::Permissions::from_mode(0o755))?;
-
-        // Try direct copy first, fall back to rename trick if needed.
-        if std::fs::copy(source, destination).is_err() {
-            let backup_path = destination.with_extension("old");
-            if destination.exists() {
-                std::fs::rename(destination, &backup_path)?;
-            }
-            std::fs::copy(source, destination)?;
-            let _ = std::fs::remove_file(&backup_path);
+        // Copy to a temp file next to the destination, then rename it into
+        // place. Overwriting the existing file in place keeps its inode, and on
+        // macOS the kernel's cached code signature for that inode no longer
+        // matches the new contents, so the binary is SIGKILLed on launch.
+        // A rename gives the new binary a fresh inode (and is atomic).
+        let file_name = destination
+            .file_name()
+            .ok_or_else(|| anyhow::anyhow!("Invalid install path: {}", destination.display()))?;
+        let tmp_path = destination.with_file_name(format!(
+            ".{}.new-{}",
+            file_name.to_string_lossy(),
+            std::process::id()
+        ));
+        let result = (|| -> anyhow::Result<()> {
+            std::fs::copy(source, &tmp_path)?;
+            std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o755))?;
+            std::fs::rename(&tmp_path, destination)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&tmp_path);
         }
+        result?;
     }
 
     #[cfg(windows)]
@@ -392,4 +403,35 @@ fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::install_binary;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    #[test]
+    fn install_replaces_destination_with_new_inode() {
+        let dir = std::env::temp_dir().join(format!("ethcli-install-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let source = dir.join("source");
+        let destination = dir.join("ethcli-mcp");
+        std::fs::write(&source, b"new binary").unwrap();
+        std::fs::write(&destination, b"old binary").unwrap();
+        let old_inode = std::fs::metadata(&destination).unwrap().ino();
+
+        install_binary(&source, &destination).unwrap();
+
+        let meta = std::fs::metadata(&destination).unwrap();
+        assert_ne!(meta.ino(), old_inode, "must not overwrite in place");
+        assert_eq!(std::fs::read(&destination).unwrap(), b"new binary");
+        assert_eq!(meta.permissions().mode() & 0o777, 0o755);
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".new-"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp file left behind");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
