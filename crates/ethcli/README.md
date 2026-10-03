@@ -200,10 +200,13 @@ ethcli account balance 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ethcli account balance 0x... --token 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 
 # List recent transactions
-ethcli account txlist 0x...
+ethcli account txs 0x...
+
+# Limit history to an inclusive block range; pagination applies within the range
+ethcli account txs 0x... --start-block 25893052 --end-block 26108081 --page 1 --limit 1000 --sort asc -o json
 
 # List token transfers
-ethcli account tokentx 0x...
+ethcli account erc20 0x...
 ```
 
 ### Contract - ABI, Source Code, and Bytecode Analysis

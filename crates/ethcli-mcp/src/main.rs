@@ -120,7 +120,9 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List transactions for an address with pagination")]
+    #[tool(
+        description = "List transactions for an address with pagination and inclusive block bounds. Narrow the block range when the explorer result-window limit is reached."
+    )]
     async fn account_txs(&self, Parameters(input): Parameters<AccountTxsInput>) -> CallToolResult {
         tools::account_txs(
             &input.address,
@@ -128,6 +130,8 @@ impl EthcliMcpServer {
             input.page,
             input.limit,
             input.sort.as_deref(),
+            input.start_block,
+            input.end_block,
         )
         .await
         .to_response()

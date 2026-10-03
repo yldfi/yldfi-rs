@@ -93,6 +93,14 @@ pub enum AccountCommands {
         #[arg(value_name = "ADDRESS")]
         address: String,
 
+        /// First block to include (inclusive)
+        #[arg(long, default_value = "0")]
+        start_block: u64,
+
+        /// Last block to include (inclusive)
+        #[arg(long, default_value = "99999999")]
+        end_block: u64,
+
         /// Page number (1-indexed)
         #[arg(long, default_value = "1")]
         page: u64,
@@ -502,11 +510,17 @@ pub async fn handle(
 
         AccountCommands::Txs {
             address,
+            start_block,
+            end_block,
             page,
             limit,
             sort,
             output,
         } => {
+            anyhow::ensure!(
+                start_block <= end_block,
+                "start-block must not exceed end-block"
+            );
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
@@ -516,8 +530,8 @@ pub async fn handle(
             }
 
             let params = foundry_block_explorers::account::TxListParams {
-                start_block: 0,
-                end_block: 99999999,
+                start_block: *start_block,
+                end_block: *end_block,
                 page: *page,
                 offset: *limit,
                 sort: if sort == "asc" {
@@ -988,4 +1002,60 @@ fn days_to_ymd(days: i64) -> (i64, u32, u32) {
 
 fn is_leap_year(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+}
+
+#[cfg(test)]
+mod block_range_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct Harness {
+        #[command(subcommand)]
+        command: AccountCommands,
+    }
+
+    #[test]
+    fn history_bounds_preserve_defaults_and_accept_single_block() {
+        for (args, expected) in [
+            (
+                vec!["test", "txs", "0x0000000000000000000000000000000000000000"],
+                (0, 99_999_999),
+            ),
+            (
+                vec![
+                    "test",
+                    "txs",
+                    "0x0000000000000000000000000000000000000000",
+                    "--start-block",
+                    "26047833",
+                    "--end-block",
+                    "26047833",
+                ],
+                (26_047_833, 26_047_833),
+            ),
+        ] {
+            let AccountCommands::Txs {
+                start_block,
+                end_block,
+                ..
+            } = Harness::try_parse_from(args).unwrap().command
+            else {
+                panic!("expected txs")
+            };
+            assert_eq!((start_block, end_block), expected);
+        }
+    }
+
+    #[test]
+    fn history_bounds_reject_negative_numbers() {
+        assert!(Harness::try_parse_from([
+            "test",
+            "txs",
+            "0x0000000000000000000000000000000000000000",
+            "--start-block",
+            "-1"
+        ])
+        .is_err());
+    }
 }

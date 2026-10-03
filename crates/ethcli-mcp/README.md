@@ -19,6 +19,18 @@ Exposes 200+ Ethereum tools via the [Model Context Protocol](https://modelcontex
 
 ## Features
 
+`account_txs` accepts optional inclusive `start_block` and `end_block` bounds,
+alongside `page`, `limit`, and `sort`. For example:
+
+```json
+{"address":"0x0000000000000000000000000000000000000000","start_block":25893052,"end_block":26108081,"page":1,"limit":1000,"sort":"asc"}
+```
+
+Omitting bounds preserves the CLI defaults (0 through 99999999). Explorers can
+cap a result window even when requests stay below their rate limit. If that
+happens, split the history into smaller block ranges and paginate each range.
+This tool does not automatically split ranges or bypass provider limits.
+
 - **230+ MCP tools** - Broad ethcli functionality exposed as typed tools, with mutating tools gated by policy
 - **JSON Schema validation** - All tool inputs have schemas for LLM structured output
 - **Multi-chain support** - Ethereum, Polygon, Arbitrum, Optimism, Base, and more

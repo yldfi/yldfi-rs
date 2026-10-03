@@ -95,6 +95,28 @@ pub struct AccountTxsInput {
     pub limit: Option<u32>,
     /// Sort order: "asc" or "desc" (default: desc)
     pub sort: Option<String>,
+    /// First block to include (inclusive; default: 0)
+    pub start_block: Option<u64>,
+    /// Last block to include (inclusive; default: 99999999)
+    pub end_block: Option<u64>,
+}
+
+#[cfg(test)]
+mod account_history_range_tests {
+    use super::AccountTxsInput;
+
+    #[test]
+    fn old_clients_can_omit_bounds_and_schema_exposes_new_bounds() {
+        let input: AccountTxsInput = serde_json::from_value(
+            serde_json::json!({"address":"0x0000000000000000000000000000000000000000"}),
+        )
+        .unwrap();
+        assert_eq!(input.start_block, None);
+        assert_eq!(input.end_block, None);
+        let schema = serde_json::to_value(schemars::schema_for!(AccountTxsInput)).unwrap();
+        assert!(schema["properties"].get("start_block").is_some());
+        assert!(schema["properties"].get("end_block").is_some());
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

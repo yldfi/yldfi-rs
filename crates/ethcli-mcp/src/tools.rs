@@ -216,7 +216,14 @@ pub async fn account_txs(
     page: Option<u32>,
     limit: Option<u32>,
     sort: Option<&str>,
+    start_block: Option<u64>,
+    end_block: Option<u64>,
 ) -> Result<String, ToolError> {
+    if start_block.unwrap_or(0) > end_block.unwrap_or(99_999_999) {
+        return Err(ToolError::InvalidInput(
+            "start_block must not exceed end_block".to_string(),
+        ));
+    }
     let mut builder = ArgsBuilder::new("account")
         .subcommand("txs")
         .arg(address)
@@ -231,6 +238,12 @@ pub async fn account_txs(
     }
     if let Some(s) = sort {
         builder = builder.opt("--sort", Some(s));
+    }
+    if let Some(block) = start_block {
+        builder = builder.opt("--start-block", Some(&block.to_string()));
+    }
+    if let Some(block) = end_block {
+        builder = builder.opt("--end-block", Some(&block.to_string()));
     }
 
     builder.execute().await.map_err(ToolError::from)
