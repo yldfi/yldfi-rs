@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.3.0...ethcli-mcp-v0.3.1) (2026-10-03)
+
+
+### Features
+
+* **ethcli:** add account history block bounds to CLI and MCP ([#86](https://github.com/yldfi/yldfi-rs/issues/86)) ([c0bf7e8](https://github.com/yldfi/yldfi-rs/commit/c0bf7e834647b7121cd5be033ee429a0129ec31b))
+
 ## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.2.4...ethcli-mcp-v0.3.0) (2026-09-25)
 
 
