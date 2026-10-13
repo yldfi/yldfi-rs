@@ -215,37 +215,61 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
     // Find the install location. Resolve symlinks so a symlinked layout keeps
     // its links and the real binary behind them is the one that gets replaced.
     let install_path = std::fs::canonicalize(std::env::current_exe()?)?;
-    let install_dir = install_path.parent().ok_or_else(|| {
-        anyhow::anyhow!(
-            "Could not determine install directory from {}",
-            install_path.display()
-        )
-    })?;
-    let mcp_path = install_dir.join(format!("ethcli-mcp{}", std::env::consts::EXE_SUFFIX));
 
     if !quiet {
         eprintln!("Installing ethcli to {}...", install_path.display());
     }
 
-    install_binary(&extracted.ethcli, &install_path)
-        .map_err(|e| install_error(e, &install_path))?;
+    // Decide where ethcli-mcp goes before touching anything.
+    let mcp_target = match &extracted.ethcli_mcp {
+        Some(_) => Some(resolve_mcp_target(&install_path)?),
+        None => None,
+    };
 
-    if let Some(ethcli_mcp) = &extracted.ethcli_mcp {
-        match resolve_mcp_install_path(&mcp_path, &install_path)? {
-            McpTarget::Install(target) => {
-                if !quiet {
-                    eprintln!("Installing ethcli-mcp to {}...", target.display());
-                }
-                install_binary(ethcli_mcp, &target).map_err(|e| install_error(e, &target))?;
+    // Keep the current binaries until the new ethcli has been seen to run, so
+    // a build that can't execute here (wrong libc, wrong arch) is rolled back.
+    let mut backups = Vec::new();
+    backups.push(backup_binary(&install_path).map_err(|e| install_error(e, &install_path))?);
+    if let Some(McpTarget::Install(target)) = &mcp_target {
+        backups.push(backup_binary(target).map_err(|e| install_error(e, target))?);
+    }
+
+    let installed = (|| -> anyhow::Result<()> {
+        install_binary(&extracted.ethcli, &install_path)
+            .map_err(|e| install_error(e, &install_path))?;
+        if let (Some(ethcli_mcp), Some(McpTarget::Install(target))) =
+            (&extracted.ethcli_mcp, &mcp_target)
+        {
+            if !quiet {
+                eprintln!("Installing ethcli-mcp to {}...", target.display());
             }
-            McpTarget::Skip(reason) => {
-                eprintln!(
-                    "Warning: not updating {}: {}. Update ethcli-mcp manually.",
-                    mcp_path.display(),
-                    reason
-                );
-            }
+            install_binary(ethcli_mcp, target).map_err(|e| install_error(e, target))?;
         }
+        verify_installed(&install_path, latest_version_str)
+    })();
+
+    if let Err(e) = installed {
+        let restored = backups.iter().flatten().all(|b| b.restore().is_ok());
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        anyhow::bail!(
+            "{}{}",
+            e,
+            if restored {
+                "\nThe previous binaries were restored."
+            } else {
+                "\nCould not restore every previous binary; check the paths above."
+            }
+        );
+    }
+    for b in backups.iter().flatten() {
+        b.discard();
+    }
+
+    if let Some(McpTarget::Skip(reason)) = &mcp_target {
+        eprintln!(
+            "Warning: ethcli-mcp was not updated: {}. Update it manually.",
+            reason
+        );
     }
 
     // Cleanup
@@ -382,7 +406,8 @@ enum McpTarget {
 /// Decide where ethcli-mcp should be installed. A symlink is followed to the
 /// file it points to, so the link itself is left in place. The target is
 /// skipped when it isn't a native executable (e.g. a wrapper script, which
-/// replacing would break) or when it is the ethcli binary itself.
+/// replacing would break), when it is the ethcli binary itself, or when it
+/// belongs to another user.
 fn resolve_mcp_install_path(mcp_path: &Path, ethcli_path: &Path) -> anyhow::Result<McpTarget> {
     if std::fs::symlink_metadata(mcp_path).is_err() {
         return Ok(McpTarget::Install(mcp_path.to_path_buf()));
@@ -404,6 +429,9 @@ fn resolve_mcp_install_path(mcp_path: &Path, ethcli_path: &Path) -> anyhow::Resu
             target.display()
         )));
     }
+    if let Some(reason) = other_owner(&target, ethcli_path) {
+        return Ok(McpTarget::Skip(reason));
+    }
     if !is_native_executable(&target) {
         return Ok(McpTarget::Skip(format!(
             "it resolves to {}, which is not a native executable (a wrapper script?)",
@@ -411,6 +439,29 @@ fn resolve_mcp_install_path(mcp_path: &Path, ethcli_path: &Path) -> anyhow::Resu
         )));
     }
     Ok(McpTarget::Install(target))
+}
+
+/// Why `target` belongs to a different install than `ethcli_path`, if it does.
+/// Upgrade only replaces binaries owned by the same user as the ethcli being
+/// upgraded; another user's install is left for that user to upgrade.
+#[cfg(unix)]
+fn other_owner(target: &Path, ethcli_path: &Path) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+
+    let target_uid = std::fs::metadata(target).ok()?.uid();
+    let ethcli_uid = std::fs::metadata(ethcli_path).ok()?.uid();
+    (target_uid != ethcli_uid).then(|| {
+        format!(
+            "it resolves to {}, which belongs to another user's install (uid {}); run `ethcli upgrade` as that user",
+            target.display(),
+            target_uid
+        )
+    })
+}
+
+#[cfg(not(unix))]
+fn other_owner(_target: &Path, _ethcli_path: &Path) -> Option<String> {
+    None
 }
 
 /// True if the file starts with an ELF, Mach-O or PE header.
@@ -447,6 +498,115 @@ fn install_error(err: anyhow::Error, path: &Path) -> anyhow::Error {
     } else {
         err.context(format!("Failed to install {}", path.display()))
     }
+}
+
+/// Candidate locations for ethcli-mcp next to the ethcli binary, most specific
+/// first: the name that shares ethcli's suffix (`ethcli.real` ->
+/// `ethcli-mcp.real`), then `ethcli-mcp.real`, then plain `ethcli-mcp`.
+fn mcp_candidates(ethcli_path: &Path) -> Vec<PathBuf> {
+    let exe = std::env::consts::EXE_SUFFIX;
+    let dir = ethcli_path.parent().unwrap_or_else(|| Path::new("."));
+    let name = ethcli_path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let stem = name.strip_suffix(exe).unwrap_or(&name);
+    let suffix = stem.strip_prefix("ethcli").unwrap_or("");
+    let mut candidates = Vec::new();
+    for s in [suffix, ".real", ""] {
+        let p = dir.join(format!("ethcli-mcp{}{}", s, exe));
+        if !candidates.contains(&p) {
+            candidates.push(p);
+        }
+    }
+    candidates
+}
+
+/// Pick the ethcli-mcp binary to replace: the first candidate that resolves
+/// (through any symlinks) to a native executable other than ethcli itself.
+/// Wrapper scripts are skipped so the real binary behind them is found. If
+/// none of the candidates exists, install plain `ethcli-mcp` next to ethcli.
+fn resolve_mcp_target(ethcli_path: &Path) -> anyhow::Result<McpTarget> {
+    let candidates = mcp_candidates(ethcli_path);
+    let mut skipped = Vec::new();
+    for candidate in &candidates {
+        if std::fs::symlink_metadata(candidate).is_err() {
+            continue;
+        }
+        match resolve_mcp_install_path(candidate, ethcli_path)? {
+            McpTarget::Install(target) => return Ok(McpTarget::Install(target)),
+            McpTarget::Skip(reason) => skipped.push(format!("{}: {}", candidate.display(), reason)),
+        }
+    }
+    if skipped.is_empty() {
+        let plain = candidates
+            .last()
+            .cloned()
+            .unwrap_or_else(|| ethcli_path.with_file_name("ethcli-mcp"));
+        return Ok(McpTarget::Install(plain));
+    }
+    Ok(McpTarget::Skip(skipped.join("; ")))
+}
+
+/// A copy of a binary taken before it is replaced.
+struct Backup {
+    original: PathBuf,
+    copy: PathBuf,
+}
+
+impl Backup {
+    fn restore(&self) -> std::io::Result<()> {
+        std::fs::rename(&self.copy, &self.original)
+    }
+
+    fn discard(&self) {
+        let _ = std::fs::remove_file(&self.copy);
+    }
+}
+
+/// Copy `path` aside (keeping its permissions) so it can be restored.
+/// Returns `None` when there is nothing to back up yet.
+fn backup_binary(path: &Path) -> anyhow::Result<Option<Backup>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("Invalid install path: {}", path.display()))?;
+    let copy = path.with_file_name(format!(
+        ".{}.prev-{}",
+        file_name.to_string_lossy(),
+        std::process::id()
+    ));
+    std::fs::copy(path, &copy)?;
+    Ok(Some(Backup {
+        original: path.to_path_buf(),
+        copy,
+    }))
+}
+
+/// Run the newly installed ethcli and check it reports the expected version.
+fn verify_installed(ethcli_path: &Path, expected_version: &str) -> anyhow::Result<()> {
+    let output = std::process::Command::new(ethcli_path)
+        .arg("--version")
+        .output()
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "The new ethcli at {} could not be started: {}",
+                ethcli_path.display(),
+                e
+            )
+        })?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !output.status.success() || !stdout.contains(expected_version) {
+        anyhow::bail!(
+            "The new ethcli at {} did not report version {} (got: {})",
+            ethcli_path.display(),
+            expected_version,
+            stdout.trim()
+        );
+    }
+    Ok(())
 }
 
 fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
@@ -495,7 +655,10 @@ fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::{install_binary, resolve_mcp_install_path, McpTarget};
+    use super::{
+        backup_binary, install_binary, mcp_candidates, resolve_mcp_install_path,
+        resolve_mcp_target, verify_installed, McpTarget,
+    };
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
     #[test]
@@ -607,6 +770,121 @@ mod tests {
             resolve_mcp_install_path(&dangling, &ethcli).unwrap(),
             McpTarget::Skip(_)
         ));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn mcp_candidates_prefer_matching_suffix() {
+        let names = |p: &str| -> Vec<String> {
+            mcp_candidates(std::path::Path::new(p))
+                .iter()
+                .map(|c| c.file_name().unwrap().to_string_lossy().into_owned())
+                .collect()
+        };
+        assert_eq!(names("/x/ethcli"), ["ethcli-mcp", "ethcli-mcp.real"]);
+        assert_eq!(names("/x/ethcli.real"), ["ethcli-mcp.real", "ethcli-mcp"]);
+        assert_eq!(
+            names("/x/ethcli.v2"),
+            ["ethcli-mcp.v2", "ethcli-mcp.real", "ethcli-mcp"]
+        );
+    }
+
+    #[test]
+    fn plain_layout_updates_adjacent_mcp() {
+        let dir = test_dir("plain").canonicalize().unwrap();
+        let ethcli = dir.join("ethcli");
+        std::fs::write(&ethcli, ELF).unwrap();
+        std::fs::write(dir.join("ethcli-mcp"), ELF).unwrap();
+        let McpTarget::Install(t) = resolve_mcp_target(&ethcli).unwrap() else {
+            panic!()
+        };
+        assert_eq!(t, dir.join("ethcli-mcp"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn wrapper_layout_updates_real_binaries_not_wrapper() {
+        // ethcli and ethcli-mcp both symlink to one wrapper script that runs
+        // ethcli.real / ethcli-mcp.real. Upgrade runs as ethcli.real.
+        let dir = test_dir("wrapper-layout").canonicalize().unwrap();
+        let wrapper = dir.join("ethcli-op-wrapper");
+        std::fs::write(&wrapper, b"#!/bin/bash\nexec ./ethcli.real \"$@\"\n").unwrap();
+        std::os::unix::fs::symlink("ethcli-op-wrapper", dir.join("ethcli")).unwrap();
+        std::os::unix::fs::symlink("ethcli-op-wrapper", dir.join("ethcli-mcp")).unwrap();
+        let ethcli_real = dir.join("ethcli.real");
+        std::fs::write(&ethcli_real, ELF).unwrap();
+        std::fs::write(dir.join("ethcli-mcp.real"), ELF).unwrap();
+
+        let McpTarget::Install(t) = resolve_mcp_target(&ethcli_real).unwrap() else {
+            panic!()
+        };
+        assert_eq!(t, dir.join("ethcli-mcp.real"));
+        assert!(std::fs::read(&wrapper).unwrap().starts_with(b"#!"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn symlink_into_another_directory_updates_target() {
+        let dir = test_dir("cross-dir").canonicalize().unwrap();
+        let other = dir.join("other");
+        std::fs::create_dir_all(&other).unwrap();
+        let real_mcp = other.join("ethcli-mcp");
+        std::fs::write(&real_mcp, ELF).unwrap();
+        let ethcli = dir.join("ethcli");
+        std::fs::write(&ethcli, ELF).unwrap();
+        std::os::unix::fs::symlink(&real_mcp, dir.join("ethcli-mcp")).unwrap();
+        let McpTarget::Install(t) = resolve_mcp_target(&ethcli).unwrap() else {
+            panic!()
+        };
+        assert_eq!(t, real_mcp);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn no_mcp_yet_installs_plain_name() {
+        let dir = test_dir("no-mcp").canonicalize().unwrap();
+        let ethcli = dir.join("ethcli.real");
+        std::fs::write(&ethcli, ELF).unwrap();
+        let McpTarget::Install(t) = resolve_mcp_target(&ethcli).unwrap() else {
+            panic!()
+        };
+        assert_eq!(t, dir.join("ethcli-mcp"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn only_wrapper_and_no_real_binary_is_skipped() {
+        let dir = test_dir("wrapper-only").canonicalize().unwrap();
+        let ethcli = dir.join("ethcli.real");
+        std::fs::write(&ethcli, ELF).unwrap();
+        std::fs::write(dir.join("ethcli-mcp"), b"#!/bin/sh\n").unwrap();
+        assert!(matches!(
+            resolve_mcp_target(&ethcli).unwrap(),
+            McpTarget::Skip(_)
+        ));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn backup_restores_previous_binary() {
+        let dir = test_dir("backup").canonicalize().unwrap();
+        let bin = dir.join("ethcli");
+        std::fs::write(&bin, b"old").unwrap();
+        let backup = backup_binary(&bin).unwrap().expect("backup");
+        std::fs::write(&bin, b"new").unwrap();
+        backup.restore().unwrap();
+        assert_eq!(std::fs::read(&bin).unwrap(), b"old");
+        assert!(backup_binary(&dir.join("missing")).unwrap().is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn verify_rejects_binary_that_cannot_run() {
+        let dir = test_dir("verify").canonicalize().unwrap();
+        let bin = dir.join("ethcli");
+        std::fs::write(&bin, b"\x7fELF not really").unwrap();
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(verify_installed(&bin, "0.0.0").is_err());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
