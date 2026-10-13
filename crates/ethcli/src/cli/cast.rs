@@ -287,8 +287,10 @@ pub fn abi_encode(signature: &str, args: &[String]) -> anyhow::Result<String> {
 
     let types_str = &sig[types_start + 1..types_end];
 
-    // Get function selector
-    let selector = keccak256(sig.as_bytes());
+    // Hash the canonical form so `transfer(address, uint)` gets the same
+    // selector as `transfer(address,uint256)`.
+    let canonical = canonical_signature(sig);
+    let selector = keccak256(canonical.as_deref().unwrap_or(sig).as_bytes());
     let selector_hex = hex::encode(&selector[..4]);
 
     if types_str.is_empty() {
@@ -388,6 +390,36 @@ fn format_decoded_params(decoded: &alloy::dyn_abi::DynSolValue) -> String {
     }
 }
 
+/// Canonical form of a function signature (e.g. `transfer(address, uint)` ->
+/// `transfer(address,uint256)`), or `None` if it isn't a plain `name(types)`
+/// signature that the native encoder can handle.
+pub(crate) fn canonical_signature(sig: &str) -> Option<String> {
+    use alloy::dyn_abi::DynSolType;
+
+    let sig = sig.trim();
+    let open = sig.find('(')?;
+    if !sig.ends_with(')') {
+        return None;
+    }
+    let name = &sig[..open];
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+    {
+        return None;
+    }
+    let types = split_types(&sig[open + 1..sig.len() - 1])
+        .into_iter()
+        .map(|t| {
+            DynSolType::parse(t)
+                .ok()
+                .map(|ty| ty.sol_type_name().into_owned())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(format!("{}({})", name, types.join(",")))
+}
+
 /// Split comma-separated types, handling nested parentheses
 pub(crate) fn split_types(types_str: &str) -> Vec<&str> {
     let mut result = Vec::new();
@@ -420,6 +452,45 @@ pub(crate) fn split_types(types_str: &str) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn canonical_signature_normalizes_types() {
+        assert_eq!(
+            canonical_signature("transfer(address, uint)").as_deref(),
+            Some("transfer(address,uint256)")
+        );
+        assert_eq!(
+            canonical_signature("f((uint256,address)[],bytes32)").as_deref(),
+            Some("f((uint256,address)[],bytes32)")
+        );
+        assert_eq!(
+            canonical_signature("totalAssets()").as_deref(),
+            Some("totalAssets()")
+        );
+    }
+
+    #[test]
+    fn canonical_signature_rejects_non_plain_signatures() {
+        assert_eq!(canonical_signature("balanceOf(address)(uint256)"), None);
+        assert_eq!(
+            canonical_signature("transfer(address to,uint256 amount)"),
+            None
+        );
+        assert_eq!(canonical_signature("(address)"), None);
+        assert_eq!(canonical_signature("balanceOf"), None);
+    }
+
+    #[test]
+    fn abi_encode_hashes_canonical_signature() {
+        let args = vec![
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string(),
+            "1".to_string(),
+        ];
+        assert_eq!(
+            abi_encode("transfer(address, uint)", &args).unwrap(),
+            abi_encode("transfer(address,uint256)", &args).unwrap()
+        );
+    }
 
     // ==================== to_wei tests ====================
 
