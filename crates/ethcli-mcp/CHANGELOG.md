@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.3.1...ethcli-mcp-v0.3.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** publish the rmcp 3 build ([#119](https://github.com/yldfi/yldfi-rs/issues/119)) ([7c8a85b](https://github.com/yldfi/yldfi-rs/commit/7c8a85b1ebf74863f52bc8643b57aed883e1c132))
+
 ## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.3.0...ethcli-mcp-v0.3.1) (2026-10-03)
 
 
