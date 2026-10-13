@@ -51,6 +51,8 @@ ethcli --version
 
 `ethcli-mcp` looks for `ethcli` next to the MCP binary. If you use a custom binary location, set `ETHCLI_PATH` to an absolute path. If `ethcli` and `ethcli-mcp` are wrapper scripts (for example, to inject secrets), point `ETHCLI_PATH` at the real `ethcli` binary rather than the wrapper, and have the wrappers exec real binaries by absolute path. A wrapper that resolves back to `ethcli-mcp` would make the server start itself recursively.
 
+Built on [rmcp](https://crates.io/crates/rmcp) 3.x over stdio. It negotiates the MCP protocol version the client requests (tested with `2024-11-05` and `2025-06-18`).
+
 ### Install ethcli-mcp
 
 ```bash
