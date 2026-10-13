@@ -387,9 +387,15 @@ ethcli simulate call ... --via tenderly  # Tenderly API
 ethcli simulate call ... --via debug     # debug_traceCall RPC
 ```
 
+`--sig` calldata is ABI-encoded natively, so `--via tenderly|debug|trace|alchemy`
+work without Foundry. Foundry is still needed for `--via cast` (the default) and
+`--via anvil`, and for signatures ethcli can't encode itself (parameter names,
+`returns` clauses such as `balanceOf(address)(uint256)`); those fall back to
+`cast calldata`. Pass raw calldata with `--data` to skip encoding entirely.
+
 ### Tenderly - Virtual TestNets & API
 
-Requires `TENDERLY_ACCESS_KEY` environment variable.
+Requires `TENDERLY_ACCESS_KEY`, `TENDERLY_ACCOUNT` and `TENDERLY_PROJECT` (environment variables, matching `--tenderly-*` flags, or `ethcli config set-tenderly`).
 
 ```bash
 # List virtual testnets
@@ -499,12 +505,21 @@ echo $PYTH_API_KEY | ethcli config set-pyth --stdin
 # Check for updates
 ethcli update
 
-# Auto-install latest version
-ethcli update --install
+# Download and install the latest release
+ethcli upgrade
 
 # Check configuration and endpoint health
 ethcli doctor
 ```
+
+`ethcli upgrade` downloads the latest GitHub release for your platform (keeping
+the musl build if the running binary is musl), verifies its SHA-256 checksum and
+replaces the running binary plus the `ethcli-mcp` next to it. Symlinks are
+followed: the real binary behind a symlink is replaced and the link is kept. If
+`ethcli-mcp` resolves to a wrapper script, to `ethcli` itself or to a missing
+file, it is left alone with a warning. Run it as the user that owns the install
+directory. The install logic is the *running* binary's, so upgrades from
+releases older than 0.23.4 don't have the symlink handling.
 
 ---
 

@@ -107,7 +107,14 @@ This repository uses [release-please](https://github.com/googleapis/release-plea
 
 1. Commits to `main` are analyzed for conventional commit messages
 2. Release PRs are automatically created
-3. Merging a release PR triggers crate publishing
+3. Merging a release PR tags the crate, which triggers publishing (`release.yml` for `ethcli`, `publish-crate.yml` for every other crate)
+
+Publishing to crates.io uses [Trusted Publishing](https://crates.io/docs/trusted-publishing): the publish job exchanges its GitHub OIDC token for a short-lived crates.io token via `rust-lang/crates-io-auth-action`. There is no registry token secret, and every crate requires trusted publishing. A **new crate** needs a trusted publisher configured on crates.io (repository `yldfi/yldfi-rs`, workflow `publish-crate.yml`) after its first release, which has to be published once by an owner with a token. Renaming either publish workflow breaks publishing until the crates.io configuration is updated.
+
+## Dependency Policy
+
+- Dependabot opens weekly update PRs with a 7-day cooldown (security updates exempt); please don't hand-bump to releases younger than 7 days either.
+- `cargo deny` enforces the licence allow-list in `deny.toml`. Adding a licence there is a policy change: keep it to permissive, OSI-approved licences and note which crate needs it.
 
 ## Environment Variables
 
@@ -117,7 +124,7 @@ Many crates require API keys for full functionality:
 |----------|---------|
 | `ETHERSCAN_API_KEY` | ethcli (Etherscan API) |
 | `ALCHEMY_API_KEY` | ethcli (RPC provider) |
-| `TENDERLY_API_KEY` | tndrly |
+| `TENDERLY_ACCESS_KEY`, `TENDERLY_ACCOUNT`, `TENDERLY_PROJECT` | tndrly, ethcli (Tenderly) |
 | `DUNE_API_KEY` | dnapi |
 | `COINGECKO_API_KEY` | cgko |
 

@@ -47,7 +47,8 @@ ethcli rpc        # Direct RPC calls
 ethcli ens        # ENS name resolution
 ethcli endpoints  # Manage RPC endpoints
 ethcli config     # Manage configuration
-ethcli update     # Check for updates and self-update
+ethcli update     # Check for updates
+ethcli upgrade    # Download and install the latest release (symlink-safe since 0.23.4)
 ethcli doctor     # Diagnose configuration and connectivity
 ethcli completions # Generate shell completions (bash, zsh, fish, powershell)
 ```
@@ -335,9 +336,15 @@ ethcli simulate call ... --via trace     # Uses trace_call RPC (Erigon/OpenEther
 ethcli simulate call ... --via alchemy   # Uses Alchemy debug_traceCall (Simulation API retired 2026-09-30)
 ```
 
+`--sig` calldata is ABI-encoded natively, so `--via tenderly|debug|trace|alchemy`
+work without Foundry. Foundry is still needed for `--via cast` (the default) and
+`--via anvil`, and for signatures ethcli can't encode itself (parameter names,
+`returns` clauses such as `balanceOf(address)(uint256)`); those fall back to
+`cast calldata`. Pass raw calldata with `--data` to skip encoding entirely.
+
 ## Tenderly Commands
 
-Requires `TENDERLY_ACCESS_KEY` environment variable. Most commands also need `--project` and `--account` flags.
+Requires `TENDERLY_ACCESS_KEY`, `TENDERLY_ACCOUNT` and `TENDERLY_PROJECT` (environment variables, matching `--tenderly-*` flags, or `ethcli config set-tenderly`).
 
 ```bash
 # Virtual TestNets (VNets)
@@ -1276,13 +1283,10 @@ ethcli chainlink oracles --chain arbitrum
 - `fix:` - triggers patch version bump
 - `feat!:` or `BREAKING CHANGE:` - triggers major version bump
 - Release-please creates a PR with version bump and CHANGELOG
-- Merging the PR triggers binary builds for all platforms
+- Merging the PR tags `ethcli-vX.Y.Z`, which triggers `release.yml`: binary builds for all platforms, the GitHub release, then `cargo publish`
+- crates.io publishing uses Trusted Publishing (`rust-lang/crates-io-auth-action`, OIDC); there is no registry token secret. `ethcli` trusts `release.yml`, every other crate trusts `publish-crate.yml`, and all crates require trusted publishing
 
-**Manual release (alternative):**
-```bash
-git tag v0.x.x
-git push origin v0.x.x
-```
+**Re-running a release:** `gh workflow run release.yml -f tag=ethcli-vX.Y.Z` (rebuilds the binaries; publishing is skipped if the version is already on crates.io).
 
 ## Pre-commit Hooks
 
