@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.2...ethcli-v0.23.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ethcli:** encode simulate --sig calldata natively ([#88](https://github.com/yldfi/yldfi-rs/issues/88)) ([5a9d116](https://github.com/yldfi/yldfi-rs/commit/5a9d116ebf091f157726f298f4cf0488bfbf87b9))
+
 ## [0.23.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.1...ethcli-v0.23.2) (2026-10-03)
 
 
