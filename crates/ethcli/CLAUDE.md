@@ -48,7 +48,7 @@ ethcli ens        # ENS name resolution
 ethcli endpoints  # Manage RPC endpoints
 ethcli config     # Manage configuration
 ethcli update     # Check for updates
-ethcli upgrade    # Download and install the latest release (symlink-safe since 0.23.4)
+ethcli upgrade    # Download and install the latest release (ethcli + ethcli-mcp; symlink/wrapper-safe with rollback since 0.23.5)
 ethcli doctor     # Diagnose configuration and connectivity
 ethcli completions # Generate shell completions (bash, zsh, fish, powershell)
 ```
