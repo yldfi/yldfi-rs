@@ -81,6 +81,7 @@ dependencies = [
  "alloy-core",
  "alloy-eips 2.0.4",
  "alloy-genesis 2.0.4",
+ "alloy-json-rpc 2.0.4",
  "alloy-network 2.0.4",
  "alloy-provider 2.0.4",
  "alloy-rpc-client 2.0.4",
@@ -6227,6 +6228,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniswap-lens"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f2c95c0d2824928571140a14f1885a05fbcd26b2959f59db131095953c16ae5"
+dependencies = [
+ "alloy 2.0.4",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "uniswap-sdk-core"
 version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6286,7 +6297,7 @@ dependencies = [
  "once_cell",
  "serde_json",
  "thiserror 2.0.21",
- "uniswap-lens",
+ "uniswap-lens 1.0.0",
  "uniswap-sdk-core 6.0.0",
 ]
 
@@ -6323,7 +6334,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
- "uniswap-lens",
+ "uniswap-lens 2.0.0",
  "uniswap-sdk-core 6.0.0",
  "uniswap-v2-sdk",
  "uniswap-v3-sdk",
