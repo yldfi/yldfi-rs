@@ -130,7 +130,7 @@ pub fn ranked_endpoint_configs(
 
     // Shuffle first, then stable-sort by priority: equal-priority endpoints
     // end up in random order within their tier.
-    chain_endpoints.shuffle(&mut rand::thread_rng());
+    chain_endpoints.shuffle(&mut rand::rng());
     chain_endpoints.sort_by_key(|endpoint| std::cmp::Reverse(endpoint.priority));
 
     Ok(chain_endpoints)

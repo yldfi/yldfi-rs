@@ -434,7 +434,7 @@ fn ranked_urls(
         .iter()
         .filter(|e| e.enabled && e.chain == chain && pred(e))
         .collect();
-    eps.shuffle(&mut rand::thread_rng());
+    eps.shuffle(&mut rand::rng());
     eps.sort_by_key(|e| std::cmp::Reverse(e.priority));
     eps.into_iter().map(|e| e.url.clone()).collect()
 }
