@@ -33,7 +33,7 @@ alloy = { version = "2", features = [
 ] }
 
 # Etherscan API
-foundry-block-explorers = "0.23"
+foundry-block-explorers = "0.24"
 alloy-chains = "0.2"
 
 # HTTP client
