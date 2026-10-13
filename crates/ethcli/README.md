@@ -514,12 +514,20 @@ ethcli doctor
 
 `ethcli upgrade` downloads the latest GitHub release for your platform (keeping
 the musl build if the running binary is musl), verifies its SHA-256 checksum and
-replaces the running binary plus the `ethcli-mcp` next to it. Symlinks are
-followed: the real binary behind a symlink is replaced and the link is kept. If
-`ethcli-mcp` resolves to a wrapper script, to `ethcli` itself or to a missing
-file, it is left alone with a warning. Run it as the user that owns the install
-directory. The install logic is the *running* binary's, so upgrades from
-releases older than 0.23.4 don't have the symlink handling.
+replaces the running binary and its `ethcli-mcp`:
+
+- **Symlinks** are followed: the real binary behind a link is replaced and the
+  link is kept.
+- **ethcli-mcp** is the first of `ethcli-mcp<suffix>` (matching the running
+  binary, e.g. `ethcli.real` → `ethcli-mcp.real`), `ethcli-mcp.real` and
+  `ethcli-mcp` in the binary's directory that resolves to a native executable
+  owned by the same user. Wrapper scripts, `ethcli` itself and other users'
+  binaries are never overwritten; a warning says what was skipped.
+- **Rollback:** both binaries are backed up, the new `ethcli --version` must run
+  and report the release, otherwise the backups are restored.
+
+Run it as the user that owns the binaries. The install logic is the *running*
+binary's, so these guarantees apply to upgrades made from 0.23.5 or later.
 
 ---
 
