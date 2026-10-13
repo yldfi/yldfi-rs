@@ -21,7 +21,7 @@ yldfi-common = { version = "0.1", path = "../yldfi-common" }
 # Uniswap ecosystem crates
 uniswap-sdk-core = "6.0"
 uniswap-v2-sdk = "2.0"
-uniswap-v3-sdk = { version = "6.0", features = ["extensions", "std"] }
+uniswap-v3-sdk = { version = "7.0", features = ["extensions", "std"] }
 uniswap-v4-sdk = { version = "1.0", features = ["extensions", "std"] }
 uniswap-lens = { version = "1", features = ["std"] }
 
