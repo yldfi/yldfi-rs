@@ -119,12 +119,13 @@ pub trait ToResponse {
 
 impl<E: std::fmt::Display> ToResponse for Result<String, E> {
     fn to_response(self) -> rmcp::model::CallToolResult {
-        use rmcp::model::{CallToolResult, Content};
+        use rmcp::model::{CallToolResult, ContentBlock};
         match self {
-            Ok(r) => {
-                CallToolResult::success(vec![Content::text(cap_response(r, MAX_RESPONSE_BYTES))])
-            }
-            Err(e) => CallToolResult::error(vec![Content::text(format!("Error: {}", e))]),
+            Ok(r) => CallToolResult::success(vec![ContentBlock::text(cap_response(
+                r,
+                MAX_RESPONSE_BYTES,
+            ))]),
+            Err(e) => CallToolResult::error(vec![ContentBlock::text(format!("Error: {}", e))]),
         }
     }
 }
