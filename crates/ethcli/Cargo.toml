@@ -74,7 +74,7 @@ hmac = "0.13"
 dirs = "5"
 regex = "1.11"
 num-traits = "0.2"
-sha2 = "0.10"
+sha2 = "0.11"
 serde_urlencoded = "0.7"
 secrecy = { workspace = true }
 semver = "1"

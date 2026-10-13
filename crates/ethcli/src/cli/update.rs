@@ -156,7 +156,7 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
             // Compute actual hash
             let mut hasher = Sha256::new();
             hasher.update(&bytes);
-            let actual_hash = format!("{:x}", hasher.finalize());
+            let actual_hash = hex::encode(hasher.finalize());
 
             if actual_hash != expected_hash {
                 anyhow::bail!(
