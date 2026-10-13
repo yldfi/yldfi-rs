@@ -345,12 +345,32 @@ pub fn build_calldata(
             }
         }
 
-        let mut cmd = Command::new("cast");
-        cmd.arg("calldata").arg(s);
-        for arg in args {
-            cmd.arg(resolve_label(arg));
+        let resolved: Vec<String> = args.iter().map(|a| resolve_label(a)).collect();
+
+        // Encode natively when the signature is canonical, so `--sig` works
+        // without Foundry installed. Anything else (param names, `returns`
+        // clauses, values alloy can't coerce) still goes through `cast calldata`.
+        let native = canonical_signature(s).map(|c| crate::cli::cast::abi_encode(&c, &resolved));
+        if let Some(Ok(encoded)) = native {
+            return Ok(encoded);
         }
-        let output = cmd.output()?;
+
+        let mut cmd = Command::new("cast");
+        cmd.arg("calldata").arg(s).args(&resolved);
+        let output = match cmd.output() {
+            Ok(output) => output,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(match native {
+                    Some(Err(err)) => anyhow::anyhow!("Failed to encode calldata: {}", err),
+                    _ => anyhow::anyhow!(
+                        "Failed to encode calldata: signature '{}' needs Foundry's `cast`, which was not found on PATH. \
+                         Use a canonical signature such as \"transfer(address,uint256)\", pass --data, or install Foundry",
+                        s
+                    ),
+                });
+            }
+            Err(e) => return Err(e.into()),
+        };
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stderr_trimmed = stderr.trim();
@@ -379,6 +399,36 @@ pub fn build_calldata(
     } else {
         Err(anyhow::anyhow!("Must provide --sig or --data"))
     }
+}
+
+/// Canonical form of a function signature (e.g. `transfer(address, uint)` ->
+/// `transfer(address,uint256)`), or `None` if it isn't a plain `name(types)`
+/// signature that the native encoder can handle.
+fn canonical_signature(sig: &str) -> Option<String> {
+    use alloy::dyn_abi::DynSolType;
+
+    let sig = sig.trim();
+    let open = sig.find('(')?;
+    if !sig.ends_with(')') {
+        return None;
+    }
+    let name = &sig[..open];
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+    {
+        return None;
+    }
+    let types = crate::cli::cast::split_types(&sig[open + 1..sig.len() - 1])
+        .into_iter()
+        .map(|t| {
+            DynSolType::parse(t)
+                .ok()
+                .map(|ty| ty.sol_type_name().into_owned())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(format!("{}({})", name, types.join(",")))
 }
 
 pub fn value_to_hex(value: &str) -> anyhow::Result<String> {
@@ -676,5 +726,51 @@ mod failover_tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("reverted"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_signature_normalizes_types() {
+        assert_eq!(
+            canonical_signature("transfer(address, uint)").as_deref(),
+            Some("transfer(address,uint256)")
+        );
+        assert_eq!(
+            canonical_signature("f((uint256,address)[],bytes32)").as_deref(),
+            Some("f((uint256,address)[],bytes32)")
+        );
+        assert_eq!(
+            canonical_signature("totalAssets()").as_deref(),
+            Some("totalAssets()")
+        );
+    }
+
+    #[test]
+    fn canonical_signature_rejects_non_plain_signatures() {
+        assert_eq!(canonical_signature("balanceOf(address)(uint256)"), None);
+        assert_eq!(
+            canonical_signature("transfer(address to,uint256 amount)"),
+            None
+        );
+        assert_eq!(canonical_signature("(address)"), None);
+        assert_eq!(canonical_signature("balanceOf"), None);
+    }
+
+    #[test]
+    fn build_calldata_encodes_without_cast() {
+        let calldata = build_calldata(
+            &Some("balanceOf(address)".to_string()),
+            &None,
+            &["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string()],
+        )
+        .unwrap();
+        assert_eq!(
+            calldata,
+            "0x70a08231000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
+        );
     }
 }

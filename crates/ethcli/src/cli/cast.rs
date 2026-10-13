@@ -389,7 +389,7 @@ fn format_decoded_params(decoded: &alloy::dyn_abi::DynSolValue) -> String {
 }
 
 /// Split comma-separated types, handling nested parentheses
-fn split_types(types_str: &str) -> Vec<&str> {
+pub(crate) fn split_types(types_str: &str) -> Vec<&str> {
     let mut result = Vec::new();
     let mut depth = 0;
     let mut start = 0;
