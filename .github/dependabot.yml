@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # Cargo workspace (all crates under crates/)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    # 7-day cooldown before taking a new release (same policy as yldfi/frontend);
+    # security updates are exempt.
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    groups:
+      # Minor and patch updates together; majors get individual PRs
+      dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions (SHA-pinned actions are updated in place)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
