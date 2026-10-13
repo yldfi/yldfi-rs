@@ -95,10 +95,7 @@ impl ProxyRotator {
             RotationMode::RoundRobin => {
                 self.current.fetch_add(1, Ordering::Relaxed) % self.proxies.len()
             }
-            RotationMode::Random => {
-                let mut rng = rand::thread_rng();
-                rand::Rng::gen_range(&mut rng, 0..self.proxies.len())
-            }
+            RotationMode::Random => rand::random_range(0..self.proxies.len()),
             RotationMode::Sticky => self.current.load(Ordering::Relaxed) % self.proxies.len(),
         };
 

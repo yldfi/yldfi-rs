@@ -68,13 +68,13 @@ thiserror = "2"
 # Utilities
 futures = "0.3"
 parking_lot = "0.12"
-rand = "0.8"
+rand = "0.10"
 hex = "0.4"
-hmac = "0.12"
+hmac = "0.13"
 dirs = "5"
 regex = "1.11"
 num-traits = "0.2"
-sha2 = "0.10"
+sha2 = "0.11"
 serde_urlencoded = "0.7"
 secrecy = { workspace = true }
 semver = "1"
@@ -115,7 +115,7 @@ gplus = { version = "0.1", path = "../gplus" }
 sldt = { version = "0.2", path = "../sldt" }
 
 # Bytecode analysis
-evmole = { version = "0.8", features = ["serde"] }
+evmole = { version = "0.9", features = ["serde"] }
 evm-disassembler = "0.6"
 
 # Chainlink Data Streams
