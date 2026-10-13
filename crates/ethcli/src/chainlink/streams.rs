@@ -2,7 +2,7 @@
 
 use crate::utils::{get_shared_http_client, unix_timestamp_ms};
 use chainlink_data_streams_report::{feed_id::ID, report::Report};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, InvalidHeaderValue};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{digest::InvalidLength, Digest, Sha256};
