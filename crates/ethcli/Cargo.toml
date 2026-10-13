@@ -33,7 +33,7 @@ alloy = { version = "2", features = [
 ] }
 
 # Etherscan API
-foundry-block-explorers = "0.23"
+foundry-block-explorers = "0.24"
 alloy-chains = "0.2"
 
 # HTTP client
@@ -50,7 +50,7 @@ clap_complete = "4"
 # Serialization
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml = "1.1"
 
 # Output formats
 csv = "1.3"
@@ -116,7 +116,7 @@ sldt = { version = "0.2", path = "../sldt" }
 
 # Bytecode analysis
 evmole = { version = "0.9", features = ["serde"] }
-evm-disassembler = "0.5"
+evm-disassembler = "0.6"
 
 # Chainlink Data Streams
 chainlink-data-streams-report = "1.2"
