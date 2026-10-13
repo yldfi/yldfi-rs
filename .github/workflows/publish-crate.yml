@@ -87,6 +87,9 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: publish
+          # cargo publish builds a fresh packaged copy under target/package,
+          # so caching target/ only makes the post-step trip over it (ENOENT).
+          cache-targets: "false"
 
       # P0-2: Validate crate name and use safe output
       - name: Determine and validate crate name
