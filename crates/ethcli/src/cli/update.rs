@@ -212,27 +212,40 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
         anyhow::bail!("Unknown archive format: {}", asset.name);
     };
 
-    // Find the install location
-    let install_path = std::env::current_exe()?;
+    // Find the install location. Resolve symlinks so a symlinked layout keeps
+    // its links and the real binary behind them is the one that gets replaced.
+    let install_path = std::fs::canonicalize(std::env::current_exe()?)?;
     let install_dir = install_path.parent().ok_or_else(|| {
         anyhow::anyhow!(
             "Could not determine install directory from {}",
             install_path.display()
         )
     })?;
-    let mcp_install_path = install_dir.join(format!("ethcli-mcp{}", std::env::consts::EXE_SUFFIX));
+    let mcp_path = install_dir.join(format!("ethcli-mcp{}", std::env::consts::EXE_SUFFIX));
 
     if !quiet {
         eprintln!("Installing ethcli to {}...", install_path.display());
     }
 
-    install_binary(&extracted.ethcli, &install_path)?;
+    install_binary(&extracted.ethcli, &install_path)
+        .map_err(|e| install_error(e, &install_path))?;
 
     if let Some(ethcli_mcp) = &extracted.ethcli_mcp {
-        if !quiet {
-            eprintln!("Installing ethcli-mcp to {}...", mcp_install_path.display());
+        match resolve_mcp_install_path(&mcp_path, &install_path)? {
+            McpTarget::Install(target) => {
+                if !quiet {
+                    eprintln!("Installing ethcli-mcp to {}...", target.display());
+                }
+                install_binary(ethcli_mcp, &target).map_err(|e| install_error(e, &target))?;
+            }
+            McpTarget::Skip(reason) => {
+                eprintln!(
+                    "Warning: not updating {}: {}. Update ethcli-mcp manually.",
+                    mcp_path.display(),
+                    reason
+                );
+            }
         }
-        install_binary(ethcli_mcp, &mcp_install_path)?;
     }
 
     // Cleanup
@@ -361,6 +374,81 @@ fn verify_extracted_binary(
     Ok(Some(binary))
 }
 
+enum McpTarget {
+    Install(PathBuf),
+    Skip(String),
+}
+
+/// Decide where ethcli-mcp should be installed. A symlink is followed to the
+/// file it points to, so the link itself is left in place. The target is
+/// skipped when it isn't a native executable (e.g. a wrapper script, which
+/// replacing would break) or when it is the ethcli binary itself.
+fn resolve_mcp_install_path(mcp_path: &Path, ethcli_path: &Path) -> anyhow::Result<McpTarget> {
+    if std::fs::symlink_metadata(mcp_path).is_err() {
+        return Ok(McpTarget::Install(mcp_path.to_path_buf()));
+    }
+    let target = match std::fs::canonicalize(mcp_path) {
+        Ok(target) => target,
+        Err(_) => {
+            return Ok(McpTarget::Skip(format!(
+                "it is a symlink to a missing file ({})",
+                std::fs::read_link(mcp_path)
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default()
+            )))
+        }
+    };
+    if target == ethcli_path {
+        return Ok(McpTarget::Skip(format!(
+            "it resolves to the ethcli binary ({})",
+            target.display()
+        )));
+    }
+    if !is_native_executable(&target) {
+        return Ok(McpTarget::Skip(format!(
+            "it resolves to {}, which is not a native executable (a wrapper script?)",
+            target.display()
+        )));
+    }
+    Ok(McpTarget::Install(target))
+}
+
+/// True if the file starts with an ELF, Mach-O or PE header.
+fn is_native_executable(path: &Path) -> bool {
+    use std::io::Read;
+
+    let mut magic = [0u8; 4];
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+    if file.read_exact(&mut magic).is_err() {
+        return false;
+    }
+    matches!(
+        magic,
+        [0x7f, b'E', b'L', b'F']
+            | [0xfe, 0xed, 0xfa, 0xce]
+            | [0xfe, 0xed, 0xfa, 0xcf]
+            | [0xce, 0xfa, 0xed, 0xfe]
+            | [0xcf, 0xfa, 0xed, 0xfe]
+            | [0xca, 0xfe, 0xba, 0xbe]
+    ) || magic[..2] == *b"MZ"
+}
+
+fn install_error(err: anyhow::Error, path: &Path) -> anyhow::Error {
+    let denied = err
+        .downcast_ref::<std::io::Error>()
+        .is_some_and(|e| e.kind() == std::io::ErrorKind::PermissionDenied);
+    if denied {
+        anyhow::anyhow!(
+            "Permission denied writing {}. Run `ethcli upgrade` as the user that owns it.",
+            path.display()
+        )
+    } else {
+        err.context(format!("Failed to install {}", path.display()))
+    }
+}
+
 fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
     #[cfg(unix)]
     {
@@ -407,7 +495,7 @@ fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::install_binary;
+    use super::{install_binary, resolve_mcp_install_path, McpTarget};
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
     #[test]
@@ -432,6 +520,93 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().contains(".new-"))
             .collect();
         assert!(leftovers.is_empty(), "temp file left behind");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn test_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("ethcli-{}-{}", name, std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    const ELF: &[u8] = b"\x7fELF rest of binary";
+
+    #[test]
+    fn mcp_missing_installs_next_to_ethcli() {
+        let dir = test_dir("mcp-missing");
+        let ethcli = dir.join("ethcli");
+        std::fs::write(&ethcli, ELF).unwrap();
+        let mcp = dir.join("ethcli-mcp");
+        match resolve_mcp_install_path(&mcp, &ethcli).unwrap() {
+            McpTarget::Install(p) => assert_eq!(p, mcp),
+            McpTarget::Skip(r) => panic!("unexpected skip: {r}"),
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn mcp_symlink_to_binary_updates_target_and_keeps_link() {
+        let dir = test_dir("mcp-link").canonicalize().unwrap();
+        let ethcli = dir.join("ethcli");
+        std::fs::write(&ethcli, ELF).unwrap();
+        let real = dir.join("ethcli-mcp.real");
+        std::fs::write(&real, ELF).unwrap();
+        let link = dir.join("ethcli-mcp");
+        std::os::unix::fs::symlink("ethcli-mcp.real", &link).unwrap();
+
+        let McpTarget::Install(target) = resolve_mcp_install_path(&link, &ethcli).unwrap() else {
+            panic!("expected install");
+        };
+        assert_eq!(target, real);
+        let source = dir.join("new");
+        std::fs::write(&source, b"\x7fELF new").unwrap();
+        install_binary(&source, &target).unwrap();
+
+        assert!(std::fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(std::fs::read(&real).unwrap(), b"\x7fELF new");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn mcp_symlink_to_wrapper_script_is_skipped() {
+        let dir = test_dir("mcp-wrapper");
+        let ethcli = dir.join("ethcli.real");
+        std::fs::write(&ethcli, ELF).unwrap();
+        let wrapper = dir.join("wrapper");
+        std::fs::write(&wrapper, b"#!/bin/sh\nexec ethcli.real \"$@\"\n").unwrap();
+        let link = dir.join("ethcli-mcp");
+        std::os::unix::fs::symlink("wrapper", &link).unwrap();
+
+        assert!(matches!(
+            resolve_mcp_install_path(&link, &ethcli).unwrap(),
+            McpTarget::Skip(_)
+        ));
+        assert!(std::fs::read(&wrapper).unwrap().starts_with(b"#!"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn mcp_symlink_to_ethcli_or_missing_is_skipped() {
+        let dir = test_dir("mcp-self").canonicalize().unwrap();
+        let ethcli = dir.join("ethcli");
+        std::fs::write(&ethcli, ELF).unwrap();
+        let link = dir.join("ethcli-mcp");
+        std::os::unix::fs::symlink("ethcli", &link).unwrap();
+        assert!(matches!(
+            resolve_mcp_install_path(&link, &ethcli).unwrap(),
+            McpTarget::Skip(_)
+        ));
+
+        let dangling = dir.join("ethcli-mcp-dangling");
+        std::os::unix::fs::symlink("missing", &dangling).unwrap();
+        assert!(matches!(
+            resolve_mcp_install_path(&dangling, &ethcli).unwrap(),
+            McpTarget::Skip(_)
+        ));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
