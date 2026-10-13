@@ -352,7 +352,9 @@ ethcli simulate tx <hash> --via debug            # decoded call tree (names, arg
 ethcli simulate tx <hash> --via debug --raw      # raw callTracer JSON
 ```
 
-## Tenderly (requires TENDERLY_ACCESS_KEY)
+`--sig` is encoded natively; Foundry is only needed for `--via cast` (default) / `--via anvil` and for non-canonical signatures. `--data` skips encoding.
+
+## Tenderly (requires TENDERLY_ACCESS_KEY, TENDERLY_ACCOUNT, TENDERLY_PROJECT)
 
 ```bash
 ethcli tenderly vnets list --project <p> --account <a>
