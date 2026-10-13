@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.4...ethcli-v0.23.5) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ethcli:** upgrade ethcli-mcp in any same-user layout, with rollback ([#116](https://github.com/yldfi/yldfi-rs/issues/116)) ([b80af18](https://github.com/yldfi/yldfi-rs/commit/b80af18de193336d2c878fb28e82e9a91da15f25))
+
 ## [0.23.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.3...ethcli-v0.23.4) (2026-10-13)
 
 
