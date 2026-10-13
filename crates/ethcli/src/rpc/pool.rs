@@ -48,7 +48,6 @@ use alloy::primitives::B256;
 use alloy::rpc::types::{Block, Filter, Log, Transaction, TransactionReceipt};
 use futures::future::join_all;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -593,7 +592,7 @@ impl RpcPool {
         });
 
         // Add some randomization among similar scores
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
         if available.len() > 2 {
             // Shuffle top endpoints a bit for load distribution
             let shuffle_count = (available.len() / 3).max(2).min(available.len());
