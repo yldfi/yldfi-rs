@@ -116,7 +116,7 @@ sldt = { version = "0.2", path = "../sldt" }
 
 # Bytecode analysis
 evmole = { version = "0.8", features = ["serde"] }
-evm-disassembler = "0.5"
+evm-disassembler = "0.6"
 
 # Chainlink Data Streams
 chainlink-data-streams-report = "1.2"
