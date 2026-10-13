@@ -345,12 +345,33 @@ pub fn build_calldata(
             }
         }
 
-        let mut cmd = Command::new("cast");
-        cmd.arg("calldata").arg(s);
-        for arg in args {
-            cmd.arg(resolve_label(arg));
+        let resolved: Vec<String> = args.iter().map(|a| resolve_label(a)).collect();
+
+        // Encode natively when the signature is canonical, so `--sig` works
+        // without Foundry installed. Anything else (param names, `returns`
+        // clauses, values alloy can't coerce) still goes through `cast calldata`.
+        let native = crate::cli::cast::canonical_signature(s)
+            .map(|c| crate::cli::cast::abi_encode(&c, &resolved));
+        if let Some(Ok(encoded)) = native {
+            return Ok(encoded);
         }
-        let output = cmd.output()?;
+
+        let mut cmd = Command::new("cast");
+        cmd.arg("calldata").arg(s).args(&resolved);
+        let output = match cmd.output() {
+            Ok(output) => output,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(match native {
+                    Some(Err(err)) => anyhow::anyhow!("Failed to encode calldata: {}", err),
+                    _ => anyhow::anyhow!(
+                        "Failed to encode calldata: signature '{}' needs Foundry's `cast`, which was not found on PATH. \
+                         Use a canonical signature such as \"transfer(address,uint256)\", pass --data, or install Foundry",
+                        s
+                    ),
+                });
+            }
+            Err(e) => return Err(e.into()),
+        };
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stderr_trimmed = stderr.trim();
@@ -676,5 +697,24 @@ mod failover_tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("reverted"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_calldata_encodes_without_cast() {
+        let calldata = build_calldata(
+            &Some("balanceOf(address)".to_string()),
+            &None,
+            &["0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string()],
+        )
+        .unwrap();
+        assert_eq!(
+            calldata,
+            "0x70a08231000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
+        );
     }
 }
