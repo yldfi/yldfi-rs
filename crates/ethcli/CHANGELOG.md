@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.3...ethcli-v0.23.4) (2026-10-13)
+
+
+### Bug Fixes
+
+* **ethcli:** keep symlinked layouts intact on upgrade ([#91](https://github.com/yldfi/yldfi-rs/issues/91)) ([824c0cd](https://github.com/yldfi/yldfi-rs/commit/824c0cd6daacb3e54ecea9113c79fa6118b9d62c))
+
 ## [0.23.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.2...ethcli-v0.23.3) (2026-10-13)
 
 

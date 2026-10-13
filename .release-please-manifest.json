@@ -7,7 +7,7 @@
   "crates/dnapi": "0.2.0",
   "crates/ensof": "0.1.5",
   "crates/gplus": "0.1.2",
-  "crates/ethcli": "0.23.3",
+  "crates/ethcli": "0.23.4",
   "crates/ethcli-mcp": "0.3.1",
   "crates/kybr": "0.1.4",
   "crates/lfi": "0.1.5",
