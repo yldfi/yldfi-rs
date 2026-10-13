@@ -18,7 +18,7 @@ mod types;
 
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, Content, Implementation, ServerCapabilities, ServerInfo},
+    model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig},
     tool, tool_handler, tool_router,
     transport::stdio,
     ServerHandler, ServiceExt,
@@ -1586,7 +1586,7 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
     ) -> CallToolResult {
         let Some(amount) = input.amount.as_deref() else {
-            return CallToolResult::error(vec![Content::text(
+            return CallToolResult::error(vec![ContentBlock::text(
                 "Error: 'amount' is required for set_erc20_balance",
             )]);
         };
@@ -5913,15 +5913,15 @@ impl EthcliMcpServer {
 
     #[tool(description = "Health check - verify ethcli-mcp and ethcli are working")]
     async fn health(&self) -> CallToolResult {
-        CallToolResult::success(vec![Content::text(tools::health().await)])
+        CallToolResult::success(vec![ContentBlock::text(tools::health().await)])
     }
 }
 
 // Server handler implementation
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for EthcliMcpServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(server_implementation())
             .with_instructions(
                 "Comprehensive Ethereum CLI tools: transaction analysis, account queries, \
