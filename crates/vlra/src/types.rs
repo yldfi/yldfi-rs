@@ -478,13 +478,15 @@ pub struct TransactionRequest {
     /// Destination token decimals
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dest_decimals: Option<u8>,
-    /// Source amount
-    pub src_amount: String,
-    /// Destination amount.
+    /// Source amount (the fixed amount on a SELL).
     ///
-    /// Velora rejects requests that specify both `destAmount` and `slippage`
-    /// ("Cannot specify both"), so this is `None` by default and only sent
-    /// if explicitly set.
+    /// With `slippage` set, Velora wants only the fixed side's amount:
+    /// `srcAmount` on SELL, `destAmount` on BUY. Sending the other one too is
+    /// rejected ("Cannot specify both"), so [`TransactionRequest::new`] fills
+    /// exactly one of the two based on the route's `side`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub src_amount: Option<String>,
+    /// Destination amount (the fixed amount on a BUY).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dest_amount: Option<String>,
     /// Price route exactly as returned by `/prices` (must be unmodified)
@@ -505,11 +507,11 @@ pub struct TransactionRequest {
     /// Permit data for gasless approvals
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permit: Option<String>,
-    /// Ignore gas estimation
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Ignore gas estimation (sent as the `ignoreGasEstimate` query param)
+    #[serde(skip)]
     pub ignore_gas: Option<bool>,
-    /// Ignore balance and allowance checks
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Ignore balance and allowance checks (sent as the `ignoreChecks` query param)
+    #[serde(skip)]
     pub ignore_checks: Option<bool>,
 }
 
@@ -520,13 +522,14 @@ impl TransactionRequest {
     #[must_use]
     pub fn new(price: &PriceResponse, user_address: impl Into<String>, slippage: u32) -> Self {
         let route = &price.price_route;
+        let is_buy = route.side.eq_ignore_ascii_case("BUY");
         Self {
             src_token: route.src_token.clone(),
             dest_token: route.dest_token.clone(),
             src_decimals: Some(route.src_decimals),
             dest_decimals: Some(route.dest_decimals),
-            src_amount: route.src_amount.clone(),
-            dest_amount: None,
+            src_amount: (!is_buy).then(|| route.src_amount.clone()),
+            dest_amount: is_buy.then(|| route.dest_amount.clone()),
             price_route: price.raw_price_route.clone(),
             slippage,
             user_address: user_address.into(),
@@ -587,6 +590,22 @@ impl TransactionRequest {
     pub fn with_ignore_checks(mut self, ignore: bool) -> Self {
         self.ignore_checks = Some(ignore);
         self
+    }
+
+    /// Query parameters for `POST /transactions/{chainId}`.
+    ///
+    /// `ignoreGasEstimate` and `ignoreChecks` are query parameters of the
+    /// endpoint, not body fields.
+    #[must_use]
+    pub fn to_query_params(&self) -> Vec<(String, String)> {
+        let mut params = Vec::new();
+        if let Some(v) = self.ignore_gas {
+            params.push(("ignoreGasEstimate".to_string(), v.to_string()));
+        }
+        if let Some(v) = self.ignore_checks {
+            params.push(("ignoreChecks".to_string(), v.to_string()));
+        }
+        params
     }
 }
 
@@ -723,5 +742,47 @@ mod tests {
         assert_eq!(body["srcDecimals"], 18);
         assert_eq!(body["destDecimals"], 6);
         assert_eq!(body["srcAmount"], "1000000000000000000");
+        assert!(body.get("ignoreChecks").is_none(), "{body}");
+        assert!(req.to_query_params().is_empty());
+    }
+
+    #[test]
+    fn transaction_request_buy_sends_dest_amount_only() {
+        let mut route: serde_json::Value = serde_json::from_str(LIVE_PRICE).unwrap();
+        route["priceRoute"]["side"] = "BUY".into();
+        let req = TransactionRequest::from_raw_price_route(
+            route["priceRoute"].clone(),
+            "0x0000000000000000000000000000000000000001",
+            50,
+        )
+        .unwrap();
+        let body = serde_json::to_value(&req).unwrap();
+        assert_eq!(body["destAmount"], "2690528459");
+        assert!(body.get("srcAmount").is_none(), "{body}");
+        assert_eq!(body["slippage"], 50);
+    }
+
+    #[test]
+    fn transaction_request_ignore_flags_are_query_params() {
+        let original: serde_json::Value = serde_json::from_str(LIVE_PRICE).unwrap();
+        let req = TransactionRequest::from_raw_price_route(
+            original["priceRoute"].clone(),
+            "0x0000000000000000000000000000000000000001",
+            100,
+        )
+        .unwrap()
+        .with_ignore_gas(true)
+        .with_ignore_checks(true);
+        let body = serde_json::to_value(&req).unwrap();
+        for key in ["ignoreGas", "ignoreGasEstimate", "ignoreChecks"] {
+            assert!(body.get(key).is_none(), "{key} in body: {body}");
+        }
+        assert_eq!(
+            req.to_query_params(),
+            vec![
+                ("ignoreGasEstimate".to_string(), "true".to_string()),
+                ("ignoreChecks".to_string(), "true".to_string()),
+            ]
+        );
     }
 }
