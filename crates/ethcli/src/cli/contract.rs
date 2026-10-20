@@ -889,8 +889,9 @@ pub async fn handle(
                     .abi_decode_output(&result)
                     .map_err(|e| anyhow::anyhow!("Failed to decode output: {}", e))?;
 
-                // For human mode, try to get decimals if this looks like a token
-                let token_decimals = if *human {
+                // For human mode, scale by the token's decimals only for getters
+                // that return token amounts (decimals(), nonces, timestamps... stay raw)
+                let token_decimals = if *human && is_amount_getter(&func.name) {
                     // Try to detect if this is an ERC20 by calling decimals()
                     get_token_decimals(provider, addr).await
                 } else {
@@ -1619,6 +1620,31 @@ pub(crate) fn format_value(value: &DynSolValue) -> String {
     format_value_internal(value, false, None)
 }
 
+/// Whether a function returns a token amount that `--human` should scale by
+/// the token's decimals (ERC-20 / ERC-4626 amount getters)
+fn is_amount_getter(name: &str) -> bool {
+    const AMOUNT_GETTERS: &[&str] = &[
+        "totalsupply",
+        "balanceof",
+        "allowance",
+        "totalassets",
+        "converttoassets",
+        "converttoshares",
+        "previewdeposit",
+        "previewmint",
+        "previewwithdraw",
+        "previewredeem",
+        "maxdeposit",
+        "maxmint",
+        "maxwithdraw",
+        "maxredeem",
+        "circulatingsupply",
+        "maxsupply",
+        "cap",
+    ];
+    AMOUNT_GETTERS.contains(&name.to_ascii_lowercase().as_str())
+}
+
 /// Format a DynSolValue with human-readable formatting
 fn format_value_human(value: &DynSolValue, decimals: Option<u8>) -> String {
     format_value_internal(value, true, decimals)
@@ -1807,5 +1833,15 @@ mod tests {
         assert!(err
             .to_string()
             .contains("Use an explicit signature like foo("));
+    }
+
+    #[test]
+    fn human_scaling_applies_only_to_amount_getters() {
+        assert!(is_amount_getter("totalSupply"));
+        assert!(is_amount_getter("balanceOf"));
+        assert!(is_amount_getter("convertToAssets"));
+        assert!(!is_amount_getter("decimals"));
+        assert!(!is_amount_getter("nonces"));
+        assert!(!is_amount_getter("getRoundData"));
     }
 }
