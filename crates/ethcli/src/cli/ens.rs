@@ -113,9 +113,22 @@ pub async fn handle(
                 let _ = std::io::stderr().flush();
             }
 
-            match reverse_lookup(&provider, addr).await {
-                Ok(name) => println!("{}", name),
-                Err(_) => println!("No ENS name found for this address"),
+            match reverse_lookup(&provider, addr).await? {
+                ReverseName::Verified(name) => println!("{}", name),
+                ReverseName::NotSet => println!("No ENS name found for this address"),
+                ReverseName::Unverified {
+                    claimed,
+                    resolves_to,
+                } => {
+                    println!("No verified ENS name found for this address");
+                    if !quiet {
+                        eprintln!(
+                            "Warning: the reverse record claims '{}', but that name resolves to {}",
+                            claimed,
+                            resolves_to.map_or("nothing".to_string(), |a| a.to_checksum(None))
+                        );
+                    }
+                }
             }
         }
 
@@ -125,7 +138,9 @@ pub async fn handle(
                 let _ = std::io::stderr().flush();
             }
 
-            let resolver = get_resolver(&provider, name).await?;
+            let resolver = get_resolver(&provider, name)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("No resolver set for {}", name))?;
             println!("{}", resolver.to_checksum(None));
         }
 
@@ -138,10 +153,21 @@ pub async fn handle(
     Ok(())
 }
 
-/// Compute the namehash of an ENS name
+/// Normalise an ENS name before hashing: trim, lowercase and NFC.
+///
+/// This covers the common ENSIP-15 cases (case folding, composed characters),
+/// so "Vitalik.eth" hashes to the same node as in other clients. ENSIP-15's
+/// emoji, confusable and disallowed-character rules are not applied.
+fn normalize_name(name: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    name.trim().to_lowercase().nfc().collect()
+}
+
+/// Compute the namehash of an ENS name (normalised first)
 fn namehash(name: &str) -> B256 {
     let mut node = B256::ZERO;
 
+    let name = normalize_name(name);
     if name.is_empty() {
         return node;
     }
@@ -160,8 +186,8 @@ fn namehash(name: &str) -> B256 {
     node
 }
 
-/// Get the resolver contract for an ENS name
-async fn get_resolver<P: Provider>(provider: &P, name: &str) -> anyhow::Result<Address> {
+/// Get the resolver contract for an ENS name (`None` if none is set)
+async fn get_resolver<P: Provider>(provider: &P, name: &str) -> anyhow::Result<Option<Address>> {
     let registry = Address::from_str(ENS_REGISTRY)?;
     let node = namehash(name);
 
@@ -186,16 +212,14 @@ async fn get_resolver<P: Provider>(provider: &P, name: &str) -> anyhow::Result<A
     // Decode address from last 20 bytes of the 32-byte response
     let addr = Address::from_slice(&result[12..32]);
 
-    if addr.is_zero() {
-        return Err(anyhow::anyhow!("No resolver set for {}", name));
-    }
-
-    Ok(addr)
+    Ok((!addr.is_zero()).then_some(addr))
 }
 
 /// Resolve an ENS name to an address
 pub async fn resolve_name<P: Provider>(provider: &P, name: &str) -> anyhow::Result<Address> {
-    let resolver = get_resolver(provider, name).await?;
+    let resolver = get_resolver(provider, name)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("No resolver set for {}", name))?;
     let node = namehash(name);
 
     // Call addr(bytes32)
@@ -225,15 +249,53 @@ pub async fn resolve_name<P: Provider>(provider: &P, name: &str) -> anyhow::Resu
     Ok(addr)
 }
 
-/// Reverse lookup - find ENS name for an address
-async fn reverse_lookup<P: Provider>(provider: &P, address: Address) -> anyhow::Result<String> {
+/// Outcome of a reverse lookup
+#[derive(Debug, PartialEq, Eq)]
+enum ReverseName {
+    /// The reverse record's name resolves back to the address
+    Verified(String),
+    /// No reverse record
+    NotSet,
+    /// The reverse record names something that doesn't resolve back to the
+    /// address. Anyone can set any reverse name, so it must not be shown as
+    /// the address's name.
+    Unverified {
+        claimed: String,
+        resolves_to: Option<Address>,
+    },
+}
+
+/// Reverse lookup - find the ENS name for an address, verified by forward resolution
+async fn reverse_lookup<P: Provider>(
+    provider: &P,
+    address: Address,
+) -> anyhow::Result<ReverseName> {
+    let Some(claimed) = reverse_record(provider, address).await? else {
+        return Ok(ReverseName::NotSet);
+    };
+    let resolves_to = resolve_name(provider, &claimed).await.ok();
+    if resolves_to == Some(address) {
+        Ok(ReverseName::Verified(claimed))
+    } else {
+        Ok(ReverseName::Unverified {
+            claimed,
+            resolves_to,
+        })
+    }
+}
+
+/// Read the (unverified) reverse record for an address
+async fn reverse_record<P: Provider>(
+    provider: &P,
+    address: Address,
+) -> anyhow::Result<Option<String>> {
     // Construct the reverse name: <address>.addr.reverse
     let addr_hex = format!("{:x}", address).to_lowercase();
     let reverse_name = format!("{}.addr.reverse", addr_hex);
 
-    let resolver = get_resolver(provider, &reverse_name)
-        .await
-        .map_err(|e| anyhow::anyhow!("No reverse record set ({})", e))?;
+    let Some(resolver) = get_resolver(provider, &reverse_name).await? else {
+        return Ok(None);
+    };
 
     let node = namehash(&reverse_name);
 
@@ -259,7 +321,7 @@ async fn reverse_lookup<P: Provider>(provider: &P, address: Address) -> anyhow::
 
     let length = u64::from_be_bytes(result[56..64].try_into()?);
     if length == 0 {
-        return Err(anyhow::anyhow!("No name set for address"));
+        return Ok(None);
     }
 
     // Bounds check: ensure length doesn't overflow and fits in result buffer
@@ -280,7 +342,7 @@ async fn reverse_lookup<P: Provider>(provider: &P, address: Address) -> anyhow::
     let name = String::from_utf8(name_bytes.to_vec())
         .map_err(|e| anyhow::anyhow!("Invalid name encoding: {}", e))?;
 
-    Ok(name)
+    Ok(Some(name))
 }
 
 #[cfg(test)]
@@ -337,12 +399,72 @@ mod tests {
     }
 
     #[test]
-    fn test_namehash_case_sensitive() {
-        // ENS namehash is case-sensitive (though normalization happens before)
-        let hash1 = namehash("FOO.eth");
-        let hash2 = namehash("foo.eth");
-        // These should be different because namehash doesn't normalize
-        assert_ne!(hash1, hash2);
+    fn test_namehash_normalizes_case_and_composition() {
+        assert_eq!(namehash("Vitalik.ETH"), namehash("vitalik.eth"));
+        assert_eq!(namehash(" vitalik.eth "), namehash("vitalik.eth"));
+        // "é" as e + combining acute (NFD) and as one code point (NFC)
+        assert_eq!(namehash("cafe\u{301}.eth"), namehash("caf\u{e9}.eth"));
+    }
+
+    /// Minimal ENS over JSON-RPC: one resolver for every node, whose reverse
+    /// record says `claimed` and whose addr() answers `forward`.
+    struct FakeEns {
+        claimed: &'static str,
+        forward: Address,
+    }
+
+    impl wiremock::Respond for FakeEns {
+        fn respond(&self, req: &wiremock::Request) -> wiremock::ResponseTemplate {
+            use alloy::sol_types::SolValue;
+            let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+            let tx = &body["params"][0];
+            let input = tx["input"].as_str().or(tx["data"].as_str()).unwrap();
+            let input = hex::decode(input.trim_start_matches("0x")).unwrap();
+            let resolver = Address::repeat_byte(0x11);
+            let out = match &input[..4] {
+                s if s == RESOLVER_SELECTOR => resolver.abi_encode(),
+                s if s == NAME_SELECTOR => self.claimed.to_string().abi_encode(),
+                s if s == ADDR_SELECTOR => self.forward.abi_encode(),
+                _ => panic!("unexpected call"),
+            };
+            wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": body["id"],
+                "result": format!("0x{}", hex::encode(out)),
+            }))
+        }
+    }
+
+    async fn lookup_with(claimed: &'static str, forward: Address, address: Address) -> ReverseName {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(FakeEns { claimed, forward })
+            .mount(&server)
+            .await;
+        let endpoint = Endpoint::new(EndpointConfig::new(server.uri()), 5, None).unwrap();
+        reverse_lookup(endpoint.provider(), address).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn reverse_lookup_rejects_a_spoofed_reverse_record() {
+        let attacker = Address::repeat_byte(0xaa);
+        let vitalik = Address::repeat_byte(0xbb);
+        assert_eq!(
+            lookup_with("vitalik.eth", vitalik, attacker).await,
+            ReverseName::Unverified {
+                claimed: "vitalik.eth".to_string(),
+                resolves_to: Some(vitalik),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn reverse_lookup_accepts_a_name_that_resolves_back() {
+        let owner = Address::repeat_byte(0xbb);
+        assert_eq!(
+            lookup_with("vitalik.eth", owner, owner).await,
+            ReverseName::Verified("vitalik.eth".to_string())
+        );
     }
 
     // Test selector constants
