@@ -275,7 +275,7 @@ impl QuoteRequest {
     /// Set slippage tolerance as a percentage (1.0 = 1%)
     #[must_use]
     pub fn with_slippage_percent(mut self, percent: f64) -> Self {
-        self.slippage_bps = Some((percent * 100.0) as u32);
+        self.slippage_bps = Some((percent * 100.0).round() as u32);
         self
     }
 
@@ -716,23 +716,16 @@ pub struct BalanceIssue {
     pub expected: Option<String>,
 }
 
-/// Liquidity source information from the /sources endpoint
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Source {
-    /// Source identifier used in API requests
-    pub name: String,
-    /// Human-readable source name
-    #[serde(default)]
-    pub display_name: Option<String>,
-}
-
 /// Response from the /sources endpoint
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourcesResponse {
-    /// Available liquidity sources
-    pub sources: Vec<Source>,
+    /// Available liquidity source names (e.g. `"Uniswap_V3"`), as used in
+    /// `excludedSources`
+    pub sources: Vec<String>,
+    /// 0x request ID
+    #[serde(default)]
+    pub zid: Option<String>,
 }
 
 /// API error response
@@ -887,6 +880,21 @@ mod tests {
         ] {
             assert_eq!(get(v1), None, "{v1} is a v1-only param");
         }
+    }
+
+    #[test]
+    fn test_slippage_percent_rounds() {
+        // 0.29 * 100.0 == 28.999999999999996, which used to truncate to 28
+        let request = QuoteRequest::sell("0xa", "0xb", "1").with_slippage_percent(0.29);
+        assert_eq!(request.slippage_bps, Some(29));
+    }
+
+    #[test]
+    fn test_sources_response_deserialize() {
+        let json = r#"{"sources": ["0x_RFQ", "Uniswap_V3"], "zid": "0x1"}"#;
+        let response: SourcesResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.sources, vec!["0x_RFQ", "Uniswap_V3"]);
+        assert_eq!(response.zid.as_deref(), Some("0x1"));
     }
 
     #[test]
