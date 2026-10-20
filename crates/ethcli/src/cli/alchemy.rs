@@ -1545,28 +1545,40 @@ async fn handle_debug(
             if !quiet {
                 eprintln!("Tracing block {}...", block);
             }
-            let response = client.debug().trace_block_by_number(block).await?;
+            let response = client
+                .debug()
+                .trace_block_by_number(&rpc_block_param(block))
+                .await?;
             print_output(&response, args.format)?;
         }
         DebugCommands::GetRawBlock { block } => {
             if !quiet {
                 eprintln!("Fetching raw block {}...", block);
             }
-            let response = client.debug().get_raw_block(block).await?;
+            let response = client
+                .debug()
+                .get_raw_block(&rpc_block_param(block))
+                .await?;
             print_output(&response, args.format)?;
         }
         DebugCommands::GetRawHeader { block } => {
             if !quiet {
                 eprintln!("Fetching raw header {}...", block);
             }
-            let response = client.debug().get_raw_header(block).await?;
+            let response = client
+                .debug()
+                .get_raw_header(&rpc_block_param(block))
+                .await?;
             print_output(&response, args.format)?;
         }
         DebugCommands::GetRawReceipts { block } => {
             if !quiet {
                 eprintln!("Fetching raw receipts for block {}...", block);
             }
-            let response = client.debug().get_raw_receipts(block).await?;
+            let response = client
+                .debug()
+                .get_raw_receipts(&rpc_block_param(block))
+                .await?;
             print_output(&response, args.format)?;
         }
     }
@@ -2218,6 +2230,16 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
     Ok(())
 }
 
+/// JSON-RPC block parameter: decimal numbers become hex quantities; hex values
+/// and tags ("latest", ...) pass through
+fn rpc_block_param(block: &str) -> String {
+    let block = block.trim();
+    match block.parse::<u64>() {
+        Ok(n) => format!("{n:#x}"),
+        Err(_) => block.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2250,5 +2272,12 @@ mod tests {
         assert!(ACCESS_KEY_HELP.contains("Security"));
         assert!(ACCESS_KEY_HELP.contains("Gas Manager"));
         assert!(ACCESS_KEY_HELP.contains("set-alchemy-access-key"));
+    }
+
+    #[test]
+    fn decimal_blocks_become_hex() {
+        assert_eq!(rpc_block_param("19000000"), "0x121eac0");
+        assert_eq!(rpc_block_param("0x10"), "0x10");
+        assert_eq!(rpc_block_param("latest"), "latest");
     }
 }
