@@ -392,7 +392,7 @@ async fn fetch_prices_parallel_within(
         .filter_map(|r| r.data.as_ref().map(|p| p.usd))
         .collect();
 
-    let aggregation = PriceAggregation::from_prices(&prices).unwrap_or(PriceAggregation {
+    let mut aggregation = PriceAggregation::from_prices(&prices).unwrap_or(PriceAggregation {
         median_usd: 0.0,
         mean_usd: 0.0,
         min_usd: 0.0,
@@ -401,8 +401,22 @@ async fn fetch_prices_parallel_within(
         sources_agreed: false,
         best_source: None,
     });
+    aggregation.best_source = best_source(&results, aggregation.median_usd);
 
     AggregatedResult::new(aggregation, results, start.elapsed_ms())
+}
+
+/// The fastest source whose price agrees with the median (within 1%)
+fn best_source(results: &[SourceResult<NormalizedPrice>], median: f64) -> Option<String> {
+    if median <= 0.0 {
+        return None;
+    }
+    results
+        .iter()
+        .filter_map(|r| r.data.as_ref().map(|p| (r, p.usd)))
+        .filter(|(_, usd)| ((usd - median) / median).abs() <= 0.01)
+        .min_by_key(|(r, _)| r.latency_ms)
+        .map(|(r, _)| r.source.to_string())
 }
 
 /// Fetch price from a single source
@@ -1018,8 +1032,13 @@ async fn fetch_curve_lp_price(lp_token: &str, chain: &str) -> SourceResult<Norma
                     // Extract latest close price from OHLC data
                     if let Some(data) = ohlc_response.get("data").and_then(|d| d.as_array()) {
                         if let Some(latest) = data.last() {
-                            // OHLC format: [timestamp, open, high, low, close, ...]
-                            if let Some(close) = latest.get(4).and_then(|c| c.as_f64()) {
+                            // Candles are objects with a "close" field; an
+                            // array [timestamp, open, high, low, close] also works
+                            let close = latest
+                                .get("close")
+                                .or_else(|| latest.get(4))
+                                .and_then(|c| c.as_f64());
+                            if let Some(close) = close {
                                 let normalized = NormalizedPrice::new(close);
                                 return SourceResult::success(
                                     "curve-lp",
@@ -2109,6 +2128,18 @@ async fn fetch_kong_vault_price(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn best_source_is_the_fastest_agreeing_one() {
+        let results = vec![
+            SourceResult::success("slow", NormalizedPrice::new(100.0), 900),
+            SourceResult::success("fast-outlier", NormalizedPrice::new(150.0), 10),
+            SourceResult::success("fast", NormalizedPrice::new(100.4), 50),
+        ];
+        assert_eq!(best_source(&results, 100.0).as_deref(), Some("fast"));
+        assert_eq!(best_source(&results, 0.0), None);
+    }
+
     #[test]
     fn pyth_confidence_score_uses_the_fraction_of_price() {
         // ±$2 on $2000 is 0.1%: score 0.999 (was 0.9 from mixing % and fraction)
