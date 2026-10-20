@@ -233,9 +233,34 @@ impl LogFetcher {
                 let sig = EventSignature::parse(sig_str)?;
                 decoder.add_signature(&sig)?;
             }
+
+            // Filters given as raw topic hashes need the ABI to decode; without
+            // it their logs would be fetched and then silently dropped
+            let hash_topics: Vec<B256> = resolved_events
+                .iter()
+                .filter(|s| !s.contains('('))
+                .filter_map(|s| s.parse().ok())
+                .filter(|t| !decoder.knows_topic(t))
+                .collect();
+            if !hash_topics.is_empty() {
+                if let Ok(abi_decoder) = Self::abi_decoder(config).await {
+                    decoder.merge(abi_decoder);
+                }
+                if let Some(missing) = hash_topics.iter().find(|t| !decoder.knows_topic(t)) {
+                    return Err(Error::Abi(AbiError::InvalidEventSignature(format!(
+                        "can't decode topic {missing:#x}: pass its event signature instead, \
+                         an --abi that contains it, or use --raw"
+                    ))));
+                }
+            }
             return Ok(decoder);
         }
 
+        Self::abi_decoder(config).await
+    }
+
+    /// A decoder for the contract's ABI (--abi file, else Etherscan)
+    async fn abi_decoder(config: &Config) -> Result<LogDecoder> {
         // If ABI file provided, load it
         if let Some(abi_path) = &config.abi_path {
             let fetcher = AbiFetcher::new(None)?;
@@ -248,7 +273,27 @@ impl LogFetcher {
         let abi = fetcher
             .fetch_from_etherscan(config.chain, &config.contract)
             .await?;
-        LogDecoder::from_abi(&abi)
+        let mut decoder = LogDecoder::from_abi(&abi)?;
+
+        // A proxy emits its implementation's events: add that ABI too
+        if let Ok(meta) = fetcher
+            .get_contract_metadata(config.chain, &config.contract)
+            .await
+        {
+            if let Some(implementation) = meta.implementation {
+                if !implementation.eq_ignore_ascii_case(&config.contract) {
+                    if let Ok(impl_abi) = fetcher
+                        .fetch_from_etherscan(config.chain, &implementation)
+                        .await
+                    {
+                        if let Ok(impl_decoder) = LogDecoder::from_abi(&impl_abi) {
+                            decoder.merge(impl_decoder);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(decoder)
     }
 
     /// Set progress callback
