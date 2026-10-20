@@ -221,7 +221,7 @@ mod tests {
         let now = 1_700_000_000;
         let data = |updated_at| {
             PriceData::from_round_data(
-                I256::try_from(2_000_00000000i64).unwrap(),
+                I256::try_from(200_000_000_000_i64).unwrap(),
                 8,
                 5u128,
                 updated_at,
