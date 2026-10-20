@@ -1,8 +1,11 @@
 //! Debug API implementation
 
-use super::types::{BlockTrace, CallFrame, TraceCallObject, TraceCallOptions, TracerOptions};
+use super::types::{
+    BlockTrace, CallFrame, PrestateTrace, TraceCallObject, TraceCallOptions, TracerOptions,
+};
 use crate::client::Client;
 use crate::error::Result;
+use serde::de::DeserializeOwned;
 
 /// Debug API for transaction and block tracing
 pub struct DebugApi<'a> {
@@ -22,12 +25,23 @@ impl<'a> DebugApi<'a> {
             .await
     }
 
+    /// Trace a transaction with the prestate tracer (state touched, before execution)
+    pub async fn trace_transaction_prestate(&self, tx_hash: &str) -> Result<PrestateTrace> {
+        self.trace_transaction_with_options(tx_hash, TracerOptions::prestate_tracer())
+            .await
+    }
+
     /// Trace a transaction with custom options
-    pub async fn trace_transaction_with_options(
+    ///
+    /// The result shape depends on the tracer: [`CallFrame`] for
+    /// `callTracer`, [`PrestateTrace`](super::PrestateTrace) /
+    /// [`PrestateDiff`](super::PrestateDiff) for `prestateTracer`, or
+    /// `serde_json::Value` for anything else.
+    pub async fn trace_transaction_with_options<R: DeserializeOwned>(
         &self,
         tx_hash: &str,
         options: TracerOptions,
-    ) -> Result<CallFrame> {
+    ) -> Result<R> {
         self.client
             .rpc("debug_traceTransaction", (tx_hash, options))
             .await
@@ -42,12 +56,15 @@ impl<'a> DebugApi<'a> {
     }
 
     /// Trace a call with custom options
-    pub async fn trace_call_with_options(
+    ///
+    /// The result type depends on the tracer, as for
+    /// [`Self::trace_transaction_with_options`].
+    pub async fn trace_call_with_options<R: DeserializeOwned>(
         &self,
         call: &TraceCallObject,
         block: &str,
         options: TraceCallOptions,
-    ) -> Result<CallFrame> {
+    ) -> Result<R> {
         self.client
             .rpc("debug_traceCall", (call, block, options))
             .await

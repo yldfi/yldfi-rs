@@ -2,7 +2,7 @@
 
 use super::types::{
     CreateWebhookRequest, DataEnvelope, GraphqlVariable, GraphqlVariableRequest,
-    ListAddressesResponse, ListNftFiltersResponse, ListWebhooksResponse,
+    ListAddressesResponse, ListNftFiltersResponse, ListWebhooksResponse, NotifyPageOptions,
     PatchGraphqlVariableRequest, ReplaceWebhookAddressesRequest, UpdateNftFiltersRequest,
     UpdateWebhookAddressesRequest, UpdateWebhookRequest, Webhook,
 };
@@ -94,15 +94,32 @@ impl<'a> NotifyApi<'a> {
 
     // ========== Address Methods ==========
 
-    fn list_webhook_addresses_request(&self, webhook_id: &str) -> Result<RequestBuilder> {
+    fn list_webhook_addresses_request(
+        &self,
+        webhook_id: &str,
+        page: &NotifyPageOptions,
+    ) -> Result<RequestBuilder> {
         Ok(self
             .request(Method::GET, "/webhook-addresses")?
-            .query(&[("webhook_id", webhook_id)]))
+            .query(&[("webhook_id", webhook_id)])
+            .query(&page.to_query_params()))
     }
 
-    /// List addresses tracked by a webhook
+    /// List addresses tracked by a webhook (first page)
     pub async fn list_webhook_addresses(&self, webhook_id: &str) -> Result<ListAddressesResponse> {
-        self.send_json(self.list_webhook_addresses_request(webhook_id)?)
+        self.list_webhook_addresses_with_options(webhook_id, &NotifyPageOptions::default())
+            .await
+    }
+
+    /// List addresses tracked by a webhook, one page at a time
+    ///
+    /// Pass `pagination.cursors.after` from the previous response as `after`.
+    pub async fn list_webhook_addresses_with_options(
+        &self,
+        webhook_id: &str,
+        page: &NotifyPageOptions,
+    ) -> Result<ListAddressesResponse> {
+        self.send_json(self.list_webhook_addresses_request(webhook_id, page)?)
             .await
     }
 
@@ -130,11 +147,22 @@ impl<'a> NotifyApi<'a> {
 
     // ========== NFT Filter Methods ==========
 
-    /// List NFT filters for a webhook
+    /// List NFT filters for a webhook (first page)
     pub async fn list_nft_filters(&self, webhook_id: &str) -> Result<ListNftFiltersResponse> {
+        self.list_nft_filters_with_options(webhook_id, &NotifyPageOptions::default())
+            .await
+    }
+
+    /// List NFT filters for a webhook, one page at a time
+    pub async fn list_nft_filters_with_options(
+        &self,
+        webhook_id: &str,
+        page: &NotifyPageOptions,
+    ) -> Result<ListNftFiltersResponse> {
         let req = self
             .request(Method::GET, "/webhook-nft-filters")?
-            .query(&[("webhook_id", webhook_id)]);
+            .query(&[("webhook_id", webhook_id)])
+            .query(&page.to_query_params());
         self.send_json(req).await
     }
 
@@ -148,10 +176,22 @@ impl<'a> NotifyApi<'a> {
 
     // ========== GraphQL Variable Methods ==========
 
-    /// Get the elements of a GraphQL variable
+    /// Get the elements of a GraphQL variable (first page)
     pub async fn get_graphql_variable(&self, variable: &str) -> Result<GraphqlVariable> {
-        self.send_json(self.request(Method::GET, &format!("/graphql/variables/{variable}"))?)
+        self.get_graphql_variable_with_options(variable, &NotifyPageOptions::default())
             .await
+    }
+
+    /// Get the elements of a GraphQL variable, one page at a time
+    pub async fn get_graphql_variable_with_options(
+        &self,
+        variable: &str,
+        page: &NotifyPageOptions,
+    ) -> Result<GraphqlVariable> {
+        let req = self
+            .request(Method::GET, &format!("/graphql/variables/{variable}"))?
+            .query(&page.to_query_params());
+        self.send_json(req).await
     }
 
     fn create_graphql_variable_request(
@@ -191,6 +231,7 @@ impl<'a> NotifyApi<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::NotifyPageOptions;
     use crate::{Client, Config, Network};
 
     fn client() -> Client {
@@ -221,12 +262,32 @@ mod tests {
         let client = client();
         let req = client
             .notify()
-            .list_webhook_addresses_request("wh_1#frag")
+            .list_webhook_addresses_request("wh_1#frag", &NotifyPageOptions::default())
             .unwrap()
             .build()
             .unwrap();
         assert_eq!(req.url().path(), "/api/webhook-addresses");
         assert_eq!(req.url().query(), Some("webhook_id=wh_1%23frag"));
+    }
+
+    #[test]
+    fn list_addresses_sends_pagination_params() {
+        let client = client();
+        let page = NotifyPageOptions {
+            limit: Some(50),
+            after: Some("cur 1".into()),
+            page_key: None,
+        };
+        let req = client
+            .notify()
+            .list_webhook_addresses_request("wh_1", &page)
+            .unwrap()
+            .build()
+            .unwrap();
+        assert_eq!(
+            req.url().query(),
+            Some("webhook_id=wh_1&limit=50&after=cur+1")
+        );
     }
 
     #[test]

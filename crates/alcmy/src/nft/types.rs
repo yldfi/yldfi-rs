@@ -152,6 +152,33 @@ pub struct OwnedNftsResponse {
     pub page_key: Option<String>,
 }
 
+/// NFT returned by `getNFTsForOwner` with `withMetadata=false`
+///
+/// Without metadata the API returns only the contract address, token ID and
+/// balance (no `contract` object), so these items don't parse as [`Nft`].
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnedBaseNft {
+    pub contract_address: String,
+    pub token_id: String,
+    #[serde(default)]
+    pub balance: Option<String>,
+}
+
+/// Response for getNFTsForOwner with `withMetadata=false`
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnedBaseNftsResponse {
+    #[serde(default)]
+    pub owned_nfts: Vec<OwnedBaseNft>,
+    #[serde(default)]
+    pub total_count: u64,
+    #[serde(default)]
+    pub valid_at: Option<BlockInfo>,
+    #[serde(default)]
+    pub page_key: Option<String>,
+}
+
 /// Block info for response validation
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -264,6 +291,15 @@ impl IsHolderResponse {
             is_holder_of_contract: response.total_count > 0 || !response.owned_nfts.is_empty(),
         }
     }
+
+    /// Derive holder status from a contract-filtered, metadata-free
+    /// `getNFTsForOwner` response
+    #[must_use]
+    pub fn from_owned_base_nfts(response: &OwnedBaseNftsResponse) -> Self {
+        Self {
+            is_holder_of_contract: response.total_count > 0 || !response.owned_nfts.is_empty(),
+        }
+    }
 }
 
 /// Response for getNFTsForContract
@@ -338,9 +374,26 @@ pub struct IsSpamResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RefreshMetadataResponse {
-    pub contract_address: String,
-    pub token_id: String,
-    pub refresh_state: String,
+    /// `"Queued"` when the token was queued for ingestion
+    #[serde(default)]
+    pub status: Option<String>,
+    /// Estimated time until the refresh completes, in milliseconds
+    /// (documented as a string; numbers are accepted and stringified)
+    #[serde(default, deserialize_with = "string_or_number")]
+    pub estimated_ms_to_refresh: Option<String>,
+}
+
+fn string_or_number<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(
+        match Option::<serde_json::Value>::deserialize(deserializer)? {
+            Some(serde_json::Value::String(s)) => Some(s),
+            Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+            _ => None,
+        },
+    )
 }
 
 /// Options for getNFTsForOwner
@@ -416,6 +469,41 @@ mod tests {
     fn is_holder_from_non_zero_count_is_true() {
         let response = owned(serde_json::json!({ "ownedNfts": [], "totalCount": 3 }));
         assert!(IsHolderResponse::from_owned_nfts(&response).is_holder_of_contract);
+    }
+
+    #[test]
+    fn is_holder_from_metadata_free_response() {
+        let response: OwnedBaseNftsResponse = serde_json::from_value(serde_json::json!({
+            "ownedNfts": [{
+                "contractAddress": "0x0000000000000000000000000000000000000002",
+                "tokenId": "28",
+                "balance": "1"
+            }],
+            "totalCount": 1,
+            "validAt": { "blockNumber": 1, "blockHash": "0xab", "blockTimestamp": "2026-01-01T00:00:00Z" },
+            "pageKey": null
+        }))
+        .unwrap();
+        assert!(IsHolderResponse::from_owned_base_nfts(&response).is_holder_of_contract);
+
+        let empty: OwnedBaseNftsResponse =
+            serde_json::from_value(serde_json::json!({ "ownedNfts": [], "totalCount": 0 }))
+                .unwrap();
+        assert!(!IsHolderResponse::from_owned_base_nfts(&empty).is_holder_of_contract);
+    }
+
+    #[test]
+    fn refresh_metadata_parses_status_and_estimate() {
+        let numeric: RefreshMetadataResponse = serde_json::from_value(serde_json::json!({
+            "status": "Queued",
+            "estimatedMsToRefresh": 10000
+        }))
+        .unwrap();
+        assert_eq!(numeric.status.as_deref(), Some("Queued"));
+        assert_eq!(numeric.estimated_ms_to_refresh.as_deref(), Some("10000"));
+        let text: RefreshMetadataResponse =
+            serde_json::from_value(serde_json::json!({ "estimatedMsToRefresh": "500" })).unwrap();
+        assert_eq!(text.estimated_ms_to_refresh.as_deref(), Some("500"));
     }
 
     #[test]

@@ -27,6 +27,9 @@ pub struct TracerConfig {
     /// Include logs in traces
     #[serde(skip_serializing_if = "Option::is_none")]
     pub with_log: Option<bool>,
+    /// Prestate tracer: return `{pre, post}` instead of the prestate only
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff_mode: Option<bool>,
 }
 
 /// Tracer options for debug methods
@@ -53,6 +56,7 @@ impl TracerOptions {
             tracer_config: Some(TracerConfig {
                 only_top_call: Some(false),
                 with_log: Some(true),
+                diff_mode: None,
             }),
             timeout: None,
         }
@@ -129,6 +133,38 @@ pub struct CallFrame {
     /// Logs emitted
     #[serde(default)]
     pub logs: Vec<TraceLog>,
+}
+
+/// Account state from the prestate tracer
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrestateAccount {
+    /// Balance (hex)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balance: Option<String>,
+    /// Nonce (a JSON number)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<u64>,
+    /// Code (hex)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Storage slots touched (slot -> value)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage: Option<std::collections::HashMap<String, String>>,
+}
+
+/// Prestate tracer result (default mode): address -> account state
+pub type PrestateTrace = std::collections::HashMap<String, PrestateAccount>;
+
+/// Prestate tracer result with `diffMode: true`
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct PrestateDiff {
+    /// State before execution
+    #[serde(default)]
+    pub pre: PrestateTrace,
+    /// State after execution (only changed fields)
+    #[serde(default)]
+    pub post: PrestateTrace,
 }
 
 /// Log from trace
@@ -242,6 +278,33 @@ mod tests {
         assert_eq!(value, serde_json::json!({ "nonce": "0x1a" }));
         let empty = serde_json::to_value(StateOverride::default()).unwrap();
         assert_eq!(empty, serde_json::json!({}));
+    }
+
+    #[test]
+    fn prestate_trace_decodes() {
+        let trace: PrestateTrace = serde_json::from_value(serde_json::json!({
+            "0x0000000000000000000000000000000000000001": {
+                "balance": "0x10",
+                "nonce": 3,
+                "code": "0x6000",
+                "storage": { "0x00": "0x01" }
+            },
+            "0x0000000000000000000000000000000000000002": { "balance": "0x0" }
+        }))
+        .unwrap();
+        let account = &trace["0x0000000000000000000000000000000000000001"];
+        assert_eq!(account.nonce, Some(3));
+        assert_eq!(account.storage.as_ref().unwrap()["0x00"], "0x01");
+
+        let diff: PrestateDiff = serde_json::from_value(serde_json::json!({
+            "pre": { "0x0000000000000000000000000000000000000001": { "balance": "0x10" } },
+            "post": { "0x0000000000000000000000000000000000000001": { "balance": "0x0f" } }
+        }))
+        .unwrap();
+        assert_eq!(diff.post.len(), 1);
+
+        let options = serde_json::to_value(TracerOptions::prestate_tracer()).unwrap();
+        assert_eq!(options, serde_json::json!({ "tracer": "prestateTracer" }));
     }
 
     #[test]

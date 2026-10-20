@@ -3,7 +3,7 @@
 use super::types::{
     ContractMetadataBatchResponse, ContractMetadataResponse, ContractsForOwnerResponse,
     FloorPriceResponse, GetNftsForOwnerOptions, IsHolderResponse, IsSpamResponse, Nft,
-    NftsForCollectionResponse, NftsForContractResponse, OwnedNftsResponse,
+    NftsForCollectionResponse, NftsForContractResponse, OwnedBaseNftsResponse, OwnedNftsResponse,
     OwnersForContractResponse, OwnersForNftResponse, RefreshMetadataResponse,
 };
 use crate::client::Client;
@@ -33,6 +33,26 @@ impl<'a> NftApi<'a> {
         owner: &str,
         options: &GetNftsForOwnerOptions,
     ) -> Result<OwnedNftsResponse> {
+        let mut query: Vec<(&str, String)> = vec![("owner", owner.to_string())];
+        query.extend(options.to_query_params());
+
+        let query_refs: Vec<(&str, &str)> = query.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        self.client.nft_get("getNFTsForOwner", &query_refs).await
+    }
+
+    /// Get NFTs owned by an address without metadata (`withMetadata=false`)
+    ///
+    /// Items carry only `contractAddress`, `tokenId` and `balance`; the
+    /// `with_metadata` field of `options` is ignored.
+    pub async fn get_base_nfts_for_owner(
+        &self,
+        owner: &str,
+        options: &GetNftsForOwnerOptions,
+    ) -> Result<OwnedBaseNftsResponse> {
+        let options = GetNftsForOwnerOptions {
+            with_metadata: Some(false),
+            ..options.clone()
+        };
         let mut query: Vec<(&str, String)> = vec![("owner", owner.to_string())];
         query.extend(options.to_query_params());
 
@@ -95,13 +115,10 @@ impl<'a> NftApi<'a> {
         let options = GetNftsForOwnerOptions {
             contract_addresses: Some(vec![contract_address.to_string()]),
             page_size: Some(1),
-            with_metadata: Some(false),
             ..Default::default()
         };
-        let response = self
-            .get_nfts_for_owner_with_options(wallet, &options)
-            .await?;
-        Ok(IsHolderResponse::from_owned_nfts(&response))
+        let response = self.get_base_nfts_for_owner(wallet, &options).await?;
+        Ok(IsHolderResponse::from_owned_base_nfts(&response))
     }
 
     // ========== Metadata Methods ==========

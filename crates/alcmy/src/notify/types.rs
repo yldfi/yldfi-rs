@@ -117,9 +117,58 @@ pub struct CreateWebhookRequest {
     /// NFT filters to track (for `NFT_ACTIVITY`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nft_filters: Option<Vec<NftFilter>>,
-    /// Stringified GraphQL query (for GRAPHQL type)
+    /// GraphQL query (for GRAPHQL type)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub graphql_query: Option<String>,
+    pub graphql_query: Option<GraphqlQuery>,
+}
+
+/// GraphQL query object for Custom (GRAPHQL) webhooks
+#[derive(Debug, Clone, Serialize)]
+pub struct GraphqlQuery {
+    /// The GraphQL query text
+    pub query: String,
+    /// Skip deliveries whose query result is empty
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_empty_messages: Option<bool>,
+}
+
+impl GraphqlQuery {
+    /// Create a query object from query text
+    pub fn new(query: impl Into<String>) -> Self {
+        Self {
+            query: query.into(),
+            skip_empty_messages: None,
+        }
+    }
+}
+
+/// Pagination options for Notify list endpoints
+#[derive(Debug, Clone, Default)]
+pub struct NotifyPageOptions {
+    /// Maximum items per page
+    pub limit: Option<u32>,
+    /// Cursor from `pagination.cursors.after` of the previous page
+    pub after: Option<String>,
+    /// Page key (alternative cursor accepted by the API)
+    pub page_key: Option<String>,
+}
+
+impl NotifyPageOptions {
+    /// Query pairs for the set options
+    #[must_use]
+    pub fn to_query_params(&self) -> Vec<(&'static str, String)> {
+        let mut params = Vec::new();
+        if let Some(limit) = self.limit {
+            params.push(("limit", limit.to_string()));
+        }
+        if let Some(ref after) = self.after {
+            params.push(("after", after.clone()));
+        }
+        if let Some(ref key) = self.page_key {
+            params.push(("pageKey", key.clone()));
+        }
+        params
+    }
 }
 
 /// Request to update webhook addresses
@@ -320,6 +369,24 @@ mod tests {
             addresses_to_remove: vec![],
         })
         .unwrap();
+        let graphql = serde_json::to_value(CreateWebhookRequest {
+            network: WebhookNetwork::EthMainnet,
+            webhook_type: WebhookType::Graphql,
+            webhook_url: "https://example.com/hook".into(),
+            name: None,
+            addresses: None,
+            nft_filters: None,
+            graphql_query: Some(GraphqlQuery {
+                query: "{ block { number } }".into(),
+                skip_empty_messages: Some(true),
+            }),
+        })
+        .unwrap();
+        assert_eq!(
+            graphql["graphql_query"],
+            json!({ "query": "{ block { number } }", "skip_empty_messages": true })
+        );
+
         assert_eq!(
             update,
             json!({

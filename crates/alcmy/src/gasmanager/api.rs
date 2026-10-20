@@ -1,10 +1,11 @@
 //! Gas Manager API implementation
 
 use super::types::{
-    CreatePolicyRequest, Erc20Context, GasPolicy, GasSponsorshipResponseV06,
-    GasSponsorshipResponseV07, ListPoliciesResponse, ListSponsorshipsResponse,
-    PartialUserOperationV06, PartialUserOperationV07, PaymasterStubDataResponse, PolicyStats,
-    PolicyStatus, RequestPaymasterAndDataResponse, TokenQuoteResponse, UpdatePolicyRequest,
+    CreatePolicyRequest, DataEnvelope, Erc20Context, GasPolicy, GasSponsorshipResponseV06,
+    GasSponsorshipResponseV07, ListPoliciesOptions, ListPoliciesResponse, ListSponsorshipsOptions,
+    ListSponsorshipsResponse, PartialUserOperationV06, PartialUserOperationV07,
+    PaymasterStubDataResponse, PolicyData, PolicyStats, PolicyStatus,
+    RequestPaymasterAndDataResponse, TokenQuoteResponse, UpdatePolicyRequest,
 };
 use crate::client::Client;
 use crate::error::{self, Result};
@@ -187,108 +188,269 @@ impl<'a> GasManagerApi<'a> {
 
     // ========== Admin Methods (Policy Management) ==========
 
-    async fn admin_request<R>(
+    /// Build an authenticated Admin API request
+    fn build_admin_request(
         &self,
-        method: &str,
+        method: reqwest::Method,
         path: &str,
+        query: &[(&str, String)],
         body: Option<&impl serde::Serialize>,
-    ) -> Result<R>
-    where
-        R: serde::de::DeserializeOwned,
-    {
+    ) -> Result<reqwest::Request> {
         let url = format!("{ADMIN_BASE_URL}{path}");
-        let request = self
+        let mut request = self
             .client
             .http()
-            .request(
-                match method {
-                    "GET" => reqwest::Method::GET,
-                    "POST" => reqwest::Method::POST,
-                    "PUT" => reqwest::Method::PUT,
-                    "DELETE" => reqwest::Method::DELETE,
-                    _ => reqwest::Method::GET,
-                },
-                &url,
-            )
+            .request(method, &url)
             .bearer_auth(self.client.access_key()?);
+        if !query.is_empty() {
+            request = request.query(query);
+        }
+        if let Some(b) = body {
+            request = request.json(b);
+        }
+        request.build().map_err(crate::error::http)
+    }
 
-        let request = if let Some(b) = body {
-            request.json(b)
-        } else {
-            request
-        };
-
-        let response = request.send().await.map_err(crate::error::http)?;
-
+    /// Send an Admin API request and return the successful response
+    async fn send_admin(&self, request: reqwest::Request) -> Result<reqwest::Response> {
+        let response = self
+            .client
+            .http()
+            .execute(request)
+            .await
+            .map_err(crate::error::http)?;
         if response.status().is_success() {
-            response.json().await.map_err(crate::error::http)
+            Ok(response)
         } else {
             Err(crate::error::handle_error_response(response).await)
         }
     }
 
-    /// Create a new gas manager policy
+    /// Send an Admin API request and unwrap the `data` envelope
+    async fn admin_request<R>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        query: &[(&str, String)],
+        body: Option<&impl serde::Serialize>,
+    ) -> Result<R>
+    where
+        R: serde::de::DeserializeOwned,
+    {
+        let request = self.build_admin_request(method, path, query, body)?;
+        let envelope: DataEnvelope<R> = self
+            .send_admin(request)
+            .await?
+            .json()
+            .await
+            .map_err(crate::error::http)?;
+        Ok(envelope.data)
+    }
+
+    /// Create a new gas manager policy (created in `inactive` status)
     pub async fn create_policy(&self, request: &CreatePolicyRequest) -> Result<GasPolicy> {
-        self.admin_request("POST", "/policy", Some(request)).await
+        let data: PolicyData = self
+            .admin_request(reqwest::Method::POST, "/policy", &[], Some(request))
+            .await?;
+        Ok(data.policy)
     }
 
     /// Get a policy by ID
     pub async fn get_policy(&self, policy_id: &str) -> Result<GasPolicy> {
-        self.admin_request::<GasPolicy>("GET", &format!("/policy/{policy_id}"), None::<&()>)
-            .await
+        let data: PolicyData = self
+            .admin_request(
+                reqwest::Method::GET,
+                &format!("/policy/{policy_id}"),
+                &[],
+                None::<&()>,
+            )
+            .await?;
+        Ok(data.policy)
     }
 
-    /// Update a policy
+    /// Replace a policy's rules (`PUT /policy/{id}`)
     pub async fn update_policy(
         &self,
         policy_id: &str,
         request: &UpdatePolicyRequest,
     ) -> Result<GasPolicy> {
-        self.admin_request("PUT", &format!("/policy/{policy_id}"), Some(request))
-            .await
+        let data: PolicyData = self
+            .admin_request(
+                reqwest::Method::PUT,
+                &format!("/policy/{policy_id}"),
+                &[],
+                Some(request),
+            )
+            .await?;
+        Ok(data.policy)
     }
 
     /// Delete a policy
     pub async fn delete_policy(&self, policy_id: &str) -> Result<()> {
-        let _: serde_json::Value = self
-            .admin_request("DELETE", &format!("/policy/{policy_id}"), None::<&()>)
-            .await?;
+        // The API returns 200 without a documented body; don't parse it.
+        let request = self.build_admin_request(
+            reqwest::Method::DELETE,
+            &format!("/policy/{policy_id}"),
+            &[],
+            None::<&()>,
+        )?;
+        self.send_admin(request).await?;
         Ok(())
     }
 
-    /// List all policies
+    /// List the first page of policies (default page size)
     pub async fn list_policies(&self) -> Result<ListPoliciesResponse> {
-        self.admin_request("GET", "/policies", None::<&()>).await
+        self.list_policies_with_options(&ListPoliciesOptions::default())
+            .await
     }
 
-    /// Set policy status
+    /// List policies with filters and `before`/`after` pagination
+    pub async fn list_policies_with_options(
+        &self,
+        options: &ListPoliciesOptions,
+    ) -> Result<ListPoliciesResponse> {
+        self.admin_request(
+            reqwest::Method::GET,
+            "/policies",
+            &list_policies_query(options),
+            None::<&()>,
+        )
+        .await
+    }
+
+    /// Set policy status (`Active` or `Inactive`)
     pub async fn set_policy_status(
         &self,
         policy_id: &str,
         status: PolicyStatus,
     ) -> Result<GasPolicy> {
         let body = serde_json::json!({ "status": status });
-        self.admin_request("PUT", &format!("/policy/{policy_id}/status"), Some(&body))
-            .await
+        let data: PolicyData = self
+            .admin_request(
+                reqwest::Method::PUT,
+                &format!("/policy/{policy_id}/status"),
+                &[],
+                Some(&body),
+            )
+            .await?;
+        Ok(data.policy)
     }
 
     /// Get policy statistics
     pub async fn get_policy_stats(&self, policy_id: &str) -> Result<PolicyStats> {
         self.admin_request(
-            "GET",
+            reqwest::Method::GET,
             &format!("/policy/{policy_id}/stats/detailed"),
+            &[],
             None::<&()>,
         )
         .await
     }
 
-    /// List sponsorships for a policy
+    /// List the first page of sponsorships for a policy (default page size)
     pub async fn list_sponsorships(&self, policy_id: &str) -> Result<ListSponsorshipsResponse> {
+        self.list_sponsorships_with_options(policy_id, &ListSponsorshipsOptions::default())
+            .await
+    }
+
+    /// List sponsorships for a policy with `before`/`after` pagination
+    pub async fn list_sponsorships_with_options(
+        &self,
+        policy_id: &str,
+        options: &ListSponsorshipsOptions,
+    ) -> Result<ListSponsorshipsResponse> {
         self.admin_request(
-            "GET",
+            reqwest::Method::GET,
             &format!("/policy/{policy_id}/sponsorships"),
+            &list_sponsorships_query(options),
             None::<&()>,
         )
         .await
+    }
+}
+
+/// Query pairs for `GET /policies`
+fn list_policies_query(options: &ListPoliciesOptions) -> Vec<(&'static str, String)> {
+    let mut query = Vec::new();
+    if let Some(v) = &options.app_id {
+        query.push(("appId", v.clone()));
+    }
+    if let Some(v) = options.limit {
+        query.push(("limit", v.to_string()));
+    }
+    if let Some(v) = &options.before {
+        query.push(("before", v.clone()));
+    }
+    if let Some(v) = &options.after {
+        query.push(("after", v.clone()));
+    }
+    if let Some(v) = &options.name_filter {
+        query.push(("nameFilter", v.clone()));
+    }
+    query
+}
+
+/// Query pairs for `GET /policy/{id}/sponsorships`
+fn list_sponsorships_query(options: &ListSponsorshipsOptions) -> Vec<(&'static str, String)> {
+    let mut query = Vec::new();
+    if let Some(v) = options.limit {
+        query.push(("limit", v.to_string()));
+    }
+    if let Some(v) = &options.before {
+        query.push(("before", v.clone()));
+    }
+    if let Some(v) = &options.after {
+        query.push(("after", v.clone()));
+    }
+    query
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::{Config, Network};
+
+    fn test_client() -> Client {
+        Client::with_config(Config::new("test-key", Network::EthMainnet).with_access_key("acc"))
+            .unwrap()
+    }
+
+    #[test]
+    fn list_policies_request_has_paging_query() {
+        let client = test_client();
+        let api = GasManagerApi::new(&client);
+        let options = ListPoliciesOptions {
+            app_id: Some("app-1".into()),
+            limit: Some(25),
+            after: Some("cur".into()),
+            ..Default::default()
+        };
+        let req = api
+            .build_admin_request(
+                reqwest::Method::GET,
+                "/policies",
+                &list_policies_query(&options),
+                None::<&()>,
+            )
+            .unwrap();
+        assert_eq!(
+            req.url().as_str(),
+            "https://manage.g.alchemy.com/api/gasManager/policies?appId=app-1&limit=25&after=cur"
+        );
+        assert_eq!(req.headers().get("authorization").unwrap(), "Bearer acc");
+    }
+
+    #[test]
+    fn list_sponsorships_query_pairs() {
+        let options = ListSponsorshipsOptions {
+            limit: Some(100),
+            before: Some("b".into()),
+            after: None,
+        };
+        assert_eq!(
+            list_sponsorships_query(&options),
+            vec![("limit", "100".to_string()), ("before", "b".to_string())]
+        );
+        assert!(list_sponsorships_query(&ListSponsorshipsOptions::default()).is_empty());
     }
 }
