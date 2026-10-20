@@ -84,6 +84,9 @@ pub struct SignatureCache {
     write_count: AtomicU64,
     /// Dirty flag - true if cache has unsaved changes
     dirty: AtomicBool,
+    /// Set by `clear()`: the next save replaces the file instead of merging
+    /// with it (which would bring the cleared entries back)
+    cleared: AtomicBool,
 }
 
 impl SignatureCache {
@@ -117,6 +120,7 @@ impl SignatureCache {
             ttl: Duration::from_secs(30 * 24 * 60 * 60), // 30 days default
             write_count: AtomicU64::new(0),
             dirty: AtomicBool::new(false),
+            cleared: AtomicBool::new(false),
         }
     }
 
@@ -177,20 +181,29 @@ impl SignatureCache {
             fs::create_dir_all(parent)?;
         }
 
-        // Keep entries another process (or an older instance) saved since we
-        // loaded: ours win on conflict, theirs fill the gaps
-        let mut merged = Self::load_from_file(&self.path).unwrap_or_default();
+        // Keep positive entries another process (or an older instance) saved
+        // since we loaded: ours win on conflict, theirs fill the gaps. After
+        // clear() the file is replaced. "Not found" entries are never merged
+        // in from disk, so clear_not_found() sticks.
+        let replace = self.cleared.swap(false, Ordering::AcqRel);
+        let mut merged = if replace {
+            CacheData::default()
+        } else {
+            Self::load_from_file(&self.path).unwrap_or_default()
+        };
         {
             let data = self.data.read();
             merged.events.extend(data.events.clone());
             merged.functions.extend(data.functions.clone());
             merged.abis.extend(data.abis.clone());
-            merged.not_found.extend(data.not_found.clone());
+            merged.not_found = data.not_found.clone();
         }
         // A positive entry beats an older "not found" for the same key
         merged
             .not_found
             .retain(|k, _| !merged.events.contains_key(k) && !merged.functions.contains_key(k));
+        // Expired entries from disk are dropped too
+        Self::retain_fresh(&mut merged, self.ttl.as_secs());
         let content = serde_json::to_string_pretty(&merged)?;
         write_with_permissions(&self.path, &content)?;
         self.dirty.store(false, Ordering::Release);
@@ -200,8 +213,12 @@ impl SignatureCache {
     /// Internal cleanup without saving (to avoid recursion)
     fn cleanup_internal(&self) {
         let mut data = self.data.write();
+        Self::retain_fresh(&mut data, self.ttl.as_secs());
+    }
+
+    /// Drop expired entries
+    fn retain_fresh(data: &mut CacheData, ttl_secs: u64) {
         let now = Self::now();
-        let ttl_secs = self.ttl.as_secs();
         let abi_ttl_secs = ABI_TTL_SECS;
         let negative_ttl_secs = NEGATIVE_CACHE_TTL_SECS;
 
@@ -527,6 +544,7 @@ impl SignatureCache {
             data.abis.clear();
             data.not_found.clear();
         }
+        self.cleared.store(true, Ordering::Release);
         self.maybe_save();
     }
 }
@@ -577,6 +595,19 @@ impl std::fmt::Display for CacheStats {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn clear_is_not_undone_by_the_merge() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("signatures.json");
+        let cache = SignatureCache::with_path(path.clone());
+        cache.set_function("0xaaaaaaaa", "a()");
+        cache.save();
+        cache.clear();
+        cache.save();
+        let reloaded = SignatureCache::with_path(path);
+        assert_eq!(reloaded.get_function("0xaaaaaaaa"), None);
+    }
 
     #[test]
     fn saving_keeps_entries_written_by_another_instance() {
