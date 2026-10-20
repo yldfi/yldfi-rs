@@ -424,7 +424,10 @@ impl Client {
         self.get(chain, &path).await
     }
 
-    /// Get the native token price in USD
+    /// Get a token's price in the chain's native token
+    ///
+    /// Returns `{"price": <f64>}`: the value of one atom of `token` in atoms
+    /// (wei) of the native token. It is not a USD price.
     pub async fn get_native_price(
         &self,
         chain: Option<Chain>,
@@ -456,6 +459,48 @@ fn orders_by_owner_path(owner: &str, offset: Option<u64>, limit: Option<u32>) ->
 mod tests {
     use super::*;
     use crate::types::OrderKind;
+
+    #[test]
+    fn test_quote_request_sends_onchain_order() {
+        let mut request = crate::types::QuoteRequest::sell(
+            "0x1111111111111111111111111111111111111111",
+            "0x2222222222222222222222222222222222222222",
+            "1000",
+            "0x3333333333333333333333333333333333333333",
+        );
+        request.on_chain_order = Some(true);
+        request.signing_scheme = Some(crate::types::SigningScheme::EthSign);
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["onchainOrder"], true);
+        assert!(json.get("onChainOrder").is_none());
+        assert_eq!(json["signingScheme"], "ethsign");
+    }
+
+    #[test]
+    fn test_quote_response_without_from() {
+        let response: crate::types::QuoteResponse = serde_json::from_value(serde_json::json!({
+            "quote": {
+                "sellToken": "0x1111111111111111111111111111111111111111",
+                "buyToken": "0x2222222222222222222222222222222222222222",
+                "sellAmount": "1000",
+                "buyAmount": "990",
+                "validTo": 1700000000,
+                "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "feeAmount": "0",
+                "kind": "sell",
+                "partiallyFillable": false,
+                "signingScheme": "ethsign"
+            },
+            "expiration": "2024-01-01T00:00:00Z",
+            "verified": false
+        }))
+        .unwrap();
+        assert!(response.from.is_none());
+        assert_eq!(
+            response.quote.signing_scheme,
+            Some(crate::types::SigningScheme::EthSign)
+        );
+    }
 
     #[test]
     fn test_client_creation() {

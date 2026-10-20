@@ -122,7 +122,7 @@ pub enum CowSwapCommands {
         chain: String,
     },
 
-    /// Get native token price for a token
+    /// Get a token's price in the native token (wei per token atom, not USD)
     NativePrice {
         /// Token address
         token: String,
@@ -152,7 +152,7 @@ pub enum CowSwapCommands {
         /// Order kind: sell or buy
         #[arg(long, default_value = "sell")]
         kind: String,
-        /// Signing scheme: eip712, eip1271, presign
+        /// Signing scheme: eip712, eip1271, presign, ethsign
         #[arg(long, default_value = "eip712")]
         signing_scheme: String,
         /// Fee amount in sell token (smallest units)
@@ -340,8 +340,9 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
                 "eip712" => SigningScheme::Eip712,
                 "eip1271" => SigningScheme::Eip1271,
                 "presign" => SigningScheme::PreSign,
+                "ethsign" => SigningScheme::EthSign,
                 _ => anyhow::bail!(
-                    "Invalid signing scheme: {}. Use 'eip712', 'eip1271', or 'presign'",
+                    "Invalid signing scheme: {}. Use 'eip712', 'eip1271', 'presign' or 'ethsign'",
                     signing_scheme
                 ),
             };
