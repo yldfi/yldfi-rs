@@ -27,6 +27,7 @@ const MAX_EVENT_LOOKUPS: usize = 48;
 const MAX_RENDERED_FRAMES: usize = 600;
 
 /// Resolved lookup tables shared by the synchronous renderer.
+#[derive(Default)]
 struct DecodeTables {
     /// address (lowercase) -> verified ABI
     abis: HashMap<String, JsonAbi>,
@@ -192,8 +193,8 @@ fn collect_ids(
     }
 
     if let Some(input) = frame["input"].as_str() {
-        if input.len() >= 10 {
-            let sel = input[..10].to_lowercase();
+        if let Some(sel) = input.get(..10) {
+            let sel = sel.to_lowercase();
             if seen_selectors.insert(format!("{to}:{sel}")) {
                 selectors.push((to.clone(), sel));
             }
@@ -398,7 +399,7 @@ fn frame_return_line(frame: &serde_json::Value, tables: &DecodeTables) -> Option
     let input = frame["input"].as_str().unwrap_or("");
     if input.len() >= 10 {
         if let Some(abi) = tables.abis.get(&to) {
-            if let Some(sel) = parse_hex_bytes(&input[..10]) {
+            if let Some(sel) = input.get(..10).and_then(parse_hex_bytes) {
                 if let Some(func) = abi
                     .functions()
                     .find(|f| f.selector().as_slice() == sel.as_slice())
@@ -430,7 +431,9 @@ fn format_call(to: &str, input: &str, tables: &DecodeTables) -> String {
         };
     }
 
-    let selector = input[..10].to_lowercase();
+    let Some(selector) = input.get(..10).map(str::to_lowercase) else {
+        return truncate_hex(input);
+    };
     let calldata = parse_hex_bytes(input).unwrap_or_default();
 
     // Precompile input is not selector-prefixed calldata
@@ -445,7 +448,11 @@ fn format_call(to: &str, input: &str, tables: &DecodeTables) -> String {
                 .functions()
                 .find(|f| f.selector().as_slice() == sel.as_slice())
             {
-                return format!("{}({})", func.name, decode_args(func, &calldata[4..]));
+                return format!(
+                    "{}({})",
+                    func.name,
+                    decode_args(func, calldata.get(4..).unwrap_or_default())
+                );
             }
         }
     }
@@ -453,7 +460,11 @@ fn format_call(to: &str, input: &str, tables: &DecodeTables) -> String {
     // 2. 4byte text signature: parse into a Function, decode args (no names)
     if let Some(sig) = tables.selectors.get(&selector) {
         if let Ok(func) = Function::parse(sig) {
-            return format!("{}({})", func.name, decode_args(&func, &calldata[4..]));
+            return format!(
+                "{}({})",
+                func.name,
+                decode_args(&func, calldata.get(4..).unwrap_or_default())
+            );
         }
         if let Some((name, _)) = split_signature(sig) {
             return format!("{}({} bytes)", name, calldata.len().saturating_sub(4));
@@ -798,6 +809,19 @@ fn parse_hex_u256(s: &str) -> Option<U256> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn malformed_calldata_does_not_panic() {
+        let mut tables = DecodeTables::default();
+        tables
+            .selectors
+            .insert("0xzzzzzzzz".to_string(), "f(uint256)".to_string());
+        // Not hex: parses to no calldata; must not slice [4..] of nothing
+        let _ = format_call("0x01", "0xzzzzzzzzzz", &tables);
+        // Multi-byte text where the selector would be
+        let _ = format_call("0x01", "0xé1234567890", &tables);
+    }
+
     use super::*;
 
     #[test]
