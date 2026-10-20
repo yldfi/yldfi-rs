@@ -13,7 +13,8 @@ static API_KEY_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
         )
         .expect("valid query param regex"),
         // Header-style secrets ("x-api-key: ...", "authorization: ...")
-        Regex::new(r"(?i)(x-api-key|authorization)\s*:\s*\S+").expect("valid header regex"),
+        Regex::new(r"(?i)(x-api-key|authorization)\s*:\s*(?:(?:bearer|basic|token)\s+)?[^\s,;]+")
+            .expect("valid header regex"),
         // Path segment patterns (e.g., /v1/key123abc/)
         Regex::new(r"/v\d+/[a-zA-Z0-9_-]{20,}(/|$)").expect("valid path segment regex"),
         // Bearer tokens
@@ -402,6 +403,8 @@ mod tests {
             ("body: dkey=s3cr3tvalue", "s3cr3tvalue"),
             ("access_token=tok123 rejected", "tok123"),
             ("x-api-key: k3y-value", "k3y-value"),
+            ("Authorization: Bearer abc.def-ghi", "abc.def-ghi"),
+            ("authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
             ("Bearer dGhpcyBpcyBh+c2VjcmV0/dG9rZW4=", "dGhpcyBpcyBh"),
         ] {
             let sanitized = sanitize_error_message(msg);
