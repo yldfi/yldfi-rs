@@ -24,9 +24,19 @@ fn is_secret_key(key: &str) -> bool {
 
 fn looks_like_url(value: &str) -> bool {
     let value = value.trim_start();
-    ["http://", "https://", "ws://", "wss://"]
-        .iter()
-        .any(|scheme| value.starts_with(scheme))
+    // Proxy URLs (socks5://user:pass@host) carry credentials too
+    [
+        "http://",
+        "https://",
+        "ws://",
+        "wss://",
+        "socks4://",
+        "socks4a://",
+        "socks5://",
+        "socks5h://",
+    ]
+    .iter()
+    .any(|scheme| value.starts_with(scheme))
 }
 
 fn redact_value(key: Option<&str>, value: &mut toml::Value) {
@@ -74,6 +84,16 @@ pub fn redact_config_toml(content: &str) -> Result<String, toml::de::Error> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn socks_proxy_credentials_are_masked() {
+        let out =
+            redact_config_toml("[proxy]\ndefault = \"socks5://alice:hunter2@127.0.0.1:9050\"\n")
+                .unwrap();
+        assert!(!out.contains("hunter2"), "{out}");
+        assert!(!out.contains("alice"), "{out}");
+    }
+
     use super::*;
 
     const SAMPLE: &str = r#"
