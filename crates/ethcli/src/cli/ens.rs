@@ -235,29 +235,40 @@ async fn get_resolver<P: Provider>(provider: &P, name: &str) -> anyhow::Result<O
     Ok((!addr.is_zero()).then_some(addr))
 }
 
-/// Resolve an ENS name to an address
+/// Resolve an ENS name to an address.
+///
+/// Supports ENSIP-10 wildcard resolution (a resolver set on a parent name,
+/// e.g. `*.base.eth`, `*.cb.id`) and EIP-3668 CCIP-read offchain lookups.
 pub async fn resolve_name<P: Provider>(provider: &P, name: &str) -> anyhow::Result<Address> {
-    let resolver = get_resolver(provider, name)
+    use alloy::sol_types::{SolCall, SolValue};
+
+    let (resolver, exact) = find_resolver(provider, name)
         .await?
         .ok_or_else(|| anyhow::anyhow!("No resolver set for {}", name))?;
     let node = namehash(name);
 
     // Call addr(bytes32)
-    let mut calldata = Vec::with_capacity(36);
-    calldata.extend_from_slice(&ADDR_SELECTOR);
-    calldata.extend_from_slice(node.as_slice());
+    let mut addr_call = Vec::with_capacity(36);
+    addr_call.extend_from_slice(&ADDR_SELECTOR);
+    addr_call.extend_from_slice(node.as_slice());
 
-    let tx = alloy::rpc::types::TransactionRequest::default()
-        .to(resolver)
-        .input(calldata.into());
-
-    let result = provider
-        .call(tx.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to resolve name: {}", e))?;
+    // A resolver found on a parent name must be an extended (ENSIP-10)
+    // resolver; one set on the name itself may be either kind
+    let extended = !exact || supports_extended_resolver(provider, resolver).await;
+    let result = if extended {
+        let call = ens_abi::resolveCall {
+            name: dns_encode(name)?.into(),
+            data: addr_call.into(),
+        };
+        let out = ccip_call(provider, resolver, call.abi_encode()).await?;
+        alloy::primitives::Bytes::abi_decode(&out)
+            .map_err(|e| anyhow::anyhow!("Invalid resolve() response: {}", e))?
+    } else {
+        ccip_call(provider, resolver, addr_call).await?
+    };
 
     if result.len() < 32 {
-        return Err(anyhow::anyhow!("Invalid address response"));
+        return Err(anyhow::anyhow!("Name {} not found", name));
     }
 
     let addr = Address::from_slice(&result[12..32]);
@@ -267,6 +278,151 @@ pub async fn resolve_name<P: Provider>(provider: &P, name: &str) -> anyhow::Resu
     }
 
     Ok(addr)
+}
+
+mod ens_abi {
+    alloy::sol! {
+        error OffchainLookup(address sender, string[] urls, bytes callData, bytes4 callbackFunction, bytes extraData);
+        function resolve(bytes name, bytes data) external view returns (bytes);
+        function supportsInterface(bytes4 interfaceID) external view returns (bool);
+    }
+}
+
+/// IExtendedResolver interface id (resolve(bytes,bytes))
+const EXTENDED_RESOLVER_INTERFACE: [u8; 4] = [0x90, 0x61, 0xb9, 0x23];
+
+/// Find the resolver for `name`, walking up to parent names (ENSIP-10).
+/// Returns the resolver and whether it was set on `name` itself.
+async fn find_resolver<P: Provider>(
+    provider: &P,
+    name: &str,
+) -> anyhow::Result<Option<(Address, bool)>> {
+    let name = normalize_name(name);
+    let mut current = name.as_str();
+    loop {
+        if let Some(resolver) = get_resolver(provider, current).await? {
+            return Ok(Some((resolver, current == name)));
+        }
+        match current.split_once('.') {
+            Some((_, parent)) if !parent.is_empty() => current = parent,
+            _ => return Ok(None),
+        }
+    }
+}
+
+/// Whether a resolver implements IExtendedResolver (ERC-165)
+async fn supports_extended_resolver<P: Provider>(provider: &P, resolver: Address) -> bool {
+    use alloy::sol_types::SolCall;
+    let call = ens_abi::supportsInterfaceCall {
+        interfaceID: EXTENDED_RESOLVER_INTERFACE.into(),
+    };
+    let tx = alloy::rpc::types::TransactionRequest::default()
+        .to(resolver)
+        .input(call.abi_encode().into());
+    match provider.call(tx).await {
+        Ok(out) => out.len() >= 32 && out[31] == 1,
+        Err(_) => false,
+    }
+}
+
+/// DNS wire-format encoding of a (normalised) name, as resolve(bytes,bytes) takes
+fn dns_encode(name: &str) -> anyhow::Result<Vec<u8>> {
+    let name = normalize_name(name);
+    let mut out = Vec::with_capacity(name.len() + 2);
+    for label in name.split('.').filter(|l| !l.is_empty()) {
+        let len = u8::try_from(label.len())
+            .map_err(|_| anyhow::anyhow!("ENS label too long: {}", label))?;
+        out.push(len);
+        out.extend_from_slice(label.as_bytes());
+    }
+    out.push(0);
+    Ok(out)
+}
+
+/// eth_call that follows EIP-3668 OffchainLookup reverts through the
+/// gateway URLs the contract names (https only), up to 4 hops.
+async fn ccip_call<P: Provider>(
+    provider: &P,
+    to: Address,
+    data: Vec<u8>,
+) -> anyhow::Result<alloy::primitives::Bytes> {
+    use alloy::sol_types::{SolError, SolValue};
+
+    let mut data = data;
+    for _ in 0..4 {
+        let tx = alloy::rpc::types::TransactionRequest::default()
+            .to(to)
+            .input(data.clone().into());
+        let err = match provider.call(tx).await {
+            Ok(out) => return Ok(out),
+            Err(e) => e,
+        };
+        let revert = err.as_error_resp().and_then(|p| p.as_revert_data());
+        let lookup = revert
+            .as_deref()
+            .filter(|r| r.starts_with(&ens_abi::OffchainLookup::SELECTOR))
+            .and_then(|r| ens_abi::OffchainLookup::abi_decode(r).ok());
+        let Some(lookup) = lookup else {
+            return Err(anyhow::anyhow!("ENS call failed: {}", err));
+        };
+        if lookup.sender != to {
+            anyhow::bail!("CCIP-read: OffchainLookup sender does not match the resolver");
+        }
+        let response = ccip_fetch(&lookup.urls, lookup.sender, &lookup.callData).await?;
+        let mut next = lookup.callbackFunction.to_vec();
+        next.extend((response, lookup.extraData).abi_encode_params());
+        data = next;
+    }
+    anyhow::bail!("CCIP-read: too many offchain lookups")
+}
+
+/// Query CCIP-read gateways in order until one answers
+async fn ccip_fetch(
+    urls: &[String],
+    sender: Address,
+    call_data: &[u8],
+) -> anyhow::Result<alloy::primitives::Bytes> {
+    let client = crate::utils::get_shared_http_client().map_err(|e| anyhow::anyhow!(e))?;
+    let sender_hex = format!("{:#x}", sender);
+    let data_hex = format!("0x{}", hex::encode(call_data));
+    let mut last_err = anyhow::anyhow!("CCIP-read: no gateway URLs");
+    for url in urls {
+        if !url.starts_with("https://") {
+            last_err = anyhow::anyhow!("CCIP-read: refusing non-https gateway");
+            continue;
+        }
+        let url = url.replace("{sender}", &sender_hex);
+        let request = if url.contains("{data}") {
+            client.get(url.replace("{data}", &data_hex))
+        } else {
+            client
+                .post(&url)
+                .json(&serde_json::json!({"data": data_hex, "sender": sender_hex}))
+        };
+        let result = async {
+            let response = request
+                .timeout(std::time::Duration::from_secs(15))
+                .send()
+                .await?
+                .error_for_status()?;
+            let body: serde_json::Value = response.json().await?;
+            let hex_data = body["data"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("gateway response has no data"))?;
+            Ok::<_, anyhow::Error>(hex::decode(hex_data.trim_start_matches("0x"))?.into())
+        }
+        .await;
+        match result {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => {
+                last_err = anyhow::anyhow!(
+                    "CCIP-read gateway failed: {}",
+                    crate::utils::url::redact_urls_in_text(&e.to_string())
+                )
+            }
+        }
+    }
+    Err(last_err)
 }
 
 /// Outcome of a reverse lookup
@@ -374,6 +530,16 @@ async fn reverse_record<P: Provider>(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn dns_encoding() {
+        assert_eq!(
+            dns_encode("Jesse.Base.eth").unwrap(),
+            b"\x05jesse\x04base\x03eth\x00".to_vec()
+        );
+        assert!(dns_encode(&format!("{}.eth", "a".repeat(300))).is_err());
+    }
+
     use super::*;
 
     // ENS namehash test vectors from ENS documentation
