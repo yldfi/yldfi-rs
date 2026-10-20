@@ -441,7 +441,10 @@ fn chain_to_alchemy_network(chain: &str) -> Option<alcmy::Network> {
     }
 }
 
-/// Fetch NFTs from Alchemy
+/// Most pages fetched per chain and source (100 NFTs per page)
+const MAX_NFT_PAGES: usize = 20;
+
+/// Fetch NFTs from Alchemy, all chains concurrently, following pageKey
 async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
     // Get API key from config first, then fall back to env var
     let config = get_cached_config();
@@ -452,103 +455,127 @@ async fn fetch_nfts_alchemy(address: &str, chains: &[&str]) -> anyhow::Result<Ve
         .or_else(|| std::env::var("ALCHEMY_API_KEY").ok())
         .ok_or_else(|| anyhow::anyhow!("ALCHEMY_API_KEY not set in config or environment"))?;
 
+    let results = join_all(
+        chains
+            .iter()
+            .map(|chain| alchemy_chain_nfts(&api_key, address, chain)),
+    )
+    .await;
+
     let mut all_nfts = Vec::new();
     let mut outcome = ChainOutcome::default();
-
-    for chain in chains {
-        let network = match chain_to_alchemy_network(chain) {
-            Some(n) => n,
-            None => {
-                outcome.fail(format!("unsupported chain '{}'", chain));
-                continue;
-            }
-        };
-
-        let client = match alcmy::Client::new(&api_key, network) {
-            Ok(c) => c,
-            Err(e) => {
-                outcome.fail(format!("{}: client error: {}", chain, e));
-                continue;
-            }
-        };
-
-        match client.nft().get_nfts_for_owner(address).await {
-            Ok(response) => {
+    for result in results {
+        match result {
+            Ok(nfts) => {
                 outcome.ok();
-                for nft in response.owned_nfts {
-                    // Get image URL from various sources
-                    let image_url = nft
-                        .image
-                        .as_ref()
-                        .and_then(|i| i.cached_url.clone().or(i.original_url.clone()));
-                    let thumbnail_url = nft.image.as_ref().and_then(|i| i.thumbnail_url.clone());
-
-                    // Get floor price from contract metadata
-                    let floor_price = nft
-                        .contract
-                        .opensea_metadata
-                        .as_ref()
-                        .and_then(|o| o.floor_price);
-
-                    // Get collection name
-                    let collection_name = nft
-                        .collection
-                        .as_ref()
-                        .and_then(|c| c.name.clone())
-                        .or_else(|| {
-                            nft.contract
-                                .opensea_metadata
-                                .as_ref()
-                                .and_then(|o| o.collection_name.clone())
-                        });
-
-                    // Parse balance (default to 1 for ERC721)
-                    let balance: u64 = nft
-                        .balance
-                        .as_ref()
-                        .and_then(|b: &String| b.parse::<u64>().ok())
-                        .unwrap_or(1);
-
-                    // Get token type
-                    let token_type = nft
-                        .token_type
-                        .map(|t| format!("{:?}", t))
-                        .or_else(|| nft.contract.token_type.map(|t| format!("{:?}", t)));
-
-                    let normalized = NftEntry::builder()
-                        .contract_address(nft.contract.address.clone())
-                        .token_id(nft.token_id.clone())
-                        .chain(chain.to_string())
-                        .name(nft.name.clone())
-                        .collection_name(collection_name)
-                        .symbol(nft.contract.symbol.clone())
-                        .token_type(token_type)
-                        .image_url(image_url)
-                        .thumbnail_url(thumbnail_url)
-                        .metadata_url(nft.token_uri.clone())
-                        .balance(balance)
-                        .floor_price_eth(floor_price)
-                        .is_spam(None) // Alchemy requires separate spam check
-                        .is_verified(None)
-                        .source("alchemy")
-                        .build();
-
-                    all_nfts.push(normalized);
-                }
+                all_nfts.extend(nfts);
             }
-            Err(e) => outcome.fail(format!(
-                "{}: {}",
-                chain,
-                super::price::classify_api_error("Alchemy", &e)
-            )),
+            Err(e) => outcome.fail(e),
         }
     }
-
     outcome.finish("alchemy")?;
     Ok(all_nfts)
 }
 
-/// Fetch NFTs from Moralis
+/// Every page of one chain's Alchemy NFTs (capped at MAX_NFT_PAGES)
+async fn alchemy_chain_nfts(
+    api_key: &str,
+    address: &str,
+    chain: &str,
+) -> Result<Vec<NftEntry>, String> {
+    let network =
+        chain_to_alchemy_network(chain).ok_or_else(|| format!("unsupported chain '{}'", chain))?;
+    let client = alcmy::Client::new(api_key, network)
+        .map_err(|e| format!("{}: client error: {}", chain, e))?;
+
+    let mut nfts = Vec::new();
+    let mut page_key: Option<String> = None;
+    for _ in 0..MAX_NFT_PAGES {
+        let options = alcmy::nft::GetNftsForOwnerOptions {
+            page_key: page_key.clone(),
+            page_size: Some(100),
+            ..Default::default()
+        };
+        let response = client
+            .nft()
+            .get_nfts_for_owner_with_options(address, &options)
+            .await
+            .map_err(|e| {
+                format!(
+                    "{}: {}",
+                    chain,
+                    super::price::classify_api_error("Alchemy", &e)
+                )
+            })?;
+        for nft in response.owned_nfts {
+            // Get image URL from various sources
+            let image_url = nft
+                .image
+                .as_ref()
+                .and_then(|i| i.cached_url.clone().or(i.original_url.clone()));
+            let thumbnail_url = nft.image.as_ref().and_then(|i| i.thumbnail_url.clone());
+
+            // Get floor price from contract metadata
+            let floor_price = nft
+                .contract
+                .opensea_metadata
+                .as_ref()
+                .and_then(|o| o.floor_price);
+
+            // Get collection name
+            let collection_name = nft
+                .collection
+                .as_ref()
+                .and_then(|c| c.name.clone())
+                .or_else(|| {
+                    nft.contract
+                        .opensea_metadata
+                        .as_ref()
+                        .and_then(|o| o.collection_name.clone())
+                });
+
+            // Parse balance (default to 1 for ERC721)
+            let balance: u64 = nft
+                .balance
+                .as_ref()
+                .and_then(|b: &String| b.parse::<u64>().ok())
+                .unwrap_or(1);
+
+            // Get token type
+            let token_type = nft
+                .token_type
+                .map(|t| format!("{:?}", t))
+                .or_else(|| nft.contract.token_type.map(|t| format!("{:?}", t)));
+
+            let normalized = NftEntry::builder()
+                .contract_address(nft.contract.address.clone())
+                .token_id(nft.token_id.clone())
+                .chain(chain.to_string())
+                .name(nft.name.clone())
+                .collection_name(collection_name)
+                .symbol(nft.contract.symbol.clone())
+                .token_type(token_type)
+                .image_url(image_url)
+                .thumbnail_url(thumbnail_url)
+                .metadata_url(nft.token_uri.clone())
+                .balance(balance)
+                .floor_price_eth(floor_price)
+                .is_spam(None) // Alchemy requires separate spam check
+                .is_verified(None)
+                .source("alchemy")
+                .build();
+
+            nfts.push(normalized);
+        }
+        match response.page_key {
+            Some(key) if !key.is_empty() => page_key = Some(key),
+            _ => break,
+        }
+    }
+    Ok(nfts)
+}
+
+/// Fetch NFTs from Moralis, all chains concurrently, following the cursor
 async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Vec<NftEntry>> {
     // Get API key from config first, then fall back to env var
     let config = get_cached_config();
@@ -560,56 +587,88 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
         .ok_or_else(|| anyhow::anyhow!("MORALIS_API_KEY not set in config or environment"))?;
 
     let client = mrls::Client::new(&api_key)?;
+    let results = join_all(
+        chains
+            .iter()
+            .map(|chain| moralis_chain_nfts(&client, address, chain)),
+    )
+    .await;
+
     let mut all_nfts = Vec::new();
     let mut outcome = ChainOutcome::default();
-
-    for chain in chains {
-        let network = normalize_chain_for_source("moralis", chain);
-        let query = mrls::nft::NftQuery::new().chain(&network);
-
-        match client.nft().get_wallet_nfts(address, Some(&query)).await {
-            Ok(response) => {
+    for result in results {
+        match result {
+            Ok(nfts) => {
                 outcome.ok();
-                for nft in response.result {
-                    // Parse balance
-                    let balance: u64 = nft
-                        .amount
-                        .as_ref()
-                        .and_then(|b: &String| b.parse::<u64>().ok())
-                        .unwrap_or(1);
-
-                    let normalized = NftEntry::builder()
-                        .contract_address(nft.token_address.clone().unwrap_or_default())
-                        .token_id(nft.token_id.clone().unwrap_or_default())
-                        .chain(chain.to_string())
-                        .name(nft.name.clone())
-                        .collection_name(nft.name.clone()) // Moralis uses same field
-                        .symbol(nft.symbol.clone())
-                        .token_type(nft.contract_type.clone())
-                        .image_url(None) // Moralis requires metadata parsing
-                        .thumbnail_url(None)
-                        .metadata_url(nft.token_uri.clone())
-                        .balance(balance)
-                        .floor_price_eth(nft.floor_price)
-                        .floor_price_usd(nft.floor_price_usd)
-                        .is_spam(nft.possible_spam)
-                        .is_verified(nft.verified_collection)
-                        .source("moralis")
-                        .build();
-
-                    all_nfts.push(normalized);
-                }
+                all_nfts.extend(nfts);
             }
-            Err(e) => outcome.fail(format!(
-                "{}: {}",
-                chain,
-                super::price::classify_api_error("Moralis", &e)
-            )),
+            Err(e) => outcome.fail(e),
         }
     }
-
     outcome.finish("moralis")?;
     Ok(all_nfts)
+}
+
+/// Every page of one chain's Moralis NFTs (capped at MAX_NFT_PAGES)
+async fn moralis_chain_nfts(
+    client: &mrls::Client,
+    address: &str,
+    chain: &str,
+) -> Result<Vec<NftEntry>, String> {
+    let network = normalize_chain_for_source("moralis", chain);
+    let mut nfts = Vec::new();
+    let mut cursor: Option<String> = None;
+    for _ in 0..MAX_NFT_PAGES {
+        let mut query = mrls::nft::NftQuery::new().chain(&network).limit(100);
+        if let Some(c) = &cursor {
+            query = query.cursor(c.clone());
+        }
+        let response = client
+            .nft()
+            .get_wallet_nfts(address, Some(&query))
+            .await
+            .map_err(|e| {
+                format!(
+                    "{}: {}",
+                    chain,
+                    super::price::classify_api_error("Moralis", &e)
+                )
+            })?;
+        for nft in response.result {
+            // Parse balance
+            let balance: u64 = nft
+                .amount
+                .as_ref()
+                .and_then(|b: &String| b.parse::<u64>().ok())
+                .unwrap_or(1);
+
+            let normalized = NftEntry::builder()
+                .contract_address(nft.token_address.clone().unwrap_or_default())
+                .token_id(nft.token_id.clone().unwrap_or_default())
+                .chain(chain.to_string())
+                .name(nft.name.clone())
+                .collection_name(nft.name.clone()) // Moralis uses same field
+                .symbol(nft.symbol.clone())
+                .token_type(nft.contract_type.clone())
+                .image_url(None) // Moralis requires metadata parsing
+                .thumbnail_url(None)
+                .metadata_url(nft.token_uri.clone())
+                .balance(balance)
+                .floor_price_eth(nft.floor_price)
+                .floor_price_usd(nft.floor_price_usd)
+                .is_spam(nft.possible_spam)
+                .is_verified(nft.verified_collection)
+                .source("moralis")
+                .build();
+
+            nfts.push(normalized);
+        }
+        match response.cursor {
+            Some(c) if !c.is_empty() => cursor = Some(c),
+            _ => break,
+        }
+    }
+    Ok(nfts)
 }
 
 /// Tracks per-chain outcomes for a source so that "every chain failed" is
