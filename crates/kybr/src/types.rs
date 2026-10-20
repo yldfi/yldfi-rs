@@ -181,13 +181,13 @@ pub struct RouteRequest {
     /// Save gas mode
     #[serde(skip_serializing_if = "Option::is_none")]
     pub save_gas: Option<bool>,
-    /// Include DEXs (comma-separated)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Only route through these sources (comma-separated, `includedSources`)
+    #[serde(rename = "includedSources", skip_serializing_if = "Option::is_none")]
     pub include_dexs: Option<String>,
-    /// Exclude DEXs (comma-separated)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Never route through these sources (comma-separated, `excludedSources`)
+    #[serde(rename = "excludedSources", skip_serializing_if = "Option::is_none")]
     pub exclude_dexs: Option<String>,
-    /// Gas include mode
+    /// Account for gas cost when picking the route (`gasInclude`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_include: Option<bool>,
     /// Slippage tolerance in bips (1 = 0.01%)
@@ -230,6 +230,56 @@ impl RouteRequest {
     pub fn with_save_gas(mut self, save_gas: bool) -> Self {
         self.save_gas = Some(save_gas);
         self
+    }
+
+    /// Only route through these sources (comma-separated, `includedSources`)
+    #[must_use]
+    pub fn with_included_sources(mut self, sources: impl Into<String>) -> Self {
+        self.include_dexs = Some(sources.into());
+        self
+    }
+
+    /// Never route through these sources (comma-separated, `excludedSources`)
+    #[must_use]
+    pub fn with_excluded_sources(mut self, sources: impl Into<String>) -> Self {
+        self.exclude_dexs = Some(sources.into());
+        self
+    }
+
+    /// Account for gas cost when picking the route (`gasInclude`)
+    #[must_use]
+    pub fn with_gas_include(mut self, gas_include: bool) -> Self {
+        self.gas_include = Some(gas_include);
+        self
+    }
+
+    /// Query parameters for `GET /{chain}/api/v1/routes`
+    #[must_use]
+    pub fn to_query_params(&self) -> Vec<(&'static str, String)> {
+        let mut params = vec![
+            ("tokenIn", self.token_in.clone()),
+            ("tokenOut", self.token_out.clone()),
+            ("amountIn", self.amount_in.clone()),
+        ];
+        if let Some(ref to) = self.to {
+            params.push(("to", to.clone()));
+        }
+        if let Some(save_gas) = self.save_gas {
+            params.push(("saveGas", save_gas.to_string()));
+        }
+        if let Some(ref sources) = self.include_dexs {
+            params.push(("includedSources", sources.clone()));
+        }
+        if let Some(ref sources) = self.exclude_dexs {
+            params.push(("excludedSources", sources.clone()));
+        }
+        if let Some(gas_include) = self.gas_include {
+            params.push(("gasInclude", gas_include.to_string()));
+        }
+        if let Some(bps) = self.slippage_tolerance_bps {
+            params.push(("slippageTolerance", bps.to_string()));
+        }
+        params
     }
 
     /// Validate the route request parameters
