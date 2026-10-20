@@ -16,6 +16,8 @@ pub async fn simulate_via_debug_rpc(
     from: &Option<String>,
     value: &str,
     block: &str,
+    gas: Option<u64>,
+    gas_price: Option<u64>,
     rpc_url: &Option<String>,
     chain: Chain,
     balance_overrides: &[String],
@@ -54,12 +56,14 @@ pub async fn simulate_via_debug_rpc(
     )?;
 
     let params = debug_trace_call_params(
-        serde_json::json!({
-            "from": from_addr,
-            "to": resolved_to,
-            "data": calldata,
-            "value": value_hex
-        }),
+        call_object(
+            &from_addr,
+            &resolved_to,
+            &calldata,
+            &value_hex,
+            gas,
+            gas_price,
+        ),
         block_param,
         serde_json::to_value(&state_overrides)?,
         block_timestamp,
@@ -91,6 +95,31 @@ pub async fn simulate_via_debug_rpc(
     println!("{}", serde_json::to_string_pretty(&trace)?);
 
     Ok(())
+}
+
+/// The call object for debug_traceCall / trace_call, with --gas and
+/// --gas-price forwarded as hex quantities
+fn call_object(
+    from: &str,
+    to: &str,
+    data: &str,
+    value_hex: &str,
+    gas: Option<u64>,
+    gas_price: Option<u64>,
+) -> serde_json::Value {
+    let mut call = serde_json::json!({
+        "from": from,
+        "to": to,
+        "data": data,
+        "value": value_hex
+    });
+    if let Some(g) = gas {
+        call["gas"] = format!("{g:#x}").into();
+    }
+    if let Some(p) = gas_price {
+        call["gasPrice"] = format!("{p:#x}").into();
+    }
+    call
 }
 
 /// `debug_traceCall` params: `[call, block, traceConfig]`.
@@ -193,6 +222,8 @@ pub async fn simulate_via_trace_rpc(
     from: &Option<String>,
     value: &str,
     block: &str,
+    gas: Option<u64>,
+    gas_price: Option<u64>,
     rpc_url: &Option<String>,
     chain: Chain,
     balance_overrides: &[String],
@@ -232,12 +263,14 @@ pub async fn simulate_via_trace_rpc(
 
     // trace_call params: [tx_object, ["trace", "vmTrace", "stateDiff"], block_number, state_overrides?]
     let mut params = serde_json::json!([
-        {
-            "from": from_addr,
-            "to": resolved_to,
-            "data": calldata,
-            "value": value_hex
-        },
+        call_object(
+            &from_addr,
+            &resolved_to,
+            &calldata,
+            &value_hex,
+            gas,
+            gas_price
+        ),
         ["trace", "vmTrace"],
         block_param
     ]);

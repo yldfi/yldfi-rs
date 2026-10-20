@@ -25,9 +25,10 @@ pub async fn simulate_via_alchemy(
     gas: Option<u64>,
     gas_price: Option<u64>,
     alchemy: &AlchemyArgs,
+    chain: crate::config::Chain,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alchemy.create_client()?;
+    let client = alchemy.create_client_for(Some(chain))?;
 
     // Build calldata from signature or raw data
     let calldata = build_calldata(sig, data, args)?;
@@ -89,9 +90,10 @@ fn format_block_param(block: &str) -> String {
 pub async fn trace_tx_via_alchemy(
     hash: &str,
     alchemy: &AlchemyArgs,
+    chain: crate::config::Chain,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alchemy.create_client()?;
+    let client = alchemy.create_client_for(Some(chain))?;
 
     if !quiet {
         eprintln!("Tracing transaction via Alchemy: {}", hash);

@@ -138,7 +138,16 @@ fn validate_values(values: &[String], name: &str) -> anyhow::Result<()> {
 }
 
 fn push_rpc_options(cmd: &mut Command, options: &CastCallOptions, rpc_url: &Option<String>) {
-    if let Some(rpc) = rpc_url {
+    // --rpc-url, else ETH_RPC_URL (cast reads it itself), else the endpoint
+    // configured for --chain; cast would otherwise fall back to localhost
+    let rpc = rpc_url.clone().or_else(|| {
+        if std::env::var_os("ETH_RPC_URL").is_some() {
+            None
+        } else {
+            crate::rpc::get_rpc_url(options.chain).ok()
+        }
+    });
+    if let Some(rpc) = rpc {
         cmd.arg("--rpc-url").arg(rpc);
     }
 

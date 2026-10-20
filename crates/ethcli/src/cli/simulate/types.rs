@@ -47,9 +47,15 @@ impl AlchemyArgs {
         }
     }
 
-    /// Parse network string to alcmy::Network enum
+    /// Parse network string to alcmy::Network enum (unknown names: mainnet;
+    /// use [`try_parse_network`](Self::try_parse_network) to reject them)
     pub fn parse_network(network: &str) -> alcmy::Network {
-        match network.to_lowercase().as_str() {
+        Self::try_parse_network(network).unwrap_or(alcmy::Network::EthMainnet)
+    }
+
+    /// Parse a network name; `None` if Alchemy has no such network
+    pub fn try_parse_network(network: &str) -> Option<alcmy::Network> {
+        Some(match network.to_lowercase().as_str() {
             "eth-mainnet" | "ethereum" | "mainnet" => alcmy::Network::EthMainnet,
             "eth-sepolia" | "sepolia" => alcmy::Network::EthSepolia,
             "eth-holesky" | "holesky" => alcmy::Network::EthHolesky,
@@ -71,15 +77,37 @@ impl AlchemyArgs {
             "avax-mainnet" | "avalanche" | "avax" => alcmy::Network::Avalanche,
             "fantom-mainnet" | "fantom" | "ftm" => alcmy::Network::Fantom,
             "gnosis-mainnet" | "gnosis" | "xdai" => alcmy::Network::Gnosis,
-            _ => alcmy::Network::EthMainnet,
-        }
+            _ => return None,
+        })
     }
 
     /// Create an Alchemy client from args/env/config credentials
     pub fn create_client(&self) -> anyhow::Result<alcmy::Client> {
+        self.create_client_for(None)
+    }
+
+    /// Create a client for `chain`: an explicit --alchemy-network wins, then
+    /// the chain (when not mainnet), then `[alchemy] default_network`.
+    /// Unknown networks are an error, not a silent fall back to mainnet.
+    pub fn create_client_for(
+        &self,
+        chain: Option<crate::config::Chain>,
+    ) -> anyhow::Result<alcmy::Client> {
         let api_key = self.get_api_key()?;
-        let network = self.get_network();
-        let network_enum = Self::parse_network(&network);
+        let network = match chain {
+            Some(c)
+                if self.alchemy_network == "eth-mainnet" && c != crate::config::Chain::Ethereum =>
+            {
+                c.name().to_string()
+            }
+            _ => self.get_network(),
+        };
+        let network_enum = Self::try_parse_network(&network).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Alchemy has no network for '{}' (set --alchemy-network)",
+                network
+            )
+        })?;
         alcmy::Client::new(api_key, network_enum).map_err(|e| anyhow::anyhow!("{}", e))
     }
 }

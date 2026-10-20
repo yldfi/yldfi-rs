@@ -45,6 +45,7 @@ pub async fn simulate_via_tenderly(
     block_coinbase: &Option<String>,
     block_difficulty: Option<u64>,
     block_base_fee: Option<u64>,
+    chain: crate::config::Chain,
 ) -> anyhow::Result<()> {
     // Resolve target address
     let resolved_to = resolve_label(to);
@@ -173,10 +174,12 @@ pub async fn simulate_via_tenderly(
         request.block_header = Some(header);
     }
 
-    // Apply network ID if specified
-    if let Some(nid) = network_id {
-        request = request.network_id(nid);
-    }
+    // --network-id, else the global --chain (the request defaults to mainnet)
+    request = request.network_id(
+        network_id
+            .clone()
+            .unwrap_or_else(|| chain.chain_id().to_string()),
+    );
 
     // Apply new Tenderly API parameters (tndrly 0.2+)
     if let Some(ti) = transaction_index {
@@ -307,6 +310,7 @@ pub async fn simulate_bundle_tenderly(
     save: bool,
     tenderly_args: &TenderlyArgs,
     quiet: bool,
+    chain: crate::config::Chain,
 ) -> anyhow::Result<()> {
     // Parse block number (supports decimal or hex)
     let block_number = if block == "latest" {
@@ -344,7 +348,8 @@ pub async fn simulate_bundle_tenderly(
                 .or(val["data"].as_str())
                 .unwrap_or("0x");
 
-            let mut req = SimulationRequest::new(from, to, input);
+            let mut req =
+                SimulationRequest::new(from, to, input).network_id(chain.chain_id().to_string());
             if let Some(v) = val["value"].as_str() {
                 req = req.value(v);
             }
@@ -370,57 +375,32 @@ pub async fn simulate_bundle_tenderly(
 
     let mut request = BundleSimulationRequest::new(sims);
 
-    // Apply state overrides
-    if !balance_overrides.is_empty() || !storage_overrides.is_empty() || !code_overrides.is_empty()
-    {
-        let mut state_objects = std::collections::HashMap::new();
-
-        for o in balance_overrides {
-            let parts: Vec<&str> = o.splitn(2, '=').collect();
-            if parts.len() == 2 {
-                let address = parts[0].to_lowercase();
-                let balance = parts[1].to_string();
-                let entry = state_objects
-                    .entry(address)
-                    .or_insert_with(StateOverride::default);
-                entry.balance = Some(balance);
-            }
-        }
-
-        for o in storage_overrides {
-            let parts: Vec<&str> = o.splitn(2, '=').collect();
-            if parts.len() == 2 {
-                let addr_slot: Vec<&str> = parts[0].splitn(2, ':').collect();
-                if addr_slot.len() == 2 {
-                    let address = addr_slot[0].to_lowercase();
-                    let slot = addr_slot[1].to_string();
-                    let value = parts[1].to_string();
-                    let entry = state_objects
-                        .entry(address)
-                        .or_insert_with(StateOverride::default);
-                    let storage = entry
-                        .storage
-                        .get_or_insert_with(std::collections::HashMap::new);
-                    storage.insert(slot, value);
-                }
-            }
-        }
-
-        for o in code_overrides {
-            let parts: Vec<&str> = o.splitn(2, '=').collect();
-            if parts.len() == 2 {
-                let address = parts[0].to_lowercase();
-                let code = parts[1].to_string();
-                let entry = state_objects
-                    .entry(address)
-                    .or_insert_with(StateOverride::default);
-                entry.code = Some(code);
-            }
-        }
-
-        if !state_objects.is_empty() {
-            request.state_objects = Some(state_objects);
-        }
+    // Same parsing and validation as the other backends; malformed overrides
+    // are an error rather than being skipped
+    let overrides = super::utils::build_state_overrides(
+        balance_overrides,
+        storage_overrides,
+        code_overrides,
+        &[],
+    )?;
+    if !overrides.is_empty() {
+        let state_objects = overrides
+            .into_iter()
+            .map(|(address, o)| {
+                let storage = o["stateDiff"].as_object().map(|diff| {
+                    diff.iter()
+                        .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string()))
+                        .collect()
+                });
+                let state = StateOverride {
+                    balance: o["balance"].as_str().map(String::from),
+                    storage,
+                    code: o["code"].as_str().map(String::from),
+                };
+                (address, state)
+            })
+            .collect();
+        request.state_objects = Some(state_objects);
     }
 
     if !quiet {

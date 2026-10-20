@@ -741,6 +741,7 @@ pub async fn handle_with_via(
                         block_coinbase,
                         *block_difficulty,
                         *block_base_fee,
+                        chain,
                     )
                     .await
                 }
@@ -753,6 +754,8 @@ pub async fn handle_with_via(
                         from,
                         value,
                         block,
+                        *gas,
+                        *gas_price,
                         rpc_url,
                         chain,
                         balance_overrides,
@@ -782,6 +785,8 @@ pub async fn handle_with_via(
                         from,
                         value,
                         block,
+                        *gas,
+                        *gas_price,
                         rpc_url,
                         chain,
                         balance_overrides,
@@ -815,7 +820,8 @@ pub async fn handle_with_via(
                         ));
                     }
                     simulate_via_alchemy(
-                        to, sig, data, args, from, value, block, *gas, *gas_price, alchemy, quiet,
+                        to, sig, data, args, from, value, block, *gas, *gas_price, alchemy, chain,
+                        quiet,
                     )
                     .await
                 }
@@ -881,7 +887,7 @@ pub async fn handle_with_via(
                 trace_tx_via_debug_rpc(hash, rpc_url, chain, key, *raw, quiet).await
             }
             SimulateVia::Trace => trace_tx_via_trace_rpc(hash, rpc_url, chain, quiet).await,
-            SimulateVia::Alchemy => trace_tx_via_alchemy(hash, alchemy, quiet).await,
+            SimulateVia::Alchemy => trace_tx_via_alchemy(hash, alchemy, chain, quiet).await,
         },
 
         SimulateCommands::Bundle {
@@ -902,6 +908,7 @@ pub async fn handle_with_via(
                 *save,
                 tenderly,
                 quiet,
+                chain,
             )
             .await
         }
