@@ -1430,7 +1430,9 @@ ethcli pyth known-feeds
 ```
 
 **Notes**:
-- Supports common symbols: BTC, ETH, SOL, USDC, USDT, DAI, AVAX, ARB, OP, LINK, UNI, AAVE, CRV, CVX, etc.
+- Supports common symbols: BTC, ETH, SOL, USDC, USDT, DAI, AVAX, ARB, OP, LINK, UNI, AAVE, CRV, CVX, etc.,
+  names and wrapped forms (`bitcoin`, `WBTC`, `WETH`) and pair forms (`ETH/USD`, `ETH-USD`, `ETHUSD`).
+  `ethcli price --source pyth` uses the same mapping (see the pythc README for the full list)
 - Use `ethcli pyth search` to find additional feeds by name
 - `ethcli pyth price` fails with setup instructions when no key is configured; `known-feeds` works offline
 - In `ethcli price` aggregation, Pyth is reported as `PYTH_API_KEY not configured` and skipped when no key is set

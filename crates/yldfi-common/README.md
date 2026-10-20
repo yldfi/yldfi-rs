@@ -55,6 +55,11 @@ use yldfi_common::chains::Chain;
 let chain = Chain::from_id(1);
 assert_eq!(chain, Chain::Ethereum);
 assert_eq!(chain.name(), "ethereum");
+
+// Names are case-insensitive and include common aliases and provider slugs
+assert_eq!(Chain::from_name("ARB"), Some(Chain::Arbitrum));
+assert_eq!(Chain::from_name("arb-mainnet"), Some(Chain::Arbitrum)); // Alchemy
+assert_eq!(Chain::from_name("polygon-pos"), Some(Chain::Polygon)); // CoinGecko
 ```
 
 ## Unit Conversions
