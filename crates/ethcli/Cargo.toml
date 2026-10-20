@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.23.5"
+version = "0.23.6"
 edition = "2021"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
 license = "MIT"
@@ -112,7 +112,7 @@ ykong = { version = "0.1", path = "../ykong" }
 gplus = { version = "0.1", path = "../gplus" }
 
 # Solodit vulnerability database client
-sldt = { version = "0.2", path = "../sldt" }
+sldt = { version = "0.2.1", path = "../sldt" }
 
 # Bytecode analysis
 evmole = { version = "0.9", features = ["serde"] }

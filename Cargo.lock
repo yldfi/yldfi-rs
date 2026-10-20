@@ -2351,7 +2351,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.23.5"
+version = "0.23.6"
 dependencies = [
  "alcmy",
  "alloy",
@@ -5296,7 +5296,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "sldt"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",
