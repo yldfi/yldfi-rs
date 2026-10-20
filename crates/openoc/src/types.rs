@@ -77,7 +77,8 @@ impl Chain {
             Chain::Avax => "avax",
             Chain::Arbitrum => "arbitrum",
             Chain::Optimism => "optimism",
-            Chain::Gnosis => "gnosis",
+            // The API names Gnosis by its old name
+            Chain::Gnosis => "xdai",
             Chain::Base => "base",
             Chain::Linea => "linea",
             Chain::Zksync => "zksync",
@@ -638,5 +639,11 @@ mod tests {
             assert_eq!(name.parse::<Chain>().unwrap(), chain, "{name}");
         }
         assert!("sepolia".parse::<Chain>().is_err());
+    }
+
+    #[test]
+    fn gnosis_uses_api_path_name() {
+        assert_eq!(Chain::Gnosis.as_str(), "xdai");
+        assert_eq!("gnosis".parse::<Chain>().unwrap(), Chain::Gnosis);
     }
 }
