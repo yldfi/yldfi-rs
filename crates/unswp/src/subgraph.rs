@@ -24,8 +24,8 @@ use yldfi_common::http::HttpClientConfig;
 
 use crate::error::{subgraph_error, subgraph_key_required, Result};
 use crate::types::{
-    GraphQLResponse, LiquidityPositionV2, PairDataV2, PoolData, PoolDataV4, PoolDayData, Position,
-    PositionV4, Swap,
+    GraphQLResponse, LiquidityPositionV2, PairDataV2, PairDayDataV2, PoolData, PoolDataV4,
+    PoolDayData, Position, PositionV4, Swap,
 };
 
 /// Subgraph IDs for Uniswap on various chains
@@ -540,7 +540,10 @@ impl SubgraphClient {
         Ok(data.swaps)
     }
 
-    /// Get daily data for a pool
+    /// Get daily data for a pool, newest first
+    ///
+    /// V3/V4 query `poolDayDatas`; V2 queries `pairDayDatas` (no OHLC, fees
+    /// derived as 0.3% of volume).
     pub async fn get_pool_day_data(
         &self,
         pool_address: &str,
@@ -548,36 +551,19 @@ impl SubgraphClient {
     ) -> Result<Vec<PoolDayData>> {
         #[derive(serde::Deserialize)]
         struct Response {
-            #[serde(rename = "poolDayDatas")]
+            #[serde(rename = "poolDayDatas", default)]
             pool_day_datas: Vec<PoolDayData>,
+            #[serde(rename = "pairDayDatas", default)]
+            pair_day_datas: Vec<PairDayDataV2>,
         }
 
-        let query = format!(
-            r"
-            query PoolDayDatas($where: PoolDayData_filter) {{
-                poolDayDatas(
-                    first: {days}
-                    orderBy: date
-                    orderDirection: desc
-                    where: $where
-                ) {{
-                    date
-                    pool {{ id }}
-                    volumeUSD
-                    tvlUSD
-                    feesUSD
-                    open
-                    high
-                    low
-                    close
-                }}
-            }}
-        "
-        );
-        let variables = serde_json::json!({ "where": { "pool": pool_address.to_lowercase() } });
-
+        let (query, variables) = pool_day_data_query(self.version, pool_address, days);
         let data: Response = self.query_with_variables(&query, variables).await?;
-        Ok(data.pool_day_datas)
+        Ok(data
+            .pool_day_datas
+            .into_iter()
+            .chain(data.pair_day_datas.into_iter().map(PoolDayData::from))
+            .collect())
     }
 
     /// Get V3 LP positions for a wallet address
@@ -709,6 +695,31 @@ impl SubgraphClient {
 ///
 /// The pool/pair address is sent as a GraphQL variable (`Swap_filter`),
 /// never interpolated into the query text.
+/// Version-aware daily data query: `pairDayDatas` for V2, `poolDayDatas`
+/// otherwise
+fn pool_day_data_query(version: UniswapVersion, pool_address: &str, days: u32) -> (String, Value) {
+    let pool = pool_address.to_lowercase();
+    let (entity, filter_type, filter, fields) = match version {
+        UniswapVersion::V2 => (
+            "pairDayDatas",
+            "PairDayData_filter",
+            serde_json::json!({ "pairAddress": pool }),
+            "date pairAddress dailyVolumeUSD reserveUSD",
+        ),
+        UniswapVersion::V3 | UniswapVersion::V4 => (
+            "poolDayDatas",
+            "PoolDayData_filter",
+            serde_json::json!({ "pool": pool }),
+            "date pool { id } volumeUSD tvlUSD feesUSD open high low close",
+        ),
+    };
+    let query = format!(
+        "query DayData($where: {filter_type}) {{ {entity}(first: {days}, orderBy: date, \
+         orderDirection: desc, where: $where) {{ {fields} }} }}"
+    );
+    (query, serde_json::json!({ "where": filter }))
+}
+
 fn swaps_query(version: UniswapVersion, pool_address: &str, limit: u32) -> (String, Value) {
     let pool = pool_address.to_lowercase();
     let (filter, fields) = match version {
@@ -751,6 +762,20 @@ fn positions_v4_query(owner: &str) -> (&'static str, Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn day_data_query_is_version_aware() {
+        let (v2, vars) = pool_day_data_query(UniswapVersion::V2, "0xABC", 7);
+        assert!(v2.contains("pairDayDatas(first: 7") && v2.contains("PairDayData_filter"));
+        assert!(v2.contains("dailyVolumeUSD") && !v2.contains("poolDayDatas"));
+        assert_eq!(
+            vars,
+            serde_json::json!({ "where": { "pairAddress": "0xabc" } })
+        );
+        let (v3, vars) = pool_day_data_query(UniswapVersion::V3, "0xABC", 7);
+        assert!(v3.contains("poolDayDatas(first: 7") && v3.contains("feesUSD"));
+        assert_eq!(vars, serde_json::json!({ "where": { "pool": "0xabc" } }));
+    }
 
     const KEY: &str = "graph-secret-key-789";
 

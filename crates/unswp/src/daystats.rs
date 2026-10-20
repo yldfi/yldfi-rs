@@ -130,18 +130,27 @@ pub fn day_start(ts: u64) -> i64 {
     i64::try_from(ts - ts % 86_400).unwrap_or(i64::MAX)
 }
 
-/// Build the "top pools by recent volume" query (step 1)
-fn top_recent_query(version: UniswapVersion, first: u32, since: i64) -> String {
+/// Build the "top pools by recent volume" query (step 1), over completed
+/// days in `[since, until)`
+fn top_recent_query(version: UniswapVersion, first: u32, since: i64, until: i64) -> String {
     match version {
         UniswapVersion::V2 => format!(
             "query {{ pairDayDatas(first: {first}, orderBy: dailyVolumeUSD, orderDirection: desc, \
-             where: {{ date_gte: {since} }}) {{ pairAddress }} }}"
+             where: {{ date_gte: {since}, date_lt: {until} }}) {{ pairAddress }} }}"
         ),
         UniswapVersion::V3 | UniswapVersion::V4 => format!(
             "query {{ poolDayDatas(first: {first}, orderBy: volumeUSD, orderDirection: desc, \
-             where: {{ date_gte: {since} }}) {{ pool {{ id }} }} }}"
+             where: {{ date_gte: {since}, date_lt: {until} }}) {{ pool {{ id }} }} }}"
         ),
     }
+}
+
+/// Day rows to request in step 1 so `top` distinct pools can be found even
+/// when each top pool fills every day of the window
+fn top_candidate_rows(top: u32, days: u32) -> u32 {
+    top.saturating_mul(days.max(1))
+        .saturating_add(top)
+        .min(1000)
 }
 
 /// Page size for the per-day stats query (The Graph caps `first` at 1000)
@@ -251,8 +260,9 @@ impl SubgraphClient {
         let top_resp: TopResp = self
             .query(&top_recent_query(
                 version,
-                top.saturating_mul(4).min(1000),
+                top_candidate_rows(top, days),
                 from,
+                today,
             ))
             .await?;
         let mut ids: Vec<String> = Vec::new();
@@ -334,7 +344,11 @@ mod tests {
             vars["where"]["pairAddress_in"],
             serde_json::json!(["0xabc"])
         );
-        assert!(top_recent_query(UniswapVersion::V2, 10, 5).contains("pairDayDatas"));
+        let top = top_recent_query(UniswapVersion::V2, 10, 5, 9);
+        assert!(top.contains("pairDayDatas") && top.contains("date_lt: 9"));
+        // Each of the top pools may fill every day of the window
+        assert_eq!(top_candidate_rows(10, 7), 80);
+        assert_eq!(top_candidate_rows(500, 7), 1000);
     }
 
     #[test]
