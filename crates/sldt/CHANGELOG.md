@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/sldt-v0.2.0...sldt-v0.2.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **sldt:** mention Solodit-side outages in the invalid-key hint ([#129](https://github.com/yldfi/yldfi-rs/issues/129)) ([721325d](https://github.com/yldfi/yldfi-rs/commit/721325d059b79f318a6693ac2ec07791c71eb263))
+
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/sldt-v0.1.1...sldt-v0.2.0) (2026-09-25)
 
 
