@@ -657,7 +657,6 @@ async fn fetch_yearn_portfolio(
 ) -> SourceResult<Vec<PortfolioBalance>> {
     use crate::config::Chain;
     use crate::rpc::multicall::{selectors, MulticallBuilder};
-    use crate::rpc::Endpoint;
     use alloy::primitives::Address;
 
     // Create ykong client (no API key needed)
@@ -712,21 +711,15 @@ async fn fetch_yearn_portfolio(
                     None => return balances,
                 };
 
-                let chain_endpoints: Vec<_> = config
-                    .endpoints
-                    .iter()
-                    .filter(|e| e.enabled && e.chain == target_chain)
-                    .cloned()
-                    .collect();
-
-                if chain_endpoints.is_empty() {
-                    eprintln!("Yearn: No RPC endpoint configured for {}", chain);
-                    return balances;
-                }
-
-                let endpoint = match Endpoint::new(chain_endpoints[0].clone(), 30, None) {
+                let endpoint = match crate::rpc::selector::get_rpc_endpoint_from_config(
+                    config,
+                    target_chain,
+                ) {
                     Ok(e) => e,
-                    Err(_) => return balances,
+                    Err(_) => {
+                        eprintln!("Yearn: No RPC endpoint configured for {}", chain);
+                        return balances;
+                    }
                 };
 
                 let provider = endpoint.provider();

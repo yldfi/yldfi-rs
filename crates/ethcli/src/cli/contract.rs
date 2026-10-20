@@ -7,7 +7,7 @@ use crate::bytecode::{
     analyze_bytecode, analyze_handler_checks, disassemble_bytecode, extract_selectors,
     infer_dispatcher, opcode_stats, BytecodeAnalysis, RiskLevel, MAX_BYTECODE_SIZE,
 };
-use crate::config::{Chain, ConfigFile, EndpointConfig};
+use crate::config::{Chain, EndpointConfig};
 use crate::etherscan::{Client, SignatureCache};
 use crate::rpc::Endpoint;
 use crate::utils::format::with_thousands_sep;
@@ -811,27 +811,13 @@ pub async fn handle(
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
-            // Get RPC endpoint first (needed for proxy detection)
+            // Get RPC endpoint first (needed for proxy detection). A historical
+            // --block needs an archive-capable endpoint.
             let endpoint = if let Some(url) = rpc_url {
                 Endpoint::new(EndpointConfig::new(url.clone()), 30, None)?
             } else {
-                let config = ConfigFile::load_default()
-                    .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-                    .unwrap_or_default();
-
-                let chain_endpoints: Vec<_> = config
-                    .endpoints
-                    .into_iter()
-                    .filter(|e| e.enabled && e.chain == chain)
-                    .collect();
-
-                if chain_endpoints.is_empty() {
-                    return Err(anyhow::anyhow!(
-                        "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                        chain.display_name()
-                    ));
-                }
-                Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+                let target_block = crate::utils::parse_block_number(block).ok();
+                crate::rpc::selector::get_rpc_endpoint_at(chain, target_block)?
             };
 
             let provider = endpoint.provider();

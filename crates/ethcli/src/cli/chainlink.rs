@@ -279,7 +279,7 @@ async fn handle_price(
     quiet: bool,
 ) -> anyhow::Result<()> {
     // Get provider
-    let provider = get_provider(chain, rpc_url)?;
+    let provider = get_provider(chain, rpc_url, block)?;
 
     if !quiet {
         if let Some(blk) = block {
@@ -326,6 +326,17 @@ async fn handle_price(
             output.chain = chain.to_string();
             output.block = block.map(|s| s.to_string());
 
+            // For a current price, an answer older than any heartbeat means the
+            // feed stopped updating (deprecated)
+            let now = chainlink::unix_now();
+            if block.is_none() && !data_is_fresh(output.updated_at, now) && !quiet {
+                eprintln!(
+                    "Warning: this answer is {}h old, older than any feed heartbeat; \
+                     the feed may be deprecated",
+                    now.saturating_sub(output.updated_at) / 3600
+                );
+            }
+
             print_price_output(&output, args.format)?;
         }
         Err(ChainlinkError::NoFeed) => {
@@ -345,6 +356,10 @@ async fn handle_price(
     Ok(())
 }
 
+fn data_is_fresh(updated_at: u64, now: u64) -> bool {
+    now.saturating_sub(updated_at) <= chainlink::MAX_PRICE_AGE_SECS
+}
+
 /// Handle feed command
 async fn handle_feed(
     token: &str,
@@ -362,7 +377,7 @@ async fn handle_feed(
             token, chain
         );
     }
-    let provider = get_provider(chain, rpc_url)?;
+    let provider = get_provider(chain, rpc_url, None)?;
 
     if !quiet {
         eprintln!("Looking up feed address for {}/{}...", token, quote);
@@ -620,29 +635,20 @@ struct StreamsReportOutput {
 }
 
 /// Get RPC provider for a chain
-fn get_provider(chain: &str, rpc_url: Option<&str>) -> anyhow::Result<impl Provider + Clone> {
+///
+/// A historical `block` selects an archive-capable endpoint.
+fn get_provider(
+    chain: &str,
+    rpc_url: Option<&str>,
+    block: Option<&str>,
+) -> anyhow::Result<impl Provider + Clone> {
     let chain_enum = Chain::from_str(chain).unwrap_or(Chain::Ethereum);
 
     let endpoint = if let Some(url) = rpc_url {
         Endpoint::new(EndpointConfig::new(url.to_string()), 30, None)?
     } else {
-        let config = ConfigFile::load_default()
-            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-            .unwrap_or_default();
-
-        let chain_endpoints: Vec<_> = config
-            .endpoints
-            .into_iter()
-            .filter(|e| e.enabled && e.chain == chain_enum)
-            .collect();
-
-        if chain_endpoints.is_empty() {
-            anyhow::bail!(
-                "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                chain_enum.display_name()
-            );
-        }
-        Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+        let target_block = block.and_then(|b| crate::utils::parse_block_number(b).ok());
+        crate::rpc::selector::get_rpc_endpoint_at(chain_enum, target_block)?
     };
 
     Ok(endpoint.provider().clone())

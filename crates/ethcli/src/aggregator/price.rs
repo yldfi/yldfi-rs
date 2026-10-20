@@ -1322,35 +1322,22 @@ async fn fetch_chainlink_rpc(
 ) -> Option<SourceResult<NormalizedPrice>> {
     use crate::chainlink;
     use crate::config::Chain;
-    use crate::rpc::Endpoint;
 
     // Parse the chain parameter
     let target_chain = Chain::from_str_or_default(chain);
 
     // Get RPC endpoint for the target chain from cached config
+    // No RPC configured: skip to Data Streams
     let config = get_cached_config().as_ref()?;
-    let chain_endpoints: Vec<_> = config
-        .endpoints
-        .iter()
-        .filter(|e| e.enabled && e.chain == target_chain)
-        .cloned()
-        .collect();
-
-    if chain_endpoints.is_empty() {
-        return None; // No RPC configured, skip to Data Streams
-    }
-
-    let endpoint = match Endpoint::new(chain_endpoints[0].clone(), 30, None) {
-        Ok(e) => e,
-        Err(_) => return None,
-    };
+    let endpoint = crate::rpc::selector::get_rpc_endpoint_from_config(config, target_chain).ok()?;
 
     let provider = endpoint.provider().clone();
 
     // Try to fetch price via RPC
     match chainlink::fetch_price(provider, token, chain, chainlink::denominations::USD).await {
         Ok(price_data) => {
-            if let Some(price_f64) = price_data.to_f64() {
+            // Reject answers from feeds that stopped updating (deprecated)
+            if let Some(price_f64) = price_data.to_fresh_f64(chainlink::unix_now()) {
                 let price = NormalizedPrice::new(price_f64);
                 Some(SourceResult::success(
                     "chainlink-rpc",
