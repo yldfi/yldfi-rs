@@ -502,6 +502,28 @@ mod tests {
     }
 
     #[test]
+    fn test_chain_mappings_round_trip() {
+        for chain in Chain::all() {
+            assert_eq!(chain.as_str().parse::<Chain>().unwrap(), *chain);
+            assert_eq!(
+                chain.chain_id().to_string().parse::<Chain>().unwrap(),
+                *chain
+            );
+            let common = yldfi_common::Chain::from(*chain);
+            assert!(
+                !matches!(common, yldfi_common::Chain::Other(_)),
+                "{chain:?}"
+            );
+            assert_eq!(Chain::try_from(common), Ok(*chain));
+        }
+        assert_eq!(Chain::Base.api_url(), "https://api.cow.fi/base");
+        assert_eq!(Chain::Bnb.api_url(), "https://api.cow.fi/bnb");
+        assert_eq!(Chain::try_from_str("bsc"), Some(Chain::Bnb));
+        assert_eq!(Chain::try_from_str("8453"), Some(Chain::Base));
+        assert_eq!(Chain::try_from_str("10"), None);
+    }
+
+    #[test]
     fn test_order_parses_live_shape() {
         let json = r#"{"uid":"0xcfeb","sellToken":"0xa","buyToken":"0xb","sellAmount":"1",
             "buyAmount":"2","kind":"sell","status":"presignaturePending",
