@@ -26,8 +26,10 @@ fn code_section(bytecode: &[u8]) -> &[u8] {
     decodable_prefix(strip_metadata(bytecode))
 }
 
-/// Remove a trailing CBOR metadata blob: the last two bytes give its length,
-/// and it starts with a CBOR map header (0xa1..=0xa7)
+/// Remove a trailing compiler metadata blob: the last two bytes give its
+/// length, it starts with a CBOR map header (0xa1..=0xa7) and contains a
+/// compiler metadata key. For display only: security analysis must scan the
+/// whole code, since anyone can append bytes that look like a trailer.
 fn strip_metadata(bytecode: &[u8]) -> &[u8] {
     let Some(len_bytes) = bytecode.len().checked_sub(2).map(|i| &bytecode[i..]) else {
         return bytecode;
@@ -36,11 +38,34 @@ fn strip_metadata(bytecode: &[u8]) -> &[u8] {
     let Some(start) = bytecode.len().checked_sub(meta_len + 2) else {
         return bytecode;
     };
-    if meta_len > 0 && (0xa1..=0xa7).contains(&bytecode[start]) {
+    const KEYS: &[&[u8]] = &[b"ipfs", b"bzzr0", b"bzzr1", b"solc", b"vyper"];
+    let trailer = &bytecode[start..bytecode.len() - 2];
+    let has_key = KEYS
+        .iter()
+        .any(|k| trailer.windows(k.len()).any(|w| w == *k));
+    if meta_len > 0 && (0xa1..=0xa7).contains(&bytecode[start]) && has_key {
         &bytecode[..start]
     } else {
         bytecode
     }
+}
+
+/// Disassemble the whole bytecode for security analysis: no metadata
+/// stripping (a forged trailer could hide opcodes), only the truncated-PUSH
+/// cut, which drops nothing executable
+pub fn disassemble_for_security(bytecode: &[u8]) -> Result<Vec<Operation>, DisassemblyError> {
+    if bytecode.len() > MAX_BYTECODE_SIZE {
+        return Err(DisassemblyError::BytecodeTooLarge(
+            bytecode.len(),
+            MAX_BYTECODE_SIZE,
+        ));
+    }
+    let code = if bytecode.starts_with(&[0xef, 0x00]) {
+        bytecode
+    } else {
+        decodable_prefix(bytecode)
+    };
+    disassemble_bytes(code.to_vec()).map_err(|e| DisassemblyError::ParseError(e.to_string()))
 }
 
 /// Bytecode up to (not including) the first PUSH that is cut off by the end
@@ -426,14 +451,29 @@ mod tests {
 
     #[test]
     fn strips_cbor_metadata() {
-        // PUSH1 0x80 STOP, then a 3-byte CBOR map + length 0x0003
-        let code = [0x60, 0x80, 0x00, 0xa1, 0x61, 0x62, 0x00, 0x03];
+        // PUSH1 0x80 STOP, then a CBOR map {"solc": ...} + its length
+        let mut code = vec![0x60, 0x80, 0x00, 0xa1, 0x64];
+        code.extend_from_slice(b"solc");
+        code.extend_from_slice(&[0x43, 0x00, 0x08, 0x1a, 0x00, 0x0a]);
         assert_eq!(strip_metadata(&code), &code[..3]);
         // No metadata trailer: unchanged
         let plain = [0x60, 0x80, 0x00];
         assert_eq!(strip_metadata(&plain), &plain);
         let ops = disassemble_bytecode(&code).unwrap();
         assert_eq!(ops.len(), 2);
+    }
+
+    #[test]
+    fn security_scan_sees_code_behind_a_forged_trailer() {
+        // SELFDESTRUCT hidden in a "trailer" that is just a map header + length
+        let code = [0x60, 0x00, 0xa1, 0xff, 0x00, 0x02];
+        assert_eq!(
+            strip_metadata(&code),
+            &code,
+            "no metadata key: not stripped"
+        );
+        let ops = disassemble_for_security(&code).unwrap();
+        assert!(ops.iter().any(|o| o.opcode == Opcode::SELFDESTRUCT));
     }
 
     #[test]

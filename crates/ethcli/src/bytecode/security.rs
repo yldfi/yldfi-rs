@@ -260,7 +260,7 @@ pub fn detect_security_issues(bytecode: &[u8]) -> SecurityAnalysis {
         };
     }
 
-    let operations = match super::disassemble::disassemble_raw(bytecode) {
+    let operations = match super::disassemble::disassemble_for_security(bytecode) {
         Ok(ops) => ops,
         Err(e) => {
             // Log the error but return Unknown risk instead of clean
