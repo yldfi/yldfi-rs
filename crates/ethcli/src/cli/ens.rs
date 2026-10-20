@@ -487,11 +487,22 @@ fn is_public_ip(ip: std::net::IpAddr) -> bool {
                 return is_public_ip(IpAddr::V4(v4));
             }
             let seg = v6.segments();
-            !(v6.is_loopback()
-                || v6.is_unspecified()
-                || v6.is_multicast()
-                || (seg[0] & 0xfe00) == 0xfc00 // unique local
-                || (seg[0] & 0xffc0) == 0xfe80) // link-local
+            // Global unicast (2000::/3) only: excludes loopback, link-local,
+            // unique-local, site-local, NAT64 and IPv4-compatible space
+            if seg[0] & 0xe000 != 0x2000 {
+                return false;
+            }
+            match (seg[0], seg[1]) {
+                // 6to4 embeds an IPv4 address
+                (0x2002, _) => {
+                    let [a, b] = seg[1].to_be_bytes();
+                    let [c, d] = seg[2].to_be_bytes();
+                    is_public_ip(IpAddr::V4(std::net::Ipv4Addr::new(a, b, c, d)))
+                }
+                // Teredo and documentation
+                (0x2001, 0x0000) | (0x2001, 0x0db8) => false,
+                _ => true,
+            }
         }
     }
 }
@@ -614,6 +625,12 @@ mod tests {
             "fd00::1",
             "fe80::1",
             "::ffff:127.0.0.1",
+            "64:ff9b::7f00:1",
+            "2002:7f00:1::1",
+            "2001:0:4136:e378::1",
+            "2001:db8::1",
+            "fec0::1",
+            "::127.0.0.1",
         ] {
             assert!(!is_public_ip(ip.parse().unwrap()), "{ip}");
         }
