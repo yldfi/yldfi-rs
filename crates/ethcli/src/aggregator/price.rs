@@ -57,7 +57,7 @@ static CURVE_PRICES_CLIENT: OnceLock<Result<crv::PricesClient, String>> = OnceLo
 
 /// Cached Pyth client (requires PYTH_API_KEY or `[pyth] api_key` since the
 /// Pyth Core upgrade; the source is skipped when no key is configured)
-static PYTH_CLIENT: OnceLock<Result<pyth::Client, String>> = OnceLock::new();
+static PYTH_CLIENT: OnceLock<Result<pythc::Client, String>> = OnceLock::new();
 
 /// Cached Uniswap SubgraphClient for mainnet
 static UNISWAP_MAINNET_CLIENT: OnceLock<Result<unswp::SubgraphClient, String>> = OnceLock::new();
@@ -187,7 +187,7 @@ fn get_curve_prices_client() -> Result<&'static crv::PricesClient, &'static str>
 /// Returns an error (without making any request) when no Pyth API key is
 /// configured, so the aggregator reports the source as unconfigured like other
 /// keyed sources instead of hitting Hermes and getting a 401.
-fn get_pyth_client() -> Result<&'static pyth::Client, String> {
+fn get_pyth_client() -> Result<&'static pythc::Client, String> {
     PYTH_CLIENT
         .get_or_init(|| {
             let config = get_cached_config();
@@ -1562,7 +1562,7 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
     } else if token.starts_with("0x") && token.len() == 42 {
         // Ethereum address - try to reverse-map to symbol first
         match eth_address_to_symbol(token) {
-            Some(symbol) => match pyth::symbol_to_feed_id(symbol) {
+            Some(symbol) => match pythc::symbol_to_feed_id(symbol) {
                 Some(id) => id,
                 None => {
                     return SourceResult::error(
@@ -1585,7 +1585,7 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
         }
     } else {
         // Try to map symbol to feed ID
-        match pyth::symbol_to_feed_id(token) {
+        match pythc::symbol_to_feed_id(token) {
             Some(id) => id,
             None => {
                 return SourceResult::error(
