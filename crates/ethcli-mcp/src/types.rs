@@ -97,7 +97,7 @@ pub struct AccountTxsInput {
     pub sort: Option<String>,
     /// First block to include (inclusive; default: 0)
     pub start_block: Option<u64>,
-    /// Last block to include (inclusive; default: 99999999)
+    /// Last block to include (inclusive; default: latest)
     pub end_block: Option<u64>,
 }
 

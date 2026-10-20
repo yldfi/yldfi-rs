@@ -220,7 +220,7 @@ pub async fn account_txs(
     start_block: Option<u64>,
     end_block: Option<u64>,
 ) -> Result<String, ToolError> {
-    if start_block.unwrap_or(0) > end_block.unwrap_or(99_999_999) {
+    if start_block.unwrap_or(0) > end_block.unwrap_or(u64::MAX) {
         return Err(ToolError::InvalidInput(
             "start_block must not exceed end_block".to_string(),
         ));
