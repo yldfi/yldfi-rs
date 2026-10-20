@@ -216,7 +216,7 @@ pub struct TokenSecurity {
     /// Whether it's an airdrop scam
     #[serde(default)]
     pub is_airdrop_scam: Option<String>,
-    /// Count of honeypots by same creator
+    /// Number of honeypots deployed by the same creator
     pub honeypot_with_same_creator: Option<String>,
     /// Trust list status
     #[serde(default)]
@@ -324,12 +324,22 @@ impl TokenSecurity {
         })
     }
 
+    /// Check if token is flagged as a counterfeit of another token
+    ///
+    /// True when `is_true_token` is `"0"` or `fake_token.value` is 1.
+    #[must_use]
+    pub fn is_fake_token(&self) -> bool {
+        self.is_true_token.as_deref() == Some("0")
+            || self.fake_token.as_ref().and_then(|f| f.value) == Some(1)
+    }
+
     /// Check if token has any major red flags
     #[must_use]
     pub fn has_major_risks(&self) -> bool {
         self.is_honeypot()
             || self.has_high_sell_tax()
             || self.is_airdrop_scam()
+            || self.is_fake_token()
             || Self::parse_bool(self.cannot_buy.as_ref())
             || Self::parse_bool(self.cannot_sell_all.as_ref())
     }
@@ -371,6 +381,45 @@ impl TokenSecurity {
         }
         if self.owner_can_change_balance() {
             issues.push("Owner can change balances".to_string());
+        }
+        if self.is_fake_token() {
+            issues.push("Fake token".to_string());
+        }
+        if self.buy_tax_percent().is_some_and(|t| t > 10.0) {
+            issues.push(format!(
+                "High buy tax ({:.0}%)",
+                self.buy_tax_percent().unwrap_or(0.0)
+            ));
+        }
+        let flags = [
+            (&self.selfdestruct, "Can self-destruct"),
+            (&self.can_take_back_ownership, "Can take back ownership"),
+            (&self.slippage_modifiable, "Tax modifiable"),
+            (
+                &self.personal_slippage_modifiable,
+                "Per-address tax modifiable",
+            ),
+            (&self.trading_cooldown, "Trading cooldown"),
+            (&self.anti_whale_modifiable, "Anti-whale modifiable"),
+            (&self.external_call, "External call"),
+        ];
+        for (value, label) in flags {
+            if Self::parse_bool(value.as_ref()) {
+                issues.push(label.to_string());
+            }
+        }
+        let creator_honeypots = self
+            .honeypot_with_same_creator
+            .as_deref()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(0);
+        if creator_honeypots > 0 {
+            issues.push(format!(
+                "Creator has deployed {creator_honeypots} honeypot(s)"
+            ));
+        }
+        if self.is_open_source.as_deref() == Some("0") {
+            issues.push("Not open source".to_string());
         }
 
         issues
@@ -444,9 +493,13 @@ pub type AddressSecurityResponse = HashMap<String, AddressSecurity>;
 /// Address security information (malicious address detection)
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct AddressSecurity {
-    /// Whether the address is a contract
+    /// Whether the address is a contract (not part of the documented
+    /// response; see `contract_address`)
     #[serde(default)]
     pub is_contract: Option<String>,
+    /// Whether the address is a contract ("1" = contract)
+    #[serde(default)]
+    pub contract_address: Option<String>,
     /// Cybercrime involvement
     #[serde(default)]
     pub cybercrime: Option<String>,
@@ -489,6 +542,18 @@ pub struct AddressSecurity {
     /// Honeypot related address
     #[serde(default)]
     pub honeypot_related_address: Option<String>,
+    /// Has deployed contracts with fake standard interfaces
+    #[serde(default)]
+    pub fake_standard_interface: Option<String>,
+    /// Has deployed fake tokens
+    #[serde(default)]
+    pub fake_token: Option<String>,
+    /// Gas abuse activities
+    #[serde(default)]
+    pub gas_abuse: Option<String>,
+    /// Has deployed contracts that can be re-initialized
+    #[serde(default)]
+    pub reinit: Option<String>,
     /// Data source
     pub data_source: Option<String>,
 }
@@ -498,48 +563,76 @@ impl AddressSecurity {
         value.is_some_and(|v| v == "1")
     }
 
+    /// Flags that mark the address itself as malicious
+    fn malicious_flags(&self) -> [(&Option<String>, &'static str); 10] {
+        [
+            (&self.cybercrime, "Cybercrime"),
+            (&self.money_laundering, "Money laundering"),
+            (&self.financial_crime, "Financial crime"),
+            (&self.phishing_activities, "Phishing"),
+            (&self.stealing_attack, "Stealing attack"),
+            (&self.sanctioned, "Sanctioned"),
+            (&self.honeypot_related_address, "Honeypot related"),
+            (&self.blackmail_activities, "Blackmail"),
+            (&self.fake_kyc, "Fake KYC"),
+            (&self.malicious_mining_activities, "Malicious mining"),
+        ]
+    }
+
+    /// Other documented risk flags
+    fn risk_flags(&self) -> [(&Option<String>, &'static str); 7] {
+        [
+            (&self.darkweb_transactions, "Darkweb transactions"),
+            (&self.mixer, "Mixer usage"),
+            (&self.blacklist_doubt, "Suspected blacklist"),
+            (&self.fake_token, "Fake token deployer"),
+            (
+                &self.fake_standard_interface,
+                "Fake standard interface deployer",
+            ),
+            (&self.gas_abuse, "Gas abuse"),
+            (&self.reinit, "Re-initializable contract deployer"),
+        ]
+    }
+
+    /// Number of malicious contracts created by this address
+    #[must_use]
+    pub fn malicious_contracts_created(&self) -> u64 {
+        self.number_of_malicious_contracts_created
+            .as_deref()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0)
+    }
+
+    /// Check if the address is a contract
+    #[must_use]
+    pub fn is_contract_address(&self) -> bool {
+        Self::parse_bool(self.contract_address.as_ref())
+            || Self::parse_bool(self.is_contract.as_ref())
+    }
+
     /// Check if address is flagged as malicious
     #[must_use]
     pub fn is_malicious(&self) -> bool {
-        Self::parse_bool(self.cybercrime.as_ref())
-            || Self::parse_bool(self.money_laundering.as_ref())
-            || Self::parse_bool(self.financial_crime.as_ref())
-            || Self::parse_bool(self.phishing_activities.as_ref())
-            || Self::parse_bool(self.stealing_attack.as_ref())
-            || Self::parse_bool(self.sanctioned.as_ref())
-            || Self::parse_bool(self.honeypot_related_address.as_ref())
+        self.malicious_flags()
+            .iter()
+            .any(|(v, _)| Self::parse_bool(v.as_ref()))
+            || self.malicious_contracts_created() > 0
     }
 
     /// Get list of detected issues
     #[must_use]
     pub fn get_issues(&self) -> Vec<String> {
-        let mut issues = Vec::new();
-        if Self::parse_bool(self.cybercrime.as_ref()) {
-            issues.push("Cybercrime".to_string());
-        }
-        if Self::parse_bool(self.money_laundering.as_ref()) {
-            issues.push("Money laundering".to_string());
-        }
-        if Self::parse_bool(self.financial_crime.as_ref()) {
-            issues.push("Financial crime".to_string());
-        }
-        if Self::parse_bool(self.phishing_activities.as_ref()) {
-            issues.push("Phishing".to_string());
-        }
-        if Self::parse_bool(self.stealing_attack.as_ref()) {
-            issues.push("Stealing attack".to_string());
-        }
-        if Self::parse_bool(self.sanctioned.as_ref()) {
-            issues.push("Sanctioned".to_string());
-        }
-        if Self::parse_bool(self.honeypot_related_address.as_ref()) {
-            issues.push("Honeypot related".to_string());
-        }
-        if Self::parse_bool(self.mixer.as_ref()) {
-            issues.push("Mixer usage".to_string());
-        }
-        if Self::parse_bool(self.darkweb_transactions.as_ref()) {
-            issues.push("Darkweb transactions".to_string());
+        let mut issues: Vec<String> = self
+            .malicious_flags()
+            .iter()
+            .chain(self.risk_flags().iter())
+            .filter(|(v, _)| Self::parse_bool(v.as_ref()))
+            .map(|(_, label)| (*label).to_string())
+            .collect();
+        let created = self.malicious_contracts_created();
+        if created > 0 {
+            issues.push(format!("Created {created} malicious contract(s)"));
         }
         issues
     }
@@ -791,5 +884,114 @@ impl ApprovalSecurity {
     #[must_use]
     pub fn is_doubtful(&self) -> bool {
         self.doubt_list == Some(1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn token_issues_include_documented_flags() {
+        let token: TokenSecurity = serde_json::from_value(serde_json::json!({
+            "selfdestruct": "1",
+            "can_take_back_ownership": "1",
+            "slippage_modifiable": "1",
+            "personal_slippage_modifiable": "1",
+            "trading_cooldown": "1",
+            "anti_whale_modifiable": "1",
+            "external_call": "1",
+            "honeypot_with_same_creator": "2",
+            "is_true_token": "0",
+            "is_open_source": "0",
+            "buy_tax": "0.25",
+            "sell_tax": "0.01"
+        }))
+        .unwrap();
+        let issues = token.get_issues();
+        for expected in [
+            "Can self-destruct",
+            "Can take back ownership",
+            "Tax modifiable",
+            "Per-address tax modifiable",
+            "Trading cooldown",
+            "Anti-whale modifiable",
+            "External call",
+            "Creator has deployed 2 honeypot(s)",
+            "Fake token",
+            "Not open source",
+            "High buy tax (25%)",
+        ] {
+            assert!(issues.iter().any(|i| i == expected), "missing {expected}");
+        }
+        assert!(token.is_fake_token());
+        assert!(token.has_major_risks());
+    }
+
+    #[test]
+    fn clean_token_has_no_issues() {
+        let token: TokenSecurity = serde_json::from_value(serde_json::json!({
+            "is_open_source": "1",
+            "selfdestruct": "0",
+            "honeypot_with_same_creator": "0",
+            "is_true_token": "1",
+            "buy_tax": "0",
+            "sell_tax": "0"
+        }))
+        .unwrap();
+        assert!(token.get_issues().is_empty());
+        assert!(!token.has_major_risks());
+    }
+
+    #[test]
+    fn address_issues_include_documented_flags() {
+        let addr: AddressSecurity = serde_json::from_value(serde_json::json!({
+            "contract_address": "1",
+            "blackmail_activities": "1",
+            "fake_kyc": "1",
+            "malicious_mining_activities": "1",
+            "blacklist_doubt": "1",
+            "fake_token": "1",
+            "fake_standard_interface": "1",
+            "gas_abuse": "1",
+            "reinit": "1",
+            "number_of_malicious_contracts_created": "3",
+            "cybercrime": "0",
+            "data_source": ""
+        }))
+        .unwrap();
+        assert!(addr.is_contract_address());
+        assert!(addr.is_malicious());
+        let issues = addr.get_issues();
+        for expected in [
+            "Blackmail",
+            "Fake KYC",
+            "Malicious mining",
+            "Suspected blacklist",
+            "Fake token deployer",
+            "Fake standard interface deployer",
+            "Gas abuse",
+            "Re-initializable contract deployer",
+            "Created 3 malicious contract(s)",
+        ] {
+            assert!(issues.iter().any(|i| i == expected), "missing {expected}");
+        }
+        assert!(!issues.iter().any(|i| i == "Cybercrime"));
+    }
+
+    #[test]
+    fn malicious_contract_count_alone_is_malicious() {
+        let addr: AddressSecurity = serde_json::from_value(serde_json::json!({
+            "number_of_malicious_contracts_created": "1"
+        }))
+        .unwrap();
+        assert!(addr.is_malicious());
+        let clean: AddressSecurity = serde_json::from_value(serde_json::json!({
+            "number_of_malicious_contracts_created": "0",
+            "mixer": "0"
+        }))
+        .unwrap();
+        assert!(!clean.is_malicious());
+        assert!(clean.get_issues().is_empty());
     }
 }
