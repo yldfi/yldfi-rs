@@ -9,7 +9,7 @@
 use crate::cli::OutputFormat;
 use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
-use pyth::{feed_ids, Client, Config};
+use pythc::{feed_ids, Client, Config};
 use secrecy::ExposeSecret;
 
 /// Help text shown when a Pyth API key is required but not configured.
@@ -30,14 +30,14 @@ pub fn resolve_api_key(config: Option<&ConfigFile>) -> Option<String> {
         .and_then(|c| c.pyth.as_ref())
         .and_then(|p| non_empty(p.api_key.expose_secret()))
         .or_else(|| {
-            std::env::var(pyth::API_KEY_ENV_VAR)
+            std::env::var(pythc::API_KEY_ENV_VAR)
                 .ok()
                 .and_then(|k| non_empty(&k))
         })
 }
 
 /// Build a Pyth Hermes client, attaching the API key when one is available.
-pub fn build_client(api_key: Option<String>) -> pyth::Result<Client> {
+pub fn build_client(api_key: Option<String>) -> pythc::Result<Client> {
     Client::with_config(Config::mainnet().with_optional_api_key(api_key))
 }
 
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn blank_config_key_falls_back_to_env() {
         let cfg = config_with_key("   ");
-        let env = std::env::var(pyth::API_KEY_ENV_VAR)
+        let env = std::env::var(pythc::API_KEY_ENV_VAR)
             .ok()
             .map(|k| k.trim().to_string())
             .filter(|k| !k.is_empty());
