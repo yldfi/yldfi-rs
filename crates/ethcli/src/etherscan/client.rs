@@ -257,6 +257,9 @@ impl Client {
     /// Checks cache first, then queries 4byte.directory.
     /// Returns the first (most popular) result.
     pub async fn lookup_selector(&self, selector: &str) -> Option<String> {
+        if let Some(sig) = self.cache.get_function(&normalize_hex_selector(selector)) {
+            return Some(sig);
+        }
         self.lookup_selector_all(selector)
             .await
             .and_then(|v| v.into_iter().next())
@@ -354,6 +357,9 @@ impl Client {
     /// Checks cache first, then queries 4byte.directory.
     /// Returns the first (most popular) result.
     pub async fn lookup_event(&self, topic0: &str) -> Option<String> {
+        if let Some(sig) = self.cache.get_event(&normalize_hex_selector(topic0)) {
+            return Some(sig);
+        }
         self.lookup_event_all(topic0)
             .await
             .and_then(|v| v.into_iter().next())
