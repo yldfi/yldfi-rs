@@ -456,8 +456,13 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
 
     let config = builder.build()?;
 
-    // Create output writer early for streaming mode
-    let mut writer = ethcli::create_writer(format, args.output.as_deref())?;
+    // Create output writer early for streaming mode. A resumed run appends:
+    // truncating would drop the results of the checkpointed ranges.
+    let mut writer = if args.resume {
+        ethcli::output::create_resume_writer(format, args.output.as_deref())?
+    } else {
+        ethcli::create_writer(format, args.output.as_deref())?
+    };
 
     if !cli.quiet {
         eprintln!("Connecting to {} endpoints...", chain.display_name());
