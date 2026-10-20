@@ -695,39 +695,54 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                 eprintln!("Comparing {} prices across exchanges...", symbol);
             }
 
-            let mut results: Vec<TickerOutput> = Vec::new();
-
-            // Fetch from each exchange, collecting successes
-            macro_rules! try_fetch {
-                ($exchange_type:ty, $name:expr, $id:expr) => {{
-                    match <$exchange_type>::builder().build() {
-                        Ok(exchange) => {
-                            if exchange.load_markets(false).await.is_ok() {
-                                if let Ok(t) = ExchangeTrait::fetch_ticker(&exchange, symbol).await
-                                {
-                                    results.push(TickerOutput {
-                                        exchange: $name.to_string(),
-                                        symbol: t.symbol.to_string(),
-                                        last: t.last.map(|p| p.to_string()),
-                                        bid: t.bid.map(|p| p.to_string()),
-                                        ask: t.ask.map(|p| p.to_string()),
-                                        high: t.high.map(|p| p.to_string()),
-                                        low: t.low.map(|p| p.to_string()),
-                                        volume: t.base_volume.map(|v| v.to_string()),
-                                        change_24h: t.percentage.map(|p| format_change_pct($id, p)),
-                                        timestamp: t.timestamp,
-                                    });
-                                }
-                            }
-                        }
-                        Err(_) => {}
+            // Fetch from each exchange in parallel
+            macro_rules! fetch {
+                ($exchange_type:ty, $id:expr) => {
+                    async {
+                        let exchange = <$exchange_type>::builder()
+                            .build()
+                            .map_err(|e| e.to_string())?;
+                        exchange
+                            .load_markets(false)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let t = ExchangeTrait::fetch_ticker(&exchange, symbol)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        Ok::<_, String>(TickerOutput {
+                            exchange: $id.to_string(),
+                            symbol: t.symbol.to_string(),
+                            last: t.last.map(|p| p.to_string()),
+                            bid: t.bid.map(|p| p.to_string()),
+                            ask: t.ask.map(|p| p.to_string()),
+                            high: t.high.map(|p| p.to_string()),
+                            low: t.low.map(|p| p.to_string()),
+                            volume: t.base_volume.map(|v| v.to_string()),
+                            change_24h: t.percentage.map(|p| format_change_pct($id, p)),
+                            timestamp: t.timestamp,
+                        })
                     }
-                }};
+                };
             }
 
-            try_fetch!(Binance, "binance", ExchangeId::Binance);
-            try_fetch!(Bitget, "bitget", ExchangeId::Bitget);
-            try_fetch!(Okx, "okx", ExchangeId::Okx);
+            let (binance, bitget, okx) = tokio::join!(
+                fetch!(Binance, ExchangeId::Binance),
+                fetch!(Bitget, ExchangeId::Bitget),
+                fetch!(Okx, ExchangeId::Okx),
+            );
+
+            // Report failures instead of silently dropping the exchange
+            let mut results: Vec<TickerOutput> = Vec::new();
+            for (name, result) in [("binance", binance), ("bitget", bitget), ("okx", okx)] {
+                match result {
+                    Ok(t) => results.push(t),
+                    Err(e) => eprintln!("Warning: {} failed: {}", name, e),
+                }
+            }
+            if results.is_empty() {
+                anyhow::bail!("No exchange returned a ticker for {}", symbol);
+            }
+
             // Hyperliquid is skipped: see HYPERLIQUID_UNSUPPORTED.
             if !quiet {
                 eprintln!("Note: hyperliquid skipped ({})", HYPERLIQUID_UNSUPPORTED);
