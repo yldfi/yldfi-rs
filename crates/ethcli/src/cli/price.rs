@@ -143,14 +143,16 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
     // Regular token price query
     // If symbol provided, optionally resolve to address for some sources
     let token_for_query = if !is_token_address(token) {
-        // Check if we should convert to address for better multi-source support
-        if let Some(addr) = symbol_to_eth_address(token) {
-            if !quiet {
-                eprintln!("Resolved {} to {} on ethereum", token, addr);
+        // Resolve the symbol on the requested chain: a mainnet address
+        // queried on another chain prices a different (or no) token
+        match symbol_address_on_chain(token, chain) {
+            Some(addr) => {
+                if !quiet {
+                    eprintln!("Resolved {} to {} on {}", token, addr, chain);
+                }
+                addr
             }
-            addr.to_string()
-        } else {
-            token.clone()
+            None => token.clone(),
         }
     } else {
         token.clone()
@@ -343,5 +345,30 @@ mod tests {
             SourceResult::success("gecko", NormalizedPrice::new(2690.0), 5),
         ];
         assert!(no_price_error("ETH", "ethereum", &sources).is_none());
+    }
+}
+
+/// Address of a well-known token symbol on `chain`, if known there. Native
+/// symbols (ETH, MATIC, ...) stay symbols: every source prices them by name.
+fn symbol_address_on_chain(symbol: &str, chain: &str) -> Option<String> {
+    let chain_id = crate::aggregator::chain_name_to_id(chain)?;
+    if chain_id == 1 {
+        return symbol_to_eth_address(symbol).map(String::from);
+    }
+    crate::aggregator::swap::tokens::resolve_token(symbol, chain_id)
+        .ok()
+        .filter(|addr| !addr.eq_ignore_ascii_case(crate::aggregator::swap::NATIVE_TOKEN))
+}
+
+#[cfg(test)]
+mod symbol_tests {
+    use super::symbol_address_on_chain;
+
+    #[test]
+    fn symbols_resolve_on_the_requested_chain() {
+        let mainnet = symbol_address_on_chain("USDC", "ethereum").unwrap();
+        let polygon = symbol_address_on_chain("USDC", "polygon");
+        assert_ne!(Some(mainnet), polygon);
+        assert_eq!(symbol_address_on_chain("ETH", "arbitrum"), None);
     }
 }
