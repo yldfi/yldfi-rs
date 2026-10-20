@@ -193,10 +193,11 @@ impl MulticallResult {
 
             if offset == 32 && data.len() >= 64 {
                 let length_bytes: [u8; 8] = data[56..64].try_into().ok()?;
-                let length = u64::from_be_bytes(length_bytes) as usize;
-
-                if data.len() >= 64 + length {
-                    let string_data = &data[64..64 + length];
+                // Untrusted token data: a huge length must not overflow or
+                // slice past the end (with panic = "abort" that kills the CLI)
+                let length = usize::try_from(u64::from_be_bytes(length_bytes)).ok()?;
+                let end = 64usize.checked_add(length)?;
+                if let Some(string_data) = data.get(64..end) {
                     return String::from_utf8(string_data.to_vec()).ok();
                 }
             }
@@ -255,5 +256,35 @@ pub mod selectors {
         data.extend_from_slice(&[0u8; 12]);
         data.extend_from_slice(address.as_slice());
         Bytes::from(data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_string_rejects_a_huge_length_without_panicking() {
+        let mut data = vec![0u8; 64];
+        data[31] = 0x20; // offset 32
+        data[56..64].copy_from_slice(&u64::MAX.to_be_bytes()); // length 2^64-1
+        let result = MulticallResult {
+            success: true,
+            data: data.into(),
+        };
+        assert_eq!(result.decode_string(), None);
+    }
+
+    #[test]
+    fn decode_string_reads_an_abi_string() {
+        let mut data = vec![0u8; 96];
+        data[31] = 0x20;
+        data[63] = 4;
+        data[64..68].copy_from_slice(b"USDC");
+        let result = MulticallResult {
+            success: true,
+            data: data.into(),
+        };
+        assert_eq!(result.decode_string().as_deref(), Some("USDC"));
     }
 }
