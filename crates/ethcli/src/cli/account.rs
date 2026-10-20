@@ -275,8 +275,7 @@ pub async fn handle(
 
     match action {
         AccountCommands::Info { address, output } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching account info for {}...", address);
@@ -526,8 +525,7 @@ pub async fn handle(
                 *start_block <= end_block,
                 "start-block must not exceed end-block"
             );
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching transactions for {}...", address);
@@ -619,8 +617,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching internal transactions for {}...", address);
@@ -678,8 +675,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching ERC20 transfers for {}...", address);
@@ -747,8 +743,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching ERC721 transfers for {}...", address);
@@ -816,8 +811,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching ERC1155 transfers for {}...", address);
@@ -883,8 +877,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching mined blocks for {}...", address);
