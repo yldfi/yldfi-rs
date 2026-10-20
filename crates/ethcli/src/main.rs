@@ -1712,8 +1712,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 .as_ref()
                 .map(|c| c.parse())
                 .transpose()
-                .ok()
-                .flatten();
+                .map_err(|e| anyhow::anyhow!("Invalid --chain: {e}"))?;
 
             // Filter endpoints by chain if specified
             let endpoints: Vec<_> = config
@@ -1738,44 +1737,44 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 probes
             );
 
-            for ep_config in &endpoints {
-                let url = &ep_config.url;
-
-                for _ in 0..*probes {
-                    let start = Instant::now();
-
-                    // Use a simple RPC call to test connectivity
-                    let url_parsed: reqwest::Url = url
-                        .parse()
-                        .unwrap_or_else(|_| "http://localhost:8545".parse().unwrap());
+            // Endpoints are probed concurrently; each endpoint's probes run in
+            // sequence so they don't rate-limit themselves
+            let probe_endpoint = |url: String| {
+                let health_tracker = health_tracker.clone();
+                async move {
+                    // An unparsable URL is a failed endpoint, not localhost
+                    let Ok(url_parsed) = url.parse::<reqwest::Url>() else {
+                        for _ in 0..*probes {
+                            health_tracker.record_failure(&url, false, false);
+                        }
+                        return;
+                    };
                     let provider = ProviderBuilder::new().connect_http(url_parsed);
-
-                    let result = tokio::time::timeout(
-                        std::time::Duration::from_secs(10),
-                        provider.get_block_number(),
-                    )
-                    .await;
-                    match result {
-                        Ok(Ok(_)) => {
-                            let latency = start.elapsed();
-                            health_tracker.record_success(url, latency);
+                    for _ in 0..*probes {
+                        let start = Instant::now();
+                        let result = tokio::time::timeout(
+                            std::time::Duration::from_secs(10),
+                            provider.get_block_number(),
+                        )
+                        .await;
+                        match result {
+                            Ok(Ok(_)) => health_tracker.record_success(&url, start.elapsed()),
+                            Err(_) => health_tracker.record_failure(&url, false, true),
+                            Ok(Err(e)) => {
+                                let err_str = e.to_string();
+                                let is_timeout = err_str.contains("timeout");
+                                let is_rate_limit =
+                                    err_str.contains("429") || err_str.contains("rate limit");
+                                health_tracker.record_failure(&url, is_rate_limit, is_timeout);
+                            }
                         }
-                        Err(_) => {
-                            health_tracker.record_failure(url, false, true);
-                        }
-                        Ok(Err(e)) => {
-                            let err_str = e.to_string();
-                            let is_timeout = err_str.contains("timeout");
-                            let is_rate_limit =
-                                err_str.contains("429") || err_str.contains("rate limit");
-                            health_tracker.record_failure(url, is_rate_limit, is_timeout);
-                        }
+                        // Small delay between probes
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                     }
-
-                    // Small delay between probes
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 }
-            }
+            };
+            futures::future::join_all(endpoints.iter().map(|e| probe_endpoint(e.url.clone())))
+                .await;
 
             // Collect and display health data
             let all_health = health_tracker.get_all_health();
