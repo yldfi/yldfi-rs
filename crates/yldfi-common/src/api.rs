@@ -116,7 +116,13 @@ pub fn join_url(base: &str, path: &str) -> String {
 pub fn sanitize_error_body(body: &str) -> String {
     // Truncate if too long
     let truncated = if body.len() > MAX_ERROR_BODY_LENGTH {
-        format!("{}... (truncated)", &body[..MAX_ERROR_BODY_LENGTH])
+        // Back up to a char boundary so a multi-byte character straddling the
+        // limit doesn't make the slice panic.
+        let mut end = MAX_ERROR_BODY_LENGTH;
+        while !body.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}... (truncated)", &body[..end])
     } else {
         body.to_string()
     };
@@ -146,7 +152,7 @@ pub fn sanitize_error_body(body: &str) -> String {
         // Track search position to avoid infinite loop
         let mut search_from = 0;
         loop {
-            let lowercase = result.to_lowercase();
+            let lowercase = result.to_ascii_lowercase();
             // Search only from current position forward
             if let Some(relative_pos) = lowercase[search_from..].find(pattern) {
                 let start = search_from + relative_pos;
@@ -182,7 +188,7 @@ pub fn sanitize_error_body(body: &str) -> String {
     // Redact ALL Bearer tokens (LOW-002 fix: loop for multiple occurrences)
     let mut search_from = 0;
     loop {
-        let lowercase = result.to_lowercase();
+        let lowercase = result.to_ascii_lowercase();
         if let Some(relative_pos) = lowercase[search_from..].find("bearer ") {
             let start = search_from + relative_pos;
             let token_start = start + 7;
@@ -215,7 +221,7 @@ pub fn sanitize_error_body(body: &str) -> String {
     ] {
         let mut search_from = 0;
         loop {
-            let lowercase = result.to_lowercase();
+            let lowercase = result.to_ascii_lowercase();
             if let Some(relative_pos) = lowercase[search_from..].find(header_pattern) {
                 let start = search_from + relative_pos;
                 let value_start = start + header_pattern.len();
@@ -275,7 +281,7 @@ pub fn sanitize_error_body(body: &str) -> String {
         // Track search position to avoid infinite loop
         let mut search_from = 0;
         loop {
-            let lowercase = result.to_lowercase();
+            let lowercase = result.to_ascii_lowercase();
             // Search only from the current position forward
             if let Some(relative_pos) = lowercase[search_from..].find(json_key) {
                 let key_start = search_from + relative_pos;
@@ -341,8 +347,8 @@ pub fn sanitize_error_body(body: &str) -> String {
         let after_0x = abs_pos + 2;
 
         // Check if followed by exactly 64 hex characters
-        if after_0x + 64 <= result.len() {
-            let potential_key = &result[after_0x..after_0x + 64];
+        // `get` returns None if the window ends inside a multi-byte char
+        if let Some(potential_key) = result.get(after_0x..after_0x + 64) {
             if potential_key.chars().all(|c| c.is_ascii_hexdigit()) {
                 // Check it's not followed by more hex (could be longer hash)
                 let is_exact_64 = after_0x + 64 >= result.len()
@@ -1326,6 +1332,29 @@ mod tests {
         let sanitized = super::sanitize_error_body(&long_body);
         assert!(sanitized.len() < 600); // Should be truncated with "... (truncated)"
         assert!(sanitized.ends_with("... (truncated)"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_truncation_multibyte_boundary() {
+        // '€' is 3 bytes; the one starting at byte 499 straddles the 500-byte limit
+        let body = format!("{}{}", "a".repeat(499), "€".repeat(5));
+        let sanitized = super::sanitize_error_body(&body);
+        assert_eq!(sanitized, format!("{}... (truncated)", "a".repeat(499)));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_unicode_lowercase_length_change() {
+        // 'İ' (2 bytes) lowercases to 3 bytes, which used to misalign the
+        // offsets found in the lowercased copy
+        let body = format!("{}token=secret123", "İ".repeat(10));
+        let sanitized = super::sanitize_error_body(&body);
+        assert!(!sanitized.contains("secret123"), "{sanitized}");
+    }
+
+    #[test]
+    fn test_sanitize_error_body_hex_window_ends_mid_char() {
+        let body = format!("0x{}é", "a".repeat(63));
+        assert_eq!(super::sanitize_error_body(&body), body);
     }
 
     #[test]
