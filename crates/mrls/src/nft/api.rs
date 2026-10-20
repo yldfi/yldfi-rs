@@ -2,8 +2,9 @@
 
 use super::types::{
     GetMultipleCollectionsRequest, GetMultipleNftsRequest, HistoricalFloorPrice, Nft,
-    NftCollection, NftCollectionStats, NftFloorPrice, NftOwner, NftResponse, NftSalePrices,
-    NftSyncStatus, NftTrade, NftTrait, NftTransfer, NftsByTraitsRequest, TraitResyncStatus,
+    NftCollection, NftCollectionStats, NftCollectionTraits, NftFloorPrice, NftOwner, NftResponse,
+    NftSalePrices, NftSyncStatus, NftTrade, NftTrait, NftTraitGroup, NftTransfer,
+    NftsByTraitsRequest, TraitResyncStatus,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -303,14 +304,15 @@ impl<'a> NftApi<'a> {
         &self,
         contract: &str,
         chain: Option<&str>,
-    ) -> Result<Vec<NftTrait>> {
+    ) -> Result<Vec<NftTraitGroup>> {
         let path = format!("/nft/{contract}/traits");
-        if let Some(chain) = chain {
+        let response: NftCollectionTraits = if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
+            self.client.get_with_query(&path, &query).await?
         } else {
-            self.client.get(&path).await
-        }
+            self.client.get(&path).await?
+        };
+        Ok(response.traits)
     }
 
     /// Get collection traits with pagination
@@ -414,12 +416,12 @@ impl<'a> NftApi<'a> {
         chain: Option<&str>,
     ) -> Result<NftSyncStatus> {
         let body = serde_json::json!({});
-        let path = if let Some(c) = chain {
-            format!("/nft/{contract}/sync?chain={c}")
-        } else {
-            format!("/nft/{contract}/sync")
+        let path = format!("/nft/{contract}/sync");
+        let query = NftQuery {
+            chain: chain.map(str::to_string),
+            ..NftQuery::default()
         };
-        self.client.put(&path, &body).await
+        self.client.put_with_query(&path, &body, &query).await
     }
 
     /// Get NFTs by contract address

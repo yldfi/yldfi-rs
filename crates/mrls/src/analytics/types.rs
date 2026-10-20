@@ -56,26 +56,34 @@ pub struct TokenAnalyticsInput {
     pub chain: String,
 }
 
-/// Batch token analytics result
+/// Batch token analytics result (same shape as the single-token analytics)
+pub type BatchAnalyticsResult = crate::discovery::TokenAnalytics;
+
+/// Batch token analytics response
+///
+/// The spec wraps the items in `categories`; a bare array is accepted too.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchAnalyticsResult {
-    /// Token address
-    pub token_address: Option<String>,
-    /// Chain
-    pub chain: Option<String>,
-    /// Total buyers
-    pub total_buyers: Option<i64>,
-    /// Total sellers
-    pub total_sellers: Option<i64>,
-    /// Net buyers
-    pub net_buyers: Option<i64>,
-    /// Buy volume USD
-    pub buy_volume_usd: Option<f64>,
-    /// Sell volume USD
-    pub sell_volume_usd: Option<f64>,
-    /// Experienced buyers count
-    pub experienced_buyers: Option<i64>,
+#[serde(untagged)]
+pub enum BatchAnalyticsResponse {
+    /// `{"categories": [...]}` (spec shape)
+    Wrapped {
+        /// Analytics, one entry per token
+        #[serde(default)]
+        categories: Vec<BatchAnalyticsResult>,
+    },
+    /// Bare array
+    List(Vec<BatchAnalyticsResult>),
+}
+
+impl BatchAnalyticsResponse {
+    /// The analytics entries
+    #[must_use]
+    pub fn into_results(self) -> Vec<BatchAnalyticsResult> {
+        match self {
+            Self::Wrapped { categories } => categories,
+            Self::List(list) => list,
+        }
+    }
 }
 
 /// Request body for analytics timeseries
@@ -104,6 +112,23 @@ mod tests {
             serde_json::to_value(&req).unwrap(),
             serde_json::json!({"tokens": [{"tokenAddress": "0xtoken", "chain": "eth"}]})
         );
+    }
+
+    #[test]
+    fn test_batch_response_accepts_categories_and_bare_array() {
+        let item = r#"{"chainId": "0x1", "totalBuyVolume": {"24h": 100}, "usdPrice": "2"}"#;
+        let wrapped: BatchAnalyticsResponse =
+            serde_json::from_str(&format!(r#"{{"categories": [{item}]}}"#)).unwrap();
+        let wrapped = wrapped.into_results();
+        assert_eq!(wrapped.len(), 1);
+        assert_eq!(wrapped[0].usd_price, Some(2.0));
+        assert_eq!(
+            wrapped[0].total_buy_volume.as_ref().unwrap().h24,
+            Some(100.0)
+        );
+
+        let bare: BatchAnalyticsResponse = serde_json::from_str(&format!("[{item}]")).unwrap();
+        assert_eq!(bare.into_results()[0].chain_id.as_deref(), Some("0x1"));
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 use super::types::{
     AnalyticsTimeseries, AnalyticsTimeseriesRequest, AnalyticsTimeseriesResponse,
-    BatchAnalyticsRequest, BatchAnalyticsResult,
+    BatchAnalyticsRequest, BatchAnalyticsResponse, BatchAnalyticsResult,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -85,7 +85,9 @@ impl<'a> AnalyticsApi<'a> {
         &self,
         request: &BatchAnalyticsRequest,
     ) -> Result<Vec<BatchAnalyticsResult>> {
-        self.client.post("/tokens/analytics", request).await
+        let response: BatchAnalyticsResponse =
+            self.client.post("/tokens/analytics", request).await?;
+        Ok(response.into_results())
     }
 }
 

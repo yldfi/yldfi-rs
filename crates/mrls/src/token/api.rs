@@ -162,15 +162,17 @@ impl<'a> TokenApi<'a> {
 
     /// Get token metadata
     pub async fn get_metadata(&self, address: &str, chain: Option<&str>) -> Result<TokenMetadata> {
-        // Build query string manually — Moralis expects `addresses` as a query param
-        // and reqwest 0.12's .query() can reject certain serialization patterns
-        let path = if let Some(chain) = chain {
-            format!("/erc20/metadata?addresses={address}&chain={chain}")
-        } else {
-            format!("/erc20/metadata?addresses={address}")
-        };
+        // `addresses` is an array param; a single value is sent as a plain
+        // pair. A pair list lets reqwest URL-encode the values.
+        let mut query = vec![("addresses", address)];
+        if let Some(chain) = chain {
+            query.push(("chain", chain));
+        }
 
-        let results: Vec<TokenMetadata> = self.client.get(&path).await?;
+        let results: Vec<TokenMetadata> = self
+            .client
+            .get_with_query("/erc20/metadata", &query)
+            .await?;
         results
             .into_iter()
             .next()

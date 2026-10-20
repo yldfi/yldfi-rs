@@ -82,53 +82,30 @@ pub struct ContractEventsResponse {
     pub result: Vec<ContractEvent>,
 }
 
-/// Contract review request
+/// Contract review request (`POST /contracts-review`): report contracts as
+/// spam or not spam
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractReviewRequest {
-    /// Contract addresses to review
+    /// Contracts to report
     pub contracts: Vec<ContractInput>,
 }
 
-/// Contract input for review
+/// One contract report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractInput {
     /// Contract address
-    pub address: String,
-    /// Chain (optional)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chain: Option<String>,
+    pub contract_address: String,
+    /// Report type (e.g. `spam`, `not_spam`)
+    pub report_type: String,
+    /// Contract type (e.g. `ERC20`, `NFT`)
+    pub contract_type: String,
+    /// Reason for the report
+    pub reason: String,
 }
 
-/// Contract review result
+/// Contract review response
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ContractReview {
-    /// Contract address
-    pub address: Option<String>,
-    /// Chain
-    pub chain: Option<String>,
-    /// Is verified
-    pub is_verified: Option<bool>,
-    /// Is proxy
-    pub is_proxy: Option<bool>,
-    /// Implementation address (if proxy)
-    pub implementation_address: Option<String>,
-    /// Contract name
-    pub name: Option<String>,
-    /// Has source code
-    pub has_source: Option<bool>,
-    /// Security findings
-    pub security_findings: Option<Vec<SecurityFinding>>,
-}
-
-/// Security finding from contract review
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SecurityFinding {
-    /// Finding type/category
-    pub finding_type: Option<String>,
-    /// Severity level
-    pub severity: Option<String>,
-    /// Description
-    pub description: Option<String>,
+pub struct ContractReviewResponse {
+    /// Confirmation message
+    pub message: Option<String>,
 }

@@ -349,17 +349,53 @@ pub struct NftCollectionStats {
     pub sales_24h: Option<i64>,
 }
 
-/// NFT trait
+/// NFT trait value with its frequency (item of `/nft/{address}/traits/paginate`)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NftTrait {
     /// Trait type
     pub trait_type: Option<String>,
-    /// Value
-    pub value: Option<serde_json::Value>,
-    /// Count
+    /// Trait value
+    #[serde(alias = "value")]
+    pub trait_value: Option<serde_json::Value>,
+    /// Number of NFTs with this value
     pub count: Option<i64>,
-    /// Percentage
+    /// Share of the collection with this value (percent)
+    #[serde(default, deserialize_with = "string_or_f64")]
     pub percentage: Option<f64>,
+    /// Rarity label
+    pub rarity_label: Option<String>,
+}
+
+/// One value of a trait type in `/nft/{address}/traits`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftTraitValue {
+    /// Trait value
+    pub trait_value: Option<serde_json::Value>,
+    /// Number of NFTs with this value
+    pub count: Option<i64>,
+    /// Share of the collection with this value (percent)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub percentage: Option<f64>,
+    /// Rarity label
+    pub rarity_label: Option<String>,
+}
+
+/// A trait type and its values in `/nft/{address}/traits`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftTraitGroup {
+    /// Trait type
+    pub trait_type: Option<String>,
+    /// Values of this trait type
+    #[serde(default)]
+    pub values: Vec<NftTraitValue>,
+}
+
+/// Response of `/nft/{address}/traits`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftCollectionTraits {
+    /// Trait types
+    #[serde(default)]
+    pub traits: Vec<NftTraitGroup>,
 }
 
 /// Paginated NFT response
@@ -542,6 +578,32 @@ pub struct TraitResyncStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn collection_traits_groups_values_by_type() {
+        let json = r#"{"traits": [{
+            "trait_type": "Background",
+            "values": [
+                {"trait_value": "Blue", "count": 12, "percentage": 1.2, "rarity_label": "Top 2%"},
+                {"trait_value": 7, "count": 3, "percentage": "0.3", "rarity_label": "Top 1%"}
+            ]
+        }]}"#;
+        let resp: NftCollectionTraits = serde_json::from_str(json).unwrap();
+        let group = &resp.traits[0];
+        assert_eq!(group.trait_type.as_deref(), Some("Background"));
+        assert_eq!(group.values.len(), 2);
+        assert_eq!(group.values[0].count, Some(12));
+        assert_eq!(group.values[1].percentage, Some(0.3));
+    }
+
+    #[test]
+    fn paginated_trait_uses_trait_value() {
+        let json = r#"{"trait_type": "Hat", "trait_value": "Cap", "count": 5,
+            "percentage": 0.5, "rarity_label": "Top 1%"}"#;
+        let t: NftTrait = serde_json::from_str(json).unwrap();
+        assert_eq!(t.trait_value, Some(serde_json::json!("Cap")));
+        assert_eq!(t.rarity_label.as_deref(), Some("Top 1%"));
+    }
 
     #[test]
     fn test_nft_floor_price_as_string() {

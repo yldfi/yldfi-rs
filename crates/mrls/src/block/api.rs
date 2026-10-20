@@ -10,8 +10,13 @@ use serde::Serialize;
 pub struct BlockQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_transactions: Option<bool>,
+    /// Sent as `include=internal_transactions` when true
+    #[serde(
+        rename = "include",
+        skip_serializing_if = "crate::de::not_true",
+        serialize_with = "crate::de::include_internal_transactions"
+    )]
+    pub include_internal_transactions: Option<bool>,
 }
 
 impl BlockQuery {
@@ -26,9 +31,10 @@ impl BlockQuery {
         self
     }
 
+    /// Include internal transactions (transactions are always returned)
     #[must_use]
-    pub fn include_transactions(mut self, include: bool) -> Self {
-        self.include_transactions = Some(include);
+    pub fn include_internal_transactions(mut self, include: bool) -> Self {
+        self.include_internal_transactions = Some(include);
         self
     }
 }

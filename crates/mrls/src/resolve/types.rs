@@ -37,9 +37,11 @@ pub struct ReverseResolution {
     pub name: Option<String>,
 }
 
-/// Domain lookup response
+/// Domain lookup response (`GET /resolve/{address}/domain` returns `{name}`)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DomainLookup {
+    /// Domain name
+    pub name: Option<String>,
     /// Address
     pub address: Option<String>,
     /// Domains
@@ -53,4 +55,15 @@ pub struct DomainInfo {
     pub name: Option<String>,
     /// Domain type (ENS, Unstoppable, etc)
     pub domain_type: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn domain_lookup_reads_name() {
+        let d: DomainLookup = serde_json::from_str(r#"{"name": "test.crypto"}"#).unwrap();
+        assert_eq!(d.name.as_deref(), Some("test.crypto"));
+    }
 }

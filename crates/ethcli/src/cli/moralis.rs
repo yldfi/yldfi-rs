@@ -578,9 +578,9 @@ pub enum BlockCommands {
         /// Block number or hash
         block_number_or_hash: String,
 
-        /// Include transactions
-        #[arg(long)]
-        include_transactions: bool,
+        /// Include internal transactions (transactions are always returned)
+        #[arg(long, alias = "include-transactions")]
+        include_internal: bool,
     },
 
     /// Get latest block number for a chain
@@ -1488,14 +1488,14 @@ async fn handle_block(
     match action {
         BlockCommands::Get {
             block_number_or_hash,
-            include_transactions,
+            include_internal,
         } => {
             if !quiet {
                 eprintln!("Fetching block {}...", block_number_or_hash);
             }
             let mut query = mrls::BlockQuery::new().chain(&args.chain);
-            if *include_transactions {
-                query = query.include_transactions(true);
+            if *include_internal {
+                query = query.include_internal_transactions(true);
             }
             let response = client
                 .block()
