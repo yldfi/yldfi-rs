@@ -12,12 +12,20 @@ pub enum ExecutionState {
     Executing,
     #[serde(rename = "QUERY_STATE_COMPLETED")]
     Completed,
+    /// Finished, but the result was too large and only a partial result is
+    /// available (fetch it with `allow_partial_results=true`)
+    #[serde(rename = "QUERY_STATE_COMPLETED_PARTIAL")]
+    CompletedPartial,
     #[serde(rename = "QUERY_STATE_FAILED")]
     Failed,
-    #[serde(rename = "QUERY_STATE_CANCELLED")]
+    /// Dune docs spell it `CANCELED`; accept both spellings
+    #[serde(rename = "QUERY_STATE_CANCELLED", alias = "QUERY_STATE_CANCELED")]
     Cancelled,
     #[serde(rename = "QUERY_STATE_EXPIRED")]
     Expired,
+    /// A state this client does not know about
+    #[serde(other)]
+    Unknown,
 }
 
 impl ExecutionState {
@@ -27,16 +35,26 @@ impl ExecutionState {
         matches!(
             self,
             ExecutionState::Completed
+                | ExecutionState::CompletedPartial
                 | ExecutionState::Failed
                 | ExecutionState::Cancelled
                 | ExecutionState::Expired
         )
     }
 
-    /// Check if the execution succeeded
+    /// Check if the execution succeeded (including with partial results)
     #[must_use]
     pub fn is_success(&self) -> bool {
-        matches!(self, ExecutionState::Completed)
+        matches!(
+            self,
+            ExecutionState::Completed | ExecutionState::CompletedPartial
+        )
+    }
+
+    /// Check if only a partial result is available
+    #[must_use]
+    pub fn is_partial(&self) -> bool {
+        matches!(self, ExecutionState::CompletedPartial)
     }
 }
 
@@ -82,35 +100,25 @@ impl ExecuteQueryRequest {
     }
 }
 
-/// Request to execute raw SQL
+/// Request to execute raw SQL (`POST /v1/sql/execute`)
+///
+/// The endpoint takes only `sql` and `performance`; it has no query parameters.
 #[derive(Debug, Clone, Serialize)]
 pub struct ExecuteSqlRequest {
     /// SQL query to execute
-    pub query_sql: String,
-    /// Query parameters
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub query_parameters: Option<HashMap<String, String>>,
-    /// Performance tier
+    pub sql: String,
+    /// Performance tier (medium or large)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub performance: Option<String>,
 }
 
 impl ExecuteSqlRequest {
     #[must_use]
-    pub fn new(query_sql: &str) -> Self {
+    pub fn new(sql: &str) -> Self {
         Self {
-            query_sql: query_sql.to_string(),
-            query_parameters: None,
+            sql: sql.to_string(),
             performance: None,
         }
-    }
-
-    /// Set a query parameter
-    pub fn param(mut self, key: &str, value: &str) -> Self {
-        self.query_parameters
-            .get_or_insert_with(HashMap::new)
-            .insert(key.to_string(), value.to_string());
-        self
     }
 
     /// Set performance tier to large
@@ -298,5 +306,57 @@ impl GetResultsOptions {
         } else {
             format!("?{}", params.join("&"))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn execute_sql_request_uses_spec_field_names() {
+        let body = serde_json::to_value(ExecuteSqlRequest::new("SELECT 1").large()).unwrap();
+        assert_eq!(
+            body,
+            serde_json::json!({"sql": "SELECT 1", "performance": "large"})
+        );
+
+        let body = serde_json::to_value(ExecuteSqlRequest::new("SELECT 1")).unwrap();
+        assert_eq!(body, serde_json::json!({"sql": "SELECT 1"}));
+    }
+
+    #[test]
+    fn execution_state_completed_partial_is_terminal_success() {
+        let state: ExecutionState =
+            serde_json::from_str("\"QUERY_STATE_COMPLETED_PARTIAL\"").unwrap();
+        assert_eq!(state, ExecutionState::CompletedPartial);
+        assert!(state.is_finished());
+        assert!(state.is_success());
+        assert!(state.is_partial());
+        assert!(!ExecutionState::Completed.is_partial());
+    }
+
+    #[test]
+    fn execution_state_cancelled_accepts_both_spellings() {
+        for raw in ["\"QUERY_STATE_CANCELLED\"", "\"QUERY_STATE_CANCELED\""] {
+            let state: ExecutionState = serde_json::from_str(raw).unwrap();
+            assert_eq!(state, ExecutionState::Cancelled);
+        }
+    }
+
+    #[test]
+    fn execution_state_unknown_fallback() {
+        let state: ExecutionState = serde_json::from_str("\"QUERY_STATE_SOMETHING_NEW\"").unwrap();
+        assert_eq!(state, ExecutionState::Unknown);
+        assert!(!state.is_finished());
+        assert!(!state.is_success());
+
+        let status: ExecutionStatus = serde_json::from_value(serde_json::json!({
+            "execution_id": "01TESTEXECUTIONID",
+            "state": "QUERY_STATE_SOMETHING_NEW",
+            "is_execution_finished": false
+        }))
+        .unwrap();
+        assert_eq!(status.state, ExecutionState::Unknown);
     }
 }

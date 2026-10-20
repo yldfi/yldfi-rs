@@ -273,7 +273,12 @@ impl<'a> ExecutionsApi<'a> {
 
             if status.is_execution_finished {
                 if status.state.is_success() {
-                    return self.results(execution_id).await;
+                    // A partial result is only returned when explicitly allowed
+                    let options = GetResultsOptions {
+                        allow_partial_results: status.state.is_partial().then_some(true),
+                        ..GetResultsOptions::default()
+                    };
+                    return self.results_with_options(execution_id, &options).await;
                 } else {
                     let msg = status
                         .error

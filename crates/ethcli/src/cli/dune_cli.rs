@@ -804,9 +804,15 @@ async fn handle_tables(
             }
             let json_data: serde_json::Value = serde_json::from_str(data)
                 .map_err(|e| anyhow::anyhow!("Invalid data JSON: {}", e))?;
+            // The insert endpoint takes NDJSON, so send each row as its own line
+            let rows = match json_data {
+                serde_json::Value::Array(rows) => rows,
+                row @ serde_json::Value::Object(_) => vec![row],
+                _ => anyhow::bail!("Data must be a JSON object or an array of objects"),
+            };
             let response = client
                 .tables()
-                .insert(namespace, table_name, &json_data)
+                .insert_rows(namespace, table_name, &rows)
                 .await?;
             print_output(&response, args.format)?;
         }
