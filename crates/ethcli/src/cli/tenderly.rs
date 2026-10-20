@@ -1945,14 +1945,17 @@ async fn handle_alerts(
             }
             let at: tndrly::alerts::AlertType =
                 alert_type.parse().map_err(|e: String| anyhow::anyhow!(e))?;
-            let target = if addresses.is_empty() {
-                tndrly::alerts::AlertTarget::Project
+            // Without --addresses keep the alert's current target and
+            // addresses; forcing a project target would widen the alert
+            let (target, addresses) = if addresses.is_empty() {
+                let current = client.alerts().get(id).await?;
+                (current.target, current.addresses)
             } else {
-                tndrly::alerts::AlertTarget::Address
+                (tndrly::alerts::AlertTarget::Address, addresses.clone())
             };
             let mut request = tndrly::alerts::CreateAlertRequest::new(name, at, network, target);
             if !addresses.is_empty() {
-                request.addresses = Some(addresses.clone());
+                request.addresses = Some(addresses);
             }
             let result = client.alerts().update(id, &request).await?;
             println!("{}", serde_json::to_string_pretty(&result)?);

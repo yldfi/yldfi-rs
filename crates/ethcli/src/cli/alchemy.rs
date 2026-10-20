@@ -404,8 +404,8 @@ pub enum PortfolioCommands {
     Nfts {
         /// Address to query
         address: String,
-        /// Include NFT metadata
-        #[arg(long, default_value = "true")]
+        /// Include NFT metadata (--with-metadata false to turn it off)
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         with_metadata: bool,
     },
 

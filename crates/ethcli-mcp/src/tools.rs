@@ -2578,7 +2578,10 @@ pub async fn alchemy_portfolio_nfts(
         .network(network)
         .subcommand("nfts")
         .arg(address)
-        .opt_flag("--with-metadata", with_metadata)
+        .opt(
+            "--with-metadata",
+            Some(if with_metadata { "true" } else { "false" }),
+        )
         .execute()
         .await
         .map_err(ToolError::from)
