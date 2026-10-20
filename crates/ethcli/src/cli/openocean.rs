@@ -32,7 +32,7 @@ pub enum OpenOceanCommands {
         out_token: String,
         /// Amount in smallest units (wei)
         amount: String,
-        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, avalanche, fantom, etc.)
+        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, gnosis, sonic, etc.)
         #[arg(long, default_value = "ethereum")]
         chain: String,
         /// Gas price in Gwei
@@ -186,9 +186,11 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
 
 fn chain_name_to_openoc_chain(name: &str) -> anyhow::Result<openoc::Chain> {
     name.parse().map_err(|_| {
+        let supported: Vec<&str> = openoc::Chain::all().iter().map(|c| c.as_str()).collect();
         anyhow::anyhow!(
-            "Unsupported chain: {}. Supported: ethereum, bsc, polygon, arbitrum, optimism, avalanche, fantom, base, gnosis, linea, zksync, scroll, mantle, blast, solana, sui",
-            name
+            "Unsupported chain: {}. Supported: {}",
+            name,
+            supported.join(", ")
         )
     })
 }

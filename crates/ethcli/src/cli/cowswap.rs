@@ -40,7 +40,7 @@ pub enum CowSwapCommands {
         amount: String,
         /// From address (order creator)
         from: String,
-        /// Chain (ethereum, gnosis, arbitrum, sepolia)
+        /// Chain name or ID (ethereum, gnosis, arbitrum, base, polygon, bnb, etc.)
         #[arg(long, default_value = "ethereum")]
         chain: String,
         /// Receiver address (defaults to from address)
@@ -410,9 +410,11 @@ fn paginate(mut query: TradesQuery, offset: Option<u64>, limit: Option<u32>) -> 
 
 fn chain_name_to_cow_chain(name: &str) -> anyhow::Result<cowp::Chain> {
     name.parse().map_err(|_| {
+        let supported: Vec<&str> = cowp::Chain::all().iter().map(|c| c.as_str()).collect();
         anyhow::anyhow!(
-            "Unsupported chain: {}. Supported: ethereum, gnosis, arbitrum, sepolia",
-            name
+            "Unsupported chain: {}. Supported: {}",
+            name,
+            supported.join(", ")
         )
     })
 }

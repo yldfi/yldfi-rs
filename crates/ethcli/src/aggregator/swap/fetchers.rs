@@ -458,16 +458,12 @@ pub async fn fetch_cowswap_quote(
     sender: Option<&str>,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
-    // CowSwap only supports certain chains
     let chain = match cowp::Chain::from_chain_id(chain_id) {
         Some(c) => c,
         None => {
             return SourceResult::error(
                 "cowswap",
-                format!(
-                    "Unsupported chain ID: {} (CowSwap supports Ethereum, Gnosis, Arbitrum)",
-                    chain_id
-                ),
+                format!("Unsupported chain ID: {}", chain_id),
                 measure.elapsed_ms(),
             )
         }

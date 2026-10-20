@@ -32,7 +32,7 @@ pub enum KyberCommands {
         token_out: String,
         /// Amount in smallest units (wei)
         amount_in: String,
-        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, avalanche, linea, etc.)
+        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, sonic, etc.)
         #[arg(long, default_value = "ethereum")]
         chain: String,
         /// Save gas (may reduce output)
@@ -188,9 +188,11 @@ fn extract_route_summary(json: &str) -> anyhow::Result<serde_json::Value> {
 
 fn chain_name_to_kybr_chain(name: &str) -> anyhow::Result<kybr::Chain> {
     name.parse().map_err(|_| {
+        let supported: Vec<&str> = kybr::Chain::all().iter().map(|c| c.as_str()).collect();
         anyhow::anyhow!(
-            "Unsupported chain: {}. Supported: ethereum, bsc, polygon, arbitrum, optimism, avalanche, fantom, base, linea, scroll, zksync, blast, mantle, polygon-zkevm",
-            name
+            "Unsupported chain: {}. Supported: {}",
+            name,
+            supported.join(", ")
         )
     })
 }
