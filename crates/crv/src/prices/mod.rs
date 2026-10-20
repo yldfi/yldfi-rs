@@ -79,11 +79,13 @@ impl PricesClient {
 
     /// Get price history for a token
     ///
+    /// The prices API requires `start` and `end`.
+    ///
     /// # Arguments
     /// * `chain` - Chain name (e.g., "ethereum")
     /// * `address` - Token contract address
-    /// * `start` - Optional start timestamp (unix seconds)
-    /// * `end` - Optional end timestamp (unix seconds)
+    /// * `start` - Start timestamp (unix seconds, default: end - 7 days)
+    /// * `end` - End timestamp (unix seconds, default: now)
     pub async fn get_price_history(
         &self,
         chain: &str,
@@ -91,19 +93,9 @@ impl PricesClient {
         start: Option<u64>,
         end: Option<u64>,
     ) -> Result<serde_json::Value> {
-        let mut path = format!("/usd_price/{chain}/{address}/history");
-        let mut params = Vec::new();
-        if let Some(s) = start {
-            params.push(format!("start={s}"));
-        }
-        if let Some(e) = end {
-            params.push(format!("end={e}"));
-        }
-        if !params.is_empty() {
-            path.push('?');
-            path.push_str(&params.join("&"));
-        }
-        self.get(&path).await
+        let (start, end) = default_window(start, end);
+        self.get(&price_history_path(chain, address, start, end))
+            .await
     }
 
     // === Pools ===
@@ -363,6 +355,10 @@ fn chain_volume_path(
 }
 
 /// Default OHLC time window: `end` defaults to now, `start` to `end - 7d`.
+fn price_history_path(chain: &str, address: &str, start: u64, end: u64) -> String {
+    format!("/usd_price/{chain}/{address}/history?start={start}&end={end}")
+}
+
 fn default_window(start: Option<u64>, end: Option<u64>) -> (u64, u64) {
     let end = end.unwrap_or_else(|| {
         std::time::SystemTime::now()
@@ -425,6 +421,17 @@ mod tests {
             chain_volume_path("arbitrum", 10, 20, Some(VolumeInterval::Week)),
             "/volume/arbitrum?start=10&end=20&interval=week"
         );
+    }
+
+    #[test]
+    fn price_history_path_includes_required_bounds() {
+        assert_eq!(
+            price_history_path("ethereum", "0xtoken", 1, 2),
+            "/usd_price/ethereum/0xtoken/history?start=1&end=2"
+        );
+        let (start, end) = default_window(None, Some(10 * 86_400));
+        assert_eq!((start, end), (3 * 86_400, 10 * 86_400));
+        assert!(default_window(None, None).1 > 0);
     }
 
     #[test]
