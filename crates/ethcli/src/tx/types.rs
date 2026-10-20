@@ -121,6 +121,9 @@ pub struct TokenFlow {
     /// Token decimals (resolved via `decimals()`); `None` if unknown
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decimals: Option<u8>,
+    /// ERC-721 token id (then `amount` is 1 and `decimals` 0)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_id: Option<String>,
     /// Log index where this transfer occurred
     pub log_index: u64,
 }
