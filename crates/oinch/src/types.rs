@@ -9,11 +9,12 @@ use std::fmt;
 
 /// Supported chains for 1inch API
 ///
-/// The 1inch API uses numeric chain IDs in the URL path.
+/// The 1inch API uses numeric chain IDs in the URL path. This list matches the
+/// chains the Swap API v6.0 reports as supported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Chain {
-    /// Ethereum mainnet (Chain ID: 1)
+    /// Ethereum (Chain ID: 1)
     Ethereum = 1,
     /// BNB Smart Chain (Chain ID: 56)
     Bsc = 56,
@@ -25,23 +26,55 @@ pub enum Chain {
     Arbitrum = 42161,
     /// Gnosis Chain (Chain ID: 100)
     Gnosis = 100,
-    /// Avalanche C-Chain (Chain ID: 43114)
+    /// Avalanche (Chain ID: 43114)
     Avalanche = 43114,
-    /// Fantom Opera (Chain ID: 250)
-    Fantom = 250,
-    /// Klaytn (Chain ID: 8217)
-    Klaytn = 8217,
-    /// Aurora (Chain ID: 1313161554)
-    Aurora = 1_313_161_554,
     /// zkSync Era (Chain ID: 324)
     ZkSync = 324,
     /// Base (Chain ID: 8453)
     Base = 8453,
     /// Linea (Chain ID: 59144)
     Linea = 59144,
+    /// Sonic (Chain ID: 146)
+    Sonic = 146,
+    /// Unichain (Chain ID: 130)
+    Unichain = 130,
+    /// Robinhood Chain (Chain ID: 4663)
+    Robinhood = 4663,
+    /// Monad (Chain ID: 143)
+    Monad = 143,
+    /// Cronos (Chain ID: 25)
+    Cronos = 25,
+    /// HyperEVM (Chain ID: 999)
+    HyperEvm = 999,
+    /// Arc (Chain ID: 5042)
+    Arc = 5042,
 }
 
 impl Chain {
+    /// All supported chains
+    #[must_use]
+    pub const fn all() -> &'static [Chain] {
+        &[
+            Self::Ethereum,
+            Self::Bsc,
+            Self::Polygon,
+            Self::Optimism,
+            Self::Arbitrum,
+            Self::Gnosis,
+            Self::Avalanche,
+            Self::ZkSync,
+            Self::Base,
+            Self::Linea,
+            Self::Sonic,
+            Self::Unichain,
+            Self::Robinhood,
+            Self::Monad,
+            Self::Cronos,
+            Self::HyperEvm,
+            Self::Arc,
+        ]
+    }
+
     /// Get the numeric chain ID for API requests
     #[must_use]
     pub const fn chain_id(self) -> u64 {
@@ -59,12 +92,16 @@ impl Chain {
             42161 => Some(Self::Arbitrum),
             100 => Some(Self::Gnosis),
             43114 => Some(Self::Avalanche),
-            250 => Some(Self::Fantom),
-            8217 => Some(Self::Klaytn),
-            1_313_161_554 => Some(Self::Aurora),
             324 => Some(Self::ZkSync),
             8453 => Some(Self::Base),
             59144 => Some(Self::Linea),
+            146 => Some(Self::Sonic),
+            130 => Some(Self::Unichain),
+            4663 => Some(Self::Robinhood),
+            143 => Some(Self::Monad),
+            25 => Some(Self::Cronos),
+            999 => Some(Self::HyperEvm),
+            5042 => Some(Self::Arc),
             _ => None,
         }
     }
@@ -80,12 +117,16 @@ impl Chain {
             Self::Arbitrum => "Arbitrum One",
             Self::Gnosis => "Gnosis Chain",
             Self::Avalanche => "Avalanche",
-            Self::Fantom => "Fantom",
-            Self::Klaytn => "Klaytn",
-            Self::Aurora => "Aurora",
             Self::ZkSync => "zkSync Era",
             Self::Base => "Base",
             Self::Linea => "Linea",
+            Self::Sonic => "Sonic",
+            Self::Unichain => "Unichain",
+            Self::Robinhood => "Robinhood Chain",
+            Self::Monad => "Monad",
+            Self::Cronos => "Cronos",
+            Self::HyperEvm => "HyperEVM",
+            Self::Arc => "Arc",
         }
     }
 
@@ -106,12 +147,16 @@ impl Chain {
             "arbitrum" | "arb" => Some(Self::Arbitrum),
             "gnosis" | "xdai" => Some(Self::Gnosis),
             "avalanche" | "avax" => Some(Self::Avalanche),
-            "fantom" | "ftm" => Some(Self::Fantom),
-            "klaytn" | "klay" => Some(Self::Klaytn),
-            "aurora" => Some(Self::Aurora),
             "zksync" | "zksync-era" | "era" => Some(Self::ZkSync),
             "base" => Some(Self::Base),
             "linea" => Some(Self::Linea),
+            "sonic" => Some(Self::Sonic),
+            "unichain" => Some(Self::Unichain),
+            "robinhood" => Some(Self::Robinhood),
+            "monad" => Some(Self::Monad),
+            "cronos" | "cro" => Some(Self::Cronos),
+            "hyperevm" | "hyperliquid" => Some(Self::HyperEvm),
+            "arc" => Some(Self::Arc),
             _ => None,
         }
     }
@@ -147,42 +192,13 @@ impl TryFrom<yldfi_common::Chain> for Chain {
     type Error = &'static str;
 
     fn try_from(chain: yldfi_common::Chain) -> Result<Self, Self::Error> {
-        match chain {
-            yldfi_common::Chain::Ethereum => Ok(Self::Ethereum),
-            yldfi_common::Chain::Bsc => Ok(Self::Bsc),
-            yldfi_common::Chain::Polygon => Ok(Self::Polygon),
-            yldfi_common::Chain::Optimism => Ok(Self::Optimism),
-            yldfi_common::Chain::Arbitrum => Ok(Self::Arbitrum),
-            yldfi_common::Chain::Gnosis => Ok(Self::Gnosis),
-            yldfi_common::Chain::Avalanche => Ok(Self::Avalanche),
-            yldfi_common::Chain::Fantom => Ok(Self::Fantom),
-            yldfi_common::Chain::Klaytn => Ok(Self::Klaytn),
-            yldfi_common::Chain::Aurora => Ok(Self::Aurora),
-            yldfi_common::Chain::ZkSync => Ok(Self::ZkSync),
-            yldfi_common::Chain::Base => Ok(Self::Base),
-            yldfi_common::Chain::Linea => Ok(Self::Linea),
-            _ => Err("Chain not supported by 1inch API"),
-        }
+        Self::from_chain_id(chain.id()).ok_or("Chain not supported by 1inch API")
     }
 }
 
 impl From<Chain> for yldfi_common::Chain {
     fn from(chain: Chain) -> Self {
-        match chain {
-            Chain::Ethereum => Self::Ethereum,
-            Chain::Bsc => Self::Bsc,
-            Chain::Polygon => Self::Polygon,
-            Chain::Optimism => Self::Optimism,
-            Chain::Arbitrum => Self::Arbitrum,
-            Chain::Gnosis => Self::Gnosis,
-            Chain::Avalanche => Self::Avalanche,
-            Chain::Fantom => Self::Fantom,
-            Chain::Klaytn => Self::Klaytn,
-            Chain::Aurora => Self::Aurora,
-            Chain::ZkSync => Self::ZkSync,
-            Chain::Base => Self::Base,
-            Chain::Linea => Self::Linea,
-        }
+        Self::from_id(chain.chain_id())
     }
 }
 
@@ -737,6 +753,26 @@ pub struct ApiErrorMeta {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_chain_mappings_round_trip() {
+        for chain in Chain::all() {
+            assert_eq!(Chain::from_chain_id(chain.chain_id()), Some(*chain));
+            assert_eq!(Chain::parse(&chain.chain_id().to_string()), Some(*chain));
+            let common = yldfi_common::Chain::from(*chain);
+            assert!(
+                !matches!(common, yldfi_common::Chain::Other(_)),
+                "{chain:?}"
+            );
+            assert_eq!(Chain::try_from(common), Ok(*chain));
+        }
+        assert_eq!(Chain::parse("sonic"), Some(Chain::Sonic));
+        assert_eq!(Chain::parse("zksync-era"), Some(Chain::ZkSync));
+        // Chains 1inch has dropped
+        for id in [250, 8217, 1_313_161_554] {
+            assert_eq!(Chain::from_chain_id(id), None, "{id}");
+        }
+    }
 
     #[test]
     fn test_chain_ids() {
