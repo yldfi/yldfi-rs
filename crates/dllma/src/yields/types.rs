@@ -198,6 +198,23 @@ pub struct PerpRate {
     pub open_interest: Option<f64>,
     /// Funding rate 7-day average
     pub funding_rate7d_average: Option<f64>,
+    /// Funding rate 7-day sum
+    pub funding_rate7d_sum: Option<f64>,
+    /// Funding rate 30-day average
+    pub funding_rate30d_average: Option<f64>,
+    /// Funding rate 30-day sum
+    pub funding_rate30d_sum: Option<f64>,
+    /// Previous funding rate
+    pub funding_rate_previous: Option<f64>,
+    /// Unix timestamp of the previous funding
+    pub funding_time_previous: Option<u64>,
+    /// Index price
+    pub index_price: Option<f64>,
+    /// DefiLlama perp identifier
+    #[serde(rename = "perp_id")]
+    pub perp_id: Option<String>,
+    /// Snapshot timestamp
+    pub timestamp: Option<String>,
 }
 
 /// Liquid staking token exchange rate and ETH peg (`/api/lstRates`)
@@ -243,4 +260,30 @@ pub struct LsdRate {
     pub eth_staked: Option<f64>,
     /// Market share
     pub market_share: Option<f64>,
+}
+
+#[cfg(test)]
+mod perp_tests {
+    use super::*;
+
+    #[test]
+    fn perp_funding_rates_response_parses() {
+        let json = r#"{"status":"success","data":[{"perp_id":"00000000-0000-0000-0000-000000000001",
+            "timestamp":"2025-01-01T00:00:00.000Z","marketplace":"ExampleDex","market":"FOOUSDT",
+            "baseAsset":"FOO","fundingRate":0.00005,"fundingRatePrevious":0.0004,
+            "fundingTimePrevious":1735689600000,"openInterest":1000000,"indexPrice":0.05,
+            "fundingRate7dAverage":null,"fundingRate7dSum":0.001,"fundingRate30dAverage":null,
+            "fundingRate30dSum":null}]}"#;
+        let r: YieldsResponse<Vec<PerpRate>> = serde_json::from_str(json).unwrap();
+        let p = &r.data[0];
+        assert_eq!(p.base_asset, "FOO");
+        assert_eq!(
+            p.perp_id.as_deref(),
+            Some("00000000-0000-0000-0000-000000000001")
+        );
+        assert_eq!(p.funding_time_previous, Some(1_735_689_600_000));
+        assert_eq!(p.funding_rate7d_sum, Some(0.001));
+        assert!(p.funding_rate7d_average.is_none());
+        assert_eq!(p.index_price, Some(0.05));
+    }
 }

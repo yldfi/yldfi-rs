@@ -4,7 +4,7 @@ use crate::client::Client;
 use crate::error::Result;
 
 use super::types::{
-    BatchHistoricalRequest, BlockResponse, ChartResponse, FirstPriceResponse, PercentageResponse,
+    BatchHistoricalResponse, BlockResponse, ChartResponse, FirstPriceResponse, PercentageResponse,
     PricesResponse, Token,
 };
 
@@ -180,11 +180,9 @@ impl<'a> CoinsApi<'a> {
     pub async fn batch_historical(
         &self,
         queries: &std::collections::HashMap<String, Vec<u64>>,
-    ) -> Result<PricesResponse> {
-        let body = BatchHistoricalRequest {
-            coins: queries.clone(),
-        };
-        self.client.post_coins("/batchHistorical", &body).await
+    ) -> Result<BatchHistoricalResponse> {
+        let path = batch_historical_path(queries)?;
+        self.client.get_coins(&path).await
     }
 
     /// Get price chart data with configurable time span
@@ -319,5 +317,43 @@ impl<'a> CoinsApi<'a> {
     pub async fn block(&self, chain: &str, timestamp: u64) -> Result<BlockResponse> {
         let path = format!("/block/{chain}/{timestamp}");
         self.client.get_coins(&path).await
+    }
+}
+
+/// Build `GET /batchHistorical?coins=<json>`, where `coins` is a URL-encoded
+/// JSON object mapping each coin to its list of timestamps.
+fn batch_historical_path(queries: &std::collections::HashMap<String, Vec<u64>>) -> Result<String> {
+    let json = serde_json::to_string(queries).map_err(|e| {
+        crate::error::invalid_param(format!("Failed to encode batchHistorical coins: {e}"))
+    })?;
+    let encoded: String = url::form_urlencoded::byte_serialize(json.as_bytes()).collect();
+    Ok(format!("/batchHistorical?coins={encoded}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn batch_historical_uses_get_with_encoded_json_query() {
+        let mut queries = HashMap::new();
+        queries.insert(
+            "coingecko:ethereum".to_string(),
+            vec![1_600_000_000, 1_600_086_400],
+        );
+        let path = batch_historical_path(&queries).unwrap();
+
+        let url = url::Url::parse("https://coins.example")
+            .unwrap()
+            .join(&path)
+            .unwrap();
+        assert_eq!(url.path(), "/batchHistorical");
+        assert!(!path.contains('{') && !path.contains('"'), "{path}");
+        let pairs: Vec<(String, String)> = url.query_pairs().into_owned().collect();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0, "coins");
+        let decoded: HashMap<String, Vec<u64>> = serde_json::from_str(&pairs[0].1).unwrap();
+        assert_eq!(decoded, queries);
     }
 }
