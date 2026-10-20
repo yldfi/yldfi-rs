@@ -8,16 +8,14 @@ use clap::Subcommand;
 
 /// Validate that a string is a valid Ethereum address (40 hex chars, with optional 0x prefix)
 fn validate_address(address: &str) -> anyhow::Result<()> {
-    let addr = address.strip_prefix("0x").unwrap_or(address);
-    if addr.len() != 40 {
+    let prefixed = if address.starts_with("0x") || address.starts_with("0X") {
+        address.to_string()
+    } else {
+        format!("0x{address}")
+    };
+    if !yldfi_common::is_valid_address(&prefixed) {
         anyhow::bail!(
             "Invalid address '{}': expected 40 hex characters (with optional 0x prefix)",
-            address
-        );
-    }
-    if !addr.chars().all(|c| c.is_ascii_hexdigit()) {
-        anyhow::bail!(
-            "Invalid address '{}': contains non-hexadecimal characters",
             address
         );
     }

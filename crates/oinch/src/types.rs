@@ -109,7 +109,7 @@ impl Chain {
             "fantom" | "ftm" => Some(Self::Fantom),
             "klaytn" | "klay" => Some(Self::Klaytn),
             "aurora" => Some(Self::Aurora),
-            "zksync" | "era" => Some(Self::ZkSync),
+            "zksync" | "zksync-era" | "era" => Some(Self::ZkSync),
             "base" => Some(Self::Base),
             "linea" => Some(Self::Linea),
             _ => None,

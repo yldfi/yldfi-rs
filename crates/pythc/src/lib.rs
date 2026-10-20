@@ -86,7 +86,8 @@ pub mod error;
 pub mod types;
 
 pub use client::{
-    base_urls, feed_ids, symbol_to_feed_id, Client, Config, API_KEY_ENV_VAR, API_KEY_URL,
+    base_urls, feed_ids, known_feeds, symbol_to_feed_id, Client, Config, API_KEY_ENV_VAR,
+    API_KEY_URL,
 };
 pub use error::{
     feed_not_found, invalid_feed_id, is_unauthorized, stale_price, DomainError, Error, Result,

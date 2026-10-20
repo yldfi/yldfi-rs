@@ -8,17 +8,8 @@ use clap::{Args, Subcommand, ValueEnum};
 
 /// Validate that a string is a valid Ethereum address (0x + 40 hex chars)
 fn validate_address(address: &str) -> anyhow::Result<()> {
-    if !address.starts_with("0x") {
-        bail!("Invalid address: must start with '0x'");
-    }
-    if address.len() != 42 {
-        bail!(
-            "Invalid address: expected 42 characters, got {}",
-            address.len()
-        );
-    }
-    if !address[2..].chars().all(|c| c.is_ascii_hexdigit()) {
-        bail!("Invalid address: contains non-hexadecimal characters");
+    if !yldfi_common::is_valid_address(address) {
+        bail!("Invalid address '{address}': expected 0x followed by 40 hex characters");
     }
     Ok(())
 }

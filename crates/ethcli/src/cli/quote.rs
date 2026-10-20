@@ -2,7 +2,6 @@
 //!
 //! Fetches swap quotes from multiple DEX aggregators in parallel and finds the best quote.
 
-use crate::aggregator::chain_name_to_id;
 use crate::aggregator::swap::{
     fetch_quote_from_source, fetch_quotes_all, tokens::resolve_token, NormalizedQuote,
     QuoteAggregation, SwapSource,
@@ -371,15 +370,13 @@ async fn execute_compare(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
 fn resolve_chain(chain: &str) -> anyhow::Result<(u64, String)> {
     // Try parsing as chain ID first
     if let Ok(id) = chain.parse::<u64>() {
-        let name = crate::aggregator::chain_id_to_name(id)
-            .unwrap_or("unknown")
-            .to_string();
+        let name = yldfi_common::Chain::from_id(id).name().to_string();
         return Ok((id, name));
     }
 
     // Try parsing as chain name
-    if let Some(id) = chain_name_to_id(chain) {
-        return Ok((id, chain.to_lowercase()));
+    if let Some(c) = yldfi_common::Chain::from_name(chain) {
+        return Ok((c.id(), chain.to_lowercase()));
     }
 
     Err(anyhow::anyhow!(

@@ -1,6 +1,6 @@
 use crate::{
     config::Chain,
-    utils::{address::resolve_label, is_safe_cli_value, is_valid_eth_address, is_valid_tx_hash},
+    utils::{address::resolve_label, is_safe_cli_value},
 };
 use std::process::Command;
 
@@ -248,7 +248,7 @@ pub(crate) fn build_cast_call_command(
     let resolved_to = resolve_label(request.to);
 
     // Validate resolved address looks like an address (unless it's a label)
-    if !is_valid_eth_address(&resolved_to) && !request.to.contains('.') {
+    if !yldfi_common::is_valid_address(&resolved_to) && !request.to.contains('.') {
         // Allow ENS names (contain dots) and address book labels
         validate_cli_arg(&resolved_to, "to address")?;
     }
@@ -351,7 +351,7 @@ pub async fn trace_tx_via_cast(
     quiet: bool,
 ) -> anyhow::Result<()> {
     // Validate transaction hash format
-    if !is_valid_tx_hash(hash) {
+    if !yldfi_common::is_valid_tx_hash(hash) {
         anyhow::bail!(
             "Invalid transaction hash: '{}'. Expected 0x followed by 64 hex characters.",
             hash

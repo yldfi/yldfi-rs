@@ -453,11 +453,30 @@ pub mod feed_ids {
 
 /// Map common token symbols to Pyth feed IDs
 ///
+/// Accepts a bare symbol or name (`ETH`, `ethereum`, `WETH`) and the pair forms
+/// `ETH/USD`, `ETH-USD` and `ETHUSD`. Matching is case-insensitive.
+///
 /// Returns `None` for unknown symbols. Use `search_feeds()` to find
 /// feed IDs for tokens not in this mapping.
 #[must_use]
 pub fn symbol_to_feed_id(symbol: &str) -> Option<&'static str> {
-    match symbol.to_uppercase().as_str() {
+    let upper = symbol.trim().to_uppercase();
+    if let Some(id) = base_symbol_to_feed_id(&upper) {
+        return Some(id);
+    }
+    // crvUSD is a stablecoin, not the CRV/USD pair
+    if upper == "CRVUSD" {
+        return None;
+    }
+    let base = upper
+        .strip_suffix("/USD")
+        .or_else(|| upper.strip_suffix("-USD"))
+        .or_else(|| upper.strip_suffix("USD"))?;
+    base_symbol_to_feed_id(base)
+}
+
+fn base_symbol_to_feed_id(symbol: &str) -> Option<&'static str> {
+    match symbol {
         // Major tokens
         "BTC" | "BITCOIN" | "WBTC" => Some(feed_ids::BTC_USD),
         "ETH" | "ETHEREUM" | "WETH" => Some(feed_ids::ETH_USD),
@@ -483,5 +502,70 @@ pub fn symbol_to_feed_id(symbol: &str) -> Option<&'static str> {
         "ATOM" | "COSMOS" => Some(feed_ids::ATOM_USD),
         "DOT" | "POLKADOT" => Some(feed_ids::DOT_USD),
         _ => None,
+    }
+}
+
+/// The feeds in [`feed_ids`], as `(pair, feed_id)` with pairs like `"BTC/USD"`
+#[must_use]
+pub const fn known_feeds() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("BTC/USD", feed_ids::BTC_USD),
+        ("ETH/USD", feed_ids::ETH_USD),
+        ("SOL/USD", feed_ids::SOL_USD),
+        ("USDC/USD", feed_ids::USDC_USD),
+        ("USDT/USD", feed_ids::USDT_USD),
+        ("DAI/USD", feed_ids::DAI_USD),
+        ("AVAX/USD", feed_ids::AVAX_USD),
+        ("ARB/USD", feed_ids::ARB_USD),
+        ("OP/USD", feed_ids::OP_USD),
+        ("LINK/USD", feed_ids::LINK_USD),
+        ("UNI/USD", feed_ids::UNI_USD),
+        ("AAVE/USD", feed_ids::AAVE_USD),
+        ("CRV/USD", feed_ids::CRV_USD),
+        ("CVX/USD", feed_ids::CVX_USD),
+        ("SNX/USD", feed_ids::SNX_USD),
+        ("LDO/USD", feed_ids::LDO_USD),
+        ("DOGE/USD", feed_ids::DOGE_USD),
+        ("ATOM/USD", feed_ids::ATOM_USD),
+        ("DOT/USD", feed_ids::DOT_USD),
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn symbol_aliases_resolve() {
+        for s in [
+            "BTC", "btc", "BITCOIN", "WBTC", "BTC/USD", "btc-usd", "BTCUSD",
+        ] {
+            assert_eq!(symbol_to_feed_id(s), Some(feed_ids::BTC_USD), "{s}");
+        }
+        for s in ["ETH", "WETH", "ethereum", "ETH/USD", "ETHUSD", "WETH/USD"] {
+            assert_eq!(symbol_to_feed_id(s), Some(feed_ids::ETH_USD), "{s}");
+        }
+        assert_eq!(symbol_to_feed_id("TETHER"), Some(feed_ids::USDT_USD));
+        assert_eq!(symbol_to_feed_id("USDT/USD"), Some(feed_ids::USDT_USD));
+        assert_eq!(symbol_to_feed_id("USDC"), Some(feed_ids::USDC_USD));
+        assert_eq!(symbol_to_feed_id("USDCUSD"), Some(feed_ids::USDC_USD));
+        assert_eq!(symbol_to_feed_id("CRV/USD"), Some(feed_ids::CRV_USD));
+    }
+
+    #[test]
+    fn unknown_symbols_do_not_resolve() {
+        for s in [
+            "", "USD", "/USD", "CRVUSD", "crvUSD", "PEPE", "PEPE/USD", "ETH/EUR",
+        ] {
+            assert_eq!(symbol_to_feed_id(s), None, "{s}");
+        }
+    }
+
+    #[test]
+    fn known_feeds_resolve_by_pair_name() {
+        for (pair, id) in known_feeds() {
+            assert_eq!(symbol_to_feed_id(pair), Some(*id), "{pair}");
+            assert!(validate_feed_id(id), "{pair}");
+        }
     }
 }

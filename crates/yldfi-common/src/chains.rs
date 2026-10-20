@@ -331,43 +331,53 @@ impl Chain {
     }
 
     /// Get chain from name (case-insensitive)
+    ///
+    /// Also accepts the network slugs used by Alchemy (`eth-mainnet`,
+    /// `arb-mainnet`) and CoinGecko (`polygon-pos`, `arbitrum-one`).
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
         let name_lower = name.to_lowercase();
         match name_lower.as_str() {
-            "ethereum" | "eth" | "mainnet" => Some(Self::Ethereum),
+            "ethereum" | "eth" | "mainnet" | "eth-mainnet" => Some(Self::Ethereum),
             "goerli" => Some(Self::Goerli),
             "sepolia" => Some(Self::Sepolia),
             "holesky" => Some(Self::Holesky),
-            "optimism" | "op" => Some(Self::Optimism),
+            "optimism"
+            | "op"
+            | "opt-mainnet"
+            | "op-mainnet"
+            | "optimism-mainnet"
+            | "optimistic-ethereum" => Some(Self::Optimism),
             "optimism-sepolia" | "op-sepolia" => Some(Self::OptimismSepolia),
-            "bsc" | "bnb" | "binance" => Some(Self::Bsc),
+            "bsc" | "bnb" | "binance" | "bnb-mainnet" | "binance-smart-chain" => Some(Self::Bsc),
             "bsc-testnet" | "bnb-testnet" => Some(Self::BscTestnet),
-            "gnosis" | "xdai" => Some(Self::Gnosis),
-            "polygon" | "matic" => Some(Self::Polygon),
+            "gnosis" | "xdai" | "gnosis-mainnet" => Some(Self::Gnosis),
+            "polygon" | "matic" | "polygon-mainnet" | "polygon-pos" => Some(Self::Polygon),
             "mumbai" => Some(Self::Mumbai),
             "amoy" => Some(Self::Amoy),
-            "fantom" | "ftm" => Some(Self::Fantom),
+            "fantom" | "ftm" | "fantom-mainnet" => Some(Self::Fantom),
             "fantom-testnet" => Some(Self::FantomTestnet),
             "moonbeam" => Some(Self::Moonbeam),
             "moonriver" => Some(Self::Moonriver),
-            "arbitrum" | "arb" => Some(Self::Arbitrum),
+            "arbitrum" | "arb" | "arb-mainnet" | "arbitrum-mainnet" | "arbitrum-one" => {
+                Some(Self::Arbitrum)
+            }
             "arbitrum-nova" | "arb-nova" => Some(Self::ArbitrumNova),
             "arbitrum-sepolia" | "arb-sepolia" => Some(Self::ArbitrumSepolia),
-            "avalanche" | "avax" => Some(Self::Avalanche),
+            "avalanche" | "avax" | "avax-mainnet" => Some(Self::Avalanche),
             "avalanche-fuji" | "fuji" => Some(Self::AvalancheFuji),
             "celo" => Some(Self::Celo),
-            "base" => Some(Self::Base),
+            "base" | "base-mainnet" => Some(Self::Base),
             "base-sepolia" => Some(Self::BaseSepolia),
-            "linea" => Some(Self::Linea),
+            "linea" | "linea-mainnet" => Some(Self::Linea),
             "linea-testnet" => Some(Self::LineaTestnet),
-            "zksync" | "zksync-era" | "era" => Some(Self::ZkSync),
+            "zksync" | "zksync-era" | "era" | "zksync-mainnet" => Some(Self::ZkSync),
             "zksync-sepolia" => Some(Self::ZkSyncSepolia),
-            "scroll" => Some(Self::Scroll),
+            "scroll" | "scroll-mainnet" => Some(Self::Scroll),
             "scroll-sepolia" => Some(Self::ScrollSepolia),
-            "blast" => Some(Self::Blast),
+            "blast" | "blast-mainnet" => Some(Self::Blast),
             "blast-sepolia" => Some(Self::BlastSepolia),
-            "mantle" => Some(Self::Mantle),
+            "mantle" | "mnt" | "mantle-mainnet" => Some(Self::Mantle),
             "mode" => Some(Self::Mode),
             "fraxtal" => Some(Self::Fraxtal),
             "klaytn" | "klay" => Some(Self::Klaytn),
@@ -453,6 +463,30 @@ mod tests {
 
         assert_eq!(Chain::from_name("base"), Some(Chain::Base));
         assert_eq!(Chain::from_name("unknown-chain"), None);
+    }
+
+    #[test]
+    fn test_chain_from_provider_slugs() {
+        for (name, chain) in [
+            ("eth-mainnet", Chain::Ethereum),
+            ("polygon-pos", Chain::Polygon),
+            ("polygon-mainnet", Chain::Polygon),
+            ("arb-mainnet", Chain::Arbitrum),
+            ("arbitrum-one", Chain::Arbitrum),
+            ("opt-mainnet", Chain::Optimism),
+            ("optimistic-ethereum", Chain::Optimism),
+            ("base-mainnet", Chain::Base),
+            ("bnb-mainnet", Chain::Bsc),
+            ("binance-smart-chain", Chain::Bsc),
+            ("avax-mainnet", Chain::Avalanche),
+            ("fantom-mainnet", Chain::Fantom),
+            ("gnosis-mainnet", Chain::Gnosis),
+            ("zksync-mainnet", Chain::ZkSync),
+            ("mnt", Chain::Mantle),
+        ] {
+            assert_eq!(Chain::from_name(name), Some(chain), "{name}");
+        }
+        assert_eq!(Chain::from_name(""), None);
     }
 
     #[test]

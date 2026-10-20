@@ -94,7 +94,7 @@ impl FromStr for Chain {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "ethereum" | "eth" | "mainnet" => Ok(Chain::Ethereum),
-            "bsc" | "bnb" => Ok(Chain::Bsc),
+            "bsc" | "bnb" | "binance" => Ok(Chain::Bsc),
             "polygon" | "matic" => Ok(Chain::Polygon),
             "arbitrum" | "arb" => Ok(Chain::Arbitrum),
             "optimism" | "op" => Ok(Chain::Optimism),
@@ -103,7 +103,7 @@ impl FromStr for Chain {
             "fantom" | "ftm" => Ok(Chain::Fantom),
             "linea" => Ok(Chain::Linea),
             "scroll" => Ok(Chain::Scroll),
-            "zksync" | "era" => Ok(Chain::Zksync),
+            "zksync" | "zksync-era" | "era" => Ok(Chain::Zksync),
             "blast" => Ok(Chain::Blast),
             "mantle" | "mnt" => Ok(Chain::Mantle),
             "polygon-zkevm" | "zkevm" => Ok(Chain::PolygonZkEvm),
@@ -449,6 +449,23 @@ pub struct TokenInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chain_aliases_parse() {
+        for (name, chain) in [
+            ("ETH", Chain::Ethereum),
+            ("binance", Chain::Bsc),
+            ("bnb", Chain::Bsc),
+            ("zksync-era", Chain::Zksync),
+            ("era", Chain::Zksync),
+            ("mnt", Chain::Mantle),
+            ("polygon-zkevm", Chain::PolygonZkEvm),
+            ("blast", Chain::Blast),
+        ] {
+            assert_eq!(name.parse::<Chain>().unwrap(), chain, "{name}");
+        }
+        assert!("gnosis".parse::<Chain>().is_err());
+    }
 
     const LIVE_ROUTE_DATA: &str = r#"{"routeSummary":{"tokenIn":"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         "amountIn":"1000000000000000000","amountInUsd":"2691.83","tokenOut":"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",

@@ -4,7 +4,7 @@
 //! and aggregates them into a single result.
 
 use super::{
-    chain_map::normalize_chain_for_source,
+    chain_map::{chain_id_from_name, normalize_chain_for_source},
     get_cached_config,
     normalize::{NormalizedPrice, PriceAggregation},
     AggregatedResult, LatencyMeasure, PriceSource, SourceResult,
@@ -1801,7 +1801,7 @@ async fn fetch_kong_price(
     }
 
     // Convert chain name to chain ID
-    let chain_id = match chain_name_to_kong_id(chain) {
+    let chain_id = match chain_id_from_name(chain) {
         Some(id) => id,
         None => {
             return SourceResult::error(
@@ -1870,16 +1870,9 @@ async fn fetch_enso_price(
     }
 
     // Convert chain name to chain ID
-    let chain_id = match chain.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" | "eth-mainnet" | "" => 1,
-        "polygon" | "matic" | "polygon-mainnet" => 137,
-        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => 42161,
-        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => 10,
-        "base" | "base-mainnet" => 8453,
-        "bsc" | "binance" | "bnb" => 56,
-        "gnosis" | "xdai" => 100,
-        "avalanche" | "avax" => 43114,
-        _ => {
+    let chain_id = match chain_id_from_name(chain) {
+        Some(id) => id,
+        None => {
             return SourceResult::error(
                 "enso",
                 format!("Unsupported chain for Enso: {}", chain),
@@ -1916,20 +1909,6 @@ async fn fetch_enso_price(
     }
 }
 
-/// Convert chain name to Kong-compatible chain ID
-fn chain_name_to_kong_id(chain: &str) -> Option<u64> {
-    match chain.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" | "eth-mainnet" | "" => Some(1),
-        "polygon" | "matic" | "polygon-mainnet" => Some(137),
-        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => Some(42161),
-        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => Some(10),
-        "base" | "base-mainnet" => Some(8453),
-        "fantom" | "ftm" => Some(250),
-        "gnosis" | "xdai" => Some(100),
-        _ => None,
-    }
-}
-
 /// Fetch price using Kong vault data (pricePerShare × underlying price)
 ///
 /// For vault tokens (ERC4626, Yearn v2/v3), the price is calculated as:
@@ -1952,7 +1931,7 @@ async fn fetch_kong_vault_price(
     }
 
     // Convert chain name to chain ID
-    let chain_id = match chain_name_to_kong_id(chain) {
+    let chain_id = match chain_id_from_name(chain) {
         Some(id) => id,
         None => {
             return SourceResult::error(

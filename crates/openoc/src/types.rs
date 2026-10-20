@@ -111,7 +111,7 @@ impl FromStr for Chain {
             "gnosis" | "xdai" => Ok(Chain::Gnosis),
             "base" => Ok(Chain::Base),
             "linea" => Ok(Chain::Linea),
-            "zksync" | "era" => Ok(Chain::Zksync),
+            "zksync" | "zksync-era" | "era" => Ok(Chain::Zksync),
             "scroll" => Ok(Chain::Scroll),
             "mantle" | "mnt" => Ok(Chain::Mantle),
             "blast" => Ok(Chain::Blast),
@@ -619,4 +619,24 @@ pub struct DexListResponse {
     pub code: i32,
     /// DEX list
     pub data: Option<Vec<DexInfo>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chain_aliases_parse() {
+        for (name, chain) in [
+            ("mainnet", Chain::Eth),
+            ("binance", Chain::Bsc),
+            ("xdai", Chain::Gnosis),
+            ("zksync-era", Chain::Zksync),
+            ("era", Chain::Zksync),
+            ("MNT", Chain::Mantle),
+        ] {
+            assert_eq!(name.parse::<Chain>().unwrap(), chain, "{name}");
+        }
+        assert!("sepolia".parse::<Chain>().is_err());
+    }
 }

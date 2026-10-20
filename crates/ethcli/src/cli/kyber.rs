@@ -187,23 +187,12 @@ fn extract_route_summary(json: &str) -> anyhow::Result<serde_json::Value> {
 }
 
 fn chain_name_to_kybr_chain(name: &str) -> anyhow::Result<kybr::Chain> {
-    match name.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" => Ok(kybr::Chain::Ethereum),
-        "bsc" | "bnb" | "binance" => Ok(kybr::Chain::Bsc),
-        "polygon" | "matic" => Ok(kybr::Chain::Polygon),
-        "arbitrum" | "arb" => Ok(kybr::Chain::Arbitrum),
-        "optimism" | "op" => Ok(kybr::Chain::Optimism),
-        "avalanche" | "avax" => Ok(kybr::Chain::Avalanche),
-        "fantom" | "ftm" => Ok(kybr::Chain::Fantom),
-        "base" => Ok(kybr::Chain::Base),
-        "linea" => Ok(kybr::Chain::Linea),
-        "scroll" => Ok(kybr::Chain::Scroll),
-        "zksync" | "zksync-era" => Ok(kybr::Chain::Zksync),
-        _ => anyhow::bail!(
-            "Unsupported chain: {}. Supported: ethereum, bsc, polygon, arbitrum, optimism, avalanche, fantom, base, linea, scroll, zksync",
+    name.parse().map_err(|_| {
+        anyhow::anyhow!(
+            "Unsupported chain: {}. Supported: ethereum, bsc, polygon, arbitrum, optimism, avalanche, fantom, base, linea, scroll, zksync, blast, mantle, polygon-zkevm",
             name
-        ),
-    }
+        )
+    })
 }
 
 fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::Result<()> {

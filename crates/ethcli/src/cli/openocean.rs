@@ -185,26 +185,12 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
 }
 
 fn chain_name_to_openoc_chain(name: &str) -> anyhow::Result<openoc::Chain> {
-    match name.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" => Ok(openoc::Chain::Eth),
-        "bsc" | "bnb" | "binance" => Ok(openoc::Chain::Bsc),
-        "polygon" | "matic" => Ok(openoc::Chain::Polygon),
-        "arbitrum" | "arb" => Ok(openoc::Chain::Arbitrum),
-        "optimism" | "op" => Ok(openoc::Chain::Optimism),
-        "avalanche" | "avax" => Ok(openoc::Chain::Avax),
-        "fantom" | "ftm" => Ok(openoc::Chain::Fantom),
-        "base" => Ok(openoc::Chain::Base),
-        "gnosis" | "xdai" => Ok(openoc::Chain::Gnosis),
-        "linea" => Ok(openoc::Chain::Linea),
-        "zksync" | "zksync-era" => Ok(openoc::Chain::Zksync),
-        "scroll" => Ok(openoc::Chain::Scroll),
-        "mantle" => Ok(openoc::Chain::Mantle),
-        "blast" => Ok(openoc::Chain::Blast),
-        _ => anyhow::bail!(
-            "Unsupported chain: {}. Supported: ethereum, bsc, polygon, arbitrum, optimism, avalanche, fantom, base, gnosis, linea, zksync, scroll, mantle, blast",
+    name.parse().map_err(|_| {
+        anyhow::anyhow!(
+            "Unsupported chain: {}. Supported: ethereum, bsc, polygon, arbitrum, optimism, avalanche, fantom, base, gnosis, linea, zksync, scroll, mantle, blast, solana, sui",
             name
-        ),
-    }
+        )
+    })
 }
 
 fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::Result<()> {
