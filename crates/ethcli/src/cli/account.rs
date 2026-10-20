@@ -721,10 +721,18 @@ pub async fn handle(
                         .as_number()
                         .map(|n| n.to::<u64>())
                         .unwrap_or(0);
+                    // Raw units scaled by the token's decimals
+                    let amount = match tx.token_decimal.parse::<u8>() {
+                        Ok(decimals) => crate::utils::format::format_token_amount(
+                            &tx.value.to_string(),
+                            decimals,
+                        ),
+                        Err(_) => tx.value.to_string(),
+                    };
                     println!(
                         "Block {} | {} {} | {} → {}",
                         block_num,
-                        tx.value,
+                        amount,
                         symbol,
                         truncate_addr(&format!("{:#x}", tx.from)),
                         truncate_addr(&to_addr)

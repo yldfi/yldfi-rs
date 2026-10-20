@@ -286,26 +286,33 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
             }
 
             let mut outputs = Vec::new();
+            let mut failures: Vec<String> = Vec::new();
 
             // Helper to fetch multiple tickers using a created exchange
             macro_rules! fetch_tickers {
                 ($exchange:expr) => {{
                     for symbol in symbols {
-                        if let Ok(t) = ExchangeTrait::fetch_ticker(&$exchange, symbol).await {
-                            outputs.push(TickerOutput {
-                                exchange: args.exchange.to_string(),
-                                symbol: t.symbol.to_string(),
-                                last: t.last.map(|p| p.to_string()),
-                                bid: t.bid.map(|p| p.to_string()),
-                                ask: t.ask.map(|p| p.to_string()),
-                                high: t.high.map(|p| p.to_string()),
-                                low: t.low.map(|p| p.to_string()),
-                                volume: t.base_volume.map(|v| v.to_string()),
-                                change_24h: t
-                                    .percentage
-                                    .map(|p| format_change_pct(args.exchange, p)),
-                                timestamp: t.timestamp,
-                            });
+                        match ExchangeTrait::fetch_ticker(&$exchange, symbol).await {
+                            Err(e) => {
+                                eprintln!("Warning: {} failed: {}", symbol, e);
+                                failures.push(symbol.to_string());
+                            }
+                            Ok(t) => {
+                                outputs.push(TickerOutput {
+                                    exchange: args.exchange.to_string(),
+                                    symbol: t.symbol.to_string(),
+                                    last: t.last.map(|p| p.to_string()),
+                                    bid: t.bid.map(|p| p.to_string()),
+                                    ask: t.ask.map(|p| p.to_string()),
+                                    high: t.high.map(|p| p.to_string()),
+                                    low: t.low.map(|p| p.to_string()),
+                                    volume: t.base_volume.map(|v| v.to_string()),
+                                    change_24h: t
+                                        .percentage
+                                        .map(|p| format_change_pct(args.exchange, p)),
+                                    timestamp: t.timestamp,
+                                });
+                            }
                         }
                     }
                 }};
@@ -330,6 +337,9 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
                 }
             }
 
+            if outputs.is_empty() && !failures.is_empty() {
+                anyhow::bail!("No ticker could be fetched ({})", failures.join(", "));
+            }
             print_output(&outputs, args.format)?;
         }
 
