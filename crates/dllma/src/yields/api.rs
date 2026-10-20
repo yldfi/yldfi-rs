@@ -67,7 +67,7 @@ impl<'a> YieldsApi<'a> {
         Ok(resp.data)
     }
 
-    /// Get legacy pools with contract addresses
+    /// Get pools with old pool IDs and token addresses (`GET /yields/v1/pools`)
     ///
     /// **Requires Pro API key**
     ///
@@ -99,7 +99,7 @@ impl<'a> YieldsApi<'a> {
     ///     println!("{}: lend {:.2}%, borrow {:.2}%",
     ///         pool.symbol,
     ///         pool.apy.unwrap_or(0.0),
-    ///         pool.apy_borrow.unwrap_or(0.0));
+    ///         pool.apy_base_borrow.unwrap_or(0.0));
     /// }
     /// # Ok(())
     /// # }

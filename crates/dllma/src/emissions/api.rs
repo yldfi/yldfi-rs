@@ -30,7 +30,7 @@ impl<'a> EmissionsApi<'a> {
     ///
     /// # Arguments
     ///
-    /// * `protocol` - Protocol slug
+    /// * `protocol` - Token slug (the `gecko_id` from [`Self::list`])
     pub async fn get(&self, protocol: &str) -> Result<EmissionDetail> {
         let path = format!("/api/emission/{protocol}");
         self.client.get_pro(&path).await

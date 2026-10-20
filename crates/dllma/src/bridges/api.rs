@@ -8,6 +8,9 @@ use super::types::{
     ListBridgesOptions, TransactionsOptions,
 };
 
+/// Transaction limit used by [`BridgesApi::transactions`] (the API maximum is 6000)
+pub const DEFAULT_TRANSACTIONS_LIMIT: u32 = 200;
+
 /// Bridges API client (Pro only)
 pub struct BridgesApi<'a> {
     client: &'a Client,
@@ -76,16 +79,19 @@ impl<'a> BridgesApi<'a> {
         self.client.get_pro(&path).await
     }
 
-    /// Get bridge transactions
+    /// Get recent bridge transactions
     ///
     /// **Requires Pro API key**
+    ///
+    /// Without any query parameter the endpoint returns the bridge summary
+    /// rather than transactions, so this sends `limit=` [`DEFAULT_TRANSACTIONS_LIMIT`].
     ///
     /// # Arguments
     ///
     /// * `id` - Bridge ID
     pub async fn transactions(&self, id: u64) -> Result<BridgeTransactionsResponse> {
-        let path = format!("/bridges/transactions/{id}");
-        self.client.get_pro(&path).await
+        let options = TransactionsOptions::new().limit(DEFAULT_TRANSACTIONS_LIMIT);
+        self.transactions_with_options(id, &options).await
     }
 
     /// Get bridge transactions with options
@@ -95,7 +101,8 @@ impl<'a> BridgesApi<'a> {
     /// # Arguments
     ///
     /// * `id` - Bridge ID
-    /// * `options` - Query options (limit, time range, filters)
+    /// * `options` - Query options (limit, time range, filters). Set at least
+    ///   one: with none, the API returns the bridge summary instead.
     pub async fn transactions_with_options(
         &self,
         id: u64,

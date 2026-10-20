@@ -2,15 +2,6 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-/// Deserialize a Vec that may be null or missing as an empty Vec
-fn null_to_empty_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Option::<Vec<T>>::deserialize(deserializer).map(std::option::Option::unwrap_or_default)
-}
-
 /// Deserialize a Vec<String> that may contain null elements, filtering them out
 fn strings_filtering_nulls<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
 where
@@ -83,12 +74,15 @@ pub struct YieldPredictions {
     pub binned_confidence: Option<i32>,
 }
 
-/// Legacy pool data with contract addresses
+/// Pool data from `/yields/v1/pools` (Pro), with old pool IDs and token addresses
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyPool {
     /// Pool ID
     pub pool: String,
+    /// Old-style pool ID (often the pool contract address)
+    #[serde(rename = "pool_old")]
+    pub pool_old: Option<String>,
     /// Chain
     pub chain: String,
     /// Project
@@ -99,20 +93,20 @@ pub struct LegacyPool {
     pub tvl_usd: Option<f64>,
     /// APY
     pub apy: Option<f64>,
-    /// Pool address
-    pub pool_address: Option<String>,
-    /// Underlying tokens with addresses
-    #[serde(default, deserialize_with = "null_to_empty_vec")]
-    pub underlying_tokens: Vec<TokenInfo>,
-}
-
-/// Token info with address
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct TokenInfo {
-    /// Token address
-    pub address: Option<String>,
-    /// Token symbol
-    pub symbol: Option<String>,
+    /// Base APY
+    pub apy_base: Option<f64>,
+    /// Reward APY
+    pub apy_reward: Option<f64>,
+    /// Pool (LP/receipt) token address
+    pub pool_token_address: Option<String>,
+    /// Underlying token addresses
+    #[serde(default, deserialize_with = "strings_filtering_nulls")]
+    pub underlying_tokens: Vec<String>,
+    /// Reward token addresses
+    #[serde(default, deserialize_with = "strings_filtering_nulls")]
+    pub reward_tokens: Vec<String>,
+    /// Pool meta
+    pub pool_meta: Option<String>,
 }
 
 /// Yield chart data point
@@ -149,21 +143,38 @@ pub struct BorrowPool {
     pub symbol: String,
     /// TVL
     pub tvl_usd: Option<f64>,
-    /// Lend APY (supply APY)
+    /// Total lend APY (base + reward)
     pub apy: Option<f64>,
-    /// Borrow APY
-    pub apy_borrow: Option<f64>,
+    /// Base lend APY
+    pub apy_base: Option<f64>,
+    /// Reward lend APY
+    pub apy_reward: Option<f64>,
+    /// Base borrow APY
+    pub apy_base_borrow: Option<f64>,
+    /// Reward borrow APY
+    pub apy_reward_borrow: Option<f64>,
     /// Total supply in USD
     pub total_supply_usd: Option<f64>,
     /// Total borrow in USD
     pub total_borrow_usd: Option<f64>,
+    /// Debt ceiling in USD
+    pub debt_ceiling_usd: Option<f64>,
     /// LTV (loan-to-value ratio)
     pub ltv: Option<f64>,
-    /// Utilization rate
-    pub utilization: Option<f64>,
+    /// Whether the asset can be borrowed
+    pub borrowable: Option<bool>,
+    /// Coin minted when borrowing (CDPs)
+    pub minted_coin: Option<String>,
+    /// Borrow factor
+    pub borrow_factor: Option<f64>,
+    /// Pool meta
+    pub pool_meta: Option<String>,
     /// Reward tokens
     #[serde(default, deserialize_with = "strings_filtering_nulls")]
     pub reward_tokens: Vec<String>,
+    /// Underlying tokens
+    #[serde(default, deserialize_with = "strings_filtering_nulls")]
+    pub underlying_tokens: Vec<String>,
 }
 
 /// Lend/Borrow chart data point
@@ -172,14 +183,20 @@ pub struct BorrowPool {
 pub struct LendBorrowChartPoint {
     /// Timestamp
     pub timestamp: String,
-    /// Supply APY
-    pub apy: Option<f64>,
-    /// Borrow APY
-    pub apy_borrow: Option<f64>,
+    /// Base supply APY
+    pub apy_base: Option<f64>,
+    /// Reward supply APY
+    pub apy_reward: Option<f64>,
+    /// Base borrow APY
+    pub apy_base_borrow: Option<f64>,
+    /// Reward borrow APY
+    pub apy_reward_borrow: Option<f64>,
     /// Total supply
     pub total_supply_usd: Option<f64>,
     /// Total borrow
     pub total_borrow_usd: Option<f64>,
+    /// Debt ceiling in USD
+    pub debt_ceiling_usd: Option<f64>,
 }
 
 /// Perpetual futures funding rate
@@ -265,6 +282,47 @@ pub struct LsdRate {
 #[cfg(test)]
 mod perp_tests {
     use super::*;
+
+    #[test]
+    fn legacy_pool_underlying_tokens_are_strings() {
+        let json = r#"{"status":"success","data":[{"pool":"00000000-0000-0000-0000-000000000002",
+            "pool_old":"0x0000000000000000000000000000000000000001-ethereum","chain":"Ethereum",
+            "project":"foo","symbol":"FOO-BAR","tvlUsd":10.0,"apy":1.5,
+            "poolTokenAddress":"0x0000000000000000000000000000000000000001",
+            "underlyingTokens":["0x0000000000000000000000000000000000000002",null],
+            "rewardTokens":null}]}"#;
+        let r: YieldsResponse<Vec<LegacyPool>> = serde_json::from_str(json).unwrap();
+        let p = &r.data[0];
+        assert_eq!(
+            p.underlying_tokens,
+            vec!["0x0000000000000000000000000000000000000002"]
+        );
+        assert!(p.reward_tokens.is_empty());
+        assert!(p.pool_old.as_deref().unwrap().ends_with("-ethereum"));
+        assert!(p.pool_token_address.is_some());
+    }
+
+    #[test]
+    fn borrow_pool_and_chart_fields() {
+        let json = r#"{"status":"success","data":[{"pool":"p1","chain":"Ethereum","project":"foo",
+            "symbol":"FOO","tvlUsd":1.0,"apyBase":2.0,"apyReward":null,"apy":2.0,
+            "apyBaseBorrow":3.0,"apyRewardBorrow":0.5,"totalSupplyUsd":10.0,"totalBorrowUsd":4.0,
+            "debtCeilingUsd":null,"ltv":0.8,"borrowable":true,"mintedCoin":null,
+            "borrowFactor":1.0,"underlyingTokens":["0x01"],"rewardTokens":null}]}"#;
+        let r: YieldsResponse<Vec<BorrowPool>> = serde_json::from_str(json).unwrap();
+        let b = &r.data[0];
+        assert_eq!(b.apy_base_borrow, Some(3.0));
+        assert_eq!(b.apy_reward_borrow, Some(0.5));
+        assert_eq!(b.borrowable, Some(true));
+        assert_eq!(b.underlying_tokens, vec!["0x01"]);
+
+        let json = r#"{"status":"success","data":[{"timestamp":"2024-01-01T00:00:00.000Z",
+            "totalSupplyUsd":10.0,"totalBorrowUsd":4.0,"debtCeilingUsd":null,"apyBase":2.0,
+            "apyReward":null,"apyBaseBorrow":3.0,"apyRewardBorrow":0.5}]}"#;
+        let r: YieldsResponse<Vec<LendBorrowChartPoint>> = serde_json::from_str(json).unwrap();
+        assert_eq!(r.data[0].apy_base_borrow, Some(3.0));
+        assert_eq!(r.data[0].apy_base, Some(2.0));
+    }
 
     #[test]
     fn perp_funding_rates_response_parses() {
