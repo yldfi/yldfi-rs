@@ -2,7 +2,7 @@
 //!
 //! Resolve ENS names to addresses and vice versa
 
-use crate::config::{Chain, ConfigFile, EndpointConfig};
+use crate::config::{Chain, EndpointConfig};
 use crate::rpc::Endpoint;
 use alloy::primitives::{keccak256, Address, B256};
 use alloy::providers::Provider;
@@ -71,24 +71,7 @@ pub async fn handle(
     let endpoint = if let Some(url) = rpc_url {
         Endpoint::new(EndpointConfig::new(url), 30, None)?
     } else {
-        // Use config endpoints
-        let config = ConfigFile::load_default()
-            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-            .unwrap_or_default();
-
-        let chain_endpoints: Vec<_> = config
-            .endpoints
-            .into_iter()
-            .filter(|e| e.enabled && e.chain == chain)
-            .collect();
-
-        if chain_endpoints.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                chain.display_name()
-            ));
-        }
-        Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+        crate::rpc::get_rpc_endpoint(chain)?
     };
 
     let provider = endpoint.provider();
@@ -122,10 +105,14 @@ pub async fn handle(
                 } => {
                     println!("No verified ENS name found for this address");
                     if !quiet {
+                        let target = match resolves_to {
+                            Some(a) if a == addr => "it is not in normalised form".to_string(),
+                            Some(a) => format!("it resolves to {}", a.to_checksum(None)),
+                            None => "it does not resolve".to_string(),
+                        };
                         eprintln!(
-                            "Warning: the reverse record claims '{}', but that name resolves to {}",
-                            claimed,
-                            resolves_to.map_or("nothing".to_string(), |a| a.to_checksum(None))
+                            "Warning: ignoring the reverse record {:?}: {}",
+                            claimed, target
                         );
                     }
                 }
@@ -161,6 +148,16 @@ pub async fn handle(
 fn normalize_name(name: &str) -> String {
     use unicode_normalization::UnicodeNormalization;
     name.trim().to_lowercase().nfc().collect()
+}
+
+/// True if a name has no control or bidi-override characters, which could make
+/// an on-chain string render as something else in a terminal
+fn is_displayable(name: &str) -> bool {
+    !name.chars().any(|c| {
+        c.is_control()
+            || ('\u{202a}'..='\u{202e}').contains(&c)
+            || ('\u{2066}'..='\u{2069}').contains(&c)
+    })
 }
 
 /// Compute the namehash of an ENS name (normalised first)
@@ -274,7 +271,12 @@ async fn reverse_lookup<P: Provider>(
         return Ok(ReverseName::NotSet);
     };
     let resolves_to = resolve_name(provider, &claimed).await.ok();
-    if resolves_to == Some(address) {
+    // A name that isn't already in normal form (mixed case, decomposed or
+    // control/bidi characters) can display differently from what it hashes to.
+    if resolves_to == Some(address)
+        && claimed == normalize_name(&claimed)
+        && is_displayable(&claimed)
+    {
         Ok(ReverseName::Verified(claimed))
     } else {
         Ok(ReverseName::Unverified {
@@ -456,6 +458,17 @@ mod tests {
                 resolves_to: Some(vitalik),
             }
         );
+    }
+
+    #[tokio::test]
+    async fn reverse_lookup_rejects_unnormalised_or_bidi_names() {
+        let owner = Address::repeat_byte(0xbb);
+        for claimed in ["Vitalik.eth", "vitalik\u{202e}hte.eth"] {
+            assert!(matches!(
+                lookup_with(claimed, owner, owner).await,
+                ReverseName::Unverified { .. }
+            ));
+        }
     }
 
     #[tokio::test]
