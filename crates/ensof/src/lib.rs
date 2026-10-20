@@ -43,8 +43,9 @@ pub mod types;
 
 pub use error::{Error, Result};
 pub use types::{
-    ApiErrorResponse, BundleAction, BundleRequest, BundleResponse, Chain, RouteRequest,
-    RouteResponse, RouteStep, RoutingStrategy, TokenBalance, TokenPrice, TransactionData,
+    ApiErrorResponse, BundleAction, BundleApproval, BundleRequest, BundleResponse, Chain,
+    PreTransaction, RouteRequest, RouteResponse, RouteStep, RoutingStrategy, TokenBalance,
+    TokenPrice, TransactionData,
 };
 
 // Re-export common utilities
@@ -217,16 +218,10 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `chain_id` - Chain ID (optional - if None, returns balances across all chains)
+    /// * `chain_id` - Chain ID (required by the API; always sent)
     /// * `address` - Wallet address (EOA address)
     pub async fn get_balances(&self, chain_id: u64, address: &str) -> Result<Vec<TokenBalance>> {
-        let mut params = vec![
-            ("eoaAddress", address.to_string()),
-            ("useEoa", "true".to_string()),
-        ];
-        if chain_id != 0 {
-            params.push(("chainId", chain_id.to_string()));
-        }
+        let params = balances_params(chain_id, address);
         let params_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         self.base
             .get::<Vec<TokenBalance>, _>("/api/v1/wallet/balances", &params_refs)
@@ -234,9 +229,26 @@ impl Client {
     }
 }
 
+/// Query parameters for `GET /api/v1/wallet/balances`
+fn balances_params(chain_id: u64, address: &str) -> Vec<(&'static str, String)> {
+    vec![
+        ("chainId", chain_id.to_string()),
+        ("eoaAddress", address.to_string()),
+        ("useEoa", "true".to_string()),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_balances_always_send_chain_id() {
+        let params = balances_params(0, "0x2222222222222222222222222222222222222222");
+        assert!(params.contains(&("chainId", "0".to_string())));
+        let params = balances_params(8453, "0x2222222222222222222222222222222222222222");
+        assert_eq!(params[0], ("chainId", "8453".to_string()));
+    }
 
     #[test]
     fn test_client_creation() {
