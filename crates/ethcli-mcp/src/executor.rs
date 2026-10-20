@@ -3,11 +3,12 @@
 //! Runs ethcli commands as subprocesses and captures output.
 //! Includes rate limiting, timeouts, input validation, and metrics.
 
-use std::process::{Output, Stdio};
+use crate::tools::{truncate_with_note, MAX_RESPONSE_BYTES};
+use std::process::{ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
@@ -24,20 +25,42 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Fast timeout for simple operations like cast conversions (10 seconds)
 const FAST_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Commands that use fast timeout (pure computation, no network)
-const FAST_COMMANDS: &[&str] = &["cast", "ens", "config", "address", "blacklist", "endpoints"];
+/// Timeout for Dune executions. ethcli itself waits up to 300s for results;
+/// this leaves it room to time out cleanly first.
+const DUNE_EXECUTE_TIMEOUT: Duration = Duration::from_secs(330);
+
+/// Commands that use fast timeout (pure computation or local files, no network).
+/// Matched exactly against the top-level command.
+const FAST_COMMANDS: &[&str] = &["cast", "config", "address", "blacklist", "endpoints"];
+
+/// Subcommands of FAST_COMMANDS that go to the network and need the default timeout
+const NETWORK_SUBCOMMANDS: &[(&str, &str)] = &[
+    ("blacklist", "scan"),
+    ("blacklist", "scan-portfolio"),
+    ("endpoints", "health"),
+    ("endpoints", "test"),
+    ("endpoints", "optimize"),
+];
+
+/// Maximum stderr bytes kept from a subprocess (errors are summarised to 500 chars)
+const MAX_STDERR_BYTES: usize = 64 * 1024;
 
 /// Opt-in env var for MCP tools that mutate local/remote state
 const WRITE_TOOLS_ENV: &str = "ETHCLI_MCP_ENABLE_WRITE_TOOLS";
 
-/// Flags that can carry credentials in subprocess arguments
+/// Flags that can carry credentials in subprocess arguments, including their
+/// clap aliases (`crates/ethcli/tests/mcp_tool_paths.rs` checks the aliases
+/// against the ethcli clap tree)
 const SECRET_BEARING_FLAGS: &[&str] = &[
     "--show-secrets",
     "--tenderly-key",
     "--alchemy-key",
     "--etherscan-api-key",
+    "--etherscan-key",
     "--rpc-header",
+    "--rpc-headers",
     "--fork-header",
+    "--fork-headers",
 ];
 
 /// Maximum argument length to prevent memory exhaustion
@@ -130,6 +153,12 @@ pub enum ValidationError {
     InvalidCharacters { index: usize, reason: &'static str },
     /// Empty required argument
     EmptyArgument { index: usize },
+    /// A value would be parsed by clap as a flag
+    OptionLikeValue(String),
+    /// A flag was added after the `--` end-of-options marker
+    FlagAfterEndOfOptions(String),
+    /// Stdin payload exceeds the size limit
+    StdinTooLong { len: usize },
 }
 
 impl std::fmt::Display for ValidationError {
@@ -153,6 +182,23 @@ impl std::fmt::Display for ValidationError {
             }
             Self::EmptyArgument { index } => {
                 write!(f, "Empty argument at position {}", index)
+            }
+            Self::OptionLikeValue(value) => {
+                write!(
+                    f,
+                    "value {:?} must not start with '-' (it would be read as a flag)",
+                    value
+                )
+            }
+            Self::FlagAfterEndOfOptions(flag) => {
+                write!(f, "flag {} added after the end of options", flag)
+            }
+            Self::StdinTooLong { len } => {
+                write!(
+                    f,
+                    "stdin input too long ({} bytes, max {})",
+                    len, MAX_ARG_LENGTH
+                )
             }
         }
     }
@@ -309,9 +355,9 @@ fn is_file_output_command(args: &[&str]) -> bool {
     }
 }
 
-fn is_mutating_dune_command(args: &[&str]) -> bool {
+fn is_mutating_dune_command(path: &[&str]) -> bool {
     matches!(
-        (args.get(1).copied(), args.get(2).copied()),
+        (path.get(1).copied(), path.get(2).copied()),
         (
             Some("queries"),
             Some("create" | "update" | "archive" | "unarchive" | "make-private" | "make-public")
@@ -338,8 +384,8 @@ fn is_mutating_tenderly_command(args: &[&str]) -> bool {
             let mut action = None;
             while index < args.len() {
                 let arg = args[index];
-                if arg.starts_with("--") {
-                    index += 2;
+                if arg.starts_with('-') {
+                    index += if arg.contains('=') { 1 } else { 2 };
                     continue;
                 }
 
@@ -359,8 +405,36 @@ fn is_mutating_tenderly_command(args: &[&str]) -> bool {
     }
 }
 
+/// The command path of `args`: the leading words, skipping `--flag value`
+/// pairs that builders insert before the leaf subcommand (e.g.
+/// `alchemy nft -n eth-mainnet report-spam`).
+fn command_path<'a>(args: &[&'a str], depth: usize) -> Vec<&'a str> {
+    let mut path = Vec::with_capacity(depth);
+    let mut index = 0;
+    while index < args.len() && path.len() < depth {
+        let arg = args[index];
+        if arg == "--" {
+            break;
+        }
+        if arg.starts_with('-') {
+            index += if arg.contains('=') { 1 } else { 2 };
+            continue;
+        }
+        path.push(arg);
+        index += 1;
+    }
+    path
+}
+
+fn has_flag(args: &[&str], flag: &str) -> bool {
+    args.iter()
+        .take_while(|arg| **arg != "--")
+        .any(|arg| *arg == flag || arg.starts_with(&format!("{flag}=")))
+}
+
 fn is_mutating_command(args: &[&str]) -> bool {
-    match (args.first().copied(), args.get(1).copied()) {
+    let path = command_path(args, 3);
+    match (path.first().copied(), path.get(1).copied()) {
         (Some("config"), Some(sub)) => matches!(
             sub,
             "init"
@@ -379,13 +453,25 @@ fn is_mutating_command(args: &[&str]) -> bool {
         ),
         (Some("address"), Some("add" | "remove" | "import")) => true,
         (Some("blacklist"), Some("add" | "remove")) => true,
+        (Some("blacklist"), Some("scan" | "scan-portfolio")) => has_flag(args, "--auto-blacklist"),
         (Some("endpoints"), Some("add" | "remove" | "enable" | "disable" | "optimize")) => true,
         (Some("chainlist"), Some("add")) => true,
         (Some("sig"), Some("cache-clear")) => true,
         (Some("simulate"), Some("share" | "unshare")) => true,
-        (Some("dune"), _) => is_mutating_dune_command(args),
+        (Some("simulate"), Some(_)) => has_flag(args, "--save"),
+        (Some("dune"), _) => is_mutating_dune_command(&path),
         (Some("tenderly"), _) => is_mutating_tenderly_command(args),
-        (Some("cow-swap"), Some("create-order" | "cancel-order")) => true,
+        (Some("cow-swap"), Some("create-order" | "cancel-order" | "cancel-orders")) => true,
+        (Some("alchemy"), Some("nft")) => {
+            matches!(
+                path.get(2).copied(),
+                Some("report-spam" | "refresh-metadata")
+            )
+        }
+        (Some("moralis"), Some("nft")) => matches!(
+            path.get(2).copied(),
+            Some("sync-collection" | "resync-metadata" | "resync-traits")
+        ),
         _ => false,
     }
 }
@@ -403,7 +489,15 @@ fn secret_bearing_flag<'a>(args: &[&'a str]) -> Option<&'a str> {
     })
 }
 
-fn validate_command_policy(args: &[&str]) -> Result<(), ExecutionError> {
+fn validate_command_policy(args: &[&str], has_stdin: bool) -> Result<(), ExecutionError> {
+    // `--stdin` makes ethcli read the payload from stdin; only builders that
+    // supply one (config_set_*) may use it.
+    if !has_stdin && has_flag(args, "--stdin") {
+        return Err(ExecutionError::PolicyDenied(
+            "--stdin is only available to tools that provide their own stdin input".to_string(),
+        ));
+    }
+
     if let Some(flag) = secret_bearing_flag(args) {
         return Err(ExecutionError::PolicyDenied(format!(
             "{flag} is disabled over ethcli-mcp because it can expose credentials through subprocess arguments"
@@ -730,45 +824,58 @@ fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError> {
 
 /// Get timeout duration based on command type
 fn get_timeout(args: &[&str]) -> Duration {
-    if matches!(args, ["endpoints", "health", ..]) {
-        return DEFAULT_TIMEOUT;
+    let path = command_path(args, 3);
+    let command = path.first().copied().unwrap_or("unknown");
+    let sub = path.get(1).copied().unwrap_or("");
+
+    if command == "dune" && matches!(path.get(1..3), Some(["sql" | "query", "execute"])) {
+        return DUNE_EXECUTE_TIMEOUT;
     }
 
-    let command = args.first().copied().unwrap_or("unknown");
-    if FAST_COMMANDS.iter().any(|c| command.starts_with(c)) {
+    if FAST_COMMANDS.contains(&command) && !NETWORK_SUBCOMMANDS.contains(&(command, sub)) {
         FAST_TIMEOUT
     } else {
         DEFAULT_TIMEOUT
     }
 }
 
-/// Execute an ethcli command and return the output
-///
-/// This function:
-/// - Validates all arguments for safety
-/// - Limits concurrent subprocess execution
-/// - Applies a timeout to prevent hanging
-/// - Sanitizes error messages
-pub async fn execute(args: &[&str]) -> Result<String, String> {
-    execute_validated(args).await.map_err(|e| e.to_string())
+/// Bytes read from a subprocess pipe, capped in memory
+struct PipeOutput {
+    data: Vec<u8>,
+    /// Total bytes the process wrote, including any beyond the cap
+    total: usize,
 }
 
-fn read_pipe<R>(mut pipe: R) -> JoinHandle<std::io::Result<Vec<u8>>>
+type PipeTask = JoinHandle<std::io::Result<PipeOutput>>;
+
+/// Read a pipe to EOF, keeping at most `max_bytes`. The rest is drained and
+/// discarded so the child never blocks on a full pipe.
+fn read_pipe<R>(mut pipe: R, max_bytes: usize) -> PipeTask
 where
     R: AsyncRead + Unpin + Send + 'static,
 {
     tokio::spawn(async move {
-        let mut output = Vec::new();
-        pipe.read_to_end(&mut output).await?;
-        Ok(output)
+        let mut data = Vec::new();
+        let mut total = 0;
+        let mut chunk = vec![0u8; 64 * 1024];
+        loop {
+            let n = pipe.read(&mut chunk).await?;
+            if n == 0 {
+                break;
+            }
+            total += n;
+            let room = max_bytes.saturating_sub(data.len());
+            data.extend_from_slice(&chunk[..n.min(room)]);
+        }
+        Ok(PipeOutput { data, total })
     })
 }
 
 async fn collect_output(
-    mut task: JoinHandle<std::io::Result<Vec<u8>>>,
+    mut task: PipeTask,
     stream: &str,
     deadline: TokioInstant,
-) -> Result<Vec<u8>, ExecutionError> {
+) -> Result<PipeOutput, ExecutionError> {
     match timeout_at(deadline, &mut task).await {
         Ok(joined) => joined
             .map_err(|e| ExecutionError::SpawnFailed(format!("Failed to join {stream}: {e}")))?
@@ -780,7 +887,7 @@ async fn collect_output(
     }
 }
 
-fn abort_output_task(task: Option<JoinHandle<std::io::Result<Vec<u8>>>>) {
+fn abort_output_task(task: Option<PipeTask>) {
     if let Some(task) = task {
         task.abort();
     }
@@ -798,10 +905,33 @@ fn kill_process_group(pid: u32) {
 #[cfg(not(unix))]
 fn kill_process_group(_pid: u32) {}
 
+/// Output of a finished subprocess
+struct CommandOutput {
+    status: ExitStatus,
+    stdout: Vec<u8>,
+    /// Bytes written to stdout, including any beyond the read cap
+    stdout_total: usize,
+    stderr: Vec<u8>,
+}
+
+/// Set up the child's stdio. stdin is closed unless the tool supplies a
+/// payload: ethcli-mcp's own stdin is the MCP transport, so a child that
+/// inherited it would consume the client's JSON-RPC messages.
+fn configure_stdio(cmd: &mut Command, has_stdin: bool) {
+    cmd.stdin(if has_stdin {
+        Stdio::piped()
+    } else {
+        Stdio::null()
+    })
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+}
+
 async fn run_command_with_timeout(
     mut cmd: Command,
     cmd_timeout: Duration,
-) -> Result<Output, ExecutionError> {
+    stdin_payload: Option<&str>,
+) -> Result<CommandOutput, ExecutionError> {
     #[cfg(unix)]
     cmd.process_group(0);
 
@@ -812,8 +942,27 @@ async fn run_command_with_timeout(
         .spawn()
         .map_err(|e| ExecutionError::SpawnFailed(e.to_string()))?;
     let child_pid = child.id();
-    let stdout_task = child.stdout.take().map(read_pipe);
-    let stderr_task = child.stderr.take().map(read_pipe);
+    let stdout_task = child
+        .stdout
+        .take()
+        .map(|pipe| read_pipe(pipe, MAX_RESPONSE_BYTES + 1));
+    let stderr_task = child
+        .stderr
+        .take()
+        .map(|pipe| read_pipe(pipe, MAX_STDERR_BYTES));
+
+    if let (Some(payload), Some(mut stdin)) = (stdin_payload, child.stdin.take()) {
+        let write = async {
+            stdin.write_all(payload.as_bytes()).await?;
+            stdin.write_all(b"\n").await?;
+            stdin.shutdown().await
+        };
+        // A write error means the child exited early; its status reports why.
+        if let Err(e) = timeout_at(deadline, write).await.unwrap_or(Ok(())) {
+            debug!(error = %e, "Failed to write subprocess stdin");
+        }
+        // Dropping `stdin` here closes the pipe so the child sees EOF.
+    }
 
     let status = match timeout_at(deadline, child.wait()).await {
         Ok(Ok(status)) => status,
@@ -850,12 +999,15 @@ async fn run_command_with_timeout(
             }
         }
     } else {
-        Vec::new()
+        PipeOutput {
+            data: Vec::new(),
+            total: 0,
+        }
     };
 
     let stderr = if let Some(task) = stderr_task {
         match collect_output(task, "stderr", deadline).await {
-            Ok(output) => output,
+            Ok(output) => output.data,
             Err(e @ ExecutionError::Timeout) => {
                 if let Some(pid) = child_pid {
                     kill_process_group(pid);
@@ -868,15 +1020,44 @@ async fn run_command_with_timeout(
         Vec::new()
     };
 
-    Ok(Output {
+    Ok(CommandOutput {
         status,
-        stdout,
+        stdout: stdout.data,
+        stdout_total: stdout.total,
         stderr,
     })
 }
 
-/// Execute with full error type information
-pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> {
+/// Decode stdout. Output that hit the read cap is cut back to a char boundary
+/// and truncated with a note giving the real size.
+fn decode_stdout(mut stdout: Vec<u8>, total: usize) -> Result<String, ExecutionError> {
+    if total <= MAX_RESPONSE_BYTES {
+        return String::from_utf8(stdout).map_err(|e| ExecutionError::InvalidUtf8(e.to_string()));
+    }
+    let valid = match std::str::from_utf8(&stdout) {
+        Ok(_) => stdout.len(),
+        // A multi-byte char split by the cap: drop the partial char
+        Err(e) if e.error_len().is_none() => e.valid_up_to(),
+        Err(e) => return Err(ExecutionError::InvalidUtf8(e.to_string())),
+    };
+    stdout.truncate(valid);
+    let text = String::from_utf8(stdout).map_err(|e| ExecutionError::InvalidUtf8(e.to_string()))?;
+    // Leave room for the note so the tool response cap does not cut it off.
+    Ok(truncate_with_note(text, MAX_RESPONSE_BYTES - 1024, total))
+}
+
+/// Execute an ethcli command and return the output
+///
+/// This function:
+/// - Validates all arguments for safety
+/// - Limits concurrent subprocess execution
+/// - Applies a timeout to prevent hanging
+/// - Writes `stdin_payload` to the child's stdin (stdin is closed otherwise)
+/// - Sanitizes error messages
+pub async fn execute_validated(
+    args: &[&str],
+    stdin_payload: Option<&str>,
+) -> Result<String, ExecutionError> {
     let start = Instant::now();
     let command = args.first().copied().unwrap_or("unknown");
 
@@ -885,7 +1066,14 @@ pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> 
 
     // Validate arguments
     validate_args(args).map_err(ExecutionError::Validation)?;
-    validate_command_policy(args)?;
+    if let Some(payload) = stdin_payload {
+        if payload.len() > MAX_ARG_LENGTH {
+            return Err(ExecutionError::Validation(ValidationError::StdinTooLong {
+                len: payload.len(),
+            }));
+        }
+    }
+    validate_command_policy(args, stdin_payload.is_some())?;
 
     // Acquire semaphore permit (rate limiting)
     let _permit = match get_semaphore().try_acquire() {
@@ -901,13 +1089,14 @@ pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> 
     let ethcli_path = find_ethcli_binary()?;
 
     let mut cmd = Command::new(&ethcli_path);
-    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.args(args);
+    configure_stdio(&mut cmd, stdin_payload.is_some());
 
     let cmd_timeout = get_timeout(args);
     debug!(command = %command, timeout_secs = %cmd_timeout.as_secs(), "Executing ethcli command");
 
     // Execute with tiered timeout
-    let output = match run_command_with_timeout(cmd, cmd_timeout).await {
+    let output = match run_command_with_timeout(cmd, cmd_timeout, stdin_payload).await {
         Ok(output) => output,
         Err(ExecutionError::Timeout) => {
             METRICS.timeouts.fetch_add(1, Ordering::Relaxed);
@@ -925,8 +1114,7 @@ pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> 
     if output.status.success() {
         METRICS.commands_success.fetch_add(1, Ordering::Relaxed);
         debug!(command = %command, duration_ms = %duration_ms, "Command succeeded");
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|e| ExecutionError::InvalidUtf8(e.to_string()))?;
+        let stdout = decode_stdout(output.stdout, output.stdout_total)?;
         Ok(sanitize_success_output(&stdout))
     } else {
         METRICS.commands_failed.fetch_add(1, Ordering::Relaxed);
@@ -941,40 +1129,100 @@ pub async fn execute_validated(args: &[&str]) -> Result<String, ExecutionError> 
     }
 }
 
-/// Build command args from optional parameters
+/// Build command args from optional parameters.
+///
+/// Tool inputs never become flags: a positional or subcommand value starting
+/// with `-` is rejected, and an option value starting with `-` is passed as
+/// `--flag=value`. Positionals that may legitimately start with `-` (negative
+/// numbers, SQL comments) go after [`ArgsBuilder::end_of_options`].
+/// Validation errors are reported by [`ArgsBuilder::execute`].
 pub struct ArgsBuilder {
     args: Vec<String>,
+    stdin: Option<String>,
+    end_of_options: bool,
+    error: Option<ValidationError>,
 }
 
 impl ArgsBuilder {
     pub fn new(command: &str) -> Self {
         Self {
             args: vec![command.to_string()],
+            stdin: None,
+            end_of_options: false,
+            error: None,
         }
     }
 
+    fn fail(&mut self, error: ValidationError) {
+        self.error.get_or_insert(error);
+    }
+
+    /// Push a positional value, rejecting anything clap would read as a flag
+    fn push_value(&mut self, value: &str) {
+        if !self.end_of_options && value.starts_with('-') {
+            self.fail(ValidationError::OptionLikeValue(value.to_string()));
+        }
+        self.args.push(value.to_string());
+    }
+
+    fn push_flag(&mut self, flag: &str) -> bool {
+        if self.end_of_options {
+            self.fail(ValidationError::FlagAfterEndOfOptions(flag.to_string()));
+            return false;
+        }
+        true
+    }
+
     pub fn subcommand(mut self, sub: &str) -> Self {
+        if sub.starts_with('-') {
+            self.fail(ValidationError::OptionLikeValue(sub.to_string()));
+        }
         self.args.push(sub.to_string());
         self
     }
 
     pub fn arg(mut self, value: &str) -> Self {
-        self.args.push(value.to_string());
+        self.push_value(value);
         self
     }
 
     pub fn opt(mut self, flag: &str, value: Option<&str>) -> Self {
         if let Some(v) = value {
-            self.args.push(flag.to_string());
-            self.args.push(v.to_string());
+            if !self.push_flag(flag) {
+                return self;
+            }
+            if v.starts_with('-') {
+                // `--flag=-x` keeps clap from reading the value as a flag
+                self.args.push(format!("{flag}={v}"));
+            } else {
+                self.args.push(flag.to_string());
+                self.args.push(v.to_string());
+            }
         }
         self
     }
 
     pub fn opt_flag(mut self, flag: &str, enabled: bool) -> Self {
-        if enabled {
+        if enabled && self.push_flag(flag) {
             self.args.push(flag.to_string());
         }
+        self
+    }
+
+    /// Insert `--`: everything after it is positional, so values may start
+    /// with `-`. No flags can be added afterwards.
+    pub fn end_of_options(mut self) -> Self {
+        if !self.end_of_options {
+            self.args.push("--".to_string());
+            self.end_of_options = true;
+        }
+        self
+    }
+
+    /// Write `value` to the child's stdin instead of passing it in argv,
+    /// where other local users could read it from the process list.
+    pub fn stdin(mut self, value: &str) -> Self {
+        self.stdin = Some(value.to_string());
         self
     }
 
@@ -989,17 +1237,20 @@ impl ArgsBuilder {
         self.opt("-n", network)
     }
 
-    pub fn format_json(mut self) -> Self {
+    pub fn format_json(self) -> Self {
         // Use -o (short flag) because ethcli commands inconsistently use
         // --format or --output for the long flag, but all use -o for short
-        self.args.push("-o".to_string());
-        self.args.push("json".to_string());
-        self
+        self.opt("-o", Some("json"))
     }
 
     pub async fn execute(self) -> Result<String, String> {
+        if let Some(error) = self.error {
+            return Err(ExecutionError::Validation(error).to_string());
+        }
         let args: Vec<&str> = self.args.iter().map(|s| s.as_str()).collect();
-        execute(&args).await
+        execute_validated(&args, self.stdin.as_deref())
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -1255,8 +1506,11 @@ mod tests {
     #[test]
     fn test_get_timeout_fast_commands() {
         assert_eq!(get_timeout(&["cast"]), FAST_TIMEOUT);
-        assert_eq!(get_timeout(&["ens"]), FAST_TIMEOUT);
         assert_eq!(get_timeout(&["config"]), FAST_TIMEOUT);
+        assert_eq!(get_timeout(&["config", "validate"]), FAST_TIMEOUT);
+        assert_eq!(get_timeout(&["address", "list"]), FAST_TIMEOUT);
+        assert_eq!(get_timeout(&["blacklist", "check", "0xabc"]), FAST_TIMEOUT);
+        assert_eq!(get_timeout(&["endpoints", "list"]), FAST_TIMEOUT);
     }
 
     #[test]
@@ -1265,6 +1519,47 @@ mod tests {
         assert_eq!(get_timeout(&["tx"]), DEFAULT_TIMEOUT);
         assert_eq!(get_timeout(&["account"]), DEFAULT_TIMEOUT);
         assert_eq!(get_timeout(&["endpoints", "health"]), DEFAULT_TIMEOUT);
+    }
+
+    #[test]
+    fn test_get_timeout_matches_commands_exactly() {
+        // `enso` used to match the `ens` prefix and get the 10s timeout
+        assert_eq!(get_timeout(&["enso", "route"]), DEFAULT_TIMEOUT);
+        assert_eq!(get_timeout(&["ens", "lookup", "0xabc"]), DEFAULT_TIMEOUT);
+        assert_eq!(get_timeout(&["castle"]), DEFAULT_TIMEOUT);
+        assert_eq!(
+            get_timeout(&["blacklist", "scan-portfolio", "0xabc"]),
+            DEFAULT_TIMEOUT
+        );
+        assert_eq!(
+            get_timeout(&["blacklist", "scan", "0xabc"]),
+            DEFAULT_TIMEOUT
+        );
+        assert_eq!(get_timeout(&["endpoints", "test", "x"]), DEFAULT_TIMEOUT);
+        assert_eq!(get_timeout(&["endpoints", "optimize"]), DEFAULT_TIMEOUT);
+    }
+
+    #[test]
+    fn test_get_timeout_dune_executions_outlast_ethcli() {
+        let sql = [
+            "dune",
+            "sql",
+            "execute",
+            "--timeout",
+            "300",
+            "--",
+            "SELECT 1",
+        ];
+        assert_eq!(get_timeout(&sql), DUNE_EXECUTE_TIMEOUT);
+        assert_eq!(
+            get_timeout(&["dune", "query", "execute", "--timeout", "300", "1"]),
+            DUNE_EXECUTE_TIMEOUT
+        );
+        assert!(DUNE_EXECUTE_TIMEOUT > Duration::from_secs(300));
+        assert_eq!(
+            get_timeout(&["dune", "queries", "get", "1"]),
+            DEFAULT_TIMEOUT
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -1330,6 +1625,95 @@ mod tests {
     }
 
     #[test]
+    fn test_mutating_command_policy_blocks_remote_side_effects() {
+        assert!(is_mutating_command(&[
+            "cow-swap",
+            "cancel-orders",
+            "--uid",
+            "a,b",
+            "sig",
+            "-o",
+            "json"
+        ]));
+        assert!(is_mutating_command(&[
+            "alchemy",
+            "nft",
+            "-n",
+            "eth-mainnet",
+            "report-spam",
+            "0xabc"
+        ]));
+        assert!(is_mutating_command(&[
+            "alchemy",
+            "nft",
+            "refresh-metadata",
+            "0xabc",
+            "1"
+        ]));
+        for leaf in ["sync-collection", "resync-metadata", "resync-traits"] {
+            assert!(
+                is_mutating_command(&["moralis", "nft", "--chain", "eth", leaf, "0xabc"]),
+                "{leaf}"
+            );
+        }
+        assert!(is_mutating_command(&[
+            "simulate", "call", "0xabc", "--sig", "f()", "--save"
+        ]));
+        assert!(is_mutating_command(&[
+            "blacklist",
+            "scan",
+            "0xabc",
+            "--auto-blacklist"
+        ]));
+
+        assert!(!is_mutating_command(&[
+            "alchemy",
+            "nft",
+            "-n",
+            "eth-mainnet",
+            "is-spam",
+            "0xabc"
+        ]));
+        assert!(!is_mutating_command(&[
+            "moralis", "nft", "--chain", "eth", "metadata", "0xabc", "1"
+        ]));
+        assert!(!is_mutating_command(&[
+            "simulate", "call", "0xabc", "--sig", "f()"
+        ]));
+        // A `--save` positional after `--` is data, not the flag
+        assert!(!is_mutating_command(&[
+            "simulate",
+            "call",
+            "0xabc",
+            "--sig",
+            "f(string)",
+            "--",
+            "--save"
+        ]));
+        assert!(!is_mutating_command(&["blacklist", "scan", "0xabc"]));
+    }
+
+    #[test]
+    fn test_tenderly_admin_walker_skips_equals_flags() {
+        assert!(!is_mutating_command(&[
+            "tenderly",
+            "vnets",
+            "admin",
+            "--vnet=-abc",
+            "get-latest"
+        ]));
+        assert!(is_mutating_command(&[
+            "tenderly",
+            "vnets",
+            "admin",
+            "--vnet=-abc",
+            "set-balance",
+            "0xabc",
+            "1"
+        ]));
+    }
+
+    #[test]
     fn test_redacts_alchemy_notify_token_and_access_key_lines() {
         assert_eq!(
             redact_secret_line("notify_token = \"abc123\"").as_deref(),
@@ -1388,12 +1772,167 @@ mod tests {
                 "--etherscan-api-key",
                 "secret",
             ][..],
+            // clap aliases and the global key flag
+            &["simulate", "call", "0xabc", "--rpc-headers", "x-api-key: s"][..],
+            &["simulate", "call", "0xabc", "--fork-headers=x-api-key: s"][..],
+            &["contract", "abi", "0xabc", "--etherscan-key", "secret"][..],
+            &["logs", "-c", "0xabc", "--etherscan-key=secret"][..],
         ] {
             assert!(matches!(
-                validate_command_policy(args),
+                validate_command_policy(args, false),
                 Err(ExecutionError::PolicyDenied(_))
             ));
         }
+    }
+
+    #[test]
+    fn test_policy_blocks_stdin_flag_without_payload() {
+        // `tx --stdin` would read the MCP client's JSON-RPC stream
+        let args = ["tx", "--stdin", "-o", "json"];
+        assert!(matches!(
+            validate_command_policy(&args, false),
+            Err(ExecutionError::PolicyDenied(_))
+        ));
+        assert!(!matches!(
+            validate_command_policy(&["config", "set-dune", "--stdin"], true),
+            Err(ExecutionError::PolicyDenied(message)) if message.starts_with("--stdin")
+        ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_child_stdin_is_closed_by_default() {
+        // If the child inherited stdin, `cat` would block on the test runner's
+        // stdin (the MCP transport in production) until the timeout.
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c").arg("cat; echo done");
+        configure_stdio(&mut cmd, false);
+
+        let output = run_command_with_timeout(cmd, Duration::from_secs(5), None)
+            .await
+            .expect("child should see EOF on stdin");
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "done\n");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_stdin_payload_is_written_and_closed() {
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c").arg("cat");
+        configure_stdio(&mut cmd, true);
+
+        let output = run_command_with_timeout(cmd, Duration::from_secs(5), Some("secret-key"))
+            .await
+            .expect("cat should exit after stdin closes");
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "secret-key\n");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_large_stdout_is_capped_and_drained() {
+        // 3 MB: well past the cap and the pipe buffer, so the child would
+        // block (and time out) if the excess were not drained.
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c").arg("head -c 3000000 /dev/zero | tr '\\0' a");
+        configure_stdio(&mut cmd, false);
+
+        let output = run_command_with_timeout(cmd, Duration::from_secs(10), None)
+            .await
+            .expect("large output should complete, not time out");
+        assert_eq!(output.stdout_total, 3_000_000);
+        assert_eq!(output.stdout.len(), MAX_RESPONSE_BYTES + 1);
+
+        let text = decode_stdout(output.stdout, output.stdout_total).unwrap();
+        assert!(text.len() <= MAX_RESPONSE_BYTES);
+        assert!(
+            text.contains("of 3000000 bytes"),
+            "note should give the real size"
+        );
+    }
+
+    #[test]
+    fn test_decode_stdout_drops_char_split_by_cap() {
+        let mut stdout = "a".repeat(MAX_RESPONSE_BYTES).into_bytes();
+        stdout.push(0xC3); // first byte of a 2-byte char cut off by the cap
+        let text = decode_stdout(stdout, MAX_RESPONSE_BYTES + 10).unwrap();
+        assert!(text.contains("output truncated"));
+
+        assert!(decode_stdout(b"ok".to_vec(), 2).is_ok());
+        assert!(matches!(
+            decode_stdout(vec![0xff], 1),
+            Err(ExecutionError::InvalidUtf8(_))
+        ));
+    }
+
+    // -------------------------------------------------------------------------
+    // ArgsBuilder value validation
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_args_builder_rejects_flag_like_positionals() {
+        for value in ["--stdin", "--all", "--rpc-url=http://169.254.169.254", "-5"] {
+            let builder = ArgsBuilder::new("tx").arg(value);
+            assert!(
+                matches!(builder.error, Some(ValidationError::OptionLikeValue(_))),
+                "{value} should be rejected"
+            );
+        }
+        let builder = ArgsBuilder::new("kong").subcommand("--help");
+        assert!(builder.error.is_some());
+    }
+
+    #[test]
+    fn test_args_builder_opt_dash_value_uses_equals() {
+        let builder = ArgsBuilder::new("logs")
+            .opt("-e", Some("-x"))
+            .opt("--from", Some("--all"));
+        assert!(builder.error.is_none());
+        assert_eq!(builder.args, vec!["logs", "-e=-x", "--from=--all"]);
+    }
+
+    #[test]
+    fn test_args_builder_end_of_options() {
+        let builder = ArgsBuilder::new("cast")
+            .subcommand("abi-encode")
+            .arg("f(int256)")
+            .end_of_options()
+            .arg("-5")
+            .arg("--all");
+        assert!(builder.error.is_none());
+        assert_eq!(
+            builder.args,
+            vec!["cast", "abi-encode", "f(int256)", "--", "-5", "--all"]
+        );
+
+        let builder = ArgsBuilder::new("cast").end_of_options().format_json();
+        assert!(matches!(
+            builder.error,
+            Some(ValidationError::FlagAfterEndOfOptions(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_args_builder_execute_reports_rejected_value() {
+        let err = ArgsBuilder::new("tenderly")
+            .subcommand("vnets")
+            .subcommand("delete")
+            .arg("--all")
+            .execute()
+            .await
+            .unwrap_err();
+        assert!(err.contains("must not start with '-'"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn test_execute_rejects_oversized_stdin() {
+        let payload = "x".repeat(MAX_ARG_LENGTH + 1);
+        let err = execute_validated(&["config", "set-dune", "--stdin"], Some(&payload))
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            ExecutionError::Validation(ValidationError::StdinTooLong { .. })
+        ));
     }
 
     #[cfg(unix)]
@@ -1415,7 +1954,7 @@ mod tests {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let result = run_command_with_timeout(cmd, Duration::from_millis(50)).await;
+        let result = run_command_with_timeout(cmd, Duration::from_millis(50), None).await;
         assert!(matches!(result, Err(ExecutionError::Timeout)));
 
         tokio::time::sleep(Duration::from_millis(1_200)).await;
@@ -1446,7 +1985,7 @@ mod tests {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let result = run_command_with_timeout(cmd, Duration::from_millis(50)).await;
+        let result = run_command_with_timeout(cmd, Duration::from_millis(50), None).await;
         assert!(matches!(result, Err(ExecutionError::Timeout)));
 
         tokio::time::sleep(Duration::from_millis(1_200)).await;

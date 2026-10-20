@@ -103,8 +103,9 @@ When adding a tool, decide whether it is safe in default read-only mode:
 ### Security Controls
 
 - **Rate limiting**: Max 10 concurrent subprocesses (semaphore)
-- **Timeouts**: 10s for fast commands (cast, ens), 30s for network commands
-- **Input validation**: Argument length limits, null byte detection
+- **Timeouts**: 10s for local commands (cast, config, address, most blacklist/endpoints), 30s for network commands, 330s for Dune executions
+- **Input validation**: Argument length limits, null byte detection; `ArgsBuilder` rejects positional/subcommand values starting with `-` and passes dash-led option values as `--flag=value`. Use `.end_of_options()` before positionals that may legitimately start with `-`
+- **Stdin**: closed for every subprocess (stdin is the MCP transport); `ArgsBuilder::stdin()` pipes a secret instead of argv (`config_set_*`)
 - **Read-only default**: mutating tools require `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1`
 - **Config safety**: `config_show` returns safe status only, not raw config contents
 - **File-output policy**: `contract_abi`, `contract_source`, and `address_export` reject output paths over MCP

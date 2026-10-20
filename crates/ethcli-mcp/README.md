@@ -241,15 +241,17 @@ For endpoint diagnostics, `endpoints_health` returns JSON and defaults to `probe
 
 ## Security
 
-- **Read-only by default** - Local/remote mutating tools such as `config_set_*`, `address_add`, `blacklist_add`, `endpoints_add`, `chainlist_add`, `simulate_share`, Dune write APIs, Tenderly VNet/admin mutations, and CowSwap create/cancel order are blocked unless `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1` is set.
+- **Read-only by default** - Local/remote mutating tools such as `config_set_*`, `address_add`, `blacklist_add`, `endpoints_add`, `chainlist_add`, `simulate_share`, Dune write APIs, Tenderly VNet/admin mutations, `simulate_call` with `save`, Alchemy NFT `report_spam`/`refresh_metadata`, Moralis NFT `sync_collection`/`resync_metadata`/`resync_traits`, and CowSwap create/cancel order(s) are blocked unless `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1` is set.
 - **No raw config disclosure** - `config_show` returns safe config status only. It does not return config file contents because they may contain API keys or private RPC URLs.
 - **No arbitrary file output** - MCP rejects file-output paths for tools such as `contract_abi`, `contract_source`, and `address_export`; omit `output` to receive data in the tool response.
-- **No secret-bearing subprocess args** - MCP rejects direct credential/header flags such as `--show-secrets`, `--tenderly-key`, `--alchemy-key`, `--etherscan-api-key`, `--rpc-header`, and `--fork-header`. Configure credentials via environment variables or ethcli config instead.
+- **No secret-bearing subprocess args** - MCP rejects direct credential/header flags such as `--show-secrets`, `--tenderly-key`, `--alchemy-key`, `--etherscan-api-key`/`--etherscan-key`, `--rpc-header(s)`, and `--fork-header(s)`. Configure credentials via environment variables or ethcli config instead. `config_set_*` passes the key to ethcli on stdin, not in argv.
 - **Success-output redaction** - Credential-bearing URLs and secret-looking header/config lines are redacted before returning MCP tool responses.
 - **Process-group cleanup** - Timed-out subprocesses are killed as a process group so child tools such as `anvil` do not remain running.
 - **Rate limiting** - Max 10 concurrent subprocesses
-- **Timeouts** - 10 seconds for fast local commands, 30 seconds for network commands
-- **Input validation** - Argument length limits, null byte detection
+- **Timeouts** - 10 seconds for fast local commands, 30 seconds for network commands, 330 seconds for `dune_sql`/`dune_query` (ethcli waits up to 300 seconds for the execution)
+- **Input validation** - Argument length limits, null byte detection. Tool values are never read as flags: positional values starting with `-` are rejected (or passed after `--` where they are legitimate, such as negative ABI arguments and SQL comments), and option values starting with `-` are passed as `--flag=value`
+- **Closed stdin** - The ethcli subprocess gets no stdin (the MCP transport), except the secret piped to `config_set_*`
+- **Bounded output** - At most 1 MB of stdout is kept; the rest is drained and the response notes the truncation
 - **Error sanitization** - API keys filtered from error messages
 
 ## Development

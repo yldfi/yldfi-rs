@@ -95,6 +95,12 @@ pub fn cap_response(output: String, max_bytes: usize) -> String {
         return output;
     }
     let total = output.len();
+    truncate_with_note(output, max_bytes, total)
+}
+
+/// Truncate `output` to at most `max_bytes` (on a char boundary) and append a
+/// note saying it was cut from `total` bytes.
+pub fn truncate_with_note(output: String, max_bytes: usize, total: usize) -> String {
     let mut cut = max_bytes;
     while cut > 0 && !output.is_char_boundary(cut) {
         cut -= 1;
@@ -139,24 +145,18 @@ pub async fn logs(
     event: Option<&str>,
     from_block: Option<&str>,
     to_block: Option<&str>,
-    topics: Option<Vec<String>>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("logs")
+    ArgsBuilder::new("logs")
         .opt("-c", Some(contract))
         .opt("-e", event)
         .opt("-f", from_block)
         .opt("-t", to_block)
         .chain(chain)
-        .format_json();
-
-    if let Some(t) = topics {
-        for topic in t {
-            builder = builder.opt("-e", Some(&topic));
-        }
-    }
-
-    builder.execute().await.map_err(ToolError::from)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 // =============================================================================
@@ -168,7 +168,7 @@ pub async fn tx_analyze(
     chain: Option<&str>,
     block: Option<u64>,
 ) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("tx").arg(hash).chain(chain);
+    let mut builder = ArgsBuilder::new("tx").arg(hash).chain(chain).format_json();
 
     if let Some(b) = block {
         builder = builder.opt("-b", Some(&b.to_string()));
@@ -428,7 +428,7 @@ pub async fn address_import(file: &str, overwrite: bool) -> Result<String, ToolE
     let mut builder = ArgsBuilder::new("address").subcommand("import").arg(file);
 
     if overwrite {
-        builder = builder.arg("--overwrite");
+        builder = builder.opt_flag("--overwrite", true);
     }
 
     builder.execute().await.map_err(ToolError::from)
@@ -591,9 +591,11 @@ pub async fn contract_call(
         .opt("--rpc-url", rpc_url);
 
     if human {
-        builder = builder.arg("-H");
+        builder = builder.opt_flag("-H", true);
     }
 
+    // After `--` so negative numbers and other dash-led values stay arguments
+    builder = builder.end_of_options();
     for arg in args {
         builder = builder.arg(&arg);
     }
@@ -920,7 +922,10 @@ pub async fn cast_to_bytes32(value: &str) -> Result<String, ToolError> {
 }
 
 pub async fn cast_abi_encode(sig: &str, args: Vec<String>) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("cast").subcommand("abi-encode").arg(sig);
+    let mut builder = ArgsBuilder::new("cast")
+        .subcommand("abi-encode")
+        .arg(sig)
+        .end_of_options();
     for arg in args {
         builder = builder.arg(&arg);
     }
@@ -972,7 +977,7 @@ pub async fn rpc_block(
         .format_json();
 
     if full {
-        builder = builder.arg("-f");
+        builder = builder.opt_flag("-f", true);
     }
 
     builder.execute().await.map_err(ToolError::from)
@@ -1137,13 +1142,11 @@ pub async fn simulate_call(
     evm_version: Option<&str>,
     with_local_artifacts: bool,
     rpc_timeout: Option<u64>,
-    rpc_headers: &[String],
     no_proxy: bool,
     fork_urls: &[String],
     fork_block_number: Option<&str>,
     fork_transaction_hash: Option<&str>,
     fork_chain_id: Option<u64>,
-    fork_headers: &[String],
     hardfork: Option<&str>,
     network: Option<&str>,
     no_rate_limit: bool,
@@ -1159,20 +1162,16 @@ pub async fn simulate_call(
     network_id: Option<u64>,
     save: bool,
     // Tenderly options
-    tenderly_key: Option<&str>,
     tenderly_account: Option<&str>,
     tenderly_project: Option<&str>,
     // Alchemy options
-    alchemy_key: Option<&str>,
     alchemy_network: Option<&str>,
     // Debug options
     dry_run: Option<&str>,
-    show_secrets: bool,
 ) -> Result<String, ToolError> {
-    if show_secrets {
-        return Err(ToolError::InvalidInput(
-            "show_secrets is disabled over ethcli-mcp".to_string(),
-        ));
+    if save {
+        // Saving stores the simulation in the Tenderly project
+        require_write_tools_enabled("simulate_call with save")?;
     }
 
     let mut builder = ArgsBuilder::new("simulate")
@@ -1219,15 +1218,12 @@ pub async fn simulate_call(
         .opt("--simulation-type", simulation_type)
         .opt_flag("--save", save)
         // Tenderly options
-        .opt("--tenderly-key", tenderly_key)
         .opt("--tenderly-account", tenderly_account)
         .opt("--tenderly-project", tenderly_project)
         // Alchemy options
-        .opt("--alchemy-key", alchemy_key)
         .opt("--alchemy-network", alchemy_network)
         // Debug options
-        .opt("--dry-run", dry_run)
-        .opt_flag("--show-secrets", show_secrets);
+        .opt("--dry-run", dry_run);
 
     // Numeric options
     if let Some(ts) = block_timestamp {
@@ -1277,17 +1273,12 @@ pub async fn simulate_call(
     for label in labels {
         builder = builder.opt("--label", Some(label));
     }
-    for header in rpc_headers {
-        builder = builder.opt("--rpc-header", Some(header));
-    }
     for fork_url in fork_urls {
         builder = builder.opt("--fork-url", Some(fork_url));
     }
-    for fork_header in fork_headers {
-        builder = builder.opt("--fork-header", Some(fork_header));
-    }
 
-    // Function arguments
+    // Function arguments, after `--` so negative numbers stay arguments
+    builder = builder.end_of_options();
     for arg in args {
         builder = builder.arg(&arg);
     }
@@ -1312,10 +1303,8 @@ pub struct SimulateTxOptions<'a> {
     pub with_local_artifacts: bool,
     pub no_proxy: bool,
     pub rpc_timeout: Option<u64>,
-    pub rpc_headers: &'a [String],
     pub enable_tx_gas_limit: bool,
     pub disable_block_gas_limit: bool,
-    pub etherscan_api_key: Option<&'a str>,
     pub raw: bool,
 }
 
@@ -1337,7 +1326,6 @@ pub async fn simulate_tx(input: SimulateTxOptions<'_>) -> Result<String, ToolErr
         .opt_flag("--no-proxy", input.no_proxy)
         .opt_flag("--enable-tx-gas-limit", input.enable_tx_gas_limit)
         .opt_flag("--disable-block-gas-limit", input.disable_block_gas_limit)
-        .opt("--etherscan-api-key", input.etherscan_api_key)
         .opt_flag("--raw", input.raw);
 
     if let Some(depth) = input.trace_depth {
@@ -1348,9 +1336,6 @@ pub async fn simulate_tx(input: SimulateTxOptions<'_>) -> Result<String, ToolErr
     }
     for label in input.labels {
         builder = builder.opt("--label", Some(label));
-    }
-    for header in input.rpc_headers {
-        builder = builder.opt("--rpc-header", Some(header));
     }
 
     builder.execute().await.map_err(ToolError::from)
@@ -1524,7 +1509,7 @@ pub async fn tenderly_vnets_create(
         builder = builder.opt("--chain-id", Some(&cid.to_string()));
     }
     if sync_state {
-        builder = builder.arg("--sync-state");
+        builder = builder.opt_flag("--sync-state", true);
     }
     builder.execute().await.map_err(ToolError::from)
 }
@@ -1544,7 +1529,7 @@ pub async fn tenderly_vnets_delete(ids: &[String], all: bool) -> Result<String, 
         .subcommand("vnets")
         .subcommand("delete");
     if all {
-        builder = builder.arg("--all");
+        builder = builder.opt_flag("--all", true);
     } else {
         for id in ids {
             builder = builder.arg(id);
@@ -2453,6 +2438,8 @@ pub async fn alchemy_nft_refresh_metadata(
     token_id: &str,
     network: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("alchemy_nft_refresh_metadata")?;
+
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .network(network)
@@ -2482,6 +2469,8 @@ pub async fn alchemy_nft_report_spam(
     contract: &str,
     network: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("alchemy_nft_report_spam")?;
+
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .network(network)
@@ -4834,6 +4823,8 @@ pub async fn moralis_nft_resync_metadata(
     token_id: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("moralis_nft_resync_metadata")?;
+
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .opt("--chain", chain)
@@ -4877,6 +4868,8 @@ pub async fn moralis_nft_sync_collection(
     address: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("moralis_nft_sync_collection")?;
+
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .opt("--chain", chain)
@@ -4919,6 +4912,8 @@ pub async fn moralis_nft_resync_traits(
     address: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("moralis_nft_resync_traits")?;
+
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .opt("--chain", chain)
@@ -5313,10 +5308,14 @@ pub async fn moralis_entities_category_entities(
 // DUNE (3 subcommands)
 // =============================================================================
 
+/// How long ethcli waits for a Dune execution (the MCP timeout is a little longer)
+const DUNE_EXECUTE_TIMEOUT_SECS: &str = "300";
+
 pub async fn dune_query(query_id: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("dune")
         .subcommand("query")
         .subcommand("execute")
+        .opt("--timeout", Some(DUNE_EXECUTE_TIMEOUT_SECS))
         .arg(query_id)
         .execute()
         .await
@@ -5327,6 +5326,9 @@ pub async fn dune_sql(sql: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("dune")
         .subcommand("sql")
         .subcommand("execute")
+        .opt("--timeout", Some(DUNE_EXECUTE_TIMEOUT_SECS))
+        // After `--` so SQL starting with a `--` comment stays the argument
+        .end_of_options()
         .arg(sql)
         .execute()
         .await
@@ -7065,6 +7067,8 @@ pub async fn cowswap_cancel_order(
     signature: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("cowswap_cancel_order")?;
+
     ArgsBuilder::new("cow-swap")
         .subcommand("cancel-order")
         .arg(uid)
@@ -7082,6 +7086,8 @@ pub async fn cowswap_cancel_orders(
     signing_scheme: Option<&str>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("cowswap_cancel_orders")?;
+
     let uids = uids.join(",");
     ArgsBuilder::new("cow-swap")
         .subcommand("cancel-orders")
@@ -7100,18 +7106,18 @@ pub async fn cowswap_cancel_orders(
 // =============================================================================
 
 pub async fn lifi_quote(
-    from_chain: &str,
+    from_chain: u64,
     from_token: &str,
-    to_chain: &str,
+    to_chain: u64,
     to_token: &str,
     amount: &str,
     from_address: &str,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("quote")
-        .arg(from_chain)
+        .arg(&from_chain.to_string())
         .arg(from_token)
-        .arg(to_chain)
+        .arg(&to_chain.to_string())
         .arg(to_token)
         .arg(amount)
         .arg(from_address)
@@ -7122,18 +7128,18 @@ pub async fn lifi_quote(
 }
 
 pub async fn lifi_routes(
-    from_chain: &str,
+    from_chain: u64,
     from_token: &str,
-    to_chain: &str,
+    to_chain: u64,
     to_token: &str,
     amount: &str,
     from_address: &str,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("routes")
-        .arg(from_chain)
+        .arg(&from_chain.to_string())
         .arg(from_token)
-        .arg(to_chain)
+        .arg(&to_chain.to_string())
         .arg(to_token)
         .arg(amount)
         .arg(from_address)
@@ -7144,18 +7150,18 @@ pub async fn lifi_routes(
 }
 
 pub async fn lifi_best_route(
-    from_chain: &str,
+    from_chain: u64,
     from_token: &str,
-    to_chain: &str,
+    to_chain: u64,
     to_token: &str,
     amount: &str,
     from_address: &str,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("best-route")
-        .arg(from_chain)
+        .arg(&from_chain.to_string())
         .arg(from_token)
-        .arg(to_chain)
+        .arg(&to_chain.to_string())
         .arg(to_token)
         .arg(amount)
         .arg(from_address)
@@ -7185,20 +7191,20 @@ pub async fn lifi_chains() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_chain(chain: &str) -> Result<String, ToolError> {
+pub async fn lifi_chain(chain_id: u64) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("chain")
-        .arg(chain)
+        .arg(&chain_id.to_string())
         .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_tokens(chain_id: Option<&str>) -> Result<String, ToolError> {
+pub async fn lifi_tokens(chain_id: Option<u64>) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("tokens")
-        .opt("--chain-id", chain_id)
+        .opt("--chain-id", chain_id.map(|id| id.to_string()).as_deref())
         .format_json()
         .execute()
         .await
@@ -7232,10 +7238,10 @@ pub async fn lifi_exchanges() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_gas(chain_id: &str) -> Result<String, ToolError> {
+pub async fn lifi_gas(chain_id: u64) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("gas")
-        .arg(chain_id)
+        .arg(&chain_id.to_string())
         .format_json()
         .execute()
         .await
@@ -7243,13 +7249,16 @@ pub async fn lifi_gas(chain_id: &str) -> Result<String, ToolError> {
 }
 
 pub async fn lifi_connections(
-    from_chain: Option<&str>,
-    to_chain: Option<&str>,
+    from_chain: Option<u64>,
+    to_chain: Option<u64>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("connections")
-        .opt("--from-chain", from_chain)
-        .opt("--to-chain", to_chain)
+        .opt(
+            "--from-chain",
+            from_chain.map(|id| id.to_string()).as_deref(),
+        )
+        .opt("--to-chain", to_chain.map(|id| id.to_string()).as_deref())
         .format_json()
         .execute()
         .await
@@ -7257,18 +7266,18 @@ pub async fn lifi_connections(
 }
 
 pub async fn lifi_get_transaction(
-    from_chain: &str,
+    from_chain: u64,
     from_token: &str,
-    to_chain: &str,
+    to_chain: u64,
     to_token: &str,
     amount: &str,
     from_address: &str,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("get-transaction")
-        .arg(from_chain)
+        .arg(&from_chain.to_string())
         .arg(from_token)
-        .arg(to_chain)
+        .arg(&to_chain.to_string())
         .arg(to_token)
         .arg(amount)
         .arg(from_address)
@@ -7494,12 +7503,24 @@ pub async fn config_validate() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
+/// Check a secret that is sent to ethcli as one stdin line
+fn single_line_secret<'a>(name: &str, value: &'a str) -> Result<&'a str, ToolError> {
+    let value = value.trim();
+    if value.is_empty() || value.contains(['\n', '\r']) {
+        return Err(ToolError::InvalidInput(format!(
+            "{name} must be a single non-empty line"
+        )));
+    }
+    Ok(value)
+}
+
 pub async fn config_set_etherscan_key(key: &str) -> Result<String, ToolError> {
     require_write_tools_enabled("config_set_etherscan_key")?;
 
     ArgsBuilder::new("config")
         .subcommand("set-etherscan-key")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7514,7 +7535,8 @@ pub async fn config_set_tenderly(
 
     ArgsBuilder::new("config")
         .subcommand("set-tenderly")
-        .opt("--key", Some(key))
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .opt("--account", Some(account))
         .opt("--project", Some(project))
         .execute()
@@ -7527,7 +7549,8 @@ pub async fn config_set_alchemy(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-alchemy")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7538,7 +7561,8 @@ pub async fn config_set_moralis(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-moralis")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7550,10 +7574,22 @@ pub async fn config_set_chainlink(
 ) -> Result<String, ToolError> {
     require_write_tools_enabled("config_set_chainlink")?;
 
+    // ethcli splits the stdin line at the first ':'
+    let client_id = single_line_secret("client_id", client_id)?;
+    if client_id.contains(':') {
+        return Err(ToolError::InvalidInput(
+            "client_id must not contain ':'".to_string(),
+        ));
+    }
+    let credentials = format!(
+        "{client_id}:{}",
+        single_line_secret("client_secret", client_secret)?
+    );
+
     ArgsBuilder::new("config")
         .subcommand("set-chainlink")
-        .opt("--key", Some(client_id))
-        .opt("--secret", Some(client_secret))
+        .opt_flag("--stdin", true)
+        .stdin(&credentials)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7564,7 +7600,8 @@ pub async fn config_set_dune(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-dune")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7575,7 +7612,8 @@ pub async fn config_set_solodit(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-solodit")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7586,7 +7624,8 @@ pub async fn config_set_pyth(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-pyth")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7640,7 +7679,7 @@ pub async fn endpoints_add(
         .chain(chain);
 
     if no_optimize {
-        builder = builder.arg("--no-optimize");
+        builder = builder.opt_flag("--no-optimize", true);
     }
 
     builder.execute().await.map_err(ToolError::from)
@@ -7825,5 +7864,93 @@ mod response_tests {
         let capped = cap_response(big, 51);
         assert!(capped.starts_with(&"é".repeat(25)));
         assert!(capped.contains("output truncated to 50 of 200 bytes"));
+    }
+}
+
+#[cfg(test)]
+mod policy_tests {
+    use super::*;
+    use crate::types::{LifiQuoteInput, LogsInput, SimulateCallInput, SimulateTxInput};
+
+    fn assert_read_only_denied(result: Result<String, ToolError>) {
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("read-only mode"), "{err}");
+    }
+
+    // These run without ETHCLI_MCP_ENABLE_WRITE_TOOLS, so they never reach ethcli.
+    #[tokio::test]
+    async fn remote_side_effect_tools_are_blocked_in_read_only_mode() {
+        let uids = vec!["0x01".to_string()];
+        assert_read_only_denied(cowswap_cancel_orders(&uids, "0xsig", None, None).await);
+        assert_read_only_denied(cowswap_cancel_order("0x01", "0xsig", None).await);
+        assert_read_only_denied(alchemy_nft_report_spam("0xabc", None).await);
+        assert_read_only_denied(alchemy_nft_refresh_metadata("0xabc", "1", None).await);
+        assert_read_only_denied(moralis_nft_sync_collection("0xabc", None).await);
+        assert_read_only_denied(moralis_nft_resync_metadata("0xabc", "1", None).await);
+        assert_read_only_denied(moralis_nft_resync_traits("0xabc", None).await);
+    }
+
+    #[test]
+    fn single_line_secret_rejects_multiline_and_empty() {
+        assert_eq!(single_line_secret("key", " abc \n").unwrap(), "abc");
+        assert!(single_line_secret("key", "a\nb").is_err());
+        assert!(single_line_secret("key", "   ").is_err());
+    }
+
+    #[test]
+    fn removed_secret_fields_are_not_in_simulate_schemas() {
+        let call = serde_json::to_string(&schemars::schema_for!(SimulateCallInput)).unwrap();
+        let tx = serde_json::to_string(&schemars::schema_for!(SimulateTxInput)).unwrap();
+        for field in [
+            "tenderly_key",
+            "alchemy_key",
+            "rpc_headers",
+            "fork_headers",
+            "etherscan_api_key",
+            "show_secrets",
+        ] {
+            assert!(!call.contains(&format!("\"{field}\"")), "{field}");
+            assert!(!tx.contains(&format!("\"{field}\"")), "{field}");
+        }
+
+        // Callers still sending a removed field get an error, not silence
+        let err = serde_json::from_value::<SimulateTxInput>(serde_json::json!({
+            "hash": "0x01",
+            "etherscan_api_key": "secret",
+        }));
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn logs_input_has_no_topics_field() {
+        let err = serde_json::from_value::<LogsInput>(serde_json::json!({
+            "contract": "0xabc",
+            "topics": ["0x01"],
+        }));
+        assert!(err.is_err(), "topics was silently ignored by ethcli");
+    }
+
+    #[test]
+    fn lifi_chains_are_numeric_ids() {
+        let input: LifiQuoteInput = serde_json::from_value(serde_json::json!({
+            "from_chain": 1,
+            "from_token": "0xa",
+            "to_chain": 42161,
+            "to_token": "0xb",
+            "amount": "1",
+            "from_address": "0xc",
+        }))
+        .unwrap();
+        assert_eq!((input.from_chain, input.to_chain), (1, 42161));
+
+        let name = serde_json::from_value::<LifiQuoteInput>(serde_json::json!({
+            "from_chain": "ethereum",
+            "from_token": "0xa",
+            "to_chain": "arbitrum",
+            "to_token": "0xb",
+            "amount": "1",
+            "from_address": "0xc",
+        }));
+        assert!(name.is_err(), "ethcli parses LI.FI chains as u64 IDs");
     }
 }

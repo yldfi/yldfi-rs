@@ -278,3 +278,155 @@ fn checker_detects_group_without_leaf_and_bad_flag() {
     let body = r#"ArgsBuilder::new("nope").execute()"#;
     assert!(!check_function(&root, "x", body).is_empty());
 }
+
+fn executor_source() -> Option<String> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../ethcli-mcp/src/executor.rs");
+    std::fs::read_to_string(path).ok()
+}
+
+/// The `SECRET_BEARING_FLAGS` list from ethcli-mcp's executor.rs
+fn mcp_secret_flags(src: &str) -> Vec<String> {
+    let start = src
+        .find("const SECRET_BEARING_FLAGS")
+        .expect("SECRET_BEARING_FLAGS in executor.rs");
+    let body = &src[start..];
+    let body = &body[..body.find("];").expect("end of SECRET_BEARING_FLAGS")];
+    Regex::new(r#""(--[a-z0-9-]+)""#)
+        .unwrap()
+        .captures_iter(body)
+        .map(|c| c[1].to_string())
+        .collect()
+}
+
+/// Every long name and alias of every argument in the clap tree
+fn all_long_spellings(cmd: &clap::Command, out: &mut Vec<Vec<String>>) {
+    for arg in cmd.get_arguments() {
+        let mut names: Vec<String> = arg
+            .get_long()
+            .map(|l| format!("--{l}"))
+            .into_iter()
+            .collect();
+        if let Some(aliases) = arg.get_all_aliases() {
+            names.extend(aliases.into_iter().map(|a| format!("--{a}")));
+        }
+        if !names.is_empty() {
+            out.push(names);
+        }
+    }
+    for sub in cmd.get_subcommands() {
+        all_long_spellings(sub, out);
+    }
+}
+
+#[test]
+fn mcp_secret_flag_blocklist_covers_clap_aliases() {
+    let Some(src) = executor_source() else {
+        eprintln!("ethcli-mcp sources not found; skipping (not in workspace checkout)");
+        return;
+    };
+    let blocked = mcp_secret_flags(&src);
+    assert!(blocked.len() >= 6, "parsed {blocked:?}");
+
+    let mut spellings = Vec::new();
+    all_long_spellings(&ethcli::cli::Cli::command(), &mut spellings);
+
+    let mut missing = Vec::new();
+    for names in &spellings {
+        if names.iter().any(|n| blocked.contains(n)) {
+            for name in names {
+                if !blocked.contains(name) && !missing.contains(name) {
+                    missing.push(name.clone());
+                }
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "clap spellings of secret-bearing flags missing from ethcli-mcp SECRET_BEARING_FLAGS: {missing:?}"
+    );
+
+    // Every blocked flag must still exist, so a rename can't silently
+    // leave the new spelling unblocked.
+    for flag in &blocked {
+        assert!(
+            spellings.iter().any(|names| names.contains(flag)),
+            "{flag} is in SECRET_BEARING_FLAGS but no longer an ethcli flag"
+        );
+    }
+}
+
+/// argv shapes ethcli-mcp's ArgsBuilder emits for values starting with '-'
+#[test]
+fn clap_accepts_mcp_dash_value_forms() {
+    let root = ethcli::cli::Cli::command();
+    let parses = |argv: &[&str]| {
+        root.clone()
+            .try_get_matches_from(std::iter::once("ethcli").chain(argv.iter().copied()))
+    };
+
+    // Positionals after `--`
+    for argv in [
+        &["cast", "abi-encode", "f(int256)", "--", "-5"][..],
+        &[
+            "contract", "call", "0xabc", "f", "--chain", "base", "--", "-5", "--all",
+        ][..],
+        &[
+            "dune",
+            "sql",
+            "execute",
+            "--timeout",
+            "300",
+            "--",
+            "-- comment\nSELECT 1",
+        ][..],
+        &[
+            "simulate",
+            "call",
+            "0xabc",
+            "--sig",
+            "f(int256)",
+            "--",
+            "-5",
+        ][..],
+    ] {
+        assert!(parses(argv).is_ok(), "{argv:?}: {:?}", parses(argv).err());
+    }
+
+    // Option values starting with '-' joined with '='
+    let m = parses(&["logs", "-c", "0xabc", "-e=-x"]).unwrap();
+    let (_, sub) = m.subcommand().unwrap();
+    assert_eq!(
+        sub.get_many::<String>("event")
+            .unwrap()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["-x"]
+    );
+    assert!(parses(&["dune", "sql", "execute", "--timeout=-1", "x"]).is_err()); // u64
+
+    // config set-* read the secret from stdin
+    for sub in [
+        "set-etherscan-key",
+        "set-alchemy",
+        "set-moralis",
+        "set-dune",
+        "set-solodit",
+        "set-pyth",
+        "set-chainlink",
+    ] {
+        assert!(parses(&["config", sub, "--stdin"]).is_ok(), "{sub}");
+    }
+    assert!(parses(&[
+        "config",
+        "set-tenderly",
+        "--stdin",
+        "--account",
+        "a",
+        "--project",
+        "p"
+    ])
+    .is_ok());
+
+    // tx_analyze asks for JSON
+    assert!(parses(&["tx", "0xabc", "-o", "json"]).is_ok());
+}

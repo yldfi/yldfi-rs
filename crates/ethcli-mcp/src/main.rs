@@ -67,7 +67,6 @@ impl EthcliMcpServer {
             input.event.as_deref(),
             input.from_block.as_deref(),
             input.to_block.as_deref(),
-            input.topics,
             Some(&input.chain),
         )
         .await
@@ -923,9 +922,9 @@ impl EthcliMcpServer {
     #[tool(description = "Get cross-chain quote from LI.FI")]
     async fn lifi_quote(&self, Parameters(input): Parameters<LifiQuoteInput>) -> CallToolResult {
         tools::lifi_quote(
-            &input.from_chain,
+            input.from_chain,
             &input.from_token,
-            &input.to_chain,
+            input.to_chain,
             &input.to_token,
             &input.amount,
             &input.from_address,
@@ -1021,13 +1020,11 @@ impl EthcliMcpServer {
             input.evm_version.as_deref(),
             input.with_local_artifacts,
             input.rpc_timeout,
-            &input.rpc_headers,
             input.no_proxy,
             &input.fork_urls,
             input.fork_block_number.as_deref(),
             input.fork_transaction_hash.as_deref(),
             input.fork_chain_id,
-            &input.fork_headers,
             input.hardfork.as_deref(),
             input.network.as_deref(),
             input.no_rate_limit,
@@ -1043,15 +1040,12 @@ impl EthcliMcpServer {
             input.network_id,
             input.save,
             // Tenderly options
-            input.tenderly_key.as_deref(),
             input.tenderly_account.as_deref(),
             input.tenderly_project.as_deref(),
             // Alchemy options
-            input.alchemy_key.as_deref(),
             input.alchemy_network.as_deref(),
             // Debug options
             input.dry_run.as_deref(),
-            false,
         )
         .await
         .to_response()
@@ -1078,10 +1072,8 @@ impl EthcliMcpServer {
             with_local_artifacts: input.with_local_artifacts,
             no_proxy: input.no_proxy,
             rpc_timeout: input.rpc_timeout,
-            rpc_headers: &input.rpc_headers,
             enable_tx_gas_limit: input.enable_tx_gas_limit,
             disable_block_gas_limit: input.disable_block_gas_limit,
-            etherscan_api_key: input.etherscan_api_key.as_deref(),
             raw: input.raw,
         })
         .await
@@ -5456,9 +5448,9 @@ impl EthcliMcpServer {
     #[tool(description = "Get multiple routes from LI.FI")]
     async fn lifi_routes(&self, Parameters(input): Parameters<LifiQuoteInput>) -> CallToolResult {
         tools::lifi_routes(
-            &input.from_chain,
+            input.from_chain,
             &input.from_token,
-            &input.to_chain,
+            input.to_chain,
             &input.to_token,
             &input.amount,
             &input.from_address,
@@ -5473,9 +5465,9 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<LifiQuoteInput>,
     ) -> CallToolResult {
         tools::lifi_best_route(
-            &input.from_chain,
+            input.from_chain,
             &input.from_token,
-            &input.to_chain,
+            input.to_chain,
             &input.to_token,
             &input.amount,
             &input.from_address,
@@ -5498,14 +5490,12 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get chain details from LI.FI")]
     async fn lifi_chain(&self, Parameters(input): Parameters<LifiChainInput>) -> CallToolResult {
-        tools::lifi_chain(&input.chain).await.to_response()
+        tools::lifi_chain(input.chain).await.to_response()
     }
 
     #[tool(description = "Get supported tokens from LI.FI")]
     async fn lifi_tokens(&self, Parameters(input): Parameters<LifiTokensInput>) -> CallToolResult {
-        tools::lifi_tokens(Some(&input.chain_id))
-            .await
-            .to_response()
+        tools::lifi_tokens(Some(input.chain_id)).await.to_response()
     }
 
     #[tool(description = "Get available tools from LI.FI")]
@@ -5525,7 +5515,7 @@ impl EthcliMcpServer {
 
     #[tool(description = "Get gas prices for a chain from LI.FI")]
     async fn lifi_gas(&self, Parameters(input): Parameters<LifiGasInput>) -> CallToolResult {
-        tools::lifi_gas(&input.chain_id).await.to_response()
+        tools::lifi_gas(input.chain_id).await.to_response()
     }
 
     #[tool(description = "Get cross-chain connections from LI.FI")]
@@ -5533,7 +5523,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<LifiConnectionsInput>,
     ) -> CallToolResult {
-        tools::lifi_connections(input.from_chain.as_deref(), input.to_chain.as_deref())
+        tools::lifi_connections(input.from_chain, input.to_chain)
             .await
             .to_response()
     }
@@ -5544,9 +5534,9 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<LifiQuoteInput>,
     ) -> CallToolResult {
         tools::lifi_get_transaction(
-            &input.from_chain,
+            input.from_chain,
             &input.from_token,
-            &input.to_chain,
+            input.to_chain,
             &input.to_token,
             &input.amount,
             &input.from_address,
