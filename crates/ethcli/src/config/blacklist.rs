@@ -33,6 +33,10 @@ pub struct TokenBlacklist {
     /// Map of lowercase address -> entry
     #[serde(default)]
     pub entries: HashMap<String, BlacklistEntry>,
+    /// Set when the file exists but couldn't be read or parsed. Saving is then
+    /// refused, so an empty in-memory copy never overwrites the user's file.
+    #[serde(skip)]
+    load_error: Option<String>,
 }
 
 impl TokenBlacklist {
@@ -52,7 +56,16 @@ impl TokenBlacklist {
     pub fn load_default() -> Self {
         let path = Self::default_path();
         if path.exists() {
-            Self::load(&path).unwrap_or_default()
+            match Self::load(&path) {
+                Ok(loaded) => loaded,
+                Err(e) => {
+                    eprintln!("Warning: {e} ({}); it will not be modified", path.display());
+                    Self {
+                        load_error: Some(e),
+                        ..Self::default()
+                    }
+                }
+            }
         } else {
             Self::default()
         }
@@ -73,6 +86,13 @@ impl TokenBlacklist {
 
     /// Save to a specific path
     pub fn save(&self, path: &Path) -> Result<(), String> {
+        if let Some(e) = &self.load_error {
+            return Err(format!(
+                "Refusing to overwrite {}: {}. Fix or move the file first",
+                path.display(),
+                e
+            ));
+        }
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
@@ -211,5 +231,24 @@ mod tests {
             .entries
             .remove("0x3fc29836e84e471a053d2d9e80494a867d670ead");
         assert!(!blacklist.is_blacklisted("0x3fC29836E84E471a053D2D9E80494A867D670EAD"));
+    }
+}
+
+#[cfg(test)]
+mod load_error_tests {
+    use super::*;
+
+    #[test]
+    fn unparsable_file_is_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("broken.toml");
+        std::fs::write(&path, "not = [valid").unwrap();
+        let err = TokenBlacklist::load(&path).unwrap_err();
+        let book = TokenBlacklist {
+            load_error: Some(err),
+            ..TokenBlacklist::default()
+        };
+        assert!(book.save(&path).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "not = [valid");
     }
 }
