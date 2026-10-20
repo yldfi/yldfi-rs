@@ -74,9 +74,12 @@ pub enum Error {
 fn unauthorized_hint(message: &str) -> &'static str {
     let lower = message.to_ascii_lowercase();
     if lower.contains("invalid") {
-        " - the key was rejected by Solodit. Keys are managed at https://solodit.cyfrin.io \
-         (Profile > API Keys); regenerating a key invalidates the previous one, so make sure \
-         you are using the most recently generated key."
+        " - Solodit did not accept the key. Either the key is invalid (keys are managed at \
+         https://solodit.cyfrin.io, Profile > API Keys; regenerating a key invalidates the \
+         previous one, so use the most recently generated key), or Solodit API access is \
+         unavailable on Cyfrin's side: it rejects every key while it is disabled, as during \
+         its September 2026 platform changes. Check Cyfrin's announcements before \
+         regenerating."
     } else if lower.contains("missing") {
         " - no X-Cyfrin-API-Key header was received. Set SOLODIT_API_KEY or configure a key \
          (get one at https://solodit.cyfrin.io, Profile > API Keys)."
@@ -213,6 +216,8 @@ mod tests {
         assert!(s.contains("Invalid API key"));
         assert!(s.contains("Profile > API Keys"));
         assert!(s.contains("invalidates"));
+        // A platform-wide API outage also returns "Invalid API key" for every key.
+        assert!(s.contains("unavailable on Cyfrin's side"));
         assert!(e.is_invalid_api_key());
         assert!(!e.is_missing_api_key());
     }
