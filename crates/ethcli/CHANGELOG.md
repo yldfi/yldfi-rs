@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.23.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.5...ethcli-v0.23.6) (2026-10-20)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * sldt bumped from 0.2 to 0.2.1
+
 ## [0.23.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.4...ethcli-v0.23.5) (2026-10-13)
 
 
