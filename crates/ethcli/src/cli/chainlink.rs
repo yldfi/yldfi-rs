@@ -340,10 +340,12 @@ async fn handle_price(
             print_price_output(&output, args.format)?;
         }
         Err(ChainlinkError::NoFeed) => {
-            if !quiet {
-                eprintln!("No Chainlink feed found for {} on {}", token, chain);
-            }
-            println!("No feed available");
+            anyhow::bail!(
+                "No Chainlink {}/{} feed found on {}",
+                token,
+                quote.to_uppercase(),
+                chain
+            );
         }
         Err(ChainlinkError::ArchiveNodeRequired) => {
             anyhow::bail!("Archive node required for historical queries. Your RPC endpoint doesn't support state queries for past blocks.");
@@ -370,7 +372,7 @@ async fn handle_feed(
     quiet: bool,
 ) -> anyhow::Result<()> {
     // Feed Registry is only available on Ethereum mainnet
-    if chain != "ethereum" && chain != "eth" && chain != "mainnet" && chain != "1" {
+    if chainlink::normalize_chain(chain) != "ethereum" {
         anyhow::bail!(
             "Feed Registry is only available on Ethereum mainnet. \
             For other chains, use `ethcli chainlink price {} --chain {}` with a direct oracle lookup.",
@@ -418,7 +420,7 @@ async fn handle_feed(
             }
         }
         Err(ChainlinkError::NoFeed) => {
-            println!("No feed found for {}/{}", token, quote);
+            anyhow::bail!("No feed found for {}/{}", token, quote);
         }
         Err(e) => {
             anyhow::bail!("Feed lookup failed: {}", e);
@@ -434,7 +436,8 @@ async fn handle_oracles(
     args: &ChainlinkArgs,
     _quiet: bool,
 ) -> anyhow::Result<()> {
-    let chains: Vec<&str> = if let Some(c) = chain {
+    let normalized = chain.map(chainlink::normalize_chain);
+    let chains: Vec<&str> = if let Some(c) = normalized.as_deref() {
         vec![c]
     } else {
         vec!["ethereum", "arbitrum", "polygon", "optimism", "base"]
