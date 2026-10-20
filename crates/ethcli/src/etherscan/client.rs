@@ -233,19 +233,31 @@ impl Client {
             .clone();
 
         let chain_id = chain.chain_id();
-        let builder = EtherscanClient::builder()
-            .with_client(explorer_http_client()?)
-            .with_api_key(api_key.as_deref().unwrap_or_default());
+        let alloy_chain = AlloyChain::from_id(chain_id);
+        let builder = EtherscanClient::builder().with_client(explorer_http_client()?);
 
-        let builder = match builder.clone().chain(AlloyChain::from_id(chain_id)) {
-            Ok(builder) => builder,
-            Err(EtherscanError::ChainNotSupported(_)) => builder
-                .with_api_url(format!("{ETHERSCAN_V2_API_URL}?chainid={chain_id}"))
-                .and_then(|b| b.with_url(chain.explorer_url().unwrap_or("https://etherscan.io")))
-                .map_err(|e| AbiError::EtherscanFetch(format!("Unsupported chain: {}", e)))?,
+        let (builder, is_etherscan) = match builder.clone().chain(alloy_chain) {
+            Ok(builder) => (builder, alloy_api_is_etherscan(alloy_chain)),
+            Err(EtherscanError::ChainNotSupported(_)) => (
+                builder
+                    .with_api_url(format!("{ETHERSCAN_V2_API_URL}?chainid={chain_id}"))
+                    .and_then(|b| {
+                        b.with_url(chain.explorer_url().unwrap_or("https://etherscan.io"))
+                    })
+                    .map_err(|e| AbiError::EtherscanFetch(format!("Unsupported chain: {}", e)))?,
+                true,
+            ),
             Err(e) => {
                 return Err(AbiError::EtherscanFetch(format!("Unsupported chain: {}", e)).into())
             }
+        };
+
+        // The key is an Etherscan key: never send it to the third-party
+        // explorers alloy-chains lists for some chains (Blockscout, Routescan, ...)
+        let builder = if is_etherscan {
+            builder.with_api_key(api_key.as_deref().unwrap_or_default())
+        } else {
+            builder
         };
 
         let inner = builder
@@ -576,6 +588,15 @@ impl Client {
     }
 }
 
+/// Whether alloy-chains routes `chain`'s explorer API to Etherscan itself.
+fn alloy_api_is_etherscan(chain: AlloyChain) -> bool {
+    chain
+        .named()
+        .and_then(|named| named.etherscan_urls())
+        .and_then(|(api, _)| reqwest_explorers::Url::parse(api).ok())
+        .is_some_and(|url| url.host_str() == Some("api.etherscan.io"))
+}
+
 fn parse_address(address: &str) -> Result<Address> {
     Address::from_str(address)
         .map_err(|e| AbiError::ParseError(format!("Invalid address {}: {}", address, e)).into())
@@ -680,6 +701,15 @@ mod tests {
         let html = format!("<html>{}</html>", "x".repeat(5000));
         let err = map_etherscan_error(serde_error(&html), ADDR).to_string();
         assert!(err.len() < 600, "{}", err.len());
+    }
+
+    #[test]
+    fn etherscan_key_only_for_etherscan_hosts() {
+        assert!(alloy_api_is_etherscan(AlloyChain::from_id(1)));
+        assert!(alloy_api_is_etherscan(AlloyChain::from_id(43114)));
+        // Metis routes to Routescan, zkSync Era to its own explorer
+        assert!(!alloy_api_is_etherscan(AlloyChain::from_id(1088)));
+        assert!(!alloy_api_is_etherscan(AlloyChain::from_id(324)));
     }
 
     #[test]
