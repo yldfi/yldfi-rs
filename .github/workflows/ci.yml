@@ -69,22 +69,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
-
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          cache-on-failure: true
-          shared-key: security
-          # Nothing is compiled here; only cache the registry and installed tools
-          cache-targets: false
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked --version 0.22.1
-
-      - name: Security audit
-        run: cargo audit
-
+      # cargo-deny checks RustSec advisories as well as licenses, bans and
+      # sources; advisory ignores live in deny.toml
       - name: Cargo deny
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
 
