@@ -7,6 +7,7 @@ use crate::aggregator::{
     YieldFilters, YieldSource,
 };
 use crate::cli::OutputFormat;
+use crate::utils::format::truncate_str;
 use clap::Args;
 
 #[derive(Args)]
@@ -160,21 +161,9 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
                 println!("{}", "-".repeat(96));
 
                 for y in &filtered_yields {
-                    let symbol = if y.symbol.len() > 38 {
-                        format!("{}...", &y.symbol[..35])
-                    } else {
-                        y.symbol.clone()
-                    };
-                    let project = if y.project.len() > 10 {
-                        format!("{}...", &y.project[..7])
-                    } else {
-                        y.project.clone()
-                    };
-                    let chain = if y.chain.len() > 8 {
-                        format!("{}...", &y.chain[..5])
-                    } else {
-                        y.chain.clone()
-                    };
+                    let symbol = truncate_str(&y.symbol, 38);
+                    let project = truncate_str(&y.project, 10);
+                    let chain = truncate_str(&y.chain, 8);
                     let apy = y
                         .apy_total
                         .map(|a| format!("{:.2}%", a))
@@ -260,12 +249,11 @@ async fn handle_lending(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
                 println!("{}", "-".repeat(84));
 
                 for y in yields.iter().take(args.limit) {
-                    let name = y.name.as_deref().unwrap_or(&y.address[..10]);
-                    let name = if name.len() > 28 {
-                        format!("{}...", &name[..25])
-                    } else {
-                        name.to_string()
-                    };
+                    let name = y
+                        .name
+                        .as_deref()
+                        .unwrap_or_else(|| y.address.get(..10).unwrap_or(&y.address));
+                    let name = truncate_str(name, 28);
                     let collateral = y.collateral_symbol.as_deref().unwrap_or("?");
                     let borrowed = y.borrowed_symbol.as_deref().unwrap_or("?");
                     let lend_apy = y
@@ -325,16 +313,8 @@ async fn handle_compare(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
                 println!("{}", "-".repeat(86));
 
                 for c in comparisons.iter().take(args.limit) {
-                    let symbol = if c.symbol.len() > 38 {
-                        format!("{}...", &c.symbol[..35])
-                    } else {
-                        c.symbol.clone()
-                    };
-                    let chain = if c.chain.len() > 8 {
-                        format!("{}...", &c.chain[..5])
-                    } else {
-                        c.chain.clone()
-                    };
+                    let symbol = truncate_str(&c.symbol, 38);
+                    let chain = truncate_str(&c.chain, 8);
                     let diff_str = if c.difference >= 0.0 {
                         format!("+{:.2}%", c.difference)
                     } else {

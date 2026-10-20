@@ -12,14 +12,6 @@ use thiserror::Error;
 /// stopped updating (typically deprecated) and its answer must not be used.
 pub const MAX_PRICE_AGE_SECS: u64 = 25 * 60 * 60;
 
-/// Current Unix time in seconds
-pub fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
 /// Chainlink price data from an aggregator
 #[derive(Debug, Clone, Serialize)]
 pub struct PriceData {

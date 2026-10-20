@@ -328,7 +328,7 @@ async fn handle_price(
 
             // For a current price, an answer older than any heartbeat means the
             // feed stopped updating (deprecated)
-            let now = chainlink::unix_now();
+            let now = crate::utils::unix_timestamp_secs();
             if block.is_none() && !data_is_fresh(output.updated_at, now) && !quiet {
                 eprintln!(
                     "Warning: this answer is {}h old, older than any feed heartbeat; \

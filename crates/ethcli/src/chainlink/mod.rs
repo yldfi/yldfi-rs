@@ -34,7 +34,7 @@ pub use streams::{
     DataStreamsClient, DataStreamsError, DataStreamsFeed, DEFAULT_STREAMS_REST_URL,
     DEFAULT_STREAMS_WS_URL,
 };
-pub use types::{unix_now, ChainlinkError, PriceData, MAX_PRICE_AGE_SECS};
+pub use types::{ChainlinkError, PriceData, MAX_PRICE_AGE_SECS};
 
 /// Fetch Chainlink price via RPC (registry or direct oracle)
 ///

@@ -1347,7 +1347,7 @@ async fn fetch_chainlink_rpc(
     match chainlink::fetch_price(provider, token, chain, chainlink::denominations::USD).await {
         Ok(price_data) => {
             // Reject answers from feeds that stopped updating (deprecated)
-            if let Some(price_f64) = price_data.to_fresh_f64(chainlink::unix_now()) {
+            if let Some(price_f64) = price_data.to_fresh_f64(crate::utils::unix_timestamp_secs()) {
                 let price = NormalizedPrice::new(price_f64);
                 Some(SourceResult::success(
                     "chainlink-rpc",

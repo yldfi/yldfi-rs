@@ -5,6 +5,7 @@
 
 use crate::abi::AbiFetcher;
 use crate::config::{Chain, TokenBlacklist};
+use crate::utils::format::truncate_str;
 use clap::{Args, Subcommand};
 
 #[derive(Args)]
@@ -467,11 +468,7 @@ pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
                 let chain_suffix = format!(" ({})", chain);
 
                 // Truncate reason for display
-                let reason_display = if reason.len() > 30 {
-                    format!("{}...", &reason[..27])
-                } else {
-                    reason.to_string()
-                };
+                let reason_display = truncate_str(reason, 30);
 
                 if *links {
                     let url = etherscan_url(chain, &entry.address);
@@ -609,11 +606,7 @@ fn print_security_analysis(security: &SecurityResult) {
             } else {
                 ""
             };
-            let display = if owner.len() >= 10 {
-                &owner[..10]
-            } else {
-                owner
-            };
+            let display = owner.get(..10).unwrap_or(owner);
             println!("  Owner:       {}{}", display, status);
         }
     }
