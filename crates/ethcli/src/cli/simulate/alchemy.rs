@@ -122,15 +122,13 @@ fn format_value_hex(value: &str) -> anyhow::Result<String> {
     } else if value.ends_with("eth") || value.ends_with("ETH") {
         // Convert ETH to wei
         let eth_str = value.trim_end_matches(|c: char| c.is_alphabetic()).trim();
-        let eth: f64 = eth_str.parse()?;
-        let wei = (eth * 1e18) as u128;
-        Ok(format!("0x{:x}", wei))
+        let wei = crate::utils::format::parse_wei_amount(eth_str, "ether")?;
+        Ok(format!("{:#x}", wei))
     } else if value.ends_with("gwei") || value.ends_with("GWEI") {
         // Convert gwei to wei
         let gwei_str = value.trim_end_matches(|c: char| c.is_alphabetic()).trim();
-        let gwei: f64 = gwei_str.parse()?;
-        let wei = (gwei * 1e9) as u128;
-        Ok(format!("0x{:x}", wei))
+        let wei = crate::utils::format::parse_wei_amount(gwei_str, "gwei")?;
+        Ok(format!("{:#x}", wei))
     } else {
         // Assume wei (decimal)
         let wei: u128 = value.parse()?;
@@ -154,5 +152,6 @@ mod tests {
         assert_eq!(format_value_hex("1").unwrap(), "0x1");
         assert_eq!(format_value_hex("1gwei").unwrap(), "0x3b9aca00");
         assert_eq!(format_value_hex("0xff").unwrap(), "0xff");
+        assert_eq!(format_value_hex("0.1eth").unwrap(), "0x16345785d8a0000");
     }
 }

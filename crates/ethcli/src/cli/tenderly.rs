@@ -1605,17 +1605,13 @@ fn parse_eth_amount(amount: &str) -> anyhow::Result<String> {
         let num_str = amount_lower
             .trim_end_matches("ether")
             .trim_end_matches("eth");
-        let num: f64 = num_str
-            .parse()
+        let wei = crate::utils::format::parse_wei_amount(num_str, "ether")
             .map_err(|_| anyhow::anyhow!("Invalid ETH amount: {}", amount))?;
-        let wei = (num * 1e18) as u128;
         Ok(wei.to_string())
     } else if amount_lower.ends_with("gwei") {
         let num_str = amount_lower.trim_end_matches("gwei");
-        let num: f64 = num_str
-            .parse()
+        let wei = crate::utils::format::parse_wei_amount(num_str, "gwei")
             .map_err(|_| anyhow::anyhow!("Invalid gwei amount: {}", amount))?;
-        let wei = (num * 1e9) as u128;
         Ok(wei.to_string())
     } else if amount_lower.ends_with("wei") {
         let num_str = amount_lower.trim_end_matches("wei");

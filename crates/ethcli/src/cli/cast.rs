@@ -2,7 +2,7 @@
 //!
 //! Similar to Foundry's cast utility
 
-use alloy::primitives::{keccak256, utils::parse_units, Address, B256, U256};
+use alloy::primitives::{keccak256, Address, B256, U256};
 use clap::Subcommand;
 use std::str::FromStr;
 
@@ -233,11 +233,8 @@ fn to_wei(value: &str, unit: &str) -> anyhow::Result<String> {
         }
     };
 
-    let parsed = parse_units(value, unit_str)
-        .map_err(|e| anyhow::anyhow!("Failed to parse '{}' as {}: {}", value, unit, e))?;
-
-    // Get the absolute value as U256
-    let wei: U256 = parsed.get_absolute();
+    // Rejects negative input (get_absolute() used to turn -1 into 1)
+    let wei = crate::utils::format::parse_wei_amount(value, unit_str)?;
     Ok(wei.to_string())
 }
 
