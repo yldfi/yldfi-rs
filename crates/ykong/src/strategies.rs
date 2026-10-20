@@ -136,7 +136,7 @@ impl<'a> StrategiesApi<'a> {
             struct Response {
                 vault_strategies: Vec<Strategy>,
             }
-            let chain_id = filter.chain_id.unwrap_or(1);
+            let chain_id = vault_chain_id(&filter)?;
             let query = format!(
                 "query VaultStrategies($chainId: Int, $vault: String) {{ \
                  vaultStrategies(chainId: $chainId, vault: $vault) {{ {STRATEGY_FIELDS} }} }}"
@@ -188,9 +188,26 @@ impl<'a> StrategiesApi<'a> {
     }
 }
 
+/// Chain ID for a `vaultStrategies` query; a vault address is only unique
+/// per chain, so the filter must name one
+fn vault_chain_id(filter: &StrategyFilter) -> Result<u64> {
+    filter.chain_id.ok_or_else(|| {
+        crate::error::invalid_argument("filtering strategies by vault requires a chain ID")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vault_filter_requires_chain_id() {
+        assert!(vault_chain_id(&StrategyFilter::new().vault("0xv")).is_err());
+        assert_eq!(
+            vault_chain_id(&StrategyFilter::new().chain_id(137).vault("0xv")).unwrap(),
+            137
+        );
+    }
 
     #[test]
     fn only_supported_server_args_are_sent() {
