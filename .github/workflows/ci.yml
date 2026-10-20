@@ -17,10 +17,10 @@ on:
   schedule:
     - cron: '0 6 * * 1'  # Monday at 6am UTC
 
-# Cancel in-progress runs for the same branch
+# Cancel superseded PR runs; runs on main always finish
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -34,6 +34,8 @@ jobs:
   # Fast checks that don't need dependencies compiled
   lint:
     name: Lint
+    # The weekly schedule only runs the security checks
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -46,7 +48,9 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
-          shared-key: ubuntu-stable
+          shared-key: lint
+          # PRs restore the main branch cache but don't save their own
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # Run fmt first (fastest)
       - name: Check formatting
@@ -70,7 +74,10 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
-          shared-key: ubuntu-stable
+          shared-key: security
+          # Nothing is compiled here; only cache the registry and installed tools
+          cache-targets: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked --version 0.22.1
@@ -85,6 +92,7 @@ jobs:
   test:
     name: Test
     # P2-4: Removed 'needs: lint' for parallel execution
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -95,15 +103,16 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
-          shared-key: ubuntu-stable
+          shared-key: test
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # Build ethcli for MCP tests
+      # Build ethcli for MCP tests (debug, so it shares artifacts with cargo test)
       - name: Build ethcli
-        run: cargo build -p ethcli --release --locked
+        run: cargo build -p ethcli --locked
 
       # Run all tests
       # P2-1: Add --locked for reproducibility
       - name: Test
         run: cargo test --workspace --locked
         env:
-          ETHCLI_PATH: ${{ github.workspace }}/target/release/ethcli
+          ETHCLI_PATH: ${{ github.workspace }}/target/debug/ethcli
