@@ -89,13 +89,7 @@ impl<'a> ExecutionsApi<'a> {
         execution_id: &str,
         options: &GetResultsOptions,
     ) -> Result<ExecutionResult> {
-        let url = format!(
-            "{}/v1/execution/{}/results{}",
-            self.client.base_url(),
-            execution_id,
-            options.to_query_string()
-        );
-        let response = self.client.http().get(&url).send().await?;
+        let response = self.results_request(execution_id, options).send().await?;
 
         if response.status().is_success() {
             Ok(response.json().await?)
@@ -104,6 +98,23 @@ impl<'a> ExecutionsApi<'a> {
         } else {
             Err(error::handle_error_response(response).await)
         }
+    }
+
+    /// Build the JSON results request
+    fn results_request(
+        &self,
+        execution_id: &str,
+        options: &GetResultsOptions,
+    ) -> reqwest::RequestBuilder {
+        let url = format!(
+            "{}/v1/execution/{}/results",
+            self.client.base_url(),
+            execution_id,
+        );
+        self.client
+            .http()
+            .get(&url)
+            .query(&options.to_query_pairs())
     }
 
     /// Get execution results as CSV
@@ -119,12 +130,17 @@ impl<'a> ExecutionsApi<'a> {
         options: &GetResultsOptions,
     ) -> Result<String> {
         let url = format!(
-            "{}/v1/execution/{}/results/csv{}",
+            "{}/v1/execution/{}/results/csv",
             self.client.base_url(),
             execution_id,
-            options.to_query_string()
         );
-        let response = self.client.http().get(&url).send().await?;
+        let response = self
+            .client
+            .http()
+            .get(&url)
+            .query(&options.to_query_pairs())
+            .send()
+            .await?;
 
         if response.status().is_success() {
             Ok(response.text().await?)
@@ -165,13 +181,14 @@ impl<'a> ExecutionsApi<'a> {
         query_id: i64,
         options: &GetResultsOptions,
     ) -> Result<ExecutionResult> {
-        let url = format!(
-            "{}/v1/query/{}/results{}",
-            self.client.base_url(),
-            query_id,
-            options.to_query_string()
-        );
-        let response = self.client.http().get(&url).send().await?;
+        let url = format!("{}/v1/query/{}/results", self.client.base_url(), query_id,);
+        let response = self
+            .client
+            .http()
+            .get(&url)
+            .query(&options.to_query_pairs())
+            .send()
+            .await?;
 
         if response.status().is_success() {
             Ok(response.json().await?)
@@ -195,12 +212,17 @@ impl<'a> ExecutionsApi<'a> {
         options: &GetResultsOptions,
     ) -> Result<String> {
         let url = format!(
-            "{}/v1/query/{}/results/csv{}",
+            "{}/v1/query/{}/results/csv",
             self.client.base_url(),
             query_id,
-            options.to_query_string()
         );
-        let response = self.client.http().get(&url).send().await?;
+        let response = self
+            .client
+            .http()
+            .get(&url)
+            .query(&options.to_query_pairs())
+            .send()
+            .await?;
 
         if response.status().is_success() {
             Ok(response.text().await?)
@@ -266,6 +288,9 @@ impl<'a> ExecutionsApi<'a> {
 
         loop {
             if start.elapsed() > timeout {
+                // Don't leave the execution running (and spending credits);
+                // best effort, the timeout error is what the caller needs.
+                let _ = self.cancel(execution_id).await;
                 return Err(error::execution_timeout(timeout_secs));
             }
 
@@ -293,5 +318,85 @@ impl<'a> ExecutionsApi<'a> {
             sleep(poll_interval).await;
             poll_interval = std::cmp::min(poll_interval * 2, max_interval);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn results_request_encodes_spec_query_params() {
+        let client = Client::with_base_url("test-key", "https://dune.example.test/api").unwrap();
+        let options = GetResultsOptions {
+            limit: Some(10),
+            sort_by: Some("block_time desc".to_string()),
+            filters: Some("amount > 100 AND token = 'A&B'".to_string()),
+            columns: Some("block_time,amount".to_string()),
+            ..GetResultsOptions::default()
+        };
+        let request = client
+            .executions()
+            .results_request("01TESTEXEC", &options)
+            .build()
+            .unwrap();
+        let pairs: Vec<(String, String)> = request.url().query_pairs().into_owned().collect();
+        assert_eq!(
+            pairs,
+            vec![
+                ("limit".into(), "10".into()),
+                ("sort_by".into(), "block_time desc".into()),
+                ("filters".into(), "amount > 100 AND token = 'A&B'".into()),
+                ("columns".into(), "block_time,amount".into()),
+            ]
+        );
+        assert!(!request.url().as_str().contains("order="));
+    }
+
+    #[tokio::test]
+    async fn run_sql_cancels_execution_on_timeout() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/sql/execute"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "execution_id": "01TESTEXEC",
+                "state": "QUERY_STATE_PENDING"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/execution/01TESTEXEC/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "execution_id": "01TESTEXEC",
+                "state": "QUERY_STATE_EXECUTING",
+                "is_execution_finished": false
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/execution/01TESTEXEC/cancel"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"success": true})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = Client::with_base_url("test-key", &server.uri()).unwrap();
+        let err = client
+            .executions()
+            .run_sql("SELECT 1", Some(0))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                crate::error::ApiError::Domain(crate::error::DomainError::ExecutionTimeout(0))
+            ),
+            "{err}"
+        );
     }
 }

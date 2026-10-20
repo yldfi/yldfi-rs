@@ -264,48 +264,50 @@ pub struct GetResultsOptions {
     pub limit: Option<u32>,
     /// Pagination offset
     pub offset: Option<i64>,
-    /// Column to sort by
+    /// Sort expression, e.g. `block_time desc`
     pub sort_by: Option<String>,
-    /// Sort direction (asc, desc)
-    pub order: Option<String>,
-    /// Filter columns (comma-separated)
+    /// Filter expression, e.g. `amount > 100`
+    pub filters: Option<String>,
+    /// Columns to return (comma-separated)
     pub columns: Option<String>,
-    /// Sample count (for sampling)
+    /// Number of rows to sample (incompatible with offset, limit and filters)
     pub sample_count: Option<u32>,
     /// Allow partial results for large datasets
     pub allow_partial_results: Option<bool>,
+    /// Ignore the per-request max credits limit
+    pub ignore_max_credits_per_request: Option<bool>,
 }
 
 impl GetResultsOptions {
+    /// Query pairs for the request (values are URL-encoded by the HTTP client)
     #[must_use]
-    pub fn to_query_string(&self) -> String {
+    pub fn to_query_pairs(&self) -> Vec<(&'static str, String)> {
         let mut params = Vec::new();
         if let Some(limit) = self.limit {
-            params.push(format!("limit={limit}"));
+            params.push(("limit", limit.to_string()));
         }
         if let Some(offset) = self.offset {
-            params.push(format!("offset={offset}"));
+            params.push(("offset", offset.to_string()));
         }
         if let Some(ref sort_by) = self.sort_by {
-            params.push(format!("sort_by={sort_by}"));
+            params.push(("sort_by", sort_by.clone()));
         }
-        if let Some(ref order) = self.order {
-            params.push(format!("order={order}"));
+        if let Some(ref filters) = self.filters {
+            params.push(("filters", filters.clone()));
         }
         if let Some(ref columns) = self.columns {
-            params.push(format!("columns={columns}"));
+            params.push(("columns", columns.clone()));
         }
         if let Some(sample_count) = self.sample_count {
-            params.push(format!("sample_count={sample_count}"));
+            params.push(("sample_count", sample_count.to_string()));
         }
         if let Some(allow_partial) = self.allow_partial_results {
-            params.push(format!("allow_partial_results={allow_partial}"));
+            params.push(("allow_partial_results", allow_partial.to_string()));
         }
-        if params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", params.join("&"))
+        if let Some(ignore) = self.ignore_max_credits_per_request {
+            params.push(("ignore_max_credits_per_request", ignore.to_string()));
         }
+        params
     }
 }
 
