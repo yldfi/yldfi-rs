@@ -1160,8 +1160,11 @@ async fn chainlist_add(chain_str: &str, max: usize) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // Load config and add endpoints
-    let mut config_file = load_config_with_warning().unwrap_or_default();
+    // Load config and add endpoints. A config that fails to parse must stop
+    // here: saving defaults over it would delete every key in it.
+    let mut config_file = ConfigFile::load_default()
+        .map_err(|e| anyhow::anyhow!("Failed to load config file (not modified): {e}"))?
+        .unwrap_or_default();
     let existing_urls: std::collections::HashSet<String> = config_file
         .endpoints
         .iter()
