@@ -67,13 +67,36 @@ pub async fn handle(
         return Err(anyhow::anyhow!("ENS is only available on Ethereum mainnet"));
     }
 
-    // Get RPC endpoint
-    let endpoint = if let Some(url) = rpc_url {
-        Endpoint::new(EndpointConfig::new(url), 30, None)?
+    // An explicit --rpc-url is used alone; otherwise try the ranked endpoints,
+    // moving on when one is rate limited or unreachable
+    let candidates = if let Some(url) = rpc_url {
+        vec![Endpoint::new(EndpointConfig::new(url), 30, None)?]
     } else {
-        crate::rpc::get_rpc_endpoint(chain)?
+        crate::rpc::candidate_endpoints(
+            chain,
+            &crate::rpc::SelectionOptions::default(),
+            crate::rpc::MAX_FAILOVER_ATTEMPTS,
+        )?
     };
+    if candidates.is_empty() {
+        return Err(anyhow::anyhow!(
+            "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
+            chain.display_name()
+        ));
+    }
 
+    crate::rpc::with_failover(candidates, |endpoint| async move {
+        run_on_endpoint(action, &endpoint, quiet).await
+    })
+    .await
+}
+
+/// Run an RPC-backed ENS command against one endpoint
+async fn run_on_endpoint(
+    action: &EnsCommands,
+    endpoint: &Endpoint,
+    quiet: bool,
+) -> anyhow::Result<()> {
     let provider = endpoint.provider();
 
     match action {
@@ -310,10 +333,12 @@ async fn reverse_record<P: Provider>(
         .to(resolver)
         .input(calldata.into());
 
-    let result = provider
-        .call(tx.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to lookup name: {}", e))?;
+    let result = match provider.call(tx.clone()).await {
+        Ok(r) => r,
+        // A resolver without name() support reverts: there is no name
+        Err(e) if e.to_string().to_lowercase().contains("revert") => return Ok(None),
+        Err(e) => return Err(anyhow::anyhow!("Failed to lookup name: {}", e)),
+    };
 
     // Decode string from ABI-encoded response
     // Format: offset (32 bytes) + length (32 bytes) + string data
