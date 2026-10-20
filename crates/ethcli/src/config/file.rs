@@ -363,7 +363,8 @@ pub struct Settings {
     #[serde(default = "default_retries")]
     pub retry_attempts: u32,
 
-    /// Checkpoint save interval (blocks)
+    /// Unused (kept so existing config files still parse); checkpoints are
+    /// saved after every completed range
     #[serde(default = "default_checkpoint_interval")]
     pub checkpoint_interval: u64,
 }

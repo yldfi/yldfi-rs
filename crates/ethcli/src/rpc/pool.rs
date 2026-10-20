@@ -91,6 +91,24 @@ fn persist_max_logs_limit(url: &str, limit: usize) {
     });
 }
 
+/// The proxy to use for RPC traffic: only when the proxy is enabled and
+/// applies to the "rpc" source. Proxy files and rotation aren't implemented,
+/// so they are refused rather than silently sending traffic direct.
+fn rpc_proxy(proxy: Option<&crate::config::ProxyConfig>) -> Result<Option<String>> {
+    let Some(p) = proxy.filter(|p| p.should_proxy("rpc")) else {
+        return Ok(None);
+    };
+    if p.file.is_some() || p.rotate_per_request {
+        return Err(RpcError::ProxyNotSupported(
+            "proxy files and --proxy-rotate are not supported for RPC traffic; \
+             remove them (or disable the proxy with --no-proxy)"
+                .to_string(),
+        )
+        .into());
+    }
+    Ok(p.url.clone())
+}
+
 /// Result of a by-hash/by-number lookup that found nothing: `None` if some
 /// endpoint answered null, otherwise the last error.
 fn resolve_lookup<T>(answered_null: bool, last_err: Option<Error>) -> Result<Option<T>> {
@@ -219,8 +237,7 @@ impl RpcPool {
             return Err(RpcError::NoHealthyEndpoints.into());
         }
 
-        // Get global proxy
-        let proxy = config.proxy.as_ref().and_then(|p| p.url.clone());
+        let proxy = rpc_proxy(config.proxy.as_ref())?;
 
         // Create endpoint instances (wrapped in Arc to avoid cloning config strings)
         // Note: cfg is consumed by Endpoint::new, capture URL before move for error logging
@@ -229,6 +246,8 @@ impl RpcPool {
             let url = cfg.url.clone(); // Capture before move for error message
             match Endpoint::new(cfg, config.timeout_secs, proxy.as_deref()) {
                 Ok(ep) => endpoints.push(Arc::new(ep)),
+                // Not per-endpoint: say so instead of "no healthy endpoints"
+                Err(e @ Error::Rpc(RpcError::ProxyNotSupported(_))) => return Err(e),
                 Err(e) => {
                     tracing::warn!(
                         "Failed to create endpoint {}: {}",
@@ -714,6 +733,38 @@ impl RpcPool {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn disabled_proxy_is_ignored_and_rotation_is_refused() {
+        let mut proxy = crate::config::ProxyConfig {
+            enabled: false,
+            url: Some("http://127.0.0.1:8080".into()),
+            file: None,
+            rotate_per_request: false,
+            sources: vec![],
+            exclude_sources: vec![],
+        };
+        assert_eq!(rpc_proxy(Some(&proxy)).unwrap(), None);
+        // With enabled=false the pool must still build
+        let config = RpcConfig {
+            endpoints: vec![EndpointConfig::new("http://127.0.0.1:1")],
+            proxy: Some(proxy.clone()),
+            ..Default::default()
+        };
+        assert!(RpcPool::new(Chain::Ethereum, &config).is_ok());
+
+        proxy.enabled = true;
+        proxy.rotate_per_request = true;
+        assert!(rpc_proxy(Some(&proxy)).is_err());
+        proxy.rotate_per_request = false;
+        proxy.file = Some("proxies.txt".into());
+        assert!(rpc_proxy(Some(&proxy)).is_err());
+        // Excluded source: no proxy
+        proxy.file = None;
+        proxy.exclude_sources = vec!["rpc".into()];
+        assert_eq!(rpc_proxy(Some(&proxy)).unwrap(), None);
+    }
+
     use super::*;
 
     #[test]

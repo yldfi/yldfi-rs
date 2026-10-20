@@ -2387,9 +2387,6 @@ timeout_seconds = 30
 # Number of retry attempts on failure (default: 3)
 retry_attempts = 3
 
-# Save checkpoint every N blocks when fetching logs (default: 1000)
-checkpoint_interval = 1000
-
 # =============================================================================
 # API Keys (optional but recommended)
 # =============================================================================
@@ -2550,10 +2547,12 @@ urls = []
 # =============================================================================
 # Proxy Configuration (optional)
 # =============================================================================
+# Applies to API sources (and "rpc" is listed for completeness; RPC traffic
+# through a proxy is not supported yet and is refused when enabled).
 # [proxy]
+# enabled = true
 # default = "socks5://127.0.0.1:9050"
-# rotate = false
-# file = "/path/to/proxy-list.txt"
+# exclude_sources = ["rpc"]
 "#
     .to_string()
 }
