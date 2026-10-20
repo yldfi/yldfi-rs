@@ -35,9 +35,13 @@ pub async fn handle(
     api_key: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = Client::new(chain, api_key)?;
-    // Both gas subcommands use the Etherscan gas tracker.
-    client.ensure_api_supported()?;
+    // The Etherscan gas tracker; `oracle` falls back to RPC when it is
+    // unavailable (unsupported or sunset chain, plan limits, ...)
+    let etherscan = || -> anyhow::Result<Client> {
+        let client = Client::new(chain, api_key.clone())?;
+        client.ensure_api_supported()?;
+        Ok(client)
+    };
 
     match action {
         GasCommands::Oracle { output } => {
@@ -45,7 +49,11 @@ pub async fn handle(
                 eprintln!("Fetching gas oracle for {}...", chain.display_name());
             }
 
-            let estimates = match client.gas_oracle().await {
+            let oracle = match etherscan() {
+                Ok(client) => client.gas_oracle().await.map_err(anyhow::Error::from),
+                Err(e) => Err(e),
+            };
+            let estimates = match oracle {
                 Ok(oracle) => GasEstimates {
                     safe: oracle.safe_gas_price,
                     standard: oracle.propose_gas_price,
@@ -110,7 +118,7 @@ pub async fn handle(
             }
 
             let gas_price = U256::from(*gwei) * U256::from(1_000_000_000u64);
-            let seconds = client
+            let seconds = etherscan()?
                 .gas_estimate(gas_price)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to estimate gas: {}", e))?;

@@ -600,20 +600,21 @@ pub async fn handle(
     api_key: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = Client::new(chain, api_key)?;
-    // These subcommands need the Etherscan API (ABI, source, creation info).
-    if matches!(
-        action,
-        ContractCommands::Abi { .. }
-            | ContractCommands::Source { .. }
-            | ContractCommands::Creation { .. }
-            | ContractCommands::Call { .. }
-    ) {
+    // Built only by the subcommands that use Etherscan (ABI, source,
+    // creation, call): selectors/disassemble/opcodes/analyze are RPC-only and
+    // must work on chains Etherscan doesn't cover.
+    let etherscan = || -> anyhow::Result<Client> {
+        let client = Client::new(chain, api_key.clone())?;
         client.ensure_api_supported()?;
-    }
+        Ok(client)
+    };
+    // 4byte.directory lookups are chain-independent
+    let signature_client =
+        || Client::new(chain, api_key.clone()).or_else(|_| Client::new(Chain::Ethereum, None));
 
     match action {
         ContractCommands::Abi { address, output } => {
+            let client = etherscan()?;
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
@@ -655,6 +656,7 @@ pub async fn handle(
         }
 
         ContractCommands::Source { address, output } => {
+            let client = etherscan()?;
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
@@ -769,6 +771,7 @@ pub async fn handle(
         }
 
         ContractCommands::Creation { address, format } => {
+            let client = etherscan()?;
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
@@ -808,6 +811,7 @@ pub async fn handle(
             rpc_url,
             human,
         } => {
+            let client = etherscan()?;
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
@@ -990,7 +994,7 @@ pub async fn handle(
                     eprintln!("Looking up function signatures from 4byte.directory...");
                 }
                 // Use Client to fetch from 4byte.directory (with cache fallback)
-                lookup_signatures(&client, &mut functions).await;
+                lookup_signatures(&signature_client()?, &mut functions).await;
             }
 
             if format.is_json() {
@@ -1267,7 +1271,7 @@ pub async fn handle(
                     eprintln!("Looking up function signatures from 4byte.directory...");
                 }
                 // Use Client to fetch from 4byte.directory (with cache fallback)
-                lookup_signatures(&client, &mut analysis.functions).await;
+                lookup_signatures(&signature_client()?, &mut analysis.functions).await;
             }
 
             if *dispatcher || *checks {
