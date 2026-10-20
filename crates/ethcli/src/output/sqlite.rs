@@ -81,10 +81,41 @@ impl SqliteWriter {
         self.conn
             .execute_batch(&create_sql)
             .map_err(OutputError::Sqlite)?;
+
+        // An existing table (from an earlier or resumed run) keeps its old
+        // columns: add any this run needs that it lacks
+        let existing = self.existing_columns()?;
+        for col in &self.columns.clone() {
+            let safe_col = self.get_sanitized_column_name(col);
+            if !existing.contains(&safe_col.to_lowercase()) {
+                self.conn
+                    .execute(
+                        &format!("ALTER TABLE events ADD COLUMN {} TEXT", safe_col),
+                        [],
+                    )
+                    .map_err(OutputError::Sqlite)?;
+            }
+        }
+
         self.ensure_unique_index("events", "idx_events_tx_log");
         self.table_created = true;
 
         Ok(())
+    }
+
+    /// Lowercase names of the events table's current columns
+    fn existing_columns(&self) -> Result<std::collections::HashSet<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT name FROM pragma_table_info('events')")
+            .map_err(OutputError::Sqlite)?;
+        let names = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(OutputError::Sqlite)?
+            .filter_map(|r| r.ok())
+            .map(|n| n.to_lowercase())
+            .collect();
+        Ok(names)
     }
 
     /// Add a UNIQUE(transaction_hash, log_index) index so a resumed fetch that
@@ -127,12 +158,16 @@ impl SqliteWriter {
         let base_sanitized = Self::sanitize_column_name_basic(original_name);
 
         // Check for collision and find unique name
-        let unique_name = if self.sanitized_names.contains(&base_sanitized) {
+        // SQLite column names are case-insensitive: compare case-folded
+        let unique_name = if self
+            .sanitized_names
+            .contains(&base_sanitized.to_lowercase())
+        {
             // Collision detected - find unique suffix
             let mut suffix = 1u32;
             loop {
                 let candidate = format!("{}_{}", base_sanitized, suffix);
-                if !self.sanitized_names.contains(&candidate) {
+                if !self.sanitized_names.contains(&candidate.to_lowercase()) {
                     tracing::warn!(
                         "Column name collision detected: '{}' and another column both sanitize to '{}'. \
                          Using '{}' for '{}'.",
@@ -150,7 +185,7 @@ impl SqliteWriter {
         };
 
         // Register the mapping
-        self.sanitized_names.insert(unique_name.clone());
+        self.sanitized_names.insert(unique_name.to_lowercase());
         self.column_name_map
             .insert(original_name.to_string(), unique_name.clone());
 
@@ -417,6 +452,44 @@ impl OutputWriter for SqliteWriter {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn reused_table_gains_missing_columns() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.db");
+        let mut first = decoded(1, 0);
+        first
+            .params
+            .insert("from".into(), DecodedValue::Address("0xa".into()));
+        let mut writer = SqliteWriter::new(&path).unwrap();
+        writer.write_logs(&result(vec![first])).unwrap();
+        writer.finalize().unwrap();
+        drop(writer);
+
+        // A later run decodes a param the table doesn't have yet
+        let mut second = decoded(2, 0);
+        second
+            .params
+            .insert("Value".into(), DecodedValue::Uint("5".into()));
+        let mut writer = SqliteWriter::new(&path).unwrap();
+        writer.write_logs(&result(vec![second])).unwrap();
+        writer.finalize().unwrap();
+        let n: i64 = Connection::open(&path)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM events", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn column_collisions_are_case_insensitive() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut writer = SqliteWriter::new(&dir.path().join("x.db")).unwrap();
+        let a = writer.get_sanitized_column_name("amount");
+        let b = writer.get_sanitized_column_name("Amount");
+        assert_ne!(a.to_lowercase(), b.to_lowercase());
+    }
+
     use super::*;
 
     #[test]
