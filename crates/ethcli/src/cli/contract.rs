@@ -990,13 +990,7 @@ pub async fn handle(
                     eprintln!("Looking up function signatures from 4byte.directory...");
                 }
                 // Use Client to fetch from 4byte.directory (with cache fallback)
-                for func in &mut functions {
-                    // Strip 0x prefix for lookup
-                    let selector = func.selector.trim_start_matches("0x");
-                    if let Some(sig) = client.lookup_selector(selector).await {
-                        func.signature = Some(sig);
-                    }
-                }
+                lookup_signatures(&client, &mut functions).await;
             }
 
             if format.is_json() {
@@ -1273,12 +1267,7 @@ pub async fn handle(
                     eprintln!("Looking up function signatures from 4byte.directory...");
                 }
                 // Use Client to fetch from 4byte.directory (with cache fallback)
-                for func in &mut analysis.functions {
-                    let selector = func.selector.trim_start_matches("0x");
-                    if let Some(sig) = client.lookup_selector(selector).await {
-                        func.signature = Some(sig);
-                    }
-                }
+                lookup_signatures(&client, &mut analysis.functions).await;
             }
 
             if *dispatcher || *checks {
@@ -1618,6 +1607,30 @@ async fn get_token_decimals<P: Provider>(provider: &P, address: Address) -> Opti
 /// Format a DynSolValue for display
 pub(crate) fn format_value(value: &DynSolValue) -> String {
     format_value_internal(value, false, None)
+}
+
+/// Fill in signatures from 4byte.directory, a few lookups at a time instead
+/// of one after another
+async fn lookup_signatures(
+    client: &crate::etherscan::Client,
+    functions: &mut [crate::bytecode::ExtractedFunction],
+) {
+    use futures::StreamExt;
+    const CONCURRENT_LOOKUPS: usize = 8;
+    let selectors: Vec<String> = functions
+        .iter()
+        .map(|f| f.selector.trim_start_matches("0x").to_string())
+        .collect();
+    let signatures: Vec<Option<String>> = futures::stream::iter(selectors)
+        .map(|selector| async move { client.lookup_selector(&selector).await })
+        .buffered(CONCURRENT_LOOKUPS)
+        .collect()
+        .await;
+    for (func, sig) in functions.iter_mut().zip(signatures) {
+        if sig.is_some() {
+            func.signature = sig;
+        }
+    }
 }
 
 /// Whether a function returns a token amount that `--human` should scale by
