@@ -73,7 +73,7 @@ impl AbiFetcher {
         Ok(Self {
             client,
             api_key,
-            cache: Arc::new(SignatureCache::new()),
+            cache: SignatureCache::shared(),
         })
     }
 

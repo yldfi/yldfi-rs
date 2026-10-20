@@ -202,7 +202,7 @@ impl Client {
         Ok(Self {
             inner,
             http,
-            cache: Arc::new(SignatureCache::new()),
+            cache: SignatureCache::shared(),
             chain,
             api_key,
         })
@@ -276,6 +276,7 @@ impl Client {
             tracing::debug!("Selector {} in negative cache, skipping lookup", normalized);
             return None;
         }
+        let cached = self.cache.get_function(&normalized);
 
         // Try 4byte.directory first
         let url = format!(
@@ -283,8 +284,19 @@ impl Client {
             normalized
         );
 
-        if let Ok(response) = self.http.get(&url).send().await {
+        // Only a successful, parseable, empty answer is "not found"; a 429,
+        // a 5xx or a broken body says nothing and must not be cached as such
+        let mut answered_empty = false;
+        let response = self
+            .http
+            .get(&url)
+            .send()
+            .await
+            .ok()
+            .filter(|r| r.status().is_success());
+        if let Some(response) = response {
             if let Ok(json) = response.json::<serde_json::Value>().await {
+                answered_empty = json["results"].as_array().is_some_and(|a| a.is_empty());
                 // Get all results
                 let results: Vec<String> = json["results"]
                     .as_array()
@@ -323,6 +335,14 @@ impl Client {
             return Some(vec![sig]);
         }
 
+        // 4byte unreachable: an earlier answer is better than nothing
+        if let Some(sig) = cached {
+            return Some(vec![sig]);
+        }
+        if !answered_empty {
+            return None;
+        }
+
         // Nothing found anywhere - add to negative cache to avoid repeated lookups
         self.cache.set_not_found(&normalized);
         tracing::debug!("Selector {} not found, added to negative cache", normalized);
@@ -352,6 +372,7 @@ impl Client {
             tracing::debug!("Event {} in negative cache, skipping lookup", normalized);
             return None;
         }
+        let cached = self.cache.get_event(&normalized);
 
         // Try 4byte.directory first
         let url = format!(
@@ -359,8 +380,19 @@ impl Client {
             normalized
         );
 
-        if let Ok(response) = self.http.get(&url).send().await {
+        // Only a successful, parseable, empty answer is "not found"; a 429,
+        // a 5xx or a broken body says nothing and must not be cached as such
+        let mut answered_empty = false;
+        let response = self
+            .http
+            .get(&url)
+            .send()
+            .await
+            .ok()
+            .filter(|r| r.status().is_success());
+        if let Some(response) = response {
             if let Ok(json) = response.json::<serde_json::Value>().await {
+                answered_empty = json["results"].as_array().is_some_and(|a| a.is_empty());
                 // Get all results
                 let results: Vec<String> = json["results"]
                     .as_array()
@@ -394,6 +426,14 @@ impl Client {
             self.cache.set_event(&normalized, &sig);
             tracing::debug!("Found event {} in cached ABI -> {}", normalized, sig);
             return Some(vec![sig]);
+        }
+
+        // 4byte unreachable: an earlier answer is better than nothing
+        if let Some(sig) = cached {
+            return Some(vec![sig]);
+        }
+        if !answered_empty {
+            return None;
         }
 
         // Nothing found anywhere - add to negative cache to avoid repeated lookups

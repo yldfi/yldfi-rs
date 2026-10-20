@@ -17,7 +17,6 @@ use alloy::providers::Provider;
 use clap::Subcommand;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::OnceLock;
 
 /// Get EIP-1967 implementation slot (parsed once)
@@ -619,7 +618,7 @@ pub async fn handle(
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
-            let cache = Arc::new(SignatureCache::new());
+            let cache = SignatureCache::shared();
             let chain_id = chain.chain_id();
 
             // Check cache first

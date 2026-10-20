@@ -87,6 +87,21 @@ pub struct SignatureCache {
 }
 
 impl SignatureCache {
+    /// The process-wide cache at the default path. Every caller that is alive
+    /// at the same time shares one instance, so instances don't overwrite each
+    /// other's entries on save; it is written when the last one is dropped.
+    pub fn shared() -> std::sync::Arc<Self> {
+        static SHARED: parking_lot::Mutex<std::sync::Weak<SignatureCache>> =
+            parking_lot::Mutex::new(std::sync::Weak::new());
+        let mut slot = SHARED.lock();
+        if let Some(cache) = slot.upgrade() {
+            return cache;
+        }
+        let cache = std::sync::Arc::new(Self::new());
+        *slot = std::sync::Arc::downgrade(&cache);
+        cache
+    }
+
     /// Create a new cache with default path (~/.cache/ethcli/signatures.json)
     pub fn new() -> Self {
         let path = Self::default_cache_path();
@@ -150,6 +165,7 @@ impl SignatureCache {
     /// Force save cache to file immediately
     pub fn save(&self) {
         if self.dirty.swap(false, Ordering::AcqRel) {
+            self.cleanup_internal();
             let _ = self.save_to_file();
         }
     }
@@ -161,8 +177,21 @@ impl SignatureCache {
             fs::create_dir_all(parent)?;
         }
 
-        let data = self.data.read();
-        let content = serde_json::to_string_pretty(&*data)?;
+        // Keep entries another process (or an older instance) saved since we
+        // loaded: ours win on conflict, theirs fill the gaps
+        let mut merged = Self::load_from_file(&self.path).unwrap_or_default();
+        {
+            let data = self.data.read();
+            merged.events.extend(data.events.clone());
+            merged.functions.extend(data.functions.clone());
+            merged.abis.extend(data.abis.clone());
+            merged.not_found.extend(data.not_found.clone());
+        }
+        // A positive entry beats an older "not found" for the same key
+        merged
+            .not_found
+            .retain(|k, _| !merged.events.contains_key(k) && !merged.functions.contains_key(k));
+        let content = serde_json::to_string_pretty(&merged)?;
         write_with_permissions(&self.path, &content)?;
         self.dirty.store(false, Ordering::Release);
         Ok(())
@@ -512,6 +541,7 @@ impl Drop for SignatureCache {
     fn drop(&mut self) {
         // Save any unsaved changes on shutdown
         if self.dirty.load(Ordering::Acquire) {
+            self.cleanup_internal();
             let _ = self.save_to_file();
         }
     }
@@ -547,6 +577,22 @@ impl std::fmt::Display for CacheStats {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn saving_keeps_entries_written_by_another_instance() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("signatures.json");
+        let a = SignatureCache::with_path(path.clone());
+        let b = SignatureCache::with_path(path.clone());
+        a.set_function("0xaaaaaaaa", "a()");
+        a.save();
+        b.set_function("0xbbbbbbbb", "b()");
+        b.save();
+        let reloaded = SignatureCache::with_path(path);
+        assert_eq!(reloaded.get_function("0xaaaaaaaa").as_deref(), Some("a()"));
+        assert_eq!(reloaded.get_function("0xbbbbbbbb").as_deref(), Some("b()"));
+    }
+
     use super::*;
     use tempfile::tempdir;
 
