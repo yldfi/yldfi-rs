@@ -367,9 +367,12 @@ async fn fetch_llama_yields(
                             return false;
                         }
                     }
-                    // Filter by project if specified
+                    // Filter by project: same rule as YieldFilters::matches,
+                    // so "uniswap" keeps "uniswap-v3" etc.
                     if let Some(proj) = project {
-                        if !p.project.eq_ignore_ascii_case(proj) {
+                        let have = p.project.to_lowercase();
+                        let want = proj.to_lowercase();
+                        if have != want && !have.starts_with(&format!("{want}-")) {
                             return false;
                         }
                     }
@@ -664,11 +667,24 @@ async fn fetch_uniswap_yields(chain: &str) -> SourceResult<Vec<NormalizedYield>>
     if all_yields.is_empty() && !errors.is_empty() {
         SourceResult::error("uniswap", errors.join("; "), measure.elapsed_ms())
     } else {
-        let mut result = SourceResult::success("uniswap", all_yields, measure.elapsed_ms());
-        if !errors.is_empty() {
-            result.error = Some(errors.join("; "));
+        // Some versions answered: a success (a result with an error set
+        // counts as failed), with the other versions' errors as warnings
+        for e in &errors {
+            eprintln!("Warning: uniswap: {e}");
         }
-        result
+        SourceResult::success("uniswap", all_yields, measure.elapsed_ms())
+    }
+}
+
+/// Yearn yields for `chain`: all chains when none was given, an error for a
+/// chain with no Yearn id (rather than every chain's vaults)
+async fn fetch_yearn_for_chain(chain: Option<&str>) -> SourceResult<Vec<NormalizedYield>> {
+    match chain {
+        None => fetch_yearn_yields(None).await,
+        Some(c) => match chain_name_to_yearn_id(c) {
+            Some(id) => fetch_yearn_yields(Some(id)).await,
+            None => SourceResult::error("yearn", format!("Unsupported chain for Yearn: {c}"), 0),
+        },
     }
 }
 
@@ -900,13 +916,12 @@ pub async fn fetch_yields_aggregated(
         YieldSource::All => {
             let curve_chain = chain.unwrap_or("ethereum");
             let uniswap_chain = chain.unwrap_or("ethereum");
-            let yearn_chain_id = chain.and_then(chain_name_to_yearn_id);
             vec![
                 Box::pin(fetch_curve_yields(curve_chain))
                     as std::pin::Pin<Box<dyn std::future::Future<Output = _> + Send>>,
                 Box::pin(fetch_llama_yields(chain, project)),
                 Box::pin(fetch_uniswap_yields(uniswap_chain)),
-                Box::pin(fetch_yearn_yields(yearn_chain_id)),
+                Box::pin(fetch_yearn_for_chain(chain)),
             ]
         }
         YieldSource::Curve => {
@@ -921,8 +936,7 @@ pub async fn fetch_yields_aggregated(
             vec![Box::pin(fetch_uniswap_yields(uniswap_chain))]
         }
         YieldSource::Yearn => {
-            let yearn_chain_id = chain.and_then(chain_name_to_yearn_id);
-            vec![Box::pin(fetch_yearn_yields(yearn_chain_id))]
+            vec![Box::pin(fetch_yearn_for_chain(chain))]
         }
     };
 
