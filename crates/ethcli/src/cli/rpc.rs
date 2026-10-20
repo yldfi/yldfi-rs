@@ -144,17 +144,57 @@ pub async fn handle(
     let candidates = if let Some(url) = rpc_url {
         vec![Endpoint::new(EndpointConfig::new(url), 30, None)?]
     } else {
-        crate::rpc::candidate_endpoints(
-            chain,
-            &crate::rpc::SelectionOptions::default(),
-            crate::rpc::MAX_FAILOVER_ATTEMPTS,
-        )?
+        // A historical block number prefers archive endpoints
+        let options = match action_block_number(action) {
+            Some(n) => crate::rpc::SelectionOptions::for_block(n),
+            None => crate::rpc::SelectionOptions::default(),
+        };
+        crate::rpc::candidate_endpoints(chain, &options, crate::rpc::MAX_FAILOVER_ATTEMPTS)?
     };
 
-    crate::rpc::with_failover(candidates, |endpoint| async move {
-        run_action(action, &endpoint, quiet).await
-    })
-    .await
+    // Like with_failover, but "not found" also moves on: a pruned or lagging
+    // node may lack a block or receipt another endpoint has
+    let total = candidates.len();
+    let mut last_err = None;
+    for (i, endpoint) in candidates.into_iter().enumerate() {
+        match run_action(action, &endpoint, quiet).await {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                let retry = e.is::<NotFound>() || crate::rpc::is_failover_error(&format!("{e:#}"));
+                if i + 1 < total && retry {
+                    last_err = Some(e);
+                    continue;
+                }
+                return Err(e);
+            }
+        }
+    }
+    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("No RPC endpoints available")))
+}
+
+/// Nothing at that block/hash on this endpoint
+#[derive(Debug)]
+struct NotFound(&'static str);
+
+impl std::fmt::Display for NotFound {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+impl std::error::Error for NotFound {}
+
+/// The numeric block an action reads at, if any (tags: None)
+fn action_block_number(action: &RpcCommands) -> Option<u64> {
+    let block = match action {
+        RpcCommands::Call { block, .. }
+        | RpcCommands::Block { block, .. }
+        | RpcCommands::Storage { block, .. }
+        | RpcCommands::Code { block, .. }
+        | RpcCommands::Nonce { block, .. } => block,
+        _ => return None,
+    };
+    crate::utils::parse_block_number(block).ok()
 }
 
 /// Execute a (read-only) RPC command against a single endpoint
@@ -254,9 +294,7 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
                         println!("Miner:       {}", b.header.beneficiary.to_checksum(None));
                     }
                 }
-                None => {
-                    println!("Block not found");
-                }
+                None => return Err(NotFound("Block not found").into()),
             }
         }
 
@@ -356,9 +394,7 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
                         println!("Logs:        {}", r.inner.logs().len());
                     }
                 }
-                None => {
-                    println!("Receipt not found (tx may be pending)");
-                }
+                None => return Err(NotFound("Receipt not found (tx may be pending)").into()),
             }
         }
 
