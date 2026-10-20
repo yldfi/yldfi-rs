@@ -572,7 +572,9 @@ impl Client {
         self.get("/gas/prices").await
     }
 
-    /// Get gas prices for a specific chain
+    /// Get gas prices for a specific chain (`GET /gas/prices/{chainId}`)
+    ///
+    /// An unsupported chain is reported by the API as an error.
     ///
     /// # Example
     ///
@@ -583,20 +585,13 @@ impl Client {
     /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::new()?;
     ///     let gas = client.get_gas_prices(chains::ETHEREUM).await?;
-    ///
-    ///     if let Some(gas) = gas {
-    ///         println!("Fast gas price: {:?} wei", gas.fast);
-    ///     }
+    ///     println!("Fast gas price: {:?} wei", gas.fast);
     ///
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_gas_prices(
-        &self,
-        chain_id: ChainId,
-    ) -> Result<Option<crate::types::GasPrice>> {
-        let all_prices = self.get_all_gas_prices().await?;
-        Ok(all_prices.get(&chain_id.to_string()).cloned())
+    pub async fn get_gas_prices(&self, chain_id: ChainId) -> Result<crate::types::GasPrice> {
+        self.get(&gas_prices_path(chain_id)).await
     }
 
     // ========================================================================
@@ -625,10 +620,26 @@ impl Client {
     }
 }
 
+/// Path for a single chain's gas prices
+fn gas_prices_path(chain_id: ChainId) -> String {
+    format!("/gas/prices/{chain_id}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::{chains, RouteOrder, RoutesOptions};
+
+    #[test]
+    fn test_gas_prices_uses_per_chain_path() {
+        assert_eq!(gas_prices_path(chains::ETHEREUM), "/gas/prices/1");
+        let gas: crate::types::GasPrice = serde_json::from_str(
+            r#"{"standard":1000000000,"fast":2000000000,"fastest":3000000000,"lastUpdated":1700000000}"#,
+        )
+        .unwrap();
+        assert_eq!(gas.fast, Some(2_000_000_000));
+        assert_eq!(gas.last_updated, Some(1_700_000_000));
+    }
 
     #[test]
     fn test_client_creation() {

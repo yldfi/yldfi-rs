@@ -317,10 +317,7 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
         LiFiCommands::Gas { chain_id } => {
             if let Some(chain_id) = chain_id {
                 let gas = client.get_gas_prices(chain_id).await?;
-                match gas {
-                    Some(g) => output_json(&g, args.format)?,
-                    None => anyhow::bail!("No gas prices found for chain ID {chain_id}"),
-                }
+                output_json(&gas, args.format)?;
             } else {
                 let gas = client.get_all_gas_prices().await?;
                 output_json(&gas, args.format)?;
