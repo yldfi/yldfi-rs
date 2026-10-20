@@ -1445,7 +1445,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
                 let result = optimize_endpoint(url, expected_chain, 10).await?;
 
-                if !result.connectivity_ok {
+                if !result.is_ok() {
                     println!(
                         "Failed to connect: {}",
                         ethcli::utils::url::redact_urls_in_text(
@@ -1538,6 +1538,8 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     .endpoints
                     .iter()
                     .enumerate()
+                    // Disabled endpoints stay as the user left them
+                    .filter(|(_, e)| e.enabled)
                     .filter(|(_, e)| {
                         if let Some(ref chain) = chain_filter_parsed {
                             e.chain == *chain
@@ -1568,7 +1570,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
                 match optimize_endpoint(&ep_url, expected_chain, *timeout).await {
                     Ok(result) => {
-                        if result.connectivity_ok {
+                        if result.is_ok() {
                             println!("OK");
                             println!(
                                 "  {} | {} | range:{} | logs:{}",
@@ -1581,7 +1583,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                                 format_thousands(result.config.max_block_range),
                                 format_thousands(result.config.max_logs as u64)
                             );
-                            config.endpoints[idx] = result.config;
+                            // Only the detected fields: keep priority, note,
+                            // proxy, enabled and anything not tested
+                            result.merge_into(&mut config.endpoints[idx]);
                         } else {
                             println!(
                                 "FAILED: {}",

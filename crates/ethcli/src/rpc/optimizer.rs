@@ -48,8 +48,43 @@ pub struct OptimizationResult {
     pub debug_tested: bool,
     /// Whether trace namespace was tested
     pub trace_tested: bool,
+    /// Whether the block range limit was detected
+    pub range_tested: bool,
+    /// Whether the max logs limit was detected
+    pub logs_tested: bool,
     /// Error message if optimization failed
     pub error: Option<String>,
+}
+
+impl OptimizationResult {
+    /// True only if the endpoint answered and every required check passed
+    /// (a chain mismatch or a failed block number lookup is a failure)
+    pub fn is_ok(&self) -> bool {
+        self.connectivity_ok && self.error.is_none()
+    }
+
+    /// Copy what was actually detected onto an existing endpoint entry,
+    /// keeping everything the user set (priority, note, proxy, enabled, ...)
+    /// and every field that wasn't tested this run.
+    pub fn merge_into(&self, existing: &mut EndpointConfig) {
+        if self.archive_tested {
+            existing.node_type = self.config.node_type;
+            existing.archive_from_block = self.config.archive_from_block;
+        }
+        if self.debug_tested {
+            existing.has_debug = self.config.has_debug;
+        }
+        if self.trace_tested {
+            existing.has_trace = self.config.has_trace;
+        }
+        if self.range_tested {
+            existing.max_block_range = self.config.max_block_range;
+        }
+        if self.logs_tested {
+            existing.max_logs = self.config.max_logs;
+        }
+        existing.last_tested = self.config.last_tested.clone();
+    }
 }
 
 /// USDC contract address on Ethereum mainnet (high-activity contract for testing)
@@ -93,6 +128,8 @@ pub async fn optimize_endpoint(
         archive_tested: false,
         debug_tested: false,
         trace_tested: false,
+        range_tested: false,
+        logs_tested: false,
         error: None,
     };
 
@@ -161,8 +198,11 @@ pub async fn optimize_endpoint(
                 }
             }
             Err(e) => {
-                // Archive detection failed, mark as unknown
-                eprintln!("  Archive detection error: {}", e);
+                // Archive detection failed: leave the node type as it was
+                eprintln!(
+                    "  Archive detection error: {}",
+                    crate::utils::url::redact_urls_in_text(&e.to_string())
+                );
                 config = config.with_node_type(NodeType::Unknown);
             }
         }
@@ -194,6 +234,7 @@ pub async fn optimize_endpoint(
     match detect_block_range_limit(&provider, current_block, timeout).await {
         Some(max_range) => {
             config.max_block_range = max_range;
+            result.range_tested = true;
         }
         None => {
             eprintln!(
@@ -208,6 +249,7 @@ pub async fn optimize_endpoint(
         match detect_max_logs_limit(&provider, current_block, timeout).await {
             Ok(max_logs) => {
                 config.max_logs = max_logs;
+                result.logs_tested = true;
             }
             Err(e) => {
                 eprintln!("  Max logs detection error: {}", e);
@@ -260,11 +302,45 @@ async fn detect_archive_support(
                 )
             }
         }
-        Err(_) => {
-            // Timeout - assume it might be archive but slow
-            Ok((true, None))
-        }
+        // Timeout: unknown, not archive
+        Err(_) => Err(crate::error::RpcError::Timeout(timeout.as_millis() as u64).into()),
     }
+}
+
+/// Whether a JSON-RPC response to a debug_/trace_ probe means the namespace is
+/// available. A result, or an execution error, means yes. Method-not-found
+/// (-32601, "does not exist/is not available"), auth and rate-limit errors
+/// say nothing about support and count as no.
+fn namespace_supported(response: &serde_json::Value) -> bool {
+    if response.get("result").is_some() {
+        return true;
+    }
+    let Some(error) = response.get("error") else {
+        return false;
+    };
+    if error.get("code").and_then(|c| c.as_i64()) == Some(-32601) {
+        return false;
+    }
+    let msg = error.to_string().to_lowercase();
+    const UNSUPPORTED: &[&str] = &[
+        "method not found",
+        "not supported",
+        "unknown method",
+        "does not exist",
+        "not available",
+        "not enabled",
+        "not whitelisted",
+        "not allowed",
+        "unauthorized",
+        "forbidden",
+        "api key",
+        "rate limit",
+        "too many requests",
+        "429",
+        "capacity",
+        "upgrade your plan",
+    ];
+    !UNSUPPORTED.iter().any(|p| msg.contains(p))
 }
 
 /// Detect if endpoint supports debug namespace (debug_traceCall)
@@ -306,19 +382,7 @@ async fn detect_debug_support(url: &str, timeout: Duration) -> Result<bool> {
                 }
             };
 
-            // Check if there's an error indicating method not found
-            if let Some(error) = result.get("error") {
-                let error_str = error.to_string().to_lowercase();
-                if error_str.contains("method not found")
-                    || error_str.contains("not supported")
-                    || error_str.contains("unknown method")
-                {
-                    return Ok(false);
-                }
-            }
-
-            // If we got a result or a different kind of error, debug is likely supported
-            Ok(result.get("result").is_some() || result.get("error").is_some())
+            Ok(namespace_supported(&result))
         }
         Ok(Err(_)) => Ok(false),
         Err(_) => Ok(false), // Timeout - assume no debug
@@ -364,20 +428,7 @@ async fn detect_trace_support(url: &str, timeout: Duration) -> Result<bool> {
                 }
             };
 
-            // Check if there's an error indicating method not found
-            if let Some(error) = result.get("error") {
-                let error_str = error.to_string().to_lowercase();
-                if error_str.contains("method not found")
-                    || error_str.contains("not supported")
-                    || error_str.contains("unknown method")
-                    || error_str.contains("does not exist")
-                {
-                    return Ok(false);
-                }
-            }
-
-            // If we got a result or a different kind of error, trace is likely supported
-            Ok(result.get("result").is_some() || result.get("error").is_some())
+            Ok(namespace_supported(&result))
         }
         Ok(Err(_)) => Ok(false),
         Err(_) => Ok(false), // Timeout - assume no trace
@@ -548,6 +599,54 @@ pub async fn test_connectivity(url: &str, timeout_secs: u64) -> Result<(u64, u64
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn namespace_probe_classification() {
+        let yes = serde_json::json!({"result": {}});
+        let exec_err =
+            serde_json::json!({"error": {"code": -32000, "message": "execution reverted"}});
+        assert!(namespace_supported(&yes));
+        assert!(namespace_supported(&exec_err));
+        for no in [
+            serde_json::json!({"error": {"code": -32601, "message": "the method debug_traceCall does not exist/is not available"}}),
+            serde_json::json!({"error": {"code": -32000, "message": "Unauthorized: invalid API key"}}),
+            serde_json::json!({"error": {"code": 429, "message": "Too Many Requests"}}),
+            serde_json::json!({}),
+        ] {
+            assert!(!namespace_supported(&no), "{no}");
+        }
+    }
+
+    #[test]
+    fn merge_keeps_user_settings_and_untested_fields() {
+        let mut existing = EndpointConfig::new("https://a.example")
+            .with_node_type(NodeType::Archive)
+            .with_max_block_range(50_000);
+        existing.priority = 9;
+        existing.enabled = false;
+        let mut result = OptimizationResult {
+            config: EndpointConfig::new("https://a.example").with_debug(true),
+            chain_id: 10,
+            current_block: 1,
+            connectivity_ok: true,
+            archive_tested: false,
+            debug_tested: true,
+            trace_tested: false,
+            range_tested: false,
+            logs_tested: false,
+            error: None,
+        };
+        result.merge_into(&mut existing);
+        assert_eq!(existing.priority, 9);
+        assert!(!existing.enabled);
+        assert_eq!(existing.node_type, NodeType::Archive);
+        assert_eq!(existing.max_block_range, 50_000);
+        assert!(existing.has_debug);
+
+        result.error = Some("Chain mismatch".into());
+        assert!(!result.is_ok());
+    }
+
     use super::*;
 
     fn probe_with_limit(limit: u64) -> impl FnMut(u64) -> std::future::Ready<RangeProbe> {
