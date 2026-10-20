@@ -232,8 +232,16 @@ impl Client {
     }
 
     /// Make a GET request using common error handling
+    ///
+    /// Pro URLs carry the API key in the path, so transport errors are
+    /// stripped of their URL before they reach callers or logs.
     async fn get<T: serde::de::DeserializeOwned>(&self, url: &Url) -> Result<T> {
-        let response = self.http.get(url.as_str()).send().await?;
+        let response = self
+            .http
+            .get(url.as_str())
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?;
         let status = response.status().as_u16();
 
         if !response.status().is_success() {
@@ -243,7 +251,7 @@ impl Client {
             return Err(crate::error::from_response(status, &body, retry_after));
         }
 
-        let body = response.text().await?;
+        let body = response.text().await.map_err(reqwest::Error::without_url)?;
         serde_json::from_str(&body).map_err(|e| Error::Api {
             status,
             message: format!("Failed to parse response: {e}"),
