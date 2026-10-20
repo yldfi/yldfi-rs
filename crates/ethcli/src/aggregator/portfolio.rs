@@ -731,6 +731,9 @@ async fn fetch_yearn_portfolio(
 
                 for batch in vaults.chunks(BATCH_SIZE) {
                     let mut builder = MulticallBuilder::new();
+                    // Vaults actually queried, in call order: results index this,
+                    // not `batch`, since vaults with bad addresses are skipped
+                    let mut queried: Vec<&ykong::Vault> = Vec::new();
 
                     for vault in batch {
                         if let Ok(vault_addr) = vault.address.parse::<Address>() {
@@ -738,6 +741,7 @@ async fn fetch_yearn_portfolio(
                                 vault_addr,
                                 selectors::balance_of(user_address),
                             );
+                            queried.push(vault);
                         }
                     }
 
@@ -754,7 +758,7 @@ async fn fetch_yearn_portfolio(
                                         // Store vault with non-zero balance
                                         let balance_u128: u128 =
                                             balance.try_into().unwrap_or(u128::MAX);
-                                        vault_balances.push((batch[i].clone(), balance_u128));
+                                        vault_balances.push((queried[i].clone(), balance_u128));
                                     }
                                 }
                             }
