@@ -133,9 +133,9 @@ fn is_known_address(addr: &[u8]) -> bool {
 /// This is the optimized version that takes pre-disassembled operations
 /// to avoid redundant disassembly when used with analyze_bytecode.
 ///
-/// Note: We stop scanning after encountering INVALID opcodes followed by
-/// non-executable patterns, as this typically marks the start of the
-/// contract metadata section (CBOR-encoded compiler info, etc.)
+/// Note: After an INVALID that isn't followed by a JUMPDEST we skip what looks
+/// like data (e.g. CBOR metadata) until the next JUMPDEST, where reachable code
+/// may start again.
 #[must_use]
 pub fn detect_security_issues_from_operations(operations: &[Operation]) -> SecurityAnalysis {
     let mut dangerous_count = 0;
@@ -171,7 +171,13 @@ pub fn detect_security_issues_from_operations(operations: &[Operation]) -> Secur
             continue;
         }
 
-        // Skip scanning if we're in the metadata section
+        // A JUMPDEST is reachable code again: anything after it can run, so
+        // an INVALID + filler prefix must not hide it from the scan
+        if op.opcode == Opcode::JUMPDEST {
+            in_metadata_section = false;
+        }
+
+        // Skip scanning while in what looks like data after INVALID
         if in_metadata_section {
             continue;
         }
@@ -297,6 +303,15 @@ fn calculate_risk_level(issues: &[SecurityIssue]) -> RiskLevel {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn invalid_prefix_does_not_hide_reachable_code() {
+        // INVALID, filler, then JUMPDEST SELFDESTRUCT (reachable by a jump)
+        let code = [0xfe, 0x01, 0x02, 0x5b, 0xff];
+        let analysis = detect_security_issues(&code);
+        assert!(analysis.dangerous_opcode_count > 0);
+    }
+
     use super::*;
 
     #[test]
