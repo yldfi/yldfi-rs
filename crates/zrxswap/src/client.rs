@@ -20,7 +20,9 @@ pub const DEFAULT_BASE_URL: &str = "https://api.0x.org";
 const API_VERSION: &str = "v2";
 
 /// Configuration for the 0x API client
-#[derive(Debug, Clone)]
+///
+/// `Debug` output redacts the API key.
+#[derive(Clone)]
 pub struct Config {
     /// Base URL for the API
     pub base_url: String,
@@ -28,6 +30,16 @@ pub struct Config {
     pub api_key: Option<String>,
     /// HTTP client configuration (timeout, proxy, user-agent)
     pub http: HttpClientConfig,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field("http", &self.http)
+            .finish()
+    }
 }
 
 impl Default for Config {
@@ -238,11 +250,7 @@ impl Client {
         let status = response.status();
 
         if !status.is_success() {
-            let retry_after = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok());
+            let retry_after = yldfi_common::api::extract_retry_after(response.headers());
 
             let body = response.text().await.unwrap_or_default();
 
@@ -393,6 +401,36 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_retry_after_is_capped() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "999999"))
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        let err = client
+            .get::<serde_json::Value>(&server.uri(), &[])
+            .await
+            .unwrap_err();
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(3600)));
+    }
+
+    #[test]
+    fn test_debug_redacts_api_key() {
+        let config = Config::with_api_key("zrx-secret-456");
+        let client = Client::with_config(config.clone()).unwrap();
+        for debug in [format!("{config:?}"), format!("{client:?}")] {
+            assert!(!debug.contains("zrx-secret-456"), "{debug}");
+            assert!(debug.contains("[REDACTED]"), "{debug}");
+        }
+        assert!(format!("{:?}", Config::new()).contains("api_key: None"));
+    }
 
     #[test]
     fn test_client_creation() {

@@ -19,4 +19,5 @@ secrecy = { workspace = true }
 yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 [dev-dependencies]
+http = "1"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -7,7 +7,7 @@ use super::types::{
     PolicyStatus, RequestPaymasterAndDataResponse, TokenQuoteResponse, UpdatePolicyRequest,
 };
 use crate::client::Client;
-use crate::error::{self, Error, Result};
+use crate::error::{self, Result};
 
 const ADMIN_BASE_URL: &str = "https://manage.g.alchemy.com/api/gasManager";
 
@@ -220,16 +220,10 @@ impl<'a> GasManagerApi<'a> {
 
         let response = request.send().await?;
 
-        if response.status() == 429 {
-            return Err(crate::error::rate_limited_from_response(response).await);
-        }
-
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
 

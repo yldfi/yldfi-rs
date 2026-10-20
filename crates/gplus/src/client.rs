@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use url::Url;
-use yldfi_common::api::ApiConfig;
+use yldfi_common::api::{handle_error_response, ApiConfig};
 
 use crate::error::{token_not_found, Error, Result};
 use crate::types::{
@@ -274,10 +274,8 @@ impl Client {
             .send()
             .await?;
 
-        let status = response.status().as_u16();
         if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(Error::api(status, body));
+            return Err(handle_error_response(response).await);
         }
 
         #[derive(serde::Deserialize)]
@@ -373,8 +371,6 @@ impl Client {
         }
 
         if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-
             // On 401 Unauthorized, clear token cache and retry once
             if status == 401 && allow_retry && self.credentials.is_some() {
                 self.clear_token_cache().await;
@@ -382,7 +378,7 @@ impl Client {
                 return self.get_fresh(path).await;
             }
 
-            return Err(Error::api(status, body));
+            return Err(handle_error_response(response).await);
         }
 
         let body = response.text().await?;
@@ -409,8 +405,7 @@ impl Client {
         }
 
         if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(Error::api(status, body));
+            return Err(handle_error_response(response).await);
         }
 
         let body = response.text().await?;

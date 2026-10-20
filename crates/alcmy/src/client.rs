@@ -399,11 +399,19 @@ impl Client {
 
         let response = self.http.post(self.rpc_url()).json(&request).send().await?;
 
-        if response.status() == 429 {
-            return Err(error::rate_limited_from_response(response).await);
+        let status = response.status();
+        if status == 429 || status.is_server_error() {
+            return Err(error::handle_error_response(response).await);
         }
-
-        let result: serde_json::Value = response.json().await?;
+        // Other error statuses may still carry a JSON-RPC error object
+        let body = response.text().await?;
+        let result: serde_json::Value = match serde_json::from_str(&body) {
+            Ok(value) => value,
+            Err(_) if !status.is_success() => {
+                return Err(Error::from_response(status.as_u16(), &body, None));
+            }
+            Err(e) => return Err(e.into()),
+        };
 
         if let Some(error) = result.get("error") {
             let code = error
@@ -489,16 +497,10 @@ impl Client {
     where
         R: DeserializeOwned,
     {
-        if response.status() == 429 {
-            return Err(error::rate_limited_from_response(response).await);
-        }
-
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
 }

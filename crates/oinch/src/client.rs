@@ -30,7 +30,9 @@ pub const DEFAULT_BASE_URL: &str = "https://api.1inch.com";
 const SWAP_API_VERSION: &str = "v6.0";
 
 /// Configuration for the 1inch API client
-#[derive(Debug, Clone)]
+///
+/// `Debug` output redacts the API key.
+#[derive(Clone)]
 pub struct Config {
     /// API key for authentication (required for production use)
     pub api_key: String,
@@ -38,6 +40,16 @@ pub struct Config {
     pub base_url: String,
     /// HTTP client configuration (timeout, proxy, user-agent)
     pub http: HttpClientConfig,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("api_key", &"[REDACTED]")
+            .field("base_url", &self.base_url)
+            .field("http", &self.http)
+            .finish()
+    }
 }
 
 impl Config {
@@ -192,6 +204,7 @@ impl Client {
         let status = response.status().as_u16();
 
         if !response.status().is_success() {
+            let retry_after = yldfi_common::api::extract_retry_after(response.headers());
             // Try to parse error response
             let body = response.text().await.unwrap_or_default();
 
@@ -202,10 +215,10 @@ impl Client {
                     .or(error_response.error)
                     .unwrap_or_else(|| body.clone());
 
-                return Err(error::from_response(status, &message, None));
+                return Err(error::from_response(status, &message, retry_after));
             }
 
-            return Err(error::from_response(status, &body, None));
+            return Err(error::from_response(status, &body, retry_after));
         }
 
         let data = response.json().await?;
@@ -484,6 +497,35 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_rate_limit_keeps_capped_retry_after() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "999999"))
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new("key").with_base_url(server.uri())).unwrap();
+        let err = client
+            .get::<serde_json::Value>(&server.uri())
+            .await
+            .unwrap_err();
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(3600)));
+    }
+
+    #[test]
+    fn test_debug_redacts_api_key() {
+        let config = Config::new("sk-oinch-secret-123");
+        let client = Client::with_config(config.clone()).unwrap();
+        for debug in [format!("{config:?}"), format!("{client:?}")] {
+            assert!(!debug.contains("sk-oinch-secret-123"), "{debug}");
+            assert!(debug.contains("[REDACTED]"), "{debug}");
+        }
+    }
 
     #[test]
     fn test_config_builder() {

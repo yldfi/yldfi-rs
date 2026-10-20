@@ -6,7 +6,7 @@ use super::types::{
     UploadCsvResponse,
 };
 use crate::client::Client;
-use crate::error::{self, Error, Result};
+use crate::error::{self, Result};
 
 /// Tables (uploads) API
 pub struct TablesApi<'a> {
@@ -28,9 +28,7 @@ impl<'a> TablesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -42,9 +40,7 @@ impl<'a> TablesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -68,9 +64,7 @@ impl<'a> TablesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -91,9 +85,7 @@ impl<'a> TablesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Table {namespace}/{table_name}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -119,9 +111,7 @@ impl<'a> TablesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Table {namespace}/{table_name}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -140,9 +130,7 @@ impl<'a> TablesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Table {namespace}/{table_name}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -161,9 +149,7 @@ impl<'a> TablesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Table {namespace}/{table_name}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 }

@@ -23,10 +23,13 @@
 //! admin.revert(&snapshot_id).await?;
 //! ```
 
+use crate::client::{DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_TIMEOUT_SECS};
 use crate::error::{self, Error, Result};
 use reqwest::Client as HttpClient;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+use yldfi_common::http::HttpClientConfig;
 
 /// JSON-RPC request structure
 #[derive(Debug, Serialize)]
@@ -78,19 +81,33 @@ pub struct AdminRpc {
 }
 
 impl AdminRpc {
-    /// Create a new Admin RPC client
+    /// Create a new Admin RPC client with the crate's default timeouts
+    ///
+    /// [`VNetsApi::admin_rpc`](crate::vnets::VNetsApi::admin_rpc) reuses the
+    /// parent client's HTTP settings instead.
     ///
     /// # Arguments
     ///
     /// * `url` - The admin RPC URL for the Virtual `TestNet`
     pub fn new(url: impl Into<String>) -> Result<Self> {
-        let http = HttpClient::builder().build().map_err(Error::Http)?;
+        let http = HttpClient::builder()
+            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+            .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+            .user_agent(&HttpClientConfig::default().user_agent)
+            .build()
+            .map_err(Error::Http)?;
+        Ok(Self::with_http_client(url, http))
+    }
 
-        Ok(Self {
+    /// Create an Admin RPC client that sends requests through `http`
+    ///
+    /// Use this to apply your own timeouts, proxy or other client settings.
+    pub fn with_http_client(url: impl Into<String>, http: HttpClient) -> Self {
+        Self {
             http,
             url: url.into(),
             request_id: AtomicU64::new(1),
-        })
+        }
     }
 
     /// Get the next request ID
@@ -110,11 +127,7 @@ impl AdminRpc {
 
         let status = response.status();
         if !status.is_success() {
-            let message = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(Error::api(status.as_u16(), message));
+            return Err(yldfi_common::api::handle_error_response(response).await);
         }
 
         let rpc_response: JsonRpcResponse<R> = response.json().await?;

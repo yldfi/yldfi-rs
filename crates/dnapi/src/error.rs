@@ -64,3 +64,48 @@ pub fn insufficient_credits() -> Error {
 pub fn not_found(resource: impl Into<String>) -> Error {
     ApiError::domain(DomainError::NotFound(resource.into()))
 }
+
+/// Convert a non-success response into an error.
+///
+/// 429 becomes [`ApiError::RateLimited`] with the (capped) `Retry-After`
+/// value, 5xx becomes the retryable [`ApiError::ServerError`], and bodies are
+/// sanitized. Callers handle their endpoint-specific statuses (404, 402) first.
+pub(crate) async fn handle_error_response(response: reqwest::Response) -> Error {
+    yldfi_common::api::handle_error_response(response).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn response(status: u16, retry_after: Option<&str>, body: &str) -> reqwest::Response {
+        let mut builder = http::Response::builder().status(status);
+        if let Some(value) = retry_after {
+            builder = builder.header("retry-after", value);
+        }
+        builder.body(body.to_string()).unwrap().into()
+    }
+
+    #[tokio::test]
+    async fn rate_limit_keeps_retry_after() {
+        let err = handle_error_response(response(429, Some("42"), "")).await;
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(42)));
+    }
+
+    #[tokio::test]
+    async fn server_error_is_retryable() {
+        let err = handle_error_response(response(503, None, "unavailable")).await;
+        assert!(matches!(err, ApiError::ServerError { status: 503, .. }));
+        assert!(err.is_retryable());
+    }
+
+    #[tokio::test]
+    async fn client_error_body_is_sanitized() {
+        let err = handle_error_response(response(400, None, "bad api_key=hunter2")).await;
+        assert!(matches!(err, ApiError::Api { status: 400, .. }));
+        assert!(!err.is_retryable());
+        assert!(!err.to_string().contains("hunter2"), "{err}");
+    }
+}
