@@ -672,7 +672,10 @@ fn handle_scam_result(
 
 /// Execute scan command
 async fn execute_scan(address: &str, chain_str: &str, auto_blacklist: bool) -> anyhow::Result<()> {
-    let chain = chain_str.parse::<Chain>().unwrap_or(Chain::Ethereum);
+    // An unknown chain must not silently scan Ethereum
+    let chain = chain_str
+        .parse::<Chain>()
+        .map_err(|_| anyhow::anyhow!("Unknown chain: {}", chain_str))?;
     let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
 
     eprintln!("Scanning {}...", address);
@@ -775,7 +778,10 @@ async fn execute_scan_portfolio(
 ) -> anyhow::Result<()> {
     use crate::aggregator::portfolio::fetch_portfolio_all;
 
-    let chain = chain_str.parse::<Chain>().unwrap_or(Chain::Ethereum);
+    // An unknown chain must not silently scan Ethereum
+    let chain = chain_str
+        .parse::<Chain>()
+        .map_err(|_| anyhow::anyhow!("Unknown chain: {}", chain_str))?;
     let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
 
     // Progress goes to stderr so stdout only carries scan results.
