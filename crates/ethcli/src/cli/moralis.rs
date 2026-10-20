@@ -263,11 +263,15 @@ pub enum TokenCommands {
         #[arg(long, default_value = "1d")]
         timeframe: String,
 
-        /// From date (ISO 8601, e.g. 2024-01-01T00:00:00Z)
+        /// Price currency (usd or native)
+        #[arg(long, default_value = "usd")]
+        currency: String,
+
+        /// From date (unix seconds or ISO 8601, e.g. 2024-01-01T00:00:00Z; default: 7 days ago)
         #[arg(long)]
         from_date: Option<String>,
 
-        /// To date (ISO 8601)
+        /// To date (unix seconds or ISO 8601; default: now)
         #[arg(long)]
         to_date: Option<String>,
 
@@ -460,6 +464,10 @@ pub enum NftCommands {
     FloorPriceHistorical {
         /// Contract address
         address: String,
+
+        /// Interval (1d, 7d, 30d, 60d, 90d, 1y, all)
+        #[arg(long, default_value = "1d")]
+        interval: String,
     },
 
     /// Sync NFT collection metadata
@@ -660,17 +668,9 @@ pub enum AnalyticsCommands {
         /// Comma-separated token addresses
         addresses: String,
 
-        /// Timeframe (e.g., 1h, 4h, 1d)
-        #[arg(long)]
-        timeframe: Option<String>,
-
-        /// From date (ISO 8601)
-        #[arg(long)]
-        from_date: Option<String>,
-
-        /// To date (ISO 8601)
-        #[arg(long)]
-        to_date: Option<String>,
+        /// Timeframe (1d, 7d, 30d)
+        #[arg(long, default_value = "1d")]
+        timeframe: String,
     },
 
     /// Get batch token analytics (comma-separated addresses)
@@ -934,6 +934,7 @@ async fn handle_token(
         TokenCommands::PairOhlcv {
             address,
             timeframe,
+            currency,
             from_date,
             to_date,
             limit,
@@ -943,7 +944,8 @@ async fn handle_token(
             }
             let mut query = mrls::token::PairOhlcvQuery::new()
                 .chain(&args.chain)
-                .timeframe(timeframe);
+                .timeframe(timeframe)
+                .currency(currency);
             if let Some(fd) = from_date {
                 query = query.from_date(fd);
             }
@@ -1283,13 +1285,13 @@ async fn handle_nft(
                 .await?;
             print_output(&response, args.format)?;
         }
-        NftCommands::FloorPriceHistorical { address } => {
+        NftCommands::FloorPriceHistorical { address, interval } => {
             if !quiet {
                 eprintln!("Fetching historical floor price for {}...", address);
             }
             let response = client
                 .nft()
-                .get_floor_price_historical(address, Some(&args.chain))
+                .get_floor_price_historical(address, interval, Some(&args.chain))
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -1652,8 +1654,6 @@ async fn handle_analytics(
         AnalyticsCommands::Timeseries {
             addresses,
             timeframe,
-            from_date,
-            to_date,
         } => {
             let addrs: Vec<&str> = addresses.split(',').map(str::trim).collect();
             if !quiet {
@@ -1667,14 +1667,14 @@ async fn handle_analytics(
                     .iter()
                     .map(|a| mrls::analytics::TokenAnalyticsInput {
                         token_address: a.to_string(),
-                        chain: Some(args.chain.clone()),
+                        chain: args.chain.clone(),
                     })
                     .collect(),
-                timeframe: timeframe.clone(),
-                from_date: from_date.clone(),
-                to_date: to_date.clone(),
             };
-            let response = client.analytics().get_timeseries(&request).await?;
+            let response = client
+                .analytics()
+                .get_timeseries(&request, timeframe)
+                .await?;
             print_output(&response, args.format)?;
         }
         AnalyticsCommands::Batch { addresses } => {
@@ -1687,7 +1687,7 @@ async fn handle_analytics(
                     .iter()
                     .map(|a| mrls::analytics::TokenAnalyticsInput {
                         token_address: a.to_string(),
-                        chain: Some(args.chain.clone()),
+                        chain: args.chain.clone(),
                     })
                     .collect(),
             };
