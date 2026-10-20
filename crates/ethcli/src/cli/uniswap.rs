@@ -342,7 +342,10 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
             let config = subgraph_config(args.version, chain, &api_key)?;
 
             let client = SubgraphClient::new(config)?;
-            let price = client.get_eth_price().await?;
+            let price = client
+                .get_eth_price()
+                .await
+                .map_err(|e| anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key)))?;
 
             let output = serde_json::json!({
                 "ethPriceUSD": price,
@@ -369,15 +372,21 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
             // Use the correct query method for each version
             match args.version {
                 Version::V2 => {
-                    let pairs = client.get_top_pairs(args.limit).await?;
+                    let pairs = client.get_top_pairs(args.limit).await.map_err(|e| {
+                        anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key))
+                    })?;
                     println!("{}", serde_json::to_string_pretty(&pairs)?);
                 }
                 Version::V3 => {
-                    let pools = client.get_top_pools(args.limit).await?;
+                    let pools = client.get_top_pools(args.limit).await.map_err(|e| {
+                        anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key))
+                    })?;
                     println!("{}", serde_json::to_string_pretty(&pools)?);
                 }
                 Version::V4 => {
-                    let pools = client.get_top_pools_v4(args.limit).await?;
+                    let pools = client.get_top_pools_v4(args.limit).await.map_err(|e| {
+                        anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key))
+                    })?;
                     println!("{}", serde_json::to_string_pretty(&pools)?);
                 }
             }
@@ -396,7 +405,10 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
             let config = subgraph_config(args.version, chain, &api_key)?;
 
             let client = SubgraphClient::new(config)?;
-            let swaps = client.get_swaps(&args.pool, args.limit).await?;
+            let swaps = client
+                .get_swaps(&args.pool, args.limit)
+                .await
+                .map_err(|e| anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key)))?;
 
             println!("{}", serde_json::to_string_pretty(&swaps)?);
         }
@@ -414,7 +426,10 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
             let config = subgraph_config(args.version, chain, &api_key)?;
 
             let client = SubgraphClient::new(config)?;
-            let data = client.get_pool_day_data(&args.pool, args.days).await?;
+            let data = client
+                .get_pool_day_data(&args.pool, args.days)
+                .await
+                .map_err(|e| anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key)))?;
 
             println!("{}", serde_json::to_string_pretty(&data)?);
         }
