@@ -313,7 +313,8 @@ async fn fetch_alchemy_portfolio(
                             addr.to_string(),
                             token
                                 .symbol
-                                .clone()
+                                .as_deref()
+                                .map(sanitize_symbol)
                                 .or_else(|| looked_up.and_then(|m| m.0.clone())),
                             token.decimals.or_else(|| looked_up.and_then(|m| m.1)),
                         )
@@ -346,6 +347,20 @@ async fn fetch_alchemy_portfolio(
             measure.elapsed_ms(),
         ),
     }
+}
+
+/// A token symbol safe to print: no control or bidi-override characters
+/// (on-chain strings can carry terminal escapes), at most 32 characters
+fn sanitize_symbol(symbol: &str) -> String {
+    symbol
+        .chars()
+        .filter(|c| {
+            !c.is_control()
+                && !('\u{202a}'..='\u{202e}').contains(c)
+                && !('\u{2066}'..='\u{2069}').contains(c)
+        })
+        .take(32)
+        .collect()
 }
 
 /// Symbol and decimals for Alchemy balance rows without metadata, via one
@@ -389,7 +404,10 @@ async fn alchemy_token_metadata(
                 continue;
             };
             for (addr, pair) in batch.iter().zip(results.chunks(2)) {
-                let symbol = pair.first().and_then(|r| r.decode_string());
+                let symbol = pair
+                    .first()
+                    .and_then(|r| r.decode_string())
+                    .map(|s| sanitize_symbol(&s));
                 let decimals = pair.get(1).and_then(|r| r.decode_uint8());
                 out.insert(format!("{:#x}", addr), (symbol, decimals));
             }
@@ -1254,6 +1272,14 @@ fn estimate_lp_usd_value(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn symbols_lose_escapes_and_length() {
+        assert_eq!(sanitize_symbol("US\x1b[31mDC"), "US[31mDC");
+        assert_eq!(sanitize_symbol("A\u{202e}B"), "AB");
+        assert_eq!(sanitize_symbol(&"X".repeat(100)).len(), 32);
+    }
+
     use super::*;
 
     #[test]
