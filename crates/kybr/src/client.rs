@@ -194,10 +194,8 @@ mod tests {
     #[test]
     fn test_route_request_builder() {
         let request = RouteRequest::new("0xTokenIn", "0xTokenOut", "1000000000000000000")
-            .with_slippage_bps(50)
             .with_recipient("0xRecipient");
 
-        assert_eq!(request.slippage_tolerance_bps, Some(50));
         assert_eq!(request.to, Some("0xRecipient".to_string()));
     }
 
@@ -207,7 +205,7 @@ mod tests {
             .with_included_sources("uniswap,curve")
             .with_excluded_sources("balancer")
             .with_gas_include(true)
-            .with_slippage_bps(50);
+            .with_save_gas(true);
         let params = request.to_query_params();
         let get = |k: &str| {
             params
@@ -219,8 +217,35 @@ mod tests {
         assert_eq!(get("includedSources"), Some("uniswap,curve"));
         assert_eq!(get("excludedSources"), Some("balancer"));
         assert_eq!(get("gasInclude"), Some("true"));
-        assert_eq!(get("slippageTolerance"), Some("50"));
+        assert_eq!(get("saveGas"), Some("true"));
+        // Slippage is a build/swap parameter, not a routes parameter
+        assert_eq!(get("slippageTolerance"), None);
         assert_eq!(get("includeDexs"), None);
+    }
+
+    #[test]
+    fn test_route_summary_price_impact_from_usd() {
+        let summary: crate::types::RouteSummary = serde_json::from_value(serde_json::json!({
+            "tokenIn": "0x1111111111111111111111111111111111111111",
+            "tokenOut": "0x2222222222222222222222222222222222222222",
+            "amountIn": "1000",
+            "amountInUsd": "100",
+            "amountOut": "990",
+            "amountOutUsd": "99",
+            "gas": "100000",
+            "gasPrice": "1",
+            "gasUsd": "0.1",
+            "l1FeeUsd": "0",
+            "checksum": "1",
+            "timestamp": 1,
+            "route": []
+        }))
+        .unwrap();
+        let impact = summary.price_impact_percent().unwrap();
+        assert!((impact - 1.0).abs() < 1e-9);
+        let json = serde_json::to_value(&summary).unwrap();
+        assert!(json.get("priceImpact").is_none());
+        assert!(json.get("amountOutMin").is_none());
     }
 
     #[test]

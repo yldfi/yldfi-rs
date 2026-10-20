@@ -176,7 +176,7 @@ pub async fn fetch_kyber_quote(
                 quote = quote.with_gas_usd(gas_usd);
             }
 
-            if let Some(impact) = route_summary.price_impact {
+            if let Some(impact) = route_summary.price_impact_percent() {
                 quote = quote.with_price_impact(impact);
             }
 
