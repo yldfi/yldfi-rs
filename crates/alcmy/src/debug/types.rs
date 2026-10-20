@@ -76,8 +76,11 @@ pub struct StateOverride {
     /// Balance override (hex)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance: Option<String>,
-    /// Nonce override
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Nonce override (sent as a hex quantity)
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serde_hex::opt_u64_as_hex"
+    )]
     pub nonce: Option<u64>,
     /// Code override (hex)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -138,9 +141,9 @@ pub struct TraceLog {
     pub topics: Vec<String>,
     /// Log data (hex)
     pub data: String,
-    /// Position in block (only in block traces)
+    /// Log position as a hex quantity, e.g. `"0x0"` (only with `withLog`)
     #[serde(default)]
-    pub position: Option<u64>,
+    pub position: Option<String>,
 }
 
 /// Block trace result
@@ -223,4 +226,33 @@ pub struct BlockOverrides {
     /// Base fee (hex)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_fee: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn state_override_nonce_is_hex_quantity() {
+        let value = serde_json::to_value(StateOverride {
+            nonce: Some(26),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(value, serde_json::json!({ "nonce": "0x1a" }));
+        let empty = serde_json::to_value(StateOverride::default()).unwrap();
+        assert_eq!(empty, serde_json::json!({}));
+    }
+
+    #[test]
+    fn trace_log_position_is_hex_string() {
+        let log: TraceLog = serde_json::from_value(serde_json::json!({
+            "address": "0x0000000000000000000000000000000000000001",
+            "topics": [],
+            "data": "0x",
+            "position": "0x0"
+        }))
+        .unwrap();
+        assert_eq!(log.position.as_deref(), Some("0x0"));
+    }
 }

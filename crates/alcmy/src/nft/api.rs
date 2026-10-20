@@ -3,8 +3,8 @@
 use super::types::{
     ContractMetadataBatchResponse, ContractMetadataResponse, ContractsForOwnerResponse,
     FloorPriceResponse, GetNftsForOwnerOptions, IsHolderResponse, IsSpamResponse, Nft,
-    NftsForContractResponse, OwnedNftsResponse, OwnersForContractResponse, OwnersForNftResponse,
-    RefreshMetadataResponse,
+    NftsForCollectionResponse, NftsForContractResponse, OwnedNftsResponse,
+    OwnersForContractResponse, OwnersForNftResponse, RefreshMetadataResponse,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -50,13 +50,30 @@ impl<'a> NftApi<'a> {
         self.client.nft_get("getOwnersForNFT", &query).await
     }
 
-    /// Get all owners of an NFT contract
+    /// Get all owners of an NFT contract (owners are plain addresses)
     pub async fn get_owners_for_contract(
         &self,
         contract_address: &str,
     ) -> Result<OwnersForContractResponse> {
-        let query = [("contractAddress", contract_address)];
-        self.client.nft_get("getOwnersForContract", &query).await
+        self.get_owners_for_contract_with_options(contract_address, false, None)
+            .await
+    }
+
+    /// Get owners of an NFT contract with options
+    ///
+    /// With `with_token_balances`, each owner is returned with its token
+    /// balances ([`ContractOwner::WithBalances`](super::ContractOwner)).
+    pub async fn get_owners_for_contract_with_options(
+        &self,
+        contract_address: &str,
+        with_token_balances: bool,
+        page_key: Option<&str>,
+    ) -> Result<OwnersForContractResponse> {
+        let query = owners_for_contract_query(contract_address, with_token_balances, page_key);
+        let query_refs: Vec<(&str, &str)> = query.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        self.client
+            .nft_get("getOwnersForContract", &query_refs)
+            .await
     }
 
     /// Get NFT contracts owned by an address
@@ -189,9 +206,10 @@ impl<'a> NftApi<'a> {
         self.client.nft_get("isSpamContract", &query).await
     }
 
-    /// Report a contract as spam
-    pub async fn report_spam(&self, contract_address: &str) -> Result<()> {
-        let query = [("address", contract_address)];
+    /// Report whether an address is spam (`is_spam = false` reports it as not spam)
+    pub async fn report_spam(&self, contract_address: &str, is_spam: bool) -> Result<()> {
+        let is_spam = is_spam.to_string();
+        let query = [("address", contract_address), ("isSpam", is_spam.as_str())];
         let _: serde_json::Value = self.client.nft_get("reportSpam", &query).await?;
         Ok(())
     }
@@ -202,18 +220,20 @@ impl<'a> NftApi<'a> {
     pub async fn get_nfts_for_collection(
         &self,
         collection_slug: &str,
-    ) -> Result<NftsForContractResponse> {
+    ) -> Result<NftsForCollectionResponse> {
         self.get_nfts_for_collection_with_options(collection_slug, None, None)
             .await
     }
 
     /// Get all NFTs for a collection with pagination
+    ///
+    /// Pass the previous response's `next_token` as `start_token`.
     pub async fn get_nfts_for_collection_with_options(
         &self,
         collection_slug: &str,
         start_token: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<NftsForContractResponse> {
+    ) -> Result<NftsForCollectionResponse> {
         let mut query = vec![("collectionSlug", collection_slug.to_string())];
         if let Some(start) = start_token {
             query.push(("startToken", start.to_string()));
@@ -225,5 +245,41 @@ impl<'a> NftApi<'a> {
         self.client
             .nft_get("getNFTsForCollection", &query_refs)
             .await
+    }
+}
+
+fn owners_for_contract_query(
+    contract_address: &str,
+    with_token_balances: bool,
+    page_key: Option<&str>,
+) -> Vec<(&'static str, String)> {
+    let mut query = vec![("contractAddress", contract_address.to_string())];
+    if with_token_balances {
+        query.push(("withTokenBalances", "true".to_string()));
+    }
+    if let Some(key) = page_key {
+        query.push(("pageKey", key.to_string()));
+    }
+    query
+}
+
+#[cfg(test)]
+mod tests {
+    use super::owners_for_contract_query;
+
+    #[test]
+    fn owners_for_contract_query_requests_balances() {
+        assert_eq!(
+            owners_for_contract_query("0xabc", false, None),
+            vec![("contractAddress", "0xabc".to_string())]
+        );
+        assert_eq!(
+            owners_for_contract_query("0xabc", true, Some("pk")),
+            vec![
+                ("contractAddress", "0xabc".to_string()),
+                ("withTokenBalances", "true".to_string()),
+                ("pageKey", "pk".to_string()),
+            ]
+        );
     }
 }

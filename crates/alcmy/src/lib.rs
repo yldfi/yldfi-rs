@@ -54,6 +54,7 @@
 
 mod client;
 mod error;
+mod serde_hex;
 
 // Core APIs
 pub mod nft;

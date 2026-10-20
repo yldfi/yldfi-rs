@@ -1196,7 +1196,7 @@ async fn handle_nft(
             if !quiet {
                 eprintln!("Reporting {} as spam...", contract);
             }
-            client.nft().report_spam(contract).await?;
+            client.nft().report_spam(contract, true).await?;
             println!("Reported {} as spam", contract);
         }
         NftCommands::NftsForCollection {

@@ -397,14 +397,20 @@ impl Client {
             params,
         };
 
-        let response = self.http.post(self.rpc_url()).json(&request).send().await?;
+        let response = self
+            .http
+            .post(self.rpc_url())
+            .json(&request)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         let status = response.status();
         if status == 429 || status.is_server_error() {
             return Err(error::handle_error_response(response).await);
         }
         // Other error statuses may still carry a JSON-RPC error object
-        let body = response.text().await?;
+        let body = response.text().await.map_err(crate::error::http)?;
         let result: serde_json::Value = match serde_json::from_str(&body) {
             Ok(value) => value,
             Err(_) if !status.is_success() => {
@@ -440,7 +446,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.nft_url(), path);
-        let response = self.http.get(&url).query(query).send().await?;
+        let response = self
+            .http
+            .get(&url)
+            .query(query)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -452,7 +464,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.nft_url(), path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self
+            .http
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -463,7 +481,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.prices_url(), path);
-        let response = self.http.get(&url).query(query).send().await?;
+        let response = self
+            .http
+            .get(&url)
+            .query(query)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -475,7 +499,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.prices_url(), path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self
+            .http
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -487,7 +517,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.data_url(), path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self
+            .http
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -498,7 +534,7 @@ impl Client {
         R: DeserializeOwned,
     {
         if response.status().is_success() {
-            Ok(response.json().await?)
+            response.json().await.map_err(crate::error::http)
         } else {
             Err(crate::error::handle_error_response(response).await)
         }

@@ -63,7 +63,13 @@ impl<'a> BeaconApi<'a> {
         R: serde::de::DeserializeOwned,
     {
         let url = beacon_url(self.client.network(), self.client.api_key(), version, path)?;
-        let response = self.client.http().get(&url).send().await?;
+        let response = self
+            .client
+            .http()
+            .get(&url)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
         self.client.handle_response(response).await
     }
 
@@ -73,7 +79,14 @@ impl<'a> BeaconApi<'a> {
         R: serde::de::DeserializeOwned,
     {
         let url = beacon_url(self.client.network(), self.client.api_key(), "v1", path)?;
-        let response = self.client.http().post(&url).json(body).send().await?;
+        let response = self
+            .client
+            .http()
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
         self.client.handle_response(response).await
     }
 

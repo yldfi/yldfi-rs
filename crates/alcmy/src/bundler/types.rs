@@ -211,8 +211,11 @@ pub struct BundlerStateOverride {
     /// Balance (hex)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance: Option<String>,
-    /// Nonce
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Nonce (sent as a hex quantity)
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serde_hex::opt_u64_as_hex"
+    )]
     pub nonce: Option<u64>,
     /// Code (hex)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -223,4 +226,19 @@ pub struct BundlerStateOverride {
     /// State diff
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state_diff: Option<std::collections::HashMap<String, String>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundler_state_override_nonce_is_hex_quantity() {
+        let value = serde_json::to_value(BundlerStateOverride {
+            nonce: Some(1),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(value, serde_json::json!({ "nonce": "0x1" }));
+    }
 }

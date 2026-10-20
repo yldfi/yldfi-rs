@@ -173,8 +173,32 @@ pub struct OwnersForNftResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OwnersForContractResponse {
-    pub owners: Vec<OwnerInfo>,
+    /// Owners: plain addresses by default, objects with token balances when
+    /// requested with `withTokenBalances=true`
+    pub owners: Vec<ContractOwner>,
+    #[serde(default)]
     pub page_key: Option<String>,
+}
+
+/// One entry of [`OwnersForContractResponse::owners`]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum ContractOwner {
+    /// Owner address (default response)
+    Address(String),
+    /// Owner with token balances (`withTokenBalances=true`)
+    WithBalances(OwnerInfo),
+}
+
+impl ContractOwner {
+    /// Owner address regardless of response format
+    #[must_use]
+    pub fn address(&self) -> &str {
+        match self {
+            Self::Address(address) => address,
+            Self::WithBalances(info) => &info.owner_address,
+        }
+    }
 }
 
 /// Owner info with token balances
@@ -211,7 +235,16 @@ pub struct ContractWithMetadata {
     pub total_balance: Option<String>,
     pub num_distinct_tokens_owned: Option<String>,
     pub is_spam: Option<bool>,
-    pub display_nft: Option<Nft>,
+    pub image: Option<NftImage>,
+    pub display_nft: Option<DisplayNft>,
+}
+
+/// Representative NFT for a contract in getContractsForOwner
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayNft {
+    pub token_id: Option<String>,
+    pub name: Option<String>,
 }
 
 /// Result of [`NftApi::is_holder_of_contract`](super::NftApi::is_holder_of_contract)
@@ -241,6 +274,23 @@ pub struct NftsForContractResponse {
     pub page_key: Option<String>,
 }
 
+/// Response for getNFTsForCollection
+///
+/// Alchemy documents the items of this endpoint in the older `id.tokenId` /
+/// `contractMetadata` shape rather than the v3 [`Nft`] shape, so they are kept
+/// as raw JSON. The next page cursor is `nextToken` (pass it back as
+/// `startToken`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NftsForCollectionResponse {
+    #[serde(default)]
+    pub nfts: Vec<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_key: Option<String>,
+}
+
 /// Response for getContractMetadata
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -260,7 +310,9 @@ pub struct ContractMetadataBatchResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FloorPriceResponse {
+    #[serde(rename = "openSea")]
     pub opensea: Option<FloorPriceMarketplace>,
+    #[serde(rename = "looksRare")]
     pub looksrare: Option<FloorPriceMarketplace>,
 }
 
@@ -373,6 +425,80 @@ mod tests {
         })
         .unwrap();
         assert_eq!(value, serde_json::json!({ "isHolderOfContract": true }));
+    }
+
+    #[test]
+    fn owners_for_contract_parses_both_formats() {
+        let plain: OwnersForContractResponse = serde_json::from_value(serde_json::json!({
+            "owners": ["0x0000000000000000000000000000000000000001"],
+            "pageKey": "pk"
+        }))
+        .unwrap();
+        assert!(matches!(plain.owners[0], ContractOwner::Address(_)));
+        assert_eq!(
+            plain.owners[0].address(),
+            "0x0000000000000000000000000000000000000001"
+        );
+
+        let balances: OwnersForContractResponse = serde_json::from_value(serde_json::json!({
+            "owners": [{
+                "ownerAddress": "0x0000000000000000000000000000000000000002",
+                "tokenBalances": [{ "tokenId": "1", "balance": "3" }]
+            }]
+        }))
+        .unwrap();
+        match &balances.owners[0] {
+            ContractOwner::WithBalances(info) => {
+                assert_eq!(info.token_balances[0].balance, "3");
+            }
+            other => panic!("expected balances, got {other:?}"),
+        }
+        assert_eq!(
+            balances.owners[0].address(),
+            "0x0000000000000000000000000000000000000002"
+        );
+    }
+
+    #[test]
+    fn contracts_for_owner_display_nft_is_name_and_token_id() {
+        let parsed: ContractsForOwnerResponse = serde_json::from_value(serde_json::json!({
+            "contracts": [{
+                "address": "0x0000000000000000000000000000000000000003",
+                "displayNft": { "tokenId": "7", "name": "Test #7" },
+                "image": { "cachedUrl": "https://example.com/a.png" }
+            }],
+            "totalCount": 1
+        }))
+        .unwrap();
+        let display = parsed.contracts[0].display_nft.as_ref().unwrap();
+        assert_eq!(display.token_id.as_deref(), Some("7"));
+        assert_eq!(display.name.as_deref(), Some("Test #7"));
+        assert!(parsed.contracts[0].image.is_some());
+    }
+
+    #[test]
+    fn floor_price_reads_marketplace_keys() {
+        let parsed: FloorPriceResponse = serde_json::from_value(serde_json::json!({
+            "openSea": { "floorPrice": 1.5, "priceCurrency": "ETH" },
+            "looksRare": { "error": "unavailable" }
+        }))
+        .unwrap();
+        assert_eq!(parsed.opensea.unwrap().floor_price, Some(1.5));
+        assert_eq!(
+            parsed.looksrare.unwrap().error.as_deref(),
+            Some("unavailable")
+        );
+    }
+
+    #[test]
+    fn nfts_for_collection_reads_next_token() {
+        let parsed: NftsForCollectionResponse = serde_json::from_value(serde_json::json!({
+            "nfts": [{ "id": { "tokenId": "0x01" } }],
+            "nextToken": "0x02"
+        }))
+        .unwrap();
+        assert_eq!(parsed.nfts.len(), 1);
+        assert_eq!(parsed.next_token.as_deref(), Some("0x02"));
     }
 
     #[test]

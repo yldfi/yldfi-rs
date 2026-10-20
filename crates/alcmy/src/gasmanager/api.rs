@@ -218,10 +218,10 @@ impl<'a> GasManagerApi<'a> {
             request
         };
 
-        let response = request.send().await?;
+        let response = request.send().await.map_err(crate::error::http)?;
 
         if response.status().is_success() {
-            Ok(response.json().await?)
+            response.json().await.map_err(crate::error::http)
         } else {
             Err(crate::error::handle_error_response(response).await)
         }

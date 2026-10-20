@@ -32,10 +32,11 @@ impl<'a> AccountsApi<'a> {
             .bearer_auth(self.client.api_key())
             .json(body)
             .send()
-            .await?;
+            .await
+            .map_err(crate::error::http)?;
 
         if response.status().is_success() {
-            Ok(response.json().await?)
+            response.json().await.map_err(crate::error::http)
         } else {
             Err(crate::error::handle_error_response(response).await)
         }
