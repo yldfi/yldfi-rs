@@ -232,7 +232,7 @@ ethcli blacklist clear
 
 - **Storage**: Blacklist stored in `~/.config/ethcli/blacklist.toml`
 - **Security checks**: Uses GoPlus API + Etherscan verification status
-- **Known protocols**: Yearn, Curve, Aave, Compound, etc. are auto-whitelisted
+- **Known protocols**: a fixed list of major token addresses (stETH, DAI, CRV, ...) skips the proxy warnings; names and symbols are never trusted, and verification status is never overridden
 - **Alias**: `ethcli bl` works as an alias for `ethcli blacklist`
 
 ## Solodit Commands
