@@ -171,8 +171,6 @@ pub struct PriceRequest {
     pub exclude_dexs: Option<String>,
     /// Include only specific DEXs in the route
     pub include_dexs: Option<String>,
-    /// Exclude pools with low TVL
-    pub exclude_pools_with_low_tvl: Option<bool>,
 }
 
 impl PriceRequest {
@@ -293,9 +291,6 @@ impl PriceRequest {
         }
         if let Some(ref dexs) = self.include_dexs {
             params.push(("includeDEXS".to_string(), dexs.clone()));
-        }
-        if let Some(exclude) = self.exclude_pools_with_low_tvl {
-            params.push(("excludePoolsWithLowTVL".to_string(), exclude.to_string()));
         }
 
         params
@@ -669,6 +664,14 @@ pub struct ApiErrorResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_price_request_sends_only_documented_params() {
+        let request = PriceRequest::sell("0xsrc", "0xdst", "1000");
+        let params = request.to_query_params(1);
+        assert!(params.iter().all(|(k, _)| k != "excludePoolsWithLowTVL"));
+        assert!(params.iter().any(|(k, v)| k == "network" && v == "1"));
+    }
 
     #[test]
     fn test_chain_id() {
