@@ -65,13 +65,35 @@ impl From<AlchemyNetwork> for alcmy::Network {
 
 #[derive(Args)]
 pub struct AlchemyArgs {
-    /// Alchemy network
-    #[arg(long, short, default_value = "eth-mainnet")]
-    pub network: AlchemyNetwork,
+    /// Alchemy network (default: [alchemy] default_network, else eth-mainnet)
+    #[arg(long, short)]
+    pub network: Option<AlchemyNetwork>,
 
     /// Output format
     #[arg(long, short = 'o', visible_alias = "output", default_value = "json")]
     pub format: OutputFormat,
+}
+
+impl AlchemyArgs {
+    /// --network, else `[alchemy] default_network` from the config, else
+    /// Ethereum mainnet
+    pub fn selected(&self) -> AlchemyNetwork {
+        if let Some(network) = self.network {
+            return network;
+        }
+        let configured = crate::aggregator::get_cached_config()
+            .as_ref()
+            .and_then(|c| c.alchemy.as_ref())
+            .and_then(|a| a.default_network.clone());
+        configured
+            .and_then(|n| <AlchemyNetwork as clap::ValueEnum>::from_str(&n, true).ok())
+            .unwrap_or(AlchemyNetwork::EthMainnet)
+    }
+
+    /// [`selected`](Self::selected) as the client's network
+    pub fn network(&self) -> alcmy::Network {
+        self.selected().into()
+    }
 }
 
 /// Help text pointing users of NFT commands retired with Alchemy's
@@ -1099,7 +1121,7 @@ async fn handle_nft(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         NftCommands::GetNfts { address } => {
@@ -1228,7 +1250,7 @@ async fn handle_token(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         TokenCommands::Balances { address } => {
@@ -1291,7 +1313,7 @@ async fn handle_transfers(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         TransferCommands::From {
@@ -1356,7 +1378,7 @@ async fn handle_portfolio(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         PortfolioCommands::Tokens { address } => {
@@ -1364,7 +1386,7 @@ async fn handle_portfolio(
                 eprintln!("Fetching portfolio for {}...", address);
             }
             // API expects (address, networks) tuples
-            let networks: &[&str] = &[args.network.as_str()];
+            let networks: &[&str] = &[args.selected().as_str()];
             let addresses: &[(&str, &[&str])] = &[(address.as_str(), networks)];
             let response = client.portfolio().get_token_balances(addresses).await?;
             print_output(&response, args.format)?;
@@ -1393,7 +1415,7 @@ async fn handle_portfolio(
             if !quiet {
                 eprintln!("Fetching NFTs for {}...", address);
             }
-            let networks: &[&str] = &[args.network.as_str()];
+            let networks: &[&str] = &[args.selected().as_str()];
             let addresses: &[(&str, &[&str])] = &[(address.as_str(), networks)];
             let response = client
                 .portfolio()
@@ -1405,7 +1427,7 @@ async fn handle_portfolio(
             if !quiet {
                 eprintln!("Fetching NFT contracts for {}...", address);
             }
-            let networks: &[&str] = &[args.network.as_str()];
+            let networks: &[&str] = &[args.selected().as_str()];
             let addresses: &[(&str, &[&str])] = &[(address.as_str(), networks)];
             let response = client
                 .portfolio()
@@ -1428,7 +1450,7 @@ async fn handle_prices(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         PriceCommands::BySymbol { symbols } => {
@@ -1445,7 +1467,7 @@ async fn handle_prices(
             }
             // API expects (network, address) tuples
             let addr_strs: Vec<&str> = addresses.split(',').map(|s| s.trim()).collect();
-            let network = args.network.as_str();
+            let network = args.selected().as_str();
             let addr_list: Vec<(&str, &str)> = addr_strs.iter().map(|a| (network, *a)).collect();
             let response = client.prices().get_prices_by_address(&addr_list).await?;
             print_output(&response, args.format)?;
@@ -1474,7 +1496,7 @@ async fn handle_prices(
             if !quiet {
                 eprintln!("Fetching historical prices for {}...", address);
             }
-            let network = args.network.as_str();
+            let network = args.selected().as_str();
             let response = client
                 .prices()
                 .get_historical_by_address(
@@ -1502,7 +1524,7 @@ async fn handle_debug(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         DebugCommands::TraceTx { hash } => {
@@ -1608,7 +1630,7 @@ async fn handle_trace(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         TraceCommands::Block { block } => {
@@ -1734,7 +1756,7 @@ async fn handle_bundler(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         BundlerCommands::SupportedEntryPoints => {
@@ -1794,7 +1816,7 @@ async fn handle_gas_manager(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = gas_manager_client(api_key, args.network)?;
+    let client = gas_manager_client(api_key, args.selected())?;
 
     match action {
         GasManagerCommands::ListPolicies => {
@@ -1840,7 +1862,7 @@ async fn handle_notify(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = notify_client(api_key, args.network)?;
+    let client = notify_client(api_key, args.selected())?;
 
     match action {
         NotifyCommands::ListWebhooks => {
@@ -1879,7 +1901,7 @@ async fn handle_beacon(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         BeaconCommands::Genesis => {
@@ -2104,7 +2126,7 @@ async fn handle_solana(
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alcmy::Client::new(api_key, args.network.into())?;
+    let client = alcmy::Client::new(api_key, args.network())?;
 
     match action {
         SolanaCommands::GetAsset { id } => {
