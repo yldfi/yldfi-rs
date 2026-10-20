@@ -277,25 +277,66 @@ async fn fetch_alchemy_portfolio(
     // Build address-network pairs
     let addr_networks: Vec<(&str, &[&str])> = vec![(address, networks_refs.as_slice())];
 
+    // Alchemy network name -> the chain name the caller asked for, so rows
+    // merge with the other sources' rows for the same chain
+    let chain_for_network: HashMap<&str, &str> = networks
+        .iter()
+        .map(String::as_str)
+        .zip(chains.iter().map(String::as_str))
+        .collect();
+
     match client.portfolio().get_token_balances(&addr_networks).await {
         Ok(response) => {
+            // The balances endpoint carries no metadata: look up symbol and
+            // decimals on-chain rather than showing "???" with 18 decimals
+            let metadata = alchemy_token_metadata(&response.data.tokens, &chain_for_network).await;
             let mut balances = Vec::new();
+            let mut skipped = 0usize;
             for token in &response.data.tokens {
-                // Use token_address for ERC20s, or "ETH" for native token
-                let token_addr = token
-                    .token_address
-                    .as_deref()
-                    .unwrap_or("0x0000000000000000000000000000000000000000");
+                let chain = chain_for_network
+                    .get(token.network.as_str())
+                    .copied()
+                    .unwrap_or(token.network.as_str());
+                let (token_addr, symbol, decimals) = match token.token_address.as_deref() {
+                    // Native token
+                    None => {
+                        let native = crate::config::Chain::from_str_or_default(chain);
+                        (
+                            "0x0000000000000000000000000000000000000000".to_string(),
+                            Some(native.native_symbol().to_string()),
+                            Some(18),
+                        )
+                    }
+                    Some(addr) => {
+                        let looked_up = metadata.get(&addr.to_lowercase());
+                        (
+                            addr.to_string(),
+                            token
+                                .symbol
+                                .clone()
+                                .or_else(|| looked_up.and_then(|m| m.0.clone())),
+                            token.decimals.or_else(|| looked_up.and_then(|m| m.1)),
+                        )
+                    }
+                };
+                // Without decimals the amount would be wrong by orders of magnitude
+                let Some(decimals) = decimals else {
+                    skipped += 1;
+                    continue;
+                };
                 let balance = PortfolioBalance::new(
-                    token_addr,
-                    token.symbol.as_deref().unwrap_or("???"),
-                    &token.network,
+                    &token_addr,
+                    symbol.as_deref().unwrap_or("?"),
+                    chain,
                     &token.token_balance,
-                    token.decimals.unwrap_or(18),
+                    decimals,
                 )
                 .with_name(token.name.clone())
                 .with_logo(token.logo.clone());
                 balances.push(balance);
+            }
+            if skipped > 0 {
+                tracing::warn!("Alchemy: skipped {} tokens with unknown decimals", skipped);
             }
             SourceResult::success("alchemy", balances, measure.elapsed_ms())
         }
@@ -305,6 +346,56 @@ async fn fetch_alchemy_portfolio(
             measure.elapsed_ms(),
         ),
     }
+}
+
+/// Symbol and decimals for Alchemy balance rows without metadata, via one
+/// multicall per chain, keyed by lowercase token address
+async fn alchemy_token_metadata(
+    tokens: &[alcmy::portfolio::TokenBalanceEntry],
+    chain_for_network: &HashMap<&str, &str>,
+) -> HashMap<String, (Option<String>, Option<u8>)> {
+    use crate::rpc::multicall::{selectors, MulticallBuilder};
+    use alloy::primitives::Address;
+
+    let mut by_chain: HashMap<&str, Vec<Address>> = HashMap::new();
+    for token in tokens {
+        if token.symbol.is_some() && token.decimals.is_some() {
+            continue;
+        }
+        let Some(addr) = token.token_address.as_deref().and_then(|a| a.parse().ok()) else {
+            continue;
+        };
+        let chain = chain_for_network
+            .get(token.network.as_str())
+            .copied()
+            .unwrap_or(token.network.as_str());
+        by_chain.entry(chain).or_default().push(addr);
+    }
+
+    let mut out = HashMap::new();
+    for (chain, addrs) in by_chain {
+        let chain = crate::config::Chain::from_str_or_default(chain);
+        let Ok(endpoint) = crate::rpc::get_rpc_endpoint(chain) else {
+            continue;
+        };
+        for batch in addrs.chunks(100) {
+            let mut builder = MulticallBuilder::new();
+            for addr in batch {
+                builder = builder
+                    .add_call_allow_failure(*addr, selectors::symbol())
+                    .add_call_allow_failure(*addr, selectors::decimals());
+            }
+            let Ok(results) = builder.execute_with_retry(endpoint.provider(), 2).await else {
+                continue;
+            };
+            for (addr, pair) in batch.iter().zip(results.chunks(2)) {
+                let symbol = pair.first().and_then(|r| r.decode_string());
+                let decimals = pair.get(1).and_then(|r| r.decode_uint8());
+                out.insert(format!("{:#x}", addr), (symbol, decimals));
+            }
+        }
+    }
+    out
 }
 
 /// Fetch portfolio from Moralis
@@ -1120,8 +1211,8 @@ fn parse_balance(balance: &str, decimals: u8) -> f64 {
 
     // Parse as u128 and divide by 10^decimals
     if let Ok(raw) = balance.parse::<u128>() {
-        let divisor = 10u128.pow(decimals as u32);
-        raw as f64 / divisor as f64
+        // 10u128.pow overflows past 38 decimals
+        raw as f64 / 10f64.powi(decimals as i32)
     } else {
         balance.parse::<f64>().unwrap_or(0.0)
     }
