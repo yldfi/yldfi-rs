@@ -402,16 +402,36 @@ pub fn build_calldata(
     }
 }
 
+/// Parse a --value: wei (decimal or 0x-hex), or with an `eth`/`ether`/`gwei`/
+/// `wei` suffix, into a hex quantity. Shared by every simulate backend.
 pub fn value_to_hex(value: &str) -> anyhow::Result<String> {
-    if value == "0" {
-        Ok("0x0".to_string())
+    let value = value.trim();
+    let lower = value.to_ascii_lowercase();
+    let wei = if let Some(hex) = lower.strip_prefix("0x") {
+        alloy::primitives::U256::from_str_radix(hex, 16)
+            .map_err(|e| anyhow::anyhow!("Invalid value '{}': {}", value, e))?
+    } else if let Some(n) = lower.strip_suffix("gwei") {
+        crate::utils::format::parse_wei_amount(n, "gwei")?
+    } else if let Some(n) = lower
+        .strip_suffix("ether")
+        .or_else(|| lower.strip_suffix("eth"))
+    {
+        crate::utils::format::parse_wei_amount(n, "ether")?
     } else {
-        Ok(format!("0x{:x}", value.parse::<u128>()?))
-    }
+        let n = lower.strip_suffix("wei").unwrap_or(&lower);
+        crate::utils::format::parse_wei_amount(n, "wei")?
+    };
+    Ok(format!("{wei:#x}"))
 }
 
+/// Parse a block argument (tag, decimal or hex) into a JSON-RPC block
+/// parameter. Shared by every simulate backend.
 pub fn block_to_param(block: &str) -> anyhow::Result<String> {
-    if block == "latest" || block == "pending" || block == "earliest" {
+    let block = block.trim();
+    if matches!(
+        block,
+        "latest" | "pending" | "earliest" | "finalized" | "safe"
+    ) {
         Ok(block.to_string())
     } else {
         // Parse block number (supports decimal or hex input)
@@ -770,5 +790,20 @@ mod tests {
             calldata,
             "0x70a08231000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
         );
+    }
+}
+
+#[cfg(test)]
+mod value_tests {
+    use super::value_to_hex;
+
+    #[test]
+    fn value_parser_accepts_units_and_hex() {
+        assert_eq!(value_to_hex("0").unwrap(), "0x0");
+        assert_eq!(value_to_hex("1").unwrap(), "0x1");
+        assert_eq!(value_to_hex("0xff").unwrap(), "0xff");
+        assert_eq!(value_to_hex("1gwei").unwrap(), "0x3b9aca00");
+        assert_eq!(value_to_hex("0.1eth").unwrap(), "0x16345785d8a0000");
+        assert!(value_to_hex("-1").is_err());
     }
 }

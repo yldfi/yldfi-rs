@@ -86,8 +86,17 @@ fn build_anvil_command(port: u16, fork_urls: &[String], options: &AnvilOptions) 
         .arg(port.to_string())
         .arg("--quiet");
 
-    for url in fork_urls {
-        cmd.arg("--fork-url").arg(url);
+    // A single fork URL goes through ETH_RPC_URL (anvil's --fork-url env),
+    // keeping any embedded API key out of argv
+    match fork_urls {
+        [url] => {
+            cmd.env("ETH_RPC_URL", url);
+        }
+        urls => {
+            for url in urls {
+                cmd.arg("--fork-url").arg(url);
+            }
+        }
     }
 
     if let Some(block) = &options.fork_block_number {
