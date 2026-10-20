@@ -524,7 +524,10 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                             }
                         }
                         Err(e) => {
-                            eprintln!("Warning: V2 positions query failed: {e}");
+                            let e = redact_subgraph_error(&e.to_string(), &api_key);
+                            if !quiet {
+                                eprintln!("Warning: V2 positions query failed: {e}");
+                            }
                             failures.push(format!("V2: {e}"));
                         }
                     }
@@ -589,7 +592,10 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                             }
                         }
                         Err(e) => {
-                            eprintln!("Warning: V3 positions query failed: {e}");
+                            let e = redact_subgraph_error(&e.to_string(), &api_key);
+                            if !quiet {
+                                eprintln!("Warning: V3 positions query failed: {e}");
+                            }
                             failures.push(format!("V3: {e}"));
                         }
                     }
@@ -618,7 +624,10 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                             }
                         }
                         Err(e) => {
-                            eprintln!("Warning: V4 positions query failed: {e}");
+                            let e = redact_subgraph_error(&e.to_string(), &api_key);
+                            if !quiet {
+                                eprintln!("Warning: V4 positions query failed: {e}");
+                            }
                             failures.push(format!("V4: {e}"));
                         }
                     }
@@ -887,6 +896,16 @@ mod tests {
     }
 }
 
+/// A subgraph error without the API key (The Graph puts it in the URL path)
+fn redact_subgraph_error(message: &str, api_key: &str) -> String {
+    let redacted = crate::utils::url::redact_urls_in_text(message);
+    if api_key.is_empty() {
+        redacted
+    } else {
+        redacted.replace(api_key, "[REDACTED]")
+    }
+}
+
 /// Subgraph for a Uniswap version on a chain; an error for chains without one
 /// (rather than silently querying mainnet)
 fn subgraph_config(
@@ -929,5 +948,15 @@ mod subgraph_tests {
         assert!(subgraph_config(Version::V3, "bsc", "k").is_err());
         assert!(subgraph_config(Version::V2, "base", "k").is_err());
         assert!(subgraph_config(Version::V4, "gnosis", "k").is_err());
+    }
+
+    #[test]
+    fn subgraph_errors_drop_the_api_key() {
+        let msg = "error sending request for url (https://gateway.thegraph.com/api/s3cretkey123/subgraphs/id/x)";
+        let redacted = redact_subgraph_error(msg, "s3cretkey123");
+        assert!(!redacted.contains("s3cretkey123"), "{redacted}");
+        assert!(
+            !redact_subgraph_error("bad key s3cretkey123", "s3cretkey123").contains("s3cretkey123")
+        );
     }
 }
