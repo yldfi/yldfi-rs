@@ -606,8 +606,7 @@ fn print_security_analysis(security: &SecurityResult) {
             } else {
                 ""
             };
-            let display = owner.get(..10).unwrap_or(owner);
-            println!("  Owner:       {}{}", display, status);
+            println!("  Owner:       {}{}", truncate_str(owner, 13), status);
         }
     }
     if security.is_mintable {
