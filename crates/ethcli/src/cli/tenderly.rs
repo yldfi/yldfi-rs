@@ -714,9 +714,10 @@ pub enum AlertsCommands {
         #[arg(long)]
         name: String,
 
-        /// Alert type: successful_transaction, failed_transaction, function_call,
-        /// event_emitted, erc20_transfer, erc721_transfer, state_change,
-        /// balance_change, contract_deployed, block_mined, whale_alert, expression
+        /// Alert type (simple_type): successful_tx, failed_tx, allowlisted_callers,
+        /// blocklisted_callers, log_emitted, erc20_transfer_log_emitted,
+        /// emitted_log_parameter, function_called, called_function_parameter,
+        /// state_change, eth_balance, tx_value, view_function
         #[arg(long)]
         alert_type: String,
 
@@ -728,9 +729,22 @@ pub enum AlertsCommands {
         #[arg(long = "address", action = clap::ArgAction::Append)]
         addresses: Vec<String>,
 
+        /// Contract tag (for --target-type tag)
+        #[arg(long)]
+        tag: Option<String>,
+
         /// Network ID
         #[arg(long, default_value = "1")]
         network: String,
+
+        /// Extra expression as JSON, e.g. '{"type":"method_call","expression":{...}}'
+        /// (can be repeated)
+        #[arg(long = "expression", action = clap::ArgAction::Append)]
+        expressions: Vec<String>,
+
+        /// Delivery channel ID to notify (can be repeated; see `tenderly channels`)
+        #[arg(long = "channel", action = clap::ArgAction::Append)]
+        channels: Vec<String>,
     },
 
     /// List alerts
@@ -794,7 +808,7 @@ pub enum AlertsCommands {
         #[arg(long)]
         name: String,
 
-        /// Alert type
+        /// Alert type (simple_type, see `alerts create --help`)
         #[arg(long)]
         alert_type: String,
 
@@ -805,6 +819,14 @@ pub enum AlertsCommands {
         /// Target addresses (can be repeated)
         #[arg(long = "address", action = clap::ArgAction::Append)]
         addresses: Vec<String>,
+
+        /// Extra expression as JSON (can be repeated)
+        #[arg(long = "expression", action = clap::ArgAction::Append)]
+        expressions: Vec<String>,
+
+        /// Delivery channel ID to notify (can be repeated)
+        #[arg(long = "channel", action = clap::ArgAction::Append)]
+        channels: Vec<String>,
     },
 
     /// Manage webhooks
@@ -855,13 +877,22 @@ pub enum ActionsCommands {
         #[arg(long)]
         name: String,
 
-        /// Trigger type: alert, webhook, periodic, block, transaction
+        /// Trigger type: alert, webhook, periodic, block, transaction, transactionsimple
         #[arg(long)]
         trigger: String,
 
         /// Source code file path
         #[arg(long)]
         source: String,
+
+        /// Trigger configuration as JSON, e.g.
+        /// '{"type":"periodic","periodic":{"cron":"0 * * * *"}}' (default: {"type":"<trigger>"})
+        #[arg(long)]
+        trigger_config: Option<String>,
+
+        /// Exported function to invoke
+        #[arg(long, default_value = tndrly::actions::DEFAULT_FUNCTION)]
+        function: String,
     },
 
     /// List Web3 Actions
@@ -1700,7 +1731,10 @@ async fn handle_contracts(
             if !quiet {
                 eprintln!("Listing contracts...");
             }
-            let contracts = client.contracts().list(None).await?;
+            let query = tndrly::contracts::ListContractsQuery::new(
+                tndrly::contracts::AccountType::Contract,
+            );
+            let contracts = client.contracts().list(&query).await?;
             println!("{}", serde_json::to_string_pretty(&contracts)?);
         }
 
@@ -1831,26 +1865,25 @@ async fn handle_alerts(
             alert_type,
             target_type,
             addresses,
+            tag,
             network,
+            expressions,
+            channels,
         } => {
             if !quiet {
                 eprintln!("Creating alert '{}'...", name);
             }
 
-            let alert_type: tndrly::alerts::AlertType = alert_type
-                .parse()
-                .map_err(|e| anyhow::anyhow!("Invalid alert type '{}': {}", alert_type, e))?;
-            let target: tndrly::alerts::AlertTarget = target_type
-                .parse()
-                .map_err(|e| anyhow::anyhow!("Invalid target type '{}': {}", target_type, e))?;
-
-            let mut request =
-                tndrly::alerts::CreateAlertRequest::new(name, alert_type, network, target);
-
-            if !addresses.is_empty() {
-                request = request.addresses(addresses.clone());
-            }
-
+            let request = build_alert_request(
+                name,
+                alert_type,
+                target_type,
+                addresses,
+                tag.as_deref(),
+                network,
+                expressions,
+                channels,
+            )?;
             let alert = client.alerts().create(&request).await?;
             println!("{}", serde_json::to_string_pretty(&alert)?);
         }
@@ -1914,7 +1947,7 @@ async fn handle_alerts(
             if !quiet {
                 eprintln!("Testing alert {}...", id);
             }
-            let request = tndrly::alerts::TestAlertRequest::new(id, tx_hash, network);
+            let request = tndrly::alerts::TestAlertRequest::new(id, network, tx_hash);
             client.alerts().test_alert(&request).await?;
             println!("Alert test triggered for {}.", id);
         }
@@ -1925,21 +1958,27 @@ async fn handle_alerts(
             alert_type,
             network,
             addresses,
+            expressions,
+            channels,
         } => {
             if !quiet {
                 eprintln!("Updating alert {}...", id);
             }
-            let at: tndrly::alerts::AlertType =
-                alert_type.parse().map_err(|e: String| anyhow::anyhow!(e))?;
-            let target = if addresses.is_empty() {
-                tndrly::alerts::AlertTarget::Project
+            let target_type = if addresses.is_empty() {
+                "project"
             } else {
-                tndrly::alerts::AlertTarget::Address
+                "address"
             };
-            let mut request = tndrly::alerts::CreateAlertRequest::new(name, at, network, target);
-            if !addresses.is_empty() {
-                request.addresses = Some(addresses.clone());
-            }
+            let request = build_alert_request(
+                name,
+                alert_type,
+                target_type,
+                addresses,
+                None,
+                network,
+                expressions,
+                channels,
+            )?;
             let result = client.alerts().update(id, &request).await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
@@ -1950,6 +1989,62 @@ async fn handle_alerts(
     }
 
     Ok(())
+}
+
+/// Build an alert request (`simple_type` + expressions + delivery channels) from CLI args
+#[allow(clippy::too_many_arguments)]
+fn build_alert_request(
+    name: &str,
+    alert_type: &str,
+    target_type: &str,
+    addresses: &[String],
+    tag: Option<&str>,
+    network: &str,
+    expressions: &[String],
+    channels: &[String],
+) -> anyhow::Result<tndrly::alerts::CreateAlertRequest> {
+    use tndrly::alerts::{AlertExpression, AlertType, CreateAlertRequest};
+
+    let simple_type: AlertType = alert_type
+        .parse()
+        .map_err(|e| anyhow::anyhow!("Invalid alert type '{}': {}", alert_type, e))?;
+    let mut request = CreateAlertRequest::new(name, simple_type);
+
+    match target_type.to_lowercase().as_str() {
+        "address" | "addr" => {
+            for address in addresses {
+                validate_address(address)?;
+                request = request.address(address);
+            }
+        }
+        "tag" => {
+            let tag = tag.ok_or_else(|| anyhow::anyhow!("--target-type tag requires --tag"))?;
+            request = request.tag(tag);
+        }
+        "network" | "net" | "project" | "proj" => {}
+        other => anyhow::bail!(
+            "Invalid target type '{}': expected address, network, project or tag",
+            other
+        ),
+    }
+    request = request.network(network);
+
+    match simple_type {
+        AlertType::SuccessfulTx => request = request.expression(AlertExpression::tx_status(true)),
+        AlertType::FailedTx => request = request.expression(AlertExpression::tx_status(false)),
+        _ => {}
+    }
+
+    for json in expressions {
+        let expression: AlertExpression = serde_json::from_str(json)
+            .with_context(|| format!("Invalid --expression JSON: {}", json))?;
+        request = request.expression(expression);
+    }
+    for channel in channels {
+        request = request.delivery_channel(channel);
+    }
+
+    Ok(request)
 }
 
 async fn handle_webhooks(
@@ -2011,6 +2106,8 @@ async fn handle_actions(
             name,
             trigger,
             source,
+            trigger_config,
+            function,
         } => {
             if !quiet {
                 eprintln!("Creating Web3 Action '{}'...", name);
@@ -2022,8 +2119,14 @@ async fn handle_actions(
 
             let source_code = std::fs::read_to_string(source)
                 .with_context(|| format!("Failed to read action source file: {}", source))?;
-            let request =
-                tndrly::actions::CreateActionRequest::new(name, trigger_type, &source_code);
+            let mut request =
+                tndrly::actions::CreateActionRequest::new(name, trigger_type, &source_code)
+                    .function(function);
+            if let Some(json) = trigger_config {
+                let value: serde_json::Value =
+                    serde_json::from_str(json).context("Invalid --trigger-config JSON")?;
+                request = request.trigger_config(tndrly::actions::TriggerConfig::from_value(value));
+            }
             let action = client.actions().create(&request).await?;
             println!("{}", serde_json::to_string_pretty(&action)?);
         }

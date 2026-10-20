@@ -13,7 +13,7 @@
 //!
 //! ```ignore
 //! use tndrly::{Client, Config};
-//! use tndrly::contracts::{AddContractRequest, ListContractsQuery};
+//! use tndrly::contracts::{AccountType, AddContractRequest, ListContractsQuery};
 //!
 //! let client = Client::from_env()?;
 //!
@@ -24,9 +24,9 @@
 //!
 //! let contract = client.contracts().add(&request).await?;
 //!
-//! // List contracts by tag
-//! let query = ListContractsQuery::new().tag("stablecoin");
-//! let contracts = client.contracts().list(Some(query)).await?;
+//! // List contracts (accountType is required: contract or wallet)
+//! let query = ListContractsQuery::new(AccountType::Contract).per_page(50);
+//! let contracts = client.contracts().list(&query).await?;
 //!
 //! // Tag it
 //! client.contracts().add_tag("1", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "v1").await?;

@@ -134,12 +134,17 @@ let result = admin.simulate_bundle(&txs, None, None).await?;
 
 ### Alerts
 
-> **Note:** The Tenderly Alerts API uses an undocumented request format. Alert creation
-> (`create()`) may not work as expected. Read operations (`list()`, `get()`, `history()`)
-> work correctly. See [src/alerts/types.rs](src/alerts/types.rs) for details.
-
 ```rust
-use tndrly::alerts::AlertHistoryQuery;
+use tndrly::alerts::{AlertExpression, AlertHistoryQuery, AlertType, CreateAlertRequest};
+
+// Create an alert: simple_type + expressions + delivery channels
+let alert = client.alerts()
+    .create(&CreateAlertRequest::new("Failed txs", AlertType::FailedTx)
+        .address("0xAddress")
+        .network("1")
+        .expression(AlertExpression::tx_status(false))
+        .delivery_channel("channel-id"))
+    .await?;
 
 // List existing alerts
 let alerts = client.alerts().list().await?;
@@ -197,21 +202,17 @@ Tenderly CLI / Foundry / Hardhat plugins to verify, and `rename` / `add_tag` /
 ```rust
 use tndrly::actions::{CreateActionRequest, ActionTrigger, TriggerConfig};
 
-// Create an action
-let action = client.actions()
-    .create(&CreateActionRequest::new(
-        "Notify Slack",
-        ActionTrigger::Alert,
-        source_code,
-    )
-    .trigger_config(TriggerConfig::alert("alert-id"))
-    .secret("SLACK_WEBHOOK", webhook_url))
+// Publish and deploy an action (POST /actions/publishFile)
+let published = client.actions()
+    .create(&CreateActionRequest::new("hourly-job", ActionTrigger::Periodic, source_code)
+        .trigger_config(TriggerConfig::periodic("0 * * * *")))
     .await?;
+let action_id = published.actions["hourly-job"].action_id.clone().unwrap();
 
 // Pause / resume, and inspect executions
-client.actions().stop(&action.id).await?;
-client.actions().resume(&action.id).await?;
-let calls = client.actions().calls(&action.id, None).await?;
+client.actions().stop(&action_id).await?;
+client.actions().resume(&action_id).await?;
+let calls = client.actions().calls(&action_id, None).await?;
 ```
 
 The public API has no update/enable/disable (`PATCH /actions/action/{id}`),

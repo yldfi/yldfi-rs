@@ -3,55 +3,28 @@
 //! Monitor on-chain activity with customizable alerts. Get notifications
 //! when specific events occur on your contracts or addresses.
 //!
-//! # Alert Types
+//! # Model
 //!
-//! - `SuccessfulTransaction` - Transaction succeeded
-//! - `FailedTransaction` - Transaction failed
-//! - `FunctionCall` - Specific function was called
-//! - `EventEmitted` - Specific event was emitted
-//! - `Erc20Transfer` - ERC20 token transfer
-//! - `Erc721Transfer` - NFT transfer
-//! - `StateChange` - Contract state variable changed
-//! - `BalanceChange` - ETH balance changed
-//! - `WhaleAlert` - Large value transfer
-//!
-//! # Destinations
-//!
-//! - Email
-//! - Slack
-//! - Discord
-//! - Telegram
-//! - `PagerDuty`
-//! - Webhooks
-//! - Web3 Actions
+//! An alert has a `simple_type` ([`AlertType`], e.g. `failed_tx`,
+//! `log_emitted`, `function_called`), a list of [`AlertExpression`]s
+//! (conditions such as `contract_address`, `network`, `tx_status`) and the
+//! delivery channels to notify (see [`crate::delivery_channels`]).
 //!
 //! # Example
 //!
 //! ```ignore
-//! use tndrly::{Client, Config};
-//! use tndrly::alerts::{
-//!     CreateAlertRequest, AlertType, AlertTarget,
-//!     CreateWebhookRequest,
-//! };
+//! use tndrly::Client;
+//! use tndrly::alerts::{AlertExpression, AlertType, CreateAlertRequest};
 //!
 //! let client = Client::from_env()?;
 //!
-//! // Create a webhook
-//! let webhook = client.alerts()
-//!     .create_webhook(CreateWebhookRequest::new(
-//!         "My Webhook",
-//!         "https://myapp.com/tenderly-webhook"
-//!     ))
-//!     .await?;
-//!
-//! // Create an alert for failed transactions
+//! // Create an alert for failed transactions to a contract
 //! let alert = client.alerts()
-//!     .create(&CreateAlertRequest::new(
-//!         "Failed Txs",
-//!         AlertType::FailedTransaction,
-//!         "1",
-//!         AlertTarget::Address,
-//!     ).address("0xMyContract"))
+//!     .create(&CreateAlertRequest::new("Failed Txs", AlertType::FailedTx)
+//!         .address("0xMyContract")
+//!         .network("1")
+//!         .expression(AlertExpression::tx_status(false))
+//!         .delivery_channel("channel-id"))
 //!     .await?;
 //! ```
 //!

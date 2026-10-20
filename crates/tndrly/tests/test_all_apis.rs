@@ -65,5 +65,5 @@ async fn test_actions_api() {
     let client = Client::from_env().expect("Failed to create client");
 
     let response = client.actions().list().await.unwrap();
-    println!("Found {} actions", response.actions.len());
+    println!("Found {} actions", response.len());
 }

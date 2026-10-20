@@ -9,7 +9,11 @@ use tndrly::Client;
 async fn test_contracts_list() {
     let client = Client::from_env().expect("Failed to create client");
 
-    let contracts = client.contracts().list(None).await.unwrap();
+    let contracts = client
+        .contracts()
+        .list(&tndrly::contracts::ListContractsQuery::default())
+        .await
+        .unwrap();
     println!("Found {} contracts", contracts.len());
 
     for c in contracts.iter().take(3) {

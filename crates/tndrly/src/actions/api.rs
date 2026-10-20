@@ -1,8 +1,8 @@
 //! Web3 Actions API operations
 
 use super::types::{
-    Action, ActionCall, ActionCallsQuery, ActionCallsResponse, CreateActionRequest,
-    ListActionsResponse, StopResumeActionsRequest,
+    Action, ActionCall, ActionCallsQuery, CreateActionRequest, PublishActionResponse,
+    StopResumeActionsRequest,
 };
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
@@ -35,25 +35,23 @@ impl<'a> ActionsApi<'a> {
     /// };
     /// "#;
     ///
-    /// let request = CreateActionRequest::new("My Action", ActionTrigger::Alert, source)
-    ///     .trigger_config(TriggerConfig::alert("alert-123"))
-    ///     .description("Handle alert events");
+    /// let request = CreateActionRequest::new("my-action", ActionTrigger::Periodic, source)
+    ///     .trigger_config(TriggerConfig::periodic("0 * * * *"))
+    ///     .description("Hourly job");
     ///
-    /// let action = client.actions().create(&request).await?;
+    /// let published = client.actions().create(&request).await?;
     /// ```
-    pub async fn create(&self, request: &CreateActionRequest) -> Result<Action> {
+    pub async fn create(&self, request: &CreateActionRequest) -> Result<PublishActionResponse> {
         self.client.post("/actions/publishFile", request).await
     }
 
     /// List all Web3 Actions
     ///
-    /// Returns an empty list if no actions exist.
-    pub async fn list(&self) -> Result<ListActionsResponse> {
-        // The API returns null when there are no actions, so we need to handle that
-        let response: Option<ListActionsResponse> = self.client.get("/actions").await?;
-        Ok(response.unwrap_or(ListActionsResponse {
-            actions: Vec::new(),
-        }))
+    /// The API returns a bare array (or `null` when there are no actions,
+    /// which is returned as an empty list).
+    pub async fn list(&self) -> Result<Vec<Action>> {
+        let response: Option<Vec<Action>> = self.client.get("/actions").await?;
+        Ok(response.unwrap_or_default())
     }
 
     /// Get an action by ID
@@ -152,7 +150,7 @@ impl<'a> ActionsApi<'a> {
     ///
     /// ```ignore
     /// let calls = client.actions().calls("action-123", None).await?;
-    /// for call in calls.executions {
+    /// for call in calls {
     ///     println!("Execution: {} - {:?}", call.id, call.status);
     /// }
     /// ```
@@ -160,12 +158,17 @@ impl<'a> ActionsApi<'a> {
         &self,
         id: &str,
         query: Option<ActionCallsQuery>,
-    ) -> Result<ActionCallsResponse> {
+    ) -> Result<Vec<ActionCall>> {
         let path = format!("/actions/action/{}/calls", encode_path_segment(id));
-        match query {
-            Some(q) => self.client.get_with_query(&path, &q).await,
-            None => self.client.get(&path).await,
-        }
+        let response: Option<Vec<ActionCall>> = match query {
+            Some(q) => {
+                self.client
+                    .get_with_query(&path, &q.to_query_pairs())
+                    .await?
+            }
+            None => self.client.get(&path).await?,
+        };
+        Ok(response.unwrap_or_default())
     }
 
     /// Get a specific execution call details
@@ -190,84 +193,182 @@ impl<'a> ActionsApi<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::actions::{ActionTrigger, TriggerConfig};
-
-    #[test]
-    fn test_create_action_request() {
-        let request = CreateActionRequest::new(
-            "Test Action",
-            ActionTrigger::Alert,
-            "module.exports = () => {}",
-        )
-        .description("A test action")
-        .trigger_config(TriggerConfig::alert("alert-123"))
-        .secret("API_KEY", "secret123")
-        .enabled(true);
-
-        assert_eq!(request.name, "Test Action");
-        assert_eq!(request.trigger, ActionTrigger::Alert);
-        assert!(request.description.is_some());
-        assert!(request.trigger_config.is_some());
-        assert!(request.secrets.is_some());
-    }
+    use crate::actions::{
+        ActionLogStatus, ActionTrigger, ActionVersion, InvocationType, TriggerConfig,
+    };
 
     #[test]
     fn test_trigger_config() {
-        let alert_config = TriggerConfig::alert("alert-123");
-        assert_eq!(alert_config.alert_id, Some("alert-123".to_string()));
+        let block = TriggerConfig::block(vec!["1".to_string(), "137".to_string()], 10);
+        assert_eq!(block.0["type"], "block");
+        assert_eq!(block.0["block"]["network"][1], "137");
+        assert_eq!(block.0["block"]["blocks"], 10);
 
-        let periodic_config = TriggerConfig::periodic("0 * * * *");
-        assert_eq!(periodic_config.cron, Some("0 * * * *".to_string()));
+        let periodic = TriggerConfig::periodic("0 * * * *");
+        assert_eq!(periodic.0["periodic"]["cron"], "0 * * * *");
 
-        let tx_config = TriggerConfig::transaction("1", "0x1234");
-        assert_eq!(tx_config.network_id, Some("1".to_string()));
-        assert_eq!(tx_config.address, Some("0x1234".to_string()));
+        let webhook = TriggerConfig::webhook(false);
+        assert_eq!(webhook.0["webhook"]["authenticated"], false);
     }
 
     #[test]
     fn test_create_action_request_serialization() {
-        // Verify JSON structure matches Tenderly API expectations
+        // POST /actions/publishFile takes {"action": {...camelCase...}, "deploy": bool}
         let request = CreateActionRequest::new(
-            "Test Action",
-            ActionTrigger::Alert,
-            "module.exports = () => {}",
+            "block-action",
+            ActionTrigger::Block,
+            "module.exports = { actionFn }",
         )
         .description("A test action")
-        .trigger_config(TriggerConfig::alert("alert-123"))
-        .secret("API_KEY", "secret123");
+        .trigger_config(TriggerConfig::block(vec!["1".to_string()], 10))
+        .invocation_type(InvocationType::Sync);
 
         let json = serde_json::to_value(&request).unwrap();
 
-        // Verify field names and enums serialize correctly
-        assert_eq!(json["name"], "Test Action");
-        assert_eq!(json["trigger"], "alert"); // snake_case enum
-        assert_eq!(json["execution"], "sequential"); // snake_case enum
-        assert_eq!(json["source_code"], "module.exports = () => {}");
-        assert_eq!(json["runtime"], "nodejs18");
-        assert_eq!(json["enabled"], true);
-
-        // Verify trigger_config is nested correctly
-        assert!(json["trigger_config"].is_object());
-        assert_eq!(json["trigger_config"]["alert_id"], "alert-123");
-
-        // Verify secrets are serialized correctly
-        assert!(json["secrets"].is_array());
-        assert_eq!(json["secrets"][0]["name"], "API_KEY");
-        assert_eq!(json["secrets"][0]["value"], "secret123"); // Value is exposed in serialization
+        assert_eq!(json["deploy"], true);
+        let action = &json["action"];
+        assert_eq!(action["name"], "block-action");
+        assert_eq!(action["description"], "A test action");
+        assert_eq!(action["source"], "module.exports = { actionFn }");
+        assert_eq!(action["triggerType"], "BLOCK");
+        assert_eq!(action["runtime"], "V2");
+        assert_eq!(action["function"], "actionFn");
+        assert_eq!(action["invocationType"], "SYNC");
+        assert_eq!(action["trigger"]["type"], "block");
+        assert_eq!(action["trigger"]["block"]["blocks"], 10);
+        assert!(json.get("name").is_none());
+        assert!(action.get("source_code").is_none());
     }
 
     #[test]
-    fn test_action_calls_query_serialization() {
-        // Verify perPage uses correct casing (camelCase for this endpoint)
-        let query = ActionCallsQuery::new().page(1).per_page(25);
+    fn test_create_action_request_default_trigger() {
+        let request = CreateActionRequest::new("x", ActionTrigger::TransactionSimple, "src");
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["action"]["triggerType"], "TRANSACTIONSIMPLE");
+        assert_eq!(json["action"]["trigger"]["type"], "transactionsimple");
+        assert_eq!(json["action"]["invocationType"], "ASYNC");
+    }
 
-        let json = serde_json::to_value(&query).unwrap();
-
-        assert_eq!(json["page"], 1);
-        assert_eq!(json["perPage"], 25); // Must be camelCase
-        assert!(
-            json.get("per_page").is_none(),
-            "per_page should be renamed to perPage"
+    #[test]
+    fn test_list_actions_response_is_bare_array() {
+        let json = serde_json::json!([{
+            "id": "00000000-0000-0000-0000-000000000001",
+            "projectId": "00000000-0000-0000-0000-000000000002",
+            "name": "periodic-action",
+            "description": "",
+            "status": "DEPLOYED",
+            "stopped": false,
+            "editable": true,
+            "createdAt": "2024-01-01T00:00:00Z",
+            "version": {
+                "id": "00000000-0000-0000-0000-000000000003",
+                "index": 1,
+                "actionId": "00000000-0000-0000-0000-000000000001",
+                "parentActionId": "",
+                "runtime": "V2",
+                "function": "actionFn",
+                "triggerType": "PERIODIC",
+                "trigger": { "type": "periodic", "periodic": { "cron": "0 * * * *" } },
+                "commitish": null,
+                "source": "module.exports = { actionFn }",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "deployRequested": true,
+                "deployError": null,
+                "invocationType": "ASYNC"
+            },
+            "deliveryChannels": null
+        }]);
+        let actions: Vec<Action> = serde_json::from_value(json).unwrap();
+        let action = &actions[0];
+        assert_eq!(
+            action.project_id.as_deref(),
+            Some("00000000-0000-0000-0000-000000000002")
         );
+        assert_eq!(action.status.as_deref(), Some("DEPLOYED"));
+        assert!(action.editable);
+        assert_eq!(action.trigger_type(), Some(ActionTrigger::Periodic));
+        assert_eq!(action.runtime(), Some("V2"));
+        let version = action.version.as_ref().unwrap();
+        assert_eq!(version.invocation_type, Some(InvocationType::Async));
+        assert_eq!(version.trigger["periodic"]["cron"], "0 * * * *");
+        assert!(version.deploy_requested);
+        assert!(action.delivery_channels.is_empty());
+    }
+
+    #[test]
+    fn test_publish_action_response() {
+        let json = serde_json::json!({
+            "actions": {
+                "block-action": {
+                    "id": "00000000-0000-0000-0000-000000000003",
+                    "index": 1,
+                    "actionId": "00000000-0000-0000-0000-000000000001",
+                    "runtime": "V2",
+                    "function": "actionFn",
+                    "triggerType": "BLOCK",
+                    "trigger": { "type": "block", "block": { "network": ["1"], "blocks": 10 } },
+                    "source": "src",
+                    "createdAt": "2024-01-01T00:00:00Z",
+                    "deployRequested": true,
+                    "invocationType": "ASYNC"
+                }
+            }
+        });
+        let resp: PublishActionResponse = serde_json::from_value(json).unwrap();
+        let version: &ActionVersion = &resp.actions["block-action"];
+        assert_eq!(version.trigger_type, Some(ActionTrigger::Block));
+        assert_eq!(
+            version.action_id.as_deref(),
+            Some("00000000-0000-0000-0000-000000000001")
+        );
+    }
+
+    #[test]
+    fn test_action_calls_query_pairs() {
+        // Listing calls pages with pageSize and repeats status
+        let query = ActionCallsQuery::new()
+            .page(2)
+            .page_size(25)
+            .status(ActionLogStatus::Failed)
+            .status(ActionLogStatus::TimedOut);
+        let req = reqwest::Client::new()
+            .get("https://example.com/calls")
+            .query(&query.to_query_pairs())
+            .build()
+            .unwrap();
+        assert_eq!(
+            req.url().query(),
+            Some("page=2&pageSize=25&status=FAILED&status=TIMED_OUT")
+        );
+    }
+
+    #[test]
+    fn test_action_call_deserializes_camel_case() {
+        let json = serde_json::json!([{
+            "id": "00000000-0000-0000-0000-000000000004",
+            "actionId": "00000000-0000-0000-0000-000000000001",
+            "versionId": "00000000-0000-0000-0000-000000000003",
+            "createdAt": "2024-01-01T00:00:00Z",
+            "type": "AUTOMATIC",
+            "status": "SUCCEEDED",
+            "statusUpdatedAt": "2024-01-01T00:00:01Z",
+            "payload": { "type": "block", "block": { "network": "1", "blockNumber": 100 } },
+            "storageType": "WRITE",
+            "storageId": "00000000-0000-0000-0000-000000000005",
+            "memory": null,
+            "time": 16
+        }]);
+        let calls: Vec<ActionCall> = serde_json::from_value(json).unwrap();
+        let call = &calls[0];
+        assert_eq!(call.status, Some(ActionLogStatus::Succeeded));
+        assert_eq!(call.call_type.as_deref(), Some("AUTOMATIC"));
+        assert_eq!(
+            call.version_id.as_deref(),
+            Some("00000000-0000-0000-0000-000000000003")
+        );
+        assert_eq!(call.storage_type.as_deref(), Some("WRITE"));
+        assert_eq!(call.memory, None);
+        assert_eq!(call.time, Some(16.0));
+        assert_eq!(call.payload["block"]["blockNumber"], 100);
     }
 }

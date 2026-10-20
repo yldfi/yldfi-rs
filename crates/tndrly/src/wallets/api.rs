@@ -6,6 +6,7 @@
 
 use super::types::{AddWalletRequest, AddWalletResponse, WalletOnNetwork};
 use crate::client::{encode_path_segment, Client};
+use crate::contracts::{AccountType, ListContractsQuery};
 use crate::error::Result;
 
 /// Wallet API client
@@ -22,8 +23,8 @@ impl<'a> WalletsApi<'a> {
 
     /// List all wallets in the project
     ///
-    /// Note: Wallets are stored alongside contracts and filtered by `account_type`.
-    /// This method fetches from the contracts endpoint and filters for wallets.
+    /// Wallets are stored alongside contracts: this calls
+    /// `GET /contracts?accountType=wallet`.
     ///
     /// # Example
     ///
@@ -36,12 +37,8 @@ impl<'a> WalletsApi<'a> {
     /// }
     /// ```
     pub async fn list(&self) -> Result<Vec<WalletOnNetwork>> {
-        // Wallets are returned via /contracts with account_type = "wallet"
-        let all: Vec<WalletOnNetwork> = self.client.get("/contracts").await?;
-        Ok(all
-            .into_iter()
-            .filter(|w| w.account_type.as_deref() == Some("wallet"))
-            .collect())
+        let query = ListContractsQuery::new(AccountType::Wallet);
+        self.client.get_with_query("/contracts", &query).await
     }
 
     /// Add a wallet to the project for monitoring
@@ -137,5 +134,30 @@ mod tests {
         assert!(json["network_ids"].is_array());
         assert_eq!(json["network_ids"][0], "1");
         assert_eq!(json["network_ids"][1], "137");
+    }
+
+    #[test]
+    fn test_add_wallet_response_is_bare_array() {
+        // POST /wallet returns one project-account entry per network
+        let json = serde_json::json!([
+            {
+                "id": "eth:1:0x0000000000000000000000000000000000000001",
+                "account": {
+                    "id": "eth:1:0x0000000000000000000000000000000000000001",
+                    "address": "0x0000000000000000000000000000000000000001",
+                    "network_id": "1",
+                    "balance": "1000",
+                    "type": "wallet"
+                },
+                "project_id": "00000000-0000-0000-0000-000000000000",
+                "display_name": "Test wallet",
+                "account_type": "wallet",
+                "added_at": "2024-01-01T00:00:00Z"
+            }
+        ]);
+        let resp: AddWalletResponse = serde_json::from_value(json).unwrap();
+        assert_eq!(resp.len(), 1);
+        assert_eq!(resp[0].network_id(), Some("1"));
+        assert!(resp[0].is_wallet());
     }
 }
