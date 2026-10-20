@@ -160,14 +160,16 @@ impl<'a> CoinsApi<'a> {
     /// * `vs_currency` - Target currency
     /// * `from` - Unix timestamp start
     /// * `to` - Unix timestamp end
+    /// * `interval` - Candle interval (required): `"daily"` or `"hourly"`
     pub async fn ohlc_range(
         &self,
         id: &str,
         vs_currency: &str,
         from: u64,
         to: u64,
+        interval: &str,
     ) -> Result<OhlcData> {
-        let path = format!("/coins/{id}/ohlc/range?vs_currency={vs_currency}&from={from}&to={to}");
+        let path = ohlc_range_path(id, vs_currency, from, to, interval);
         self.client.get(&path).await
     }
 
@@ -250,5 +252,24 @@ impl<'a> CoinsApi<'a> {
     ) -> Result<SupplyChart> {
         let path = format!("/coins/{id}/total_supply_chart/range?from={from}&to={to}");
         self.client.get(&path).await
+    }
+}
+
+fn ohlc_range_path(id: &str, vs_currency: &str, from: u64, to: u64, interval: &str) -> String {
+    format!(
+        "/coins/{id}/ohlc/range?vs_currency={vs_currency}&from={from}&to={to}&interval={interval}"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ohlc_range_sends_interval() {
+        assert_eq!(
+            ohlc_range_path("bitcoin", "usd", 1, 2, "hourly"),
+            "/coins/bitcoin/ohlc/range?vs_currency=usd&from=1&to=2&interval=hourly"
+        );
     }
 }
