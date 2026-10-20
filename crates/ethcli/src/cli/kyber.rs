@@ -32,7 +32,7 @@ pub enum KyberCommands {
         token_out: String,
         /// Amount in smallest units (wei)
         amount_in: String,
-        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, avalanche, fantom, linea, scroll, zksync)
+        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, avalanche, linea, etc.)
         #[arg(long, default_value = "ethereum")]
         chain: String,
         /// Save gas (may reduce output)
