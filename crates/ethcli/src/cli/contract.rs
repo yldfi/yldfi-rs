@@ -322,11 +322,8 @@ async fn detect_proxy_implementation<P: Provider>(
                 .to(beacon_addr)
                 .input(calldata.into());
             if let Ok(result) = provider.call(tx).await {
-                if result.len() >= 32 {
-                    let impl_addr = Address::from_slice(&result[12..32]);
-                    if !impl_addr.is_zero() {
-                        return Some(impl_addr);
-                    }
+                if let Some(impl_addr) = address_from_word(&result) {
+                    return Some(impl_addr);
                 }
             }
         }
@@ -352,14 +349,18 @@ async fn call_implementation_function<P: Provider>(
         .input(calldata.into());
 
     let result = provider.call(tx).await.ok()?;
-    if result.len() >= 32 {
-        let impl_addr = Address::from_slice(&result[result.len() - 20..]);
-        if !impl_addr.is_zero() {
-            return Some(impl_addr);
-        }
-    }
+    address_from_word(&result)
+}
 
-    None
+/// An address returned as a single ABI word: exactly 32 bytes, left-padded
+/// with zeros. Anything else (a struct, a string, two values) is not an
+/// `implementation()` answer.
+fn address_from_word(result: &[u8]) -> Option<Address> {
+    if result.len() != 32 || result[..12].iter().any(|b| *b != 0) {
+        return None;
+    }
+    let addr = Address::from_slice(&result[12..]);
+    (!addr.is_zero()).then_some(addr)
 }
 
 #[derive(Subcommand)]
@@ -826,33 +827,34 @@ pub async fn handle(
 
             let provider = endpoint.provider();
 
-            // Check if this is a proxy contract
-            let abi_address =
-                if let Some(impl_addr) = detect_proxy_implementation(provider, addr).await {
-                    if !quiet {
-                        eprintln!(
-                            "Detected proxy contract, fetching implementation ABI from {:#x}...",
-                            impl_addr
-                        );
-                    }
-                    impl_addr
-                } else {
-                    if !quiet {
-                        eprintln!("Fetching ABI for {}...", address);
-                    }
-                    addr
-                };
-
-            // Fetch ABI (from implementation address if proxy)
-            let abi = client
-                .contract_abi(abi_address)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?;
-
-            // contract_abi returns JsonAbi directly
-            let json_abi = abi;
-
             let query = parse_function_query(function)?;
+
+            // The target's own ABI first: a contract that merely has an
+            // implementation() getter isn't necessarily a proxy
+            if !quiet {
+                eprintln!("Fetching ABI for {}...", address);
+            }
+            let own_abi = client.contract_abi(addr).await;
+            let has_function =
+                |abi: &alloy::json_abi::JsonAbi| abi.functions.contains_key(query.name.as_str());
+            let json_abi = match own_abi {
+                Ok(abi) if has_function(&abi) => abi,
+                own => match detect_proxy_implementation(provider, addr).await {
+                    Some(impl_addr) => {
+                        if !quiet {
+                            eprintln!(
+                                "Detected proxy contract, fetching implementation ABI from {:#x}...",
+                                impl_addr
+                            );
+                        }
+                        client
+                            .contract_abi(impl_addr)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?
+                    }
+                    None => own.map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?,
+                },
+            };
 
             // Find the function - handle overloaded functions by matching arg count and types
             let funcs = json_abi
@@ -1194,7 +1196,11 @@ pub async fn handle(
 
             // Check for proxy patterns
             let proxy_info = crate::bytecode::detect_proxy(&bytecode);
-            let (analysis_address, analysis_bytecode, proxy_detected) = if proxy_info.is_proxy {
+            // With --follow-proxy, always check the implementation slots: the
+            // bytecode heuristic misses some storage proxies
+            let (analysis_address, analysis_bytecode, proxy_detected) = if proxy_info.is_proxy
+                || *follow_proxy
+            {
                 if !quiet {
                     if let Some(ref proxy_type) = proxy_info.proxy_type {
                         eprintln!("Detected: {} contract", proxy_type.name());
@@ -1228,13 +1234,16 @@ pub async fn handle(
                         } else {
                             (format!("{:#x}", impl_addr), impl_bytecode, Some(proxy_info))
                         }
-                    } else {
+                    } else if proxy_info.is_proxy {
                         if !quiet {
                             eprintln!(
                                 "Warning: Could not determine implementation address, analyzing proxy bytecode"
                             );
                         }
                         (address.clone(), bytecode, Some(proxy_info))
+                    } else {
+                        // Not a proxy after all
+                        (address.clone(), bytecode, None)
                     }
                 } else {
                     if !quiet && proxy_info.implementation.is_some() {
@@ -1860,5 +1869,17 @@ mod tests {
         assert!(!is_amount_getter("decimals"));
         assert!(!is_amount_getter("nonces"));
         assert!(!is_amount_getter("getRoundData"));
+    }
+
+    #[test]
+    fn implementation_answer_must_be_one_address_word() {
+        let mut word = [0u8; 32];
+        word[31] = 1;
+        assert!(address_from_word(&word).is_some());
+        assert!(address_from_word(&[word, word].concat()).is_none());
+        let mut dirty = word;
+        dirty[0] = 1;
+        assert!(address_from_word(&dirty).is_none());
+        assert!(address_from_word(&[0u8; 32]).is_none());
     }
 }
