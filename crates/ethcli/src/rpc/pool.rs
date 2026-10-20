@@ -90,6 +90,9 @@ fn get_cached_config() -> &'static parking_lot::Mutex<Option<ConfigFile>> {
 /// 2. The limit will be re-learned on the next run if not persisted
 /// 3. Blocking the main operation for config writes would hurt UX
 fn persist_block_range_limit(url: &str, limit: u64) {
+    if cfg!(test) {
+        return;
+    }
     let url = url.to_string();
     // Spawn a blocking task to avoid blocking the async runtime
     tokio::spawn(async move {
@@ -120,6 +123,9 @@ fn persist_block_range_limit(url: &str, limit: u64) {
 ///
 /// See [`persist_block_range_limit`] for details on the fire-and-forget behavior.
 fn persist_max_logs_limit(url: &str, limit: usize) {
+    if cfg!(test) {
+        return;
+    }
     let url = url.to_string();
     tokio::spawn(async move {
         // Acquire lock to prevent concurrent config modifications
@@ -143,6 +149,52 @@ fn persist_max_logs_limit(url: &str, limit: usize) {
             }
         }
     });
+}
+
+/// Number of blocks covered by a filter (inclusive), if both bounds are numbers
+fn filter_block_span(filter: &Filter) -> Option<u64> {
+    let from = filter.get_from_block()?;
+    let to = filter.get_to_block()?;
+    Some(to.saturating_sub(from).saturating_add(1))
+}
+
+/// How useful a `get_logs` error is to the caller: a range/size error means
+/// "split and retry", a rate limit means "back off", anything else is opaque.
+fn logs_error_rank(e: &Error) -> u8 {
+    match e {
+        Error::Rpc(RpcError::BlockRangeTooLarge { .. } | RpcError::ResponseTooLarge(_)) => 2,
+        Error::Rpc(RpcError::RateLimited(_)) => 1,
+        _ => 0,
+    }
+}
+
+/// Update health and learned limits after a failed `eth_getLogs`.
+///
+/// A request that was too large says nothing about the endpoint's health, so it
+/// doesn't count towards the circuit breaker. The learned limit is kept for this
+/// session; it is saved to config only when the provider stated it.
+fn learn_from_logs_error(health: &HealthTracker, url: &str, e: &Error) {
+    match e {
+        Error::Rpc(RpcError::BlockRangeTooLarge { max, requested }) => {
+            if *max > 0 {
+                health.record_block_range_limit(url, *max);
+                persist_block_range_limit(url, *max);
+            } else if *requested > 1 {
+                health.record_block_range_limit(url, *requested / 2);
+            }
+        }
+        Error::Rpc(RpcError::ResponseTooLarge(count)) => {
+            if *count > 0 {
+                health.record_logs_limit(url, *count);
+                persist_max_logs_limit(url, *count);
+            }
+        }
+        _ => {
+            let is_rate_limit = matches!(e, Error::Rpc(RpcError::RateLimited(_)));
+            let is_timeout = matches!(e, Error::Rpc(RpcError::Timeout(_)));
+            health.record_failure(url, is_rate_limit, is_timeout);
+        }
+    }
 }
 
 /// Pool of RPC endpoints with load balancing and health tracking.
@@ -437,15 +489,28 @@ impl RpcPool {
         Ok(None)
     }
 
-    /// Fetch logs with automatic retry and load balancing
+    /// Fetch logs with automatic retry and load balancing.
+    ///
+    /// Only endpoints whose block range limit covers the filter are tried. When
+    /// none can, or every endpoint fails, the most actionable typed error is
+    /// returned (range/size errors first, then rate limits, then the last
+    /// error) so the caller can split the range or back off.
     pub async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>> {
-        let endpoints = self.select_endpoints(self.concurrency);
+        let requested = filter_block_span(filter);
+        let endpoints = self.select_endpoints_for_range(self.concurrency, requested);
 
         if endpoints.is_empty() {
+            if let Some(max) = requested.and_then(|r| self.largest_available_range_below(r)) {
+                return Err(RpcError::BlockRangeTooLarge {
+                    max,
+                    requested: requested.unwrap_or(0),
+                }
+                .into());
+            }
             return Err(RpcError::NoHealthyEndpoints.into());
         }
 
-        // Try endpoints in order of health score
+        let mut best_error: Option<Error> = None;
         for endpoint in &endpoints {
             match endpoint.get_logs(filter).await {
                 Ok((logs, latency)) => {
@@ -453,51 +518,23 @@ impl RpcPool {
                     return Ok(logs);
                 }
                 Err(e) => {
-                    let is_rate_limit = matches!(&e, Error::Rpc(RpcError::RateLimited(_)));
-                    let is_timeout = matches!(&e, Error::Rpc(RpcError::Timeout(_)));
-
-                    self.health
-                        .record_failure(endpoint.url(), is_rate_limit, is_timeout);
-
-                    // Learn from block range errors
-                    // When we get a BlockRangeTooLarge error, the 'max' is the configured value
-                    // that was too high. We should record a reduced value to actually back off.
-                    if let Error::Rpc(RpcError::BlockRangeTooLarge { max, requested }) = &e {
-                        // Halve the failed range, with a floor of 100 blocks to allow
-                        // adapting to very restrictive endpoints while remaining practical
-                        let reduced_limit = if *requested > 0 {
-                            (*requested / 2).max(100)
-                        } else {
-                            (*max / 2).max(100)
-                        };
-                        self.health
-                            .record_block_range_limit(endpoint.url(), reduced_limit);
-
-                        // Persist the learned limit to config
-                        persist_block_range_limit(endpoint.url(), reduced_limit);
-                    }
-
-                    // Learn from response too large errors (max logs exceeded)
-                    if let Error::Rpc(RpcError::ResponseTooLarge(count)) = &e {
-                        // Use the count if available, otherwise estimate based on typical limits
-                        let reduced_limit = if *count > 0 {
-                            (*count / 2).max(1000)
-                        } else {
-                            5000 // Conservative default
-                        };
-                        persist_max_logs_limit(endpoint.url(), reduced_limit);
-                    }
-
+                    learn_from_logs_error(&self.health, endpoint.url(), &e);
                     tracing::debug!(
                         "Failed to get logs from {}: {}",
                         crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
+                    if best_error
+                        .as_ref()
+                        .is_none_or(|b| logs_error_rank(&e) >= logs_error_rank(b))
+                    {
+                        best_error = Some(e);
+                    }
                 }
             }
         }
 
-        Err(RpcError::AllEndpointsFailed.into())
+        Err(best_error.unwrap_or_else(|| RpcError::AllEndpointsFailed.into()))
     }
 
     /// Fetch logs from multiple filters in parallel
@@ -527,31 +564,7 @@ impl RpcPool {
                             Ok(logs)
                         }
                         Err(e) => {
-                            let is_rate_limit = matches!(&e, Error::Rpc(RpcError::RateLimited(_)));
-                            let is_timeout = matches!(&e, Error::Rpc(RpcError::Timeout(_)));
-                            health.record_failure(endpoint.url(), is_rate_limit, is_timeout);
-
-                            // Learn from errors and persist to config
-                            if let Error::Rpc(RpcError::BlockRangeTooLarge { max, requested }) = &e
-                            {
-                                let reduced_limit = if *requested > 0 {
-                                    (*requested / 2).max(100)
-                                } else {
-                                    (*max / 2).max(100)
-                                };
-                                health.record_block_range_limit(endpoint.url(), reduced_limit);
-                                persist_block_range_limit(endpoint.url(), reduced_limit);
-                            }
-
-                            if let Error::Rpc(RpcError::ResponseTooLarge(count)) = &e {
-                                let reduced_limit = if *count > 0 {
-                                    (*count / 2).max(1000)
-                                } else {
-                                    5000
-                                };
-                                persist_max_logs_limit(endpoint.url(), reduced_limit);
-                            }
-
+                            learn_from_logs_error(&health, endpoint.url(), &e);
                             Err(e)
                         }
                     }
@@ -560,6 +573,37 @@ impl RpcPool {
             .collect();
 
         join_all(tasks).await
+    }
+
+    /// Like [`select_endpoints`](Self::select_endpoints), but only endpoints whose
+    /// effective block range limit covers `range` blocks (0 = unlimited).
+    fn select_endpoints_for_range(&self, count: usize, range: Option<u64>) -> Vec<Arc<Endpoint>> {
+        let Some(range) = range else {
+            return self.select_endpoints(count);
+        };
+        let mut endpoints = self.select_endpoints(usize::MAX);
+        endpoints.retain(|e| {
+            let limit = self
+                .health
+                .effective_max_block_range(e.url(), e.max_block_range());
+            limit == 0 || range <= limit
+        });
+        endpoints.truncate(count);
+        endpoints
+    }
+
+    /// The largest effective block range among available endpoints, when it is
+    /// smaller than `range` (i.e. no endpoint can serve `range` in one request).
+    fn largest_available_range_below(&self, range: u64) -> Option<u64> {
+        self.endpoints
+            .iter()
+            .filter(|e| self.health.is_available(e.url()))
+            .map(|e| {
+                self.health
+                    .effective_max_block_range(e.url(), e.max_block_range())
+            })
+            .filter(|limit| *limit != 0 && *limit < range)
+            .max()
     }
 
     /// Select endpoints for a request based on health and priority
@@ -714,6 +758,64 @@ mod tests {
         let result = RpcPool::new(Chain::Ethereum, &config);
         // This may fail due to URL validation, which is fine for unit test
         assert!(result.is_ok() || result.is_err());
+    }
+
+    fn pool_with_limits(limits: &[(&str, u64)]) -> RpcPool {
+        let config = RpcConfig {
+            endpoints: limits
+                .iter()
+                .map(|(url, max)| EndpointConfig::new(*url).with_max_block_range(*max))
+                .collect(),
+            ..Default::default()
+        };
+        RpcPool::new(Chain::Ethereum, &config).unwrap()
+    }
+
+    #[tokio::test]
+    async fn get_logs_reports_range_too_large_when_no_endpoint_can_serve() {
+        let pool = pool_with_limits(&[("http://127.0.0.1:1", 10), ("http://127.0.0.1:2", 100)]);
+        let filter = Filter::new().from_block(0u64).to_block(499u64);
+        match pool.get_logs(&filter).await {
+            Err(Error::Rpc(RpcError::BlockRangeTooLarge { max, requested })) => {
+                assert_eq!((max, requested), (100, 500));
+            }
+            other => panic!("expected BlockRangeTooLarge, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn endpoint_selection_skips_endpoints_with_a_smaller_limit() {
+        let pool = pool_with_limits(&[
+            ("http://small.invalid", 10),
+            ("http://big.invalid", 1_000),
+            ("http://unlimited.invalid", 0),
+        ]);
+        let mut urls: Vec<_> = pool
+            .select_endpoints_for_range(5, Some(500))
+            .iter()
+            .map(|e| e.url().to_string())
+            .collect();
+        urls.sort();
+        assert_eq!(urls, vec!["http://big.invalid", "http://unlimited.invalid"]);
+    }
+
+    #[test]
+    fn oversized_requests_do_not_trip_the_circuit_breaker() {
+        let health = HealthTracker::new();
+        let url = "http://a.invalid";
+        for _ in 0..20 {
+            let e = RpcError::BlockRangeTooLarge {
+                max: 0,
+                requested: 1_000,
+            }
+            .into();
+            learn_from_logs_error(&health, url, &e);
+            learn_from_logs_error(&health, url, &RpcError::ResponseTooLarge(0).into());
+        }
+        assert!(health.is_available(url));
+        assert_eq!(health.effective_max_block_range(url, 10_000), 500);
+        // A heuristic limit also applies to endpoints configured as unlimited
+        assert_eq!(health.effective_max_block_range(url, 0), 500);
     }
 
     #[test]

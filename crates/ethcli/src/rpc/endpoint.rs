@@ -151,49 +151,24 @@ impl Endpoint {
         match result {
             Ok(Ok(logs)) => Ok((logs, elapsed)),
             Ok(Err(e)) => {
-                let err_str = e.to_string().to_lowercase();
-
-                // Check for rate limiting
-                if err_str.contains("rate")
-                    || err_str.contains("429")
-                    || err_str.contains("too many")
-                {
-                    return Err(RpcError::RateLimited(crate::utils::url::redact_url(
-                        &self.config.url,
-                    ))
-                    .into());
-                }
-
-                // Check for block range too large
-                if err_str.contains("block range")
-                    || err_str.contains("exceed")
-                    || err_str.contains("too large")
-                {
-                    // Try to extract the actual requested range from the filter
-                    let requested = filter
-                        .get_from_block()
-                        .and_then(|from| filter.get_to_block().map(|to| to.saturating_sub(from)))
-                        .unwrap_or(0);
-
-                    return Err(RpcError::BlockRangeTooLarge {
-                        max: self.config.max_block_range,
-                        requested,
-                    }
-                    .into());
-                }
-
-                // Check for response too large
-                if err_str.contains("response size")
-                    || err_str.contains("too many logs")
-                    || err_str.contains("10000")
-                {
-                    return Err(RpcError::ResponseTooLarge(0).into());
-                }
-
-                Err(RpcError::Provider(
-                    crate::error::sanitize_error_message(&e.to_string()).into_owned(),
-                )
-                .into())
+                let message = e.to_string();
+                // Blocks in the request, inclusive
+                let requested = filter
+                    .get_from_block()
+                    .and_then(|from| {
+                        filter
+                            .get_to_block()
+                            .map(|to| to.saturating_sub(from).saturating_add(1))
+                    })
+                    .unwrap_or(0);
+                Err(classify_logs_error(&message, requested)
+                    .unwrap_or_else(|| {
+                        RpcError::Provider(
+                            crate::error::sanitize_error_message(&message).into_owned(),
+                        )
+                    })
+                    .with_rate_limit_source(&self.config.url)
+                    .into())
             }
             Err(_) => Err(RpcError::Timeout(self.timeout.as_millis() as u64).into()),
         }
@@ -302,6 +277,124 @@ impl Endpoint {
     }
 }
 
+/// Classify an `eth_getLogs` failure from the provider's message.
+///
+/// Matches known provider phrases only; a loose substring such as "exceed" or
+/// "too many" mislabels unrelated errors (e.g. "too many logs" is not a rate
+/// limit). Returns `None` for anything not recognised.
+///
+/// For `BlockRangeTooLarge`, `max` is the limit stated in the message, or 0 when
+/// the provider didn't state one. Only a stated limit should ever be persisted.
+pub(crate) fn classify_logs_error(message: &str, requested: u64) -> Option<RpcError> {
+    let msg = message.to_lowercase();
+
+    // Result-size limits. Checked first: some of these messages also mention a
+    // block range (Alchemy's "Log response size exceeded ... 2K block range").
+    const RESPONSE_TOO_LARGE: &[&str] = &[
+        "query returned more than",
+        "log response size exceeded",
+        "response size exceeded",
+        "response is too big",
+        "response too large",
+        "too many logs",
+        "logs matched by query exceeds limit",
+        "query exceeds max results",
+        "result window is too large",
+    ];
+    if RESPONSE_TOO_LARGE.iter().any(|p| msg.contains(p)) {
+        let count = number_after(&msg, &["more than ", "exceeds limit of ", "limit of "])
+            .and_then(|n| usize::try_from(n).ok())
+            .unwrap_or(0);
+        return Some(RpcError::ResponseTooLarge(count));
+    }
+
+    const RANGE_TOO_LARGE: &[&str] = &[
+        "block range",
+        "range too large",
+        "range is too large",
+        "range is too wide",
+        "exceed maximum block range",
+        "exceeds max block range",
+        "max block range",
+        "maximum block range",
+        "eth_getlogs is limited to",
+        "ranges over",
+    ];
+    if RANGE_TOO_LARGE.iter().any(|p| msg.contains(p))
+        && !msg.contains("invalid block range")
+        && !msg.contains("fromblock")
+    {
+        let max = number_after(
+            &msg,
+            &[
+                "max block range ",
+                "max block range: ",
+                "maximum block range: ",
+                "maximum block range ",
+                "limited to a ",
+                "limited to ",
+                "ranges over ",
+                "block range limit ",
+                "block range limit: ",
+                "up to a ",
+            ],
+        )
+        .unwrap_or(0);
+        return Some(RpcError::BlockRangeTooLarge { max, requested });
+    }
+
+    const RATE_LIMITED: &[&str] = &[
+        "rate limit",
+        "rate-limit",
+        "ratelimit",
+        "too many requests",
+        "http error 429",
+        "status code 429",
+        "429 too many",
+        "request limit reached",
+        "exceeded the quota",
+        "compute units per second",
+    ];
+    if RATE_LIMITED.iter().any(|p| msg.contains(p)) {
+        return Some(RpcError::RateLimited(String::new()));
+    }
+
+    None
+}
+
+/// Parse the integer that follows the first matching prefix ("10,000", "2k", "10000 blocks").
+fn number_after(msg: &str, prefixes: &[&str]) -> Option<u64> {
+    prefixes.iter().find_map(|prefix| {
+        let rest = &msg[msg.find(prefix)? + prefix.len()..];
+        let token: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == ',' || *c == 'k')
+            .collect();
+        let (digits, multiplier) = match token.strip_suffix('k') {
+            Some(d) => (d, 1000),
+            None => (token.as_str(), 1),
+        };
+        let digits: String = digits.chars().filter(|c| c.is_ascii_digit()).collect();
+        digits
+            .parse::<u64>()
+            .ok()
+            .filter(|n| *n > 0)
+            .map(|n| n * multiplier)
+    })
+}
+
+impl RpcError {
+    /// Fill in the endpoint for a `RateLimited` error built without one
+    fn with_rate_limit_source(self, url: &str) -> Self {
+        match self {
+            RpcError::RateLimited(s) if s.is_empty() => {
+                RpcError::RateLimited(crate::utils::url::redact_url(url))
+            }
+            other => other,
+        }
+    }
+}
+
 impl std::fmt::Debug for Endpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Endpoint")
@@ -316,6 +409,70 @@ impl std::fmt::Debug for Endpoint {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn classify(msg: &str) -> Option<RpcError> {
+        classify_logs_error(msg, 50_000)
+    }
+
+    #[test]
+    fn classifies_range_limits_and_parses_stated_max() {
+        for (msg, max) in [
+            ("query exceeds max block range 10000", 10_000),
+            ("exceed maximum block range: 50000", 50_000),
+            ("eth_getLogs is limited to a 10,000 range", 10_000),
+            ("block range is too wide", 0),
+            ("Block range too large", 0),
+        ] {
+            match classify(msg) {
+                Some(RpcError::BlockRangeTooLarge { max: m, requested }) => {
+                    assert_eq!((m, requested), (max, 50_000), "{msg}");
+                }
+                other => panic!("{msg}: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn classifies_result_size_limits() {
+        for msg in [
+            "query returned more than 10000 results",
+            "Log response size exceeded. You can make eth_getLogs requests with up to a 2K block range",
+            "too many logs",
+        ] {
+            assert!(
+                matches!(classify(msg), Some(RpcError::ResponseTooLarge(_))),
+                "{msg}"
+            );
+        }
+        assert!(matches!(
+            classify("query returned more than 10000 results"),
+            Some(RpcError::ResponseTooLarge(10_000))
+        ));
+    }
+
+    #[test]
+    fn too_many_logs_is_not_a_rate_limit() {
+        assert!(!matches!(
+            classify("too many logs"),
+            Some(RpcError::RateLimited(_))
+        ));
+        assert!(matches!(
+            classify("HTTP error 429 with body: Too Many Requests"),
+            Some(RpcError::RateLimited(_))
+        ));
+    }
+
+    #[test]
+    fn unrelated_errors_are_not_classified() {
+        for msg in [
+            "execution reverted: amount exceeds balance",
+            "header not found",
+            "invalid block range params: fromBlock > toBlock",
+            "gas limit exceeded",
+        ] {
+            assert!(classify(msg).is_none(), "{msg}");
+        }
+    }
 
     #[test]
     fn test_endpoint_creation() {
