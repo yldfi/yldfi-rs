@@ -88,7 +88,7 @@ pub enum SimulateCommands {
         #[arg(long)]
         block_timestamp: Option<u64>,
 
-        /// Override block number (for Tenderly)
+        /// Override block number (tenderly, debug, cast)
         #[arg(long)]
         block_number_override: Option<u64>,
 
@@ -718,7 +718,9 @@ pub async fn handle_with_via(
                         balance_overrides,
                         storage_overrides,
                         code_overrides,
+                        nonce_overrides,
                         *block_timestamp,
+                        *block_number_override,
                         *simulation_type,
                         *save,
                         tenderly,
@@ -756,6 +758,9 @@ pub async fn handle_with_via(
                         balance_overrides,
                         storage_overrides,
                         code_overrides,
+                        nonce_overrides,
+                        *block_timestamp,
+                        *block_number_override,
                         *dry_run,
                         *show_secrets,
                         quiet,
@@ -763,6 +768,12 @@ pub async fn handle_with_via(
                     .await
                 }
                 SimulateVia::Trace => {
+                    if block_timestamp.is_some() || block_number_override.is_some() {
+                        return Err(anyhow::anyhow!(
+                            "--block-timestamp/--block-number-override are not supported by \
+                             trace_call; use --via debug or --via tenderly"
+                        ));
+                    }
                     simulate_via_trace_rpc(
                         to,
                         sig,
@@ -776,6 +787,7 @@ pub async fn handle_with_via(
                         balance_overrides,
                         storage_overrides,
                         code_overrides,
+                        nonce_overrides,
                         *dry_run,
                         *show_secrets,
                         quiet,
@@ -786,6 +798,20 @@ pub async fn handle_with_via(
                     if dry_run.is_some() {
                         return Err(anyhow::anyhow!(
                             "--dry-run not supported for alchemy backend"
+                        ));
+                    }
+                    // Alchemy's debug_traceCall wrapper has no override inputs;
+                    // refuse rather than silently simulating without them.
+                    if !balance_overrides.is_empty()
+                        || !storage_overrides.is_empty()
+                        || !code_overrides.is_empty()
+                        || !nonce_overrides.is_empty()
+                        || block_timestamp.is_some()
+                        || block_number_override.is_some()
+                    {
+                        return Err(anyhow::anyhow!(
+                            "State and block overrides are not supported by --via alchemy; \
+                             use --via debug (debug_traceCall with overrides) or --via tenderly"
                         ));
                     }
                     simulate_via_alchemy(

@@ -6,6 +6,7 @@
 //! methods (call-tracer output) instead.
 
 use super::{build_calldata, AlchemyArgs};
+use crate::utils::address::resolve_label;
 use alcmy::debug::TraceCallObject;
 
 /// Simulate a call via Alchemy's `debug_traceCall` RPC method
@@ -31,8 +32,11 @@ pub async fn simulate_via_alchemy(
     // Build calldata from signature or raw data
     let calldata = build_calldata(sig, data, args)?;
 
+    // Address book labels, as the other backends accept
+    let to = resolve_label(to);
+    let from = from.as_deref().map(resolve_label);
     let call = TraceCallObject {
-        to: to.to_string(),
+        to: to.clone(),
         from: from.clone(),
         data: Some(calldata),
         value: if value == "0" {

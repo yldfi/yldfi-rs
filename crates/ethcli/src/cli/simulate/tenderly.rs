@@ -22,7 +22,9 @@ pub async fn simulate_via_tenderly(
     balance_overrides: &[String],
     storage_overrides: &[String],
     code_overrides: &[String],
+    nonce_overrides: &[String],
     block_timestamp: Option<u64>,
+    block_number_override: Option<u64>,
     simulation_type: SimulationType,
     save: bool,
     tenderly_args: &TenderlyArgs,
@@ -119,8 +121,28 @@ pub async fn simulate_via_tenderly(
         request = request.override_code(parts[0], parts[1]);
     }
 
+    // Tenderly has no per-account nonce override, only the transaction nonce,
+    // so a nonce override applies to the sender only
+    for override_str in nonce_overrides {
+        let (addr, nonce) = override_str.split_once('=').ok_or_else(|| {
+            anyhow::anyhow!(
+                "Invalid nonce override format: {}. Use address=nonce",
+                override_str
+            )
+        })?;
+        if !resolve_label(addr).eq_ignore_ascii_case(&from_addr) {
+            return Err(anyhow::anyhow!(
+                "--via tenderly can only override the sender's nonce ({}); \
+                 use --via debug for other accounts",
+                from_addr
+            ));
+        }
+        request = request.nonce(crate::utils::parse_block_number(nonce)?);
+    }
+
     // Build block header overrides if any are specified
     let has_block_header_overrides = block_timestamp.is_some()
+        || block_number_override.is_some()
         || block_gas_limit.is_some()
         || block_coinbase.is_some()
         || block_difficulty.is_some()
@@ -131,6 +153,9 @@ pub async fn simulate_via_tenderly(
 
         if let Some(ts) = block_timestamp {
             header.timestamp = Some(format!("0x{:x}", ts));
+        }
+        if let Some(n) = block_number_override {
+            header.number = Some(format!("0x{:x}", n));
         }
         if let Some(gas_limit) = block_gas_limit {
             header.gas_limit = Some(format!("0x{:x}", gas_limit));

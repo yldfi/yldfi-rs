@@ -574,47 +574,101 @@ pub fn create_tenderly_client(args: &TenderlyArgs) -> anyhow::Result<tndrly::Cli
     args.create_client()
 }
 
+/// Parse a decimal or 0x-hex quantity
+fn parse_quantity(s: &str) -> anyhow::Result<alloy::primitives::U256> {
+    let s = s.trim();
+    let parsed = match s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        Some(hex) => alloy::primitives::U256::from_str_radix(hex, 16),
+        None => alloy::primitives::U256::from_str_radix(s, 10),
+    };
+    parsed.map_err(|e| anyhow::anyhow!("Invalid number '{}': {}", s, e))
+}
+
+/// A storage slot or value as a 32-byte hex word, as `eth_call`-style state
+/// overrides require
+fn storage_word(s: &str) -> anyhow::Result<String> {
+    Ok(format!("{:#066x}", parse_quantity(s)?))
+}
+
+/// Build an `eth_call`/`debug_traceCall`-style state override set
+/// (`{address: {balance, nonce, code, state}}`) from the `--*-override` flags.
+///
+/// Quantities are hex (`balance`, `nonce`), storage keys and values are 32-byte
+/// words, so the result can be sent as-is. Malformed overrides are an error
+/// rather than being skipped.
 pub fn build_state_overrides(
     balance_overrides: &[String],
     storage_overrides: &[String],
     code_overrides: &[String],
+    nonce_overrides: &[String],
 ) -> anyhow::Result<std::collections::HashMap<String, serde_json::Value>> {
     use std::collections::HashMap;
     let mut state_objects: HashMap<String, serde_json::Value> = HashMap::new();
 
+    fn split<'a>(o: &'a str, format: &str) -> anyhow::Result<(&'a str, &'a str)> {
+        o.split_once('=')
+            .ok_or_else(|| anyhow::anyhow!("Invalid override '{}'. Use {}", o, format))
+    }
+    let mut updates: Vec<(String, &str, serde_json::Value)> = Vec::new();
+
     for o in balance_overrides {
-        let parts: Vec<&str> = o.splitn(2, '=').collect();
-        if parts.len() == 2 {
-            let entry = state_objects
-                .entry(parts[0].to_lowercase())
-                .or_insert_with(|| serde_json::json!({}));
-            entry["balance"] = serde_json::json!(parts[1]);
-        }
+        let (addr, wei) = split(o, "address=wei")?;
+        let wei = format!("{:#x}", parse_quantity(wei)?);
+        updates.push((addr.to_string(), "balance", serde_json::json!(wei)));
     }
 
-    for o in storage_overrides {
-        let parts: Vec<&str> = o.splitn(2, '=').collect();
-        if parts.len() == 2 {
-            let addr_slot: Vec<&str> = parts[0].splitn(2, ':').collect();
-            if addr_slot.len() == 2 {
-                let entry = state_objects
-                    .entry(addr_slot[0].to_lowercase())
-                    .or_insert_with(|| serde_json::json!({}));
-                if entry.get("storage").is_none() {
-                    entry["storage"] = serde_json::json!({});
-                }
-                entry["storage"][addr_slot[1]] = serde_json::json!(parts[1]);
-            }
-        }
+    for o in nonce_overrides {
+        let (addr, nonce) = split(o, "address=nonce")?;
+        let nonce = crate::utils::parse_block_number(nonce)
+            .map_err(|e| anyhow::anyhow!("Invalid nonce in '{}': {}", o, e))?;
+        updates.push((
+            addr.to_string(),
+            "nonce",
+            serde_json::json!(format!("{:#x}", nonce)),
+        ));
     }
 
     for o in code_overrides {
-        let parts: Vec<&str> = o.splitn(2, '=').collect();
-        if parts.len() == 2 {
-            let entry = state_objects
-                .entry(parts[0].to_lowercase())
-                .or_insert_with(|| serde_json::json!({}));
-            entry["code"] = serde_json::json!(parts[1]);
+        let (addr, code) = split(o, "address=bytecode")?;
+        let hex = code.strip_prefix("0x").unwrap_or(code);
+        if hex::decode(hex).is_err() {
+            anyhow::bail!("Invalid bytecode in code override '{}'", o);
+        }
+        updates.push((
+            addr.to_string(),
+            "code",
+            serde_json::json!(format!("0x{hex}")),
+        ));
+    }
+
+    for o in storage_overrides {
+        let (addr_slot, value) = split(o, "address:slot=value")?;
+        let (addr, slot) = addr_slot.split_once(':').ok_or_else(|| {
+            anyhow::anyhow!("Invalid storage override '{}'. Use address:slot=value", o)
+        })?;
+        let key = storage_word(slot)?;
+        let value = storage_word(value)?;
+        updates.push((
+            addr.to_string(),
+            "stateDiff",
+            serde_json::json!({ key: value }),
+        ));
+    }
+
+    for (addr, field, value) in updates {
+        let obj = state_objects
+            .entry(resolve_label(&addr).to_lowercase())
+            .or_insert_with(|| serde_json::json!({}));
+        if field == "stateDiff" {
+            let diff = &mut obj["stateDiff"];
+            if diff.is_null() {
+                *diff = serde_json::json!({});
+            }
+            for (k, v) in value.as_object().expect("storage diff is an object") {
+                diff[k] = v.clone();
+            }
+        } else {
+            obj[field] = value;
         }
     }
 
