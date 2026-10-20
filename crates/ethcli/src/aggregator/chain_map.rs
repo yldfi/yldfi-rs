@@ -44,7 +44,8 @@ pub fn normalize_chain_for_source(source: &str, chain: &str) -> String {
             "op" | "opt-mainnet" => "optimism".to_string(),
             "base-mainnet" => "base".to_string(),
             "bnb-mainnet" => "bsc".to_string(),
-            "avax" | "avax-mainnet" => "avax".to_string(),
+            "avalanche" | "avax" | "avax-mainnet" => "avax".to_string(),
+            "bnb" => "bsc".to_string(),
             "ftm" | "fantom-mainnet" => "fantom".to_string(),
             "xdai" | "gnosis-mainnet" => "gnosis".to_string(),
             _ => chain_lower,
@@ -53,12 +54,12 @@ pub fn normalize_chain_for_source(source: &str, chain: &str) -> String {
             "eth" | "eth-mainnet" | "mainnet" => "ethereum".to_string(),
             "polygon" | "matic" | "polygon-mainnet" => "polygon-pos".to_string(),
             "arbitrum" | "arb" | "arb-mainnet" => "arbitrum-one".to_string(),
-            "op" | "opt-mainnet" => "optimistic-ethereum".to_string(),
+            "optimism" | "op" | "opt-mainnet" => "optimistic-ethereum".to_string(),
             "base-mainnet" => "base".to_string(),
-            "bnb" | "bnb-mainnet" => "binance-smart-chain".to_string(),
+            "bsc" | "bnb" | "bnb-mainnet" => "binance-smart-chain".to_string(),
             "avax" | "avax-mainnet" => "avalanche".to_string(),
             "ftm" | "fantom-mainnet" => "fantom".to_string(),
-            "xdai" | "gnosis-mainnet" => "xdai".to_string(),
+            "gnosis" | "xdai" | "gnosis-mainnet" => "xdai".to_string(),
             _ => chain_lower,
         },
         "curve" | "crv" => match chain_lower.as_str() {
@@ -150,6 +151,21 @@ pub fn address_to_llama_coin(chain: &str, address: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn coingecko_and_llama_platform_ids() {
+        for (chain, id) in [
+            ("optimism", "optimistic-ethereum"),
+            ("bsc", "binance-smart-chain"),
+            ("gnosis", "xdai"),
+        ] {
+            assert_eq!(normalize_chain_for_source("coingecko", chain), id);
+        }
+        for (chain, id) in [("avalanche", "avax"), ("bnb", "bsc")] {
+            assert_eq!(normalize_chain_for_source("defillama", chain), id);
+        }
+    }
+
     use super::*;
 
     #[test]
