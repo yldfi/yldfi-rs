@@ -724,10 +724,7 @@ pub struct UniswapPoolInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct UniswapEthPriceInput {
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
-    /// Uniswap version (v2, v3)
+    /// Uniswap version (v2, v3, v4)
     pub version: Option<String>,
 }
 
@@ -735,9 +732,6 @@ pub struct UniswapEthPriceInput {
 pub struct UniswapTopPoolsInput {
     /// Number of pools to return
     pub limit: Option<u32>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
     /// Uniswap version
     pub version: Option<String>,
 }
@@ -875,6 +869,19 @@ pub struct OpenoceanQuoteInput {
     /// Gas price in Gwei (default: 30)
     #[serde(default = "default_gas_price")]
     pub gas_price: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OpenoceanReverseQuoteInput {
+    /// Token to sell
+    pub in_token: String,
+    /// Token to receive
+    pub out_token: String,
+    /// Desired output amount, human-readable (e.g. "1")
+    pub amount: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
 }
 
 fn default_gas_price() -> String {
@@ -2647,6 +2654,20 @@ pub struct CurveChainAddressInput {
     pub address: String,
 }
 
+/// Input for `curve_trades` (the trades endpoint takes no time range)
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveTradesInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Pool contract address
+    pub address: String,
+    /// Main token address (pool coin)
+    pub main_token: String,
+    /// Reference token address (pool coin being priced)
+    pub reference_token: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CurvePoolPairInput {
     /// Chain name
@@ -2722,6 +2743,15 @@ pub struct UniswapPoolAddressInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+/// A pool on the Ethereum mainnet Uniswap subgraph
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct UniswapSubgraphPoolInput {
+    /// Pool address (Ethereum mainnet)
+    pub pool: String,
+    /// Uniswap version (v2, v3, v4)
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -3336,7 +3366,7 @@ pub struct SimulateCallInput {
     /// Generate EIP-2930 access list in response (Tenderly)
     #[serde(default)]
     pub generate_access_list: bool,
-    /// Provide access list (JSON format)
+    /// Access list as inline JSON
     pub access_list: Option<String>,
     /// Simulation type: full, quick, or abi
     pub simulation_type: Option<String>,
@@ -3493,9 +3523,8 @@ pub struct EndpointsAddInput {
 pub struct EndpointsOptimizeInput {
     /// Optional specific RPC URL to optimize (if omitted, optimizes all)
     pub url: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Only optimize endpoints for this chain (ignored when url is set; omit for all chains)
+    pub chain: Option<String>,
 }
 
 // --- Chainlist ---

@@ -81,6 +81,18 @@ fn reject_file_output(output: Option<&str>) -> Result<(), ToolError> {
     }
 }
 
+/// Reject `@path` values: ethcli reads them as local files, which MCP
+/// clients must not be able to do.
+fn reject_file_reference(name: &str, value: Option<&str>) -> Result<(), ToolError> {
+    if value.is_some_and(|v| v.trim_start().starts_with('@')) {
+        Err(ToolError::InvalidInput(format!(
+            "{name} must be inline JSON; @file references are disabled over ethcli-mcp"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
 /// Maximum size of a successful tool response returned to the MCP client.
 ///
 /// Some commands (e.g. `llama tvl protocol aave`, ~10.7 MB) produce payloads
@@ -481,6 +493,7 @@ pub async fn blacklist_remove(address: &str) -> Result<String, ToolError> {
 pub async fn blacklist_list() -> Result<String, ToolError> {
     ArgsBuilder::new("blacklist")
         .subcommand("list")
+        .opt_flag("--json", true)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -1173,6 +1186,7 @@ pub async fn simulate_call(
         // Saving stores the simulation in the Tenderly project
         require_write_tools_enabled("simulate_call with save")?;
     }
+    reject_file_reference("access_list", access_list)?;
 
     let mut builder = ArgsBuilder::new("simulate")
         .subcommand("call")
@@ -1342,6 +1356,7 @@ pub async fn simulate_tx(input: SimulateTxOptions<'_>) -> Result<String, ToolErr
 }
 
 pub async fn simulate_bundle(txs: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    reject_file_reference("txs", Some(txs))?;
     ArgsBuilder::new("simulate")
         .subcommand("bundle")
         .opt("--txs", Some(txs))
@@ -3961,6 +3976,7 @@ pub async fn goplus_token(address: &str, chain_id: u64) -> Result<String, ToolEr
         .subcommand("token")
         .arg(address)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3971,6 +3987,7 @@ pub async fn goplus_token_batch(addresses: &str, chain_id: u64) -> Result<String
         .subcommand("token-batch")
         .arg(addresses)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3981,6 +3998,7 @@ pub async fn goplus_address(address: &str, chain_id: u64) -> Result<String, Tool
         .subcommand("address")
         .arg(address)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3991,6 +4009,7 @@ pub async fn goplus_nft(address: &str, chain_id: u64) -> Result<String, ToolErro
         .subcommand("nft")
         .arg(address)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4001,6 +4020,7 @@ pub async fn goplus_approval(address: &str, chain_id: u64) -> Result<String, Too
         .subcommand("approval")
         .arg(address)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4048,13 +4068,18 @@ pub async fn solodit_search(input: &crate::types::SoloditSearchInput) -> Result<
         .opt("--min-quality", min_quality.as_deref())
         .opt("--min-rarity", min_rarity.as_deref());
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 pub async fn solodit_get(slug: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("solodit")
         .subcommand("get")
         .arg(slug)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5716,14 +5741,19 @@ pub async fn curve_volumes(chain: Option<&str>) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn curve_lending(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("curve")
-        .subcommand("lending")
-        .subcommand("all")
-        .chain(chain)
+pub async fn curve_lending(chain: &str) -> Result<String, ToolError> {
+    curve_lending_args(chain)
         .execute()
         .await
         .map_err(ToolError::from)
+}
+
+// `curve lending all` ignores --chain; `lending chain <chain>` filters
+fn curve_lending_args(chain: &str) -> ArgsBuilder {
+    ArgsBuilder::new("curve")
+        .subcommand("lending")
+        .subcommand("chain")
+        .arg(chain)
 }
 
 pub async fn curve_tokens(chain: Option<&str>) -> Result<String, ToolError> {
@@ -6166,7 +6196,11 @@ pub async fn quote_best(
         builder = builder.opt("--slippage", Some(&s.to_string()));
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -6198,7 +6232,11 @@ pub async fn quote_from(
         builder = builder.opt("--slippage", Some(&s.to_string()));
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -6228,7 +6266,11 @@ pub async fn quote_compare(
         builder = builder.opt("--slippage", Some(&s.to_string()));
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 // =============================================================================
@@ -6245,6 +6287,7 @@ pub async fn chainlink_price(
         .arg(token)
         .chain(chain)
         .opt("--block", block)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6255,6 +6298,7 @@ pub async fn chainlink_feed(token: &str, chain: Option<&str>) -> Result<String, 
         .subcommand("feed")
         .arg(token)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6264,6 +6308,7 @@ pub async fn chainlink_oracles(chain: Option<&str>) -> Result<String, ToolError>
     ArgsBuilder::new("chainlink")
         .subcommand("oracles")
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6273,6 +6318,7 @@ pub async fn chainlink_streams_feeds() -> Result<String, ToolError> {
     ArgsBuilder::new("chainlink")
         .subcommand("streams")
         .subcommand("feeds")
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6283,6 +6329,7 @@ pub async fn chainlink_streams_latest(feed_id: &str) -> Result<String, ToolError
         .subcommand("streams")
         .subcommand("latest")
         .arg(feed_id)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6294,6 +6341,7 @@ pub async fn chainlink_streams_report(feed_id: &str, timestamp: u64) -> Result<S
         .subcommand("report")
         .arg(feed_id)
         .arg(&timestamp.to_string())
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6305,6 +6353,7 @@ pub async fn chainlink_streams_bulk(feed_ids: &str, timestamp: u64) -> Result<St
         .subcommand("bulk")
         .arg(feed_ids)
         .arg(&timestamp.to_string())
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6321,6 +6370,7 @@ pub async fn chainlink_streams_history(
         .arg(feed_id)
         .arg(&timestamp.to_string())
         .opt("--limit", Some(&limit.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6335,6 +6385,7 @@ pub async fn ccxt_ticker(exchange: &str, symbol: &str) -> Result<String, ToolErr
         .subcommand("ticker")
         .arg(symbol)
         .opt("--exchange", Some(exchange))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6349,7 +6400,11 @@ pub async fn ccxt_tickers(exchange: &str, symbols: Option<&str>) -> Result<Strin
         builder = builder.arg(s);
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 pub async fn ccxt_orderbook(
@@ -6366,7 +6421,11 @@ pub async fn ccxt_orderbook(
         builder = builder.opt("--limit", Some(&l.to_string()));
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 pub async fn ccxt_ohlcv(
@@ -6379,6 +6438,7 @@ pub async fn ccxt_ohlcv(
         .arg(symbol)
         .opt("--exchange", Some(exchange))
         .opt("--timeframe", timeframe)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6389,6 +6449,7 @@ pub async fn ccxt_trades(exchange: &str, symbol: &str) -> Result<String, ToolErr
         .subcommand("trades")
         .arg(symbol)
         .opt("--exchange", Some(exchange))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6398,6 +6459,7 @@ pub async fn ccxt_markets(exchange: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("ccxt")
         .subcommand("markets")
         .opt("--exchange", Some(exchange))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6437,13 +6499,11 @@ pub async fn uniswap_liquidity(pool: &str, chain: Option<&str>) -> Result<String
         .map_err(ToolError::from)
 }
 
-pub async fn uniswap_eth_price(
-    chain: Option<&str>,
-    version: Option<&str>,
-) -> Result<String, ToolError> {
+// eth-price, top-pools, swaps, day-data and addresses use the mainnet
+// subgraph / address tables: ethcli ignores --chain for them.
+pub async fn uniswap_eth_price(version: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("uniswap")
         .subcommand("eth-price")
-        .chain(chain)
         .opt("--version", version)
         .execute()
         .await
@@ -6452,35 +6512,33 @@ pub async fn uniswap_eth_price(
 
 pub async fn uniswap_top_pools(
     limit: Option<u32>,
-    chain: Option<&str>,
     version: Option<&str>,
 ) -> Result<String, ToolError> {
     let l = limit.unwrap_or(10);
     ArgsBuilder::new("uniswap")
         .subcommand("top-pools")
         .arg(&l.to_string())
-        .chain(chain)
         .opt("--version", version)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn uniswap_swaps(pool: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn uniswap_swaps(pool: &str, version: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("uniswap")
         .subcommand("swaps")
         .arg(pool)
-        .chain(chain)
+        .opt("--version", version)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn uniswap_day_data(pool: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn uniswap_day_data(pool: &str, version: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("uniswap")
         .subcommand("day-data")
         .arg(pool)
-        .chain(chain)
+        .opt("--version", version)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6496,6 +6554,7 @@ pub async fn uniswap_positions(
         .arg(address)
         .chain(chain)
         .opt("--version", version)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6516,13 +6575,17 @@ pub async fn uniswap_balance(
         .map_err(ToolError::from)
 }
 
-pub async fn uniswap_addresses(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("uniswap")
-        .subcommand("addresses")
-        .chain(chain)
+pub async fn uniswap_addresses(version: Option<&str>) -> Result<String, ToolError> {
+    uniswap_addresses_args(version)
         .execute()
         .await
         .map_err(ToolError::from)
+}
+
+fn uniswap_addresses_args(version: Option<&str>) -> ArgsBuilder {
+    ArgsBuilder::new("uniswap")
+        .subcommand("addresses")
+        .opt("--version", version)
 }
 
 // =============================================================================
@@ -7702,15 +7765,20 @@ pub async fn endpoints_optimize(
 ) -> Result<String, ToolError> {
     require_write_tools_enabled("endpoints_optimize")?;
 
-    let mut builder = ArgsBuilder::new("endpoints")
-        .subcommand("optimize")
-        .chain(chain);
+    endpoints_optimize_args(url, chain)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
 
-    if let Some(u) = url {
-        builder = builder.arg(u);
+fn endpoints_optimize_args(url: Option<&str>, chain: Option<&str>) -> ArgsBuilder {
+    let builder = ArgsBuilder::new("endpoints").subcommand("optimize");
+    // Without a URL ethcli optimizes nothing unless --all is passed; --chain
+    // only filters --all.
+    match url {
+        Some(u) => builder.arg(u),
+        None => builder.opt_flag("--all", true).chain(chain),
     }
-
-    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn endpoints_test(url: &str) -> Result<String, ToolError> {
@@ -7804,7 +7872,8 @@ pub async fn chainlist_list(testnets: bool) -> Result<String, ToolError> {
 // =============================================================================
 
 /// Health check - verify ethcli-mcp and ethcli are working
-pub async fn health() -> String {
+/// Health report; `Err` (an MCP error result) when ethcli cannot be run
+pub async fn health() -> Result<String, String> {
     use crate::executor::metrics;
     use std::time::Instant;
 
@@ -7814,6 +7883,7 @@ pub async fn health() -> String {
 
     // Check ethcli binary
     let ethcli_check = ArgsBuilder::new("--version").execute().await;
+    let healthy = ethcli_check.is_ok();
     match ethcli_check {
         Ok(version) => {
             status.push_str(&format!("ethcli: OK ({})\n", version.trim()));
@@ -7835,7 +7905,11 @@ pub async fn health() -> String {
     let elapsed = start.elapsed();
     status.push_str(&format!("\nHealth check completed in {:?}\n", elapsed));
 
-    status
+    if healthy {
+        Ok(status)
+    } else {
+        Err(status)
+    }
 }
 
 #[cfg(test)]
@@ -7952,5 +8026,69 @@ mod policy_tests {
             "from_address": "0xc",
         }));
         assert!(name.is_err(), "ethcli parses LI.FI chains as u64 IDs");
+    }
+
+    #[test]
+    fn curve_lending_filters_by_chain() {
+        assert_eq!(
+            curve_lending_args("arbitrum").args(),
+            ["curve", "lending", "chain", "arbitrum"]
+        );
+    }
+
+    #[test]
+    fn endpoints_optimize_without_url_optimizes_all() {
+        assert_eq!(
+            endpoints_optimize_args(None, None).args(),
+            ["endpoints", "optimize", "--all"]
+        );
+        assert_eq!(
+            endpoints_optimize_args(None, Some("base")).args(),
+            ["endpoints", "optimize", "--all", "--chain", "base"]
+        );
+        assert_eq!(
+            endpoints_optimize_args(Some("https://rpc.example"), Some("base")).args(),
+            ["endpoints", "optimize", "https://rpc.example"]
+        );
+    }
+
+    #[test]
+    fn uniswap_addresses_passes_version() {
+        assert_eq!(
+            uniswap_addresses_args(Some("v3")).args(),
+            ["uniswap", "addresses", "--version", "v3"]
+        );
+    }
+
+    #[test]
+    fn mainnet_only_uniswap_tools_have_no_chain_field() {
+        use crate::types::{UniswapEthPriceInput, UniswapSubgraphPoolInput, UniswapTopPoolsInput};
+        for schema in [
+            schemars::schema_for!(UniswapEthPriceInput),
+            schemars::schema_for!(UniswapTopPoolsInput),
+            schemars::schema_for!(UniswapSubgraphPoolInput),
+        ] {
+            let json = serde_json::to_string(&schema).unwrap();
+            assert!(!json.contains("\"chain\""), "{json}");
+        }
+    }
+
+    #[test]
+    fn schemas_only_offer_fields_the_cli_takes() {
+        use crate::types::{CurveTradesInput, OpenoceanReverseQuoteInput};
+        let trades = serde_json::to_string(&schemars::schema_for!(CurveTradesInput)).unwrap();
+        assert!(!trades.contains("\"start\"") && !trades.contains("\"end\""));
+        let reverse =
+            serde_json::to_string(&schemars::schema_for!(OpenoceanReverseQuoteInput)).unwrap();
+        assert!(!reverse.contains("gas_price"));
+    }
+
+    #[tokio::test]
+    async fn file_references_are_rejected() {
+        let err = simulate_bundle("@/etc/hosts", None).await.unwrap_err();
+        assert!(err.to_string().contains("@file"), "{err}");
+        assert!(reject_file_reference("access_list", Some(" @x.json")).is_err());
+        assert!(reject_file_reference("access_list", Some("[]")).is_ok());
+        assert!(reject_file_reference("access_list", None).is_ok());
     }
 }

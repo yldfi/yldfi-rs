@@ -432,7 +432,7 @@ fn has_flag(args: &[&str], flag: &str) -> bool {
         .any(|arg| *arg == flag || arg.starts_with(&format!("{flag}=")))
 }
 
-fn is_mutating_command(args: &[&str]) -> bool {
+pub(crate) fn is_mutating_command(args: &[&str]) -> bool {
     let path = command_path(args, 3);
     match (path.first().copied(), path.get(1).copied()) {
         (Some("config"), Some(sub)) => matches!(
@@ -526,7 +526,15 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
 
     // Extract useful error info without exposing sensitive details
     for line in stderr.lines().chain(stdout.lines()) {
-        let line = line.trim();
+        // Transport errors quote request URLs, which can carry API keys
+        let redacted = redact_sensitive_urls(line.trim());
+        // Only assignments (`access_key = …`): "Invalid API key" stays readable
+        let line = if redacted.contains('=') {
+            redact_secret_line(&redacted).unwrap_or(redacted)
+        } else {
+            redacted
+        };
+        let line = line.as_str();
 
         // Skip empty lines
         if line.is_empty() {
@@ -554,8 +562,19 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
             continue;
         }
 
-        // Limit message length
+        // Limit message length, cutting a long line rather than dropping it
         if message.len() + line.len() > 500 {
+            let room = 500usize.saturating_sub(message.len() + 2);
+            if room > 0 {
+                let mut cut = room.min(line.len());
+                while !line.is_char_boundary(cut) {
+                    cut -= 1;
+                }
+                if !message.is_empty() {
+                    message.push_str("; ");
+                }
+                message.push_str(&line[..cut]);
+            }
             message.push_str("...");
             break;
         }
@@ -589,7 +608,14 @@ fn contains_secret_key_name(value: &str) -> bool {
         || lower.contains("authorization")
         || lower.contains("auth_token")
         || lower.contains("bearer")
-        || lower.contains("token")
+        // `auth_token`, `apitoken`, `x-alchemy-token`: but not `tokenIn` or `tokens`
+        || (lower.ends_with("token") && lower.len() > "token".len())
+}
+
+fn is_hex_value(segment: &str) -> bool {
+    segment
+        .strip_prefix("0x")
+        .is_some_and(|hex| !hex.is_empty() && hex.chars().all(|c| c.is_ascii_hexdigit()))
 }
 
 fn should_redact_path_segment(host: &str, previous: Option<&str>, segment: &str) -> bool {
@@ -600,6 +626,11 @@ fn should_redact_path_segment(host: &str, previous: Option<&str>, segment: &str)
     let lower = segment.to_ascii_lowercase();
     if contains_secret_key_name(&lower) {
         return true;
+    }
+
+    // Addresses and hashes (`/token/0x…`) are data, not keys
+    if is_hex_value(segment) {
+        return false;
     }
 
     let previous = previous.map(str::to_ascii_lowercase);
@@ -645,7 +676,7 @@ fn redact_url_candidate(candidate: &str) -> String {
             .query_pairs()
             .map(|(key, value)| {
                 let key = key.into_owned();
-                let value = if contains_secret_key_name(&key) {
+                let value = if contains_secret_key_name(&key) || key.eq_ignore_ascii_case("token") {
                     "redacted".to_string()
                 } else {
                     value.into_owned()
@@ -792,7 +823,7 @@ fn verify_binary(path: &std::path::Path) -> Result<(), ExecutionError> {
 }
 
 /// Find the ethcli binary path
-fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError> {
+pub(crate) fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError> {
     // First check environment variable override
     if let Ok(path) = std::env::var("ETHCLI_PATH") {
         let path = std::path::PathBuf::from(&path);
@@ -1243,6 +1274,12 @@ impl ArgsBuilder {
         self.opt("-o", Some("json"))
     }
 
+    /// The argv built so far (for tests)
+    #[cfg(test)]
+    pub fn args(&self) -> &[String] {
+        &self.args
+    }
+
     pub async fn execute(self) -> Result<String, String> {
         if let Some(error) = self.error {
             return Err(ExecutionError::Validation(error).to_string());
@@ -1402,6 +1439,55 @@ mod tests {
 
         let result = sanitize_error("Invalid argument: foo", "");
         assert_eq!(result, "Invalid argument: foo");
+    }
+
+    #[test]
+    fn test_sanitize_error_redacts_keyed_urls() {
+        let result = sanitize_error(
+            "error sending request for url (https://eth-mainnet.g.alchemy.com/v2/abcdefghijklmnop1234): timed out",
+            "",
+        );
+        assert!(!result.contains("abcdefghijklmnop1234"), "{result}");
+        assert!(result.contains("timed out"));
+
+        let result = sanitize_error(
+            "request failed: https://api.example.com/x?apikey=SECRET123",
+            "",
+        );
+        assert!(!result.contains("SECRET123"), "{result}");
+    }
+
+    #[test]
+    fn test_sanitize_error_keeps_plain_key_messages() {
+        assert_eq!(
+            sanitize_error("Error: Invalid API key", ""),
+            "Error: Invalid API key"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_error_cuts_long_first_line() {
+        let line = format!("Error: {}", "é".repeat(400));
+        let result = sanitize_error(&line, "");
+        assert!(result.starts_with("Error: é"), "{result}");
+        assert!(result.ends_with("..."));
+        assert!(result.len() <= 503);
+    }
+
+    #[test]
+    fn test_token_paths_and_params_are_not_redacted() {
+        let url = "https://etherscan.io/token/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48?a=1";
+        assert_eq!(redact_url_candidate(url), url);
+        let quote = "https://api.example.com/quote?tokenIn=0xabc&tokenOut=0xdef&amount=1";
+        assert_eq!(redact_url_candidate(quote), quote);
+
+        // Real token parameters are still redacted
+        let keyed =
+            redact_url_candidate("https://api.example.com/x?token=s3cret&auth_token=s3cret");
+        assert!(!keyed.contains("s3cret"), "{keyed}");
+        assert!(contains_secret_key_name("x-alchemy-token"));
+        assert!(!contains_secret_key_name("tokenIn"));
+        assert!(!contains_secret_key_name("tokens"));
     }
 
     #[test]
