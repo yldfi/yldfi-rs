@@ -151,6 +151,16 @@ fn persist_max_logs_limit(url: &str, limit: usize) {
     });
 }
 
+/// Result of a by-hash/by-number lookup that found nothing: `None` if some
+/// endpoint answered null, otherwise the last error.
+fn resolve_lookup<T>(answered_null: bool, last_err: Option<Error>) -> Result<Option<T>> {
+    match (answered_null, last_err) {
+        (true, _) => Ok(None),
+        (false, Some(e)) => Err(e),
+        (false, None) => Err(RpcError::NoHealthyEndpoints.into()),
+    }
+}
+
 /// Number of blocks covered by a filter (inclusive), if both bounds are numbers
 fn filter_block_span(filter: &Filter) -> Option<u64> {
     let from = filter.get_from_block()?;
@@ -359,6 +369,9 @@ impl RpcPool {
         // Try more endpoints for historical data - archive coverage varies
         let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
 
+        let mut answered_null = false;
+        let mut last_err: Option<Error> = None;
+
         for endpoint in endpoints {
             match endpoint.get_transaction(hash).await {
                 Ok(Some(tx)) => {
@@ -367,6 +380,7 @@ impl RpcPool {
                     return Ok(Some(tx));
                 }
                 Ok(None) => {
+                    answered_null = true;
                     // Transaction not found on this endpoint, try others
                     tracing::debug!(
                         "Transaction not found on {}, trying next endpoint",
@@ -380,12 +394,14 @@ impl RpcPool {
                         crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
+                    last_err = Some(e);
                 }
             }
         }
 
-        // No endpoint had the transaction
-        Ok(None)
+        // Only "not found" if an endpoint actually answered null; if every
+        // endpoint errored, report the error instead of a false "not found".
+        resolve_lookup(answered_null, last_err)
     }
 
     /// Execute a read-only `eth_call` at the latest block, failing over
@@ -427,6 +443,9 @@ impl RpcPool {
         // Try more endpoints for historical data - archive coverage varies
         let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
 
+        let mut answered_null = false;
+        let mut last_err: Option<Error> = None;
+
         for endpoint in endpoints {
             match endpoint.get_transaction_receipt(hash).await {
                 Ok(Some(receipt)) => {
@@ -435,6 +454,7 @@ impl RpcPool {
                     return Ok(Some(receipt));
                 }
                 Ok(None) => {
+                    answered_null = true;
                     // Receipt not found on this endpoint, try others
                     tracing::debug!(
                         "Receipt not found on {}, trying next endpoint",
@@ -448,17 +468,22 @@ impl RpcPool {
                         crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
+                    last_err = Some(e);
                 }
             }
         }
 
-        // No endpoint had the receipt
-        Ok(None)
+        // Only "not found" if an endpoint actually answered null; if every
+        // endpoint errored, report the error instead of a false "not found".
+        resolve_lookup(answered_null, last_err)
     }
 
     /// Get a block by number with full transaction objects (tries multiple endpoints)
     pub async fn get_block_with_txs(&self, block_number: u64) -> Result<Option<Block>> {
         let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
+
+        let mut answered_null = false;
+        let mut last_err: Option<Error> = None;
 
         for endpoint in endpoints {
             match endpoint.get_block_with_txs(block_number).await {
@@ -468,6 +493,7 @@ impl RpcPool {
                     return Ok(Some(block));
                 }
                 Ok(None) => {
+                    answered_null = true;
                     tracing::debug!(
                         "Block {} not found on {}, trying next endpoint",
                         block_number,
@@ -482,11 +508,14 @@ impl RpcPool {
                         crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
+                    last_err = Some(e);
                 }
             }
         }
 
-        Ok(None)
+        // Only "not found" if an endpoint actually answered null; if every
+        // endpoint errored, report the error instead of a false "not found".
+        resolve_lookup(answered_null, last_err)
     }
 
     /// Fetch logs with automatic retry and load balancing.
@@ -816,6 +845,34 @@ mod tests {
         assert_eq!(health.effective_max_block_range(url, 10_000), 500);
         // A heuristic limit also applies to endpoints configured as unlimited
         assert_eq!(health.effective_max_block_range(url, 0), 500);
+    }
+
+    #[tokio::test]
+    async fn lookups_report_errors_instead_of_not_found_during_outages() {
+        // Nothing listens on these ports: every endpoint errors
+        let pool = pool_with_limits(&[("http://127.0.0.1:1", 10), ("http://127.0.0.1:2", 10)]);
+        assert!(pool.get_transaction(B256::ZERO).await.is_err());
+        assert!(pool.get_transaction_receipt(B256::ZERO).await.is_err());
+        assert!(pool.get_block_with_txs(1).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn lookups_return_none_when_an_endpoint_answers_null() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"jsonrpc": "2.0", "id": 0, "result": null})),
+            )
+            .mount(&server)
+            .await;
+        let pool = RpcPool::from_url(&server.uri(), 5).unwrap();
+        assert!(pool.get_transaction(B256::ZERO).await.unwrap().is_none());
+        assert!(pool
+            .get_transaction_receipt(B256::ZERO)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test]
