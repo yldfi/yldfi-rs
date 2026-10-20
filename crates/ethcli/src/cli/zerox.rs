@@ -44,7 +44,7 @@ pub enum ZeroXCommands {
         /// Exclude sources (comma-separated)
         #[arg(long)]
         exclude_sources: Option<String>,
-        /// Skip validation
+        /// Skip validation (no effect: the 0x v2 API ignores it)
         #[arg(long)]
         skip_validation: bool,
     },
@@ -112,7 +112,9 @@ pub async fn run(args: ZeroXArgs, _chain: &str) -> anyhow::Result<()> {
             if let Some(sources) = exclude_sources {
                 request.excluded_sources = Some(sources);
             }
-            request.skip_validation = Some(skip_validation);
+            if skip_validation {
+                eprintln!("Warning: --skip-validation has no effect with the 0x v2 API");
+            }
 
             let quote = client.get_quote(zrx_chain, &request).await?;
             output_json(&quote, args.format)?;
