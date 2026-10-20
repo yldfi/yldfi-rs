@@ -376,36 +376,53 @@ async fn ccip_call<P: Provider>(
     anyhow::bail!("CCIP-read: too many offchain lookups")
 }
 
-/// Query CCIP-read gateways in order until one answers
+/// Largest CCIP-read gateway response accepted
+const MAX_CCIP_RESPONSE: usize = 256 * 1024;
+
+/// Query CCIP-read gateways in order until one answers.
+///
+/// Gateway URLs come from on-chain data, so each request is https-only, does
+/// not follow redirects, must resolve to a public IP (pinned for the request,
+/// so DNS can't be swapped after the check), and has a size cap.
 async fn ccip_fetch(
     urls: &[String],
     sender: Address,
     call_data: &[u8],
 ) -> anyhow::Result<alloy::primitives::Bytes> {
-    let client = crate::utils::get_shared_http_client().map_err(|e| anyhow::anyhow!(e))?;
     let sender_hex = format!("{:#x}", sender);
     let data_hex = format!("0x{}", hex::encode(call_data));
     let mut last_err = anyhow::anyhow!("CCIP-read: no gateway URLs");
-    for url in urls {
-        if !url.starts_with("https://") {
-            last_err = anyhow::anyhow!("CCIP-read: refusing non-https gateway");
-            continue;
-        }
-        let url = url.replace("{sender}", &sender_hex);
-        let request = if url.contains("{data}") {
-            client.get(url.replace("{data}", &data_hex))
+    for template in urls {
+        let url = template.replace("{sender}", &sender_hex);
+        let (url, get) = if url.contains("{data}") {
+            (url.replace("{data}", &data_hex), true)
         } else {
-            client
-                .post(&url)
-                .json(&serde_json::json!({"data": data_hex, "sender": sender_hex}))
+            (url, false)
         };
         let result = async {
-            let response = request
-                .timeout(std::time::Duration::from_secs(15))
-                .send()
-                .await?
-                .error_for_status()?;
-            let body: serde_json::Value = response.json().await?;
+            let client = ccip_client(&url).await?;
+            let request = if get {
+                client.get(&url)
+            } else {
+                client
+                    .post(&url)
+                    .json(&serde_json::json!({"data": data_hex, "sender": sender_hex}))
+            };
+            let mut response = request.send().await?.error_for_status()?;
+            if response
+                .content_length()
+                .is_some_and(|len| len > MAX_CCIP_RESPONSE as u64)
+            {
+                anyhow::bail!("response too large");
+            }
+            let mut body = Vec::new();
+            while let Some(chunk) = response.chunk().await? {
+                body.extend_from_slice(&chunk);
+                if body.len() > MAX_CCIP_RESPONSE {
+                    anyhow::bail!("response too large");
+                }
+            }
+            let body: serde_json::Value = serde_json::from_slice(&body)?;
             let hex_data = body["data"]
                 .as_str()
                 .ok_or_else(|| anyhow::anyhow!("gateway response has no data"))?;
@@ -423,6 +440,60 @@ async fn ccip_fetch(
         }
     }
     Err(last_err)
+}
+
+/// HTTP client for one CCIP gateway request: https only, no redirects, and
+/// the host pinned to a public address resolved here
+async fn ccip_client(url: &str) -> anyhow::Result<reqwest::Client> {
+    let parsed: reqwest::Url = url.parse()?;
+    if parsed.scheme() != "https" {
+        anyhow::bail!("refusing non-https gateway");
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| anyhow::anyhow!("gateway URL has no host"))?
+        .to_string();
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let addr = tokio::net::lookup_host((host.as_str(), port))
+        .await?
+        .find(|a| is_public_ip(a.ip()))
+        .ok_or_else(|| anyhow::anyhow!("gateway host does not resolve to a public address"))?;
+    Ok(reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .resolve(&host, addr)
+        .timeout(std::time::Duration::from_secs(15))
+        .build()?)
+}
+
+/// Not loopback, private, link-local, CGNAT, unspecified, multicast or
+/// documentation space (cloud metadata endpoints are link-local)
+fn is_public_ip(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            !(v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || v4.is_multicast()
+                || v4.is_documentation()
+                || o[0] == 0
+                || (o[0] == 100 && (64..128).contains(&o[1])))
+        }
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_public_ip(IpAddr::V4(v4));
+            }
+            let seg = v6.segments();
+            !(v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_multicast()
+                || (seg[0] & 0xfe00) == 0xfc00 // unique local
+                || (seg[0] & 0xffc0) == 0xfe80) // link-local
+        }
+    }
 }
 
 /// Outcome of a reverse lookup
@@ -530,6 +601,26 @@ async fn reverse_record<P: Provider>(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn ccip_gateways_must_be_public() {
+        for ip in [
+            "127.0.0.1",
+            "10.1.2.3",
+            "169.254.169.254",
+            "192.168.0.1",
+            "100.64.0.1",
+            "::1",
+            "fd00::1",
+            "fe80::1",
+            "::ffff:127.0.0.1",
+        ] {
+            assert!(!is_public_ip(ip.parse().unwrap()), "{ip}");
+        }
+        for ip in ["1.1.1.1", "2606:4700::1111"] {
+            assert!(is_public_ip(ip.parse().unwrap()), "{ip}");
+        }
+    }
 
     #[test]
     fn dns_encoding() {
