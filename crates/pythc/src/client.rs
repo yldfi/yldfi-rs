@@ -304,12 +304,32 @@ impl Client {
         self.get("/v2/price_feeds").await
     }
 
-    /// Search for price feeds by query (symbol, base, quote, etc.)
+    /// Search for crypto price feeds by query (symbol, base, quote, etc.)
+    ///
+    /// Restricted to `asset_type=crypto`; use
+    /// [`Self::search_feeds_with_asset_type`] for other asset types or no filter.
     pub async fn search_feeds(&self, query: &str) -> Result<Vec<PriceFeedId>> {
+        self.search_feeds_with_asset_type(query, Some("crypto"))
+            .await
+    }
+
+    /// Search for price feeds by query, optionally filtered by asset type
+    ///
+    /// `asset_type` is e.g. `crypto`, `equity`, `fx`, `metal`, `rates`;
+    /// `None` searches all asset types.
+    pub async fn search_feeds_with_asset_type(
+        &self,
+        query: &str,
+        asset_type: Option<&str>,
+    ) -> Result<Vec<PriceFeedId>> {
         let mut url = Url::parse(&self.base.url("/v2/price_feeds"))?;
-        url.query_pairs_mut()
-            .append_pair("query", query)
-            .append_pair("asset_type", "crypto");
+        {
+            let mut pairs = url.query_pairs_mut();
+            pairs.append_pair("query", query);
+            if let Some(asset_type) = asset_type {
+                pairs.append_pair("asset_type", asset_type);
+            }
+        }
         self.get_url(&url).await
     }
 

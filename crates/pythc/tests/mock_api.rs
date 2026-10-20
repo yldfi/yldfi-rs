@@ -542,3 +542,54 @@ async fn test_api_key_redacted_in_debug() {
     assert!(!Config::mainnet().with_api_key("   ").has_api_key());
     assert!(!Config::mainnet().with_optional_api_key(None).has_api_key());
 }
+
+#[tokio::test]
+async fn test_search_feeds_without_asset_type_filter() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
+        .and(path("/v2/price_feeds"))
+        .and(query_param("query", "AAPL"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&mock_server)
+        .await;
+
+    let client = mock_client(&mock_server);
+    let feeds = client
+        .search_feeds_with_asset_type("AAPL", None)
+        .await
+        .unwrap();
+    assert!(feeds.is_empty());
+
+    let requests = mock_server.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(
+        !requests[0]
+            .url
+            .query_pairs()
+            .any(|(k, _)| k == "asset_type"),
+        "unexpected asset_type filter: {}",
+        requests[0].url
+    );
+}
+
+#[tokio::test]
+async fn test_search_feeds_with_explicit_asset_type() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/v2/price_feeds"))
+        .and(query_param("query", "AAPL"))
+        .and(query_param("asset_type", "equity"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let client = mock_client(&mock_server);
+    client
+        .search_feeds_with_asset_type("AAPL", Some("equity"))
+        .await
+        .unwrap();
+}
