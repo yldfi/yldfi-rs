@@ -4281,7 +4281,9 @@ impl EthcliMcpServer {
 
     #[tool(description = "Execute a Dune Analytics query")]
     async fn dune_query(&self, Parameters(input): Parameters<DuneQueryInput>) -> CallToolResult {
-        tools::dune_query(&input.query_id).await.to_response()
+        tools::dune_query(&input.query_id, input.params.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(description = "Execute SQL directly on Dune")]

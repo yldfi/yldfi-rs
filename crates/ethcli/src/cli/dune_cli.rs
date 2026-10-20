@@ -95,6 +95,9 @@ pub enum QueryCommands {
         /// Timeout in seconds (default: 300)
         #[arg(long, default_value = "300")]
         timeout: u64,
+        /// Query parameters as a JSON object, e.g. '{"address": "0x..."}'
+        #[arg(long)]
+        params: Option<String>,
     },
 
     /// Get cached results for a query
@@ -467,13 +470,18 @@ async fn handle_query(
     quiet: bool,
 ) -> anyhow::Result<()> {
     match action {
-        QueryCommands::Execute { query_id, timeout } => {
+        QueryCommands::Execute {
+            query_id,
+            timeout,
+            params,
+        } => {
             if !quiet {
                 eprintln!("Executing query {}...", query_id);
             }
+            let request = query_params_request(params.as_deref())?;
             let response = client
                 .executions()
-                .run_query(*query_id, Some(*timeout))
+                .run_query_with_options(*query_id, &request, Some(*timeout))
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -1000,4 +1008,50 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         }
     }
     Ok(())
+}
+
+/// Build an execute request from `--params` JSON (values may be strings,
+/// numbers or booleans; Dune takes them as strings)
+fn query_params_request(
+    params: Option<&str>,
+) -> anyhow::Result<dnapi::executions::ExecuteQueryRequest> {
+    let mut request = dnapi::executions::ExecuteQueryRequest::new();
+    let Some(json) = params else {
+        return Ok(request);
+    };
+    let value: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| anyhow::anyhow!("Invalid --params JSON: {}", e))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("--params must be a JSON object"))?;
+    for (key, v) in object {
+        let text = match v {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Number(_) | serde_json::Value::Bool(_) => v.to_string(),
+            _ => anyhow::bail!(
+                "--params value for '{}' must be a string, number or boolean",
+                key
+            ),
+        };
+        request = request.param(key, &text);
+    }
+    Ok(request)
+}
+
+#[cfg(test)]
+mod params_tests {
+    use super::query_params_request;
+
+    #[test]
+    fn params_become_string_query_parameters() {
+        let request = query_params_request(Some(r#"{"address": "0xabc", "days": 7}"#)).unwrap();
+        let params = request.query_parameters.unwrap();
+        assert_eq!(params["address"], "0xabc");
+        assert_eq!(params["days"], "7");
+        assert!(query_params_request(Some("[1]")).is_err());
+        assert!(query_params_request(None)
+            .unwrap()
+            .query_parameters
+            .is_none());
+    }
 }

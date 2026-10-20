@@ -5316,11 +5316,12 @@ pub async fn moralis_entities_category_entities(
 // DUNE (3 subcommands)
 // =============================================================================
 
-pub async fn dune_query(query_id: &str) -> Result<String, ToolError> {
+pub async fn dune_query(query_id: &str, params: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("dune")
         .subcommand("query")
         .subcommand("execute")
         .arg(query_id)
+        .opt("--params", params)
         .execute()
         .await
         .map_err(ToolError::from)

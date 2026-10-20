@@ -2423,6 +2423,9 @@ pub struct MoralisCategoryIdInput {
 pub struct DuneQueryInput {
     /// Query ID
     pub query_id: String,
+    /// Query parameters as a JSON object, e.g. {"address": "0x..."}
+    #[serde(default)]
+    pub params: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
