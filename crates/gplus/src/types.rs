@@ -3,10 +3,18 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// `GoPlus` response code: complete data
+pub const CODE_SUCCESS: i32 = 1;
+/// `GoPlus` response code: partial data (complete data can be requested
+/// again in about 15 seconds)
+pub const CODE_PARTIAL: i32 = 2;
+/// `GoPlus` response code: request limit reached
+pub const CODE_RATE_LIMITED: i32 = 4029;
+
 /// `GoPlus` API response wrapper
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Response<T> {
-    /// Response code (1 = success)
+    /// Response code (1 = success, 2 = partial data)
     pub code: i32,
     /// Response message
     pub message: String,
@@ -15,9 +23,19 @@ pub struct Response<T> {
 }
 
 impl<T> Response<T> {
-    /// Check if response was successful
+    /// Check if response carries data (complete or partial)
     pub fn is_success(&self) -> bool {
-        self.code == 1
+        matches!(self.code, CODE_SUCCESS | CODE_PARTIAL)
+    }
+
+    /// Check if the data is partial (code 2); retry later for complete data
+    pub fn is_partial(&self) -> bool {
+        self.code == CODE_PARTIAL
+    }
+
+    /// Check if the request limit was reached (code 4029)
+    pub fn is_rate_limited(&self) -> bool {
+        self.code == CODE_RATE_LIMITED
     }
 }
 
