@@ -803,21 +803,17 @@ async fn fetch_yearn_portfolio(
                 // Get all vaults for this chain from Kong
                 let vaults = match client.vaults().by_chain(chain_id).await {
                     Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("Yearn: Failed to get vault list for chain {}: {}", chain, e);
-                        return balances;
-                    }
+                    Err(e) => return Err(format!("{chain}: failed to get vault list: {e}")),
                 };
 
                 if vaults.is_empty() {
-                    return balances;
+                    return Ok(balances);
                 }
 
                 // Get RPC endpoint for this chain
                 let target_chain = Chain::from_chain_id(chain_id);
-                let config = match get_cached_config() {
-                    Some(c) => c,
-                    None => return balances,
+                let Some(config) = get_cached_config() else {
+                    return Err(format!("{chain}: no config with RPC endpoints"));
                 };
 
                 let endpoint = match crate::rpc::selector::get_rpc_endpoint_from_config(
@@ -825,10 +821,7 @@ async fn fetch_yearn_portfolio(
                     target_chain,
                 ) {
                     Ok(e) => e,
-                    Err(_) => {
-                        eprintln!("Yearn: No RPC endpoint configured for {}", chain);
-                        return balances;
-                    }
+                    Err(_) => return Err(format!("{chain}: no RPC endpoint configured")),
                 };
 
                 let provider = endpoint.provider();
@@ -837,6 +830,7 @@ async fn fetch_yearn_portfolio(
                 // Process in batches to avoid RPC limits (max ~500 calls per batch)
                 const BATCH_SIZE: usize = 200;
                 let mut vault_balances: Vec<(ykong::Vault, u128)> = Vec::new();
+                let mut multicall_errors: Vec<String> = Vec::new();
 
                 for batch in vaults.chunks(BATCH_SIZE) {
                     let mut builder = MulticallBuilder::new();
@@ -872,10 +866,16 @@ async fn fetch_yearn_portfolio(
                                 }
                             }
                         }
-                        Err(e) => {
-                            eprintln!("Yearn: Multicall failed for {}: {}", chain, e);
-                        }
+                        Err(e) => multicall_errors.push(e.to_string()),
                     }
+                }
+
+                // Every balance query failed: the positions are unknown, not empty
+                if vault_balances.is_empty() && !multicall_errors.is_empty() {
+                    return Err(format!(
+                        "{chain}: balance multicall failed: {}",
+                        multicall_errors.join("; ")
+                    ));
                 }
 
                 // Collect unique underlying token addresses for price lookup
@@ -959,18 +959,34 @@ async fn fetch_yearn_portfolio(
                     balances.push(balance);
                 }
 
-                balances
+                Ok(balances)
             }
         })
         .collect();
 
-    // Execute all chain queries in parallel and flatten results
+    // Execute all chain queries in parallel. An empty position list is a
+    // valid answer; chains that failed are warnings, and the source fails
+    // only when every chain did.
     let results = join_all(chain_futures).await;
-    let all_balances: Vec<PortfolioBalance> = results.into_iter().flatten().collect();
-
-    // Return empty success instead of error when no vault positions found
-    // An empty position list is a valid state, not an error
-    SourceResult::success("yearn", all_balances, measure.elapsed_ms())
+    let mut all_balances = Vec::new();
+    let mut successes = 0;
+    let mut errors = Vec::new();
+    for result in results {
+        match result {
+            Ok(balances) => {
+                successes += 1;
+                all_balances.extend(balances);
+            }
+            Err(e) => errors.push(e),
+        }
+    }
+    fan_out_result(
+        "yearn",
+        all_balances,
+        successes,
+        errors,
+        measure.elapsed_ms(),
+    )
 }
 
 /// Calculate USD value and price of a Yearn vault position
