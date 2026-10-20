@@ -21,22 +21,13 @@
 //!
 //! # Concurrency Model
 //!
-//! ## Config File Persistence (TOCTOU Considerations)
+//! ## Config File Persistence
 //!
-//! Config persistence uses a global mutex (`CONFIG_WRITE_LOCK`) to serialize writes
-//! within a single process. However, there are trade-offs to be aware of:
-//!
-//! - **Single process**: The mutex prevents race conditions between concurrent async tasks.
-//! - **Multiple processes**: If multiple ethcli processes run simultaneously, there's a
-//!   theoretical TOCTOU (time-of-check-to-time-of-use) window between reading and writing
-//!   the config file. In practice, this is rare for CLI usage and the worst case is a
-//!   lost optimization (not data corruption).
-//! - **Fire-and-forget**: Persistence is done in background tasks. If the process exits
-//!   quickly (Ctrl+C), writes may not complete. This is acceptable since learned limits
-//!   are optimizations, not critical data.
-//!
-//! If this code were used in a long-running daemon or library context, consider adding
-//! file-level locking (e.g., `fs2::FileExt::lock_exclusive`).
+//! Learned limits are written with `ConfigFile::update_default`, which holds an
+//! exclusive lock on `config.toml.lock` while it re-reads the file, patches the
+//! one field and writes it back, so concurrent ethcli processes and edits made
+//! meanwhile are not overwritten. Persistence is fire-and-forget on the blocking
+//! pool; if the process exits first, the limit is re-learned on the next run.
 
 use crate::config::{
     Chain, ConfigFile, EndpointConfig, NodeType, RpcConfig, DEFAULT_MAX_BLOCK_RANGE,
@@ -51,103 +42,52 @@ use rand::seq::SliceRandom;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 
 /// Maximum endpoints tried for a single read-only `eth_call`.
 const MAX_CALL_ATTEMPTS: usize = 6;
 
-/// Global mutex to serialize config file updates within a single process.
+/// Persist a learned limit to the config file, in the background.
 ///
-/// This prevents race conditions between concurrent async tasks. For multi-process
-/// scenarios, see the module-level documentation on TOCTOU considerations.
-static CONFIG_WRITE_LOCK: Mutex<()> = Mutex::const_new(());
-
-/// PERF-005 fix: Cached config to avoid repeated disk I/O on hot paths.
-/// The config is loaded once and cached for the duration of the process.
-/// Updates are written through to disk but the cached copy is updated in-memory.
-static CACHED_CONFIG: std::sync::OnceLock<parking_lot::Mutex<Option<ConfigFile>>> =
-    std::sync::OnceLock::new();
-
-/// Get or initialize the cached config
-fn get_cached_config() -> &'static parking_lot::Mutex<Option<ConfigFile>> {
-    CACHED_CONFIG.get_or_init(|| {
-        let config = ConfigFile::load_default().ok().flatten();
-        parking_lot::Mutex::new(config)
-    })
-}
-
-/// Persist a learned block range limit to the config file.
-///
-/// This function spawns a background task to update the config file with the
-/// learned limit. The operation is **fire-and-forget**:
-///
-/// - Errors are logged at debug level but don't affect the caller
-/// - If the process exits quickly (e.g., Ctrl+C), the write may not complete
-/// - Multiple concurrent calls are serialized via `CONFIG_WRITE_LOCK`
-///
-/// This trade-off is acceptable for a CLI tool since:
-/// 1. Learned limits are optimizations, not critical data
-/// 2. The limit will be re-learned on the next run if not persisted
-/// 3. Blocking the main operation for config writes would hurt UX
-fn persist_block_range_limit(url: &str, limit: u64) {
+/// The update re-reads the file under the config's exclusive lock and patches
+/// only this endpoint's field, so edits made elsewhere since this process
+/// started are kept. Blocking file I/O runs on the blocking pool. It is
+/// fire-and-forget: errors are logged at debug level, and if the process exits
+/// first the limit is simply re-learned next time.
+fn persist_learned_limit(
+    what: &'static str,
+    url: &str,
+    limit: u64,
+    apply: fn(&mut ConfigFile, &str, u64) -> bool,
+) {
     if cfg!(test) {
         return;
     }
     let url = url.to_string();
-    // Spawn a blocking task to avoid blocking the async runtime
-    tokio::spawn(async move {
-        // Acquire lock to prevent concurrent config modifications
-        let _guard = CONFIG_WRITE_LOCK.lock().await;
-        // PERF-005 fix: Use cached config instead of loading from disk
-        let cached = get_cached_config();
-        let mut guard = cached.lock();
-        if let Some(ref mut config) = *guard {
-            match config.update_endpoint_block_range(&url, limit) {
-                Ok(true) => {
-                    tracing::info!(
-                        "Learned block range limit for {}: {} blocks (saved to config)",
-                        crate::utils::url::redact_url(&url),
-                        limit
-                    );
-                }
-                Ok(false) => {} // No update needed
-                Err(e) => {
-                    tracing::debug!("Failed to persist block range limit: {}", e);
-                }
-            }
+    tokio::task::spawn_blocking(move || {
+        match ConfigFile::update_default(|config| apply(config, &url, limit)) {
+            Ok(true) => tracing::info!(
+                "Learned {} for {}: {} (saved to config)",
+                what,
+                crate::utils::url::redact_url(&url),
+                limit
+            ),
+            Ok(false) => {}
+            Err(e) => tracing::debug!("Failed to persist {}: {}", what, e),
         }
     });
 }
 
-/// Persist a learned max logs limit to the config file.
-///
-/// See [`persist_block_range_limit`] for details on the fire-and-forget behavior.
+/// Persist a learned block range limit (see [`persist_learned_limit`])
+fn persist_block_range_limit(url: &str, limit: u64) {
+    persist_learned_limit("block range limit", url, limit, |c, url, limit| {
+        c.update_endpoint_block_range_in_memory(url, limit)
+    });
+}
+
+/// Persist a learned max logs limit (see [`persist_learned_limit`])
 fn persist_max_logs_limit(url: &str, limit: usize) {
-    if cfg!(test) {
-        return;
-    }
-    let url = url.to_string();
-    tokio::spawn(async move {
-        // Acquire lock to prevent concurrent config modifications
-        let _guard = CONFIG_WRITE_LOCK.lock().await;
-        // PERF-005 fix: Use cached config instead of loading from disk
-        let cached = get_cached_config();
-        let mut guard = cached.lock();
-        if let Some(ref mut config) = *guard {
-            match config.update_endpoint_max_logs(&url, limit) {
-                Ok(true) => {
-                    tracing::info!(
-                        "Learned max logs limit for {}: {} logs (saved to config)",
-                        crate::utils::url::redact_url(&url),
-                        limit
-                    );
-                }
-                Ok(false) => {}
-                Err(e) => {
-                    tracing::debug!("Failed to persist max logs limit: {}", e);
-                }
-            }
-        }
+    persist_learned_limit("max logs limit", url, limit as u64, |c, url, limit| {
+        c.update_endpoint_max_logs_in_memory(url, limit as usize)
     });
 }
 

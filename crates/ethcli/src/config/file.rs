@@ -11,6 +11,26 @@ use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+/// Open (creating if needed) the stable lock file next to a config file,
+/// e.g. `config.toml.lock`. It is never renamed or deleted, so every process
+/// locks the same inode.
+fn open_lock_file(path: &Path) -> Result<std::fs::File> {
+    let mut name = path.as_os_str().to_owned();
+    name.push(".lock");
+    let lock_path = PathBuf::from(name);
+    if let Some(parent) = lock_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| ConfigError::InvalidFile(format!("Failed to create directory: {}", e)))?;
+    }
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", lock_path.display(), e)).into())
+}
+
 // Re-export SecretString for use by other modules
 pub use secrecy::{ExposeSecret, SecretString};
 
@@ -448,23 +468,53 @@ impl ConfigFile {
     pub fn load(path: &Path) -> Result<Self> {
         use std::io::Read;
 
+        // Open first, so a missing file fails without creating a lock file
         let mut file = OpenOptions::new()
             .read(true)
             .open(path)
             .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
 
-        // Acquire shared lock (allows other readers, blocks writers)
-        file.lock_shared()
+        // Shared lock on the stable lock file (allows other readers, waits
+        // for a writer's read-modify-write to finish)
+        let lock = open_lock_file(path)?;
+        lock.lock_shared()
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
 
         let mut content = String::new();
         file.read_to_string(&mut content)
             .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
 
-        // Lock is automatically released when file is dropped
-
+        // Lock is released when `lock` is dropped
         let config: Self = toml::from_str(&content).map_err(ConfigError::from)?;
         Ok(config)
+    }
+
+    /// Re-read the config at `path`, apply `f`, and save it if `f` returns
+    /// true, all under one exclusive lock. Use this for small runtime updates
+    /// (learned limits): it patches the file as it is now instead of writing
+    /// back a snapshot taken earlier, which would undo edits made meanwhile.
+    /// Does nothing (returns false) if the file doesn't exist.
+    pub fn update(path: &Path, f: impl FnOnce(&mut Self) -> bool) -> Result<bool> {
+        if !path.exists() {
+            return Ok(false);
+        }
+        let lock = open_lock_file(path)?;
+        lock.lock_exclusive()
+            .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
+
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
+        let mut config: Self = toml::from_str(&content).map_err(ConfigError::from)?;
+        if !f(&mut config) {
+            return Ok(false);
+        }
+        config.write_atomic(path)?;
+        Ok(true)
+    }
+
+    /// [`update`](Self::update) on the default config path
+    pub fn update_default(f: impl FnOnce(&mut Self) -> bool) -> Result<bool> {
+        Self::update(&Self::default_path(), f)
     }
 
     /// Save to a specific path
@@ -479,14 +529,25 @@ impl ConfigFile {
     /// 3. Sync to disk
     /// 4. Rename atomically to target path
     pub fn save(&self, path: &Path) -> Result<()> {
-        use std::io::{Seek, SeekFrom};
-
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
                 ConfigError::InvalidFile(format!("Failed to create directory: {}", e))
             })?;
         }
+
+        // Exclusive lock on the stable lock file. The config file itself is
+        // replaced by rename, so a lock on it (or on the temp file) would not
+        // coordinate with other processes.
+        let lock = open_lock_file(path)?;
+        lock.lock_exclusive()
+            .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
+        self.write_atomic(path)
+    }
+
+    /// Write via temp file + rename. The caller must hold the exclusive lock.
+    fn write_atomic(&self, path: &Path) -> Result<()> {
+        use std::io::{Seek, SeekFrom};
 
         let content = toml::to_string_pretty(self)
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to serialize config: {}", e)))?;
@@ -540,11 +601,6 @@ impl ConfigFile {
             })?;
         }
 
-        // Acquire exclusive lock FIRST (blocks until available)
-        file.lock_exclusive()
-            .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
-
-        // Truncate after we have the lock
         file.set_len(0).map_err(|e| {
             ConfigError::InvalidFile(format!("Failed to truncate temp file: {}", e))
         })?;
@@ -559,7 +615,6 @@ impl ConfigFile {
         file.sync_all()
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to sync config file: {}", e)))?;
 
-        // Lock is released when file is dropped, but rename is still atomic
         drop(file);
 
         // Atomic rename (same filesystem guaranteed since temp is in same dir)
@@ -673,8 +728,7 @@ impl ConfigFile {
         Ok(false)
     }
 
-    /// Update block range in memory only (for testing)
-    #[cfg(test)]
+    /// Lower an endpoint's max_block_range in memory (true if it changed)
     pub fn update_endpoint_block_range_in_memory(
         &mut self,
         url: &str,
@@ -689,8 +743,7 @@ impl ConfigFile {
         false
     }
 
-    /// Update max logs in memory only (for testing)
-    #[cfg(test)]
+    /// Lower an endpoint's max_logs in memory (true if it changed)
     pub fn update_endpoint_max_logs_in_memory(&mut self, url: &str, max_logs: usize) -> bool {
         if let Some(ep) = self.endpoints.iter_mut().find(|e| e.url == url) {
             if max_logs < ep.max_logs {
@@ -716,6 +769,38 @@ impl ConfigFile {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn update_patches_the_file_as_it_is_now() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let mut config = ConfigFile::default();
+        config
+            .endpoints
+            .push(EndpointConfig::new("https://a.example"));
+        config.save(&path).unwrap();
+
+        // A snapshot taken earlier...
+        let snapshot = ConfigFile::load(&path).unwrap();
+        // ...then another process adds an endpoint
+        let mut other = ConfigFile::load(&path).unwrap();
+        other
+            .endpoints
+            .push(EndpointConfig::new("https://b.example"));
+        other.save(&path).unwrap();
+        drop(snapshot);
+
+        let changed = ConfigFile::update(&path, |c| {
+            c.update_endpoint_block_range_in_memory("https://a.example", 500)
+        })
+        .unwrap();
+        assert!(changed);
+        let now = ConfigFile::load(&path).unwrap();
+        assert_eq!(now.endpoints.len(), 2, "the other edit must survive");
+        assert_eq!(now.endpoints[0].max_block_range, 500);
+        assert!(dir.path().join("config.toml.lock").exists());
+    }
+
     use super::*;
 
     #[test]
