@@ -337,16 +337,26 @@ pub async fn fetch_prices_all(
     fetch_prices_parallel(token, chain, &sources).await
 }
 
+/// Per-source timeout for [`fetch_prices_parallel`]
+const PER_SOURCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Fetch prices from specified sources in parallel
 pub async fn fetch_prices_parallel(
     token: &str,
     chain: &str,
     sources: &[PriceSource],
 ) -> AggregatedResult<NormalizedPrice, PriceAggregation> {
-    let start = LatencyMeasure::start();
+    fetch_prices_parallel_within(token, chain, sources, PER_SOURCE_TIMEOUT).await
+}
 
-    // Build futures for each source, each with a per-source timeout
-    const PER_SOURCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// [`fetch_prices_parallel`] with an explicit per-source timeout
+async fn fetch_prices_parallel_within(
+    token: &str,
+    chain: &str,
+    sources: &[PriceSource],
+    per_source_timeout: std::time::Duration,
+) -> AggregatedResult<NormalizedPrice, PriceAggregation> {
+    let start = LatencyMeasure::start();
 
     let futures: Vec<_> = sources
         .iter()
@@ -357,7 +367,7 @@ pub async fn fetch_prices_parallel(
             let source = *source;
             async move {
                 match tokio::time::timeout(
-                    PER_SOURCE_TIMEOUT,
+                    per_source_timeout,
                     fetch_price_from_source(&token, &chain, source),
                 )
                 .await
@@ -365,8 +375,8 @@ pub async fn fetch_prices_parallel(
                     Ok(result) => result,
                     Err(_) => SourceResult::error_owned(
                         source.to_string(),
-                        "Request timed out (10s)",
-                        PER_SOURCE_TIMEOUT.as_millis() as u64,
+                        format!("Request timed out ({}s)", per_source_timeout.as_secs_f32()),
+                        per_source_timeout.as_millis() as u64,
                     ),
                 }
             }
@@ -1924,6 +1934,15 @@ fn chain_name_to_kong_id(chain: &str) -> Option<u64> {
 ///
 /// This uses the Kong vaults API for vault metadata, then prices the
 /// underlying asset using the other aggregator sources.
+/// Time left for a nested price fetch inside one source's budget
+fn nested_price_budget(elapsed: std::time::Duration) -> std::time::Duration {
+    const MARGIN: std::time::Duration = std::time::Duration::from_millis(500);
+    PER_SOURCE_TIMEOUT
+        .saturating_sub(elapsed)
+        .saturating_sub(MARGIN)
+        .max(std::time::Duration::from_millis(500))
+}
+
 async fn fetch_kong_vault_price(
     token: &str,
     chain: &str,
@@ -2053,8 +2072,13 @@ async fn fetch_kong_vault_price(
         PriceSource::Enso,
     ];
 
+    // This source itself runs under PER_SOURCE_TIMEOUT: give the nested fetch
+    // what is left of it (minus a margin to compute the result), or a nested
+    // 10s fetch inside a 10s budget always times the whole source out.
+    let remaining = nested_price_budget(std::time::Duration::from_millis(measure.elapsed_ms()));
     let underlying_result =
-        fetch_prices_parallel(&underlying_address, chain, &underlying_sources).await;
+        fetch_prices_parallel_within(&underlying_address, chain, &underlying_sources, remaining)
+            .await;
 
     let underlying_price = underlying_result.aggregated.median_usd;
 
@@ -2078,6 +2102,17 @@ async fn fetch_kong_vault_price(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn nested_price_budget_fits_inside_the_outer_timeout() {
+        use std::time::Duration;
+        let fresh = nested_price_budget(Duration::ZERO);
+        assert!(fresh < PER_SOURCE_TIMEOUT);
+        let late = nested_price_budget(Duration::from_secs(8));
+        assert!(Duration::from_secs(8) + late < PER_SOURCE_TIMEOUT);
+        // Never zero, even when the outer budget is spent
+        assert!(nested_price_budget(Duration::from_secs(30)) > Duration::ZERO);
+    }
+
     use super::*;
     use yldfi_common::api::ApiError;
 
