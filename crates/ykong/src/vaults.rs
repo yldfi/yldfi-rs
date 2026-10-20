@@ -81,42 +81,88 @@ impl VaultFilter {
         self
     }
 
-    /// Build the GraphQL arguments string
-    fn build_args(&self) -> String {
+    /// Build the GraphQL variable declarations, field arguments and
+    /// variables for the `vaults` query.
+    ///
+    /// User-provided values are only ever sent as GraphQL variables, never
+    /// interpolated into the query text.
+    fn build_args(&self) -> (String, String, serde_json::Value) {
+        let mut decls = Vec::new();
         let mut args = Vec::new();
+        let mut vars = serde_json::Map::new();
+        let mut push = |name: &str, ty: &str, value: serde_json::Value| {
+            decls.push(format!("${name}: {ty}"));
+            args.push(format!("{name}: ${name}"));
+            vars.insert(name.to_string(), value);
+        };
 
         if let Some(chain_id) = self.chain_id {
-            args.push(format!("chainId: {chain_id}"));
+            push("chainId", "Int", chain_id.into());
         }
         if let Some(ref version) = self.api_version {
-            args.push(format!("apiVersion: \"{version}\""));
+            push("apiVersion", "String", version.clone().into());
         }
         if let Some(v3) = self.v3 {
-            args.push(format!("v3: {v3}"));
+            push("v3", "Boolean", v3.into());
         }
         if let Some(yearn) = self.yearn {
-            args.push(format!("yearn: {yearn}"));
+            push("yearn", "Boolean", yearn.into());
         }
         if let Some(erc4626) = self.erc4626 {
-            args.push(format!("erc4626: {erc4626}"));
+            push("erc4626", "Boolean", erc4626.into());
         }
         if let Some(vault_type) = self.vault_type {
-            args.push(format!("vaultType: {vault_type}"));
+            push("vaultType", "Int", vault_type.into());
         }
         if let Some(risk_level) = self.risk_level {
-            args.push(format!("riskLevel: {risk_level}"));
+            push("riskLevel", "Int", risk_level.into());
         }
         if let Some(ref addresses) = self.addresses {
-            let addr_str: Vec<String> = addresses.iter().map(|a| format!("\"{a}\"")).collect();
-            args.push(format!("addresses: [{}]", addr_str.join(", ")));
+            push("addresses", "[String]", addresses.clone().into());
         }
 
         if args.is_empty() {
-            String::new()
+            (String::new(), String::new(), serde_json::Value::Null)
         } else {
-            format!("({})", args.join(", "))
+            (
+                format!("({})", decls.join(", ")),
+                format!("({})", args.join(", ")),
+                serde_json::Value::Object(vars),
+            )
         }
     }
+}
+
+/// Fields selected for `Vault`
+const VAULT_FIELDS: &str = "address name symbol chainId apiVersion decimals v3 yearn erc4626 \
+    isShutdown emergencyShutdown vaultType token totalAssets totalSupply pricePerShare \
+    depositLimit availableDepositLimit managementFee performanceFee governance guardian \
+    management rewards registry inceptTime inceptBlock lastReport activation projectId \
+    projectName withdrawalQueue strategies \
+    tvl { close blockTime } \
+    apy { net weeklyNet monthlyNet inceptionNet grossApr blockTime } \
+    fees { managementFee performanceFee } \
+    risk { riskLevel } \
+    meta { displayName description category isHidden isBoosted } \
+    asset { address name symbol decimals }";
+
+/// Query text and variables for `vaults(...)`
+fn list_query(filter: &VaultFilter) -> (String, serde_json::Value) {
+    let (decls, args, variables) = filter.build_args();
+    let query = format!("query Vaults{decls} {{ vaults{args} {{ {VAULT_FIELDS} }} }}");
+    (query, variables)
+}
+
+/// Query text and variables for `vault(chainId, address)`
+fn get_query(chain_id: u64, address: &str) -> (String, serde_json::Value) {
+    let query = format!(
+        "query Vault($chainId: Int, $address: String) {{ \
+         vault(chainId: $chainId, address: $address) {{ {VAULT_FIELDS} }} }}"
+    );
+    (
+        query,
+        serde_json::json!({ "chainId": chain_id, "address": address }),
+    )
 }
 
 /// Vaults API
@@ -146,59 +192,14 @@ impl<'a> VaultsApi<'a> {
     /// # }
     /// ```
     pub async fn list(&self, filter: Option<VaultFilter>) -> Result<Vec<Vault>> {
-        let args = filter.unwrap_or_default().build_args();
-        let query = format!(
-            r"{{
-                vaults{args} {{
-                    address
-                    name
-                    symbol
-                    chainId
-                    apiVersion
-                    decimals
-                    v3
-                    yearn
-                    erc4626
-                    isShutdown
-                    emergencyShutdown
-                    vaultType
-                    token
-                    totalAssets
-                    totalSupply
-                    pricePerShare
-                    depositLimit
-                    availableDepositLimit
-                    managementFee
-                    performanceFee
-                    governance
-                    guardian
-                    management
-                    rewards
-                    registry
-                    inceptTime
-                    inceptBlock
-                    lastReport
-                    activation
-                    projectId
-                    projectName
-                    withdrawalQueue
-                    strategies
-                    tvl {{ close blockTime }}
-                    apy {{ net weeklyNet monthlyNet inceptionNet grossApr blockTime }}
-                    fees {{ managementFee performanceFee }}
-                    risk {{ riskLevel }}
-                    meta {{ displayName description category isHidden isBoosted }}
-                    asset {{ address name symbol decimals }}
-                }}
-            }}"
-        );
+        let (query, variables) = list_query(&filter.unwrap_or_default());
 
         #[derive(Deserialize)]
         struct Response {
             vaults: Vec<Vault>,
         }
 
-        let response: Response = self.client.query(&query).await?;
+        let response: Response = self.client.query_with_variables(&query, variables).await?;
         Ok(response.vaults)
     }
 
@@ -244,58 +245,14 @@ impl<'a> VaultsApi<'a> {
     /// # }
     /// ```
     pub async fn get(&self, chain_id: u64, address: &str) -> Result<Option<Vault>> {
-        let query = format!(
-            r#"{{
-                vault(chainId: {chain_id}, address: "{address}") {{
-                    address
-                    name
-                    symbol
-                    chainId
-                    apiVersion
-                    decimals
-                    v3
-                    yearn
-                    erc4626
-                    isShutdown
-                    emergencyShutdown
-                    vaultType
-                    token
-                    totalAssets
-                    totalSupply
-                    pricePerShare
-                    depositLimit
-                    availableDepositLimit
-                    managementFee
-                    performanceFee
-                    governance
-                    guardian
-                    management
-                    rewards
-                    registry
-                    inceptTime
-                    inceptBlock
-                    lastReport
-                    activation
-                    projectId
-                    projectName
-                    withdrawalQueue
-                    strategies
-                    tvl {{ close blockTime }}
-                    apy {{ net weeklyNet monthlyNet inceptionNet grossApr blockTime }}
-                    fees {{ managementFee performanceFee }}
-                    risk {{ riskLevel }}
-                    meta {{ displayName description category isHidden isBoosted }}
-                    asset {{ address name symbol decimals }}
-                }}
-            }}"#
-        );
+        let (query, variables) = get_query(chain_id, address);
 
         #[derive(Deserialize)]
         struct Response {
             vault: Option<Vault>,
         }
 
-        let response: Response = self.client.query(&query).await?;
+        let response: Response = self.client.query_with_variables(&query, variables).await?;
         Ok(response.vault)
     }
 
@@ -324,5 +281,52 @@ impl<'a> VaultsApi<'a> {
                     .to_string(),
             },
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn list_query_sends_filter_as_variables() {
+        let filter = VaultFilter::new()
+            .chain_id(1)
+            .api_version("3.0.2\") { injected }")
+            .v3(true)
+            .addresses(vec!["0xabc".to_string()]);
+        let (query, variables) = list_query(&filter);
+        assert!(query.starts_with(
+            "query Vaults($chainId: Int, $apiVersion: String, $v3: Boolean, $addresses: [String]) \
+             { vaults(chainId: $chainId, apiVersion: $apiVersion, v3: $v3, addresses: $addresses) {"
+        ));
+        assert!(!query.contains("injected"));
+        assert_eq!(
+            variables,
+            serde_json::json!({
+                "chainId": 1,
+                "apiVersion": "3.0.2\") { injected }",
+                "v3": true,
+                "addresses": ["0xabc"],
+            })
+        );
+    }
+
+    #[test]
+    fn list_query_without_filter_has_no_variables() {
+        let (query, variables) = list_query(&VaultFilter::new());
+        assert!(query.starts_with("query Vaults { vaults {"), "{query}");
+        assert!(variables.is_null());
+    }
+
+    #[test]
+    fn get_query_uses_variables() {
+        let (query, variables) = get_query(10, "0x\"bad");
+        assert!(query.contains("vault(chainId: $chainId, address: $address)"));
+        assert!(!query.contains("bad"));
+        assert_eq!(
+            variables,
+            serde_json::json!({ "chainId": 10, "address": "0x\"bad" })
+        );
     }
 }
