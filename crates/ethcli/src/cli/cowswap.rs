@@ -57,10 +57,16 @@ pub enum CowSwapCommands {
         chain: String,
     },
 
-    /// Get orders for an address
+    /// Get orders for an address (paginated, newest first)
     Orders {
         /// Owner address
         owner: String,
+        /// Pagination offset
+        #[arg(long)]
+        offset: Option<u64>,
+        /// Max orders to return, 1-1000 (API default: 10)
+        #[arg(long)]
+        limit: Option<u32>,
         /// Chain
         #[arg(long, default_value = "ethereum")]
         chain: String,
@@ -236,9 +242,16 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
             output_json(&order, args.format)?;
         }
 
-        CowSwapCommands::Orders { owner, chain } => {
+        CowSwapCommands::Orders {
+            owner,
+            offset,
+            limit,
+            chain,
+        } => {
             let cow_chain = chain_name_to_cow_chain(&chain)?;
-            let orders = client.get_orders_by_owner(Some(cow_chain), &owner).await?;
+            let orders = client
+                .get_orders_by_owner_paginated(Some(cow_chain), &owner, offset, limit)
+                .await?;
             output_json(&orders, args.format)?;
         }
 

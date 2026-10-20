@@ -416,11 +416,33 @@ pub struct OrderCreation {
 }
 
 /// Order response after submission
-#[derive(Debug, Clone, Deserialize, Serialize)]
+///
+/// `POST /api/v1/orders` returns the order UID as a bare JSON string. An
+/// object of the form `{"UID": "0x..."}` is also accepted for compatibility.
+#[derive(Debug, Clone, Serialize)]
 pub struct OrderResponse {
     /// Order UID
     #[serde(rename = "UID")]
     pub uid: String,
+}
+
+impl<'de> Deserialize<'de> for OrderResponse {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Bare(String),
+            Object {
+                #[serde(rename = "UID")]
+                uid: String,
+            },
+        }
+
+        let uid = match Repr::deserialize(deserializer)? {
+            Repr::Bare(uid) | Repr::Object { uid } => uid,
+        };
+        Ok(Self { uid })
+    }
 }
 
 /// Order details
