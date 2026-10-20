@@ -27,6 +27,7 @@ pub enum WebhookNetwork {
     EthMainnet,
     EthSepolia,
     EthHolesky,
+    EthHoodi,
     PolygonMainnet,
     PolygonAmoy,
     ArbMainnet,

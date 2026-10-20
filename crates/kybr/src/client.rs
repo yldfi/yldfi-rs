@@ -38,6 +38,17 @@ impl Client {
         self.base.config()
     }
 
+    /// Request headers: the API key, if configured, goes in `X-Api-Key`
+    fn headers(&self) -> reqwest::header::HeaderMap {
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Some(key) = self.config().get_api_key() {
+            if let Ok(value) = reqwest::header::HeaderValue::from_str(key) {
+                headers.insert("X-Api-Key", value);
+            }
+        }
+        headers
+    }
+
     /// Get swap routes (V1 API)
     ///
     /// # Example
@@ -87,7 +98,10 @@ impl Client {
 
         let path = format!("/{}/api/v1/routes", chain.as_str());
 
-        let response: RoutesResponse = self.base.get(&path, &query_params).await?;
+        let response: RoutesResponse = self
+            .base
+            .get_with_headers(&path, &query_params, self.headers())
+            .await?;
 
         if response.code != 0 {
             return Err(Error::api(response.code as u16, response.message));
@@ -119,7 +133,10 @@ impl Client {
 
         let path = format!("/{}/api/v1/routes", chain.as_str());
 
-        let response: RoutesResponse = self.base.get(&path, &query_params).await?;
+        let response: RoutesResponse = self
+            .base
+            .get_with_headers(&path, &query_params, self.headers())
+            .await?;
 
         if response.code != 0 {
             return Err(Error::api(response.code as u16, response.message));
@@ -172,7 +189,10 @@ impl Client {
         request: &BuildRouteRequest,
     ) -> Result<BuildRouteData> {
         let path = format!("/{}/api/v1/route/build", chain.as_str());
-        let response: BuildRouteResponse = self.base.post_json(&path, request).await?;
+        let response: BuildRouteResponse = self
+            .base
+            .post_json_with_headers(&path, request, self.headers())
+            .await?;
 
         if response.code != 0 {
             return Err(Error::api(response.code as u16, response.message));
@@ -213,5 +233,10 @@ mod tests {
     fn test_default_config() {
         let config = crate::default_config();
         assert_eq!(config.base_url, crate::DEFAULT_BASE_URL);
+
+        let client = Client::with_config(crate::gateway_config("k")).unwrap();
+        assert_eq!(client.config().base_url, crate::GATEWAY_BASE_URL);
+        assert_eq!(client.headers().get("X-Api-Key").unwrap(), "k");
+        assert!(client.headers().get("authorization").is_none());
     }
 }

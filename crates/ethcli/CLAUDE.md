@@ -854,7 +854,7 @@ ethcli openocean dexes --chain ethereum
 
 ### KyberSwap Commands
 
-Direct access to KyberSwap Aggregator API. No API key required.
+Direct access to KyberSwap Aggregator API. No API key required; set `KYBERSWAP_API_KEY` to use the API gateway instead of the rate-limited keyless API.
 
 ```bash
 # Get optimal routes
@@ -919,7 +919,7 @@ ethcli cowswap native-price <token> --chain ethereum
 
 ### LI.FI Commands
 
-Direct access to LI.FI cross-chain aggregator API. Optional `LIFI_INTEGRATOR` for analytics.
+Direct access to LI.FI cross-chain aggregator API. Optional `LIFI_INTEGRATOR` for analytics and `LIFI_API_KEY` for per-key (instead of per-IP) rate limits.
 
 ```bash
 # Cross-chain quote (--slippage is in percent, default 0.5 = 0.5%; converted to
@@ -1272,6 +1272,8 @@ ethcli chainlink oracles --chain arbitrum
 | `ONEINCH_API_KEY` / `1INCH_API_KEY` | `ethcli 1inch` | 1inch DEX Aggregator (required) |
 | `ZEROX_API_KEY` / `0X_API_KEY` | Optional | 0x Protocol (higher rate limits) |
 | `LIFI_INTEGRATOR` | Optional | LI.FI analytics tracking |
+| `KYBERSWAP_API_KEY` | Optional | KyberSwap API gateway (`api.kyberswap.com/swap`, `X-Api-Key`); without it the keyless, 3 rps aggregator API is used |
+| `LIFI_API_KEY` | Optional | LI.FI API key (`x-lifi-api-key`; without it limits are per IP) |
 | `PARASWAP_API_KEY` / `VELORA_API_KEY` | Optional | Velora/ParaSwap (higher rate limits) |
 | `ENSO_API_KEY` | `ethcli enso` | Enso Finance (required) |
 

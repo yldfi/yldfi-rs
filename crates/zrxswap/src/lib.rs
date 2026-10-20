@@ -144,7 +144,6 @@
 //! | Avalanche | 43114 | AVAX |
 //! | Fantom | 250 | FTM |
 //! | Celo | 42220 | CELO |
-//! | Blast | 81457 | ETH |
 //! | Linea | 59144 | ETH |
 //! | Scroll | 534352 | ETH |
 //! | Mantle | 5000 | MNT |

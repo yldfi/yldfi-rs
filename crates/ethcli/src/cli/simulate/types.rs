@@ -52,6 +52,9 @@ impl AlchemyArgs {
         match network.to_lowercase().as_str() {
             "eth-mainnet" | "ethereum" | "mainnet" => alcmy::Network::EthMainnet,
             "eth-sepolia" | "sepolia" => alcmy::Network::EthSepolia,
+            "eth-hoodi" | "hoodi" => alcmy::Network::EthHoodi,
+            // Retired; kept so it is not silently treated as mainnet below
+            #[allow(deprecated)]
             "eth-holesky" | "holesky" => alcmy::Network::EthHolesky,
             "polygon-mainnet" | "polygon" | "matic" => alcmy::Network::PolygonMainnet,
             "polygon-amoy" | "amoy" => alcmy::Network::PolygonAmoy,

@@ -224,6 +224,10 @@ pub struct TradeAttributes {
     pub block_timestamp: Option<String>,
     pub kind: Option<String>,
     pub volume_in_usd: Option<String>,
+    /// Whether `CoinGecko` flagged the trade as anomalous (only returned
+    /// when anomalous trades are requested)
+    #[serde(default)]
+    pub is_anomalous: Option<bool>,
 }
 
 /// Multi-token response

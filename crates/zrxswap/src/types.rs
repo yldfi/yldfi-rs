@@ -30,8 +30,6 @@ pub enum Chain {
     Fantom,
     /// Celo (chain ID: 42220)
     Celo,
-    /// Blast (chain ID: 81457)
-    Blast,
     /// Linea (chain ID: 59144)
     Linea,
     /// Scroll (chain ID: 534352)
@@ -56,7 +54,6 @@ impl Chain {
             Self::Avalanche => 43114,
             Self::Fantom => 250,
             Self::Celo => 42220,
-            Self::Blast => 81457,
             Self::Linea => 59144,
             Self::Scroll => 534352,
             Self::Mantle => 5000,
@@ -77,7 +74,6 @@ impl Chain {
             Self::Avalanche => "avalanche",
             Self::Fantom => "fantom",
             Self::Celo => "celo",
-            Self::Blast => "blast",
             Self::Linea => "linea",
             Self::Scroll => "scroll",
             Self::Mantle => "mantle",
@@ -98,7 +94,6 @@ impl Chain {
             "avalanche" | "avax" | "43114" => Some(Self::Avalanche),
             "fantom" | "ftm" | "250" => Some(Self::Fantom),
             "celo" | "42220" => Some(Self::Celo),
-            "blast" | "81457" => Some(Self::Blast),
             "linea" | "59144" => Some(Self::Linea),
             "scroll" | "534352" => Some(Self::Scroll),
             "mantle" | "mnt" | "5000" => Some(Self::Mantle),
@@ -120,7 +115,6 @@ impl Chain {
             43114 => Some(Self::Avalanche),
             250 => Some(Self::Fantom),
             42220 => Some(Self::Celo),
-            81457 => Some(Self::Blast),
             59144 => Some(Self::Linea),
             534352 => Some(Self::Scroll),
             5000 => Some(Self::Mantle),
@@ -150,7 +144,6 @@ impl TryFrom<yldfi_common::Chain> for Chain {
             yldfi_common::Chain::Avalanche => Ok(Self::Avalanche),
             yldfi_common::Chain::Fantom => Ok(Self::Fantom),
             yldfi_common::Chain::Celo => Ok(Self::Celo),
-            yldfi_common::Chain::Blast => Ok(Self::Blast),
             yldfi_common::Chain::Linea => Ok(Self::Linea),
             yldfi_common::Chain::Scroll => Ok(Self::Scroll),
             yldfi_common::Chain::Mantle => Ok(Self::Mantle),
@@ -172,7 +165,6 @@ impl From<Chain> for yldfi_common::Chain {
             Chain::Avalanche => Self::Avalanche,
             Chain::Fantom => Self::Fantom,
             Chain::Celo => Self::Celo,
-            Chain::Blast => Self::Blast,
             Chain::Linea => Self::Linea,
             Chain::Scroll => Self::Scroll,
             Chain::Mantle => Self::Mantle,

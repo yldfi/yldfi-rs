@@ -91,7 +91,7 @@ pub enum KyberCommands {
 }
 
 pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
-    let client = Client::new()?;
+    let client = Client::with_config(kyber_config())?;
 
     match args.action {
         KyberCommands::Routes {
@@ -183,6 +183,15 @@ fn extract_route_summary(json: &str) -> anyhow::Result<serde_json::Value> {
             .remove("routeSummary")
             .unwrap_or(serde_json::Value::Object(map))),
         _ => anyhow::bail!("Invalid route summary JSON: expected an object"),
+    }
+}
+
+/// KyberSwap config: the API gateway when `KYBERSWAP_API_KEY` is set,
+/// otherwise the keyless (rate-limited) aggregator API
+pub(crate) fn kyber_config() -> kybr::Config {
+    match std::env::var("KYBERSWAP_API_KEY") {
+        Ok(key) if !key.is_empty() => kybr::gateway_config(key),
+        _ => kybr::default_config(),
     }
 }
 

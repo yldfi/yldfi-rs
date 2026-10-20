@@ -59,7 +59,7 @@ pub enum DomainError {
     /// The requested network has no Beacon (consensus layer) endpoint
     #[error(
         "Beacon API is not available for network '{0}' \
-         (supported: eth-mainnet, eth-sepolia, eth-holesky)"
+         (supported: eth-mainnet, eth-sepolia, eth-hoodi)"
     )]
     UnsupportedBeaconNetwork(&'static str),
 

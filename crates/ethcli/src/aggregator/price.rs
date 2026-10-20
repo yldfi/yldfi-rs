@@ -723,6 +723,9 @@ async fn fetch_moralis_price(
         }
     };
 
+    if let Some(reason) = super::chain_map::moralis_dropped_chain(chain) {
+        return SourceResult::error("moralis", reason, measure.elapsed_ms());
+    }
     let chain_name = normalize_chain_for_source("moralis", chain);
     let client = match mrls::Client::new(&api_key) {
         Ok(c) => c,

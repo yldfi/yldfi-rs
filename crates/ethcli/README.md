@@ -1185,6 +1185,8 @@ ethcli config set-etherscan-key YOUR_KEY
 | `ONEINCH_API_KEY` / `1INCH_API_KEY` | `ethcli 1inch` | 1inch DEX Aggregator (required) |
 | `ZEROX_API_KEY` / `0X_API_KEY` | `ethcli 0x` | 0x Protocol (optional, higher limits) |
 | `LIFI_INTEGRATOR` | `ethcli lifi` | LI.FI analytics tracking (optional) |
+| `KYBERSWAP_API_KEY` | `ethcli kyber`, `quote` | KyberSwap API gateway key (optional; without it the keyless 3 rps API is used) |
+| `LIFI_API_KEY` | `ethcli lifi`, `quote` | LI.FI API key (optional; without it limits are per IP) |
 | `PARASWAP_API_KEY` / `VELORA_API_KEY` | `ethcli velora` | ParaSwap (optional, higher limits) |
 | `ENSO_API_KEY` | `ethcli enso` | Enso Finance (required) |
 
@@ -1326,7 +1328,7 @@ ethcli cowswap cancel-orders --uid <uid1>,<uid2> <signature> --chain ethereum
 
 ### LI.FI - Cross-Chain Aggregator
 
-Direct access to LI.FI API for cross-chain swaps and bridges. Optional `LIFI_INTEGRATOR` for analytics.
+Direct access to LI.FI API for cross-chain swaps and bridges. Optional `LIFI_INTEGRATOR` for analytics and `LIFI_API_KEY` for per-key rate limits.
 
 ```bash
 # Get swap/bridge quote
