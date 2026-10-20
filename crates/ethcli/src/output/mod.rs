@@ -18,6 +18,12 @@ pub trait OutputWriter {
     /// Write a batch of logs
     fn write_logs(&mut self, logs: &FetchResult) -> Result<()>;
 
+    /// Make everything written so far durable, so a checkpoint can record it.
+    /// Called after each streamed chunk.
+    fn flush(&mut self) -> Result<()> {
+        Ok(())
+    }
+
     /// Finalize output (flush, close, etc.)
     fn finalize(&mut self) -> Result<()>;
 }

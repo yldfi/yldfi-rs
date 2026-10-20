@@ -81,9 +81,28 @@ impl SqliteWriter {
         self.conn
             .execute_batch(&create_sql)
             .map_err(OutputError::Sqlite)?;
+        self.ensure_unique_index("events", "idx_events_tx_log");
         self.table_created = true;
 
         Ok(())
+    }
+
+    /// Add a UNIQUE(transaction_hash, log_index) index so a resumed fetch that
+    /// re-fetches a range can't insert the same log twice (inserts use OR IGNORE).
+    /// A database written by an older version may already hold duplicates; then
+    /// the index can't be built and only a warning is printed.
+    fn ensure_unique_index(&self, table: &str, index: &str) {
+        let sql = format!(
+            "CREATE UNIQUE INDEX IF NOT EXISTS {index} ON {table}(transaction_hash, log_index)"
+        );
+        if let Err(e) = self.conn.execute_batch(&sql) {
+            tracing::warn!(
+                "Could not add a unique (transaction_hash, log_index) index to {}: {}. \
+                 Duplicate rows will not be prevented.",
+                table,
+                e
+            );
+        }
     }
 
     /// Sanitize column name for SQL (static version for basic sanitization)
@@ -214,7 +233,7 @@ impl SqliteWriter {
 
         let placeholders: Vec<&str> = (0..cols.len()).map(|_| "?").collect();
         let sql = format!(
-            "INSERT INTO events ({}) VALUES ({})",
+            "INSERT OR IGNORE INTO events ({}) VALUES ({})",
             cols.join(", "),
             placeholders.join(", ")
         );
@@ -309,12 +328,13 @@ impl SqliteWriter {
             CREATE INDEX IF NOT EXISTS idx_raw_address ON raw_logs(address);",
             )
             .map_err(OutputError::Sqlite)?;
+        self.ensure_unique_index("raw_logs", "idx_raw_tx_log");
 
         let tx = self.conn.transaction().map_err(OutputError::Sqlite)?;
 
         {
             let mut stmt = tx.prepare(
-                "INSERT INTO raw_logs (block_number, transaction_hash, log_index, address, topic0, topic1, topic2, topic3, data)
+                "INSERT OR IGNORE INTO raw_logs (block_number, transaction_hash, log_index, address, topic0, topic1, topic2, topic3, data)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             ).map_err(OutputError::Sqlite)?;
 
@@ -362,6 +382,14 @@ impl OutputWriter for SqliteWriter {
             FetchLogs::Raw(logs) => {
                 self.write_raw_logs(logs)?;
             }
+        }
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        if !self.buffer.is_empty() {
+            let batch = std::mem::take(&mut self.buffer);
+            self.insert_batch(batch)?;
         }
         Ok(())
     }
@@ -473,5 +501,56 @@ mod tests {
         // Should be valid JSON with nested structure
         assert!(result.contains("0x123"));
         assert!(result.contains("true"));
+    }
+
+    fn decoded(tx: u8, log_index: u64) -> DecodedLog {
+        DecodedLog {
+            block_number: 1,
+            timestamp: None,
+            transaction_hash: alloy::primitives::B256::repeat_byte(tx),
+            log_index,
+            address: alloy::primitives::Address::ZERO,
+            event_name: "Transfer".to_string(),
+            event_signature: "Transfer(address,address,uint256)".to_string(),
+            params: StdHashMap::new(),
+            topics: vec![],
+            data: vec![],
+        }
+    }
+
+    fn result(logs: Vec<DecodedLog>) -> FetchResult {
+        FetchResult {
+            logs: FetchLogs::Decoded(logs),
+            stats: Default::default(),
+        }
+    }
+
+    #[test]
+    fn flush_persists_buffered_rows_and_reinserts_are_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.db");
+        let count = |path: &Path| -> i64 {
+            Connection::open(path)
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM events", [], |r| r.get(0))
+                .unwrap()
+        };
+
+        let mut writer = SqliteWriter::new(&path).unwrap();
+        writer
+            .write_logs(&result(vec![decoded(1, 0), decoded(1, 1)]))
+            .unwrap();
+        writer.flush().unwrap();
+        // Rows are in the database after flush, before finalize
+        assert_eq!(count(&path), 2);
+        drop(writer);
+
+        // A resumed run re-fetches the same range
+        let mut writer = SqliteWriter::new(&path).unwrap();
+        writer
+            .write_logs(&result(vec![decoded(1, 1), decoded(2, 0)]))
+            .unwrap();
+        writer.finalize().unwrap();
+        assert_eq!(count(&path), 3);
     }
 }

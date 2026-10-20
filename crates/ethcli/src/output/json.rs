@@ -125,6 +125,12 @@ impl OutputWriter for JsonWriter {
         Ok(())
     }
 
+    fn flush(&mut self) -> Result<()> {
+        self.writer
+            .flush()
+            .map_err(|e| OutputError::JsonWrite(e.to_string()).into())
+    }
+
     fn finalize(&mut self) -> Result<()> {
         if !self.ndjson {
             self.ensure_open()?;

@@ -262,6 +262,17 @@ impl OutputWriter for CsvWriter {
         Ok(())
     }
 
+    fn flush(&mut self) -> Result<()> {
+        // Rows buffered before the header is known stay buffered; once the
+        // header is out, push written rows to the sink.
+        if self.header_written {
+            self.writer
+                .flush()
+                .map_err(|e| OutputError::CsvWrite(e.to_string()))?;
+        }
+        Ok(())
+    }
+
     fn finalize(&mut self) -> Result<()> {
         // Flush any remaining buffer
         if !self.header_written && !self.buffer.is_empty() {

@@ -751,8 +751,16 @@ impl StreamingFetcher {
                         },
                     };
 
-                    // Call handler to process/write the chunk
-                    handler(fetch_result)?;
+                    // Call handler to process/write the chunk. On failure, save
+                    // the ranges completed so far before giving up.
+                    if let Err(e) = handler(fetch_result) {
+                        if let Some(ref manager) = self.checkpoint_manager {
+                            if let Err(save_err) = manager.lock().save_now() {
+                                tracing::warn!("Failed to save checkpoint: {}", save_err);
+                            }
+                        }
+                        return Err(e);
+                    }
 
                     // Update checkpoint
                     if let Some(ref manager) = self.checkpoint_manager {

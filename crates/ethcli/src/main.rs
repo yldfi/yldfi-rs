@@ -750,6 +750,8 @@ async fn run_streaming_fetch(
             }
 
             writer.write_logs(&result)?;
+            // Make the chunk durable before the fetcher checkpoints it
+            writer.flush()?;
             Ok(())
         })
         .await?;
