@@ -800,31 +800,36 @@ pub enum AlertsCommands {
     },
 
     /// Update an alert
+    ///
+    /// Starts from the existing alert, so its enabled state, description,
+    /// color, target and channels are kept unless overridden here.
     Update {
         /// Alert ID
         id: String,
 
-        /// Alert name
+        /// New alert name (default: keep)
         #[arg(long)]
-        name: String,
+        name: Option<String>,
 
-        /// Alert type (simple_type, see `alerts create --help`)
+        /// Alert type (simple_type, see `alerts create --help`); required
+        /// because the API does not return it
         #[arg(long)]
         alert_type: String,
 
-        /// Network ID
-        #[arg(long, default_value = "1")]
-        network: String,
+        /// Network ID (default: keep)
+        #[arg(long)]
+        network: Option<String>,
 
-        /// Target addresses (can be repeated)
+        /// Target addresses, replacing the current address/tag target (can be repeated)
         #[arg(long = "address", action = clap::ArgAction::Append)]
         addresses: Vec<String>,
 
-        /// Extra expression as JSON (can be repeated)
+        /// Extra expression as JSON, replacing the current non-target
+        /// conditions (can be repeated)
         #[arg(long = "expression", action = clap::ArgAction::Append)]
         expressions: Vec<String>,
 
-        /// Delivery channel ID to notify (can be repeated)
+        /// Delivery channel ID to notify, replacing the current channels (can be repeated)
         #[arg(long = "channel", action = clap::ArgAction::Append)]
         channels: Vec<String>,
     },
@@ -1947,7 +1952,11 @@ async fn handle_alerts(
             if !quiet {
                 eprintln!("Testing alert {}...", id);
             }
-            let request = tndrly::alerts::TestAlertRequest::new(id, network, tx_hash);
+            let request = tndrly::alerts::TestAlertRequest {
+                alert_id: id.clone(),
+                network_id: network.clone(),
+                tx_hash: tx_hash.clone(),
+            };
             client.alerts().test_alert(&request).await?;
             println!("Alert test triggered for {}.", id);
         }
@@ -1964,18 +1973,21 @@ async fn handle_alerts(
             if !quiet {
                 eprintln!("Updating alert {}...", id);
             }
-            let target_type = if addresses.is_empty() {
-                "project"
-            } else {
-                "address"
-            };
-            let request = build_alert_request(
-                name,
+            // PATCH replaces the whole alert, so merge onto the current one
+            let existing = client
+                .alerts()
+                .list()
+                .await?
+                .alerts
+                .into_iter()
+                .find(|a| a.id == *id)
+                .ok_or_else(|| anyhow::anyhow!("Alert {} not found", id))?;
+            let request = merge_alert_update(
+                &existing,
+                name.as_deref(),
                 alert_type,
-                target_type,
+                network.as_deref(),
                 addresses,
-                None,
-                network,
                 expressions,
                 channels,
             )?;
@@ -2042,6 +2054,71 @@ fn build_alert_request(
     }
     for channel in channels {
         request = request.delivery_channel(channel);
+    }
+
+    Ok(request)
+}
+
+/// Build an `alerts update` body: the existing alert with the given CLI
+/// overrides applied (`PATCH /alert/{id}` is a full replace)
+fn merge_alert_update(
+    existing: &tndrly::alerts::Alert,
+    name: Option<&str>,
+    alert_type: &str,
+    network: Option<&str>,
+    addresses: &[String],
+    expressions: &[String],
+    channels: &[String],
+) -> anyhow::Result<tndrly::alerts::CreateAlertRequest> {
+    use tndrly::alerts::{
+        AlertDeliveryChannelInput, AlertExpression, AlertType, CreateAlertRequest, ExpressionType,
+    };
+
+    let simple_type: AlertType = alert_type
+        .parse()
+        .map_err(|e| anyhow::anyhow!("Invalid alert type '{}': {}", alert_type, e))?;
+    let new_expressions = expressions
+        .iter()
+        .map(|json| {
+            serde_json::from_str::<AlertExpression>(json)
+                .with_context(|| format!("Invalid --expression JSON: {}", json))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let status_expression = match simple_type {
+        AlertType::SuccessfulTx => Some(AlertExpression::tx_status(true)),
+        AlertType::FailedTx => Some(AlertExpression::tx_status(false)),
+        _ => None,
+    };
+
+    let mut request = CreateAlertRequest::from_alert(existing, simple_type);
+    if let Some(name) = name {
+        request.name = name.to_string();
+    }
+
+    // Keep each existing expression unless the matching CLI option replaces it
+    request.expressions.retain(|e| match e.expression_type {
+        ExpressionType::ContractAddress | ExpressionType::Tag => addresses.is_empty(),
+        ExpressionType::Network => network.is_none(),
+        ExpressionType::TxStatus => status_expression.is_none() && new_expressions.is_empty(),
+        _ => new_expressions.is_empty(),
+    });
+    for address in addresses {
+        validate_address(address)?;
+        request = request.address(address);
+    }
+    if let Some(network) = network {
+        request = request.network(network);
+    }
+    if let Some(status) = status_expression {
+        request = request.expression(status);
+    }
+    request.expressions.extend(new_expressions);
+
+    if !channels.is_empty() {
+        request.delivery_channels = channels
+            .iter()
+            .map(AlertDeliveryChannelInput::new)
+            .collect();
     }
 
     Ok(request)
@@ -2315,4 +2392,85 @@ async fn handle_channels(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn existing_alert() -> tndrly::alerts::Alert {
+        serde_json::from_value(serde_json::json!({
+            "id": "00000000-0000-0000-0000-000000000010",
+            "name": "Old name",
+            "enabled": false,
+            "delivery_channels": [
+                { "delivery_channel_id": "00000000-0000-0000-0000-000000000001", "enabled": true }
+            ],
+            "expressions": [
+                { "type": "tag", "expression": { "tag": "core" } },
+                { "type": "network", "expression": { "network_id": "10" } },
+                { "type": "tx_status", "expression": { "transaction_success": false } }
+            ]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn test_merge_alert_update_keeps_target_state_and_channels() {
+        let request = merge_alert_update(
+            &existing_alert(),
+            Some("New name"),
+            "failed_tx",
+            None,
+            &[],
+            &[],
+            &[],
+        )
+        .unwrap();
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["name"], "New name");
+        assert_eq!(
+            json["enabled"], false,
+            "must not re-enable a disabled alert"
+        );
+        let types: Vec<_> = json["expressions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["type"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(types, ["tag", "network", "tx_status"]);
+        assert_eq!(json["expressions"][1]["expression"]["network_id"], "10");
+        assert_eq!(
+            json["delivery_channels"][0]["id"],
+            "00000000-0000-0000-0000-000000000001"
+        );
+    }
+
+    #[test]
+    fn test_merge_alert_update_overrides() {
+        let request = merge_alert_update(
+            &existing_alert(),
+            None,
+            "successful_tx",
+            Some("1"),
+            &["0x0000000000000000000000000000000000000002".to_string()],
+            &[],
+            &["00000000-0000-0000-0000-000000000003".to_string()],
+        )
+        .unwrap();
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["name"], "Old name");
+        assert_eq!(json["expressions"].as_array().unwrap().len(), 3);
+        assert_eq!(json["expressions"][0]["type"], "contract_address");
+        assert_eq!(json["expressions"][1]["expression"]["network_id"], "1");
+        assert_eq!(
+            json["expressions"][2]["expression"]["transaction_success"],
+            true
+        );
+        assert_eq!(
+            json["delivery_channels"],
+            serde_json::json!([{ "id": "00000000-0000-0000-0000-000000000003", "enabled": true }])
+        );
+    }
 }

@@ -59,8 +59,11 @@ impl<'a> AlertsApi<'a> {
 
     /// Update an alert
     ///
-    /// The API requires the full alert definition (`name`, `simple_type`,
-    /// `expressions`, `delivery_channels`), not a partial patch.
+    /// This is a full replace, not a partial patch: the API requires the whole
+    /// definition (`name`, `simple_type`, `expressions`, `delivery_channels`)
+    /// and resets omitted fields (`enabled` defaults to `false`). To change
+    /// one field, start from the existing alert with
+    /// [`CreateAlertRequest::from_alert`].
     pub async fn update(&self, id: &str, request: &CreateAlertRequest) -> Result<Alert> {
         let response: AlertOrEnvelope = self
             .client
@@ -161,11 +164,11 @@ impl<'a> AlertsApi<'a> {
     /// # Example
     ///
     /// ```ignore
-    /// let request = TestAlertRequest::new(
-    ///     "alert-123",
-    ///     "1",
-    ///     "0xeb22a8b76c48c912d662bffef2272e9a6413ddbe6da541c84a51c249f04ffaf9"
-    /// );
+    /// let request = TestAlertRequest {
+    ///     alert_id: "alert-123".into(),
+    ///     network_id: "1".into(),
+    ///     tx_hash: "0x0000000000000000000000000000000000000000000000000000000000000001".into(),
+    /// };
     /// client.alerts().test_alert(&request).await?;
     /// ```
     pub async fn test_alert(&self, request: &TestAlertRequest) -> Result<()> {
@@ -354,6 +357,57 @@ mod tests {
         assert_eq!(log.network_id.as_deref(), Some("1"));
         assert!(log.is_test);
         assert_eq!(log.checked_at.as_deref(), Some("2024-01-01T00:00:00Z"));
+    }
+
+    #[test]
+    fn test_from_alert_preserves_enabled_target_and_channels() {
+        let alert: Alert = serde_json::from_value(serde_json::json!({
+            "id": "00000000-0000-0000-0000-000000000010",
+            "name": "Paused alert",
+            "description": "kept",
+            "color": "#34ace0",
+            "enabled": false,
+            "delivery_channels": [
+                { "delivery_channel_id": "00000000-0000-0000-0000-000000000001", "enabled": false },
+                { "enabled": true }
+            ],
+            "expressions": [
+                { "type": "tag", "expression": { "tag": "core" } },
+                { "type": "network", "expression": { "network_id": "1" } }
+            ]
+        }))
+        .unwrap();
+
+        let json =
+            serde_json::to_value(CreateAlertRequest::from_alert(&alert, AlertType::FailedTx))
+                .unwrap();
+        assert_eq!(json["name"], "Paused alert");
+        assert_eq!(json["description"], "kept");
+        assert_eq!(json["color"], "#34ace0");
+        assert_eq!(json["simple_type"], "failed_tx");
+        assert_eq!(json["enabled"], false);
+        assert_eq!(json["expressions"][0]["type"], "tag");
+        assert_eq!(json["expressions"][0]["expression"]["tag"], "core");
+        assert_eq!(
+            json["delivery_channels"],
+            serde_json::json!([{ "id": "00000000-0000-0000-0000-000000000001", "enabled": false }])
+        );
+    }
+
+    #[test]
+    fn test_test_alert_request_field_names() {
+        let request = TestAlertRequest {
+            alert_id: "00000000-0000-0000-0000-000000000010".into(),
+            network_id: "1".into(),
+            tx_hash: "0x0000000000000000000000000000000000000000000000000000000000000001".into(),
+        };
+        let json = serde_json::to_value(&request).unwrap();
+        assert_eq!(json["alert_id"], "00000000-0000-0000-0000-000000000010");
+        assert_eq!(json["network_id"], "1");
+        assert_eq!(
+            json["tx_hash"],
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        );
     }
 
     #[test]

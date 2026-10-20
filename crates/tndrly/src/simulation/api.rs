@@ -284,4 +284,42 @@ mod tests {
         assert!(json.contains("\"estimate_gas\":true"));
         assert!(json.contains("\"generate_access_list\":true"));
     }
+    #[test]
+    fn test_simulation_response_reads_nested_transaction_info() {
+        // call_trace and logs live under transaction.transaction_info
+        let json = serde_json::json!({
+            "simulation": {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "network_id": "1",
+                "block_number": 1,
+                "from": "0x0000000000000000000000000000000000000001",
+                "to": "0x0000000000000000000000000000000000000002",
+                "input": "0x",
+                "gas": 21000,
+                "value": "0",
+                "status": true
+            },
+            "transaction": {
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                "status": true,
+                "transaction_info": {
+                    "call_trace": { "calls": [] },
+                    "logs": [{ "name": "Transfer" }],
+                    "state_diff": [],
+                    "asset_changes": null,
+                    "console_logs": null
+                }
+            }
+        });
+        let resp: crate::simulation::SimulationResponse = serde_json::from_value(json).unwrap();
+        let info = resp.transaction.unwrap().transaction_info.unwrap();
+        assert!(info.call_trace.is_some());
+        assert_eq!(info.logs.len(), 1);
+        assert_eq!(info.logs[0]["name"], "Transfer");
+        assert!(info.extra.contains_key("console_logs"));
+
+        let null_logs: crate::simulation::TransactionExecutionInfo =
+            serde_json::from_value(serde_json::json!({ "logs": null })).unwrap();
+        assert!(null_logs.logs.is_empty());
+    }
 }

@@ -508,6 +508,34 @@ impl CreateAlertRequest {
             .push(AlertDeliveryChannelInput::new(id));
         self
     }
+
+    /// Build a full update body from an existing alert
+    ///
+    /// `PATCH /alert/{id}` replaces the whole definition (omitted booleans such
+    /// as `enabled` default to `false`), so start from the current alert and
+    /// change only what you need. `simple_type` must be passed in because the
+    /// API does not return it. Channels without an ID are skipped.
+    #[must_use]
+    pub fn from_alert(alert: &Alert, simple_type: AlertType) -> Self {
+        Self {
+            name: alert.name.clone(),
+            description: alert.description.clone(),
+            color: alert.color.clone(),
+            simple_type,
+            enabled: alert.enabled,
+            expressions: alert.expressions.clone(),
+            delivery_channels: alert
+                .delivery_channels
+                .iter()
+                .filter_map(|c| {
+                    Some(AlertDeliveryChannelInput {
+                        id: c.delivery_channel_id.clone()?,
+                        enabled: c.enabled,
+                    })
+                })
+                .collect(),
+        }
+    }
 }
 
 /// Delivery channel attached to an alert (as returned by the API)
@@ -740,7 +768,20 @@ pub struct AlertHistoryResponse {
     pub alert_logs: Vec<AlertLog>,
 }
 
-/// Request to send a test alert
+/// Request to send a test alert (`POST /test-alerts`)
+///
+/// All three fields are strings, so build it with named fields rather than a
+/// positional constructor:
+///
+/// ```
+/// use tndrly::alerts::TestAlertRequest;
+///
+/// let request = TestAlertRequest {
+///     alert_id: "alert-id".into(),
+///     network_id: "1".into(),
+///     tx_hash: "0x0000000000000000000000000000000000000000000000000000000000000001".into(),
+/// };
+/// ```
 #[derive(Debug, Clone, Serialize)]
 pub struct TestAlertRequest {
     /// Alert ID to test
@@ -751,19 +792,4 @@ pub struct TestAlertRequest {
 
     /// Transaction hash to use for the test
     pub tx_hash: String,
-}
-
-impl TestAlertRequest {
-    /// Create a new test alert request
-    pub fn new(
-        alert_id: impl Into<String>,
-        network_id: impl Into<String>,
-        tx_hash: impl Into<String>,
-    ) -> Self {
-        Self {
-            alert_id: alert_id.into(),
-            network_id: network_id.into(),
-            tx_hash: tx_hash.into(),
-        }
-    }
 }
