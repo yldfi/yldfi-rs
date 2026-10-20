@@ -571,7 +571,7 @@ pub struct QuoteCompareInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct QuoteFromInput {
-    /// The aggregator to use (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)
+    /// The aggregator to use (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, enso)
     pub source: String,
     /// Source token address (or symbol like ETH, USDC)
     pub from_token: String,

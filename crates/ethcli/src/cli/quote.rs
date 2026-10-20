@@ -19,10 +19,10 @@ pub enum SwapSourceArg {
     #[default]
     All,
     /// OpenOcean
-    #[value(alias = "oo")]
+    #[value(name = "openocean", aliases = ["oo", "open-ocean"])]
     OpenOcean,
     /// KyberSwap
-    #[value(alias = "kyber")]
+    #[value(name = "kyberswap", aliases = ["kyber", "kyber-swap"])]
     KyberSwap,
     /// 0x
     #[value(name = "0x", alias = "zerox")]
@@ -31,10 +31,10 @@ pub enum SwapSourceArg {
     #[value(name = "1inch", alias = "oneinch")]
     OneInch,
     /// CowSwap
-    #[value(alias = "cow")]
+    #[value(name = "cowswap", aliases = ["cow", "cow-swap"])]
     CowSwap,
     /// LI.FI
-    #[value(alias = "li.fi")]
+    #[value(name = "lifi", aliases = ["li.fi", "li-fi"])]
     LiFi,
     /// Velora (ParaSwap)
     #[value(alias = "paraswap")]
@@ -686,6 +686,25 @@ fn format_large_number(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn documented_source_names_parse() {
+        for (name, expected) in [
+            ("openocean", SwapSourceArg::OpenOcean),
+            ("oo", SwapSourceArg::OpenOcean),
+            ("kyberswap", SwapSourceArg::KyberSwap),
+            ("cowswap", SwapSourceArg::CowSwap),
+            ("lifi", SwapSourceArg::LiFi),
+            ("li.fi", SwapSourceArg::LiFi),
+            ("open-ocean", SwapSourceArg::OpenOcean),
+        ] {
+            assert_eq!(
+                SwapSourceArg::from_str(name, true).unwrap(),
+                expected,
+                "{name}"
+            );
+        }
+    }
 
     #[test]
     fn resolve_amount_handles_high_decimals_and_rejects_signs() {
