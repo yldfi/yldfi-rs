@@ -94,11 +94,11 @@ pub struct PriceAggregation {
     pub median_usd: f64,
     /// Mean USD price across all sources
     pub mean_usd: f64,
-    /// Minimum USD price
+    /// Minimum USD price across all sources (outliers included)
     pub min_usd: f64,
-    /// Maximum USD price
+    /// Maximum USD price across all sources (outliers included)
     pub max_usd: f64,
-    /// Spread percentage: (max-min)/median * 100
+    /// Spread percentage: (max-min)/median * 100, outliers included
     pub spread_pct: f64,
     /// True if spread < 1% (sources agree)
     pub sources_agreed: bool,
@@ -123,6 +123,11 @@ impl PriceAggregation {
         // Sort is now safe since we filtered out NaN values
         sorted.sort_by(|a, b| a.partial_cmp(b).expect("filtered values are finite"));
 
+        // Range of every source, before outliers are dropped: min/max, spread and
+        // agreement must show a source that disagrees, not hide it
+        let min_usd = sorted.first().copied().unwrap_or(0.0);
+        let max_usd = sorted.last().copied().unwrap_or(0.0);
+
         // Remove outliers using IQR method when we have enough data points
         if sorted.len() >= 4 {
             let q1 = sorted[sorted.len() / 4];
@@ -145,8 +150,6 @@ impl PriceAggregation {
         };
 
         let mean_usd = sorted.iter().sum::<f64>() / len as f64;
-        let min_usd = sorted.first().copied().unwrap_or(0.0);
-        let max_usd = sorted.last().copied().unwrap_or(0.0);
 
         let spread_pct = if median_usd > 0.0 {
             ((max_usd - min_usd) / median_usd) * 100.0
@@ -426,6 +429,17 @@ pub struct MergedNft {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn outliers_leave_the_median_but_still_show_in_spread() {
+        let agg = PriceAggregation::from_prices(&[100.0, 100.1, 99.9, 100.0, 150.0]).unwrap();
+        // Median ignores the outlier
+        assert!((agg.median_usd - 100.0).abs() < 0.01);
+        // ...but the disagreeing source is visible
+        assert_eq!(agg.max_usd, 150.0);
+        assert!(agg.spread_pct > 40.0);
+        assert!(!agg.sources_agreed);
+    }
 
     #[test]
     fn test_price_aggregation() {

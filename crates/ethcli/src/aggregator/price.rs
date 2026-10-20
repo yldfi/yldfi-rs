@@ -1614,9 +1614,7 @@ async fn fetch_pyth_price(token: &str, measure: LatencyMeasure) -> SourceResult<
 
                 // Add confidence interval as metadata if available
                 if let Some(confidence) = feed.confidence_f64() {
-                    // Confidence as a percentage of price
-                    let confidence_pct = (confidence / price_f64) * 100.0;
-                    price = price.with_confidence(1.0 - confidence_pct.min(1.0));
+                    price = price.with_confidence(pyth_confidence_score(confidence, price_f64));
                 }
 
                 SourceResult::success("pyth", price, measure.elapsed_ms())
@@ -1934,6 +1932,15 @@ fn chain_name_to_kong_id(chain: &str) -> Option<u64> {
 ///
 /// This uses the Kong vaults API for vault metadata, then prices the
 /// underlying asset using the other aggregator sources.
+/// Turn Pyth's confidence interval (± in price units) into a 0..1 score:
+/// 1 minus the interval as a fraction of the price
+fn pyth_confidence_score(confidence: f64, price: f64) -> f64 {
+    if price <= 0.0 || !confidence.is_finite() {
+        return 0.0;
+    }
+    (1.0 - confidence.abs() / price).clamp(0.0, 1.0)
+}
+
 /// Time left for a nested price fetch inside one source's budget
 fn nested_price_budget(elapsed: std::time::Duration) -> std::time::Duration {
     const MARGIN: std::time::Duration = std::time::Duration::from_millis(500);
@@ -2102,6 +2109,14 @@ async fn fetch_kong_vault_price(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn pyth_confidence_score_uses_the_fraction_of_price() {
+        // ±$2 on $2000 is 0.1%: score 0.999 (was 0.9 from mixing % and fraction)
+        assert!((pyth_confidence_score(2.0, 2000.0) - 0.999).abs() < 1e-9);
+        assert_eq!(pyth_confidence_score(5000.0, 2000.0), 0.0);
+        assert_eq!(pyth_confidence_score(1.0, 0.0), 0.0);
+    }
+
     #[test]
     fn nested_price_budget_fits_inside_the_outer_timeout() {
         use std::time::Duration;
