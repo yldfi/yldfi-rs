@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// Supported chains for `OpenOcean`
+///
+/// The API serves more chains than this; these are the ones `yldfi_common`
+/// knows, plus Solana and Sui.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
@@ -36,6 +39,34 @@ pub enum Chain {
     Mantle,
     /// Blast
     Blast,
+    /// Polygon zkEVM
+    PolygonZkEvm,
+    /// Mode
+    Mode,
+    /// Celo
+    Celo,
+    /// Aurora
+    Aurora,
+    /// Klaytn (Kaia)
+    Klaytn,
+    /// Cronos
+    Cronos,
+    /// Sonic
+    Sonic,
+    /// Berachain
+    Berachain,
+    /// Unichain
+    Unichain,
+    /// HyperEVM
+    HyperEvm,
+    /// Plasma
+    Plasma,
+    /// Monad
+    Monad,
+    /// Robinhood Chain
+    Robinhood,
+    /// Arc
+    Arc,
     /// Solana
     Solana,
     /// Sui
@@ -43,6 +74,43 @@ pub enum Chain {
 }
 
 impl Chain {
+    /// All supported chains
+    #[must_use]
+    pub const fn all() -> &'static [Chain] {
+        &[
+            Chain::Eth,
+            Chain::Bsc,
+            Chain::Polygon,
+            Chain::Fantom,
+            Chain::Avax,
+            Chain::Arbitrum,
+            Chain::Optimism,
+            Chain::Gnosis,
+            Chain::Base,
+            Chain::Linea,
+            Chain::Zksync,
+            Chain::Scroll,
+            Chain::Mantle,
+            Chain::Blast,
+            Chain::PolygonZkEvm,
+            Chain::Mode,
+            Chain::Celo,
+            Chain::Aurora,
+            Chain::Klaytn,
+            Chain::Cronos,
+            Chain::Sonic,
+            Chain::Berachain,
+            Chain::Unichain,
+            Chain::HyperEvm,
+            Chain::Plasma,
+            Chain::Monad,
+            Chain::Robinhood,
+            Chain::Arc,
+            Chain::Solana,
+            Chain::Sui,
+        ]
+    }
+
     /// Convert from EVM chain ID (returns None for non-EVM chains like Solana/Sui)
     #[must_use]
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
@@ -58,15 +126,29 @@ impl Chain {
             8453 => Some(Chain::Base),
             59144 => Some(Chain::Linea),
             324 => Some(Chain::Zksync),
-            534352 => Some(Chain::Scroll),
+            534_352 => Some(Chain::Scroll),
             5000 => Some(Chain::Mantle),
             81457 => Some(Chain::Blast),
+            1101 => Some(Chain::PolygonZkEvm),
+            34443 => Some(Chain::Mode),
+            42220 => Some(Chain::Celo),
+            1_313_161_554 => Some(Chain::Aurora),
+            8217 => Some(Chain::Klaytn),
+            25 => Some(Chain::Cronos),
+            146 => Some(Chain::Sonic),
+            80094 => Some(Chain::Berachain),
+            130 => Some(Chain::Unichain),
+            999 => Some(Chain::HyperEvm),
+            9745 => Some(Chain::Plasma),
+            143 => Some(Chain::Monad),
+            4663 => Some(Chain::Robinhood),
+            5042 => Some(Chain::Arc),
             // Solana and Sui are not EVM chains, no chain ID mapping
             _ => None,
         }
     }
 
-    /// Get the chain ID for API requests
+    /// Chain name used in API paths
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -85,6 +167,20 @@ impl Chain {
             Chain::Scroll => "scroll",
             Chain::Mantle => "mantle",
             Chain::Blast => "blast",
+            Chain::PolygonZkEvm => "polygon_zkevm",
+            Chain::Mode => "mode",
+            Chain::Celo => "celo",
+            Chain::Aurora => "aurora",
+            Chain::Klaytn => "klaytn",
+            Chain::Cronos => "cronos",
+            Chain::Sonic => "sonic",
+            Chain::Berachain => "bera",
+            Chain::Unichain => "uni",
+            Chain::HyperEvm => "hyperevm",
+            Chain::Plasma => "plasma",
+            Chain::Monad => "monad",
+            Chain::Robinhood => "robinhood",
+            Chain::Arc => "arc",
             Chain::Solana => "solana",
             Chain::Sui => "sui",
         }
@@ -109,13 +205,27 @@ impl FromStr for Chain {
             "avax" | "avalanche" => Ok(Chain::Avax),
             "arbitrum" | "arb" => Ok(Chain::Arbitrum),
             "optimism" | "op" => Ok(Chain::Optimism),
-            "gnosis" | "xdai" => Ok(Chain::Gnosis),
+            "xdai" | "gnosis" => Ok(Chain::Gnosis),
             "base" => Ok(Chain::Base),
             "linea" => Ok(Chain::Linea),
             "zksync" | "zksync-era" | "era" => Ok(Chain::Zksync),
             "scroll" => Ok(Chain::Scroll),
             "mantle" | "mnt" => Ok(Chain::Mantle),
             "blast" => Ok(Chain::Blast),
+            "polygon_zkevm" | "polygon-zkevm" | "zkevm" => Ok(Chain::PolygonZkEvm),
+            "mode" => Ok(Chain::Mode),
+            "celo" => Ok(Chain::Celo),
+            "aurora" => Ok(Chain::Aurora),
+            "klaytn" | "klay" | "kaia" => Ok(Chain::Klaytn),
+            "cronos" | "cro" => Ok(Chain::Cronos),
+            "sonic" => Ok(Chain::Sonic),
+            "bera" | "berachain" => Ok(Chain::Berachain),
+            "uni" | "unichain" => Ok(Chain::Unichain),
+            "hyperevm" | "hyperliquid" => Ok(Chain::HyperEvm),
+            "plasma" => Ok(Chain::Plasma),
+            "monad" => Ok(Chain::Monad),
+            "robinhood" => Ok(Chain::Robinhood),
+            "arc" => Ok(Chain::Arc),
             "solana" | "sol" => Ok(Chain::Solana),
             "sui" => Ok(Chain::Sui),
             _ => Err(format!("Unknown chain: {s}")),
@@ -133,29 +243,16 @@ impl TryFrom<yldfi_common::Chain> for Chain {
     type Error = &'static str;
 
     fn try_from(chain: yldfi_common::Chain) -> Result<Self, Self::Error> {
-        match chain {
-            yldfi_common::Chain::Ethereum => Ok(Self::Eth),
-            yldfi_common::Chain::Bsc => Ok(Self::Bsc),
-            yldfi_common::Chain::Polygon => Ok(Self::Polygon),
-            yldfi_common::Chain::Fantom => Ok(Self::Fantom),
-            yldfi_common::Chain::Avalanche => Ok(Self::Avax),
-            yldfi_common::Chain::Arbitrum => Ok(Self::Arbitrum),
-            yldfi_common::Chain::Optimism => Ok(Self::Optimism),
-            yldfi_common::Chain::Gnosis => Ok(Self::Gnosis),
-            yldfi_common::Chain::Base => Ok(Self::Base),
-            yldfi_common::Chain::Linea => Ok(Self::Linea),
-            yldfi_common::Chain::ZkSync => Ok(Self::Zksync),
-            yldfi_common::Chain::Scroll => Ok(Self::Scroll),
-            yldfi_common::Chain::Mantle => Ok(Self::Mantle),
-            yldfi_common::Chain::Blast => Ok(Self::Blast),
-            _ => Err("Chain not supported by OpenOcean"),
-        }
+        Self::from_chain_id(chain.id()).ok_or("Chain not supported by OpenOcean")
     }
 }
 
 impl From<Chain> for yldfi_common::Chain {
     fn from(chain: Chain) -> Self {
         match chain {
+            // Non-EVM chains fallback to custom ID
+            Chain::Solana => Self::Other(501),
+            Chain::Sui => Self::Other(784),
             Chain::Eth => Self::Ethereum,
             Chain::Bsc => Self::Bsc,
             Chain::Polygon => Self::Polygon,
@@ -170,9 +267,20 @@ impl From<Chain> for yldfi_common::Chain {
             Chain::Scroll => Self::Scroll,
             Chain::Mantle => Self::Mantle,
             Chain::Blast => Self::Blast,
-            // Non-EVM chains fallback to custom ID
-            Chain::Solana => Self::Other(501),
-            Chain::Sui => Self::Other(784),
+            Chain::PolygonZkEvm => Self::PolygonZkEvm,
+            Chain::Mode => Self::Mode,
+            Chain::Celo => Self::Celo,
+            Chain::Aurora => Self::Aurora,
+            Chain::Klaytn => Self::Klaytn,
+            Chain::Cronos => Self::Cronos,
+            Chain::Sonic => Self::Sonic,
+            Chain::Berachain => Self::Berachain,
+            Chain::Unichain => Self::Unichain,
+            Chain::HyperEvm => Self::HyperEvm,
+            Chain::Plasma => Self::Plasma,
+            Chain::Monad => Self::Monad,
+            Chain::Robinhood => Self::Robinhood,
+            Chain::Arc => Self::Arc,
         }
     }
 }
@@ -639,6 +747,23 @@ mod tests {
             assert_eq!(name.parse::<Chain>().unwrap(), chain, "{name}");
         }
         assert!("sepolia".parse::<Chain>().is_err());
+    }
+
+    #[test]
+    fn chain_mappings_round_trip() {
+        for chain in Chain::all() {
+            assert_eq!(chain.as_str().parse::<Chain>().unwrap(), *chain);
+            let common = yldfi_common::Chain::from(*chain);
+            if let yldfi_common::Chain::Other(_) = common {
+                assert!(matches!(chain, Chain::Solana | Chain::Sui), "{chain:?}");
+            } else {
+                assert_eq!(Chain::try_from(common), Ok(*chain));
+                assert_eq!(Chain::from_chain_id(common.id()), Some(*chain));
+            }
+        }
+        assert_eq!(Chain::Berachain.as_str(), "bera");
+        assert_eq!(Chain::Unichain.as_str(), "uni");
+        assert_eq!(Chain::PolygonZkEvm.as_str(), "polygon_zkevm");
     }
 
     #[test]
