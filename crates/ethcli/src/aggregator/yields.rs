@@ -1086,15 +1086,23 @@ pub struct LendingYieldAggregation {
 /// DefiLlama identifies pools by UUID, so pools are matched by their
 /// (sorted) underlying token addresses; when several Curve pools share the
 /// same coins, the one with the closest TVL is used.
-pub async fn compare_curve_yields() -> Vec<YieldComparison> {
+///
+/// Returns an error naming the failed source(s) if either fetch fails, so a
+/// source outage is not reported as "no matching pools".
+pub async fn compare_curve_yields() -> Result<Vec<YieldComparison>, String> {
     let (llama_result, curve_result) = tokio::join!(
         fetch_llama_yields(Some("ethereum"), None),
         fetch_curve_yields("ethereum")
     );
 
     match (llama_result.data, curve_result.data) {
-        (Some(llama), Some(curve)) => match_curve_yields(&llama, &curve),
-        _ => Vec::new(),
+        (Some(llama), Some(curve)) => Ok(match_curve_yields(&llama, &curve)),
+        _ => Err([llama_result.error, curve_result.error]
+            .into_iter()
+            .zip(["llama", "curve"])
+            .filter_map(|(err, source)| err.map(|e| format!("{source}: {e}")))
+            .collect::<Vec<_>>()
+            .join("; ")),
     }
 }
 

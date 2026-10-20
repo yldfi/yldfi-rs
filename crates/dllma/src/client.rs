@@ -313,6 +313,15 @@ impl Client {
     /// # }
     /// ```
     pub async fn usage(&self) -> Result<ApiUsage> {
-        self.get_pro("/usage/APIKEY").await
+        // Unlike every other Pro route, the key goes at the end of this path:
+        // `https://pro-api.llama.fi/usage/{API_KEY}`.
+        let api_key = self.api_key.as_ref().ok_or_else(|| {
+            Error::api(
+                401,
+                "Pro API key required. Set DEFILLAMA_API_KEY or use Client::with_api_key()",
+            )
+        })?;
+        let url = Url::parse(&format!("{}/usage/{}", base_urls::PRO, api_key.expose()))?;
+        self.get(&url).await
     }
 }

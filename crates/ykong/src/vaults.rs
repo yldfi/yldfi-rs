@@ -4,6 +4,13 @@ use crate::client::Client;
 use crate::error::Result;
 use crate::types::{Vault, VaultAccount};
 use serde::Deserialize;
+use std::future::Future;
+
+/// Largest page Kong's `vaults` query returns (larger `limit`s are clamped).
+pub const MAX_PAGE_SIZE: usize = 1000;
+
+/// Safety stop for [`fetch_all_pages`] (one million vaults).
+const MAX_PAGES: usize = 1000;
 
 /// Vault query builder for filtering vaults
 #[derive(Debug, Default, Clone)]
@@ -16,6 +23,8 @@ pub struct VaultFilter {
     vault_type: Option<i32>,
     risk_level: Option<i32>,
     addresses: Option<Vec<String>>,
+    limit: Option<usize>,
+    offset: Option<usize>,
 }
 
 impl VaultFilter {
@@ -33,6 +42,10 @@ impl VaultFilter {
     }
 
     /// Filter by API version
+    ///
+    /// Kong compares full versions and returns vaults whose `apiVersion` is
+    /// at least this one: `"3.0.2"` also returns 3.0.4 and 3.1.0 vaults, and
+    /// `"3"` returns every v3 vault.
     #[must_use]
     pub fn api_version(mut self, version: impl Into<String>) -> Self {
         self.api_version = Some(version.into());
@@ -81,8 +94,24 @@ impl VaultFilter {
         self
     }
 
-    /// Build the GraphQL arguments string
-    fn build_args(&self) -> String {
+    /// Return at most `limit` vaults (one request, capped at
+    /// [`MAX_PAGE_SIZE`] by Kong). Without a limit, [`VaultsApi::list`]
+    /// fetches every page.
+    #[must_use]
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Skip the first `offset` vaults
+    #[must_use]
+    pub fn offset(mut self, offset: usize) -> Self {
+        self.offset = Some(offset);
+        self
+    }
+
+    /// Build the GraphQL arguments string for one page
+    fn build_args(&self, limit: usize, offset: usize) -> String {
         let mut args = Vec::new();
 
         if let Some(chain_id) = self.chain_id {
@@ -110,13 +139,30 @@ impl VaultFilter {
             let addr_str: Vec<String> = addresses.iter().map(|a| format!("\"{a}\"")).collect();
             args.push(format!("addresses: [{}]", addr_str.join(", ")));
         }
+        args.push(format!("limit: {limit}"));
+        args.push(format!("offset: {offset}"));
 
-        if args.is_empty() {
-            String::new()
-        } else {
-            format!("({})", args.join(", "))
+        format!("({})", args.join(", "))
+    }
+}
+
+/// Fetch pages of up to [`MAX_PAGE_SIZE`] items starting at `offset` until a
+/// short page comes back. `fetch(limit, offset)` returns one page.
+async fn fetch_all_pages<T, F, Fut>(offset: usize, mut fetch: F) -> Result<Vec<T>>
+where
+    F: FnMut(usize, usize) -> Fut,
+    Fut: Future<Output = Result<Vec<T>>>,
+{
+    let mut all = Vec::new();
+    for _ in 0..MAX_PAGES {
+        let page = fetch(MAX_PAGE_SIZE, offset + all.len()).await?;
+        let full = page.len() >= MAX_PAGE_SIZE;
+        all.extend(page);
+        if !full {
+            break;
         }
     }
+    Ok(all)
 }
 
 /// Vaults API
@@ -133,6 +179,10 @@ impl<'a> VaultsApi<'a> {
 
     /// Get all vaults (with optional filter)
     ///
+    /// Kong returns 100 vaults per request unless told otherwise, so this
+    /// pages through the results (1000 at a time) and returns every match.
+    /// Set [`VaultFilter::limit`] to fetch a single page instead.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -146,7 +196,27 @@ impl<'a> VaultsApi<'a> {
     /// # }
     /// ```
     pub async fn list(&self, filter: Option<VaultFilter>) -> Result<Vec<Vault>> {
-        let args = filter.unwrap_or_default().build_args();
+        let filter = filter.unwrap_or_default();
+        let offset = filter.offset.unwrap_or(0);
+        match filter.limit {
+            Some(limit) => self.list_page(&filter, limit, offset).await,
+            None => {
+                fetch_all_pages(offset, |limit, offset| {
+                    self.list_page(&filter, limit, offset)
+                })
+                .await
+            }
+        }
+    }
+
+    /// Fetch one page of vaults
+    async fn list_page(
+        &self,
+        filter: &VaultFilter,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<Vault>> {
+        let args = filter.build_args(limit, offset);
         let query = format!(
             r"{{
                 vaults{args} {{
@@ -324,5 +394,59 @@ impl<'a> VaultsApi<'a> {
                     .to_string(),
             },
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+
+    #[test]
+    fn build_args_includes_page() {
+        let f = VaultFilter::new().chain_id(1).api_version("3.0.2");
+        assert_eq!(
+            f.build_args(1000, 2000),
+            "(chainId: 1, apiVersion: \"3.0.2\", limit: 1000, offset: 2000)"
+        );
+        assert_eq!(
+            VaultFilter::new().build_args(100, 0),
+            "(limit: 100, offset: 0)"
+        );
+    }
+
+    /// Serve `total` items in pages, recording each (limit, offset) request.
+    async fn run(total: usize, start: usize) -> (Vec<usize>, Vec<(usize, usize)>) {
+        let calls = RefCell::new(Vec::new());
+        let items = fetch_all_pages(start, |limit, offset| {
+            calls.borrow_mut().push((limit, offset));
+            let end = total.min(offset + limit);
+            let page: Vec<usize> = (offset.min(end)..end).collect();
+            async move { Ok(page) }
+        })
+        .await
+        .unwrap();
+        (items, calls.into_inner())
+    }
+
+    #[tokio::test]
+    async fn pages_until_short_page() {
+        let (items, calls) = run(2226, 0).await;
+        assert_eq!(items, (0..2226).collect::<Vec<_>>());
+        assert_eq!(calls, vec![(1000, 0), (1000, 1000), (1000, 2000)]);
+    }
+
+    #[tokio::test]
+    async fn exact_multiple_needs_one_empty_page() {
+        let (items, calls) = run(2000, 0).await;
+        assert_eq!(items.len(), 2000);
+        assert_eq!(calls.last(), Some(&(1000, 2000)));
+    }
+
+    #[tokio::test]
+    async fn honours_start_offset() {
+        let (items, calls) = run(1500, 300).await;
+        assert_eq!(items, (300..1500).collect::<Vec<_>>());
+        assert_eq!(calls, vec![(1000, 300), (1000, 1300)]);
     }
 }

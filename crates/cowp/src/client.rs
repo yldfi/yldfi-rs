@@ -336,32 +336,60 @@ impl Client {
         self.get(chain, &path).await
     }
 
-    /// Get trades by owner
+    /// Fetch every page of a trades query (`GET /api/v2/trades`, 1000 per
+    /// page), starting at the query's offset.
+    async fn get_all_trades(
+        &self,
+        chain: Option<Chain>,
+        mut query: TradesQuery,
+    ) -> Result<Vec<Trade>> {
+        const PAGE: u32 = 1000;
+        let mut all = Vec::new();
+        let mut offset = query.offset.unwrap_or(0);
+        loop {
+            query = query.offset(offset).limit(PAGE);
+            let page = self.get_trades(chain, &query).await?;
+            let full = page.len() >= PAGE as usize;
+            offset += page.len() as u64;
+            all.extend(page);
+            if !full {
+                return Ok(all);
+            }
+        }
+    }
+
+    /// Get all trades by owner
+    ///
+    /// CoW removed the unpaginated `GET /api/v1/trades`; this now pages
+    /// through `GET /api/v2/trades` and returns every trade.
     #[deprecated(
         since = "0.1.5",
-        note = "CoW Protocol deprecated unpaginated `GET /api/v1/trades`; use `get_trades(chain, &TradesQuery::by_owner(owner))`"
+        note = "use `get_trades(chain, &TradesQuery::by_owner(owner))` and page through the results"
     )]
     pub async fn get_trades_by_owner(
         &self,
         chain: Option<Chain>,
         owner: &str,
     ) -> Result<Vec<Trade>> {
-        let path = format!("/api/v1/trades?owner={owner}");
-        self.get(chain, &path).await
+        self.get_all_trades(chain, TradesQuery::by_owner(owner))
+            .await
     }
 
-    /// Get trades for an order
+    /// Get all trades for an order
+    ///
+    /// CoW removed the unpaginated `GET /api/v1/trades`; this now pages
+    /// through `GET /api/v2/trades` and returns every trade.
     #[deprecated(
         since = "0.1.5",
-        note = "CoW Protocol deprecated unpaginated `GET /api/v1/trades`; use `get_trades(chain, &TradesQuery::by_order(uid))`"
+        note = "use `get_trades(chain, &TradesQuery::by_order(uid))` and page through the results"
     )]
     pub async fn get_trades_by_order(
         &self,
         chain: Option<Chain>,
         order_uid: &str,
     ) -> Result<Vec<Trade>> {
-        let path = format!("/api/v1/trades?orderUid={order_uid}");
-        self.get(chain, &path).await
+        self.get_all_trades(chain, TradesQuery::by_order(order_uid))
+            .await
     }
 
     /// Get the current auction

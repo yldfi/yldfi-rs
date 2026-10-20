@@ -77,6 +77,20 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
     };
     let result = fetch_yields_aggregated(args.chain.as_deref(), &filters, source).await;
 
+    // A failed source would otherwise just shrink the result set.
+    let failed: Vec<_> = result
+        .sources
+        .iter()
+        .filter_map(|s| s.error.as_ref().map(|e| (&*s.source, e)))
+        .collect();
+    if !failed.is_empty() && failed.len() == result.sources.len() {
+        let detail: Vec<String> = failed.iter().map(|(s, e)| format!("{s}: {e}")).collect();
+        anyhow::bail!("All yield sources failed: {}", detail.join("; "));
+    }
+    for (source, err) in &failed {
+        eprintln!("Warning: {source} source failed: {err}");
+    }
+
     // Filters are already applied per source; merge, sort by APY across
     // sources, then limit.
     let filtered_yields = top_yields(
@@ -299,7 +313,9 @@ async fn handle_compare(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
         eprintln!("Comparing Curve yields between sources...");
     }
 
-    let comparisons = compare_curve_yields().await;
+    let comparisons = compare_curve_yields()
+        .await
+        .map_err(|e| anyhow::anyhow!("Yield comparison failed: {e}"))?;
 
     match args.format {
         OutputFormat::Json => {

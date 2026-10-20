@@ -75,3 +75,25 @@ async fn test_chain_from_str_invalid() {
 // Note: Full HTTP integration tests would require modifications
 // to cowp's Client to accept a custom base URL. The tests above verify
 // the core functionality that can be tested without mocking HTTP.
+
+/// The deprecated trade helpers now page through `/api/v2/trades` instead of
+/// the removed `/api/v1/trades`, and must return the same trades.
+#[tokio::test]
+#[ignore = "requires network access to api.cow.fi"]
+#[allow(deprecated)]
+async fn test_trades_by_owner_uses_v2() {
+    let owner = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+    let client = Client::new().unwrap();
+    let all = client.get_trades_by_owner(None, owner).await.unwrap();
+    let page = client
+        .get_trades(None, &cowp::TradesQuery::by_owner(owner).limit(1000))
+        .await
+        .unwrap();
+    assert!(!all.is_empty());
+    assert_eq!(all.len(), page.len());
+
+    let uid = &all[0].order_uid;
+    let by_order = client.get_trades_by_order(None, uid).await.unwrap();
+    assert!(by_order.iter().all(|t| &t.order_uid == uid));
+    assert!(!by_order.is_empty());
+}
