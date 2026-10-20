@@ -314,8 +314,8 @@ const KNOWN_ADDRESSES: &[AddressEntry] = &[
         category: ContractCategory::Staking,
     },
     AddressEntry {
-        address: "0xaa0c3f5f7dfd688c6e646f66cd2a6b66acdbbe434",
-        label: "Convex Staking",
+        address: "0xaa0c3f5f7dfd688c6e646f66cd2a6b66acdbe434",
+        label: "Convex stkCvxCrv",
         category: ContractCategory::Staking,
     },
     // Lido
@@ -541,13 +541,13 @@ pub mod events {
     pub const BALANCER_SWAP: B256 =
         b256!("2170c741c41531aec20e7c107c24eecfdd15e69c9bb0a8dd37b1840b9e0b207b");
 
-    /// Balancer PoolBalanceChanged(bytes32 indexed poolId, address indexed liquidityProvider, address[] tokens, int256[] deltas, uint256[] protocolFeeAmounts)
+    /// PoolBalanceChanged(bytes32,address,address[],int256[],uint256[])
     pub const BALANCER_POOL_BALANCE_CHANGED: B256 =
-        b256!("e5ce249087ce04f05a957192435400fd97868dba0e6a4264f0d5b8f1a2d93b8d");
+        b256!("e5ce249087ce04f05a957192435400fd97868dba0e6a4b4c049abf8af80dae78");
 
-    /// Balancer FlashLoan(address indexed recipient, address indexed token, uint256 amount, uint256 feeAmount)
+    /// FlashLoan(address,address,uint256,uint256)
     pub const BALANCER_FLASH_LOAN: B256 =
-        b256!("0d7d75e01ab95780d3cd1c8ec0dd6c28be6c5e71a91d48e9c6fdb89c68f3f7d9");
+        b256!("0d7d75e01ab95780d3cd1c8ec0dd6c2ce19e3a20427eec8bf53283b6fb8e95f0");
 
     // ========== Aave V2/V3 Events ==========
 
@@ -581,11 +581,7 @@ pub mod events {
 
     // ========== Compound Events ==========
 
-    /// Compound Supply(address indexed supplier, uint256 amount)
-    pub const COMPOUND_SUPPLY: B256 =
-        b256!("1a2a22cb034d26d1854bdc6666a5b91fe25efbbb5dcad3b0355478d6f5c362a1");
-
-    /// Compound Withdraw(address indexed withdrawer, uint256 amount)
+    /// Compound III Withdraw(address indexed src, address indexed to, uint256 amount)
     pub const COMPOUND_WITHDRAW: B256 =
         b256!("9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb");
 
@@ -641,9 +637,9 @@ pub mod events {
     pub const PERMIT2_PERMIT: B256 =
         b256!("c6a377bfc4eb120024a8ac08eef205be16b817020812c73223e81d1bdb9708ec");
 
-    /// Permit2 Approval(address indexed owner, address indexed token, address indexed spender, uint160 amount, uint48 expiration)
+    /// Approval(address,address,address,uint160,uint48)
     pub const PERMIT2_APPROVAL: B256 =
-        b256!("f5cc2e201a735f7ed58f09ce0442b9d386e1e65626611fd33ca9a0c8f89b7aeb");
+        b256!("da9fa7c1b00402c17d0161b249b1ab8bbec047c5a52207b9c112deffd817036b");
 
     // ========== 1inch Events ==========
 
@@ -695,9 +691,10 @@ pub mod events {
 
     // ========== Maker/DAI Events ==========
 
-    /// Maker Vat.frob (CDP modification)
+    /// Maker Vat.frob: an anonymous LibNote event whose topic0 is the
+    /// frob(bytes32,address,address,address,int256,int256) selector, left-aligned
     pub const MAKER_FROB: B256 =
-        b256!("b2afa28318bcc689926b52835d844de174ef8de97e982a85c0199d584920791b");
+        b256!("7608870300000000000000000000000000000000000000000000000000000000");
 
     /// DSR Join
     pub const DSR_JOIN: B256 =
@@ -719,9 +716,9 @@ pub mod events {
     pub const ZRX_LIMIT_ORDER_FILLED: B256 =
         b256!("ab614d2b738543c0ea21f56347cf696a3a0c42a7cbec3212a5ca22a4dcff2124");
 
-    /// ParaSwap Swapped(bytes16 uuid, address initiator, address indexed beneficiary, address indexed srcToken, address indexed destToken, uint256 srcAmount, uint256 receivedAmount, uint256 expectedAmount)
+    /// SwappedV3(bytes16,address,uint256,address,address,address,address,uint256,uint256,uint256)
     pub const PARASWAP_SWAPPED: B256 =
-        b256!("4cc7e95e48af62690313a0733e93308ac9a73326bc3c29f1788b1191c376d5b6");
+        b256!("e00361d207b252a464323eb23d45d42583e391f2031acdd2e9fa36efddd43cb0");
 
     /// KyberSwap Swapped
     pub const KYBER_SWAPPED: B256 =
@@ -731,17 +728,17 @@ pub mod events {
     pub const DODO_SELL_BASE: B256 =
         b256!("d8648b6ac54162763c86fd54bf2005af8ecd2f9cb273a5775921fd7f91e17b2d");
 
-    /// DODO Buy base token
+    /// BuyBaseToken(address,uint256,uint256)
     pub const DODO_BUY_BASE: B256 =
-        b256!("e93ad76094f247c0dafc1c61adc2187de1ac2738f7a3b49571fa6d5dbd3e0e2c");
+        b256!("e93ad76094f247c0dafc1c61adc2187de1ac2738f7a3b49cb20b2263420251a3");
 
     /// Bancor Conversion
     pub const BANCOR_CONVERSION: B256 =
         b256!("7154b38b5dd31bb3122436a96d4e09aba5b323ae1fd580025fab55074334c095");
 
-    /// GMX Swap
+    /// Swap(address,address,address,uint256,uint256,uint256,uint256)
     pub const GMX_SWAP: B256 =
-        b256!("0874b2d545cb271cdbda4e093020c452328b2c2355e72f9e89a1b8eabc8c1e73");
+        b256!("0874b2d545cb271cdbda4e093020c452328b24af12382ed62c4d00f5c26709db");
 
     /// Synthetix Exchange
     pub const SYNTHETIX_EXCHANGE: B256 =
@@ -765,9 +762,9 @@ pub mod events {
     pub const MORPHO_REPAY: B256 =
         b256!("52acb05cebbd3cd39715469f22afbf5a17496295ef3bc9bb5944056c63ccaa09");
 
-    /// Morpho Liquidate
+    /// Liquidate(bytes32,address,address,uint256,uint256,uint256,uint256,uint256)
     pub const MORPHO_LIQUIDATE: B256 =
-        b256!("a4946ede45d0c6f06a0f5ce92c9ad3b4751452f2a149571da4e5f8e3cd4b2067");
+        b256!("a4946ede45d0c6f06a0f5ce92c9ad3b4751452d2fe0e25010783bcab57a67e41");
 
     /// Euler Deposit
     pub const EULER_DEPOSIT: B256 =
@@ -781,9 +778,9 @@ pub mod events {
 
     // ========== Staking & Restaking Events ==========
 
-    /// EigenLayer OperatorRegistered
+    /// OperatorRegistered(address,(address,address,uint32))
     pub const EIGENLAYER_OPERATOR_REGISTERED: B256 =
-        b256!("a3f31a99f4cfe5f9a47b25a7e89c0b5d7b44ebb70d4cc2df6ded239bd5c6db3f");
+        b256!("8e8485583a2310d41f7c82b9427d0bd49bad74bb9cff9d3402a29d8f9b28a0e2");
 
     /// EigenLayer Deposit
     pub const EIGENLAYER_DEPOSIT: B256 =
@@ -792,25 +789,13 @@ pub mod events {
     // Note: EigenLayer Withdrawal uses same hash as Compound Withdraw - same signature
     // Withdraw(address,uint256)
 
-    /// Rocket Pool Deposit
+    /// DepositReceived(address,uint256,uint256)
     pub const ROCKETPOOL_DEPOSIT: B256 =
-        b256!("2849b43074093a05396b6f2a937dee8565b15a48a7b3d4bffb732a5017380af5");
-
-    /// Rocket Pool Withdrawal
-    pub const ROCKETPOOL_WITHDRAWAL: B256 =
-        b256!("edc7e1bac0a56dc4b3e62a7a03f6c7e0fce6deb6b5b663d3e4c6a7e6c0c5d4e3");
+        b256!("7aa1a8eb998c779420645fc14513bf058edb347d95c2fc2e6845bdc22f888631");
 
     /// Frax ETH Deposit
     pub const FRAX_DEPOSIT: B256 =
         b256!("e1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c2402c5c5cc9109c");
-
-    /// Swell ETH Deposit
-    pub const SWELL_DEPOSIT: B256 =
-        b256!("f4ff8282c1eb29ef3a4f00da9a70d0adf5b22e9bb6f4f9f4e8d99f1b9d8e2b7a");
-
-    /// Pendle YT/PT Minted
-    pub const PENDLE_MINT: B256 =
-        b256!("5fe47ed6d4225326d3303476197d782ead5d1f74547f7d4e0b9efc4e0e8a5d7c");
 
     // ========== Governance Events ==========
 
@@ -852,17 +837,9 @@ pub mod events {
     pub const STARGATE_SWAP: B256 =
         b256!("34660fc8af304464529f48a778e03d03e4d34bcd5f9b6f0cfbf3cd238c642f7f");
 
-    /// Stargate Send
-    pub const STARGATE_SEND: B256 =
-        b256!("f09480a4a5bdc4e1f24f5f6e6c6d7b4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f");
-
-    /// LayerZero Packet Sent
+    /// PacketSent(bytes,bytes,address)
     pub const LZ_PACKET_SENT: B256 =
-        b256!("ac8e9819a7b7e8a4b2a8bc4f1e6d7c8b9a0f1e2d3c4b5a6f7e8d9c0b1a2f3e4d");
-
-    /// LayerZero Packet Received
-    pub const LZ_PACKET_RECEIVED: B256 =
-        b256!("bd8e9819a7b7e8a4b2a8bc4f1e6d7c8b9a0f1e2d3c4b5a6f7e8d9c0b1a2f3e4e");
+        b256!("1ab700d4ced0c005b164c0f789fd09fcbb0156d4c2041b8a3bfbcd961cd1567f");
 
     /// Wormhole MessagePublished
     pub const WORMHOLE_MESSAGE: B256 =
@@ -880,10 +857,6 @@ pub mod events {
     pub const POLYGON_STATE_SYNCED: B256 =
         b256!("103fed9db65eac19c4d870f49ab7520fe03b99f1838e5996caf47e9e43308392");
 
-    /// zkSync L1ToL2
-    pub const ZKSYNC_L1_TO_L2: B256 =
-        b256!("e11e8d5a7f0c0fb49d3d7d4f9b3f1e8e9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d");
-
     // ========== NFT Marketplace Events ==========
 
     /// Blur Sale
@@ -900,17 +873,9 @@ pub mod events {
 
     // Note: LooksRare TakerAsk uses same hash as Seaport OrderFulfilled - same signature
 
-    /// X2Y2 EvInventory
-    pub const X2Y2_INVENTORY: B256 =
-        b256!("3cbb63f144840e5b1b0a38a7c19211d2e89de4d7c5faf8b2d3c1b7e9c7a3b5d1");
-
     /// Rarible Match
     pub const RARIBLE_MATCH: B256 =
         b256!("956cd63ee4cdcd81fda5f0ec7c6c36dceda99e1b412f4a650a5d26055dc3c450");
-
-    /// Foundation Auction Ended
-    pub const FOUNDATION_AUCTION_ENDED: B256 =
-        b256!("2edb0e99c6ac35be6731dab554c1d1fa1b7beb3af7a6afc2dc1dcb69ee6dc28d");
 
     // ========== Token Standard Events ==========
 
@@ -921,20 +886,12 @@ pub mod events {
     pub const ERC4626_WITHDRAW: B256 =
         b256!("fbde797d201c681b91056529119e0b02407c7bb96a4a2c75c01fc9667232c8db");
 
-    /// stETH TokenRebased
+    /// TokenRebased(uint256,uint256,uint256,uint256,uint256,uint256,uint256)
     pub const STETH_TOKEN_REBASED: B256 =
-        b256!("d27f12e6b16c5826a76d4e20e9adab7a7f4f5b6d8c9e1f7c8b9a0d1e2f3a4b5c");
-
-    /// Permit(address indexed owner, address indexed spender, uint256 value, uint256 nonce, uint256 deadline)
-    pub const PERMIT: B256 =
-        b256!("8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925");
+        b256!("ff08c3ef606d198e316ef5b822193c489965899eb4e3c248cea1a4626c3eda50");
 
     // ========== Flashloan Events ==========
     // Note: Generic Flashloan uses same hash as Balancer FlashLoan - same signature
-
-    /// dYdX FlashLoan
-    pub const DYDX_FLASHLOAN: B256 =
-        b256!("5a3358a3d27f59a5f8c6e8c5f8a9b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0");
 
     // ========== Oracle Events ==========
 
@@ -994,21 +951,13 @@ pub mod events {
 
     // ========== Perpetual/Derivatives Events ==========
 
-    /// GMX IncreasePosition
+    /// IncreasePosition(bytes32,address,address,address,uint256,uint256,bool,uint256,uint256)
     pub const GMX_INCREASE_POSITION: B256 =
-        b256!("2fe68525253654c21998f35787a8d0f361905ef647c854092430b6f64a9b6602");
+        b256!("2fe68525253654c21998f35787a8d0f361905ef647c854092430ab65f2f15022");
 
     /// GMX DecreasePosition
     pub const GMX_DECREASE_POSITION: B256 =
         b256!("93d75d64d1f84fc6f430a64fc578bdd4c1e090e90ea2d51773e626d19de56d30");
-
-    /// dYdX Trade
-    pub const DYDX_TRADE: B256 =
-        b256!("3058356ae83a9b8b3edd1bb5c62c29d8e4e1e5c6b7f8a9d0e1f2a3b4c5d6e7f8");
-
-    /// Perpetual Protocol PositionChanged
-    pub const PERP_POSITION_CHANGED: B256 =
-        b256!("9e3a6a0d5e2f4b8c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c");
 
     // ========== Misc DeFi Events ==========
 
@@ -1084,7 +1033,6 @@ pub mod events {
             AAVE_FLASH_LOAN => Some("FlashLoan (Aave)"),
 
             // Compound
-            COMPOUND_SUPPLY => Some("Supply (Compound)"),
             COMPOUND_WITHDRAW => Some("Withdraw (Compound)"),
 
             // Convex/Staking
@@ -1134,7 +1082,7 @@ pub mod events {
             // Additional DEXs
             ZRX_FILL => Some("Fill (0x)"),
             ZRX_LIMIT_ORDER_FILLED => Some("LimitOrderFilled (0x)"),
-            PARASWAP_SWAPPED => Some("Swapped (ParaSwap)"),
+            PARASWAP_SWAPPED => Some("SwappedV3 (ParaSwap)"),
             KYBER_SWAPPED => Some("Swapped (Kyber)"),
             DODO_SELL_BASE => Some("SellBaseToken (DODO)"),
             DODO_BUY_BASE => Some("BuyBaseToken (DODO)"),
@@ -1155,9 +1103,6 @@ pub mod events {
             EIGENLAYER_DEPOSIT => Some("Deposit (EigenLayer)"),
             // EIGENLAYER_WITHDRAWAL - same hash as COMPOUND_WITHDRAW
             ROCKETPOOL_DEPOSIT => Some("Deposit (RocketPool)"),
-            ROCKETPOOL_WITHDRAWAL => Some("Withdrawal (RocketPool)"),
-            SWELL_DEPOSIT => Some("Deposit (Swell)"),
-            PENDLE_MINT => Some("Mint (Pendle)"),
 
             // Governance
             PROPOSAL_CREATED => Some("ProposalCreated"),
@@ -1171,23 +1116,18 @@ pub mod events {
             ACROSS_DEPOSIT => Some("Deposit (Across)"),
             ACROSS_FILL => Some("Fill (Across)"),
             STARGATE_SWAP => Some("Swap (Stargate)"),
-            STARGATE_SEND => Some("Send (Stargate)"),
             LZ_PACKET_SENT => Some("PacketSent (LayerZero)"),
-            LZ_PACKET_RECEIVED => Some("PacketReceived (LayerZero)"),
             WORMHOLE_MESSAGE => Some("MessagePublished (Wormhole)"),
             SYNAPSE_DEPOSIT => Some("TokenDeposit (Synapse)"),
             CELER_SEND => Some("Send (Celer)"),
             POLYGON_STATE_SYNCED => Some("StateSynced (Polygon)"),
-            ZKSYNC_L1_TO_L2 => Some("L1ToL2 (zkSync)"),
 
             // NFT Marketplaces
             BLUR_SALE => Some("Sale (Blur)"),
             BLUR_ORDERS_MATCHED => Some("OrdersMatched (Blur)"),
             LOOKSRARE_TAKER_BID => Some("TakerBid (LooksRare)"),
             // LOOKSRARE_TAKER_ASK - same hash as SEAPORT_ORDER_FULFILLED
-            X2Y2_INVENTORY => Some("EvInventory (X2Y2)"),
             RARIBLE_MATCH => Some("Match (Rarible)"),
-            FOUNDATION_AUCTION_ENDED => Some("AuctionEnded (Foundation)"),
 
             // Token Standards
             // ERC4626_DEPOSIT - same hash as CONVEX_STAKING_DEPOSIT
@@ -1196,7 +1136,6 @@ pub mod events {
 
             // Flashloans
             // FLASHLOAN - same hash as BALANCER_FLASH_LOAN
-            DYDX_FLASHLOAN => Some("FlashLoan (dYdX)"),
 
             // Oracles
             CHAINLINK_ANSWER_UPDATED => Some("AnswerUpdated (Chainlink)"),
@@ -1220,8 +1159,6 @@ pub mod events {
             // Perpetuals/Derivatives
             GMX_INCREASE_POSITION => Some("IncreasePosition (GMX)"),
             GMX_DECREASE_POSITION => Some("DecreasePosition (GMX)"),
-            DYDX_TRADE => Some("Trade (dYdX)"),
-            PERP_POSITION_CHANGED => Some("PositionChanged (Perp)"),
 
             // Misc DeFi
             VRF_REQUESTED => Some("RandomWordsRequested (VRF)"),
@@ -1263,6 +1200,153 @@ pub mod events {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn known_addresses_are_well_formed() {
+        for entry in KNOWN_ADDRESSES {
+            assert_eq!(entry.address.len(), 42, "{}", entry.address);
+            assert_eq!(
+                entry.address,
+                entry.address.to_lowercase(),
+                "{}",
+                entry.address
+            );
+            assert!(
+                Address::from_str(entry.address).is_ok(),
+                "{}",
+                entry.address
+            );
+        }
+    }
+
+    #[test]
+    fn topic0_constants_match_their_signatures() {
+        use alloy::primitives::{keccak256, B256};
+        use events::*;
+        let table: &[(B256, &str)] = &[
+            (TRANSFER, "Transfer(address,address,uint256)"),
+            (APPROVAL, "Approval(address,address,uint256)"),
+            (DEPOSIT, "Deposit(address,uint256)"),
+            (WITHDRAWAL, "Withdrawal(address,uint256)"),
+            (UNISWAP_V2_SWAP, "Swap(address,uint256,uint256,uint256,uint256,address)"),
+            (UNISWAP_V2_SYNC, "Sync(uint112,uint112)"),
+            (UNISWAP_V2_MINT, "Mint(address,uint256,uint256)"),
+            (UNISWAP_V2_BURN, "Burn(address,uint256,uint256,address)"),
+            (UNISWAP_V3_SWAP, "Swap(address,address,int256,int256,uint160,uint128,int24)"),
+            (UNISWAP_V3_MINT, "Mint(address,address,int24,int24,uint128,uint256,uint256)"),
+            (UNISWAP_V3_BURN, "Burn(address,int24,int24,uint128,uint256,uint256)"),
+            (UNISWAP_V3_COLLECT, "Collect(address,address,int24,int24,uint128,uint128)"),
+            (UNISWAP_V3_FLASH, "Flash(address,address,uint256,uint256,uint256,uint256)"),
+            (UNISWAP_V4_SWAP, "Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)"),
+            (CURVE_TOKEN_EXCHANGE, "TokenExchange(address,int128,uint256,int128,uint256)"),
+            (CURVE_TOKEN_EXCHANGE_UNDERLYING, "TokenExchangeUnderlying(address,int128,uint256,int128,uint256)"),
+            (CURVE_ADD_LIQUIDITY, "AddLiquidity(address,uint256[3],uint256[3],uint256,uint256)"),
+            (CURVE_REMOVE_LIQUIDITY, "RemoveLiquidity(address,uint256[2],uint256[2],uint256)"),
+            (CURVE_REMOVE_LIQUIDITY_ONE, "RemoveLiquidityOne(address,uint256,uint256)"),
+            (CURVE_REMOVE_LIQUIDITY_IMBALANCE, "RemoveLiquidityImbalance(address,uint256[2],uint256[2],uint256,uint256)"),
+            (LLAMMA_TOKEN_EXCHANGE, "TokenExchange(address,uint256,uint256,uint256,uint256)"),
+            (CURVE_ETH_EXCHANGE, "TokenExchange(address,uint256,uint256,uint256,uint256,uint256,uint256)"),
+            (BALANCER_SWAP, "Swap(bytes32,address,address,uint256,uint256)"),
+            (BALANCER_POOL_BALANCE_CHANGED, "PoolBalanceChanged(bytes32,address,address[],int256[],uint256[])"),
+            (BALANCER_FLASH_LOAN, "FlashLoan(address,address,uint256,uint256)"),
+            (AAVE_SUPPLY, "Supply(address,address,address,uint256,uint16)"),
+            (AAVE_V2_DEPOSIT, "Deposit(address,address,address,uint256,uint16)"),
+            (AAVE_WITHDRAW, "Withdraw(address,address,address,uint256)"),
+            (AAVE_BORROW, "Borrow(address,address,address,uint256,uint8,uint256,uint16)"),
+            (AAVE_REPAY, "Repay(address,address,address,uint256,bool)"),
+            (AAVE_LIQUIDATION, "LiquidationCall(address,address,address,uint256,uint256,address,bool)"),
+            (AAVE_FLASH_LOAN, "FlashLoan(address,address,address,uint256,uint256,uint16)"),
+            (COMPOUND_WITHDRAW, "Withdraw(address,address,uint256)"),
+            (CONVEX_DEPOSITED, "Deposited(address,uint256,uint256)"),
+            (CONVEX_WITHDRAWN, "Withdrawn(address,uint256,uint256)"),
+            (STAKED, "Staked(address,uint256)"),
+            (REWARD_PAID, "RewardPaid(address,uint256)"),
+            (REWARD_ADDED, "RewardAdded(uint256)"),
+            (CONVEX_STAKING_DEPOSIT, "Deposit(address,address,uint256,uint256)"),
+            (ERC721_APPROVAL_FOR_ALL, "ApprovalForAll(address,address,bool)"),
+            (ERC1155_TRANSFER_SINGLE, "TransferSingle(address,address,address,uint256,uint256)"),
+            (ERC1155_TRANSFER_BATCH, "TransferBatch(address,address,address,uint256[],uint256[])"),
+            (PERMIT2_PERMIT, "Permit(address,address,address,uint160,uint48,uint48)"),
+            (PERMIT2_APPROVAL, "Approval(address,address,address,uint160,uint48)"),
+            (ONEINCH_SWAPPED, "Swapped(address,address,address,address,uint256,uint256)"),
+            (COW_TRADE, "Trade(address,address,address,uint256,uint256,uint256,bytes)"),
+            (COW_SETTLEMENT, "Settlement(address)"),
+            (LIDO_SUBMITTED, "Submitted(address,uint256,address)"),
+            (LIDO_TRANSFER_SHARES, "TransferShares(address,address,uint256)"),
+            (OPTIMISM_SENT_MESSAGE, "SentMessage(address,address,bytes,uint256,uint256)"),
+            (ARBITRUM_MESSAGE_DELIVERED, "MessageDelivered(uint256,bytes32,address,uint8,address,bytes32,uint256,uint64)"),
+            (ENS_NAME_REGISTERED, "NameRegistered(string,bytes32,address,uint256,uint256)"),
+            (SEAPORT_ORDER_FULFILLED, "OrderFulfilled(bytes32,address,address,address,(uint8,address,uint256,uint256)[],(uint8,address,uint256,uint256,address)[])"),
+            (OWNERSHIP_TRANSFERRED, "OwnershipTransferred(address,address)"),
+            (ZRX_FILL, "Fill(address,address,bytes,bytes,bytes,bytes,bytes32,address,address,uint256,uint256,uint256,uint256,uint256)"),
+            (ZRX_LIMIT_ORDER_FILLED, "LimitOrderFilled(bytes32,address,address,address,address,address,uint128,uint128,uint128,uint256,bytes32)"),
+            (PARASWAP_SWAPPED, "SwappedV3(bytes16,address,uint256,address,address,address,address,uint256,uint256,uint256)"),
+            (KYBER_SWAPPED, "Swapped(address,address,address,address,uint256,uint256,uint256,uint256,uint256,address)"),
+            (DODO_SELL_BASE, "SellBaseToken(address,uint256,uint256)"),
+            (DODO_BUY_BASE, "BuyBaseToken(address,uint256,uint256)"),
+            (BANCOR_CONVERSION, "Conversion(address,address,address,uint256,uint256,address)"),
+            (GMX_SWAP, "Swap(address,address,address,uint256,uint256,uint256,uint256)"),
+            (SYNTHETIX_EXCHANGE, "SynthExchange(address,bytes32,uint256,bytes32,uint256,address)"),
+            (MORPHO_SUPPLY, "Supply(bytes32,address,address,uint256,uint256)"),
+            (MORPHO_WITHDRAW, "Withdraw(bytes32,address,address,address,uint256,uint256)"),
+            (MORPHO_BORROW, "Borrow(address,address,uint256)"),
+            (MORPHO_REPAY, "Repay(bytes32,address,address,uint256,uint256)"),
+            (MORPHO_LIQUIDATE, "Liquidate(bytes32,address,address,uint256,uint256,uint256,uint256,uint256)"),
+            (EULER_DEPOSIT, "Deposit(address,uint256)"),
+            (EIGENLAYER_OPERATOR_REGISTERED, "OperatorRegistered(address,(address,address,uint32))"),
+            (EIGENLAYER_DEPOSIT, "Deposit(address,address,address,uint256)"),
+            (ROCKETPOOL_DEPOSIT, "DepositReceived(address,uint256,uint256)"),
+            (FRAX_DEPOSIT, "Deposit(address,uint256)"),
+            (PROPOSAL_CREATED, "ProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)"),
+            (VOTE_CAST, "VoteCast(address,uint256,uint8,uint256,string)"),
+            (PROPOSAL_EXECUTED, "ProposalExecuted(uint256)"),
+            (PROPOSAL_CANCELED, "ProposalCanceled(uint256)"),
+            (DELEGATE_CHANGED, "DelegateChanged(address,address,address)"),
+            (DELEGATE_VOTES_CHANGED, "DelegateVotesChanged(address,uint256,uint256)"),
+            (ACROSS_DEPOSIT, "FundsDeposited(uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes)"),
+            (ACROSS_FILL, "FilledV3Relay(address,address,uint256,uint256,uint256,uint256,uint32,uint32,uint32,address,address,address,address,bytes,(address,bytes,uint256,uint8))"),
+            (STARGATE_SWAP, "Swap(uint16,uint256,address,uint256,uint256,uint256,uint256,uint256)"),
+            (LZ_PACKET_SENT, "PacketSent(bytes,bytes,address)"),
+            (WORMHOLE_MESSAGE, "LogMessagePublished(address,uint64,uint32,bytes,uint8)"),
+            (SYNAPSE_DEPOSIT, "TokenDeposit(address,uint256,address,uint256)"),
+            (CELER_SEND, "Send(bytes32,address,address,address,uint256,uint64,uint64,uint32)"),
+            (POLYGON_STATE_SYNCED, "StateSynced(uint256,address,bytes)"),
+            (BLUR_SALE, "OrdersMatched(address,address,(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes),bytes32,(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,(uint16,address)[],uint256,bytes),bytes32)"),
+            (BLUR_ORDERS_MATCHED, "Execution721TakerFeePacked(bytes32,uint256,uint256,uint256)"),
+            (LOOKSRARE_TAKER_BID, "TakerAsk(bytes32,uint256,address,address,address,address,address,uint256,uint256,uint256)"),
+            (RARIBLE_MATCH, "Match(bytes32,bytes32,uint256,uint256)"),
+            (ERC4626_WITHDRAW, "Withdraw(address,address,address,uint256,uint256)"),
+            (STETH_TOKEN_REBASED, "TokenRebased(uint256,uint256,uint256,uint256,uint256,uint256,uint256)"),
+            (CHAINLINK_ANSWER_UPDATED, "AnswerUpdated(int256,uint256,uint256)"),
+            (CHAINLINK_NEW_ROUND, "NewRound(uint256,address,uint256)"),
+            (PYTH_PRICE_UPDATE, "PriceFeedUpdate(bytes32,uint64,int64,uint64)"),
+            (SAFE_EXECUTION_SUCCESS, "ExecutionSuccess(bytes32,uint256)"),
+            (SAFE_EXECUTION_FAILURE, "ExecutionFailure(bytes32,uint256)"),
+            (SAFE_ADDED_OWNER, "AddedOwner(address)"),
+            (SAFE_REMOVED_OWNER, "RemovedOwner(address)"),
+            (SAFE_CHANGED_THRESHOLD, "ChangedThreshold(uint256)"),
+            (YEARN_DEPOSIT, "Deposit(address,uint256,uint256)"),
+            (YEARN_WITHDRAW, "Withdraw(address,uint256,uint256)"),
+            (HARVEST, "Harvest(address,uint256,uint256)"),
+            (COMPOUND_V3_SUPPLY, "Supply(address,address,uint256)"),
+            (GMX_INCREASE_POSITION, "IncreasePosition(bytes32,address,address,address,uint256,uint256,bool,uint256,uint256)"),
+            (GMX_DECREASE_POSITION, "DecreasePosition(bytes32,address,address,address,uint256,uint256,bool,uint256,uint256)"),
+            (VRF_REQUESTED, "RandomWordsRequested(bytes32,uint256,uint256,uint64,uint16,uint32,uint32,address)"),
+            (VRF_FULFILLED, "RandomWordsFulfilled(uint256,uint256,uint96,bool)"),
+            (UNISWAP_V3_INCREASE_LIQUIDITY, "IncreaseLiquidity(uint256,uint128,uint256,uint256)"),
+            (UNISWAP_V3_DECREASE_LIQUIDITY, "DecreaseLiquidity(uint256,uint128,uint256,uint256)"),
+            (UNISWAP_V3_POOL_CREATED, "PoolCreated(address,address,uint24,int24,address)"),
+        ];
+        for (topic, signature) in table {
+            assert_eq!(*topic, keccak256(signature.as_bytes()), "{signature}");
+        }
+        // Anonymous LibNote events: topic0 is the selector, left-aligned
+        assert_eq!(
+            MAKER_FROB[..4],
+            keccak256(b"frob(bytes32,address,address,address,int256,int256)")[..4]
+        );
+        assert_eq!(DSR_JOIN[..4], keccak256(b"join(uint256)")[..4]);
+    }
+
     use super::*;
     use std::str::FromStr;
 
