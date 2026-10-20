@@ -63,6 +63,22 @@ fn parse_duration_string(s: &str) -> anyhow::Result<f64> {
     Ok(seconds)
 }
 
+/// Default checkpoint file for a fetch: the full contract and chain, so two
+/// contracts sharing an 8-character prefix (or one contract on two chains)
+/// don't share a checkpoint. An existing checkpoint under the old
+/// prefix-only name is still used.
+fn default_checkpoint_path(contract: &str, chain_id: u64) -> PathBuf {
+    let contract = contract.trim().to_lowercase();
+    let legacy = PathBuf::from(format!(
+        ".ethcli-{}.checkpoint",
+        contract.get(..8).unwrap_or(&contract)
+    ));
+    if legacy.exists() {
+        return legacy;
+    }
+    PathBuf::from(format!(".ethcli-{chain_id}-{contract}.checkpoint"))
+}
+
 /// Load config file with proper error reporting
 ///
 /// Returns None if file doesn't exist, but warns on parse errors
@@ -681,12 +697,10 @@ async fn run_streaming_fetch(
     let fetcher = StreamingFetcher::new(config.clone()).await?;
 
     // Enable checkpointing if path specified or use default
-    let checkpoint_path = args.checkpoint.clone().unwrap_or_else(|| {
-        PathBuf::from(format!(
-            ".ethcli-{}.checkpoint",
-            &args.contract[..8.min(args.contract.len())]
-        ))
-    });
+    let checkpoint_path = args
+        .checkpoint
+        .clone()
+        .unwrap_or_else(|| default_checkpoint_path(&args.contract, config.chain.chain_id()));
 
     // Get an endpoint for timestamp fetching before moving the fetcher
     let endpoint_for_timestamps = if args.timestamps {
@@ -2668,13 +2682,21 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
                         eprintln!(
                             "\n[{}] Error: {} - {}",
                             idx + 1,
-                            &hash[..hash.len().min(12)],
+                            hash.get(..12).unwrap_or(&hash),
                             e
                         );
                     }
                 }
             }
         }
+    }
+
+    if all_analyses.is_empty() {
+        anyhow::bail!(
+            "All {} transaction{} failed to analyze",
+            tx_count,
+            if tx_count == 1 { "" } else { "s" }
+        );
     }
 
     // Sort by original index to maintain order
