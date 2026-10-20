@@ -27,6 +27,16 @@ pub struct BlacklistEntry {
     pub chain: Option<String>,
 }
 
+/// Blacklist key for an address: trimmed, lowercase, 0x-prefixed
+fn normalize_key(address: &str) -> String {
+    let lower = address.trim().to_lowercase();
+    if lower.starts_with("0x") {
+        lower
+    } else {
+        format!("0x{lower}")
+    }
+}
+
 /// Token blacklist storage
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TokenBlacklist {
@@ -76,7 +86,15 @@ impl TokenBlacklist {
         let content = std::fs::read_to_string(path)
             .map_err(|e| format!("Failed to read blacklist: {}", e))?;
 
-        toml::from_str(&content).map_err(|e| format!("Failed to parse blacklist: {}", e))
+        let mut list: Self =
+            toml::from_str(&content).map_err(|e| format!("Failed to parse blacklist: {}", e))?;
+        // Hand-edited files may use checksummed or unprefixed addresses
+        list.entries = list
+            .entries
+            .into_iter()
+            .map(|(k, v)| (normalize_key(&k), v))
+            .collect();
+        Ok(list)
     }
 
     /// Save to default path
@@ -128,7 +146,7 @@ impl TokenBlacklist {
             .map_err(|_| format!("Invalid Ethereum address: {}", address))?;
 
         // Store with checksummed address, keyed by lowercase
-        let key = address.to_lowercase();
+        let key = normalize_key(address);
         let checksummed = format!("{:?}", parsed);
 
         self.entries.insert(
@@ -146,7 +164,7 @@ impl TokenBlacklist {
 
     /// Remove a token from the blacklist
     pub fn remove(&mut self, address: &str) -> Result<bool, String> {
-        let key = address.to_lowercase();
+        let key = normalize_key(address);
         let removed = self.entries.remove(&key).is_some();
         if removed {
             self.save_default()?;
@@ -156,12 +174,12 @@ impl TokenBlacklist {
 
     /// Check if a token is blacklisted
     pub fn is_blacklisted(&self, address: &str) -> bool {
-        self.entries.contains_key(&address.to_lowercase())
+        self.entries.contains_key(&normalize_key(address))
     }
 
     /// Get a blacklist entry
     pub fn get(&self, address: &str) -> Option<&BlacklistEntry> {
-        self.entries.get(&address.to_lowercase())
+        self.entries.get(&normalize_key(address))
     }
 
     /// List all blacklisted tokens
@@ -192,6 +210,19 @@ impl TokenBlacklist {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn keys_are_normalised() {
+        assert_eq!(normalize_key(" 0xAbC "), "0xabc");
+        assert_eq!(normalize_key("ABC"), "0xabc");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bl.toml");
+        std::fs::write(&path, "[entries.\"0xABC\"]\naddress = \"0xABC\"\n").unwrap();
+        let list = TokenBlacklist::load(&path).unwrap();
+        assert!(list.is_blacklisted("0xabc"));
+        assert!(list.is_blacklisted("ABC"));
+    }
+
     use super::*;
 
     #[test]
