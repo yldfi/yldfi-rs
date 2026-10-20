@@ -258,6 +258,21 @@ pub fn handle(action: &AddressCommands, quiet: bool) -> anyhow::Result<()> {
             let entries: Vec<ImportEntry> = serde_json::from_str(&content)
                 .map_err(|e| anyhow::anyhow!("Failed to parse JSON: {}", e))?;
 
+            // Validate every address first (as `address add` does), so a bad
+            // entry aborts the import before anything is saved
+            for entry in &entries {
+                entry
+                    .address
+                    .parse::<alloy::primitives::Address>()
+                    .map_err(|_| {
+                        anyhow::anyhow!(
+                            "Entry '{}': invalid Ethereum address: {}",
+                            entry.label,
+                            entry.address
+                        )
+                    })?;
+            }
+
             let mut book = AddressBook::load_default();
             let mut added = 0;
             let mut skipped = 0;
