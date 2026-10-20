@@ -20,12 +20,13 @@ fn is_native_token(addr: &str) -> bool {
     addr.to_lowercase() == NATIVE_TOKEN.to_lowercase()
 }
 
-/// Get WETH address for a chain (for protocols that don't support native ETH)
+/// Wrapped native token for a chain (for protocols that don't support the
+/// native token). On Gnosis the native token is xDAI, so it's WXDAI, not WETH.
 fn get_weth_address(chain_id: u64) -> Option<&'static str> {
     match chain_id {
         1 => Some("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"), // Ethereum
         42161 => Some("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"), // Arbitrum
-        100 => Some("0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1"), // Gnosis (WETH)
+        100 => Some("0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d"), // Gnosis (WXDAI)
         11155111 => Some("0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"), // Sepolia
         _ => None,
     }
@@ -879,6 +880,15 @@ pub async fn fetch_enso_quote(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn gnosis_native_wraps_to_wxdai() {
+        assert_eq!(
+            get_weth_address(100),
+            Some("0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d")
+        );
+    }
+
     use super::*;
 
     #[test]
