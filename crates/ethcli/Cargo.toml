@@ -35,6 +35,9 @@ alloy = { version = "2", features = [
 # Etherscan API
 foundry-block-explorers = "0.24"
 alloy-chains = "0.2"
+# The reqwest major foundry-block-explorers uses, so its client can share one
+# connection pool and timeout (features come from foundry-block-explorers)
+reqwest-explorers = { package = "reqwest", version = "0.13", default-features = false }
 
 # HTTP client
 reqwest = { version = "0.12", default-features = false, features = [

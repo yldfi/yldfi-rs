@@ -182,7 +182,7 @@ async fn run() -> anyhow::Result<()> {
             return ethcli::cli::address::handle(action, cli.quiet);
         }
         Commands::Blacklist(args) => {
-            return ethcli::cli::blacklist::execute(args).await;
+            return ethcli::cli::blacklist::execute(args, etherscan_key.clone()).await;
         }
         Commands::Contract { action } => {
             return ethcli::cli::contract::handle(action, chain, etherscan_key.clone(), cli.quiet)

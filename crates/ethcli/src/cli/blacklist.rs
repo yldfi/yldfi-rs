@@ -425,7 +425,11 @@ fn etherscan_url(chain: &str, address: &str) -> String {
 }
 
 /// Execute blacklist command
-pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
+///
+/// `etherscan_key` is the resolved key (`--etherscan-key` or config); the
+/// `ETHERSCAN_API_KEY` environment variable is used when it is `None`.
+pub async fn execute(args: &BlacklistArgs, etherscan_key: Option<String>) -> anyhow::Result<()> {
+    let api_key = etherscan_key.or_else(|| std::env::var("ETHERSCAN_API_KEY").ok());
     match &args.command {
         BlacklistCommands::Add {
             address,
@@ -560,7 +564,7 @@ pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
             chain,
             auto_blacklist,
         } => {
-            execute_scan(address, chain, *auto_blacklist).await?;
+            execute_scan(address, chain, *auto_blacklist, api_key.clone()).await?;
         }
 
         BlacklistCommands::ScanPortfolio {
@@ -569,7 +573,14 @@ pub async fn execute(args: &BlacklistArgs) -> anyhow::Result<()> {
             auto_blacklist,
             suspicious_only,
         } => {
-            execute_scan_portfolio(address, chain, *auto_blacklist, *suspicious_only).await?;
+            execute_scan_portfolio(
+                address,
+                chain,
+                *auto_blacklist,
+                *suspicious_only,
+                api_key.clone(),
+            )
+            .await?;
         }
 
         BlacklistCommands::Path => {
@@ -726,9 +737,13 @@ fn handle_scam_result(
 }
 
 /// Execute scan command
-async fn execute_scan(address: &str, chain_str: &str, auto_blacklist: bool) -> anyhow::Result<()> {
+async fn execute_scan(
+    address: &str,
+    chain_str: &str,
+    auto_blacklist: bool,
+    api_key: Option<String>,
+) -> anyhow::Result<()> {
     let chain = chain_str.parse::<Chain>().unwrap_or(Chain::Ethereum);
-    let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
 
     eprintln!("Scanning {}...", address);
 
@@ -827,11 +842,11 @@ async fn execute_scan_portfolio(
     chain_str: &str,
     auto_blacklist: bool,
     suspicious_only: bool,
+    api_key: Option<String>,
 ) -> anyhow::Result<()> {
     use crate::aggregator::portfolio::fetch_portfolio_all;
 
     let chain = chain_str.parse::<Chain>().unwrap_or(Chain::Ethereum);
-    let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
 
     // Progress goes to stderr so stdout only carries scan results.
     eprintln!("Fetching portfolio for {}...", wallet_address);
