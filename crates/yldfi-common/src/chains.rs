@@ -82,6 +82,32 @@ pub enum Chain {
     Aurora,
     /// Polygon zkEVM (1101)
     PolygonZkEvm,
+    /// Sonic (146)
+    Sonic,
+    /// Berachain (80094)
+    Berachain,
+    /// Unichain (130)
+    Unichain,
+    /// Ronin (2020)
+    Ronin,
+    /// HyperEVM (999)
+    HyperEvm,
+    /// Plasma (9745)
+    Plasma,
+    /// Monad (143)
+    Monad,
+    /// Etherlink (42793)
+    Etherlink,
+    /// MegaETH (4326)
+    MegaEth,
+    /// Robinhood Chain (4663)
+    Robinhood,
+    /// Arc (5042)
+    Arc,
+    /// Ink (57073)
+    Ink,
+    /// Cronos (25)
+    Cronos,
     /// Unknown chain with custom ID
     Other(u64),
 }
@@ -129,6 +155,19 @@ impl Chain {
             Self::Klaytn => 8217,
             Self::Aurora => 1_313_161_554,
             Self::PolygonZkEvm => 1101,
+            Self::Sonic => 146,
+            Self::Berachain => 80094,
+            Self::Unichain => 130,
+            Self::Ronin => 2020,
+            Self::HyperEvm => 999,
+            Self::Plasma => 9745,
+            Self::Monad => 143,
+            Self::Etherlink => 42793,
+            Self::MegaEth => 4326,
+            Self::Robinhood => 4663,
+            Self::Arc => 5042,
+            Self::Ink => 57073,
+            Self::Cronos => 25,
             Self::Other(id) => *id,
         }
     }
@@ -175,6 +214,19 @@ impl Chain {
             Self::Klaytn => "klaytn",
             Self::Aurora => "aurora",
             Self::PolygonZkEvm => "polygon-zkevm",
+            Self::Sonic => "sonic",
+            Self::Berachain => "berachain",
+            Self::Unichain => "unichain",
+            Self::Ronin => "ronin",
+            Self::HyperEvm => "hyperevm",
+            Self::Plasma => "plasma",
+            Self::Monad => "monad",
+            Self::Etherlink => "etherlink",
+            Self::MegaEth => "megaeth",
+            Self::Robinhood => "robinhood",
+            Self::Arc => "arc",
+            Self::Ink => "ink",
+            Self::Cronos => "cronos",
             Self::Other(_) => "unknown",
         }
     }
@@ -221,6 +273,19 @@ impl Chain {
             Self::Klaytn => "Klaytn",
             Self::Aurora => "Aurora",
             Self::PolygonZkEvm => "Polygon zkEVM",
+            Self::Sonic => "Sonic",
+            Self::Berachain => "Berachain",
+            Self::Unichain => "Unichain",
+            Self::Ronin => "Ronin",
+            Self::HyperEvm => "HyperEVM",
+            Self::Plasma => "Plasma",
+            Self::Monad => "Monad",
+            Self::Etherlink => "Etherlink",
+            Self::MegaEth => "MegaETH",
+            Self::Robinhood => "Robinhood Chain",
+            Self::Arc => "Arc",
+            Self::Ink => "Ink",
+            Self::Cronos => "Cronos",
             Self::Other(_) => "Unknown",
         }
     }
@@ -251,6 +316,19 @@ impl Chain {
             Self::Klaytn => "KLAY",
             Self::Aurora => "ETH",
             Self::PolygonZkEvm => "ETH",
+            Self::Sonic => "S",
+            Self::Berachain => "BERA",
+            Self::Unichain => "ETH",
+            Self::Ronin => "RON",
+            Self::HyperEvm => "HYPE",
+            Self::Plasma => "XPL",
+            Self::Monad => "MON",
+            Self::Etherlink => "XTZ",
+            Self::MegaEth => "ETH",
+            Self::Robinhood => "ETH",
+            Self::Arc => "USDC",
+            Self::Ink => "ETH",
+            Self::Cronos => "CRO",
             Self::Other(_) => "ETH",
         }
     }
@@ -326,6 +404,19 @@ impl Chain {
             8217 => Self::Klaytn,
             1_313_161_554 => Self::Aurora,
             1101 => Self::PolygonZkEvm,
+            146 => Self::Sonic,
+            80094 => Self::Berachain,
+            130 => Self::Unichain,
+            2020 => Self::Ronin,
+            999 => Self::HyperEvm,
+            9745 => Self::Plasma,
+            143 => Self::Monad,
+            42793 => Self::Etherlink,
+            4326 => Self::MegaEth,
+            4663 => Self::Robinhood,
+            5042 => Self::Arc,
+            57073 => Self::Ink,
+            25 => Self::Cronos,
             _ => Self::Other(id),
         }
     }
@@ -383,6 +474,19 @@ impl Chain {
             "klaytn" | "klay" => Some(Self::Klaytn),
             "aurora" => Some(Self::Aurora),
             "polygon-zkevm" | "polygonzkevm" | "zkevm" => Some(Self::PolygonZkEvm),
+            "sonic" => Some(Self::Sonic),
+            "berachain" | "bera" => Some(Self::Berachain),
+            "unichain" => Some(Self::Unichain),
+            "ronin" => Some(Self::Ronin),
+            "hyperevm" | "hyperliquid" => Some(Self::HyperEvm),
+            "plasma" => Some(Self::Plasma),
+            "monad" => Some(Self::Monad),
+            "etherlink" => Some(Self::Etherlink),
+            "megaeth" => Some(Self::MegaEth),
+            "robinhood" => Some(Self::Robinhood),
+            "arc" => Some(Self::Arc),
+            "ink" => Some(Self::Ink),
+            "cronos" | "cro" => Some(Self::Cronos),
             _ => None,
         }
     }
@@ -414,6 +518,19 @@ impl Chain {
             Self::Klaytn,
             Self::Aurora,
             Self::PolygonZkEvm,
+            Self::Sonic,
+            Self::Berachain,
+            Self::Unichain,
+            Self::Ronin,
+            Self::HyperEvm,
+            Self::Plasma,
+            Self::Monad,
+            Self::Etherlink,
+            Self::MegaEth,
+            Self::Robinhood,
+            Self::Arc,
+            Self::Ink,
+            Self::Cronos,
         ]
     }
 }
@@ -487,6 +604,19 @@ mod tests {
             assert_eq!(Chain::from_name(name), Some(chain), "{name}");
         }
         assert_eq!(Chain::from_name(""), None);
+    }
+
+    #[test]
+    fn test_every_mainnet_round_trips() {
+        for chain in Chain::mainnets() {
+            assert_eq!(Chain::from_id(chain.id()), *chain, "{chain:?}");
+            assert_eq!(Chain::from_name(chain.name()), Some(*chain), "{chain:?}");
+            assert!(chain.is_mainnet(), "{chain:?}");
+        }
+        assert_eq!(Chain::from_name("sonic").map(|c| c.id()), Some(146));
+        assert_eq!(Chain::from_name("bera").map(|c| c.id()), Some(80094));
+        assert_eq!(Chain::from_name("hyperliquid").map(|c| c.id()), Some(999));
+        assert_eq!(Chain::Arc.native_currency(), "USDC");
     }
 
     #[test]
