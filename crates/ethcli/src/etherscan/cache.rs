@@ -817,6 +817,9 @@ pub struct TokenCacheData {
     pub tokens: HashMap<String, TokenCacheEntry>,
 }
 
+/// Token metadata cache TTL in seconds (30 days)
+const TOKEN_CACHE_TTL_SECS: u64 = 30 * 24 * 60 * 60;
+
 /// Token metadata cache for immutable token data
 pub struct TokenMetadataCache {
     path: PathBuf,
@@ -858,7 +861,17 @@ impl TokenMetadataCache {
     /// Get token metadata from cache
     pub fn get(&self, chain: &str, address: &str) -> Option<TokenCacheEntry> {
         let key = format!("{}:{}", chain, address.to_lowercase());
-        self.data.read().tokens.get(&key).cloned()
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        // Metadata can change (proxy upgrades, renames): expire after 30 days
+        self.data
+            .read()
+            .tokens
+            .get(&key)
+            .filter(|e| now.saturating_sub(e.timestamp) <= TOKEN_CACHE_TTL_SECS)
+            .cloned()
     }
 
     /// Set token metadata in cache
@@ -870,6 +883,10 @@ impl TokenMetadataCache {
         symbol: Option<String>,
         decimals: Option<u8>,
     ) {
+        // A failed lookup must not be cached as "no name/symbol/decimals"
+        if name.is_none() && symbol.is_none() && decimals.is_none() {
+            return;
+        }
         let key = format!("{}:{}", chain, address.to_lowercase());
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -914,6 +931,17 @@ impl Default for TokenMetadataCache {
 
 #[cfg(test)]
 mod token_cache_tests {
+
+    #[test]
+    fn misses_are_not_cached() {
+        let dir = tempdir().unwrap();
+        let cache = TokenMetadataCache::with_path(dir.path().join("t.json"));
+        cache.set("1", "0xabc", None, None, None);
+        assert!(cache.get("1", "0xabc").is_none());
+        cache.set("1", "0xabc", None, Some("USDC".into()), Some(6));
+        assert_eq!(cache.get("1", "0xABC").unwrap().decimals, Some(6));
+    }
+
     use super::*;
     use tempfile::tempdir;
 
@@ -943,9 +971,15 @@ mod token_cache_tests {
     fn legacy_cache_with_total_supply_still_loads() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("token_cache.json");
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         fs::write(
             &path,
-            r#"{"tokens":{"ethereum:0xabc":{"name":"X","symbol":"X","decimals":18,"total_supply":"123","timestamp":1}}}"#,
+            format!(
+                r#"{{"tokens":{{"ethereum:0xabc":{{"name":"X","symbol":"X","decimals":18,"total_supply":"123","timestamp":{now}}}}}}}"#
+            ),
         )
         .unwrap();
         let entry = TokenMetadataCache::with_path(path)
