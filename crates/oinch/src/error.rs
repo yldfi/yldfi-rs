@@ -101,7 +101,9 @@ pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error
     }
 
     if status == 402 {
-        return ApiError::domain(DomainError::PaymentRequired(body.trim().to_string()));
+        return ApiError::domain(DomainError::PaymentRequired(
+            yldfi_common::api::sanitize_error_body(body.trim()),
+        ));
     }
 
     // Fall back to generic ApiError handling
