@@ -1408,7 +1408,7 @@ pub struct TenderlyAlertsUpdateInput {
     pub id: String,
     /// Alert name (required)
     pub name: String,
-    /// Alert type (required, e.g., "successful_transaction", "failed_transaction", "event_emitted")
+    /// Alert type, as Tenderly's simple_type (required, e.g., "successful_tx", "failed_tx", "log_emitted", "function_called", "erc20_transfer_log_emitted")
     pub alert_type: String,
     /// Network ID (e.g., "1" for mainnet)
     #[serde(default)]
@@ -2389,12 +2389,8 @@ pub struct MoralisProtocolPositionsInput {
 pub struct MoralisAnalyticsTimeseriesInput {
     /// Comma-separated token addresses
     pub addresses: String,
-    /// Timeframe (e.g., 1h, 4h, 1d)
+    /// Timeframe (1d, 7d or 30d). Defaults to 1d.
     pub timeframe: Option<String>,
-    /// From date (ISO 8601)
-    pub from_date: Option<String>,
-    /// To date (ISO 8601)
-    pub to_date: Option<String>,
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
@@ -2903,9 +2899,13 @@ pub struct CowswapOrderInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CowswapOwnerInput {
+pub struct CowswapOrdersInput {
     /// Owner address
     pub owner: String,
+    /// Pagination offset
+    pub offset: Option<u64>,
+    /// Max orders to return, 1-1000 (API default: 10)
+    pub limit: Option<u32>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,

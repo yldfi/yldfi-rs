@@ -5224,8 +5224,6 @@ pub async fn moralis_discovery_token_score(
 pub async fn moralis_analytics_timeseries(
     addresses: &str,
     timeframe: Option<&str>,
-    from_date: Option<&str>,
-    to_date: Option<&str>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
@@ -5234,8 +5232,6 @@ pub async fn moralis_analytics_timeseries(
         .subcommand("timeseries")
         .arg(addresses)
         .opt("--timeframe", timeframe)
-        .opt("--from-date", from_date)
-        .opt("--to-date", to_date)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6924,10 +6920,19 @@ pub async fn cowswap_order(order_uid: &str, chain: Option<&str>) -> Result<Strin
         .map_err(ToolError::from)
 }
 
-pub async fn cowswap_orders(owner: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn cowswap_orders(
+    owner: &str,
+    offset: Option<u64>,
+    limit: Option<u32>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let offset = offset.map(|o| o.to_string());
+    let limit = limit.map(|l| l.to_string());
     ArgsBuilder::new("cow-swap")
         .subcommand("orders")
         .arg(owner)
+        .opt("--offset", offset.as_deref())
+        .opt("--limit", limit.as_deref())
         .chain(chain)
         .format_json()
         .execute()

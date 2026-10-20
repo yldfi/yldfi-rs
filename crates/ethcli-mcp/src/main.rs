@@ -4202,7 +4202,7 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get token analytics timeseries data (comma-separated addresses, optional timeframe and date range) via Moralis"
+        description = "Get token analytics timeseries data (comma-separated addresses, optional timeframe) via Moralis"
     )]
     async fn moralis_analytics_timeseries(
         &self,
@@ -4211,8 +4211,6 @@ impl EthcliMcpServer {
         tools::moralis_analytics_timeseries(
             &input.addresses,
             input.timeframe.as_deref(),
-            input.from_date.as_deref(),
-            input.to_date.as_deref(),
             Some(input.chain.as_str()),
         )
         .await
@@ -5323,12 +5321,14 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get orders for an address from CoW Swap")]
+    #[tool(
+        description = "Get orders for an address from CoW Swap (paginated, optional offset and limit)"
+    )]
     async fn cowswap_orders(
         &self,
-        Parameters(input): Parameters<CowswapOwnerInput>,
+        Parameters(input): Parameters<CowswapOrdersInput>,
     ) -> CallToolResult {
-        tools::cowswap_orders(&input.owner, Some(&input.chain))
+        tools::cowswap_orders(&input.owner, input.offset, input.limit, Some(&input.chain))
             .await
             .to_response()
     }
