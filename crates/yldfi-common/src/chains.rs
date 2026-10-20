@@ -233,7 +233,7 @@ impl Chain {
             Self::Optimism | Self::OptimismSepolia => "ETH",
             Self::Bsc | Self::BscTestnet => "BNB",
             Self::Gnosis => "xDAI",
-            Self::Polygon | Self::Mumbai | Self::Amoy => "MATIC",
+            Self::Polygon | Self::Mumbai | Self::Amoy => "POL",
             Self::Fantom | Self::FantomTestnet => "FTM",
             Self::Moonbeam => "GLMR",
             Self::Moonriver => "MOVR",
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn test_native_currency() {
         assert_eq!(Chain::Ethereum.native_currency(), "ETH");
-        assert_eq!(Chain::Polygon.native_currency(), "MATIC");
+        assert_eq!(Chain::Polygon.native_currency(), "POL");
         assert_eq!(Chain::Bsc.native_currency(), "BNB");
         assert_eq!(Chain::Avalanche.native_currency(), "AVAX");
     }
