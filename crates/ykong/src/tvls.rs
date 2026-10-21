@@ -54,6 +54,31 @@ fn history_start(now: u64, period: TvlPeriod, limit: u32) -> u64 {
     now.saturating_sub(period.seconds() * u64::from(limit))
 }
 
+/// TVL history query (user values are sent as GraphQL variables)
+const HISTORY_QUERY: &str = "query Tvls($chainId: Int!, $address: String, $period: String, \
+    $limit: Int, $timestamp: BigInt) { \
+    tvls(chainId: $chainId, address: $address, period: $period, limit: $limit, \
+    timestamp: $timestamp) { \
+    chainId address value priceUsd priceSource period blockNumber time } }";
+
+/// Variables for [`HISTORY_QUERY`]
+fn history_variables(
+    chain_id: u64,
+    address: &str,
+    period: TvlPeriod,
+    limit: u32,
+    timestamp: u64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "chainId": chain_id,
+        "address": address,
+        "period": period.as_str(),
+        "limit": limit,
+        // BigInt: sent as a string, matching the previous inline literal
+        "timestamp": timestamp.to_string(),
+    })
+}
+
 /// TVLs API
 pub struct TvlsApi<'a> {
     client: &'a Client,
@@ -103,32 +128,16 @@ impl<'a> TvlsApi<'a> {
         limit: u32,
         timestamp: u64,
     ) -> Result<Vec<Tvl>> {
-        let query = format!(
-            r#"{{
-                tvls(chainId: {}, address: "{}", period: "{}", limit: {}, timestamp: "{}") {{
-                    chainId
-                    address
-                    value
-                    priceUsd
-                    priceSource
-                    period
-                    blockNumber
-                    time
-                }}
-            }}"#,
-            chain_id,
-            address,
-            period.as_str(),
-            limit,
-            timestamp
-        );
-
+        let variables = history_variables(chain_id, address, period, limit, timestamp);
         #[derive(Deserialize)]
         struct Response {
             tvls: Vec<Tvl>,
         }
 
-        let response: Response = self.client.query(&query).await?;
+        let response: Response = self
+            .client
+            .query_with_variables(HISTORY_QUERY, variables)
+            .await?;
         Ok(response.tvls)
     }
 
@@ -165,6 +174,24 @@ mod tests {
         assert_eq!(TvlPeriod::Day.as_str(), "1 day");
         assert_eq!(TvlPeriod::Week.as_str(), "1 week");
         assert_eq!(TvlPeriod::Month.as_str(), "1 month");
+    }
+
+    #[test]
+    fn history_query_uses_variables() {
+        assert!(HISTORY_QUERY.contains(
+            "tvls(chainId: $chainId, address: $address, period: $period, limit: $limit, \
+             timestamp: $timestamp)"
+        ));
+        assert_eq!(
+            history_variables(1, "0xabc", TvlPeriod::Week, 4, 1_700_000_000),
+            serde_json::json!({
+                "chainId": 1,
+                "address": "0xabc",
+                "period": "1 week",
+                "limit": 4,
+                "timestamp": "1700000000",
+            })
+        );
     }
 
     #[test]

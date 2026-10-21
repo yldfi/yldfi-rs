@@ -69,6 +69,7 @@ pub mod bridges;
 pub mod client;
 pub mod coins;
 pub mod dat;
+mod de;
 pub mod ecosystem;
 pub mod emissions;
 pub mod error;

@@ -269,7 +269,7 @@ mod tests {
             "0xpool_ab",
             "0xa",
             "0xb",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2),
             10_000.0,
         );
         graph.add_edge("0xa", "0xb", step_ab);
@@ -279,7 +279,7 @@ mod tests {
             "0xpool_bc",
             "0xb",
             "0xc",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2),
             5_000.0,
         );
         graph.add_edge("0xb", "0xc", step_bc);
@@ -289,7 +289,7 @@ mod tests {
             "0xpool_ac",
             "0xa",
             "0xc",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Crypto, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::TwoCrypto, 2),
             2_000.0, // Lower TVL but direct
         );
         graph.add_edge("0xa", "0xc", step_ac);
@@ -337,7 +337,7 @@ mod tests {
             "0xpool_ab",
             "0xa",
             "0xb",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2),
             1000.0,
         );
         graph.add_edge("0xa", "0xb", step_ab);
@@ -347,7 +347,7 @@ mod tests {
             "0xpool_bc",
             "0xb",
             "0xc",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2),
             1000.0,
         );
         graph.add_edge("0xb", "0xc", step_bc);
@@ -357,7 +357,7 @@ mod tests {
             "0xpool_ca",
             "0xc",
             "0xa",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2),
             1000.0,
         );
         graph.add_edge("0xc", "0xa", step_ca);
@@ -368,7 +368,7 @@ mod tests {
             "0xpool_ad",
             "0xa",
             "0xd",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2),
             1000.0,
         );
         graph.add_edge("0xa", "0xd", step_ad);

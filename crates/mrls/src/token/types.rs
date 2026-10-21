@@ -1,76 +1,7 @@
 //! Types for the Token API
 
-use serde::de::{self, Deserializer, Visitor};
+use crate::de::{string_or_f64, string_or_int};
 use serde::{Deserialize, Serialize};
-
-/// Deserialize a value that could be either a float, integer, or a string containing a number.
-/// Moralis API sometimes returns numeric values as strings.
-fn string_or_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    match serde_json::Value::deserialize(deserializer)? {
-        serde_json::Value::Null => Ok(None),
-        serde_json::Value::Number(number) => number
-            .as_f64()
-            .map(Some)
-            .ok_or_else(|| de::Error::custom("number cannot be represented as f64")),
-        serde_json::Value::String(value) => {
-            if value.is_empty() || value == "null" {
-                Ok(None)
-            } else {
-                value.parse().map(Some).map_err(de::Error::custom)
-            }
-        }
-        value => Err(de::Error::custom(format!(
-            "expected a float, integer, or string containing a number, got {value}"
-        ))),
-    }
-}
-
-/// Deserialize a value that could be either a string or an integer.
-/// Moralis API sometimes returns block numbers and similar fields as integers
-/// rather than strings.
-fn string_or_int<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct StringOrIntVisitor;
-
-    impl<'de> Visitor<'de> for StringOrIntVisitor {
-        type Value = Option<String>;
-
-        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            f.write_str("a string or an integer")
-        }
-
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> {
-            Ok(Some(v.to_string()))
-        }
-
-        fn visit_string<E>(self, v: String) -> Result<Self::Value, E> {
-            Ok(Some(v))
-        }
-
-        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
-            Ok(Some(v.to_string()))
-        }
-
-        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
-            Ok(Some(v.to_string()))
-        }
-
-        fn visit_none<E>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
-
-        fn visit_unit<E>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
-    }
-
-    deserializer.deserialize_any(StringOrIntVisitor)
-}
 
 /// Token metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -301,27 +232,38 @@ pub struct TokenSearchResult {
     #[serde(alias = "token_address")]
     pub token_address: Option<String>,
     /// Token name
-    #[serde(alias = "token_name")]
+    #[serde(alias = "token_name", alias = "name")]
     pub token_name: Option<String>,
     /// Token symbol
-    #[serde(alias = "token_symbol")]
+    #[serde(alias = "token_symbol", alias = "symbol")]
     pub token_symbol: Option<String>,
     /// Token logo
-    #[serde(alias = "token_logo")]
+    #[serde(alias = "token_logo", alias = "logo")]
     pub token_logo: Option<String>,
     /// Token decimals
     #[serde(alias = "token_decimals")]
     pub token_decimals: Option<u8>,
-    /// Chain
+    /// Chain (Moralis search returns this as `chainId`)
+    #[serde(alias = "chainId")]
     pub chain: Option<String>,
     /// USD price
     #[serde(default, deserialize_with = "string_or_f64", alias = "usd_price")]
     pub usd_price: Option<f64>,
     /// Market cap USD
-    #[serde(default, deserialize_with = "string_or_f64", alias = "market_cap_usd")]
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "market_cap_usd",
+        alias = "marketCap"
+    )]
     pub market_cap_usd: Option<f64>,
     /// Liquidity USD
-    #[serde(default, deserialize_with = "string_or_f64", alias = "liquidity_usd")]
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "liquidity_usd",
+        alias = "totalLiquidityUsd"
+    )]
     pub liquidity_usd: Option<f64>,
     /// Possible spam
     #[serde(alias = "possible_spam")]
@@ -331,6 +273,16 @@ pub struct TokenSearchResult {
     /// Security score
     #[serde(alias = "security_score")]
     pub security_score: Option<i32>,
+}
+
+/// Token search response (Moralis wraps results in a `{ result, total }` envelope)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenSearchResponse {
+    /// Matching tokens
+    #[serde(default)]
+    pub result: Vec<TokenSearchResult>,
+    /// Total number of matches
+    pub total: Option<i64>,
 }
 
 /// Trending token
@@ -393,6 +345,29 @@ pub struct PairOhlcv {
     /// Volume
     #[serde(default, deserialize_with = "string_or_f64")]
     pub volume: Option<f64>,
+    /// Number of trades in the candle
+    pub trades: Option<i64>,
+}
+
+/// Pair OHLCV response (paginated envelope)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairOhlcvResponse {
+    /// Cursor for the next page
+    pub cursor: Option<String>,
+    /// Page
+    pub page: Option<i32>,
+    /// Pair address
+    pub pair_address: Option<String>,
+    /// Token address
+    pub token_address: Option<String>,
+    /// Timeframe of each candle
+    pub timeframe: Option<String>,
+    /// Price currency (`usd` or `native`)
+    pub currency: Option<String>,
+    /// Candles
+    #[serde(default)]
+    pub result: Vec<PairOhlcv>,
 }
 
 /// Pair stats
@@ -493,8 +468,8 @@ pub struct TokenHoldersSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TopTrader {
-    /// Wallet address
-    #[serde(alias = "wallet_address")]
+    /// Wallet address (Moralis returns this as `address`)
+    #[serde(alias = "wallet_address", alias = "address")]
     pub wallet_address: Option<String>,
     /// Realized profit USD
     #[serde(
@@ -517,11 +492,43 @@ pub struct TopTrader {
         alias = "total_profit_usd"
     )]
     pub total_profit_usd: Option<f64>,
+    /// Realized profit percentage
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "realized_profit_percentage"
+    )]
+    pub realized_profit_percentage: Option<f64>,
+    /// Total USD invested
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "total_usd_invested"
+    )]
+    pub total_usd_invested: Option<f64>,
+    /// Total USD received from sells
+    #[serde(default, deserialize_with = "string_or_f64", alias = "total_sold_usd")]
+    pub total_sold_usd: Option<f64>,
+    /// Average cost of the quantity sold
+    #[serde(
+        default,
+        deserialize_with = "string_or_f64",
+        alias = "avg_cost_of_quantity_sold"
+    )]
+    pub avg_cost_of_quantity_sold: Option<f64>,
     /// Total tokens bought
-    #[serde(alias = "total_tokens_bought")]
+    #[serde(
+        default,
+        deserialize_with = "string_or_int",
+        alias = "total_tokens_bought"
+    )]
     pub total_tokens_bought: Option<String>,
     /// Total tokens sold
-    #[serde(alias = "total_tokens_sold")]
+    #[serde(
+        default,
+        deserialize_with = "string_or_int",
+        alias = "total_tokens_sold"
+    )]
     pub total_tokens_sold: Option<String>,
     /// Average buy price USD
     #[serde(
@@ -538,8 +545,27 @@ pub struct TopTrader {
     )]
     pub avg_sell_price_usd: Option<f64>,
     /// Trade count
-    #[serde(alias = "trade_count")]
+    #[serde(alias = "trade_count", alias = "count_of_trades")]
     pub trade_count: Option<i64>,
+}
+
+/// Top gainers response: token metadata plus the traders in `result`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TopGainersResponse {
+    /// Token name
+    pub name: Option<String>,
+    /// Token symbol
+    pub symbol: Option<String>,
+    /// Token decimals
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub decimals: Option<String>,
+    /// Token logo
+    pub logo: Option<String>,
+    /// Possible spam
+    pub possible_spam: Option<bool>,
+    /// Top traders
+    #[serde(default)]
+    pub result: Vec<TopTrader>,
 }
 
 #[cfg(test)]
@@ -702,5 +728,89 @@ mod tests {
         let json = r#"{"pairAddress": "0x", "usdPrice": ""}"#;
         let pair: TokenPair = serde_json::from_str(json).unwrap();
         assert_eq!(pair.usd_price, None);
+    }
+
+    #[test]
+    fn test_pair_ohlcv_response_envelope() {
+        let json = r#"{
+            "cursor": "next",
+            "page": 1,
+            "pairAddress": "0xpair",
+            "tokenAddress": "0xtoken",
+            "timeframe": "1d",
+            "currency": "usd",
+            "result": [
+                {"timestamp": "2024-01-01T00:00:00.000Z", "open": 1.0, "high": 2.0,
+                 "low": 0.5, "close": 1.5, "volume": 100.0, "trades": 7}
+            ]
+        }"#;
+        let resp: PairOhlcvResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.cursor.as_deref(), Some("next"));
+        assert_eq!(resp.pair_address.as_deref(), Some("0xpair"));
+        assert_eq!(resp.currency.as_deref(), Some("usd"));
+        assert_eq!(resp.result.len(), 1);
+        assert_eq!(resp.result[0].close, Some(1.5));
+        assert_eq!(resp.result[0].trades, Some(7));
+    }
+
+    #[test]
+    fn test_top_gainers_response_envelope() {
+        let json = r#"{
+            "name": "Test",
+            "symbol": "TST",
+            "decimals": "18",
+            "logo": null,
+            "possible_spam": false,
+            "result": [{
+                "address": "0xwallet",
+                "avg_buy_price_usd": "1.5",
+                "avg_cost_of_quantity_sold": "1.2",
+                "avg_sell_price_usd": "2.0",
+                "count_of_trades": 4,
+                "realized_profit_percentage": 25.5,
+                "realized_profit_usd": "100.0",
+                "total_sold_usd": "500",
+                "total_tokens_bought": "1000",
+                "total_tokens_sold": "250",
+                "total_usd_invested": "400"
+            }]
+        }"#;
+        let resp: TopGainersResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.symbol.as_deref(), Some("TST"));
+        assert_eq!(resp.decimals.as_deref(), Some("18"));
+        let t = &resp.result[0];
+        assert_eq!(t.wallet_address.as_deref(), Some("0xwallet"));
+        assert_eq!(t.trade_count, Some(4));
+        assert_eq!(t.realized_profit_usd, Some(100.0));
+        assert_eq!(t.realized_profit_percentage, Some(25.5));
+        assert_eq!(t.total_usd_invested, Some(400.0));
+        assert_eq!(t.total_tokens_sold.as_deref(), Some("250"));
+    }
+
+    #[test]
+    fn test_token_search_response_envelope() {
+        let json = r#"{
+            "total": 1,
+            "result": [{
+                "tokenAddress": "0xtoken",
+                "chainId": "0x1",
+                "name": "Test",
+                "symbol": "TST",
+                "logo": "https://example.com/logo.png",
+                "usdPrice": 1.25,
+                "marketCap": 1000000,
+                "totalLiquidityUsd": "5000",
+                "securityScore": 80
+            }]
+        }"#;
+        let resp: TokenSearchResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.total, Some(1));
+        let t = &resp.result[0];
+        assert_eq!(t.token_name.as_deref(), Some("Test"));
+        assert_eq!(t.token_symbol.as_deref(), Some("TST"));
+        assert_eq!(t.chain.as_deref(), Some("0x1"));
+        assert_eq!(t.market_cap_usd, Some(1_000_000.0));
+        assert_eq!(t.liquidity_usd, Some(5000.0));
+        assert_eq!(t.security_score, Some(80));
     }
 }

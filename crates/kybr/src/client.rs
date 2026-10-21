@@ -12,6 +12,7 @@ use yldfi_common::api::BaseClient;
 #[derive(Debug, Clone)]
 pub struct Client {
     base: BaseClient,
+    client_id: Option<String>,
 }
 
 impl Client {
@@ -23,7 +24,39 @@ impl Client {
     /// Create a new client with custom configuration
     pub fn with_config(config: Config) -> Result<Self> {
         let base = BaseClient::new(config)?;
-        Ok(Self { base })
+        Ok(Self {
+            base,
+            client_id: None,
+        })
+    }
+
+    /// Identify the integration with an `X-Client-Id` header
+    ///
+    /// `KyberSwap` uses the client id for attribution and rate limiting.
+    #[must_use]
+    pub fn with_client_id(mut self, client_id: impl Into<String>) -> Self {
+        self.client_id = Some(client_id.into());
+        self
+    }
+
+    /// Get the configured `X-Client-Id`, if any
+    #[must_use]
+    pub fn client_id(&self) -> Option<&str> {
+        self.client_id.as_deref()
+    }
+
+    /// Default headers plus `X-Client-Id` when configured
+    fn build_headers(&self) -> reqwest::header::HeaderMap {
+        let mut headers = self.base.default_headers();
+        if let Some(ref id) = self.client_id {
+            if let Ok(value) = reqwest::header::HeaderValue::from_str(id) {
+                headers.insert(
+                    reqwest::header::HeaderName::from_static("x-client-id"),
+                    value,
+                );
+            }
+        }
+        headers
     }
 
     /// Get the underlying base client
@@ -62,64 +95,20 @@ impl Client {
     /// }
     /// ```
     pub async fn get_routes(&self, chain: Chain, request: &RouteRequest) -> Result<RouteSummary> {
-        // RUST-001 fix: Build query params without cloning strings where possible
-        // Use Cow-like pattern: store references for required fields, owned for optional conversions
-        let save_gas_str;
-        let slippage_str;
-
-        let mut query_params: Vec<(&str, &str)> = vec![
-            ("tokenIn", &request.token_in),
-            ("tokenOut", &request.token_out),
-            ("amountIn", &request.amount_in),
-        ];
-
-        if let Some(ref to) = request.to {
-            query_params.push(("to", to));
-        }
-        if let Some(save_gas) = request.save_gas {
-            save_gas_str = save_gas.to_string();
-            query_params.push(("saveGas", &save_gas_str));
-        }
-        if let Some(bps) = request.slippage_tolerance_bps {
-            slippage_str = bps.to_string();
-            query_params.push(("slippageTolerance", &slippage_str));
-        }
-
-        let path = format!("/{}/api/v1/routes", chain.as_str());
-
-        let response: RoutesResponse = self.base.get(&path, &query_params).await?;
-
-        if response.code != 0 {
-            return Err(Error::api(response.code as u16, response.message));
-        }
-
-        let data = response.data.ok_or_else(error::no_route_found)?;
+        let data = self.get_route_data(chain, request).await?;
         data.summary()
             .map_err(|e| error::invalid_param(format!("unexpected routeSummary shape: {e}")))
     }
 
     /// Get full route data including router address
     pub async fn get_route_data(&self, chain: Chain, request: &RouteRequest) -> Result<RouteData> {
-        // RUST-001 fix: Avoid cloning strings
-        let slippage_str;
-
-        let mut query_params: Vec<(&str, &str)> = vec![
-            ("tokenIn", &request.token_in),
-            ("tokenOut", &request.token_out),
-            ("amountIn", &request.amount_in),
-        ];
-
-        if let Some(ref to) = request.to {
-            query_params.push(("to", to));
-        }
-        if let Some(bps) = request.slippage_tolerance_bps {
-            slippage_str = bps.to_string();
-            query_params.push(("slippageTolerance", &slippage_str));
-        }
-
+        let query_params = request.to_query_params();
         let path = format!("/{}/api/v1/routes", chain.as_str());
 
-        let response: RoutesResponse = self.base.get(&path, &query_params).await?;
+        let response: RoutesResponse = self
+            .base
+            .get_with_headers(&path, &query_params, self.build_headers())
+            .await?;
 
         if response.code != 0 {
             return Err(Error::api(response.code as u16, response.message));
@@ -172,7 +161,10 @@ impl Client {
         request: &BuildRouteRequest,
     ) -> Result<BuildRouteData> {
         let path = format!("/{}/api/v1/route/build", chain.as_str());
-        let response: BuildRouteResponse = self.base.post_json(&path, request).await?;
+        let response: BuildRouteResponse = self
+            .base
+            .post_json_with_headers(&path, request, self.build_headers())
+            .await?;
 
         if response.code != 0 {
             return Err(Error::api(response.code as u16, response.message));
@@ -202,11 +194,71 @@ mod tests {
     #[test]
     fn test_route_request_builder() {
         let request = RouteRequest::new("0xTokenIn", "0xTokenOut", "1000000000000000000")
-            .with_slippage_bps(50)
             .with_recipient("0xRecipient");
 
-        assert_eq!(request.slippage_tolerance_bps, Some(50));
         assert_eq!(request.to, Some("0xRecipient".to_string()));
+    }
+
+    #[test]
+    fn test_route_request_query_params() {
+        let request = RouteRequest::new("0xTokenIn", "0xTokenOut", "1000")
+            .with_included_sources("uniswap,curve")
+            .with_excluded_sources("balancer")
+            .with_gas_include(true)
+            .with_save_gas(true);
+        let params = request.to_query_params();
+        let get = |k: &str| {
+            params
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(get("tokenIn"), Some("0xTokenIn"));
+        assert_eq!(get("includedSources"), Some("uniswap,curve"));
+        assert_eq!(get("excludedSources"), Some("balancer"));
+        assert_eq!(get("gasInclude"), Some("true"));
+        assert_eq!(get("saveGas"), Some("true"));
+        // Slippage is a build/swap parameter, not a routes parameter
+        assert_eq!(get("slippageTolerance"), None);
+        assert_eq!(get("includeDexs"), None);
+    }
+
+    #[test]
+    fn test_route_summary_price_impact_from_usd() {
+        let summary: crate::types::RouteSummary = serde_json::from_value(serde_json::json!({
+            "tokenIn": "0x1111111111111111111111111111111111111111",
+            "tokenOut": "0x2222222222222222222222222222222222222222",
+            "amountIn": "1000",
+            "amountInUsd": "100",
+            "amountOut": "990",
+            "amountOutUsd": "99",
+            "gas": "100000",
+            "gasPrice": "1",
+            "gasUsd": "0.1",
+            "l1FeeUsd": "0",
+            "checksum": "1",
+            "timestamp": 1,
+            "route": []
+        }))
+        .unwrap();
+        let impact = summary.price_impact_percent().unwrap();
+        assert!((impact - 1.0).abs() < 1e-9);
+        let json = serde_json::to_value(&summary).unwrap();
+        assert!(json.get("priceImpact").is_none());
+        assert!(json.get("amountOutMin").is_none());
+    }
+
+    #[test]
+    fn test_client_id_header() {
+        let client = Client::new().unwrap();
+        assert!(client.build_headers().get("x-client-id").is_none());
+
+        let client = client.with_client_id("example-app");
+        assert_eq!(client.client_id(), Some("example-app"));
+        assert_eq!(
+            client.build_headers().get("x-client-id").unwrap(),
+            "example-app"
+        );
     }
 
     #[test]

@@ -167,8 +167,8 @@ pub struct QuoteRequest {
     /// Price quality preference
     #[serde(skip_serializing_if = "Option::is_none")]
     pub price_quality: Option<PriceQuality>,
-    /// Whether to only check for EIP-1271 signature
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether the order will be placed on-chain (sent as `onchainOrder`)
+    #[serde(rename = "onchainOrder", skip_serializing_if = "Option::is_none")]
     pub on_chain_order: Option<bool>,
     /// App data (bytes32 hash)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -314,6 +314,8 @@ pub enum SigningScheme {
     Eip1271,
     /// Pre-signed order
     PreSign,
+    /// `eth_sign` (EIP-191) signature
+    EthSign,
 }
 
 /// Price quality preference
@@ -336,8 +338,9 @@ pub struct QuoteResponse {
     pub id: Option<i64>,
     /// Quote details
     pub quote: QuoteDetails,
-    /// Address placing the order
-    pub from: String,
+    /// Address placing the order (optional in the response)
+    #[serde(default)]
+    pub from: Option<String>,
     /// Expiration timestamp
     pub expiration: String,
     /// Whether the quote is verified
@@ -416,11 +419,33 @@ pub struct OrderCreation {
 }
 
 /// Order response after submission
-#[derive(Debug, Clone, Deserialize, Serialize)]
+///
+/// `POST /api/v1/orders` returns the order UID as a bare JSON string. An
+/// object of the form `{"UID": "0x..."}` is also accepted for compatibility.
+#[derive(Debug, Clone, Serialize)]
 pub struct OrderResponse {
     /// Order UID
     #[serde(rename = "UID")]
     pub uid: String,
+}
+
+impl<'de> Deserialize<'de> for OrderResponse {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Bare(String),
+            Object {
+                #[serde(rename = "UID")]
+                uid: String,
+            },
+        }
+
+        let uid = match Repr::deserialize(deserializer)? {
+            Repr::Bare(uid) | Repr::Object { uid } => uid,
+        };
+        Ok(Self { uid })
+    }
 }
 
 /// Order details

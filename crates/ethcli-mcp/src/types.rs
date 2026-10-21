@@ -22,6 +22,10 @@ fn default_network() -> String {
     "eth-mainnet".to_string()
 }
 
+fn default_solana_network() -> String {
+    "solana-mainnet".to_string()
+}
+
 fn default_unit() -> String {
     "ether".to_string()
 }
@@ -1408,7 +1412,7 @@ pub struct TenderlyAlertsUpdateInput {
     pub id: String,
     /// Alert name (required)
     pub name: String,
-    /// Alert type (required, e.g., "successful_transaction", "failed_transaction", "event_emitted")
+    /// Alert type, as Tenderly's simple_type (required, e.g., "successful_tx", "failed_tx", "log_emitted", "function_called", "erc20_transfer_log_emitted")
     pub alert_type: String,
     /// Network ID (e.g., "1" for mainnet)
     #[serde(default)]
@@ -1949,6 +1953,41 @@ pub struct AlchemyBeaconStateIdInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconValidatorsInput {
+    /// State ID (slot number, "head", "finalized", "justified", or state root hash)
+    pub state_id: String,
+    /// Comma-separated validator indices or pubkeys (this or `status` is required)
+    pub id: Option<String>,
+    /// Comma-separated validator statuses, e.g. active_ongoing,pending_queued (this or `id` is required)
+    pub status: Option<String>,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconValidatorBalancesInput {
+    /// State ID (slot number, "head", "finalized", "justified", or state root hash)
+    pub state_id: String,
+    /// Comma-separated validator indices or pubkeys
+    pub id: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconStateEpochInput {
+    /// State ID (slot number, "head", "finalized", "justified", or state root hash)
+    pub state_id: String,
+    /// Epoch (defaults to the state's epoch)
+    pub epoch: Option<u64>,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyBeaconValidatorInput {
     /// State ID
     pub state_id: String,
@@ -1985,8 +2024,8 @@ pub struct AlchemyBeaconEpochInput {
 pub struct AlchemySolanaAssetInput {
     /// Asset ID (mint address)
     pub id: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -1994,8 +2033,8 @@ pub struct AlchemySolanaAssetInput {
 pub struct AlchemySolanaAssetsInput {
     /// Comma-separated asset IDs
     pub ids: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2007,8 +2046,8 @@ pub struct AlchemySolanaOwnerInput {
     pub page: Option<u32>,
     /// Results per page (default: 100)
     pub limit: Option<u32>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2016,8 +2055,8 @@ pub struct AlchemySolanaOwnerInput {
 pub struct AlchemySolanaAddressInput {
     /// Address (creator, authority, etc.)
     pub address: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2027,8 +2066,8 @@ pub struct AlchemySolanaGroupInput {
     pub group_key: String,
     /// Group value (e.g., collection address)
     pub group_value: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2038,8 +2077,8 @@ pub struct AlchemySolanaTokenAccountsInput {
     pub owner: Option<String>,
     /// Mint address
     pub mint: Option<String>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2047,8 +2086,8 @@ pub struct AlchemySolanaTokenAccountsInput {
 pub struct AlchemySolanaMintInput {
     /// Mint address
     pub mint: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2331,7 +2370,7 @@ pub struct MoralisWalletVerboseInput {
 pub struct MoralisBlockInput {
     /// Block number or hash
     pub block_number_or_hash: String,
-    /// Include transactions in the response
+    /// Include internal transactions in the response
     #[serde(default)]
     pub include_transactions: bool,
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
@@ -2389,12 +2428,8 @@ pub struct MoralisProtocolPositionsInput {
 pub struct MoralisAnalyticsTimeseriesInput {
     /// Comma-separated token addresses
     pub addresses: String,
-    /// Timeframe (e.g., 1h, 4h, 1d)
+    /// Timeframe (1d, 7d or 30d). Defaults to 1d.
     pub timeframe: Option<String>,
-    /// From date (ISO 8601)
-    pub from_date: Option<String>,
-    /// To date (ISO 8601)
-    pub to_date: Option<String>,
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
@@ -2593,7 +2628,7 @@ pub struct DuneMatviewsRefreshInput {
 // --- Dune Pipelines ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DunePipelinesExecuteInput {
-    /// Pipeline definition as JSON
+    /// Pipeline definition as JSON, e.g. {"nodes":[{"id":1,"query_execution":{"query_id":123}},{"id":2,"dependencies":[1],"materialized_view_refresh":{"name":"dune.team.result_x"}}]}
     pub pipeline_json: String,
     /// Parameters as JSON string
     pub params: Option<String>,
@@ -2903,9 +2938,13 @@ pub struct CowswapOrderInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CowswapOwnerInput {
+pub struct CowswapOrdersInput {
     /// Owner address
     pub owner: String,
+    /// Pagination offset
+    pub offset: Option<u64>,
+    /// Max orders to return, 1-1000 (API default: 10)
+    pub limit: Option<u32>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -3074,10 +3113,10 @@ pub struct LifiTokensInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiConnectionsInput {
-    /// Source chain ID (optional)
-    pub from_chain: Option<String>,
-    /// Destination chain ID (optional)
-    pub to_chain: Option<String>,
+    /// Source chain ID (required by LI.FI)
+    pub from_chain: String,
+    /// Destination chain ID (required by LI.FI)
+    pub to_chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

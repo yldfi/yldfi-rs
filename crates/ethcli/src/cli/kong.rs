@@ -154,8 +154,8 @@ pub enum StrategyCommands {
         #[arg(long, short = 'c')]
         chain_id: Option<u64>,
 
-        /// Filter by vault address (uses --chain-id, default 1)
-        #[arg(long)]
+        /// Filter by vault address (requires --chain-id)
+        #[arg(long, requires = "chain_id")]
         vault: Option<String>,
 
         /// Filter v3 strategies only

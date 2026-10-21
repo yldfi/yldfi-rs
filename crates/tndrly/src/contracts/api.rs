@@ -41,14 +41,13 @@ impl<'a> ContractsApi<'a> {
         self.client.post("/address", request).await
     }
 
-    /// List contracts in the project
+    /// List contracts (or wallets) in the project
     ///
+    /// `accountType` is required by the API; use
+    /// `ListContractsQuery::new(AccountType::Contract)` for contracts.
     /// Returns a vector of Contracts directly (API returns a raw array).
-    pub async fn list(&self, query: Option<ListContractsQuery>) -> Result<Vec<Contract>> {
-        match query {
-            Some(q) => self.client.get_with_query("/contracts", &q).await,
-            None => self.client.get("/contracts").await,
-        }
+    pub async fn list(&self, query: &ListContractsQuery) -> Result<Vec<Contract>> {
+        self.client.get_with_query("/contracts", query).await
     }
 
     /// Get a contract by network and address
@@ -289,5 +288,29 @@ mod tests {
         assert_eq!(json["display_name"], "My Contract");
         assert!(json["tags"].is_array());
         assert_eq!(json["tags"][0], "defi");
+    }
+
+    #[test]
+    fn test_list_contracts_query_pairs() {
+        // GET /contracts requires accountType; paging uses perPage
+        let query = ListContractsQuery::new(crate::contracts::AccountType::Wallet)
+            .page(2)
+            .per_page(50);
+        let req = reqwest::Client::new()
+            .get("https://example.com/contracts")
+            .query(&query)
+            .build()
+            .unwrap();
+        assert_eq!(
+            req.url().query(),
+            Some("accountType=wallet&page=2&perPage=50")
+        );
+
+        let req = reqwest::Client::new()
+            .get("https://example.com/contracts")
+            .query(&ListContractsQuery::default())
+            .build()
+            .unwrap();
+        assert_eq!(req.url().query(), Some("accountType=contract"));
     }
 }

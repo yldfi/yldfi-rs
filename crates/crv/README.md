@@ -107,7 +107,7 @@ async fn main() -> Result<(), crv::Error> {
 
 ### Swap Types
 
-The router supports all 9 swap types from curve-router-ng:
+The router models the curve-router-ng swap types:
 
 | Type | Description |
 |------|-------------|
@@ -119,7 +119,7 @@ The router supports all 9 swap types from curve-router-ng:
 | 6 | LP token → coin (remove_liquidity_one_coin) |
 | 7 | LP token → underlying coin (lending pools) |
 | 8 | Wrapper operations (ETH↔WETH, stETH↔wstETH, frxETH↔sfrxETH) |
-| 9 | ERC4626 asset ↔ share |
+| 9 | ERC4626 asset ↔ share (newer router versions only; not accepted by the v1.1 routers listed below) |
 
 ### Router Contract Addresses
 

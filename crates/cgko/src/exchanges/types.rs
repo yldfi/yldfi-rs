@@ -64,5 +64,41 @@ pub struct TickerMarket {
     pub has_trading_incentive: Option<bool>,
 }
 
-/// Volume chart data point [timestamp, volume]
-pub type VolumeChart = Vec<[f64; 2]>;
+/// Volume chart data point `[timestamp_ms, volume_in_btc]`
+///
+/// The API sends the volume as a decimal string (and sometimes the timestamp
+/// as a float); both string and number volumes are accepted.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct VolumeChartPoint(pub f64, pub f64);
+
+impl<'de> Deserialize<'de> for VolumeChartPoint {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Through `Value`, not an untagged enum: untagged numbers break when
+        // serde_json's `arbitrary_precision` feature is enabled in the build.
+        let (timestamp, volume): (f64, serde_json::Value) = Deserialize::deserialize(deserializer)?;
+        let volume = match &volume {
+            serde_json::Value::Number(n) => n.as_f64(),
+            serde_json::Value::String(s) => s.parse().ok(),
+            _ => None,
+        }
+        .ok_or_else(|| serde::de::Error::custom(format!("invalid volume: {volume}")))?;
+        Ok(Self(timestamp, volume))
+    }
+}
+
+/// Volume chart data
+pub type VolumeChart = Vec<VolumeChartPoint>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn volume_chart_accepts_string_volumes() {
+        let json = r#"[[1779719400000, "76327.68894"], [1767282600000.0, "100719.03"], [1, 2.5]]"#;
+        let chart: VolumeChart = serde_json::from_str(json).unwrap();
+        assert_eq!(chart[0], VolumeChartPoint(1_779_719_400_000.0, 76327.68894));
+        assert_eq!(chart[1].1, 100_719.03);
+        assert_eq!(chart[2], VolumeChartPoint(1.0, 2.5));
+    }
+}

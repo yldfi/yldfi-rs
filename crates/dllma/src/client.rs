@@ -24,6 +24,15 @@ pub mod base_urls {
     pub const YIELDS: &str = "https://yields.llama.fi";
 }
 
+/// Convert a transport error without its URL.
+///
+/// Pro requests carry the API key in the URL path, and `reqwest::Error`'s
+/// `Display` includes the request URL, so it must be stripped before the
+/// error can be logged or shown.
+fn strip_url(e: reqwest::Error) -> Error {
+    Error::from(e.without_url())
+}
+
 /// Configuration for the `DefiLlama` API client
 ///
 /// Built on top of [`ApiConfig`] from `yldfi-common` for consistent
@@ -233,7 +242,12 @@ impl Client {
 
     /// Make a GET request using common error handling
     async fn get<T: serde::de::DeserializeOwned>(&self, url: &Url) -> Result<T> {
-        let response = self.http.get(url.as_str()).send().await?;
+        let response = self
+            .http
+            .get(url.as_str())
+            .send()
+            .await
+            .map_err(strip_url)?;
         let status = response.status().as_u16();
 
         if !response.status().is_success() {
@@ -243,32 +257,7 @@ impl Client {
             return Err(crate::error::from_response(status, &body, retry_after));
         }
 
-        let body = response.text().await?;
-        serde_json::from_str(&body).map_err(|e| Error::Api {
-            status,
-            message: format!("Failed to parse response: {e}"),
-        })
-    }
-
-    /// Make a POST request to the coins API
-    pub(crate) async fn post_coins<T, B>(&self, path: &str, body: &B) -> Result<T>
-    where
-        T: serde::de::DeserializeOwned,
-        B: serde::Serialize,
-    {
-        let url = self.coins_url.join(path)?;
-        let response = self.http.post(url.as_str()).json(body).send().await?;
-
-        let status = response.status().as_u16();
-
-        if !response.status().is_success() {
-            // Use common extract_retry_after utility
-            let retry_after = extract_retry_after(response.headers());
-            let body = response.text().await.unwrap_or_default();
-            return Err(crate::error::from_response(status, &body, retry_after));
-        }
-
-        let body = response.text().await?;
+        let body = response.text().await.map_err(strip_url)?;
         serde_json::from_str(&body).map_err(|e| Error::Api {
             status,
             message: format!("Failed to parse response: {e}"),
@@ -314,5 +303,25 @@ impl Client {
     /// ```
     pub async fn usage(&self) -> Result<ApiUsage> {
         self.get_pro("/usage/APIKEY").await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn transport_error_does_not_leak_url_path_key() {
+        let http = HttpClient::new();
+        let err = http
+            .get("http://127.0.0.1:1/FAKEKEY/usage/APIKEY")
+            .send()
+            .await
+            .expect_err("nothing listens on port 1");
+        assert!(err.to_string().contains("FAKEKEY"));
+
+        let err = strip_url(err);
+        assert!(!err.to_string().contains("FAKEKEY"), "{err}");
+        assert!(!format!("{err:?}").contains("FAKEKEY"), "{err:?}");
     }
 }

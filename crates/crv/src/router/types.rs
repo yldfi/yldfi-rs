@@ -39,9 +39,12 @@ pub enum SwapType {
     RemoveLiquidity = 6,
     /// LP token to lending/fake pool underlying coin (`remove_liquidity_one_coin`)
     RemoveLiquidityUnderlying = 7,
-    /// Special wrapping: ETH↔WETH, ETH→stETH, ETH→frxETH, stETH↔wstETH, ETH→wBETH
+    /// Special wrapping: ETH↔WETH, ETH→stETH, ETH→frxETH, stETH↔wstETH,
+    /// frxETH↔sfrxETH, ETH→wBETH, USDe→sUSDe
     Wrap = 8,
-    /// ERC4626 asset ↔ share conversions
+    /// ERC4626 asset ↔ share conversions (newer router versions only; the
+    /// v1.1 routers in [`router_address`] reject it and handle
+    /// frxETH ↔ sfrxETH via [`SwapType::Wrap`])
     Erc4626 = 9,
 }
 
@@ -70,21 +73,27 @@ impl SwapType {
     }
 }
 
-/// Pool type classification
+/// Pool type, matching the `pool_type` values in curve-router-ng Router.vy
+/// (`1 - stable, 2 - twocrypto, 3 - tricrypto, 4 - llamma,
+/// 10 - stable-ng, 20 - twocrypto-ng, 30 - tricrypto-ng`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[repr(u8)]
 pub enum PoolType {
-    /// Main/stable pools
+    /// Stable pools (main registry, old stable factory, crvUSD factory)
     #[default]
-    Main = 1,
-    /// Crypto/volatile pools
-    Crypto = 2,
-    /// Factory pools
-    Factory = 3,
-    /// Factory crypto pools
-    FactoryCrypto = 4,
-    /// Lending pools
-    Lending = 5,
+    Stable = 1,
+    /// Two-coin crypto pools (crypto v1 registry and factory)
+    TwoCrypto = 2,
+    /// Three-coin crypto pools (e.g. tricrypto2)
+    TriCrypto = 3,
+    /// crvUSD / lending LLAMMA AMMs
+    Llamma = 4,
+    /// Stableswap-NG pools
+    StableNg = 10,
+    /// Twocrypto-NG pools
+    TwoCryptoNg = 20,
+    /// Tricrypto-NG pools
+    TriCryptoNg = 30,
 }
 
 impl PoolType {
@@ -92,11 +101,13 @@ impl PoolType {
     #[must_use]
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
-            1 => Some(Self::Main),
-            2 => Some(Self::Crypto),
-            3 => Some(Self::Factory),
-            4 => Some(Self::FactoryCrypto),
-            5 => Some(Self::Lending),
+            1 => Some(Self::Stable),
+            2 => Some(Self::TwoCrypto),
+            3 => Some(Self::TriCrypto),
+            4 => Some(Self::Llamma),
+            10 => Some(Self::StableNg),
+            20 => Some(Self::TwoCryptoNg),
+            30 => Some(Self::TriCryptoNg),
             _ => None,
         }
     }
@@ -105,6 +116,13 @@ impl PoolType {
     #[must_use]
     pub fn as_u8(self) -> u8 {
         self as u8
+    }
+
+    /// Whether the router treats this pool with the stableswap interface
+    /// (`int128` coin indices)
+    #[must_use]
+    pub fn is_stable(self) -> bool {
+        matches!(self, Self::Stable | Self::StableNg)
     }
 }
 
@@ -490,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_unlimited_tvl_serializes_as_null() {
-        let params = SwapParams::new(0, 0, SwapType::Wrap, PoolType::Main, 2);
+        let params = SwapParams::new(0, 0, SwapType::Wrap, PoolType::Stable, 2);
         let wrap = RouteStep::new("wrap", "0xw", "0xe", "0xw", params, f64::MAX);
         let pool = RouteStep::new("p", "0xp", "0xw", "0xu", params, 5_000_000.0);
         let mut route = Route::new("0xe", "0xu");
@@ -522,7 +540,7 @@ mod tests {
 
     #[test]
     fn test_swap_params_array_roundtrip() {
-        let params = SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2);
+        let params = SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2);
         let arr = params.to_array();
         let restored = SwapParams::from_array(arr).unwrap();
         assert_eq!(params, restored);
@@ -537,7 +555,7 @@ mod tests {
             "0xpool1",
             "0xtoken_a",
             "0xtoken_b",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2),
             1000.0,
         ));
 
@@ -546,7 +564,7 @@ mod tests {
             "0xpool2",
             "0xtoken_b",
             "0xtoken_c",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Crypto, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::TwoCrypto, 2),
             2000.0,
         ));
 
@@ -571,7 +589,7 @@ mod tests {
             "0xpool1",
             "0xtoken_a",
             "0xtoken_b",
-            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Main, 2),
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 2),
             1000.0,
         );
 
@@ -580,6 +598,24 @@ mod tests {
         assert!(graph.has_token("0xtoken_a"));
         assert!(graph.has_token("0xtoken_b"));
         assert_eq!(graph.get_edges("0xtoken_a").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_pool_type_matches_router_ng_numbering() {
+        let expected = [
+            (PoolType::Stable, 1),
+            (PoolType::TwoCrypto, 2),
+            (PoolType::TriCrypto, 3),
+            (PoolType::Llamma, 4),
+            (PoolType::StableNg, 10),
+            (PoolType::TwoCryptoNg, 20),
+            (PoolType::TriCryptoNg, 30),
+        ];
+        for (pool_type, value) in expected {
+            assert_eq!(pool_type.as_u8(), value);
+            assert_eq!(PoolType::from_u8(value), Some(pool_type));
+        }
+        assert_eq!(PoolType::from_u8(5), None);
     }
 
     #[test]

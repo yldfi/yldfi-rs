@@ -1,6 +1,8 @@
 //! `DeFi` API client
 
-use super::types::{DefiPositionsResponse, DefiSummary, PairAddress, PairPrice, PairReserves};
+use super::types::{
+    DefiPosition, DefiSummary, PairAddress, PairPrice, PairReserves, ProtocolPositions,
+};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -127,7 +129,7 @@ impl<'a> DefiApi<'a> {
         &self,
         address: &str,
         query: Option<&DefiQuery>,
-    ) -> Result<DefiPositionsResponse> {
+    ) -> Result<Vec<DefiPosition>> {
         let path = format!("/wallets/{address}/defi/positions");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
@@ -142,7 +144,7 @@ impl<'a> DefiApi<'a> {
         address: &str,
         protocol: &str,
         query: Option<&DefiQuery>,
-    ) -> Result<DefiPositionsResponse> {
+    ) -> Result<ProtocolPositions> {
         let path = format!("/wallets/{address}/defi/{protocol}/positions");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await

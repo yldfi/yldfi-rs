@@ -19,8 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         WETH,
         USDC,
         "1000000000000000000", // 1 WETH
-    )
-    .with_slippage_bps(50); // 0.5% slippage
+    ); // slippage is set when building (BuildRouteRequest)
 
     match client.get_routes(Chain::Ethereum, &request).await {
         Ok(route) => {

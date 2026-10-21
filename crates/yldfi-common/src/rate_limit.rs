@@ -66,7 +66,9 @@ impl RateLimiter {
     ///
     /// # Arguments
     ///
-    /// * `max_requests` - Maximum number of requests allowed per window
+    /// * `max_requests` - Maximum number of requests allowed per window.
+    ///   `0` means no limit (same as [`RateLimiter::unlimited`]); a limit of
+    ///   zero requests would otherwise make every `acquire` wait forever.
     /// * `window` - Time window duration (e.g., 1 second)
     ///
     /// # Example
@@ -83,6 +85,11 @@ impl RateLimiter {
     /// ```
     #[must_use]
     pub fn new(max_requests: u32, window: Duration) -> Self {
+        let max_requests = if max_requests == 0 {
+            u32::MAX
+        } else {
+            max_requests
+        };
         Self {
             inner: Arc::new(RateLimiterInner {
                 semaphore: Semaphore::new(max_requests as usize),
@@ -290,5 +297,18 @@ mod tests {
         }
         // All 5 permits used
         assert_eq!(limiter.available(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_zero_max_requests_is_unlimited() {
+        let limiter = RateLimiter::new(0, Duration::from_secs(60));
+        tokio::time::timeout(Duration::from_secs(1), async {
+            for _ in 0..3 {
+                limiter.acquire().await;
+            }
+        })
+        .await
+        .expect("acquire on a zero limit must not hang");
+        assert!(limiter.try_acquire());
     }
 }

@@ -272,84 +272,112 @@ pub struct TokenInfo {
 }
 
 /// Pool info response
+///
+/// `data` holds one token-info entry per pool token (base and quote); the
+/// pool itself is referenced from each entry's `relationships.pool`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PoolInfoResponse {
-    pub data: PoolInfo,
+    pub data: Vec<TokenInfo>,
+    /// Included resources (e.g. the pool) when requested via `include`
+    #[serde(default)]
+    pub included: Option<Vec<serde_json::Value>>,
 }
 
-/// Pool info data
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PoolInfo {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub pool_type: Option<String>,
-    pub attributes: Option<PoolInfoAttributes>,
-}
-
-/// Pool info attributes
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PoolInfoAttributes {
-    pub base_token_id: Option<String>,
-    pub base_token_name: Option<String>,
-    pub base_token_symbol: Option<String>,
-    pub quote_token_id: Option<String>,
-    pub quote_token_name: Option<String>,
-    pub quote_token_symbol: Option<String>,
-}
-
-/// Token holders response
+/// Top token holders response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenHoldersResponse {
-    pub data: Vec<TokenHolder>,
+    pub data: TokenHoldersData,
 }
 
-/// Token holder
+/// Top token holders data
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TokenHoldersData {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub data_type: Option<String>,
+    pub attributes: Option<TokenHoldersAttributes>,
+}
+
+/// Top token holders attributes
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TokenHoldersAttributes {
+    pub last_updated_at: Option<String>,
+    #[serde(default)]
+    pub holders: Vec<TokenHolder>,
+}
+
+/// Token holder (amounts are decimal strings)
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenHolder {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub holder_type: Option<String>,
-    pub attributes: Option<TokenHolderAttributes>,
+    pub rank: Option<u64>,
+    pub address: String,
+    pub label: Option<String>,
+    pub amount: Option<String>,
+    /// Percentage of total supply held
+    pub percentage: Option<String>,
+    /// Value of holdings in USD
+    pub value: Option<String>,
+    pub average_buy_price_usd: Option<String>,
+    pub total_buy_count: Option<u64>,
+    pub total_sell_count: Option<u64>,
+    pub unrealized_pnl_usd: Option<String>,
+    pub unrealized_pnl_percentage: Option<String>,
+    pub realized_pnl_usd: Option<String>,
+    pub realized_pnl_percentage: Option<String>,
+    pub explorer_url: Option<String>,
 }
 
-/// Token holder attributes
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct TokenHolderAttributes {
-    pub wallet_address: Option<String>,
-    pub balance: Option<String>,
-    pub percentage: Option<f64>,
-    pub value_usd: Option<String>,
-}
-
-/// Token traders response
+/// Top token traders response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenTradersResponse {
-    pub data: Vec<TokenTrader>,
+    pub data: TokenTradersData,
 }
 
-/// Token trader
+/// Top token traders data
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct TokenTrader {
+pub struct TokenTradersData {
     pub id: String,
     #[serde(rename = "type")]
-    pub trader_type: Option<String>,
-    pub attributes: Option<TokenTraderAttributes>,
+    pub data_type: Option<String>,
+    pub attributes: Option<TokenTradersAttributes>,
 }
 
-/// Token trader attributes
+/// Top token traders attributes
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct TokenTraderAttributes {
-    pub wallet_address: Option<String>,
-    pub bought_volume_usd: Option<String>,
-    pub sold_volume_usd: Option<String>,
-    pub bought_count: Option<u64>,
-    pub sold_count: Option<u64>,
+pub struct TokenTradersAttributes {
+    #[serde(default)]
+    pub traders: Vec<TokenTrader>,
+}
+
+/// Token trader (amounts are decimal strings)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TokenTrader {
+    pub address: String,
+    pub name: Option<String>,
+    pub label: Option<String>,
+    /// Address type
+    #[serde(rename = "type")]
+    pub trader_type: Option<String>,
+    pub realized_pnl_usd: Option<String>,
+    pub unrealized_pnl_usd: Option<String>,
+    pub token_balance: Option<String>,
+    pub average_buy_price_usd: Option<String>,
+    pub average_sell_price_usd: Option<String>,
+    pub total_buy_count: Option<u64>,
+    pub total_sell_count: Option<u64>,
+    pub total_buy_token_amount: Option<String>,
+    pub total_sell_token_amount: Option<String>,
+    pub total_buy_usd: Option<String>,
+    pub total_sell_usd: Option<String>,
+    pub explorer_url: Option<String>,
 }
 
 /// Holders chart response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct HoldersChartResponse {
     pub data: HoldersChartData,
+    #[serde(default)]
+    pub meta: Option<HoldersChartMeta>,
 }
 
 /// Holders chart data
@@ -364,8 +392,24 @@ pub struct HoldersChartData {
 /// Holders chart attributes
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct HoldersChartAttributes {
-    /// Vec of [timestamp, `holder_count`]
-    pub holders_chart: Option<Vec<(u64, u64)>>,
+    /// Vec of [ISO 8601 timestamp, `holder_count`]
+    #[serde(default)]
+    pub token_holders_list: Vec<(String, u64)>,
+}
+
+/// Holders chart metadata
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HoldersChartMeta {
+    pub token: Option<HoldersChartToken>,
+}
+
+/// Token described by a holders chart
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HoldersChartToken {
+    pub name: Option<String>,
+    pub symbol: Option<String>,
+    pub coingecko_coin_id: Option<String>,
+    pub address: Option<String>,
 }
 
 /// Token OHLCV response (for token, not pool)
@@ -470,7 +514,67 @@ impl MegafilterOptions {
 
 #[cfg(test)]
 mod tests {
-    use super::MegafilterOptions;
+    use super::*;
+
+    #[test]
+    fn top_holders_data_is_an_object_with_string_amounts() {
+        let json = r#"{"data": {"id": "eth_0xtoken", "type": "top_holder", "attributes": {
+            "last_updated_at": "2026-01-01T00:00:00.000Z",
+            "holders": [{"rank": 1, "address": "addr1", "label": null,
+                "amount": "310021323.44", "percentage": "31.0041", "value": "6157733.22",
+                "average_buy_price_usd": null, "total_buy_count": null, "total_sell_count": null,
+                "unrealized_pnl_usd": null, "unrealized_pnl_percentage": null,
+                "realized_pnl_usd": null, "realized_pnl_percentage": null,
+                "explorer_url": "https://example.com/address/addr1"}]}}}"#;
+        let r: TokenHoldersResponse = serde_json::from_str(json).unwrap();
+        let attrs = r.data.attributes.unwrap();
+        assert_eq!(attrs.holders[0].rank, Some(1));
+        assert_eq!(attrs.holders[0].percentage.as_deref(), Some("31.0041"));
+        assert_eq!(attrs.holders[0].value.as_deref(), Some("6157733.22"));
+    }
+
+    #[test]
+    fn top_traders_data_is_an_object() {
+        let json = r#"{"data": {"id": "eth_0xtoken", "type": "top_trader", "attributes": {
+            "traders": [{"address": "addr1", "name": null, "label": null, "type": null,
+                "realized_pnl_usd": "312.5", "unrealized_pnl_usd": null, "token_balance": null,
+                "average_buy_price_usd": "0.1", "average_sell_price_usd": "0.2",
+                "total_buy_count": 52, "total_sell_count": 110,
+                "total_buy_token_amount": "270.6", "total_sell_token_amount": "325.1",
+                "total_buy_usd": "29.1", "total_sell_usd": "60.4",
+                "explorer_url": "https://example.com/address/addr1"}]}}}"#;
+        let r: TokenTradersResponse = serde_json::from_str(json).unwrap();
+        let trader = &r.data.attributes.unwrap().traders[0];
+        assert_eq!(trader.total_sell_count, Some(110));
+        assert_eq!(trader.realized_pnl_usd.as_deref(), Some("312.5"));
+    }
+
+    #[test]
+    fn holders_chart_uses_token_holders_list_with_iso_timestamps() {
+        let json = r#"{"data": {"id": "req-1", "type": "token_holders_snapshot", "attributes": {
+            "token_holders_list": [["2026-04-28T00:00:00.000Z", 52790], ["2026-04-29T00:00:00.000Z", 52865]]}},
+            "meta": {"token": {"name": "Example", "symbol": "ex", "coingecko_coin_id": null, "address": "addr1"}}}"#;
+        let r: HoldersChartResponse = serde_json::from_str(json).unwrap();
+        let list = r.data.attributes.unwrap().token_holders_list;
+        assert_eq!(list[1], ("2026-04-29T00:00:00.000Z".to_string(), 52865));
+        assert_eq!(r.meta.unwrap().token.unwrap().symbol.as_deref(), Some("ex"));
+    }
+
+    #[test]
+    fn pool_info_data_is_a_list_of_token_info() {
+        let json = r#"{"data": [
+            {"id": "eth_0xbase", "type": "token", "attributes": {"address": "0xbase", "name": "Base", "symbol": "B", "decimals": 18, "gt_score": 55.5},
+             "relationships": {"pool": {"data": {"id": "eth_0xpool", "type": "pool"}}}},
+            {"id": "eth_0xquote", "type": "token", "attributes": {"address": "0xquote", "name": "Quote", "symbol": "Q", "decimals": 6}}
+        ], "included": [{"id": "eth_0xpool", "type": "pool", "attributes": {"base_token_address": "0xbase"}}]}"#;
+        let r: PoolInfoResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(r.data.len(), 2);
+        assert_eq!(
+            r.data[1].attributes.as_ref().unwrap().symbol.as_deref(),
+            Some("Q")
+        );
+        assert_eq!(r.included.unwrap().len(), 1);
+    }
 
     #[test]
     fn megafilter_query_includes_sort() {

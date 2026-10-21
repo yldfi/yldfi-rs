@@ -138,6 +138,15 @@ pub(crate) async fn handle_error_response(response: reqwest::Response) -> Error 
     }
 }
 
+/// Convert a transport or decode error, dropping the request URL.
+///
+/// Alchemy app keys live in the URL path, and `reqwest::Error`'s `Display`
+/// includes the URL, so every `send()`/`json()`/`text()` error goes through
+/// this instead of the plain `From` conversion.
+pub(crate) fn http(e: reqwest::Error) -> Error {
+    ApiError::Http(e.without_url())
+}
+
 /// Create an unsupported-method error
 pub fn unsupported_method(
     method: &'static str,
@@ -230,5 +239,20 @@ mod tests {
         assert!(matches!(err, ApiError::Api { status: 400, .. }));
         assert!(!err.is_retryable());
         assert!(!err.to_string().contains("hunter2"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn http_error_display_omits_key_in_url() {
+        let raw = reqwest::Client::new()
+            .get("http://127.0.0.1:1/v2/FAKEKEY")
+            .send()
+            .await
+            .expect_err("nothing listens on port 1");
+        assert!(raw.to_string().contains("FAKEKEY"), "{raw}");
+
+        let err = http(raw);
+        assert!(matches!(err, ApiError::Http(_)));
+        assert!(!err.to_string().contains("FAKEKEY"), "{err}");
+        assert!(!format!("{err:?}").contains("FAKEKEY"), "{err:?}");
     }
 }

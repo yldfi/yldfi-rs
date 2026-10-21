@@ -146,11 +146,14 @@ impl Client {
     }
 
     /// Handle error response and convert to appropriate Error type
+    ///
+    /// Uses the Moralis mapping (401/402/403/404 to domain errors); everything
+    /// else falls through to the shared, sanitized `ApiError::from_response`.
     async fn handle_error_response(response: reqwest::Response) -> Error {
         let status = response.status().as_u16();
         let retry_after = yldfi_common::api::extract_retry_after(response.headers());
         let body = response.text().await.unwrap_or_default();
-        Error::from_response(status, &body, retry_after)
+        error::from_response(status, &body, retry_after)
     }
 
     /// Make a GET request to the API
@@ -250,11 +253,16 @@ impl Client {
         Ok(data)
     }
 
-    /// Make a PUT request with JSON body
-    pub(crate) async fn put<T: DeserializeOwned, B: serde::Serialize>(
+    /// Make a PUT request with JSON body and query parameters
+    pub(crate) async fn put_with_query<
+        T: DeserializeOwned,
+        B: serde::Serialize,
+        Q: serde::Serialize,
+    >(
         &self,
         path: &str,
         body: &B,
+        query: &Q,
     ) -> Result<T> {
         // MRLS-002 fix: Use join_url for proper URL construction
         let url = self.join_url(path);
@@ -262,6 +270,7 @@ impl Client {
             .http
             .put(&url)
             .header("X-API-Key", self.api_key.expose_secret())
+            .query(query)
             .json(body)
             .send()
             .await?;
@@ -347,8 +356,9 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::{ApiError, DomainError, PlanTier};
     use std::time::Duration;
-    use wiremock::matchers::method;
+    use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
@@ -362,5 +372,45 @@ mod tests {
         let err = client.get::<serde_json::Value>("/x").await.unwrap_err();
         assert!(err.is_retryable());
         assert_eq!(err.retry_after(), Some(Duration::from_secs(3600)));
+    }
+
+    #[tokio::test]
+    async fn moralis_status_mapping_is_used() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/plan"))
+            .respond_with(
+                ResponseTemplate::new(403)
+                    .set_body_string(r#"{"message":"This endpoint requires a Business plan"}"#),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/auth"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/missing"))
+            .respond_with(ResponseTemplate::new(404).set_body_string(r#"{"message":"No data"}"#))
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new("key").base_url(server.uri())).unwrap();
+
+        let err = client.get::<serde_json::Value>("/plan").await.unwrap_err();
+        assert!(matches!(
+            err,
+            ApiError::Domain(DomainError::PlanRequired {
+                required_plan: PlanTier::Business,
+                ..
+            })
+        ));
+        let err = client.get::<serde_json::Value>("/auth").await.unwrap_err();
+        assert!(matches!(err, ApiError::Domain(DomainError::Unauthorized)));
+        let err = client
+            .get::<serde_json::Value>("/missing")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ApiError::Domain(DomainError::NotFound(_))));
     }
 }

@@ -3,8 +3,8 @@
 use super::admin_rpc::AdminRpc;
 use super::types::{
     CreateVNetRequest, DeleteVNetsRequest, ForkVNetRequest, ListVNetTransactionsQuery,
-    ListVNetsQuery, SendVNetTransactionRequest, UpdateVNetRequest, VNet, VNetRpcs,
-    VNetSimulationRequest, VNetSimulationRequestEnvelope, VNetTransaction,
+    ListVNetsQuery, SendVNetTransactionRequest, UpdateVNetRequest, VNet, VNetCallEnvelope,
+    VNetRpcs, VNetSimulationRequest, VNetTransaction,
 };
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
@@ -130,9 +130,9 @@ impl<'a> VNetsApi<'a> {
         vnet_id: &str,
         request: &VNetSimulationRequest,
     ) -> Result<serde_json::Value> {
-        let envelope = VNetSimulationRequestEnvelope {
+        let envelope = VNetCallEnvelope {
             call_args: request,
-            block_number: "latest",
+            block_number: Some("latest"),
         };
         self.client
             .post(
@@ -229,7 +229,8 @@ impl<'a> VNetsApi<'a> {
 
     /// Send a transaction to be executed on a Virtual `TestNet`
     ///
-    /// Unlike `simulate`, this actually modifies the `VNet`'s state.
+    /// Unlike `simulate`, this actually modifies the `VNet`'s state. The
+    /// request is posted as `{"callArgs": {...}}`.
     ///
     /// # Example
     ///
@@ -238,7 +239,7 @@ impl<'a> VNetsApi<'a> {
     ///     "0x1234...",  // from
     ///     "0x5678...",  // to
     ///     "0xa9059cbb..." // data (transfer)
-    /// ).value("1000000000000000000");  // 1 ETH
+    /// ).value("1000000000000000000");  // 1 ETH, sent as 0xde0b6b3a7640000
     ///
     /// let tx = client.vnets().send_transaction("vnet-123", &request).await?;
     /// ```
@@ -247,10 +248,14 @@ impl<'a> VNetsApi<'a> {
         vnet_id: &str,
         request: &SendVNetTransactionRequest,
     ) -> Result<VNetTransaction> {
+        let envelope = VNetCallEnvelope {
+            call_args: request,
+            block_number: None,
+        };
         self.client
             .post(
                 &format!("/vnets/{}/transactions", encode_path_segment(vnet_id)),
-                request,
+                &envelope,
             )
             .await
     }
@@ -324,6 +329,44 @@ mod tests {
             "{err}"
         );
         assert!(started.elapsed() < Duration::from_secs(4));
+    }
+
+    #[tokio::test]
+    async fn test_send_transaction_posts_call_args_envelope() {
+        use wiremock::matchers::body_json;
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path_regex("/vnets/vnet1/transactions$"))
+            .and(body_json(serde_json::json!({
+                "callArgs": {
+                    "from": "0x0000000000000000000000000000000000000001",
+                    "to": "0x0000000000000000000000000000000000000002",
+                    "input": "0x",
+                    "value": "0x64"
+                }
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "00000000-0000-0000-0000-000000000001",
+                "status": "success"
+            })))
+            .mount(&server)
+            .await;
+
+        let config = Config::new("key", "acct", "proj").with_base_url(server.uri());
+        let client = Client::new(config).unwrap();
+        let request = SendVNetTransactionRequest::new(
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000002",
+            "0x",
+        )
+        .value("100");
+        let tx = client
+            .vnets()
+            .send_transaction("vnet1", &request)
+            .await
+            .unwrap();
+        assert!(tx.is_success());
     }
 
     #[test]

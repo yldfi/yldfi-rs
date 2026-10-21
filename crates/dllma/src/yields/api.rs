@@ -67,7 +67,7 @@ impl<'a> YieldsApi<'a> {
         Ok(resp.data)
     }
 
-    /// Get legacy pools with contract addresses
+    /// Get pools with old pool IDs and token addresses (`GET /yields/v1/pools`)
     ///
     /// **Requires Pro API key**
     ///
@@ -99,7 +99,7 @@ impl<'a> YieldsApi<'a> {
     ///     println!("{}: lend {:.2}%, borrow {:.2}%",
     ///         pool.symbol,
     ///         pool.apy.unwrap_or(0.0),
-    ///         pool.apy_borrow.unwrap_or(0.0));
+    ///         pool.apy_base_borrow.unwrap_or(0.0));
     /// }
     /// # Ok(())
     /// # }
@@ -133,7 +133,7 @@ impl<'a> YieldsApi<'a> {
         Ok(resp.data)
     }
 
-    /// Get perpetual futures funding rates
+    /// Get perpetual futures funding rates (`GET /api/perpFundingRates`)
     ///
     /// **Requires Pro API key**
     ///
@@ -151,7 +151,8 @@ impl<'a> YieldsApi<'a> {
     /// # }
     /// ```
     pub async fn perps(&self) -> Result<Vec<PerpRate>> {
-        let resp: YieldsResponse<Vec<PerpRate>> = self.client.get_pro("/yields/perps").await?;
+        let resp: YieldsResponse<Vec<PerpRate>> =
+            self.client.get_pro("/api/perpFundingRates").await?;
         Ok(resp.data)
     }
 

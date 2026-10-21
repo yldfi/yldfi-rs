@@ -2698,14 +2698,21 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain validators for a state via Alchemy")]
+    #[tool(
+        description = "Get beacon chain validators for a state via Alchemy (filter by id or status; one is required)"
+    )]
     async fn alchemy_beacon_validators(
         &self,
-        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+        Parameters(input): Parameters<AlchemyBeaconValidatorsInput>,
     ) -> CallToolResult {
-        tools::alchemy_beacon_validators(&input.state_id, Some(&input.network))
-            .await
-            .to_response()
+        tools::alchemy_beacon_validators(
+            &input.state_id,
+            input.id.as_deref(),
+            input.status.as_deref(),
+            Some(&input.network),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(description = "Get a specific beacon chain validator via Alchemy")]
@@ -2721,9 +2728,9 @@ impl EthcliMcpServer {
     #[tool(description = "Get beacon chain validator balances for a state via Alchemy")]
     async fn alchemy_beacon_validator_balances(
         &self,
-        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+        Parameters(input): Parameters<AlchemyBeaconValidatorBalancesInput>,
     ) -> CallToolResult {
-        tools::alchemy_beacon_validator_balances(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_validator_balances(&input.state_id, &input.id, Some(&input.network))
             .await
             .to_response()
     }
@@ -2731,9 +2738,9 @@ impl EthcliMcpServer {
     #[tool(description = "Get beacon chain sync committees for a state via Alchemy")]
     async fn alchemy_beacon_sync_committees(
         &self,
-        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+        Parameters(input): Parameters<AlchemyBeaconStateEpochInput>,
     ) -> CallToolResult {
-        tools::alchemy_beacon_sync_committees(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_sync_committees(&input.state_id, input.epoch, Some(&input.network))
             .await
             .to_response()
     }
@@ -2741,9 +2748,9 @@ impl EthcliMcpServer {
     #[tool(description = "Get RANDAO value for a beacon chain state via Alchemy")]
     async fn alchemy_beacon_randao(
         &self,
-        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+        Parameters(input): Parameters<AlchemyBeaconStateEpochInput>,
     ) -> CallToolResult {
-        tools::alchemy_beacon_randao(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_randao(&input.state_id, input.epoch, Some(&input.network))
             .await
             .to_response()
     }
@@ -4202,7 +4209,7 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get token analytics timeseries data (comma-separated addresses, optional timeframe and date range) via Moralis"
+        description = "Get token analytics timeseries data (comma-separated addresses, optional timeframe) via Moralis"
     )]
     async fn moralis_analytics_timeseries(
         &self,
@@ -4211,8 +4218,6 @@ impl EthcliMcpServer {
         tools::moralis_analytics_timeseries(
             &input.addresses,
             input.timeframe.as_deref(),
-            input.from_date.as_deref(),
-            input.to_date.as_deref(),
             Some(input.chain.as_str()),
         )
         .await
@@ -5323,12 +5328,14 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get orders for an address from CoW Swap")]
+    #[tool(
+        description = "Get orders for an address from CoW Swap (paginated, optional offset and limit)"
+    )]
     async fn cowswap_orders(
         &self,
-        Parameters(input): Parameters<CowswapOwnerInput>,
+        Parameters(input): Parameters<CowswapOrdersInput>,
     ) -> CallToolResult {
-        tools::cowswap_orders(&input.owner, Some(&input.chain))
+        tools::cowswap_orders(&input.owner, input.offset, input.limit, Some(&input.chain))
             .await
             .to_response()
     }
@@ -5533,7 +5540,7 @@ impl EthcliMcpServer {
         &self,
         Parameters(input): Parameters<LifiConnectionsInput>,
     ) -> CallToolResult {
-        tools::lifi_connections(input.from_chain.as_deref(), input.to_chain.as_deref())
+        tools::lifi_connections(&input.from_chain, &input.to_chain)
             .await
             .to_response()
     }

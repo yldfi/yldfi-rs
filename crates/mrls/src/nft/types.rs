@@ -30,6 +30,21 @@ where
 
 /// Deserialize a value that could be either an integer or a nested object
 /// containing a "total" field. Moralis API sometimes returns stats as nested objects.
+/// Deserialize a value that could be a string or an integer into a string.
+fn string_or_int<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::String(value) => Ok(Some(value)),
+        serde_json::Value::Number(number) => Ok(Some(number.to_string())),
+        value => Err(de::Error::custom(format!(
+            "expected a string or integer, got {value}"
+        ))),
+    }
+}
+
 fn int_or_nested_total<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
 where
     D: Deserializer<'de>,
@@ -245,19 +260,52 @@ pub struct NftTrade {
     pub block_hash: Option<String>,
 }
 
+/// Marketplace reference: Moralis returns `{ name, logo }`, older responses a bare name
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum NftMarketplace {
+    /// Marketplace object
+    Info {
+        /// Marketplace name
+        name: Option<String>,
+        /// Marketplace logo URL
+        logo: Option<String>,
+    },
+    /// Marketplace name only
+    Name(String),
+}
+
+impl NftMarketplace {
+    /// Marketplace name, whichever form was returned
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Info { name, .. } => name.as_deref(),
+            Self::Name(name) => Some(name),
+        }
+    }
+}
+
 /// NFT floor price
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NftFloorPrice {
+    /// Collection address
+    pub address: Option<String>,
+    /// Token ID (token-level floor price only)
+    pub token_id: Option<String>,
     /// Floor price (Moralis returns as string like "6.36499")
     #[serde(default, deserialize_with = "string_or_f64")]
     pub floor_price: Option<f64>,
     /// Floor price USD (Moralis returns as string like "6.36499")
     #[serde(default, deserialize_with = "string_or_f64")]
     pub floor_price_usd: Option<f64>,
-    /// Floor price currency
-    pub floor_price_currency: Option<String>,
+    /// Floor price currency (Moralis returns this as `currency`)
+    #[serde(alias = "floor_price_currency")]
+    pub currency: Option<String>,
     /// Marketplace
-    pub marketplace: Option<String>,
+    pub marketplace: Option<NftMarketplace>,
+    /// Last updated
+    pub last_updated: Option<String>,
     /// Marketplace address
     pub marketplace_address: Option<String>,
     /// Retrieved at
@@ -301,17 +349,53 @@ pub struct NftCollectionStats {
     pub sales_24h: Option<i64>,
 }
 
-/// NFT trait
+/// NFT trait value with its frequency (item of `/nft/{address}/traits/paginate`)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NftTrait {
     /// Trait type
     pub trait_type: Option<String>,
-    /// Value
-    pub value: Option<serde_json::Value>,
-    /// Count
+    /// Trait value
+    #[serde(alias = "value")]
+    pub trait_value: Option<serde_json::Value>,
+    /// Number of NFTs with this value
     pub count: Option<i64>,
-    /// Percentage
+    /// Share of the collection with this value (percent)
+    #[serde(default, deserialize_with = "string_or_f64")]
     pub percentage: Option<f64>,
+    /// Rarity label
+    pub rarity_label: Option<String>,
+}
+
+/// One value of a trait type in `/nft/{address}/traits`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftTraitValue {
+    /// Trait value
+    pub trait_value: Option<serde_json::Value>,
+    /// Number of NFTs with this value
+    pub count: Option<i64>,
+    /// Share of the collection with this value (percent)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub percentage: Option<f64>,
+    /// Rarity label
+    pub rarity_label: Option<String>,
+}
+
+/// A trait type and its values in `/nft/{address}/traits`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftTraitGroup {
+    /// Trait type
+    pub trait_type: Option<String>,
+    /// Values of this trait type
+    #[serde(default)]
+    pub values: Vec<NftTraitValue>,
+}
+
+/// Response of `/nft/{address}/traits`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftCollectionTraits {
+    /// Trait types
+    #[serde(default)]
+    pub traits: Vec<NftTraitGroup>,
 }
 
 /// Paginated NFT response
@@ -384,8 +468,11 @@ pub struct HistoricalFloorPrice {
     /// Floor price USD (Moralis may return as string)
     #[serde(default, deserialize_with = "string_or_f64")]
     pub floor_price_usd: Option<f64>,
-    /// Floor price currency
-    pub floor_price_currency: Option<String>,
+    /// Floor price currency (Moralis returns this as `currency`)
+    #[serde(alias = "floor_price_currency")]
+    pub currency: Option<String>,
+    /// Marketplace the floor price was observed on
+    pub marketplace: Option<serde_json::Value>,
 }
 
 /// NFT sync status response
@@ -402,33 +489,81 @@ pub struct GetMultipleCollectionsRequest {
     pub addresses: Vec<String>,
 }
 
-/// NFT sale price
+/// Payment token used in an NFT sale
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NftSalePrice {
+pub struct NftPaymentToken {
+    /// Token name
+    pub token_name: Option<String>,
+    /// Token symbol
+    pub token_symbol: Option<String>,
+    /// Token logo
+    pub token_logo: Option<String>,
+    /// Token decimals
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub token_decimals: Option<String>,
     /// Token address
     pub token_address: Option<String>,
-    /// Token ID
-    pub token_id: Option<String>,
+}
+
+/// A single NFT sale (last / lowest / highest)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftSale {
     /// Transaction hash
     pub transaction_hash: Option<String>,
-    /// Price
-    pub price: Option<String>,
-    /// Price formatted
-    pub price_formatted: Option<String>,
-    /// USD price
-    pub usd_price: Option<f64>,
-    /// Payment token
-    pub payment_token: Option<String>,
     /// Block timestamp
     pub block_timestamp: Option<String>,
-    /// Block number
-    pub block_number: Option<String>,
-    /// Marketplace
-    pub marketplace: Option<String>,
     /// Buyer address
     pub buyer_address: Option<String>,
     /// Seller address
     pub seller_address: Option<String>,
+    /// Price in the payment token's base units
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub price: Option<String>,
+    /// Price formatted
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub price_formatted: Option<String>,
+    /// USD price at the time of sale
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub usd_price_at_sale: Option<f64>,
+    /// Current USD value of the sale amount
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub current_usd_value: Option<f64>,
+    /// Token ID
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub token_id: Option<String>,
+    /// Payment token
+    pub payment_token: Option<NftPaymentToken>,
+}
+
+/// Average NFT sale price
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftAverageSale {
+    /// Average price in the payment token's base units
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub price: Option<String>,
+    /// Average price formatted
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub price_formatted: Option<String>,
+    /// Current USD value
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub current_usd_value: Option<f64>,
+}
+
+/// NFT sale price summary (collection or token) over the requested period
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftSalePrices {
+    /// Most recent sale
+    pub last_sale: Option<NftSale>,
+    /// Lowest sale
+    pub lowest_sale: Option<NftSale>,
+    /// Highest sale
+    pub highest_sale: Option<NftSale>,
+    /// Average sale
+    pub average_sale: Option<NftAverageSale>,
+    /// Number of trades
+    pub total_trades: Option<i64>,
+    /// Message (set when no data is available)
+    pub message: Option<String>,
 }
 
 /// Trait resync status
@@ -443,6 +578,32 @@ pub struct TraitResyncStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn collection_traits_groups_values_by_type() {
+        let json = r#"{"traits": [{
+            "trait_type": "Background",
+            "values": [
+                {"trait_value": "Blue", "count": 12, "percentage": 1.2, "rarity_label": "Top 2%"},
+                {"trait_value": 7, "count": 3, "percentage": "0.3", "rarity_label": "Top 1%"}
+            ]
+        }]}"#;
+        let resp: NftCollectionTraits = serde_json::from_str(json).unwrap();
+        let group = &resp.traits[0];
+        assert_eq!(group.trait_type.as_deref(), Some("Background"));
+        assert_eq!(group.values.len(), 2);
+        assert_eq!(group.values[0].count, Some(12));
+        assert_eq!(group.values[1].percentage, Some(0.3));
+    }
+
+    #[test]
+    fn paginated_trait_uses_trait_value() {
+        let json = r#"{"trait_type": "Hat", "trait_value": "Cap", "count": 5,
+            "percentage": 0.5, "rarity_label": "Top 1%"}"#;
+        let t: NftTrait = serde_json::from_str(json).unwrap();
+        assert_eq!(t.trait_value, Some(serde_json::json!("Cap")));
+        assert_eq!(t.rarity_label.as_deref(), Some("Top 1%"));
+    }
 
     #[test]
     fn test_nft_floor_price_as_string() {
@@ -524,5 +685,101 @@ mod tests {
         }"#;
         let stats: NftCollectionStats = serde_json::from_str(json).unwrap();
         assert!((stats.market_cap_usd.unwrap() - 190_505_000.50).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_historical_floor_price_envelope() {
+        let json = r#"{
+            "cursor": "next",
+            "page": 0,
+            "page_size": 100,
+            "result": [{
+                "timestamp": "2024-01-01T00:00:00.000Z",
+                "floor_price": "0.5",
+                "floor_price_usd": "1500.25",
+                "currency": "eth",
+                "marketplace": "opensea"
+            }]
+        }"#;
+        let resp: NftResponse<HistoricalFloorPrice> = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.cursor.as_deref(), Some("next"));
+        let p = &resp.result[0];
+        assert_eq!(p.floor_price, Some(0.5));
+        assert_eq!(p.floor_price_usd, Some(1500.25));
+        assert_eq!(p.currency.as_deref(), Some("eth"));
+        assert_eq!(p.marketplace, Some(serde_json::json!("opensea")));
+    }
+
+    #[test]
+    fn test_nft_floor_price_spec_shape() {
+        let json = r#"{
+            "address": "0xnft",
+            "floor_price": "0.5",
+            "floor_price_usd": "1500",
+            "currency": "eth",
+            "marketplace": {"name": "opensea", "logo": "https://example.com/logo.png"},
+            "last_updated": "2024-01-01T00:00:00.000Z"
+        }"#;
+        let floor: NftFloorPrice = serde_json::from_str(json).unwrap();
+        assert_eq!(floor.address.as_deref(), Some("0xnft"));
+        assert_eq!(floor.currency.as_deref(), Some("eth"));
+        let marketplace = floor.marketplace.unwrap();
+        assert_eq!(marketplace.name(), Some("opensea"));
+        assert_eq!(
+            marketplace,
+            NftMarketplace::Info {
+                name: Some("opensea".to_string()),
+                logo: Some("https://example.com/logo.png".to_string()),
+            }
+        );
+
+        // Legacy shape: `floor_price_currency` and a bare marketplace name
+        let legacy = r#"{"floor_price_currency": "ETH", "marketplace": "opensea"}"#;
+        let floor: NftFloorPrice = serde_json::from_str(legacy).unwrap();
+        assert_eq!(floor.currency.as_deref(), Some("ETH"));
+        assert_eq!(
+            floor.marketplace,
+            Some(NftMarketplace::Name("opensea".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_nft_sale_prices_object() {
+        let json = r#"{
+            "last_sale": {
+                "transaction_hash": "0xtx",
+                "block_timestamp": "2024-01-01T00:00:00.000Z",
+                "buyer_address": "0xbuyer",
+                "seller_address": "0xseller",
+                "price": "1000000000000000000",
+                "price_formatted": "1",
+                "usd_price_at_sale": "2500.5",
+                "current_usd_value": "3000",
+                "token_id": "42",
+                "payment_token": {
+                    "token_name": "Ether",
+                    "token_symbol": "ETH",
+                    "token_logo": "https://example.com/eth.png",
+                    "token_decimals": "18",
+                    "token_address": "0xeee"
+                }
+            },
+            "lowest_sale": null,
+            "highest_sale": null,
+            "average_sale": {"price": "500000000000000000", "price_formatted": "0.5", "current_usd_value": "1500"},
+            "total_trades": 3
+        }"#;
+        let prices: NftSalePrices = serde_json::from_str(json).unwrap();
+        let last = prices.last_sale.unwrap();
+        assert_eq!(last.token_id.as_deref(), Some("42"));
+        assert_eq!(last.usd_price_at_sale, Some(2500.5));
+        assert_eq!(
+            last.payment_token.unwrap().token_decimals.as_deref(),
+            Some("18")
+        );
+        assert!(prices.lowest_sale.is_none());
+        assert_eq!(prices.average_sale.unwrap().current_usd_value, Some(1500.0));
+        assert_eq!(prices.total_trades, Some(3));
+        assert!(prices.message.is_none());
     }
 }

@@ -22,9 +22,21 @@ pub enum AlchemyNetwork {
     BlastMainnet,
     Bnb,
     Avalanche,
+    /// Solana mainnet (DAS / `alchemy solana` commands)
+    SolanaMainnet,
+    /// Solana devnet (DAS / `alchemy solana` commands)
+    SolanaDevnet,
 }
 
 impl AlchemyNetwork {
+    /// Whether this is a Solana network
+    pub fn is_solana(&self) -> bool {
+        matches!(
+            self,
+            AlchemyNetwork::SolanaMainnet | AlchemyNetwork::SolanaDevnet
+        )
+    }
+
     /// Get the network name as used in Alchemy API
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -40,6 +52,8 @@ impl AlchemyNetwork {
             AlchemyNetwork::BlastMainnet => "blast-mainnet",
             AlchemyNetwork::Bnb => "bnb-mainnet",
             AlchemyNetwork::Avalanche => "avax-mainnet",
+            AlchemyNetwork::SolanaMainnet => "solana-mainnet",
+            AlchemyNetwork::SolanaDevnet => "solana-devnet",
         }
     }
 }
@@ -59,6 +73,8 @@ impl From<AlchemyNetwork> for alcmy::Network {
             AlchemyNetwork::BlastMainnet => alcmy::Network::BlastMainnet,
             AlchemyNetwork::Bnb => alcmy::Network::Bnb,
             AlchemyNetwork::Avalanche => alcmy::Network::Avalanche,
+            AlchemyNetwork::SolanaMainnet => alcmy::Network::SolanaMainnet,
+            AlchemyNetwork::SolanaDevnet => alcmy::Network::SolanaDevnet,
         }
     }
 }
@@ -67,6 +83,18 @@ impl From<AlchemyNetwork> for alcmy::Network {
 pub struct AlchemyArgs {
     /// Alchemy network
     #[arg(long, short, default_value = "eth-mainnet")]
+    pub network: AlchemyNetwork,
+
+    /// Output format
+    #[arg(long, short = 'o', visible_alias = "output", default_value = "json")]
+    pub format: OutputFormat,
+}
+
+/// Arguments for `alchemy solana` (defaults to Solana mainnet)
+#[derive(Args)]
+pub struct SolanaArgs {
+    /// Alchemy Solana network (solana-mainnet or solana-devnet)
+    #[arg(long, short, default_value = "solana-mainnet")]
     pub network: AlchemyNetwork,
 
     /// Output format
@@ -198,7 +226,7 @@ pub enum AlchemyCommands {
         action: SolanaCommands,
 
         #[command(flatten)]
-        args: AlchemyArgs,
+        args: SolanaArgs,
     },
 }
 
@@ -690,8 +718,24 @@ pub enum BundlerCommands {
 
 #[derive(Subcommand)]
 pub enum GasManagerCommands {
-    /// List all gas manager policies
-    ListPolicies,
+    /// List gas manager policies (paginated)
+    ListPolicies {
+        /// Only policies of this app ID
+        #[arg(long)]
+        app_id: Option<String>,
+        /// Results per page (max 50)
+        #[arg(long)]
+        limit: Option<u32>,
+        /// Cursor for the previous page (`before` from a response)
+        #[arg(long)]
+        before: Option<String>,
+        /// Cursor for the next page (`after` from a response)
+        #[arg(long)]
+        after: Option<String>,
+        /// Case-insensitive policy name filter
+        #[arg(long)]
+        name_filter: Option<String>,
+    },
 
     /// Get a policy by ID
     GetPolicy {
@@ -705,10 +749,19 @@ pub enum GasManagerCommands {
         policy_id: String,
     },
 
-    /// List sponsorships for a policy
+    /// List sponsorships for a policy (paginated)
     ListSponsorships {
         /// Policy ID
         policy_id: String,
+        /// Results per page (max 100)
+        #[arg(long)]
+        limit: Option<u32>,
+        /// Cursor for the previous page (`before` from a response)
+        #[arg(long)]
+        before: Option<String>,
+        /// Cursor for the next page (`after` from a response)
+        #[arg(long)]
+        after: Option<String>,
     },
 }
 
@@ -803,10 +856,18 @@ pub enum BeaconCommands {
         state_id: String,
     },
 
-    /// Get validators
+    /// Get validators filtered by ID and/or status (at least one is required;
+    /// unfiltered mainnet responses exceed a million validators)
+    #[command(group(clap::ArgGroup::new("validator_filter").required(true).multiple(true).args(["id", "status"])))]
     Validators {
         /// State ID
         state_id: String,
+        /// Comma-separated validator indices or pubkeys
+        #[arg(long)]
+        id: Option<String>,
+        /// Comma-separated statuses (e.g. active_ongoing,pending_queued)
+        #[arg(long)]
+        status: Option<String>,
     },
 
     /// Get a specific validator
@@ -817,22 +878,31 @@ pub enum BeaconCommands {
         validator_id: String,
     },
 
-    /// Get validator balances
+    /// Get validator balances for specific validators
     ValidatorBalances {
         /// State ID
         state_id: String,
+        /// Comma-separated validator indices or pubkeys
+        #[arg(long)]
+        id: String,
     },
 
     /// Get sync committees
     SyncCommittees {
         /// State ID
         state_id: String,
+        /// Epoch (defaults to the state's epoch)
+        #[arg(long)]
+        epoch: Option<u64>,
     },
 
     /// Get RANDAO value
     Randao {
         /// State ID
         state_id: String,
+        /// Epoch (defaults to the state's epoch)
+        #[arg(long)]
+        epoch: Option<u64>,
     },
 
     /// Get pool attestations
@@ -1196,7 +1266,7 @@ async fn handle_nft(
             if !quiet {
                 eprintln!("Reporting {} as spam...", contract);
             }
-            client.nft().report_spam(contract).await?;
+            client.nft().report_spam(contract, true).await?;
             println!("Reported {} as spam", contract);
         }
         NftCommands::NftsForCollection {
@@ -1366,7 +1436,11 @@ async fn handle_portfolio(
             // API expects (address, networks) tuples
             let networks: &[&str] = &[args.network.as_str()];
             let addresses: &[(&str, &[&str])] = &[(address.as_str(), networks)];
-            let response = client.portfolio().get_token_balances(addresses).await?;
+            let options = alcmy::portfolio::TokensByAddressOptions::default();
+            let response = client
+                .portfolio()
+                .get_tokens_by_address(addresses, &options)
+                .await?;
             print_output(&response, args.format)?;
         }
         PortfolioCommands::TokenInfo { tokens } => {
@@ -1383,8 +1457,32 @@ async fn handle_portfolio(
             if token_pairs.is_empty() {
                 anyhow::bail!("Tokens must be in network:address format (e.g., eth-mainnet:0x...)");
             }
-            let response = client.portfolio().get_token_info(&token_pairs).await?;
-            print_output(&response, args.format)?;
+            // The Data API has no per-token lookup, so query
+            // alchemy_getTokenMetadata on each token's own network.
+            let mut results = Vec::with_capacity(token_pairs.len());
+            for (network, token) in token_pairs {
+                let Some(net) = parse_alchemy_network(network) else {
+                    anyhow::bail!("Unknown Alchemy network '{}'", network);
+                };
+                let net_client = alcmy::Client::new(api_key, net.into())?;
+                let entry = match net_client.token().get_token_metadata(token).await {
+                    Ok(meta) => serde_json::json!({
+                        "network": network,
+                        "address": token,
+                        "name": meta.name,
+                        "symbol": meta.symbol,
+                        "decimals": meta.decimals,
+                        "logo": meta.logo,
+                    }),
+                    Err(e) => serde_json::json!({
+                        "network": network,
+                        "address": token,
+                        "error": e.to_string(),
+                    }),
+                };
+                results.push(entry);
+            }
+            print_output(&results, args.format)?;
         }
         PortfolioCommands::Nfts {
             address,
@@ -1416,6 +1514,13 @@ async fn handle_portfolio(
     }
 
     Ok(())
+}
+
+/// Match a network by its API slug (e.g. `arb-mainnet`) or CLI name
+fn parse_alchemy_network(name: &str) -> Option<AlchemyNetwork> {
+    AlchemyNetwork::value_variants().iter().copied().find(|n| {
+        n.as_str() == name || n.to_possible_value().is_some_and(|v| v.matches(name, true))
+    })
 }
 
 // =============================================================================
@@ -1785,11 +1890,27 @@ async fn handle_gas_manager(
     let client = gas_manager_client(api_key, args.network)?;
 
     match action {
-        GasManagerCommands::ListPolicies => {
+        GasManagerCommands::ListPolicies {
+            app_id,
+            limit,
+            before,
+            after,
+            name_filter,
+        } => {
             if !quiet {
                 eprintln!("Listing gas manager policies...");
             }
-            let response = client.gas_manager().list_policies().await?;
+            let options = alcmy::gasmanager::ListPoliciesOptions {
+                app_id: app_id.clone(),
+                limit: *limit,
+                before: before.clone(),
+                after: after.clone(),
+                name_filter: name_filter.clone(),
+            };
+            let response = client
+                .gas_manager()
+                .list_policies_with_options(&options)
+                .await?;
             print_output(&response, args.format)?;
         }
         GasManagerCommands::GetPolicy { policy_id } => {
@@ -1806,11 +1927,24 @@ async fn handle_gas_manager(
             let response = client.gas_manager().get_policy_stats(policy_id).await?;
             print_output(&response, args.format)?;
         }
-        GasManagerCommands::ListSponsorships { policy_id } => {
+        GasManagerCommands::ListSponsorships {
+            policy_id,
+            limit,
+            before,
+            after,
+        } => {
             if !quiet {
                 eprintln!("Listing sponsorships for policy {}...", policy_id);
             }
-            let response = client.gas_manager().list_sponsorships(policy_id).await?;
+            let options = alcmy::gasmanager::ListSponsorshipsOptions {
+                limit: *limit,
+                before: before.clone(),
+                after: after.clone(),
+            };
+            let response = client
+                .gas_manager()
+                .list_sponsorships_with_options(policy_id, &options)
+                .await?;
             print_output(&response, args.format)?;
         }
     }
@@ -1961,11 +2095,20 @@ async fn handle_beacon(
             let response = client.beacon().get_finality_checkpoints(state_id).await?;
             print_output(&response, args.format)?;
         }
-        BeaconCommands::Validators { state_id } => {
+        BeaconCommands::Validators {
+            state_id,
+            id,
+            status,
+        } => {
             if !quiet {
                 eprintln!("Fetching validators for state {}...", state_id);
             }
-            let response = client.beacon().get_validators(state_id).await?;
+            let ids = split_list(id.as_deref());
+            let statuses = split_list(status.as_deref());
+            let response = client
+                .beacon()
+                .get_validators(state_id, &ids, &statuses)
+                .await?;
             print_output(&response, args.format)?;
         }
         BeaconCommands::Validator {
@@ -1984,25 +2127,35 @@ async fn handle_beacon(
                 .await?;
             print_output(&response, args.format)?;
         }
-        BeaconCommands::ValidatorBalances { state_id } => {
+        BeaconCommands::ValidatorBalances { state_id, id } => {
             if !quiet {
                 eprintln!("Fetching validator balances for state {}...", state_id);
             }
-            let response = client.beacon().get_validator_balances(state_id).await?;
+            let ids = split_list(Some(id));
+            if ids.is_empty() {
+                anyhow::bail!("--id needs at least one validator index or pubkey");
+            }
+            let response = client
+                .beacon()
+                .get_validator_balances(state_id, &ids)
+                .await?;
             print_output(&response, args.format)?;
         }
-        BeaconCommands::SyncCommittees { state_id } => {
+        BeaconCommands::SyncCommittees { state_id, epoch } => {
             if !quiet {
                 eprintln!("Fetching sync committees for state {}...", state_id);
             }
-            let response = client.beacon().get_sync_committees(state_id).await?;
+            let response = client
+                .beacon()
+                .get_sync_committees(state_id, *epoch)
+                .await?;
             print_output(&response, args.format)?;
         }
-        BeaconCommands::Randao { state_id } => {
+        BeaconCommands::Randao { state_id, epoch } => {
             if !quiet {
                 eprintln!("Fetching RANDAO for state {}...", state_id);
             }
-            let response = client.beacon().get_randao(state_id).await?;
+            let response = client.beacon().get_randao(state_id, *epoch).await?;
             print_output(&response, args.format)?;
         }
         BeaconCommands::PoolAttestations => {
@@ -2082,16 +2235,34 @@ async fn handle_beacon(
     Ok(())
 }
 
+/// Split a comma-separated CLI list, dropping empty entries
+fn split_list(value: Option<&str>) -> Vec<&str> {
+    value
+        .map(|v| {
+            v.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 // =============================================================================
 // Solana Handler
 // =============================================================================
 
 async fn handle_solana(
     action: &SolanaCommands,
-    args: &AlchemyArgs,
+    args: &SolanaArgs,
     api_key: &str,
     quiet: bool,
 ) -> anyhow::Result<()> {
+    if !args.network.is_solana() {
+        anyhow::bail!(
+            "`alchemy solana` needs a Solana network (solana-mainnet or solana-devnet), got {}",
+            args.network.as_str()
+        );
+    }
     let client = alcmy::Client::new(api_key, args.network.into())?;
 
     match action {
@@ -2132,8 +2303,7 @@ async fn handle_solana(
             let pagination = alcmy::solana::PaginationOptions {
                 page: Some(*page),
                 limit: Some(*limit),
-                cursor: None,
-                sort_by: None,
+                ..Default::default()
             };
             let display = alcmy::solana::DisplayOptions::default();
             let response = client
@@ -2250,5 +2420,50 @@ mod tests {
         assert!(ACCESS_KEY_HELP.contains("Security"));
         assert!(ACCESS_KEY_HELP.contains("Gas Manager"));
         assert!(ACCESS_KEY_HELP.contains("set-alchemy-access-key"));
+    }
+
+    #[derive(clap::Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        command: AlchemyCommands,
+    }
+
+    fn parse(args: &[&str]) -> Result<AlchemyCommands, clap::Error> {
+        use clap::Parser;
+        TestCli::try_parse_from(std::iter::once("alchemy").chain(args.iter().copied()))
+            .map(|c| c.command)
+    }
+
+    #[test]
+    fn solana_commands_default_to_solana_mainnet() {
+        match parse(&["solana", "get-asset", "Asset111"]).unwrap() {
+            AlchemyCommands::Solana { args, .. } => {
+                assert!(matches!(args.network, AlchemyNetwork::SolanaMainnet));
+                assert_eq!(args.network.as_str(), "solana-mainnet");
+            }
+            _ => panic!("expected solana command"),
+        }
+        match parse(&["solana", "-n", "solana-devnet", "get-asset", "Asset111"]).unwrap() {
+            AlchemyCommands::Solana { args, .. } => {
+                assert!(matches!(args.network, AlchemyNetwork::SolanaDevnet));
+            }
+            _ => panic!("expected solana command"),
+        }
+    }
+
+    #[test]
+    fn beacon_validators_require_a_filter() {
+        assert!(parse(&["beacon", "validators", "head"]).is_err());
+        match parse(&["beacon", "validators", "head", "--status", "active_ongoing"]).unwrap() {
+            AlchemyCommands::Beacon {
+                action: BeaconCommands::Validators { id, status, .. },
+                ..
+            } => {
+                assert!(id.is_none());
+                assert_eq!(status.as_deref(), Some("active_ongoing"));
+            }
+            _ => panic!("expected beacon validators"),
+        }
+        assert_eq!(split_list(Some("1, 2,,0xab")), vec!["1", "2", "0xab"]);
     }
 }

@@ -181,18 +181,15 @@ pub struct RouteRequest {
     /// Save gas mode
     #[serde(skip_serializing_if = "Option::is_none")]
     pub save_gas: Option<bool>,
-    /// Include DEXs (comma-separated)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Only route through these sources (comma-separated, `includedSources`)
+    #[serde(rename = "includedSources", skip_serializing_if = "Option::is_none")]
     pub include_dexs: Option<String>,
-    /// Exclude DEXs (comma-separated)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Never route through these sources (comma-separated, `excludedSources`)
+    #[serde(rename = "excludedSources", skip_serializing_if = "Option::is_none")]
     pub exclude_dexs: Option<String>,
-    /// Gas include mode
+    /// Account for gas cost when picking the route (`gasInclude`)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gas_include: Option<bool>,
-    /// Slippage tolerance in bips (1 = 0.01%)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub slippage_tolerance_bps: Option<u32>,
 }
 
 impl RouteRequest {
@@ -210,7 +207,6 @@ impl RouteRequest {
             include_dexs: None,
             exclude_dexs: None,
             gas_include: None,
-            slippage_tolerance_bps: None,
         }
     }
 
@@ -221,27 +217,67 @@ impl RouteRequest {
     }
 
     #[must_use]
-    pub fn with_slippage_bps(mut self, bps: u32) -> Self {
-        self.slippage_tolerance_bps = Some(bps);
-        self
-    }
-
-    #[must_use]
     pub fn with_save_gas(mut self, save_gas: bool) -> Self {
         self.save_gas = Some(save_gas);
         self
     }
 
+    /// Only route through these sources (comma-separated, `includedSources`)
+    #[must_use]
+    pub fn with_included_sources(mut self, sources: impl Into<String>) -> Self {
+        self.include_dexs = Some(sources.into());
+        self
+    }
+
+    /// Never route through these sources (comma-separated, `excludedSources`)
+    #[must_use]
+    pub fn with_excluded_sources(mut self, sources: impl Into<String>) -> Self {
+        self.exclude_dexs = Some(sources.into());
+        self
+    }
+
+    /// Account for gas cost when picking the route (`gasInclude`)
+    #[must_use]
+    pub fn with_gas_include(mut self, gas_include: bool) -> Self {
+        self.gas_include = Some(gas_include);
+        self
+    }
+
+    /// Query parameters for `GET /{chain}/api/v1/routes`
+    #[must_use]
+    pub fn to_query_params(&self) -> Vec<(&'static str, String)> {
+        let mut params = vec![
+            ("tokenIn", self.token_in.clone()),
+            ("tokenOut", self.token_out.clone()),
+            ("amountIn", self.amount_in.clone()),
+        ];
+        if let Some(ref to) = self.to {
+            params.push(("to", to.clone()));
+        }
+        if let Some(save_gas) = self.save_gas {
+            params.push(("saveGas", save_gas.to_string()));
+        }
+        if let Some(ref sources) = self.include_dexs {
+            params.push(("includedSources", sources.clone()));
+        }
+        if let Some(ref sources) = self.exclude_dexs {
+            params.push(("excludedSources", sources.clone()));
+        }
+        if let Some(gas_include) = self.gas_include {
+            params.push(("gasInclude", gas_include.to_string()));
+        }
+        params
+    }
+
     /// Validate the route request parameters
     ///
-    /// Checks that addresses, amounts, and slippage are properly formatted.
+    /// Checks that addresses and amounts are properly formatted.
     ///
     /// # Errors
     ///
     /// Returns an error if:
     /// - Token addresses are not valid Ethereum addresses (0x + 40 hex chars)
     /// - Amounts contain non-numeric characters
-    /// - Slippage tolerance is unreasonably high (> 5000 bps = 50%)
     pub fn validate(&self) -> Result<(), &'static str> {
         // Validate token addresses
         if !is_valid_address(&self.token_in) {
@@ -261,13 +297,6 @@ impl RouteRequest {
         // Validate amount (should be numeric string)
         if !is_valid_amount(&self.amount_in) {
             return Err("invalid amount_in");
-        }
-
-        // Validate slippage tolerance (max 50% = 5000 bps is already extreme)
-        if let Some(bps) = self.slippage_tolerance_bps {
-            if bps > 5000 {
-                return Err("slippage_tolerance_bps too high (max 5000 = 50%)");
-            }
         }
 
         Ok(())
@@ -337,9 +366,12 @@ pub struct RouteSummary {
     pub amount_in: String,
     /// Output amount
     pub amount_out: String,
-    /// Minimum output after slippage
+    /// Input amount in USD
     #[serde(default)]
-    pub amount_out_min: Option<String>,
+    pub amount_in_usd: Option<String>,
+    /// Output amount in USD
+    #[serde(default)]
+    pub amount_out_usd: Option<String>,
     /// Estimated gas
     #[serde(default)]
     pub gas: Option<String>,
@@ -349,12 +381,22 @@ pub struct RouteSummary {
     /// Gas in USD
     #[serde(default)]
     pub gas_usd: Option<String>,
-    /// Price impact percentage
-    #[serde(default)]
-    pub price_impact: Option<f64>,
     /// Swap route
     #[serde(default)]
     pub route: Vec<Vec<SwapStep>>,
+}
+
+impl RouteSummary {
+    /// Price impact in percent, derived from `amountInUsd` and
+    /// `amountOutUsd` (v1 routes have no price-impact field)
+    ///
+    /// Positive means the output is worth less than the input.
+    #[must_use]
+    pub fn price_impact_percent(&self) -> Option<f64> {
+        let amount_in: f64 = self.amount_in_usd.as_deref()?.parse().ok()?;
+        let amount_out: f64 = self.amount_out_usd.as_deref()?.parse().ok()?;
+        (amount_in > 0.0).then(|| (amount_in - amount_out) / amount_in * 100.0)
+    }
 }
 
 /// Swap step in route

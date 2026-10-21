@@ -3,7 +3,7 @@
 //! Run with: TENDERLY_ACCESS_KEY=... TENDERLY_ACCOUNT=... TENDERLY_PROJECT=... cargo run --example test_all_endpoints
 
 use tndrly::alerts::AlertHistoryQuery;
-use tndrly::contracts::ListContractsQuery;
+use tndrly::contracts::{AccountType, ListContractsQuery};
 use tndrly::simulation::{BundleSimulationRequest, SimulationRequest};
 use tndrly::vnets::{ListVNetTransactionsQuery, UpdateVNetRequest};
 use tndrly::Client;
@@ -298,7 +298,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. list()
     print!("  contracts.list()... ");
-    let contracts = match client.contracts().list(None).await {
+    let contracts = match client
+        .contracts()
+        .list(&ListContractsQuery::new(AccountType::Contract))
+        .await
+    {
         Ok(c) => {
             println!("✓ ({} contracts)", c.len());
             passed += 1;
@@ -313,8 +317,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. list() with query
     print!("  contracts.list(query)... ");
-    let query = ListContractsQuery::new().network_id("1");
-    match client.contracts().list(Some(query)).await {
+    let query = ListContractsQuery::new(AccountType::Contract).per_page(5);
+    match client.contracts().list(&query).await {
         Ok(c) => {
             println!("✓ ({} contracts)", c.len());
             passed += 1;
@@ -471,7 +475,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     print!("  alerts.history()... ");
     match client.alerts().history(None).await {
         Ok(h) => {
-            println!("✓ ({} entries)", h.alert_history.len());
+            println!("✓ ({} entries)", h.alert_logs.len());
             passed += 1;
         }
         Err(e) => {
@@ -485,7 +489,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query = AlertHistoryQuery::new().per_page(5);
     match client.alerts().history(Some(query)).await {
         Ok(h) => {
-            println!("✓ ({} entries)", h.alert_history.len());
+            println!("✓ ({} entries)", h.alert_logs.len());
             passed += 1;
         }
         Err(e) => {
@@ -534,7 +538,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     print!("  actions.list()... ");
     let actions = match client.actions().list().await {
         Ok(r) => {
-            println!("✓ ({} actions)", r.actions.len());
+            println!("✓ ({} actions)", r.len());
             passed += 1;
             Some(r)
         }
@@ -548,7 +552,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. get()
     print!("  actions.get()... ");
     if let Some(ref a) = actions {
-        if let Some(action) = a.actions.first() {
+        if let Some(action) = a.first() {
             match client.actions().get(&action.id).await {
                 Ok(a) => {
                     println!("✓ (id={})", a.id);
@@ -571,10 +575,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. calls()
     print!("  actions.calls()... ");
     if let Some(ref a) = actions {
-        if let Some(action) = a.actions.first() {
+        if let Some(action) = a.first() {
             match client.actions().calls(&action.id, None).await {
                 Ok(c) => {
-                    println!("✓ ({} executions)", c.executions.len());
+                    println!("✓ ({} executions)", c.len());
                     passed += 1;
                 }
                 Err(e) => {

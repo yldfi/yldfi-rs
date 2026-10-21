@@ -39,8 +39,16 @@ impl<'a> TreasuryApi<'a> {
     }
 
     /// Get historical holdings chart for an entity's coin holdings
-    pub async fn holding_chart(&self, entity_id: &str, coin_id: &str) -> Result<HoldingChart> {
-        let path = format!("/public_treasury/{entity_id}/{coin_id}/holding_chart");
+    ///
+    /// # Arguments
+    /// * `days` - Data range (required), e.g. `"7"`, `"365"` or `"max"`
+    pub async fn holding_chart(
+        &self,
+        entity_id: &str,
+        coin_id: &str,
+        days: &str,
+    ) -> Result<HoldingChart> {
+        let path = format!("/public_treasury/{entity_id}/{coin_id}/holding_chart?days={days}");
         self.client.get(&path).await
     }
 

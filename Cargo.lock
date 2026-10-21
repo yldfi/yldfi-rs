@@ -1828,6 +1828,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tiny-keccak",
  "tokio",
  "tokio-test",
  "wiremock",
@@ -2188,6 +2189,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
+ "wiremock",
  "yldfi-common",
 ]
 
@@ -6213,6 +6215,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-test",
+ "url",
  "yldfi-common",
 ]
 

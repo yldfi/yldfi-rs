@@ -400,12 +400,12 @@ pub enum MatviewsCommands {
 pub enum PipelinesCommands {
     /// Execute a pipeline of queries/matviews
     Execute {
-        /// Pipeline definition as JSON: {"nodes":[{"node_type":"query_execution","query_id":123}]}
+        /// Pipeline definition as JSON: {"nodes":[{"id":1,"query_execution":{"query_id":123}}]}
         pipeline_json: String,
-        /// Query parameters as JSON: {"key":"value"}
+        /// Query parameters as JSON: {"key":"value"} (applied to query nodes without their own)
         #[arg(long)]
         params: Option<String>,
-        /// Performance tier: medium or large
+        /// Performance tier: small, medium or large (applied to nodes without their own)
         #[arg(long)]
         performance: Option<String>,
     },
@@ -804,9 +804,15 @@ async fn handle_tables(
             }
             let json_data: serde_json::Value = serde_json::from_str(data)
                 .map_err(|e| anyhow::anyhow!("Invalid data JSON: {}", e))?;
+            // The insert endpoint takes NDJSON, so send each row as its own line
+            let rows = match json_data {
+                serde_json::Value::Array(rows) => rows,
+                row @ serde_json::Value::Object(_) => vec![row],
+                _ => anyhow::bail!("Data must be a JSON object or an array of objects"),
+            };
             let response = client
                 .tables()
-                .insert(namespace, table_name, &json_data)
+                .insert_rows(namespace, table_name, &rows)
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -944,21 +950,18 @@ async fn handle_pipelines(
             if !quiet {
                 eprintln!("Executing pipeline...");
             }
-            let pipeline: dnapi::pipelines::Pipeline = serde_json::from_str(pipeline_json)
+            let mut pipeline: dnapi::pipelines::Pipeline = serde_json::from_str(pipeline_json)
                 .map_err(|e| anyhow::anyhow!("Invalid pipeline JSON: {}", e))?;
-            let query_parameters = if let Some(p) = params {
-                Some(
+            if let Some(p) = params {
+                let query_parameters: std::collections::HashMap<String, serde_json::Value> =
                     serde_json::from_str(p)
-                        .map_err(|e| anyhow::anyhow!("Invalid params JSON: {}", e))?,
-                )
-            } else {
-                None
-            };
-            let request = dnapi::pipelines::ExecutePipelineRequest {
-                pipeline,
-                query_parameters,
-                performance: performance.clone(),
-            };
+                        .map_err(|e| anyhow::anyhow!("Invalid params JSON: {}", e))?;
+                pipeline = pipeline.with_query_parameters(&query_parameters);
+            }
+            if let Some(perf) = performance {
+                pipeline = pipeline.with_performance(perf);
+            }
+            let request = dnapi::pipelines::ExecutePipelineRequest { pipeline };
             let response = client.pipelines().execute(&request).await?;
             print_output(&response, args.format)?;
         }

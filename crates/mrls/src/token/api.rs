@@ -1,9 +1,10 @@
 //! Token API client
 
 use super::types::{
-    GetMultiplePricesRequest, PairOhlcv, PairStats, TokenCategory, TokenHoldersResponse,
+    GetMultiplePricesRequest, PairOhlcvResponse, PairStats, TokenCategory, TokenHoldersResponse,
     TokenHoldersSummary, TokenMetadata, TokenPair, TokenPairsResponse, TokenPrice, TokenResponse,
-    TokenSearchResult, TokenSwap, TokenTransfer, TokenTransferResponse, TopTrader, TrendingToken,
+    TokenSearchResponse, TokenSearchResult, TokenSwap, TokenTransfer, TokenTransferResponse,
+    TopGainersResponse, TrendingToken,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -43,7 +44,10 @@ impl TokenQuery {
 }
 
 /// Query parameters for pair OHLCV endpoints
-#[derive(Debug, Default, Serialize)]
+///
+/// Moralis requires `timeframe`, `currency`, `fromDate` and `toDate`; any left
+/// unset are filled in by [`TokenApi::get_pair_ohlcv`] (1d, usd, last 7 days).
+#[derive(Debug, Default, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PairOhlcvQuery {
     /// Chain to query
@@ -52,15 +56,21 @@ pub struct PairOhlcvQuery {
     /// Timeframe (e.g., 1h, 4h, 1d, 1w)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeframe: Option<String>,
-    /// From date (ISO 8601)
+    /// Price currency (`usd` or `native`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    /// From date (unix seconds or ISO 8601)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_date: Option<String>,
-    /// To date (ISO 8601)
+    /// To date (unix seconds or ISO 8601)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_date: Option<String>,
     /// Limit
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<i32>,
+    /// Pagination cursor
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
 }
 
 impl PairOhlcvQuery {
@@ -84,6 +94,13 @@ impl PairOhlcvQuery {
         self
     }
 
+    /// Set currency (`usd` or `native`)
+    #[must_use]
+    pub fn currency(mut self, currency: impl Into<String>) -> Self {
+        self.currency = Some(currency.into());
+        self
+    }
+
     /// Set from_date
     #[must_use]
     pub fn from_date(mut self, from_date: impl Into<String>) -> Self {
@@ -104,6 +121,31 @@ impl PairOhlcvQuery {
         self.limit = Some(limit);
         self
     }
+
+    /// Set pagination cursor
+    #[must_use]
+    pub fn cursor(mut self, cursor: impl Into<String>) -> Self {
+        self.cursor = Some(cursor.into());
+        self
+    }
+
+    /// Fill in the parameters Moralis requires: timeframe `1d`, currency `usd`
+    /// and a date range of the last 7 days ending now (unix seconds).
+    fn with_required_defaults(&self, now_secs: u64) -> Self {
+        let mut q = self.clone();
+        q.timeframe.get_or_insert_with(|| "1d".to_string());
+        q.currency.get_or_insert_with(|| "usd".to_string());
+        q.to_date.get_or_insert_with(|| now_secs.to_string());
+        q.from_date
+            .get_or_insert_with(|| now_secs.saturating_sub(7 * 86_400).to_string());
+        q
+    }
+}
+
+fn unix_now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 /// API for token operations
@@ -120,15 +162,17 @@ impl<'a> TokenApi<'a> {
 
     /// Get token metadata
     pub async fn get_metadata(&self, address: &str, chain: Option<&str>) -> Result<TokenMetadata> {
-        // Build query string manually — Moralis expects `addresses` as a query param
-        // and reqwest 0.12's .query() can reject certain serialization patterns
-        let path = if let Some(chain) = chain {
-            format!("/erc20/metadata?addresses={address}&chain={chain}")
-        } else {
-            format!("/erc20/metadata?addresses={address}")
-        };
+        // `addresses` is an array param; a single value is sent as a plain
+        // pair. A pair list lets reqwest URL-encode the values.
+        let mut query = vec![("addresses", address)];
+        if let Some(chain) = chain {
+            query.push(("chain", chain));
+        }
 
-        let results: Vec<TokenMetadata> = self.client.get(&path).await?;
+        let results: Vec<TokenMetadata> = self
+            .client
+            .get_with_query("/erc20/metadata", &query)
+            .await?;
         results
             .into_iter()
             .next()
@@ -257,7 +301,10 @@ impl<'a> TokenApi<'a> {
             chain: chain.map(std::string::ToString::to_string),
         };
 
-        self.client.get_with_query("/tokens/search", &q).await
+        // Moralis wraps search results in a `{ result, total }` envelope
+        let response: TokenSearchResponse =
+            self.client.get_with_query("/tokens/search", &q).await?;
+        Ok(response.result)
     }
 
     /// Get trending tokens
@@ -277,21 +324,19 @@ impl<'a> TokenApi<'a> {
 
     /// Get pair OHLCV data
     ///
-    /// The Moralis API requires at minimum a `timeframe` parameter.
-    /// Use `PairOhlcvQuery` to set timeframe, from_date, to_date, and chain.
+    /// The Moralis API requires `timeframe`, `currency`, `fromDate` and `toDate`.
+    /// Any of these not set on `query` default to `1d`, `usd` and the last 7 days.
     pub async fn get_pair_ohlcv(
         &self,
         pair_address: &str,
         query: Option<&PairOhlcvQuery>,
-    ) -> Result<Vec<PairOhlcv>> {
+    ) -> Result<PairOhlcvResponse> {
         let path = format!("/pairs/{pair_address}/ohlcv");
-        if let Some(q) = query {
-            self.client.get_with_query(&path, q).await
-        } else {
-            // Default to 1d timeframe if no query provided
-            let default_query = PairOhlcvQuery::new().timeframe("1d");
-            self.client.get_with_query(&path, &default_query).await
-        }
+        let q = query
+            .cloned()
+            .unwrap_or_default()
+            .with_required_defaults(unix_now_secs());
+        self.client.get_with_query(&path, &q).await
     }
 
     /// Get pair stats
@@ -356,11 +401,13 @@ impl<'a> TokenApi<'a> {
     }
 
     /// Get top traders/gainers for a token
+    ///
+    /// Moralis returns the token's metadata with the traders in `result`.
     pub async fn get_top_gainers(
         &self,
         address: &str,
         chain: Option<&str>,
-    ) -> Result<Vec<TopTrader>> {
+    ) -> Result<TopGainersResponse> {
         let path = format!("/erc20/{address}/top-gainers");
         if let Some(chain) = chain {
             let query = TokenQuery::new().chain(chain);
@@ -368,5 +415,59 @@ impl<'a> TokenApi<'a> {
         } else {
             self.client.get(&path).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn query_pairs(q: &PairOhlcvQuery) -> Vec<(String, String)> {
+        let req = reqwest::Client::new()
+            .get("https://example.invalid/pairs/0xpair/ohlcv")
+            .query(q)
+            .build()
+            .unwrap();
+        req.url()
+            .query_pairs()
+            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn test_pair_ohlcv_query_fills_required_params() {
+        let now = 1_700_000_000;
+        let q = PairOhlcvQuery::new()
+            .chain("eth")
+            .with_required_defaults(now);
+        let pairs = query_pairs(&q);
+        let get = |k: &str| {
+            pairs
+                .iter()
+                .find(|(key, _)| key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(get("chain"), Some("eth"));
+        assert_eq!(get("timeframe"), Some("1d"));
+        assert_eq!(get("currency"), Some("usd"));
+        assert_eq!(get("toDate"), Some("1700000000"));
+        assert_eq!(get("fromDate"), Some("1699395200"));
+    }
+
+    #[test]
+    fn test_pair_ohlcv_query_keeps_caller_values() {
+        let q = PairOhlcvQuery::new()
+            .timeframe("1h")
+            .currency("native")
+            .from_date("2024-01-01T00:00:00Z")
+            .to_date("2024-01-02T00:00:00Z")
+            .cursor("abc")
+            .with_required_defaults(1_700_000_000);
+        let pairs = query_pairs(&q);
+        assert!(pairs.contains(&("timeframe".into(), "1h".into())));
+        assert!(pairs.contains(&("currency".into(), "native".into())));
+        assert!(pairs.contains(&("fromDate".into(), "2024-01-01T00:00:00Z".into())));
+        assert!(pairs.contains(&("toDate".into(), "2024-01-02T00:00:00Z".into())));
+        assert!(pairs.contains(&("cursor".into(), "abc".into())));
     }
 }

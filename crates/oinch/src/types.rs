@@ -199,7 +199,12 @@ pub struct TokenInfo {
     /// Number of decimals
     pub decimals: u8,
     /// Logo URI (optional)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "logoURI",
+        alias = "logoUri",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub logo_uri: Option<String>,
     /// Whether token is native (e.g., ETH on Ethereum)
     #[serde(default)]
@@ -737,6 +742,21 @@ pub struct ApiErrorMeta {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_token_info_logo_uri_field_name() {
+        let json = r#"{"address":"0x0000000000000000000000000000000000000001","symbol":"EX",
+            "name":"Example","decimals":18,"logoURI":"https://example.com/ex.png","tags":["tokens"]}"#;
+        let token: TokenInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            token.logo_uri.as_deref(),
+            Some("https://example.com/ex.png")
+        );
+
+        let out = serde_json::to_value(&token).unwrap();
+        assert_eq!(out["logoURI"], "https://example.com/ex.png");
+        assert!(out.get("logoUri").is_none());
+    }
 
     #[test]
     fn test_chain_ids() {

@@ -11,7 +11,12 @@ use serde::Serialize;
 pub struct TransactionQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Sent as `include=internal_transactions` when true
+    #[serde(
+        rename = "include",
+        skip_serializing_if = "crate::de::not_true",
+        serialize_with = "crate::de::include_internal_transactions"
+    )]
     pub include_internal_transactions: Option<bool>,
 }
 
@@ -98,5 +103,32 @@ impl<'a> TransactionApi<'a> {
         } else {
             self.client.get(&path).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn encode(query: &TransactionQuery) -> String {
+        reqwest::Client::new()
+            .get("https://moralis.example.test/")
+            .query(query)
+            .build()
+            .unwrap()
+            .url()
+            .query()
+            .unwrap_or_default()
+            .to_string()
+    }
+
+    #[test]
+    fn include_internal_transactions_uses_include_param() {
+        let query = TransactionQuery::new()
+            .chain("eth")
+            .include_internal_transactions(true);
+        assert_eq!(encode(&query), "chain=eth&include=internal_transactions");
+        let query = TransactionQuery::new().include_internal_transactions(false);
+        assert_eq!(encode(&query), "");
     }
 }

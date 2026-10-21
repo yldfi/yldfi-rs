@@ -124,6 +124,9 @@ impl<'a> StablecoinsApi<'a> {
     ///
     /// Returns the percentage breakdown of stablecoins on a chain.
     ///
+    /// **Requires Pro API key** (`GET /stablecoins/stablecoindominance/{chain}`
+    /// on the Pro API; the free stablecoins API does not serve it).
+    ///
     /// # Arguments
     ///
     /// * `chain` - Chain name (e.g., "Ethereum", "BSC", "Polygon")
@@ -132,14 +135,14 @@ impl<'a> StablecoinsApi<'a> {
     ///
     /// ```no_run
     /// # async fn example() -> dllma::error::Result<()> {
-    /// let client = dllma::Client::new()?;
+    /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let dominance = client.stablecoins().dominance("Ethereum").await?;
     /// # Ok(())
     /// # }
     /// ```
     pub async fn dominance(&self, chain: &str) -> Result<Vec<StablecoinDominance>> {
-        let path = format!("/stablecoindominance/{chain}");
-        self.client.get_stablecoins(&path).await
+        let path = format!("/stablecoins/stablecoindominance/{chain}");
+        self.client.get_pro(&path).await
     }
 
     /// List all chains with stablecoin data
@@ -174,5 +177,22 @@ impl<'a> StablecoinsApi<'a> {
     /// ```
     pub async fn prices(&self) -> Result<StablecoinPricesResponse> {
         self.client.get_stablecoins("/stablecoinprices").await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Client;
+
+    #[tokio::test]
+    async fn dominance_is_pro_only() {
+        // Free client: rejected locally before any request is made.
+        let client = Client::new().unwrap();
+        let err = client
+            .stablecoins()
+            .dominance("Ethereum")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Pro API key required"), "{err}");
     }
 }

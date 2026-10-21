@@ -95,6 +95,23 @@ pub fn join_url(base: &str, path: &str) -> String {
     }
 }
 
+/// Find `needle` in `haystack[from..]` ignoring ASCII case, returning the
+/// absolute byte offset.
+///
+/// Searching the original string (rather than a lowercased copy) lets
+/// mixed-case needles such as `"accessToken"` match. Every needle is ASCII,
+/// so a matching window consists only of ASCII bytes and always starts on a
+/// char boundary.
+fn find_ascii_ci(haystack: &str, from: usize, needle: &str) -> Option<usize> {
+    let needle = needle.as_bytes();
+    haystack
+        .as_bytes()
+        .get(from..)?
+        .windows(needle.len())
+        .position(|w| w.eq_ignore_ascii_case(needle))
+        .map(|i| from + i)
+}
+
 /// Sanitize an API error body to remove potential secrets and truncate if too long.
 ///
 /// This function:
@@ -109,7 +126,7 @@ pub fn join_url(base: &str, path: &str) -> String {
 /// This function:
 /// 1. Truncates long error messages
 /// 2. Redacts common API key patterns (query params, bearer tokens, headers, JSON)
-/// 3. Redacts hex-encoded private keys
+/// 3. Redacts hex-encoded private keys (when preceded by a key-like name)
 ///
 /// Use this to sanitize error messages before logging or displaying them.
 #[must_use]
@@ -151,63 +168,51 @@ pub fn sanitize_error_body(body: &str) -> String {
     ] {
         // Track search position to avoid infinite loop
         let mut search_from = 0;
-        loop {
-            let lowercase = result.to_ascii_lowercase();
-            // Search only from current position forward
-            if let Some(relative_pos) = lowercase[search_from..].find(pattern) {
-                let start = search_from + relative_pos;
-                // Find the end of the value (next & or end of string/whitespace)
-                let value_start = start + pattern.len();
-                let value_end = result[value_start..]
-                    .find(|c: char| c == '&' || c.is_whitespace())
-                    .map_or(result.len(), |i| value_start + i);
+        // Search only from current position forward
+        while let Some(start) = find_ascii_ci(&result, search_from, pattern) {
+            // Find the end of the value (next & or end of string/whitespace)
+            let value_start = start + pattern.len();
+            let value_end = result[value_start..]
+                .find(|c: char| c == '&' || c.is_whitespace())
+                .map_or(result.len(), |i| value_start + i);
 
-                // Only redact if there's actual content and it's not already [REDACTED]
-                let value = &result[value_start..value_end];
-                if value_end > value_start && value != "[REDACTED]" {
-                    // Preserve original case of the pattern key
-                    let original_pattern = &result[start..start + pattern.len()];
-                    result = format!(
-                        "{}{}[REDACTED]{}",
-                        &result[..start],
-                        original_pattern,
-                        &result[value_end..]
-                    );
-                    // Move search position past redaction
-                    search_from = start + pattern.len() + "[REDACTED]".len();
-                } else {
-                    // Move past this occurrence
-                    search_from = value_start;
-                }
+            // Only redact if there's actual content and it's not already [REDACTED]
+            let value = &result[value_start..value_end];
+            if value_end > value_start && value != "[REDACTED]" {
+                // Preserve original case of the pattern key
+                let original_pattern = &result[start..start + pattern.len()];
+                result = format!(
+                    "{}{}[REDACTED]{}",
+                    &result[..start],
+                    original_pattern,
+                    &result[value_end..]
+                );
+                // Move search position past redaction
+                search_from = start + pattern.len() + "[REDACTED]".len();
             } else {
-                break; // Pattern not found, move to next pattern
+                // Move past this occurrence
+                search_from = value_start;
             }
         }
     }
 
     // Redact ALL Bearer tokens (LOW-002 fix: loop for multiple occurrences)
     let mut search_from = 0;
-    loop {
-        let lowercase = result.to_ascii_lowercase();
-        if let Some(relative_pos) = lowercase[search_from..].find("bearer ") {
-            let start = search_from + relative_pos;
-            let token_start = start + 7;
-            let token_end = result[token_start..]
-                .find(|c: char| c.is_whitespace())
-                .map_or(result.len(), |i| token_start + i);
-            let token = &result[token_start..token_end];
-            if token_end > token_start && token != "[REDACTED]" {
-                result = format!(
-                    "{}Bearer [REDACTED]{}",
-                    &result[..start],
-                    &result[token_end..]
-                );
-                search_from = start + "Bearer [REDACTED]".len();
-            } else {
-                search_from = token_start;
-            }
+    while let Some(start) = find_ascii_ci(&result, search_from, "bearer ") {
+        let token_start = start + 7;
+        let token_end = result[token_start..]
+            .find(|c: char| c.is_whitespace())
+            .map_or(result.len(), |i| token_start + i);
+        let token = &result[token_start..token_end];
+        if token_end > token_start && token != "[REDACTED]" {
+            result = format!(
+                "{}Bearer [REDACTED]{}",
+                &result[..start],
+                &result[token_end..]
+            );
+            search_from = start + "Bearer [REDACTED]".len();
         } else {
-            break;
+            search_from = token_start;
         }
     }
 
@@ -220,34 +225,28 @@ pub fn sanitize_error_body(body: &str) -> String {
         "api-key:",
     ] {
         let mut search_from = 0;
-        loop {
-            let lowercase = result.to_ascii_lowercase();
-            if let Some(relative_pos) = lowercase[search_from..].find(header_pattern) {
-                let start = search_from + relative_pos;
-                let value_start = start + header_pattern.len();
-                // Skip whitespace after colon
-                let trimmed_start = result[value_start..]
-                    .find(|c: char| !c.is_whitespace())
-                    .map_or(value_start, |i| value_start + i);
-                // Find end of header value (newline or end of string)
-                let value_end = result[trimmed_start..]
-                    .find(['\n', '\r'])
-                    .map_or(result.len(), |i| trimmed_start + i);
-                let value = &result[trimmed_start..value_end];
-                if value_end > trimmed_start && value != "[REDACTED]" {
-                    let original_header = &result[start..start + header_pattern.len()];
-                    result = format!(
-                        "{}{} [REDACTED]{}",
-                        &result[..start],
-                        original_header,
-                        &result[value_end..]
-                    );
-                    search_from = start + header_pattern.len() + " [REDACTED]".len();
-                } else {
-                    search_from = value_start;
-                }
+        while let Some(start) = find_ascii_ci(&result, search_from, header_pattern) {
+            let value_start = start + header_pattern.len();
+            // Skip whitespace after colon
+            let trimmed_start = result[value_start..]
+                .find(|c: char| !c.is_whitespace())
+                .map_or(value_start, |i| value_start + i);
+            // Find end of header value (newline or end of string)
+            let value_end = result[trimmed_start..]
+                .find(['\n', '\r'])
+                .map_or(result.len(), |i| trimmed_start + i);
+            let value = &result[trimmed_start..value_end];
+            if value_end > trimmed_start && value != "[REDACTED]" {
+                let original_header = &result[start..start + header_pattern.len()];
+                result = format!(
+                    "{}{} [REDACTED]{}",
+                    &result[..start],
+                    original_header,
+                    &result[value_end..]
+                );
+                search_from = start + header_pattern.len() + " [REDACTED]".len();
             } else {
-                break;
+                search_from = value_start;
             }
         }
     }
@@ -259,7 +258,6 @@ pub fn sanitize_error_body(body: &str) -> String {
         "\"key\"",
         "\"apikey\"",
         "\"api_key\"",
-        "\"apiKey\"",
         "\"token\"",
         "\"secret\"",
         "\"password\"",
@@ -280,67 +278,66 @@ pub fn sanitize_error_body(body: &str) -> String {
     ] {
         // Track search position to avoid infinite loop
         let mut search_from = 0;
-        loop {
-            let lowercase = result.to_ascii_lowercase();
-            // Search only from the current position forward
-            if let Some(relative_pos) = lowercase[search_from..].find(json_key) {
-                let key_start = search_from + relative_pos;
-                // Look for ": followed by a string value
-                let after_key = key_start + json_key.len();
-                let remaining = &result[after_key..];
+        // Search only from the current position forward
+        while let Some(key_start) = find_ascii_ci(&result, search_from, json_key) {
+            // Look for ": followed by a string value
+            let after_key = key_start + json_key.len();
+            let remaining = &result[after_key..];
 
-                // Find the colon and opening quote
-                if let Some(colon_offset) = remaining.find(':') {
-                    let after_colon = &remaining[colon_offset + 1..];
-                    // Skip whitespace
-                    let quote_offset = after_colon.find('"');
-                    if let Some(qo) = quote_offset {
-                        let value_start_abs = after_key + colon_offset + 1 + qo + 1;
-                        // Find closing quote (handle escaped quotes)
-                        let value_content = &result[value_start_abs..];
-                        let mut end_quote = 0;
-                        let mut chars = value_content.chars().peekable();
-                        while let Some(c) = chars.next() {
-                            if c == '\\' {
-                                // Skip escaped char
-                                chars.next();
-                                end_quote += 2;
-                            } else if c == '"' {
-                                break;
-                            } else {
-                                end_quote += c.len_utf8();
-                            }
-                        }
-                        if end_quote > 0 {
-                            let value_end_abs = value_start_abs + end_quote;
-                            // Preserve the key and structure, just redact the value
-                            result = format!(
-                                "{}[REDACTED]{}",
-                                &result[..value_start_abs],
-                                &result[value_end_abs..]
-                            );
-                            // Move search position past this redaction
-                            search_from = value_start_abs + "[REDACTED]".len();
+            // Find the colon and opening quote
+            if let Some(colon_offset) = remaining.find(':') {
+                let after_colon = &remaining[colon_offset + 1..];
+                // Skip whitespace
+                let quote_offset = after_colon.find('"');
+                if let Some(qo) = quote_offset {
+                    let value_start_abs = after_key + colon_offset + 1 + qo + 1;
+                    // Find closing quote (handle escaped quotes)
+                    let value_content = &result[value_start_abs..];
+                    let mut end_quote = 0;
+                    let mut chars = value_content.chars().peekable();
+                    while let Some(c) = chars.next() {
+                        if c == '\\' {
+                            // Skip escaped char
+                            chars.next();
+                            end_quote += 2;
+                        } else if c == '"' {
+                            break;
                         } else {
-                            // Move past this key to avoid infinite loop on malformed JSON
-                            search_from = after_key;
+                            end_quote += c.len_utf8();
                         }
+                    }
+                    if end_quote > 0 {
+                        let value_end_abs = value_start_abs + end_quote;
+                        // Preserve the key and structure, just redact the value
+                        result = format!(
+                            "{}[REDACTED]{}",
+                            &result[..value_start_abs],
+                            &result[value_end_abs..]
+                        );
+                        // Move search position past this redaction
+                        search_from = value_start_abs + "[REDACTED]".len();
                     } else {
-                        // No opening quote found, move past this key
+                        // Move past this key to avoid infinite loop on malformed JSON
                         search_from = after_key;
                     }
                 } else {
-                    // No colon found, move past this key
+                    // No opening quote found, move past this key
                     search_from = after_key;
                 }
             } else {
-                break;
+                // No colon found, move past this key
+                search_from = after_key;
             }
         }
     }
 
     // API-002 fix: Redact hex-encoded private keys (0x followed by 64 hex chars)
-    // These are Ethereum private keys and should never appear in logs
+    // These are Ethereum private keys and should never appear in logs.
+    //
+    // Private keys and tx/block hashes have the same shape, and error bodies
+    // routinely quote hashes ("transaction 0x... not found"). A key only ends
+    // up in an error body when a key parameter is echoed back, which comes
+    // with its name, so only redact when a key-like word precedes the value.
     let mut search_from = 0;
     while let Some(pos) = result[search_from..].find("0x") {
         let abs_pos = search_from + pos;
@@ -357,7 +354,7 @@ pub fn sanitize_error_body(body: &str) -> String {
                         .next()
                         .is_some_and(|c| c.is_ascii_hexdigit());
 
-                if is_exact_64 {
+                if is_exact_64 && follows_key_like_name(&result, abs_pos) {
                     result = format!(
                         "{}0x[REDACTED_KEY]{}",
                         &result[..abs_pos],
@@ -372,6 +369,22 @@ pub fn sanitize_error_body(body: &str) -> String {
     }
 
     result
+}
+
+/// How far back [`follows_key_like_name`] looks for a key-like word.
+const KEY_CONTEXT_WINDOW: usize = 32;
+
+/// Whether the text just before `pos` names a secret (`key`, `secret`, `pk`,
+/// `priv...`), e.g. `private_key=0x...` or `"Invalid key 0x..."`.
+fn follows_key_like_name(s: &str, pos: usize) -> bool {
+    let mut start = pos.saturating_sub(KEY_CONTEXT_WINDOW);
+    while !s.is_char_boundary(start) {
+        start += 1;
+    }
+    let context = s[start..pos].to_ascii_lowercase();
+    ["key", "secret", "priv", "pk"]
+        .iter()
+        .any(|word| context.contains(word))
 }
 
 /// Generic API error type with support for domain-specific errors
@@ -1436,6 +1449,45 @@ mod tests {
         let sanitized = super::sanitize_error_body(body);
         assert!(sanitized.contains("0x[REDACTED_KEY]"));
         assert!(!sanitized.contains("1234567890abcdef"));
+    }
+
+    #[test]
+    fn test_sanitize_error_body_keeps_tx_hash() {
+        let hash = format!("0x{}", "ab".repeat(32));
+        for body in [
+            format!("transaction {hash} not found"),
+            format!(r#"{{"error":"execution reverted","txHash":"{hash}"}}"#),
+        ] {
+            assert_eq!(super::sanitize_error_body(&body), body);
+        }
+    }
+
+    #[test]
+    fn test_sanitize_error_body_hex_key_after_name() {
+        let key = format!("0x{}", "cd".repeat(32));
+        let sanitized = super::sanitize_error_body(&format!("bad privateKey: {key}"));
+        assert!(!sanitized.contains(&key), "{sanitized}");
+        assert!(sanitized.contains("0x[REDACTED_KEY]"), "{sanitized}");
+    }
+
+    #[test]
+    fn test_sanitize_error_body_camel_case_json_keys() {
+        let body = r#"{"accessToken": "tok-a", "clientSecret": "cs-b", "privateKey": "pk-c", "refreshToken": "rt-d", "secretKey": "sk-e", "clientId": "ci-f", "apiKey": "ak-g"}"#;
+        let sanitized = super::sanitize_error_body(body);
+        for secret in ["tok-a", "cs-b", "pk-c", "rt-d", "sk-e", "ci-f", "ak-g"] {
+            assert!(!sanitized.contains(secret), "{secret} leaked: {sanitized}");
+        }
+        assert!(sanitized.contains("\"accessToken\""), "{sanitized}");
+    }
+
+    #[test]
+    fn test_sanitize_error_body_upper_case_patterns() {
+        let body = "X-API-KEY: hdr-secret\nurl?API_KEY=qs-secret&x=1\nBEARER bear-secret";
+        let sanitized = super::sanitize_error_body(body);
+        for secret in ["hdr-secret", "qs-secret", "bear-secret"] {
+            assert!(!sanitized.contains(secret), "{secret} leaked: {sanitized}");
+        }
+        assert!(sanitized.contains("X-API-KEY:"), "{sanitized}");
     }
 
     #[test]

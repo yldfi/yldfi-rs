@@ -198,10 +198,7 @@ impl Client {
             .json(&body)
             .send()
             .await
-            .map_err(|e| Error::Api {
-                status: 0,
-                message: format!("HTTP request failed for query '{query_preview}...': {e}"),
-            })?;
+            .map_err(|e| Error::Http(e.without_url()))?;
 
         let status = response.status().as_u16();
 
@@ -211,10 +208,10 @@ impl Client {
             return Err(from_response(status, &body, retry_after));
         }
 
-        let body = response.text().await.map_err(|e| Error::Api {
-            status,
-            message: format!("Failed to read response body: {e}"),
-        })?;
+        let body = response
+            .text()
+            .await
+            .map_err(|e| Error::Http(e.without_url()))?;
 
         decode_graphql_body(&body, status, &query_preview)
     }

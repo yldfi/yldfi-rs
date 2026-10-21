@@ -150,13 +150,34 @@ pub struct UpdateQueryRequest {
     pub tags: Option<Vec<String>>,
 }
 
+/// Query summary returned by list queries
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct QueryOverview {
+    /// Unique query ID
+    pub id: i64,
+    /// Query name
+    pub name: Option<String>,
+    /// Query description
+    pub description: Option<String>,
+    /// Owner handle (username or team handle)
+    pub owner: Option<String>,
+    /// Tags
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Creation timestamp
+    pub created_at: Option<String>,
+    /// Last update timestamp
+    pub updated_at: Option<String>,
+}
+
 /// Response from list queries
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ListQueriesResponse {
     /// List of queries
-    pub queries: Vec<Query>,
-    /// Next page offset
-    pub next_offset: Option<i64>,
+    #[serde(default)]
+    pub queries: Vec<QueryOverview>,
+    /// Total number of queries available
+    pub total: Option<i64>,
 }
 
 /// Query list options
@@ -183,5 +204,31 @@ impl ListQueriesOptions {
         } else {
             format!("?{}", params.join("&"))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn list_queries_response_uses_id_and_total() {
+        let json = r#"{
+            "queries": [{
+                "id": 1234,
+                "name": "Test query",
+                "description": "",
+                "owner": "test_user",
+                "tags": ["dex"],
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z"
+            }],
+            "total": 1
+        }"#;
+        let resp: ListQueriesResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.total, Some(1));
+        assert_eq!(resp.queries[0].id, 1234);
+        assert_eq!(resp.queries[0].owner.as_deref(), Some("test_user"));
+        assert_eq!(resp.queries[0].tags, vec!["dex".to_string()]);
     }
 }

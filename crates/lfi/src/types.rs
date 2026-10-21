@@ -181,7 +181,8 @@ pub struct QuoteRequest {
     /// Integrator identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub integrator: Option<String>,
-    /// Fee percentage for integrator (0-3%)
+    /// Integrator fee as a decimal fraction (`0.003` = 0.3%); sent
+    /// unchanged, so `0.3` is a **30%** fee
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fee: Option<f64>,
     /// Referrer address
@@ -214,9 +215,6 @@ pub struct QuoteRequest {
     /// Prefer specific route types
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order: Option<RouteOrder>,
-    /// Allow switching chains even if destination has no swap
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_switch_chain: Option<bool>,
 }
 
 impl QuoteRequest {
@@ -246,7 +244,6 @@ impl QuoteRequest {
             allow_exchanges: None,
             deny_exchanges: None,
             order: None,
-            allow_switch_chain: None,
         }
     }
 
@@ -271,7 +268,7 @@ impl QuoteRequest {
         self
     }
 
-    /// Set integrator fee percentage (0-3%)
+    /// Set integrator fee as a decimal fraction (`0.003` = 0.3%)
     #[must_use]
     pub fn with_fee(mut self, fee: f64) -> Self {
         self.fee = Some(fee);
@@ -440,7 +437,7 @@ pub struct RoutesOptions {
     /// Integrator identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub integrator: Option<String>,
-    /// Fee percentage for integrator
+    /// Integrator fee as a decimal fraction (`0.003` = 0.3%)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fee: Option<f64>,
     /// Referrer address
@@ -455,12 +452,16 @@ pub struct RoutesOptions {
     /// Route ordering preference
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order: Option<RouteOrder>,
-    /// Maximum price impact allowed (in percent)
+    /// Maximum price impact allowed as a decimal fraction (`0.15` = 15%)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_price_impact: Option<f64>,
     /// Allow unsafe transactions (optional)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_destination_call: Option<bool>,
+    /// Allow routes that require a chain switch (the user signs on more
+    /// than one chain)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_switch_chain: Option<bool>,
 }
 
 impl RoutesOptions {
@@ -1005,13 +1006,27 @@ pub struct StatusResponse {
     /// LI.FI explorer link
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lifi_explorer_link: Option<String>,
-    /// Source chain ID
+    /// Sender address
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_address: Option<String>,
+    /// Recipient address
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_address: Option<String>,
+    /// Tool (bridge or exchange) used for the transfer
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
+    /// Fee costs charged for the transfer
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee_costs: Option<Vec<serde_json::Value>>,
+    /// Source chain ID (not in the documented response; use
+    /// `sending.chain_id`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_chain_id: Option<ChainId>,
-    /// Destination chain ID
+    /// Destination chain ID (not in the documented response; use
+    /// `receiving.chain_id`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub to_chain_id: Option<ChainId>,
-    /// Bridge used
+    /// Bridge used (not in the documented response; use `tool`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bridge: Option<String>,
     /// Overall status
@@ -1058,6 +1073,21 @@ pub struct TransactionInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub gas_amount_usd: Option<String>,
+    /// Gas amount in the gas token's smallest unit
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas_amount: Option<String>,
+    /// Token used to pay gas
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas_token: Option<Token>,
+    /// Amount in USD
+    #[serde(default, rename = "amountUSD", skip_serializing_if = "Option::is_none")]
+    pub amount_usd: Option<String>,
+    /// Native value sent with the transaction
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// Steps executed in this transaction
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub included_steps: Option<Vec<serde_json::Value>>,
     /// Timestamp
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<u64>,
@@ -1172,13 +1202,17 @@ pub struct ChainsResponse {
 // ============================================================================
 
 /// Request for available connections
+///
+/// LI.FI requires both `from_chain` and `to_chain`;
+/// [`Client::get_connections`](crate::Client::get_connections) returns an
+/// error when either is missing. Use [`ConnectionsRequest::between`].
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionsRequest {
-    /// Source chain ID
+    /// Source chain ID (required)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_chain: Option<ChainId>,
-    /// Destination chain ID
+    /// Destination chain ID (required)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_chain: Option<ChainId>,
     /// Source token address
@@ -1199,13 +1233,28 @@ pub struct ConnectionsRequest {
         serialize_with = "serialize_comma_list"
     )]
     pub deny_bridges: Option<Vec<String>>,
+    /// Include routes that require a chain switch
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_switch_chain: Option<bool>,
 }
 
 impl ConnectionsRequest {
     /// Create a new connections request
+    ///
+    /// Set both chains before sending; prefer [`Self::between`].
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create a connections request between two chains
+    #[must_use]
+    pub fn between(from_chain: ChainId, to_chain: ChainId) -> Self {
+        Self {
+            from_chain: Some(from_chain),
+            to_chain: Some(to_chain),
+            ..Self::default()
+        }
     }
 
     /// Set source chain

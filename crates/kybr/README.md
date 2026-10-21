@@ -41,7 +41,7 @@ async fn main() -> Result<(), kybr::Error> {
         "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // WETH
         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
         "1000000000000000000", // 1 WETH
-    ).with_slippage_bps(50); // 0.5% slippage
+    ); // slippage is set when building (BuildRouteRequest)
 
     let route = client.get_routes(Chain::Ethereum, &request).await?;
     println!("Output: {} USDC", route.amount_out);

@@ -114,7 +114,7 @@
 //!
 //!     // First, get available sources
 //!     let sources = client.get_sources(Chain::Ethereum).await?;
-//!     println!("Available sources: {:?}", sources.iter().map(|s| &s.name).collect::<Vec<_>>());
+//!     println!("Available sources: {:?}", sources);
 //!
 //!     // Then exclude specific sources
 //!     let request = QuoteRequest::sell(
@@ -186,7 +186,7 @@ pub use client::{Client, Config, DEFAULT_BASE_URL};
 pub use error::{Error, Result};
 pub use types::{
     AllowanceIssue, ApiError, BalanceIssue, Chain, LiquiditySource, Permit2Data, PriceRequest,
-    PriceResponse, QuoteIssues, QuoteRequest, QuoteResponse, Route, RouteFill, RouteToken, Source,
+    PriceResponse, QuoteIssues, QuoteRequest, QuoteResponse, Route, RouteFill, RouteToken,
     SourcesResponse, TokenMetadata, Transaction, ValidationError,
 };
 

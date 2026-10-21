@@ -86,7 +86,7 @@ impl Chain {
     pub fn native_symbol(&self) -> &'static str {
         match self {
             Chain::Ethereum => "ETH",
-            Chain::Polygon => "MATIC",
+            Chain::Polygon => "POL",
             Chain::Arbitrum => "ETH",
             Chain::Optimism => "ETH",
             Chain::Base => "ETH",

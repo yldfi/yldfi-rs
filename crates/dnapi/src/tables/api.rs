@@ -1,12 +1,14 @@
 //! Tables API implementation
 
 use super::types::{
-    ClearTableResponse, CreateTableRequest, CreateTableResponse, DeleteTableResponse,
+    ClearTableResponse, CreateTableRequest, CreateTableResponse, DeleteTableResponse, InsertFormat,
     InsertResponse, ListTablesOptions, ListTablesResponse, Table, UploadCsvRequest,
     UploadCsvResponse,
 };
 use crate::client::Client;
 use crate::error::{self, Result};
+use reqwest::header::CONTENT_TYPE;
+use serde::Serialize;
 
 /// Tables (uploads) API
 pub struct TablesApi<'a> {
@@ -89,22 +91,22 @@ impl<'a> TablesApi<'a> {
         }
     }
 
-    /// Insert rows into a table
+    /// Insert rows into a table from a raw CSV or NDJSON body
     ///
-    /// Data should be a JSON array of objects, where each object represents a row.
+    /// Calls `POST /v1/uploads/{namespace}/{table_name}/insert` with the
+    /// `Content-Type` for `format`. CSV bodies need a header row; NDJSON bodies
+    /// hold one JSON object per line.
     pub async fn insert(
         &self,
         namespace: &str,
         table_name: &str,
-        data: &serde_json::Value,
+        format: InsertFormat,
+        body: impl Into<Vec<u8>>,
     ) -> Result<InsertResponse> {
-        let url = format!(
-            "{}/v1/uploads/{}/{}/insert",
-            self.client.base_url(),
-            namespace,
-            table_name
-        );
-        let response = self.client.http().post(&url).json(data).send().await?;
+        let response = self
+            .insert_request(namespace, table_name, format, body.into())
+            .send()
+            .await?;
 
         if response.status().is_success() {
             Ok(response.json().await?)
@@ -113,6 +115,38 @@ impl<'a> TablesApi<'a> {
         } else {
             Err(error::handle_error_response(response).await)
         }
+    }
+
+    /// Insert rows into a table, serializing each row as one NDJSON line
+    pub async fn insert_rows<T: Serialize>(
+        &self,
+        namespace: &str,
+        table_name: &str,
+        rows: &[T],
+    ) -> Result<InsertResponse> {
+        let body = rows_to_ndjson(rows)?;
+        self.insert(namespace, table_name, InsertFormat::Ndjson, body)
+            .await
+    }
+
+    fn insert_request(
+        &self,
+        namespace: &str,
+        table_name: &str,
+        format: InsertFormat,
+        body: Vec<u8>,
+    ) -> reqwest::RequestBuilder {
+        let url = format!(
+            "{}/v1/uploads/{}/{}/insert",
+            self.client.base_url(),
+            namespace,
+            table_name
+        );
+        self.client
+            .http()
+            .post(&url)
+            .header(CONTENT_TYPE, format.content_type())
+            .body(body)
     }
 
     /// Clear all data from a table
@@ -151,5 +185,67 @@ impl<'a> TablesApi<'a> {
         } else {
             Err(error::handle_error_response(response).await)
         }
+    }
+}
+
+/// Serialize rows as newline-delimited JSON (one object per line)
+fn rows_to_ndjson<T: Serialize>(rows: &[T]) -> Result<Vec<u8>> {
+    let mut body = Vec::new();
+    for row in rows {
+        serde_json::to_writer(&mut body, row)?;
+        body.push(b'\n');
+    }
+    Ok(body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_client() -> Client {
+        Client::with_base_url("test-key", "https://dune.example.test/api").unwrap()
+    }
+
+    #[test]
+    fn insert_request_sets_content_type_and_raw_body() {
+        let client = test_client();
+        let csv = "id,name\n1,alpha\n";
+        let request = client
+            .tables()
+            .insert_request("test_ns", "test_table", InsertFormat::Csv, csv.into())
+            .build()
+            .unwrap();
+
+        assert_eq!(request.method(), reqwest::Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "https://dune.example.test/api/v1/uploads/test_ns/test_table/insert"
+        );
+        assert_eq!(request.headers()[CONTENT_TYPE], "text/csv");
+        assert_eq!(
+            request.body().and_then(|b| b.as_bytes()),
+            Some(csv.as_bytes())
+        );
+    }
+
+    #[test]
+    fn insert_rows_body_is_ndjson() {
+        let rows = vec![
+            serde_json::json!({"id": 1, "name": "alpha"}),
+            serde_json::json!({"id": 2, "name": "beta"}),
+        ];
+        let body = rows_to_ndjson(&rows).unwrap();
+        assert_eq!(
+            String::from_utf8(body.clone()).unwrap(),
+            "{\"id\":1,\"name\":\"alpha\"}\n{\"id\":2,\"name\":\"beta\"}\n"
+        );
+
+        let client = test_client();
+        let request = client
+            .tables()
+            .insert_request("test_ns", "test_table", InsertFormat::Ndjson, body)
+            .build()
+            .unwrap();
+        assert_eq!(request.headers()[CONTENT_TYPE], "application/x-ndjson");
     }
 }

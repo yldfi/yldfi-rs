@@ -1,5 +1,6 @@
 //! Types for the Wallet API
 
+use crate::de::{string_or_f64, string_or_int};
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
 
@@ -189,47 +190,66 @@ pub struct TransactionInfo {
     pub transaction_hash: Option<String>,
 }
 
-/// Token approval
-///
-/// Moralis API returns camelCase field names for this endpoint.
+/// Token approval (`/wallets/{address}/approvals`)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TokenApproval {
-    /// Token address
-    #[serde(alias = "token_address")]
-    pub token_address: Option<String>,
-    /// Token name
-    #[serde(alias = "token_name")]
-    pub token_name: Option<String>,
-    /// Token symbol
-    #[serde(alias = "token_symbol")]
-    pub token_symbol: Option<String>,
-    /// Token logo
-    #[serde(alias = "token_logo")]
-    pub token_logo: Option<String>,
-    /// Token decimals
-    #[serde(alias = "token_decimals")]
-    pub token_decimals: Option<u8>,
-    /// Spender address
-    #[serde(alias = "spender_address")]
-    pub spender_address: Option<String>,
-    /// Spender name (if known)
-    #[serde(alias = "spender_name")]
-    pub spender_name: Option<String>,
-    /// Allowance
-    pub allowance: Option<String>,
-    /// Allowance formatted
-    #[serde(alias = "allowance_formatted")]
-    pub allowance_formatted: Option<String>,
-    /// USD value at risk
-    #[serde(alias = "usd_at_risk")]
-    pub usd_at_risk: Option<f64>,
-    /// Is unlimited
-    #[serde(alias = "is_unlimited")]
-    pub is_unlimited: Option<bool>,
+    /// Block number of the approval
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub block_number: Option<String>,
     /// Block timestamp
-    #[serde(alias = "block_timestamp")]
     pub block_timestamp: Option<String>,
+    /// Transaction hash
+    pub transaction_hash: Option<String>,
+    /// Approved amount (raw)
+    pub value: Option<String>,
+    /// Approved amount (formatted)
+    pub value_formatted: Option<String>,
+    /// Approved token
+    pub token: Option<ApprovalToken>,
+    /// Approved spender
+    pub spender: Option<ApprovalSpender>,
+}
+
+/// Token in a [`TokenApproval`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovalToken {
+    /// Token address
+    pub address: Option<String>,
+    /// Address label
+    pub address_label: Option<String>,
+    /// Token name
+    pub name: Option<String>,
+    /// Token symbol
+    pub symbol: Option<String>,
+    /// Token logo
+    pub logo: Option<String>,
+    /// Possible spam
+    pub possible_spam: Option<bool>,
+    /// Verified contract
+    pub verified_contract: Option<bool>,
+    /// Current wallet balance (raw)
+    pub current_balance: Option<String>,
+    /// Current wallet balance (formatted)
+    pub current_balance_formatted: Option<String>,
+    /// USD price
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub usd_price: Option<f64>,
+    /// USD value at risk
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub usd_at_risk: Option<f64>,
+}
+
+/// Spender in a [`TokenApproval`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovalSpender {
+    /// Spender address
+    pub address: Option<String>,
+    /// Address label
+    pub address_label: Option<String>,
+    /// Entity name
+    pub entity: Option<String>,
+    /// Entity logo
+    pub entity_logo: Option<String>,
 }
 
 /// Wallet history entry
@@ -376,19 +396,39 @@ pub struct GetWalletBalancesRequest {
     pub wallet_addresses: Vec<String>,
 }
 
-/// Multi-wallet balance response
+/// Native balances of several wallets on one chain (`GET /wallets/balances`
+/// returns one entry per chain)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletBalances {
-    /// Address
+    /// Chain name
+    pub chain: Option<String>,
+    /// Chain ID
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub chain_id: Option<String>,
+    /// Block number the balances are at
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub block_number: Option<String>,
+    /// Block timestamp
+    #[serde(default, deserialize_with = "string_or_int")]
+    pub block_timestamp: Option<String>,
+    /// Sum of all wallets' balances (raw)
+    pub total_balance: Option<String>,
+    /// Sum of all wallets' balances (formatted)
+    pub total_balance_formatted: Option<String>,
+    /// Per-wallet native balances
+    #[serde(default)]
+    pub wallet_balances: Vec<WalletNativeBalance>,
+}
+
+/// One wallet's native balance in [`WalletBalances`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WalletNativeBalance {
+    /// Wallet address
     pub address: Option<String>,
-    /// Native balance
-    pub native_balance: Option<String>,
-    /// Native balance formatted
-    pub native_balance_formatted: Option<String>,
-    /// Native balance USD
-    pub native_balance_usd: Option<f64>,
-    /// Token balances
-    pub token_balances: Option<Vec<TokenBalance>>,
+    /// Balance (raw)
+    pub balance: Option<String>,
+    /// Balance (formatted)
+    pub balance_formatted: Option<String>,
 }
 
 #[cfg(test)]
@@ -449,28 +489,55 @@ mod tests {
     }
 
     #[test]
-    fn test_token_approval_camel_case() {
+    fn test_multiple_balances_per_chain_entry() {
+        let json = r#"[{
+            "chain": "eth",
+            "chain_id": "0x1",
+            "block_number": "123",
+            "block_timestamp": "2026-01-01T00:00:00Z",
+            "total_balance": "3000",
+            "total_balance_formatted": "0.000000000000003",
+            "wallet_balances": [
+                {"address": "0x0000000000000000000000000000000000000001", "balance": "1000", "balance_formatted": "0.000000000000001"},
+                {"address": "0x0000000000000000000000000000000000000002", "balance": "2000", "balance_formatted": "0.000000000000002"}
+            ]
+        }]"#;
+        let resp: Vec<WalletBalances> = serde_json::from_str(json).unwrap();
+        assert_eq!(resp[0].chain_id.as_deref(), Some("0x1"));
+        assert_eq!(resp[0].wallet_balances.len(), 2);
+        assert_eq!(resp[0].wallet_balances[1].balance.as_deref(), Some("2000"));
+    }
+
+    #[test]
+    fn test_token_approval_nested_token_and_spender() {
         let json = r#"{
-            "tokenAddress": "0xtoken",
-            "tokenName": "USD Coin",
-            "tokenSymbol": "USDC",
-            "tokenLogo": "https://logo.png",
-            "tokenDecimals": 6,
-            "spenderAddress": "0xspender",
-            "spenderName": "Uniswap",
-            "allowance": "1000000",
-            "allowanceFormatted": "1.0",
-            "usdAtRisk": 1.0,
-            "isUnlimited": false,
-            "blockTimestamp": "2024-01-01"
+            "block_number": 12345,
+            "block_timestamp": "2026-01-01T00:00:00.000Z",
+            "transaction_hash": "0x01",
+            "value": "1000000",
+            "value_formatted": "1.0",
+            "token": {
+                "address": "0x0000000000000000000000000000000000000001",
+                "name": "Test Token",
+                "symbol": "TST",
+                "possible_spam": false,
+                "current_balance": "5000000",
+                "usd_price": "1.0",
+                "usd_at_risk": 1.0
+            },
+            "spender": {
+                "address": "0x0000000000000000000000000000000000000002",
+                "address_label": "Test Router",
+                "entity": "Test DEX"
+            }
         }"#;
         let approval: TokenApproval = serde_json::from_str(json).unwrap();
-        assert_eq!(approval.token_address, Some("0xtoken".to_string()));
-        assert_eq!(approval.token_name, Some("USD Coin".to_string()));
-        assert_eq!(approval.token_symbol, Some("USDC".to_string()));
-        assert_eq!(approval.spender_address, Some("0xspender".to_string()));
-        assert_eq!(approval.spender_name, Some("Uniswap".to_string()));
-        assert_eq!(approval.usd_at_risk, Some(1.0));
+        assert_eq!(approval.block_number.as_deref(), Some("12345"));
+        let token = approval.token.unwrap();
+        assert_eq!(token.symbol.as_deref(), Some("TST"));
+        assert_eq!(token.usd_at_risk, Some(1.0));
+        let spender = approval.spender.unwrap();
+        assert_eq!(spender.entity.as_deref(), Some("Test DEX"));
     }
 
     #[test]

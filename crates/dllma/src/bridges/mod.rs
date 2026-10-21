@@ -7,5 +7,5 @@
 mod api;
 mod types;
 
-pub use api::BridgesApi;
+pub use api::{BridgesApi, DEFAULT_TRANSACTIONS_LIMIT};
 pub use types::*;

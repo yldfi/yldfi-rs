@@ -2,8 +2,9 @@
 
 use super::types::{
     GetMultipleCollectionsRequest, GetMultipleNftsRequest, HistoricalFloorPrice, Nft,
-    NftCollection, NftCollectionStats, NftFloorPrice, NftOwner, NftResponse, NftSalePrice,
-    NftSyncStatus, NftTrade, NftTrait, NftTransfer, NftsByTraitsRequest, TraitResyncStatus,
+    NftCollection, NftCollectionStats, NftCollectionTraits, NftFloorPrice, NftOwner, NftResponse,
+    NftSalePrices, NftSyncStatus, NftTrade, NftTrait, NftTraitGroup, NftTransfer,
+    NftsByTraitsRequest, TraitResyncStatus,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -57,6 +58,14 @@ impl NftQuery {
         self.exclude_spam = Some(exclude);
         self
     }
+}
+
+/// Query parameters for the historical floor price endpoint
+#[derive(Debug, Serialize)]
+struct FloorPriceHistoryQuery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chain: Option<String>,
+    interval: String,
 }
 
 /// API for NFT operations
@@ -295,14 +304,15 @@ impl<'a> NftApi<'a> {
         &self,
         contract: &str,
         chain: Option<&str>,
-    ) -> Result<Vec<NftTrait>> {
+    ) -> Result<Vec<NftTraitGroup>> {
         let path = format!("/nft/{contract}/traits");
-        if let Some(chain) = chain {
+        let response: NftCollectionTraits = if let Some(chain) = chain {
             let query = NftQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
+            self.client.get_with_query(&path, &query).await?
         } else {
-            self.client.get(&path).await
-        }
+            self.client.get(&path).await?
+        };
+        Ok(response.traits)
     }
 
     /// Get collection traits with pagination
@@ -383,18 +393,20 @@ impl<'a> NftApi<'a> {
     }
 
     /// Get historical floor price for a collection
+    ///
+    /// `interval` is required by Moralis: `1d`, `7d`, `30d`, `60d`, `90d`, `1y` or `all`.
     pub async fn get_floor_price_historical(
         &self,
         contract: &str,
+        interval: &str,
         chain: Option<&str>,
-    ) -> Result<Vec<HistoricalFloorPrice>> {
+    ) -> Result<NftResponse<HistoricalFloorPrice>> {
         let path = format!("/nft/{contract}/floor-price/historical");
-        if let Some(chain) = chain {
-            let query = NftQuery::new().chain(chain);
-            self.client.get_with_query(&path, &query).await
-        } else {
-            self.client.get(&path).await
-        }
+        let query = FloorPriceHistoryQuery {
+            chain: chain.map(str::to_string),
+            interval: interval.to_string(),
+        };
+        self.client.get_with_query(&path, &query).await
     }
 
     /// Sync NFT collection metadata
@@ -404,12 +416,12 @@ impl<'a> NftApi<'a> {
         chain: Option<&str>,
     ) -> Result<NftSyncStatus> {
         let body = serde_json::json!({});
-        let path = if let Some(c) = chain {
-            format!("/nft/{contract}/sync?chain={c}")
-        } else {
-            format!("/nft/{contract}/sync")
+        let path = format!("/nft/{contract}/sync");
+        let query = NftQuery {
+            chain: chain.map(str::to_string),
+            ..NftQuery::default()
         };
-        self.client.put(&path, &body).await
+        self.client.put_with_query(&path, &body, &query).await
     }
 
     /// Get NFTs by contract address
@@ -457,12 +469,12 @@ impl<'a> NftApi<'a> {
         }
     }
 
-    /// Get NFT sale prices by collection
+    /// Get NFT sale price summary (last/lowest/highest/average sale) for a collection
     pub async fn get_collection_prices(
         &self,
         contract: &str,
         query: Option<&NftQuery>,
-    ) -> Result<NftResponse<NftSalePrice>> {
+    ) -> Result<NftSalePrices> {
         let path = format!("/nft/{contract}/price");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
@@ -471,18 +483,37 @@ impl<'a> NftApi<'a> {
         }
     }
 
-    /// Get NFT sale prices by token
+    /// Get NFT sale price summary (last/lowest/highest/average sale) for a token
     pub async fn get_token_prices(
         &self,
         contract: &str,
         token_id: &str,
         query: Option<&NftQuery>,
-    ) -> Result<NftResponse<NftSalePrice>> {
+    ) -> Result<NftSalePrices> {
         let path = format!("/nft/{contract}/{token_id}/price");
         if let Some(q) = query {
             self.client.get_with_query(&path, q).await
         } else {
             self.client.get(&path).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_floor_price_history_query_includes_interval() {
+        let q = FloorPriceHistoryQuery {
+            chain: Some("eth".to_string()),
+            interval: "7d".to_string(),
+        };
+        let req = reqwest::Client::new()
+            .get("https://example.invalid/nft/0xnft/floor-price/historical")
+            .query(&q)
+            .build()
+            .unwrap();
+        assert_eq!(req.url().query(), Some("chain=eth&interval=7d"));
     }
 }

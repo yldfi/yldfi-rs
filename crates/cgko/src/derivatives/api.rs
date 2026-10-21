@@ -2,7 +2,7 @@
 
 use super::types::{
     DerivativeExchange, DerivativeExchangeDetail, DerivativeExchangeListItem,
-    DerivativeExchangesOptions, DerivativeTicker, DerivativesOptions,
+    DerivativeExchangesOptions, DerivativeTicker,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -21,15 +21,6 @@ impl<'a> DerivativesApi<'a> {
     /// List all derivative tickers
     pub async fn list(&self) -> Result<Vec<DerivativeTicker>> {
         self.client.get("/derivatives").await
-    }
-
-    /// List derivative tickers with options
-    pub async fn list_with_options(
-        &self,
-        options: &DerivativesOptions,
-    ) -> Result<Vec<DerivativeTicker>> {
-        let path = format!("/derivatives{}", options.to_query_string());
-        self.client.get(&path).await
     }
 
     /// List derivatives exchanges

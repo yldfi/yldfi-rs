@@ -57,10 +57,13 @@ pub struct InstitutionMetadata {
     /// Market cap under max dilution (max)
     pub mcap_max: Option<f64>,
     /// Realized mNAV ratio
+    #[serde(rename = "realized_mNAV")]
     pub realized_m_nav: Option<f64>,
     /// Realistic mNAV ratio
+    #[serde(rename = "realistic_mNAV")]
     pub realistic_m_nav: Option<f64>,
     /// Maximum mNAV ratio
+    #[serde(rename = "max_mNAV")]
     pub max_m_nav: Option<f64>,
     /// Total USD value of crypto holdings
     pub total_usd_value: Option<f64>,
@@ -148,6 +151,9 @@ pub struct FlowDataPoint(pub Vec<f64>);
 pub struct MnavDataPoint(pub Vec<f64>);
 
 /// Individual institution DAT detail
+///
+/// Unlike [`InstitutionMetadata`], this endpoint uses snake_case for the
+/// share count and market cap fields.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstitutionDetail {
@@ -169,54 +175,168 @@ pub struct InstitutionDetail {
     /// 24h volume
     pub volume_24h: Option<f64>,
     /// Fully diluted shares - realized
+    #[serde(
+        default,
+        rename = "fd_realized",
+        deserialize_with = "crate::de::opt_string_or_number"
+    )]
     pub fd_realized: Option<String>,
     /// Fully diluted shares - realistic
+    #[serde(
+        default,
+        rename = "fd_realistic",
+        deserialize_with = "crate::de::opt_string_or_number"
+    )]
     pub fd_realistic: Option<String>,
     /// Fully diluted shares - max
+    #[serde(
+        default,
+        rename = "fd_max",
+        deserialize_with = "crate::de::opt_string_or_number"
+    )]
     pub fd_max: Option<String>,
     /// Market cap - realized
+    #[serde(rename = "mcap_realized")]
     pub mcap_realized: Option<f64>,
     /// Market cap - realistic
+    #[serde(rename = "mcap_realistic")]
     pub mcap_realistic: Option<f64>,
     /// Market cap - max
+    #[serde(rename = "mcap_max")]
     pub mcap_max: Option<f64>,
     /// Realized mNAV
+    #[serde(rename = "realized_mNAV")]
     pub realized_m_nav: Option<f64>,
     /// Realistic mNAV
+    #[serde(rename = "realistic_mNAV")]
     pub realistic_m_nav: Option<f64>,
     /// Max mNAV
+    #[serde(rename = "max_mNAV")]
     pub max_m_nav: Option<f64>,
     /// Total USD value
     pub total_usd_value: Option<f64>,
     /// Total cost
     pub total_cost: Option<f64>,
-    /// Holdings by asset
+    /// Holdings keyed by asset
     #[serde(default)]
-    pub holdings: HashMap<String, Holding>,
+    pub assets: HashMap<String, Holding>,
+    /// Asset names and tickers keyed by asset
+    #[serde(default)]
+    pub assets_meta: HashMap<String, AssetMetadata>,
+    /// Share price history: [timestamp, open, high, low, close, volume]
+    #[serde(default)]
+    pub ohlcv: Vec<Vec<Option<f64>>>,
+    /// Holdings value history: [timestamp, USD value]
+    #[serde(default)]
+    pub asset_value: Vec<Vec<Option<f64>>>,
+    /// Daily stats: [timestamp, fd realized, fd realistic, fd max, mcap realized,
+    /// mcap realistic, mcap max, mNAV realized, mNAV realistic, mNAV max]
+    #[serde(default)]
+    pub stats: Vec<Vec<Option<f64>>>,
     /// Transactions list
     #[serde(default)]
     pub transactions: Vec<DatTransaction>,
-    /// Historical mNAV
-    #[serde(default, rename = "mNAV")]
-    pub mnav: HashMap<String, Vec<MnavDataPoint>>,
+    /// Last updated timestamp
+    pub last_updated: Option<String>,
 }
 
-/// DAT transaction
+/// DAT transaction (snake_case on the wire, amounts as decimal strings)
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DatTransaction {
-    /// Transaction date
-    pub date: Option<String>,
-    /// Asset ticker
+    /// Transaction ID
+    pub id: Option<u64>,
+    /// Asset ID (e.g. "bitcoin")
     pub asset: Option<String>,
-    /// Transaction type (buy/sell)
+    /// Asset name
+    #[serde(rename = "assetName")]
+    pub asset_name: Option<String>,
+    /// Asset ticker
+    #[serde(rename = "assetTicker")]
+    pub asset_ticker: Option<String>,
+    /// Institution ticker
+    pub ticker: Option<String>,
+    /// Transaction type (e.g. purchase, sale)
+    #[serde(rename = "type")]
     pub tx_type: Option<String>,
     /// Amount
-    pub amount: Option<f64>,
-    /// Price per unit
-    pub price: Option<f64>,
-    /// Total value
-    pub value: Option<f64>,
-    /// Source of information
-    pub source: Option<String>,
+    #[serde(default, deserialize_with = "crate::de::opt_string_or_number")]
+    pub amount: Option<String>,
+    /// Average price per unit
+    #[serde(default, deserialize_with = "crate::de::opt_string_or_number")]
+    pub avg_price: Option<String>,
+    /// Total USD value
+    #[serde(default, deserialize_with = "crate::de::opt_string_or_number")]
+    pub usd_value: Option<String>,
+    /// Period start date
+    pub start_date: Option<String>,
+    /// Period end date
+    pub end_date: Option<String>,
+    /// Report date
+    pub report_date: Option<String>,
+    /// Source type (e.g. filing)
+    pub source_type: Option<String>,
+    /// Source URL
+    pub source_url: Option<String>,
+    /// Source note
+    pub source_note: Option<String>,
+    /// Whether the transaction is approved
+    pub is_approved: Option<bool>,
+    /// Rejection reason
+    pub reject_reason: Option<String>,
+    /// Last updated timestamp
+    pub last_updated: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn institution_metadata_mnav_fields() {
+        let json = r#"{"institutionMetadata":{"FOO":{"institutionId":1,"ticker":"FOO",
+            "name":"Foo Inc.","type":"Stock","mcapRealized":100.0,"mcapRealistic":110.0,
+            "mcapMax":120.0,"realized_mNAV":1.5,"realistic_mNAV":1.6,"max_mNAV":1.7,
+            "holdings":{"BTC":{"amount":2.0,"avgPrice":3.0}}}},
+            "mNAV":{"FOO":{"BTC":[[1700000000,1.5,1.6,1.7]]}},"lastUpdated":"2024-01-01"}"#;
+        let r: DatInstitutionsResponse = serde_json::from_str(json).unwrap();
+        let m = &r.institution_metadata["FOO"];
+        assert_eq!(m.mcap_realized, Some(100.0));
+        assert_eq!(m.realized_m_nav, Some(1.5));
+        assert_eq!(m.realistic_m_nav, Some(1.6));
+        assert_eq!(m.max_m_nav, Some(1.7));
+        assert_eq!(m.holdings["BTC"].avg_price, Some(3.0));
+        assert_eq!(r.mnav["FOO"]["BTC"][0].0[1], 1.5);
+    }
+
+    #[test]
+    fn institution_detail_snake_case_fields() {
+        let json = r#"{"institutionId":1,"ticker":"FOO","name":"Foo Inc.","type":"Stock",
+            "rank":1,"fd_realized":"1000","fd_realistic":"1100","fd_max":1200,
+            "mcap_realized":10.0,"mcap_realistic":11.0,"mcap_max":12.0,
+            "realized_mNAV":1.1,"realistic_mNAV":1.2,"max_mNAV":1.3,
+            "totalCost":5.0,"totalUsdValue":9.0,
+            "assets":{"bitcoin":{"amount":2.0,"avgPrice":2.5,"usdValue":9.0,"cost":5.0}},
+            "assetsMeta":{"bitcoin":{"name":"Bitcoin","ticker":"BTC"}},
+            "ohlcv":[[1700000000,1,2,0.5,1.5,100]],"assetValue":[[1700000000,9.0]],
+            "stats":[[1700000000,1000,1100,1200,10,11,12,1.1,1.2,null]],
+            "transactions":[{"id":7,"asset":"bitcoin","amount":"2","avg_price":"2.5",
+            "usd_value":"5","start_date":"2024-01-01","end_date":"2024-01-02",
+            "report_date":"2024-01-03","type":"purchase","source_type":"filing",
+            "source_url":"https://example.com/filing","source_note":null,"is_approved":true,
+            "reject_reason":null,"last_updated":"2024-01-04","ticker":"FOO",
+            "assetName":"Bitcoin","assetTicker":"BTC"}],"lastUpdated":"2024-01-05"}"#;
+        let d: InstitutionDetail = serde_json::from_str(json).unwrap();
+        assert_eq!(d.fd_realized.as_deref(), Some("1000"));
+        assert_eq!(d.fd_max.as_deref(), Some("1200"));
+        assert_eq!(d.mcap_realized, Some(10.0));
+        assert_eq!(d.max_m_nav, Some(1.3));
+        assert_eq!(d.assets["bitcoin"].avg_price, Some(2.5));
+        assert_eq!(d.assets_meta["bitcoin"].ticker.as_deref(), Some("BTC"));
+        assert_eq!(d.stats[0][9], None);
+        let tx = &d.transactions[0];
+        assert_eq!(tx.amount.as_deref(), Some("2"));
+        assert_eq!(tx.tx_type.as_deref(), Some("purchase"));
+        assert_eq!(tx.asset_ticker.as_deref(), Some("BTC"));
+        assert_eq!(tx.is_approved, Some(true));
+    }
 }

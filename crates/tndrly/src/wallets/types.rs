@@ -63,21 +63,8 @@ impl AddWalletRequest {
     }
 }
 
-/// Response from adding a wallet
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AddWalletResponse {
-    /// Account ID
-    #[serde(default)]
-    pub account_id: Option<String>,
-
-    /// Account type (should be "wallet")
-    #[serde(default, rename = "type")]
-    pub account_type: Option<String>,
-
-    /// Wallet details per network
-    #[serde(default)]
-    pub contracts: Vec<WalletOnNetwork>,
-}
+/// Response from adding a wallet: one entry per network (API returns a raw array)
+pub type AddWalletResponse = Vec<WalletOnNetwork>;
 
 /// Wallet information on a specific network (wrapper returned by API)
 #[derive(Debug, Clone, Serialize, Deserialize)]

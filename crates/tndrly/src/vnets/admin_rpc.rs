@@ -133,9 +133,11 @@ impl AdminRpc {
         let rpc_response: JsonRpcResponse<R> = response.json().await?;
 
         if let Some(error) = rpc_response.error {
+            // JSON-RPC codes are negative (e.g. -32602) and are not HTTP
+            // statuses; report the HTTP status and keep the code in the message
             return Err(Error::api(
-                error.code as u16,
-                format!("RPC error: {}", error.message),
+                status.as_u16(),
+                format!("RPC error {}: {}", error.code, error.message),
             ));
         }
 
@@ -822,13 +824,9 @@ fn to_hex_wei(amount: &str) -> String {
     if amount.starts_with("0x") {
         return amount.to_string();
     }
-    // Otherwise parse as decimal and convert to hex
-    if let Ok(n) = amount.parse::<u128>() {
-        format!("0x{n:x}")
-    } else {
-        // Return as-is if we can't parse (let the RPC handle the error)
-        amount.to_string()
-    }
+    // Otherwise parse as decimal (up to 256 bits) and convert to hex;
+    // return as-is if we can't parse (let the RPC handle the error)
+    crate::utils::decimal_to_hex(amount).unwrap_or_else(|| amount.to_string())
 }
 
 /// Convert a decimal or hex string to 32-byte hex format
@@ -837,12 +835,11 @@ fn to_hex_32_bytes(amount: &str) -> String {
     if let Some(hex_part) = amount.strip_prefix("0x") {
         return format!("0x{hex_part:0>64}");
     }
-    // Parse as decimal and convert to 32-byte hex
-    if let Ok(n) = amount.parse::<u128>() {
-        format!("0x{n:064x}")
-    } else {
+    // Parse as decimal (up to 256 bits) and convert to 32-byte hex
+    match crate::utils::decimal_to_hex(amount) {
+        Some(hex) => format!("0x{:0>64}", &hex[2..]),
         // Return as-is if we can't parse
-        amount.to_string()
+        None => amount.to_string(),
     }
 }
 
@@ -868,6 +865,47 @@ mod tests {
         assert_eq!(to_hex_wei("100000000000000000000"), "0x56bc75e2d63100000");
         // Max u128 would overflow, test near-max u64
         assert_eq!(to_hex_wei("18446744073709551615"), "0xffffffffffffffff");
+    }
+
+    #[test]
+    fn test_hex_helpers_beyond_u128() {
+        // 2^128 overflowed the old u128 conversion and was passed through as decimal
+        let two_pow_128 = "340282366920938463463374607431768211456";
+        assert_eq!(
+            to_hex_wei(two_pow_128),
+            "0x100000000000000000000000000000000"
+        );
+        assert_eq!(
+            to_hex_32_bytes(two_pow_128),
+            "0x0000000000000000000000000000000100000000000000000000000000000000"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_rpc_error_code_kept_in_message() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": { "code": -32602, "message": "invalid params" }
+            })))
+            .mount(&server)
+            .await;
+
+        let admin = AdminRpc::with_http_client(server.uri(), reqwest::Client::new());
+        let err = admin.increase_time(1).await.unwrap_err();
+        match err {
+            Error::Api { status, message } => {
+                assert_eq!(status, 200);
+                assert!(message.contains("-32602"), "{message}");
+                assert!(message.contains("invalid params"), "{message}");
+            }
+            other => panic!("unexpected error: {other}"),
+        }
     }
 
     #[test]

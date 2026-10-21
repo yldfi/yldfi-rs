@@ -3223,6 +3223,8 @@ pub async fn alchemy_beacon_finality_checkpoints(
 }
 pub async fn alchemy_beacon_validators(
     state_id: &str,
+    id: Option<&str>,
+    status: Option<&str>,
     network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
@@ -3230,6 +3232,8 @@ pub async fn alchemy_beacon_validators(
         .network(network)
         .subcommand("validators")
         .arg(state_id)
+        .opt("--id", id)
+        .opt("--status", status)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3251,6 +3255,7 @@ pub async fn alchemy_beacon_validator(
 }
 pub async fn alchemy_beacon_validator_balances(
     state_id: &str,
+    id: &str,
     network: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("alchemy")
@@ -3258,32 +3263,39 @@ pub async fn alchemy_beacon_validator_balances(
         .network(network)
         .subcommand("validator-balances")
         .arg(state_id)
+        .opt("--id", Some(id))
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_sync_committees(
     state_id: &str,
+    epoch: Option<u64>,
     network: Option<&str>,
 ) -> Result<String, ToolError> {
+    let epoch = epoch.map(|e| e.to_string());
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .network(network)
         .subcommand("sync-committees")
         .arg(state_id)
+        .opt("--epoch", epoch.as_deref())
         .execute()
         .await
         .map_err(ToolError::from)
 }
 pub async fn alchemy_beacon_randao(
     state_id: &str,
+    epoch: Option<u64>,
     network: Option<&str>,
 ) -> Result<String, ToolError> {
+    let epoch = epoch.map(|e| e.to_string());
     ArgsBuilder::new("alchemy")
         .subcommand("beacon")
         .network(network)
         .subcommand("randao")
         .arg(state_id)
+        .opt("--epoch", epoch.as_deref())
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5063,7 +5075,7 @@ pub async fn moralis_block_get(
         .opt("--chain", chain)
         .subcommand("get")
         .arg(block_number_or_hash)
-        .opt_flag("--include-transactions", include_transactions)
+        .opt_flag("--include-internal", include_transactions)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5224,8 +5236,6 @@ pub async fn moralis_discovery_token_score(
 pub async fn moralis_analytics_timeseries(
     addresses: &str,
     timeframe: Option<&str>,
-    from_date: Option<&str>,
-    to_date: Option<&str>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
@@ -5234,8 +5244,6 @@ pub async fn moralis_analytics_timeseries(
         .subcommand("timeseries")
         .arg(addresses)
         .opt("--timeframe", timeframe)
-        .opt("--from-date", from_date)
-        .opt("--to-date", to_date)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6924,10 +6932,19 @@ pub async fn cowswap_order(order_uid: &str, chain: Option<&str>) -> Result<Strin
         .map_err(ToolError::from)
 }
 
-pub async fn cowswap_orders(owner: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn cowswap_orders(
+    owner: &str,
+    offset: Option<u64>,
+    limit: Option<u32>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let offset = offset.map(|o| o.to_string());
+    let limit = limit.map(|l| l.to_string());
     ArgsBuilder::new("cow-swap")
         .subcommand("orders")
         .arg(owner)
+        .opt("--offset", offset.as_deref())
+        .opt("--limit", limit.as_deref())
         .chain(chain)
         .format_json()
         .execute()
@@ -7242,14 +7259,11 @@ pub async fn lifi_gas(chain_id: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_connections(
-    from_chain: Option<&str>,
-    to_chain: Option<&str>,
-) -> Result<String, ToolError> {
+pub async fn lifi_connections(from_chain: &str, to_chain: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("connections")
-        .opt("--from-chain", from_chain)
-        .opt("--to-chain", to_chain)
+        .opt("--from-chain", Some(from_chain))
+        .opt("--to-chain", Some(to_chain))
         .format_json()
         .execute()
         .await

@@ -144,11 +144,62 @@ struct RawSwap {
     amount_usd: Option<String>,
 }
 
-/// `in - out` as a decimal string (subgraph `BigDecimal` values)
+/// Parse a non-negative decimal string into `(digits, scale)`
+fn parse_decimal(s: &str) -> Option<(U256, usize)> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Some((U256::ZERO, 0));
+    }
+    let (int, frac) = s.split_once('.').unwrap_or((s, ""));
+    if !int.chars().chain(frac.chars()).all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let digits = format!("{int}{frac}");
+    let value = if digits.is_empty() {
+        U256::ZERO
+    } else {
+        U256::from_str_radix(&digits, 10).ok()?
+    };
+    Some((value, frac.len()))
+}
+
+/// Format `value / 10^scale` as a decimal string without trailing zeros
+fn format_decimal(value: U256, scale: usize) -> String {
+    let digits = value.to_string();
+    if scale == 0 {
+        return digits;
+    }
+    let padded = format!("{digits:0>width$}", width = scale + 1);
+    let (int, frac) = padded.split_at(padded.len() - scale);
+    let frac = frac.trim_end_matches('0');
+    if frac.is_empty() {
+        int.to_string()
+    } else {
+        format!("{int}.{frac}")
+    }
+}
+
+/// `in - out` as an exact decimal string (subgraph `BigDecimal` values)
+///
+/// Falls back to `f64` only if a value is not a plain non-negative decimal.
 fn signed_delta(amount_in: Option<&str>, amount_out: Option<&str>) -> String {
-    let parse = |v: Option<&str>| v.and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
-    let delta = parse(amount_in) - parse(amount_out);
-    delta.to_string()
+    let exact = parse_decimal(amount_in.unwrap_or("0"))
+        .zip(parse_decimal(amount_out.unwrap_or("0")))
+        .and_then(|((a, sa), (b, sb))| {
+            let scale = sa.max(sb);
+            let ten = U256::from(10u8);
+            let a = a.checked_mul(ten.checked_pow(U256::from(scale - sa))?)?;
+            let b = b.checked_mul(ten.checked_pow(U256::from(scale - sb))?)?;
+            Some(if a >= b {
+                format_decimal(a - b, scale)
+            } else {
+                format!("-{}", format_decimal(b - a, scale))
+            })
+        });
+    exact.unwrap_or_else(|| {
+        let parse = |v: Option<&str>| v.and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+        (parse(amount_in) - parse(amount_out)).to_string()
+    })
 }
 
 impl From<RawSwap> for Swap {
@@ -203,10 +254,11 @@ pub struct PoolData {
     /// Total value locked in USD
     #[serde(rename = "totalValueLockedUSD")]
     pub total_value_locked_usd: String,
-    /// 24h volume in USD
+    /// All-time cumulative volume in USD (not 24h; use day data for
+    /// recent volume)
     #[serde(rename = "volumeUSD")]
     pub volume_usd: String,
-    /// Total fees collected in USD
+    /// All-time cumulative fees collected in USD
     #[serde(rename = "feesUSD")]
     pub fees_usd: String,
     /// Number of transactions
@@ -242,17 +294,59 @@ pub struct PoolDayData {
     /// TVL in USD
     #[serde(rename = "tvlUSD")]
     pub tvl_usd: String,
-    /// Fees in USD
+    /// Fees in USD (V2: derived as 0.3% of `volume_usd`)
     #[serde(rename = "feesUSD")]
     pub fees_usd: String,
-    /// Open price (token1/token0)
-    pub open: String,
-    /// High price
-    pub high: String,
-    /// Low price
-    pub low: String,
-    /// Close price
-    pub close: String,
+    /// Open price (token1/token0); `None` for V2 pairs
+    #[serde(default)]
+    pub open: Option<String>,
+    /// High price; `None` for V2 pairs
+    #[serde(default)]
+    pub high: Option<String>,
+    /// Low price; `None` for V2 pairs
+    #[serde(default)]
+    pub low: Option<String>,
+    /// Close price; `None` for V2 pairs
+    #[serde(default)]
+    pub close: Option<String>,
+}
+
+/// V2 `pairDayDatas` row (mapped to [`PoolDayData`])
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PairDayDataV2 {
+    date: u64,
+    pair_address: String,
+    #[serde(rename = "dailyVolumeUSD")]
+    daily_volume_usd: String,
+    #[serde(rename = "reserveUSD")]
+    reserve_usd: String,
+}
+
+impl From<PairDayDataV2> for PoolDayData {
+    fn from(r: PairDayDataV2) -> Self {
+        Self {
+            date: r.date,
+            pool: SwapPool { id: r.pair_address },
+            fees_usd: v2_fees_from_volume(&r.daily_volume_usd),
+            volume_usd: r.daily_volume_usd,
+            tvl_usd: r.reserve_usd,
+            open: None,
+            high: None,
+            low: None,
+            close: None,
+        }
+    }
+}
+
+/// V2 fees (0.3% of volume) as an exact decimal string
+fn v2_fees_from_volume(volume: &str) -> String {
+    match parse_decimal(volume) {
+        Some((value, scale)) => value
+            .checked_mul(U256::from(3u8))
+            .map_or_else(String::new, |v| format_decimal(v, scale + 3)),
+        None => String::new(),
+    }
 }
 
 /// ETH price bundle from subgraph
@@ -494,5 +588,43 @@ impl<T> GraphQLResponse<T> {
             .as_ref()
             .and_then(|e| e.first())
             .map(|e| e.message.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn signed_delta_is_exact() {
+        assert_eq!(signed_delta(Some("0"), Some("5000")), "-5000");
+        assert_eq!(signed_delta(Some("2"), Some("0")), "2");
+        assert_eq!(signed_delta(Some("0.1"), Some("0.3")), "-0.2");
+        assert_eq!(
+            signed_delta(Some("123456789012345678.123456789012345678"), Some("0")),
+            "123456789012345678.123456789012345678"
+        );
+        assert_eq!(
+            signed_delta(Some("1.000000000000000001"), Some("0.000000000000000001")),
+            "1"
+        );
+        assert_eq!(signed_delta(None, Some("0.5")), "-0.5");
+    }
+
+    #[test]
+    fn v2_pair_day_maps_to_pool_day() {
+        let raw: PairDayDataV2 = serde_json::from_value(serde_json::json!({
+            "date": 1700006400,
+            "pairAddress": "0xpair",
+            "dailyVolumeUSD": "1000.5",
+            "reserveUSD": "250000"
+        }))
+        .unwrap();
+        let day = PoolDayData::from(raw);
+        assert_eq!(day.pool.id, "0xpair");
+        assert_eq!(day.volume_usd, "1000.5");
+        assert_eq!(day.tvl_usd, "250000");
+        assert_eq!(day.fees_usd, "3.0015");
+        assert!(day.open.is_none());
     }
 }

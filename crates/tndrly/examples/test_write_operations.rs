@@ -5,10 +5,6 @@
 //!
 //! Run with: TENDERLY_ACCESS_KEY=... TENDERLY_ACCOUNT=... TENDERLY_PROJECT=... cargo run --example test_write_operations
 
-// Note: Alerts API types are defined but not used here due to undocumented API format
-// See: https://docs.tenderly.co/alerts/api
-#[allow(unused_imports)]
-use tndrly::alerts::{AlertTarget, AlertType, CreateAlertRequest, CreateWebhookRequest};
 use tndrly::contracts::AddContractRequest;
 use tndrly::vnets::{CreateVNetRequest, ForkVNetRequest, UpdateVNetRequest};
 use tndrly::wallets::AddWalletRequest;

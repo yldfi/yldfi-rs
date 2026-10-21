@@ -269,6 +269,47 @@ pub struct RouteResponse {
     /// Created timestamp
     #[serde(default)]
     pub created_at: Option<u64>,
+    /// Transactions that must be sent before `tx` (e.g. token approvals)
+    #[serde(default)]
+    pub pre_transactions: Vec<PreTransaction>,
+}
+
+/// Transaction that must be executed before the main route/bundle `tx`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreTransaction {
+    /// Pre-transaction type (e.g. `approve`)
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// Transaction to send
+    pub tx: TransactionData,
+    /// Human-readable description
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Token involved (e.g. the token being approved)
+    #[serde(default)]
+    pub token: Option<String>,
+    /// Spender being approved
+    #[serde(default)]
+    pub spender: Option<String>,
+    /// Amount (smallest units)
+    #[serde(default)]
+    pub amount: Option<String>,
+}
+
+/// Approval transaction returned by the bundle endpoint
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleApproval {
+    /// Sender address
+    pub from: String,
+    /// Token contract to call
+    pub to: String,
+    /// Encoded approve calldata
+    pub data: String,
+    /// Human-readable description
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 /// Deserialize `price_impact` that can be an integer (0) or float (0.0)
@@ -486,6 +527,12 @@ pub struct BundleResponse {
     /// Bundle hash/ID
     #[serde(default)]
     pub bundle_hash: Option<String>,
+    /// Approvals that must be sent before `tx`
+    #[serde(default)]
+    pub approvals: Vec<BundleApproval>,
+    /// Transactions that must be sent before `tx`
+    #[serde(default)]
+    pub pre_transactions: Vec<PreTransaction>,
 }
 
 /// Token price information
@@ -526,9 +573,9 @@ pub struct TokenBalance {
     /// Chain ID
     #[serde(default)]
     pub chain_id: Option<u64>,
-    /// USD price
-    #[serde(default, alias = "price")]
-    pub usd_value: Option<f64>,
+    /// USD price of one whole token (not the value of the balance)
+    #[serde(default, alias = "usd_value")]
+    pub price: Option<f64>,
     /// Logo URI
     #[serde(default)]
     pub logo_uri: Option<String>,
@@ -548,6 +595,74 @@ pub struct ApiErrorResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn route_response_keeps_pre_transactions() {
+        let route: RouteResponse = serde_json::from_value(serde_json::json!({
+            "amountOut": "990",
+            "gas": "100000",
+            "route": [],
+            "createdAt": 1,
+            "tx": {"to": "0x1111111111111111111111111111111111111111",
+                "from": "0x2222222222222222222222222222222222222222",
+                "data": "0x", "value": "0"},
+            "preTransactions": [{
+                "type": "approve",
+                "description": "Approve token",
+                "token": "0x3333333333333333333333333333333333333333",
+                "spender": "0x1111111111111111111111111111111111111111",
+                "amount": "1000",
+                "tx": {"to": "0x3333333333333333333333333333333333333333",
+                    "from": "0x2222222222222222222222222222222222222222",
+                    "data": "0x095ea7b3", "value": "0"}
+            }]
+        }))
+        .unwrap();
+        assert_eq!(route.pre_transactions.len(), 1);
+        assert_eq!(route.pre_transactions[0].kind, "approve");
+        assert_eq!(route.pre_transactions[0].tx.data, "0x095ea7b3");
+        let json = serde_json::to_value(&route).unwrap();
+        assert_eq!(json["preTransactions"][0]["type"], "approve");
+    }
+
+    #[test]
+    fn bundle_response_keeps_approvals() {
+        let bundle: BundleResponse = serde_json::from_value(serde_json::json!({
+            "tx": {"to": "0x1111111111111111111111111111111111111111",
+                "from": "0x2222222222222222222222222222222222222222",
+                "data": "0x", "value": "0"},
+            "approvals": [{"from": "0x2222222222222222222222222222222222222222",
+                "to": "0x3333333333333333333333333333333333333333",
+                "data": "0x095ea7b3", "description": "Approve"}]
+        }))
+        .unwrap();
+        assert_eq!(bundle.approvals.len(), 1);
+        assert_eq!(
+            bundle.approvals[0].to,
+            "0x3333333333333333333333333333333333333333"
+        );
+        assert!(bundle.pre_transactions.is_empty());
+    }
+
+    #[test]
+    fn balance_price_is_unit_price() {
+        let balance: TokenBalance = serde_json::from_value(serde_json::json!({
+            "token": "0x3333333333333333333333333333333333333333",
+            "amount": "2000000",
+            "chainId": 1,
+            "decimals": 6,
+            "price": 1.0,
+            "name": "Token",
+            "symbol": "TKN",
+            "logoUri": "https://example.invalid/t.png"
+        }))
+        .unwrap();
+        assert_eq!(balance.price, Some(1.0));
+        assert_eq!(
+            balance.logo_uri.as_deref(),
+            Some("https://example.invalid/t.png")
+        );
+    }
 
     #[test]
     fn test_bundle_request_splits_query_and_body() {

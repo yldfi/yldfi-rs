@@ -17,15 +17,15 @@ pub enum UniswapVersion {
     V4,
 }
 use serde::de::DeserializeOwned;
-use serde_json::json;
+use serde_json::{json, Value};
 use url::Url;
 use yldfi_common::api::{sanitize_error_body, SecretApiKey};
 use yldfi_common::http::HttpClientConfig;
 
 use crate::error::{subgraph_error, subgraph_key_required, Result};
 use crate::types::{
-    GraphQLResponse, LiquidityPositionV2, PairDataV2, PoolData, PoolDataV4, PoolDayData, Position,
-    PositionV4, Swap,
+    GraphQLResponse, LiquidityPositionV2, PairDataV2, PairDayDataV2, PoolData, PoolDataV4,
+    PoolDayData, Position, PositionV4, Swap,
 };
 
 /// Subgraph IDs for Uniswap on various chains
@@ -243,6 +243,17 @@ impl SubgraphClient {
             api_key: SecretApiKey::new(config.api_key),
             version: config.version,
         })
+    }
+
+    /// Client pointed at an arbitrary endpoint (for tests against a mock server)
+    #[cfg(test)]
+    pub(crate) fn for_test_endpoint(endpoint: &str, version: UniswapVersion) -> Self {
+        Self {
+            http: HttpClient::new(),
+            endpoint: endpoint.to_string(),
+            api_key: SecretApiKey::new("test-key"),
+            version,
+        }
     }
 
     /// Replace any occurrence of the API key in `text`
@@ -482,35 +493,33 @@ impl SubgraphClient {
             pool: Option<PoolData>,
         }
 
-        let query = format!(
-            r#"
-            query {{
-                pool(id: "{}") {{
+        let query = r"
+            query Pool($id: ID!) {
+                pool(id: $id) {
                     id
-                    token0 {{
+                    token0 {
                         id
                         symbol
                         name
                         decimals
-                    }}
-                    token1 {{
+                    }
+                    token1 {
                         id
                         symbol
                         name
                         decimals
-                    }}
+                    }
                     feeTier
                     totalValueLockedUSD
                     volumeUSD
                     feesUSD
                     txCount
-                }}
-            }}
-        "#,
-            address.to_lowercase()
-        );
+                }
+            }
+        ";
+        let variables = serde_json::json!({ "id": address.to_lowercase() });
 
-        let data: Response = self.query(&query).await?;
+        let data: Response = self.query_with_variables(query, variables).await?;
         Ok(data.pool)
     }
 
@@ -526,13 +535,15 @@ impl SubgraphClient {
             swaps: Vec<Swap>,
         }
 
-        let data: Response = self
-            .query(&swaps_query(self.version, pool_address, limit))
-            .await?;
+        let (query, variables) = swaps_query(self.version, pool_address, limit);
+        let data: Response = self.query_with_variables(&query, variables).await?;
         Ok(data.swaps)
     }
 
-    /// Get daily data for a pool
+    /// Get daily data for a pool, newest first
+    ///
+    /// V3/V4 query `poolDayDatas`; V2 queries `pairDayDatas` (no OHLC, fees
+    /// derived as 0.3% of volume).
     pub async fn get_pool_day_data(
         &self,
         pool_address: &str,
@@ -540,37 +551,19 @@ impl SubgraphClient {
     ) -> Result<Vec<PoolDayData>> {
         #[derive(serde::Deserialize)]
         struct Response {
-            #[serde(rename = "poolDayDatas")]
+            #[serde(rename = "poolDayDatas", default)]
             pool_day_datas: Vec<PoolDayData>,
+            #[serde(rename = "pairDayDatas", default)]
+            pair_day_datas: Vec<PairDayDataV2>,
         }
 
-        let query = format!(
-            r#"
-            query {{
-                poolDayDatas(
-                    first: {}
-                    orderBy: date
-                    orderDirection: desc
-                    where: {{ pool: "{}" }}
-                ) {{
-                    date
-                    pool {{ id }}
-                    volumeUSD
-                    tvlUSD
-                    feesUSD
-                    open
-                    high
-                    low
-                    close
-                }}
-            }}
-        "#,
-            days,
-            pool_address.to_lowercase()
-        );
-
-        let data: Response = self.query(&query).await?;
-        Ok(data.pool_day_datas)
+        let (query, variables) = pool_day_data_query(self.version, pool_address, days);
+        let data: Response = self.query_with_variables(&query, variables).await?;
+        Ok(data
+            .pool_day_datas
+            .into_iter()
+            .chain(data.pair_day_datas.into_iter().map(PoolDayData::from))
+            .collect())
     }
 
     /// Get V3 LP positions for a wallet address
@@ -580,35 +573,34 @@ impl SubgraphClient {
             positions: Vec<Position>,
         }
 
-        let query = format!(
-            r#"
-            query {{
+        let query = r"
+            query Positions($where: Position_filter) {
                 positions(
                     first: 100
-                    where: {{ owner: "{}", liquidity_gt: "0" }}
-                ) {{
+                    where: $where
+                ) {
                     id
                     owner
-                    pool {{
+                    pool {
                         id
-                        token0 {{
+                        token0 {
                             id
                             symbol
                             name
                             decimals
-                        }}
-                        token1 {{
+                        }
+                        token1 {
                             id
                             symbol
                             name
                             decimals
-                        }}
+                        }
                         feeTier
                         tick
                         sqrtPrice
                         token0Price
                         token1Price
-                    }}
+                    }
                     liquidity
                     depositedToken0
                     depositedToken1
@@ -616,19 +608,20 @@ impl SubgraphClient {
                     withdrawnToken1
                     collectedFeesToken0
                     collectedFeesToken1
-                    tickLower {{
+                    tickLower {
                         tickIdx
-                    }}
-                    tickUpper {{
+                    }
+                    tickUpper {
                         tickIdx
-                    }}
-                }}
-            }}
-        "#,
-            owner.to_lowercase()
-        );
+                    }
+                }
+            }
+        ";
+        let variables = serde_json::json!({
+            "where": { "owner": owner.to_lowercase(), "liquidity_gt": "0" }
+        });
 
-        let data: Response = self.query(&query).await?;
+        let data: Response = self.query_with_variables(query, variables).await?;
         Ok(data.positions)
     }
 
@@ -640,44 +633,44 @@ impl SubgraphClient {
             liquidity_positions: Vec<LiquidityPositionV2>,
         }
 
-        let query = format!(
-            r#"
-            query {{
+        let query = r"
+            query LiquidityPositions($where: LiquidityPosition_filter) {
                 liquidityPositions(
                     first: 100
-                    where: {{ user: "{}", liquidityTokenBalance_gt: "0" }}
-                ) {{
+                    where: $where
+                ) {
                     id
-                    user {{
+                    user {
                         id
-                    }}
-                    pair {{
+                    }
+                    pair {
                         id
-                        token0 {{
+                        token0 {
                             id
                             symbol
                             name
                             decimals
-                        }}
-                        token1 {{
+                        }
+                        token1 {
                             id
                             symbol
                             name
                             decimals
-                        }}
+                        }
                         reserve0
                         reserve1
                         totalSupply
                         reserveUSD
-                    }}
+                    }
                     liquidityTokenBalance
-                }}
-            }}
-        "#,
-            owner.to_lowercase()
-        );
+                }
+            }
+        ";
+        let variables = serde_json::json!({
+            "where": { "user": owner.to_lowercase(), "liquidityTokenBalance_gt": "0" }
+        });
 
-        let data: Response = self.query(&query).await?;
+        let data: Response = self.query_with_variables(query, variables).await?;
         Ok(data.liquidity_positions)
     }
 
@@ -692,114 +685,97 @@ impl SubgraphClient {
             positions: Vec<PositionV4>,
         }
 
-        let data: Response = self.query(&positions_v4_query(owner)).await?;
+        let (query, variables) = positions_v4_query(owner);
+        let data: Response = self.query_with_variables(query, variables).await?;
         Ok(data.positions)
     }
 }
 
-/// Build the swaps query for a subgraph version
-fn swaps_query(version: UniswapVersion, pool_address: &str, limit: u32) -> String {
+/// Build the swaps query and variables for a subgraph version
+///
+/// The pool/pair address is sent as a GraphQL variable (`Swap_filter`),
+/// never interpolated into the query text.
+/// Version-aware daily data query: `pairDayDatas` for V2, `poolDayDatas`
+/// otherwise
+fn pool_day_data_query(version: UniswapVersion, pool_address: &str, days: u32) -> (String, Value) {
     let pool = pool_address.to_lowercase();
-    match version {
-        UniswapVersion::V2 => format!(
-            r#"
-            query {{
-                swaps(
-                    first: {limit}
-                    orderBy: timestamp
-                    orderDirection: desc
-                    where: {{ pair: "{pool}" }}
-                ) {{
-                    id
-                    transaction {{ id }}
-                    timestamp
-                    pair {{ id }}
-                    sender
-                    to
-                    from
-                    amount0In
-                    amount1In
-                    amount0Out
-                    amount1Out
-                    amountUSD
-                }}
-            }}
-        "#
+    let (entity, filter_type, filter, fields) = match version {
+        UniswapVersion::V2 => (
+            "pairDayDatas",
+            "PairDayData_filter",
+            serde_json::json!({ "pairAddress": pool }),
+            "date pairAddress dailyVolumeUSD reserveUSD",
         ),
-        UniswapVersion::V3 => format!(
-            r#"
-            query {{
-                swaps(
-                    first: {limit}
-                    orderBy: timestamp
-                    orderDirection: desc
-                    where: {{ pool: "{pool}" }}
-                ) {{
-                    id
-                    transaction {{ id }}
-                    timestamp
-                    pool {{ id }}
-                    sender
-                    recipient
-                    origin
-                    amount0
-                    amount1
-                    amountUSD
-                }}
-            }}
-        "#
+        UniswapVersion::V3 | UniswapVersion::V4 => (
+            "poolDayDatas",
+            "PoolDayData_filter",
+            serde_json::json!({ "pool": pool }),
+            "date pool { id } volumeUSD tvlUSD feesUSD open high low close",
         ),
-        UniswapVersion::V4 => format!(
-            r#"
-            query {{
-                swaps(
-                    first: {limit}
-                    orderBy: timestamp
-                    orderDirection: desc
-                    where: {{ pool: "{pool}" }}
-                ) {{
-                    id
-                    transaction {{ id }}
-                    timestamp
-                    pool {{ id }}
-                    sender
-                    origin
-                    amount0
-                    amount1
-                    amountUSD
-                }}
-            }}
-        "#
-        ),
-    }
+    };
+    let query = format!(
+        "query DayData($where: {filter_type}) {{ {entity}(first: {days}, orderBy: date, \
+         orderDirection: desc, where: $where) {{ {fields} }} }}"
+    );
+    (query, serde_json::json!({ "where": filter }))
 }
 
-/// Build the V4 positions query (fields per Uniswap/v4-subgraph schema.graphql)
-fn positions_v4_query(owner: &str) -> String {
-    format!(
-        r#"
-            query {{
-                positions(
-                    first: 100
-                    orderBy: createdAtTimestamp
-                    orderDirection: desc
-                    where: {{ owner: "{}" }}
-                ) {{
-                    id
-                    tokenId
-                    owner
-                    origin
-                    createdAtTimestamp
-                }}
-            }}
-        "#,
-        owner.to_lowercase()
+fn swaps_query(version: UniswapVersion, pool_address: &str, limit: u32) -> (String, Value) {
+    let pool = pool_address.to_lowercase();
+    let (filter, fields) = match version {
+        UniswapVersion::V2 => (
+            serde_json::json!({ "pair": pool }),
+            "id transaction { id } timestamp pair { id } sender to from \
+             amount0In amount1In amount0Out amount1Out amountUSD",
+        ),
+        UniswapVersion::V3 => (
+            serde_json::json!({ "pool": pool }),
+            "id transaction { id } timestamp pool { id } sender recipient origin \
+             amount0 amount1 amountUSD",
+        ),
+        UniswapVersion::V4 => (
+            serde_json::json!({ "pool": pool }),
+            "id transaction { id } timestamp pool { id } sender origin \
+             amount0 amount1 amountUSD",
+        ),
+    };
+    let query = format!(
+        "query Swaps($where: Swap_filter) {{ swaps(first: {limit}, orderBy: timestamp, \
+         orderDirection: desc, where: $where) {{ {fields} }} }}"
+    );
+    (query, serde_json::json!({ "where": filter }))
+}
+
+/// V4 positions query (fields per Uniswap/v4-subgraph schema.graphql)
+const POSITIONS_V4_QUERY: &str = "query PositionsV4($where: Position_filter) { \
+    positions(first: 100, orderBy: createdAtTimestamp, orderDirection: desc, where: $where) \
+    { id tokenId owner origin createdAtTimestamp } }";
+
+/// Build the V4 positions query and variables
+fn positions_v4_query(owner: &str) -> (&'static str, Value) {
+    (
+        POSITIONS_V4_QUERY,
+        serde_json::json!({ "where": { "owner": owner.to_lowercase() } }),
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn day_data_query_is_version_aware() {
+        let (v2, vars) = pool_day_data_query(UniswapVersion::V2, "0xABC", 7);
+        assert!(v2.contains("pairDayDatas(first: 7") && v2.contains("PairDayData_filter"));
+        assert!(v2.contains("dailyVolumeUSD") && !v2.contains("poolDayDatas"));
+        assert_eq!(
+            vars,
+            serde_json::json!({ "where": { "pairAddress": "0xabc" } })
+        );
+        let (v3, vars) = pool_day_data_query(UniswapVersion::V3, "0xABC", 7);
+        assert!(v3.contains("poolDayDatas(first: 7") && v3.contains("feesUSD"));
+        assert_eq!(vars, serde_json::json!({ "where": { "pool": "0xabc" } }));
+    }
 
     const KEY: &str = "graph-secret-key-789";
 
@@ -880,16 +856,18 @@ mod tests {
 
     #[test]
     fn test_v4_queries_use_v4_schema_fields() {
-        let q = swaps_query(UniswapVersion::V4, "0xABC", 5);
+        let (q, vars) = swaps_query(UniswapVersion::V4, "0xABC", 5);
         assert!(!q.contains("recipient"), "{q}");
         assert!(q.contains("origin"));
-        assert!(q.contains(r#"pool: "0xabc""#));
+        assert!(q.contains("where: $where") && !q.contains("0xabc"), "{q}");
+        assert_eq!(vars, serde_json::json!({ "where": { "pool": "0xabc" } }));
 
-        let p = positions_v4_query("0xD8dA");
+        let (p, vars) = positions_v4_query("0xD8dA");
         for bad in ["liquidity", "tickLower", "pool {", "liquidity_gt"] {
             assert!(!p.contains(bad), "V4 Position has no field {bad}: {p}");
         }
-        assert!(p.contains("tokenId") && p.contains(r#"owner: "0xd8da""#));
+        assert!(p.contains("tokenId") && p.contains("$where: Position_filter"));
+        assert_eq!(vars, serde_json::json!({ "where": { "owner": "0xd8da" } }));
     }
 
     #[test]
@@ -922,9 +900,14 @@ mod tests {
 
     #[test]
     fn test_v2_swaps_query_uses_pair() {
-        let q = swaps_query(UniswapVersion::V2, "0xB4e1", 3);
-        assert!(q.contains(r#"pair: "0xb4e1""#));
+        let (q, vars) = swaps_query(UniswapVersion::V2, "0xB4e1\" } }", 3);
+        assert!(q.contains("$where: Swap_filter") && q.contains("first: 3"));
         assert!(q.contains("amount0In") && !q.contains("recipient"));
+        assert!(!q.contains("0xb4e1"), "{q}");
+        assert_eq!(
+            vars,
+            serde_json::json!({ "where": { "pair": "0xb4e1\" } }" } })
+        );
     }
 
     #[test]
