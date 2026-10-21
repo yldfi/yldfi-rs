@@ -7,7 +7,31 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 use std::time::Duration;
+use yldfi_common::api::{extract_retry_after, sanitize_error_body};
 use yldfi_common::http::HttpClientConfig;
+
+/// Upper bound for a server-provided retry delay, matching
+/// [`extract_retry_after`]
+const MAX_RETRY_AFTER_SECS: u64 = 3600;
+
+/// Seconds to wait before retrying: the standard `Retry-After` header, else
+/// Tenderly's `X-Tdly-Reset-Timestamp` (a Unix timestamp). Capped at an hour.
+fn retry_after_secs(headers: &HeaderMap) -> Option<u64> {
+    extract_retry_after(headers).or_else(|| {
+        let reset = headers
+            .get("x-tdly-reset-timestamp")?
+            .to_str()
+            .ok()?
+            .trim()
+            .parse::<u64>()
+            .ok()?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()?
+            .as_secs();
+        Some(reset.checked_sub(now)?.min(MAX_RETRY_AFTER_SECS))
+    })
+}
 
 /// URL-encode a path segment to prevent injection
 pub fn encode_path_segment(segment: &str) -> String {
@@ -195,6 +219,11 @@ impl Client {
         Self::new(Config::from_env()?)
     }
 
+    /// The underlying HTTP client (carries the configured timeouts and proxy)
+    pub(crate) fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
     /// Get the client configuration
     #[must_use]
     pub fn config(&self) -> &Config {
@@ -345,45 +374,21 @@ impl Client {
 
     /// Handle error responses
     async fn handle_error<T>(&self, status: u16, response: reqwest::Response) -> Result<T> {
-        // Extract rate limit headers before consuming the response
-        // Try standard Retry-After first, then Tenderly's X-Tdly-Reset-Timestamp
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<u64>().ok())
-            .or_else(|| {
-                // Tenderly uses X-Tdly-Reset-Timestamp (Unix timestamp)
-                // Convert to seconds from now
-                response
-                    .headers()
-                    .get("x-tdly-reset-timestamp")
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .and_then(|ts| {
-                        let now = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .ok()?
-                            .as_secs();
-                        ts.checked_sub(now)
-                    })
-            });
+        let retry_after = retry_after_secs(response.headers());
 
-        if status == 429 {
-            return Err(Error::rate_limited(retry_after));
-        }
-
-        let message = response
+        let body = response
             .text()
             .await
             .unwrap_or_else(|_| "Unknown error".to_string());
+        let message = sanitize_error_body(&body);
 
         match status {
             404 => Err(error::not_found(message)),
             401 | 403 => Err(error::auth(message)),
             400 | 422 => Err(error::invalid_param(message)),
             402 => Err(Error::api(status, format!("Request failed: {message}"))),
-            _ => Err(Error::api(status, message)),
+            // 429 -> RateLimited, 5xx -> retryable ServerError
+            _ => Err(Error::from_response(status, &body, retry_after)),
         }
     }
 
@@ -492,6 +497,80 @@ impl std::fmt::Debug for Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn client_returning(response: ResponseTemplate) -> (MockServer, Client) {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(response)
+            .mount(&server)
+            .await;
+        let config = Config::new("key123", "acct", "proj").with_base_url(server.uri());
+        (server, Client::new(config).unwrap())
+    }
+
+    fn now_secs() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+    }
+
+    #[tokio::test]
+    async fn test_server_error_is_retryable() {
+        let (_server, client) =
+            client_returning(ResponseTemplate::new(503).set_body_string("down")).await;
+        let err = client.get::<serde_json::Value>("/x").await.unwrap_err();
+        assert!(
+            matches!(err, Error::ServerError { status: 503, .. }),
+            "{err}"
+        );
+        assert!(err.is_retryable());
+    }
+
+    #[tokio::test]
+    async fn test_rate_limit_retry_after_is_capped() {
+        let (_server, client) =
+            client_returning(ResponseTemplate::new(429).insert_header("retry-after", "999999"))
+                .await;
+        let err = client.get::<serde_json::Value>("/x").await.unwrap_err();
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(3600)));
+    }
+
+    #[tokio::test]
+    async fn test_rate_limit_uses_capped_tdly_reset_timestamp() {
+        let reset = (now_secs() + 999_999).to_string();
+        let (_server, client) = client_returning(
+            ResponseTemplate::new(429).insert_header("x-tdly-reset-timestamp", reset.as_str()),
+        )
+        .await;
+        let err = client.get::<serde_json::Value>("/x").await.unwrap_err();
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(3600)));
+    }
+
+    #[test]
+    fn test_retry_after_secs_tdly_reset_in_near_future() {
+        let mut headers = HeaderMap::new();
+        let reset = (now_secs() + 60).to_string();
+        headers.insert(
+            "x-tdly-reset-timestamp",
+            HeaderValue::from_str(&reset).unwrap(),
+        );
+        let secs = retry_after_secs(&headers).unwrap();
+        assert!((58..=60).contains(&secs), "{secs}");
+    }
+
+    #[tokio::test]
+    async fn test_domain_mappings_kept_and_bodies_sanitized() {
+        let (_server, client) =
+            client_returning(ResponseTemplate::new(404).set_body_string("missing token=hunter2"))
+                .await;
+        let err = client.get::<serde_json::Value>("/x").await.unwrap_err();
+        assert!(error::is_not_found(&err), "{err}");
+        assert!(!err.to_string().contains("hunter2"), "{err}");
+    }
 
     #[test]
     fn test_config_new() {

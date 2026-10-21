@@ -5,7 +5,7 @@ use super::types::{
     UpdateQueryRequest, UpdateQueryResponse,
 };
 use crate::client::Client;
-use crate::error::{self, Error, Result};
+use crate::error::{self, Result};
 
 /// Queries API
 pub struct QueriesApi<'a> {
@@ -25,9 +25,7 @@ impl<'a> QueriesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -41,9 +39,7 @@ impl<'a> QueriesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Query {query_id}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -61,9 +57,7 @@ impl<'a> QueriesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Query {query_id}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -87,9 +81,7 @@ impl<'a> QueriesApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -103,9 +95,7 @@ impl<'a> QueriesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Query {query_id}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -119,9 +109,7 @@ impl<'a> QueriesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Query {query_id}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -135,9 +123,7 @@ impl<'a> QueriesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Query {query_id}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -151,9 +137,7 @@ impl<'a> QueriesApi<'a> {
         } else if response.status() == 404 {
             Err(error::not_found(format!("Query {query_id}")))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 }

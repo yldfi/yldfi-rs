@@ -1,9 +1,10 @@
 //! HTTP client for the Curve API
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
 use std::time::Duration;
+use yldfi_common::api::handle_error_response;
 use yldfi_common::http::HttpClientConfig;
 
 const DEFAULT_BASE_URL: &str = "https://api.curve.finance/v1";
@@ -90,24 +91,54 @@ impl Client {
         let url = format!("{}{}", self.base_url, path);
         let response = self.http.get(&url).send().await?;
 
-        let status = response.status().as_u16();
-
-        // Handle rate limiting (429)
-        if status == 429 {
-            let retry_after = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok());
-            return Err(Error::rate_limited(retry_after));
-        }
-
         if !response.status().is_success() {
-            let message = response.text().await.unwrap_or_default();
-            return Err(Error::api(status, message));
+            return Err(handle_error_response(response).await);
         }
 
         let data = response.json().await?;
         Ok(data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn client_returning(response: ResponseTemplate) -> (MockServer, Client) {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(response)
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().with_base_url(server.uri())).unwrap();
+        (server, client)
+    }
+
+    #[tokio::test]
+    async fn server_error_is_retryable() {
+        let (_server, client) = client_returning(ResponseTemplate::new(503)).await;
+        let err = client.get::<serde_json::Value>("/x").await.unwrap_err();
+        assert!(err.is_retryable(), "{err}");
+        assert_eq!(err.status_code(), Some(503));
+    }
+
+    #[tokio::test]
+    async fn retry_after_is_capped() {
+        let (_server, client) =
+            client_returning(ResponseTemplate::new(429).insert_header("retry-after", "999999"))
+                .await;
+        let err = client.get::<serde_json::Value>("/x").await.unwrap_err();
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(3600)));
+    }
+
+    #[tokio::test]
+    async fn error_body_is_sanitized() {
+        let (_server, client) =
+            client_returning(ResponseTemplate::new(400).set_body_string("token=hunter2")).await;
+        let err = client.get::<serde_json::Value>("/x").await.unwrap_err();
+        assert!(!err.to_string().contains("hunter2"), "{err}");
     }
 }

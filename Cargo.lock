@@ -21,6 +21,7 @@ dependencies = [
 name = "alcmy"
 version = "0.2.0"
 dependencies = [
+ "http",
  "reqwest 0.12.28",
  "secrecy",
  "serde",
@@ -1829,6 +1830,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-test",
+ "wiremock",
  "yldfi-common",
 ]
 
@@ -2179,6 +2181,7 @@ dependencies = [
 name = "dnapi"
 version = "0.2.0"
 dependencies = [
+ "http",
  "reqwest 0.12.28",
  "secrecy",
  "serde",
@@ -3705,6 +3708,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
+ "wiremock",
  "yldfi-common",
 ]
 
@@ -3819,6 +3823,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-test",
+ "wiremock",
  "yldfi-common",
 ]
 
@@ -6975,5 +6980,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-test",
+ "wiremock",
  "yldfi-common",
 ]

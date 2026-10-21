@@ -6,7 +6,7 @@ use super::types::{
     UpdateNftFiltersRequest, UpdateWebhookAddressesRequest, UpdateWebhookRequest, Webhook,
 };
 use crate::client::Client;
-use crate::error::{Error, Result};
+use crate::error::Result;
 
 const NOTIFY_BASE_URL: &str = "https://dashboard.alchemy.com/api";
 
@@ -39,16 +39,10 @@ impl<'a> NotifyApi<'a> {
             .send()
             .await?;
 
-        if response.status() == 429 {
-            return Err(crate::error::rate_limited_from_response(response).await);
-        }
-
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
 
@@ -67,16 +61,10 @@ impl<'a> NotifyApi<'a> {
             .send()
             .await?;
 
-        if response.status() == 429 {
-            return Err(crate::error::rate_limited_from_response(response).await);
-        }
-
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
 
@@ -95,16 +83,10 @@ impl<'a> NotifyApi<'a> {
             .send()
             .await?;
 
-        if response.status() == 429 {
-            return Err(crate::error::rate_limited_from_response(response).await);
-        }
-
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
 
@@ -123,16 +105,10 @@ impl<'a> NotifyApi<'a> {
             .send()
             .await?;
 
-        if response.status() == 429 {
-            return Err(crate::error::rate_limited_from_response(response).await);
-        }
-
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
 
@@ -146,16 +122,10 @@ impl<'a> NotifyApi<'a> {
             .send()
             .await?;
 
-        if response.status() == 429 {
-            return Err(crate::error::rate_limited_from_response(response).await);
-        }
-
         if response.status().is_success() {
             Ok(())
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
 
@@ -192,9 +162,7 @@ impl<'a> NotifyApi<'a> {
         if response.status().is_success() {
             Ok(())
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
 

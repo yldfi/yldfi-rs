@@ -181,7 +181,10 @@ impl<'a> VNetsApi<'a> {
         let admin_url = rpcs
             .admin()
             .ok_or_else(|| crate::error::not_found("Admin RPC URL not available for this VNet"))?;
-        AdminRpc::new(admin_url)
+        Ok(AdminRpc::with_http_client(
+            admin_url,
+            self.client.http().clone(),
+        ))
     }
 
     /// Get an Admin RPC client from an existing `VNet` object
@@ -203,7 +206,10 @@ impl<'a> VNetsApi<'a> {
         let admin_url = rpcs
             .admin()
             .ok_or_else(|| crate::error::not_found("Admin RPC URL not available for this VNet"))?;
-        AdminRpc::new(admin_url)
+        Ok(AdminRpc::with_http_client(
+            admin_url,
+            self.client.http().clone(),
+        ))
     }
 
     /// Update a Virtual `TestNet`
@@ -273,6 +279,52 @@ impl<'a> VNetsApi<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::Config;
+    use std::time::Duration;
+    use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_admin_rpc_uses_client_timeout() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path_regex("/vnets/vnet1$"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "vnet-1",
+                "slug": "vnet-1",
+                "display_name": "VNet",
+                "fork_config": { "network_id": 1 },
+                "virtual_network_config": {},
+                "rpcs": [{ "name": "Admin RPC", "url": format!("{}/admin", server.uri()) }],
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path_regex("/admin$"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_secs(5))
+                    .set_body_json(
+                        serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": "0x1" }),
+                    ),
+            )
+            .mount(&server)
+            .await;
+
+        let config = Config::new("key", "acct", "proj")
+            .with_base_url(server.uri())
+            .with_timeout(Duration::from_millis(200));
+        let client = Client::new(config).unwrap();
+        let admin = client.vnets().admin_rpc("vnet1").await.unwrap();
+
+        let started = std::time::Instant::now();
+        let err = admin.increase_time(1).await.unwrap_err();
+        assert!(
+            matches!(&err, crate::error::Error::Http(e) if e.is_timeout()),
+            "{err}"
+        );
+        assert!(started.elapsed() < Duration::from_secs(4));
+    }
 
     #[test]
     fn test_create_vnet_request_builder() {

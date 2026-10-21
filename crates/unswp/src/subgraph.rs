@@ -19,6 +19,7 @@ pub enum UniswapVersion {
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use url::Url;
+use yldfi_common::api::{sanitize_error_body, SecretApiKey};
 use yldfi_common::http::HttpClientConfig;
 
 use crate::error::{subgraph_error, subgraph_key_required, Result};
@@ -69,7 +70,9 @@ pub mod subgraph_ids {
 const GRAPH_GATEWAY: &str = "https://gateway.thegraph.com/api";
 
 /// Configuration for the subgraph client
-#[derive(Debug, Clone)]
+///
+/// `Debug` output redacts the API key.
+#[derive(Clone)]
 pub struct SubgraphConfig {
     /// The Graph API key (required)
     pub api_key: String,
@@ -79,6 +82,17 @@ pub struct SubgraphConfig {
     pub version: UniswapVersion,
     /// HTTP client configuration
     pub http: HttpClientConfig,
+}
+
+impl std::fmt::Debug for SubgraphConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SubgraphConfig")
+            .field("api_key", &"[REDACTED]")
+            .field("subgraph_id", &self.subgraph_id)
+            .field("version", &self.version)
+            .field("http", &self.http)
+            .finish()
+    }
 }
 
 impl SubgraphConfig {
@@ -187,11 +201,24 @@ impl SubgraphConfig {
 }
 
 /// Client for querying Uniswap subgraphs
-#[derive(Debug, Clone)]
+///
+/// The Graph gateway takes the API key as a URL path segment, so the stored
+/// endpoint contains it. `Debug` output and errors redact it.
+#[derive(Clone)]
 pub struct SubgraphClient {
     http: HttpClient,
     endpoint: String,
+    api_key: SecretApiKey,
     version: UniswapVersion,
+}
+
+impl std::fmt::Debug for SubgraphClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SubgraphClient")
+            .field("endpoint", &self.redact(&self.endpoint))
+            .field("version", &self.version)
+            .finish_non_exhaustive()
+    }
 }
 
 impl SubgraphClient {
@@ -213,8 +240,20 @@ impl SubgraphClient {
         Ok(Self {
             http,
             endpoint,
+            api_key: SecretApiKey::new(config.api_key),
             version: config.version,
         })
+    }
+
+    /// Replace any occurrence of the API key in `text`
+    fn redact(&self, text: &str) -> String {
+        text.replace(self.api_key.expose(), "[REDACTED]")
+    }
+
+    /// Error message for a reqwest error, without the request URL (which
+    /// contains the API key)
+    fn transport_error(&self, e: reqwest::Error) -> String {
+        self.redact(&e.without_url().to_string())
     }
 
     /// Get the Uniswap version this client is configured for
@@ -246,21 +285,22 @@ impl SubgraphClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| subgraph_error(e.to_string()))?;
+            .map_err(|e| subgraph_error(self.transport_error(e)))?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
+            let body = sanitize_error_body(&self.redact(&body));
             return Err(subgraph_error(format!("HTTP {status}: {body}")));
         }
 
         let gql_response: GraphQLResponse<T> = response
             .json()
             .await
-            .map_err(|e| subgraph_error(format!("Parse error: {e}")))?;
+            .map_err(|e| subgraph_error(format!("Parse error: {}", self.transport_error(e))))?;
 
         if let Some(err) = gql_response.first_error() {
-            return Err(subgraph_error(err));
+            return Err(subgraph_error(self.redact(err)));
         }
 
         gql_response
@@ -760,6 +800,76 @@ fn positions_v4_query(owner: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const KEY: &str = "graph-secret-key-789";
+
+    /// A client whose endpoint embeds `KEY` like the real gateway URL, but
+    /// points at `base`.
+    fn client_at(base: &str) -> SubgraphClient {
+        SubgraphClient {
+            http: HttpClient::new(),
+            endpoint: format!("{base}/{KEY}/subgraphs/id/test"),
+            api_key: SecretApiKey::new(KEY),
+            version: UniswapVersion::V3,
+        }
+    }
+
+    #[test]
+    fn test_debug_redacts_api_key() {
+        let config = SubgraphConfig::mainnet_v3(KEY);
+        let client = SubgraphClient::new(config.clone()).unwrap();
+        for debug in [format!("{config:?}"), format!("{client:?}")] {
+            assert!(!debug.contains(KEY), "{debug}");
+            assert!(debug.contains("[REDACTED]"), "{debug}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_transport_error_omits_api_key() {
+        // Nothing listens on port 1, so this fails with a connect error whose
+        // Display would include the URL
+        let client = client_at("http://127.0.0.1:1");
+        let err = client
+            .query::<serde_json::Value>("{ x }")
+            .await
+            .unwrap_err();
+        assert!(!err.to_string().contains(KEY), "{err}");
+        assert!(!format!("{err:?}").contains(KEY), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn test_http_and_parse_errors_omit_api_key() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let client = client_at(&server.uri());
+
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(500).set_body_string(format!("no such path /{KEY}/x")),
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        let err = client
+            .query::<serde_json::Value>("{ x }")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("HTTP 500"), "{err}");
+        assert!(!err.to_string().contains(KEY), "{err}");
+
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+            .mount(&server)
+            .await;
+        let err = client
+            .query::<serde_json::Value>("{ x }")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Parse error"), "{err}");
+        assert!(!err.to_string().contains(KEY), "{err}");
+    }
 
     #[test]
     fn test_config_creation() {
