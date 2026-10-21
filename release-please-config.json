@@ -13,7 +13,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.3.0"
     },
     "crates/cgko": {
       "release-type": "rust",
@@ -24,7 +25,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/cowp": {
       "release-type": "rust",
@@ -35,7 +37,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/crv": {
       "release-type": "rust",
@@ -46,7 +49,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/dllma": {
       "release-type": "rust",
@@ -57,7 +61,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/dnapi": {
       "release-type": "rust",
@@ -68,7 +73,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.3.0"
     },
     "crates/ensof": {
       "release-type": "rust",
@@ -79,7 +85,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/gplus": {
       "release-type": "rust",
@@ -90,7 +97,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/ethcli": {
       "release-type": "rust",
@@ -101,7 +109,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.24.0"
     },
     "crates/ethcli-mcp": {
       "release-type": "rust",
@@ -134,7 +143,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/mrls": {
       "release-type": "rust",
@@ -145,7 +155,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.3.0"
     },
     "crates/oinch": {
       "release-type": "rust",
@@ -167,7 +178,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/pythc": {
       "release-type": "rust",
@@ -200,7 +212,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.5.0"
     },
     "crates/unswp": {
       "release-type": "rust",
@@ -222,7 +235,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     },
     "crates/yldfi-common": {
       "release-type": "rust",
@@ -255,7 +269,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+      "release-as": "0.2.0"
     }
   }
 }
