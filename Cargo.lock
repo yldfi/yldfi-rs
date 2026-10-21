@@ -2451,6 +2451,7 @@ dependencies = [
  "assert_cmd",
  "libc",
  "predicates",
+ "regex",
  "rmcp",
  "schemars 1.2.3",
  "serde",

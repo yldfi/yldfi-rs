@@ -26,6 +26,11 @@ struct McpClient {
 
 impl McpClient {
     fn new() -> Self {
+        Self::with_ethcli_path(None)
+    }
+
+    /// Start the server; `ethcli_path` overrides the ethcli binary it runs
+    fn with_ethcli_path(ethcli_path: Option<&str>) -> Self {
         let workspace_root = workspace_root();
 
         // Use CARGO_BIN_EXE_ethcli-mcp which cargo sets during `cargo test`
@@ -51,7 +56,9 @@ impl McpClient {
         );
 
         let mut cmd = Command::new(&binary);
-        if let Some(ethcli_binary) = find_ethcli_binary(&workspace_root) {
+        if let Some(path) = ethcli_path {
+            cmd.env("ETHCLI_PATH", path);
+        } else if let Some(ethcli_binary) = find_ethcli_binary(&workspace_root) {
             cmd.env("ETHCLI_PATH", ethcli_binary);
         }
 
@@ -917,7 +924,7 @@ fn test_lifi_gas() {
     assert!(client.initialize());
 
     // Use retry logic - LI.FI API may rate limit
-    let response = call_tool_with_retry(&mut client, "lifi_gas", json!({"chain_id": "1"}), 2);
+    let response = call_tool_with_retry(&mut client, "lifi_gas", json!({"chain_id": 1}), 2);
     assert!(is_tool_success(&response), "lifi_gas should succeed");
 
     let text = get_tool_text(&response).expect("Should have text");
@@ -1226,6 +1233,71 @@ fn test_mcp_mutating_tools_disabled_by_default() {
         text.contains("read-only mode") && text.contains("ETHCLI_MCP_ENABLE_WRITE_TOOLS"),
         "expected read-only policy error, got: {text}"
     );
+}
+
+#[test]
+fn test_health_reports_error_when_ethcli_is_missing() {
+    let missing = std::env::temp_dir().join("ethcli-mcp-test-no-such-ethcli");
+    let mut client = McpClient::with_ethcli_path(Some(missing.to_str().unwrap()));
+    assert!(client.initialize());
+
+    let response = client.call_tool("health", json!({}));
+    assert!(
+        !is_tool_success(&response),
+        "health must fail without ethcli"
+    );
+    let text = get_tool_text(&response).expect("Should have text");
+    assert!(text.contains("ethcli: FAILED"), "{text}");
+}
+
+#[test]
+fn test_tools_carry_read_only_annotations() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+    let response = client.list_tools();
+    let tools = response["result"]["tools"].as_array().expect("tools");
+    let hint = |name: &str| {
+        tools
+            .iter()
+            .find(|t| t["name"] == name)
+            .map(|t| t["annotations"]["readOnlyHint"].clone())
+    };
+    assert_eq!(hint("account_balance"), Some(json!(true)));
+    assert_eq!(hint("cowswap_cancel_orders"), Some(json!(false)));
+}
+
+#[test]
+fn test_flag_like_values_are_rejected_and_session_survives() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    // `ethcli tx --stdin` would read the client's next JSON-RPC messages
+    for (tool, args) in [
+        ("tx_analyze", json!({"hash": "--stdin"})),
+        ("tenderly_vnets_delete", json!({"ids": ["--all"]})),
+        (
+            "contract_call",
+            json!({
+                "address": "--rpc-url=http://169.254.169.254",
+                "sig": "totalSupply",
+            }),
+        ),
+    ] {
+        let response = client.call_tool(tool, args);
+        assert!(
+            !is_tool_success(&response),
+            "{tool} should reject the value"
+        );
+        let text = get_tool_text(&response).expect("Should have text");
+        assert!(
+            text.contains("must not start with '-'"),
+            "{tool}: expected validation error, got: {text}"
+        );
+    }
+
+    // The transport is intact: a later call still gets its own response
+    let response = client.call_tool("cast_keccak", json!({"value": "hello"}));
+    assert!(is_tool_success(&response), "session should still work");
 }
 
 #[test]

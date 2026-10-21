@@ -32,6 +32,8 @@ fn default_unit() -> String {
 
 // --- Logs ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+// Unknown fields are errors so callers still sending removed fields find out
+#[serde(deny_unknown_fields)]
 pub struct LogsInput {
     /// Contract address to query logs from
     pub contract: String,
@@ -41,8 +43,6 @@ pub struct LogsInput {
     pub from_block: Option<String>,
     /// Ending block number or tag
     pub to_block: Option<String>,
-    /// Additional topic filters
-    pub topics: Option<Vec<String>>,
     /// Chain name (ethereum, polygon, arbitrum, gnosis, fantom, linea, zksync, etc.) or numeric chain ID
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -728,10 +728,7 @@ pub struct UniswapPoolInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct UniswapEthPriceInput {
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
-    /// Uniswap version (v2, v3)
+    /// Uniswap version (v2, v3, v4)
     pub version: Option<String>,
 }
 
@@ -739,9 +736,6 @@ pub struct UniswapEthPriceInput {
 pub struct UniswapTopPoolsInput {
     /// Number of pools to return
     pub limit: Option<u32>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
     /// Uniswap version
     pub version: Option<String>,
 }
@@ -881,6 +875,19 @@ pub struct OpenoceanQuoteInput {
     pub gas_price: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OpenoceanReverseQuoteInput {
+    /// Token to sell
+    pub in_token: String,
+    /// Token to receive
+    pub out_token: String,
+    /// Desired output amount, human-readable (e.g. "1")
+    pub amount: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 fn default_gas_price() -> String {
     "30".to_string()
 }
@@ -902,12 +909,12 @@ pub struct CowswapQuoteInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiQuoteInput {
-    /// Source chain name
-    pub from_chain: String,
+    /// Source chain ID (e.g. 1 for Ethereum, 42161 for Arbitrum)
+    pub from_chain: u64,
     /// Source token address
     pub from_token: String,
-    /// Destination chain name
-    pub to_chain: String,
+    /// Destination chain ID (e.g. 10 for Optimism, 8453 for Base)
+    pub to_chain: u64,
     /// Destination token address
     pub to_token: String,
     /// Amount
@@ -2682,6 +2689,20 @@ pub struct CurveChainAddressInput {
     pub address: String,
 }
 
+/// Input for `curve_trades` (the trades endpoint takes no time range)
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveTradesInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Pool contract address
+    pub address: String,
+    /// Main token address (pool coin)
+    pub main_token: String,
+    /// Reference token address (pool coin being priced)
+    pub reference_token: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CurvePoolPairInput {
     /// Chain name
@@ -2757,6 +2778,15 @@ pub struct UniswapPoolAddressInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+/// A pool on the Ethereum mainnet Uniswap subgraph
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct UniswapSubgraphPoolInput {
+    /// Pool address (Ethereum mainnet)
+    pub pool: String,
+    /// Uniswap version (v2, v3, v4)
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -3094,29 +3124,33 @@ pub struct LifiStatusInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiChainInput {
-    /// Chain name
-    pub chain: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    pub chain: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiGasInput {
-    /// Chain ID (e.g., "1" for Ethereum, "137" for Polygon)
-    pub chain_id: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    pub chain_id: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiTokensInput {
     /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
-    #[serde(default = "default_chain_id")]
-    pub chain_id: String,
+    #[serde(default = "default_lifi_chain_id")]
+    pub chain_id: u64,
+}
+
+fn default_lifi_chain_id() -> u64 {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiConnectionsInput {
     /// Source chain ID (required by LI.FI)
-    pub from_chain: String,
+    pub from_chain: u64,
     /// Destination chain ID (required by LI.FI)
-    pub to_chain: String,
+    pub to_chain: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -3231,6 +3265,8 @@ pub struct CcxtOrderbookInput {
 
 // --- Simulate ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+// Unknown fields are errors so callers still sending removed fields find out
+#[serde(deny_unknown_fields)]
 pub struct SimulateCallInput {
     /// Target contract address
     pub contract: String,
@@ -3331,9 +3367,6 @@ pub struct SimulateCallInput {
     pub with_local_artifacts: bool,
     /// RPC timeout in seconds for Foundry calls
     pub rpc_timeout: Option<u64>,
-    /// Disabled over MCP because headers can carry credentials; configure RPC auth outside MCP
-    #[serde(default)]
-    pub rpc_headers: Vec<String>,
     /// Disable automatic proxy detection in Foundry RPC clients
     #[serde(default)]
     pub no_proxy: bool,
@@ -3346,9 +3379,6 @@ pub struct SimulateCallInput {
     pub fork_transaction_hash: Option<String>,
     /// Anvil fork chain ID for offline-start mode
     pub fork_chain_id: Option<u64>,
-    /// Disabled over MCP because headers can carry credentials; configure fork RPC auth outside MCP
-    #[serde(default)]
-    pub fork_headers: Vec<String>,
     /// Anvil hardfork to use (e.g., prague, cancun)
     pub hardfork: Option<String>,
     /// Anvil network family to enable (ethereum, optimism, tempo)
@@ -3375,7 +3405,7 @@ pub struct SimulateCallInput {
     /// Generate EIP-2930 access list in response (Tenderly)
     #[serde(default)]
     pub generate_access_list: bool,
-    /// Provide access list (JSON format)
+    /// Access list as inline JSON
     pub access_list: Option<String>,
     /// Simulation type: full, quick, or abi
     pub simulation_type: Option<String>,
@@ -3386,28 +3416,23 @@ pub struct SimulateCallInput {
     pub save: bool,
 
     // === Tenderly options ===
-    /// Disabled over MCP; use TENDERLY_ACCESS_KEY env or ethcli config instead
-    pub tenderly_key: Option<String>,
     /// Tenderly account slug (or use TENDERLY_ACCOUNT env)
     pub tenderly_account: Option<String>,
     /// Tenderly project slug (or use TENDERLY_PROJECT env)
     pub tenderly_project: Option<String>,
 
     // === Alchemy options ===
-    /// Disabled over MCP; use ALCHEMY_API_KEY env or ethcli config instead
-    pub alchemy_key: Option<String>,
     /// Alchemy network (e.g., eth-mainnet, polygon-mainnet, arb-mainnet)
     pub alchemy_network: Option<String>,
 
     // === Debug options ===
     /// Dry run - output request without executing (json, curl, fetch, powershell, url, python, httpie, wget, go, rust, axios)
     pub dry_run: Option<String>,
-    /// Disabled over MCP; dry-run output is always masked
-    #[serde(default)]
-    pub show_secrets: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+// Unknown fields are errors so callers still sending removed fields find out
+#[serde(deny_unknown_fields)]
 pub struct SimulateTxInput {
     /// Transaction hash to simulate
     pub hash: String,
@@ -3452,17 +3477,12 @@ pub struct SimulateTxInput {
     pub no_proxy: bool,
     /// RPC timeout in seconds for Foundry replay
     pub rpc_timeout: Option<u64>,
-    /// Disabled over MCP because headers can carry credentials; configure RPC auth outside MCP
-    #[serde(default)]
-    pub rpc_headers: Vec<String>,
     /// Enable transaction gas limit checks in Foundry replay
     #[serde(default)]
     pub enable_tx_gas_limit: bool,
     /// Disable block gas limit checks in Foundry replay
     #[serde(default)]
     pub disable_block_gas_limit: bool,
-    /// Disabled over MCP; use ETHERSCAN_API_KEY env or ethcli config instead
-    pub etherscan_api_key: Option<String>,
     /// Print raw callTracer JSON instead of the decoded call tree (debug backend)
     #[serde(default)]
     pub raw: bool,
@@ -3542,9 +3562,8 @@ pub struct EndpointsAddInput {
 pub struct EndpointsOptimizeInput {
     /// Optional specific RPC URL to optimize (if omitted, optimizes all)
     pub url: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Only optimize endpoints for this chain (ignored when url is set; omit for all chains)
+    pub chain: Option<String>,
 }
 
 // --- Chainlist ---

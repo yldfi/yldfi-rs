@@ -81,6 +81,18 @@ fn reject_file_output(output: Option<&str>) -> Result<(), ToolError> {
     }
 }
 
+/// Reject `@path` values: ethcli reads them as local files, which MCP
+/// clients must not be able to do.
+fn reject_file_reference(name: &str, value: Option<&str>) -> Result<(), ToolError> {
+    if value.is_some_and(|v| v.trim_start().starts_with('@')) {
+        Err(ToolError::InvalidInput(format!(
+            "{name} must be inline JSON; @file references are disabled over ethcli-mcp"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
 /// Maximum size of a successful tool response returned to the MCP client.
 ///
 /// Some commands (e.g. `llama tvl protocol aave`, ~10.7 MB) produce payloads
@@ -95,6 +107,12 @@ pub fn cap_response(output: String, max_bytes: usize) -> String {
         return output;
     }
     let total = output.len();
+    truncate_with_note(output, max_bytes, total)
+}
+
+/// Truncate `output` to at most `max_bytes` (on a char boundary) and append a
+/// note saying it was cut from `total` bytes.
+pub fn truncate_with_note(output: String, max_bytes: usize, total: usize) -> String {
     let mut cut = max_bytes;
     while cut > 0 && !output.is_char_boundary(cut) {
         cut -= 1;
@@ -139,24 +157,18 @@ pub async fn logs(
     event: Option<&str>,
     from_block: Option<&str>,
     to_block: Option<&str>,
-    topics: Option<Vec<String>>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("logs")
+    ArgsBuilder::new("logs")
         .opt("-c", Some(contract))
         .opt("-e", event)
         .opt("-f", from_block)
         .opt("-t", to_block)
         .chain(chain)
-        .format_json();
-
-    if let Some(t) = topics {
-        for topic in t {
-            builder = builder.opt("-e", Some(&topic));
-        }
-    }
-
-    builder.execute().await.map_err(ToolError::from)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 // =============================================================================
@@ -168,7 +180,7 @@ pub async fn tx_analyze(
     chain: Option<&str>,
     block: Option<u64>,
 ) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("tx").arg(hash).chain(chain);
+    let mut builder = ArgsBuilder::new("tx").arg(hash).chain(chain).format_json();
 
     if let Some(b) = block {
         builder = builder.opt("-b", Some(&b.to_string()));
@@ -428,7 +440,7 @@ pub async fn address_import(file: &str, overwrite: bool) -> Result<String, ToolE
     let mut builder = ArgsBuilder::new("address").subcommand("import").arg(file);
 
     if overwrite {
-        builder = builder.arg("--overwrite");
+        builder = builder.opt_flag("--overwrite", true);
     }
 
     builder.execute().await.map_err(ToolError::from)
@@ -481,6 +493,7 @@ pub async fn blacklist_remove(address: &str) -> Result<String, ToolError> {
 pub async fn blacklist_list() -> Result<String, ToolError> {
     ArgsBuilder::new("blacklist")
         .subcommand("list")
+        .opt_flag("--json", true)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -591,9 +604,11 @@ pub async fn contract_call(
         .opt("--rpc-url", rpc_url);
 
     if human {
-        builder = builder.arg("-H");
+        builder = builder.opt_flag("-H", true);
     }
 
+    // After `--` so negative numbers and other dash-led values stay arguments
+    builder = builder.end_of_options();
     for arg in args {
         builder = builder.arg(&arg);
     }
@@ -920,7 +935,10 @@ pub async fn cast_to_bytes32(value: &str) -> Result<String, ToolError> {
 }
 
 pub async fn cast_abi_encode(sig: &str, args: Vec<String>) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("cast").subcommand("abi-encode").arg(sig);
+    let mut builder = ArgsBuilder::new("cast")
+        .subcommand("abi-encode")
+        .arg(sig)
+        .end_of_options();
     for arg in args {
         builder = builder.arg(&arg);
     }
@@ -972,7 +990,7 @@ pub async fn rpc_block(
         .format_json();
 
     if full {
-        builder = builder.arg("-f");
+        builder = builder.opt_flag("-f", true);
     }
 
     builder.execute().await.map_err(ToolError::from)
@@ -1137,13 +1155,11 @@ pub async fn simulate_call(
     evm_version: Option<&str>,
     with_local_artifacts: bool,
     rpc_timeout: Option<u64>,
-    rpc_headers: &[String],
     no_proxy: bool,
     fork_urls: &[String],
     fork_block_number: Option<&str>,
     fork_transaction_hash: Option<&str>,
     fork_chain_id: Option<u64>,
-    fork_headers: &[String],
     hardfork: Option<&str>,
     network: Option<&str>,
     no_rate_limit: bool,
@@ -1159,21 +1175,18 @@ pub async fn simulate_call(
     network_id: Option<u64>,
     save: bool,
     // Tenderly options
-    tenderly_key: Option<&str>,
     tenderly_account: Option<&str>,
     tenderly_project: Option<&str>,
     // Alchemy options
-    alchemy_key: Option<&str>,
     alchemy_network: Option<&str>,
     // Debug options
     dry_run: Option<&str>,
-    show_secrets: bool,
 ) -> Result<String, ToolError> {
-    if show_secrets {
-        return Err(ToolError::InvalidInput(
-            "show_secrets is disabled over ethcli-mcp".to_string(),
-        ));
+    if save {
+        // Saving stores the simulation in the Tenderly project
+        require_write_tools_enabled("simulate_call with save")?;
     }
+    reject_file_reference("access_list", access_list)?;
 
     let mut builder = ArgsBuilder::new("simulate")
         .subcommand("call")
@@ -1219,15 +1232,12 @@ pub async fn simulate_call(
         .opt("--simulation-type", simulation_type)
         .opt_flag("--save", save)
         // Tenderly options
-        .opt("--tenderly-key", tenderly_key)
         .opt("--tenderly-account", tenderly_account)
         .opt("--tenderly-project", tenderly_project)
         // Alchemy options
-        .opt("--alchemy-key", alchemy_key)
         .opt("--alchemy-network", alchemy_network)
         // Debug options
-        .opt("--dry-run", dry_run)
-        .opt_flag("--show-secrets", show_secrets);
+        .opt("--dry-run", dry_run);
 
     // Numeric options
     if let Some(ts) = block_timestamp {
@@ -1277,17 +1287,12 @@ pub async fn simulate_call(
     for label in labels {
         builder = builder.opt("--label", Some(label));
     }
-    for header in rpc_headers {
-        builder = builder.opt("--rpc-header", Some(header));
-    }
     for fork_url in fork_urls {
         builder = builder.opt("--fork-url", Some(fork_url));
     }
-    for fork_header in fork_headers {
-        builder = builder.opt("--fork-header", Some(fork_header));
-    }
 
-    // Function arguments
+    // Function arguments, after `--` so negative numbers stay arguments
+    builder = builder.end_of_options();
     for arg in args {
         builder = builder.arg(&arg);
     }
@@ -1312,10 +1317,8 @@ pub struct SimulateTxOptions<'a> {
     pub with_local_artifacts: bool,
     pub no_proxy: bool,
     pub rpc_timeout: Option<u64>,
-    pub rpc_headers: &'a [String],
     pub enable_tx_gas_limit: bool,
     pub disable_block_gas_limit: bool,
-    pub etherscan_api_key: Option<&'a str>,
     pub raw: bool,
 }
 
@@ -1337,7 +1340,6 @@ pub async fn simulate_tx(input: SimulateTxOptions<'_>) -> Result<String, ToolErr
         .opt_flag("--no-proxy", input.no_proxy)
         .opt_flag("--enable-tx-gas-limit", input.enable_tx_gas_limit)
         .opt_flag("--disable-block-gas-limit", input.disable_block_gas_limit)
-        .opt("--etherscan-api-key", input.etherscan_api_key)
         .opt_flag("--raw", input.raw);
 
     if let Some(depth) = input.trace_depth {
@@ -1349,14 +1351,12 @@ pub async fn simulate_tx(input: SimulateTxOptions<'_>) -> Result<String, ToolErr
     for label in input.labels {
         builder = builder.opt("--label", Some(label));
     }
-    for header in input.rpc_headers {
-        builder = builder.opt("--rpc-header", Some(header));
-    }
 
     builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn simulate_bundle(txs: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    reject_file_reference("txs", Some(txs))?;
     ArgsBuilder::new("simulate")
         .subcommand("bundle")
         .opt("--txs", Some(txs))
@@ -1524,7 +1524,7 @@ pub async fn tenderly_vnets_create(
         builder = builder.opt("--chain-id", Some(&cid.to_string()));
     }
     if sync_state {
-        builder = builder.arg("--sync-state");
+        builder = builder.opt_flag("--sync-state", true);
     }
     builder.execute().await.map_err(ToolError::from)
 }
@@ -1544,7 +1544,7 @@ pub async fn tenderly_vnets_delete(ids: &[String], all: bool) -> Result<String, 
         .subcommand("vnets")
         .subcommand("delete");
     if all {
-        builder = builder.arg("--all");
+        builder = builder.opt_flag("--all", true);
     } else {
         for id in ids {
             builder = builder.arg(id);
@@ -2453,6 +2453,8 @@ pub async fn alchemy_nft_refresh_metadata(
     token_id: &str,
     network: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("alchemy_nft_refresh_metadata")?;
+
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .network(network)
@@ -2482,6 +2484,8 @@ pub async fn alchemy_nft_report_spam(
     contract: &str,
     network: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("alchemy_nft_report_spam")?;
+
     ArgsBuilder::new("alchemy")
         .subcommand("nft")
         .network(network)
@@ -3984,6 +3988,7 @@ pub async fn goplus_token(address: &str, chain_id: u64) -> Result<String, ToolEr
         .subcommand("token")
         .arg(address)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -3994,6 +3999,7 @@ pub async fn goplus_token_batch(addresses: &str, chain_id: u64) -> Result<String
         .subcommand("token-batch")
         .arg(addresses)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4004,6 +4010,7 @@ pub async fn goplus_address(address: &str, chain_id: u64) -> Result<String, Tool
         .subcommand("address")
         .arg(address)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4014,6 +4021,7 @@ pub async fn goplus_nft(address: &str, chain_id: u64) -> Result<String, ToolErro
         .subcommand("nft")
         .arg(address)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4024,6 +4032,7 @@ pub async fn goplus_approval(address: &str, chain_id: u64) -> Result<String, Too
         .subcommand("approval")
         .arg(address)
         .opt("--chain-id", Some(&chain_id.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4071,13 +4080,18 @@ pub async fn solodit_search(input: &crate::types::SoloditSearchInput) -> Result<
         .opt("--min-quality", min_quality.as_deref())
         .opt("--min-rarity", min_rarity.as_deref());
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 pub async fn solodit_get(slug: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("solodit")
         .subcommand("get")
         .arg(slug)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4846,6 +4860,8 @@ pub async fn moralis_nft_resync_metadata(
     token_id: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("moralis_nft_resync_metadata")?;
+
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .opt("--chain", chain)
@@ -4889,6 +4905,8 @@ pub async fn moralis_nft_sync_collection(
     address: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("moralis_nft_sync_collection")?;
+
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .opt("--chain", chain)
@@ -4931,6 +4949,8 @@ pub async fn moralis_nft_resync_traits(
     address: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("moralis_nft_resync_traits")?;
+
     ArgsBuilder::new("moralis")
         .subcommand("nft")
         .opt("--chain", chain)
@@ -5321,10 +5341,14 @@ pub async fn moralis_entities_category_entities(
 // DUNE (3 subcommands)
 // =============================================================================
 
+/// How long ethcli waits for a Dune execution (the MCP timeout is a little longer)
+const DUNE_EXECUTE_TIMEOUT_SECS: &str = "300";
+
 pub async fn dune_query(query_id: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("dune")
         .subcommand("query")
         .subcommand("execute")
+        .opt("--timeout", Some(DUNE_EXECUTE_TIMEOUT_SECS))
         .arg(query_id)
         .execute()
         .await
@@ -5335,6 +5359,9 @@ pub async fn dune_sql(sql: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("dune")
         .subcommand("sql")
         .subcommand("execute")
+        .opt("--timeout", Some(DUNE_EXECUTE_TIMEOUT_SECS))
+        // After `--` so SQL starting with a `--` comment stays the argument
+        .end_of_options()
         .arg(sql)
         .execute()
         .await
@@ -5722,14 +5749,19 @@ pub async fn curve_volumes(chain: Option<&str>) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn curve_lending(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("curve")
-        .subcommand("lending")
-        .subcommand("all")
-        .chain(chain)
+pub async fn curve_lending(chain: &str) -> Result<String, ToolError> {
+    curve_lending_args(chain)
         .execute()
         .await
         .map_err(ToolError::from)
+}
+
+// `curve lending all` ignores --chain; `lending chain <chain>` filters
+fn curve_lending_args(chain: &str) -> ArgsBuilder {
+    ArgsBuilder::new("curve")
+        .subcommand("lending")
+        .subcommand("chain")
+        .arg(chain)
 }
 
 pub async fn curve_tokens(chain: Option<&str>) -> Result<String, ToolError> {
@@ -6172,7 +6204,11 @@ pub async fn quote_best(
         builder = builder.opt("--slippage", Some(&s.to_string()));
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -6204,7 +6240,11 @@ pub async fn quote_from(
         builder = builder.opt("--slippage", Some(&s.to_string()));
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -6234,7 +6274,11 @@ pub async fn quote_compare(
         builder = builder.opt("--slippage", Some(&s.to_string()));
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 // =============================================================================
@@ -6251,6 +6295,7 @@ pub async fn chainlink_price(
         .arg(token)
         .chain(chain)
         .opt("--block", block)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6261,6 +6306,7 @@ pub async fn chainlink_feed(token: &str, chain: Option<&str>) -> Result<String, 
         .subcommand("feed")
         .arg(token)
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6270,6 +6316,7 @@ pub async fn chainlink_oracles(chain: Option<&str>) -> Result<String, ToolError>
     ArgsBuilder::new("chainlink")
         .subcommand("oracles")
         .chain(chain)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6279,6 +6326,7 @@ pub async fn chainlink_streams_feeds() -> Result<String, ToolError> {
     ArgsBuilder::new("chainlink")
         .subcommand("streams")
         .subcommand("feeds")
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6289,6 +6337,7 @@ pub async fn chainlink_streams_latest(feed_id: &str) -> Result<String, ToolError
         .subcommand("streams")
         .subcommand("latest")
         .arg(feed_id)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6300,6 +6349,7 @@ pub async fn chainlink_streams_report(feed_id: &str, timestamp: u64) -> Result<S
         .subcommand("report")
         .arg(feed_id)
         .arg(&timestamp.to_string())
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6311,6 +6361,7 @@ pub async fn chainlink_streams_bulk(feed_ids: &str, timestamp: u64) -> Result<St
         .subcommand("bulk")
         .arg(feed_ids)
         .arg(&timestamp.to_string())
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6327,6 +6378,7 @@ pub async fn chainlink_streams_history(
         .arg(feed_id)
         .arg(&timestamp.to_string())
         .opt("--limit", Some(&limit.to_string()))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6341,6 +6393,7 @@ pub async fn ccxt_ticker(exchange: &str, symbol: &str) -> Result<String, ToolErr
         .subcommand("ticker")
         .arg(symbol)
         .opt("--exchange", Some(exchange))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6355,7 +6408,11 @@ pub async fn ccxt_tickers(exchange: &str, symbols: Option<&str>) -> Result<Strin
         builder = builder.arg(s);
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 pub async fn ccxt_orderbook(
@@ -6372,7 +6429,11 @@ pub async fn ccxt_orderbook(
         builder = builder.opt("--limit", Some(&l.to_string()));
     }
 
-    builder.execute().await.map_err(ToolError::from)
+    builder
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 pub async fn ccxt_ohlcv(
@@ -6385,6 +6446,7 @@ pub async fn ccxt_ohlcv(
         .arg(symbol)
         .opt("--exchange", Some(exchange))
         .opt("--timeframe", timeframe)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6395,6 +6457,7 @@ pub async fn ccxt_trades(exchange: &str, symbol: &str) -> Result<String, ToolErr
         .subcommand("trades")
         .arg(symbol)
         .opt("--exchange", Some(exchange))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6404,6 +6467,7 @@ pub async fn ccxt_markets(exchange: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("ccxt")
         .subcommand("markets")
         .opt("--exchange", Some(exchange))
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6443,13 +6507,11 @@ pub async fn uniswap_liquidity(pool: &str, chain: Option<&str>) -> Result<String
         .map_err(ToolError::from)
 }
 
-pub async fn uniswap_eth_price(
-    chain: Option<&str>,
-    version: Option<&str>,
-) -> Result<String, ToolError> {
+// eth-price, top-pools, swaps, day-data and addresses use the mainnet
+// subgraph / address tables: ethcli ignores --chain for them.
+pub async fn uniswap_eth_price(version: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("uniswap")
         .subcommand("eth-price")
-        .chain(chain)
         .opt("--version", version)
         .execute()
         .await
@@ -6458,35 +6520,33 @@ pub async fn uniswap_eth_price(
 
 pub async fn uniswap_top_pools(
     limit: Option<u32>,
-    chain: Option<&str>,
     version: Option<&str>,
 ) -> Result<String, ToolError> {
     let l = limit.unwrap_or(10);
     ArgsBuilder::new("uniswap")
         .subcommand("top-pools")
         .arg(&l.to_string())
-        .chain(chain)
         .opt("--version", version)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn uniswap_swaps(pool: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn uniswap_swaps(pool: &str, version: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("uniswap")
         .subcommand("swaps")
         .arg(pool)
-        .chain(chain)
+        .opt("--version", version)
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn uniswap_day_data(pool: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn uniswap_day_data(pool: &str, version: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("uniswap")
         .subcommand("day-data")
         .arg(pool)
-        .chain(chain)
+        .opt("--version", version)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6502,6 +6562,7 @@ pub async fn uniswap_positions(
         .arg(address)
         .chain(chain)
         .opt("--version", version)
+        .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6522,13 +6583,17 @@ pub async fn uniswap_balance(
         .map_err(ToolError::from)
 }
 
-pub async fn uniswap_addresses(chain: Option<&str>) -> Result<String, ToolError> {
-    ArgsBuilder::new("uniswap")
-        .subcommand("addresses")
-        .chain(chain)
+pub async fn uniswap_addresses(version: Option<&str>) -> Result<String, ToolError> {
+    uniswap_addresses_args(version)
         .execute()
         .await
         .map_err(ToolError::from)
+}
+
+fn uniswap_addresses_args(version: Option<&str>) -> ArgsBuilder {
+    ArgsBuilder::new("uniswap")
+        .subcommand("addresses")
+        .opt("--version", version)
 }
 
 // =============================================================================
@@ -7082,6 +7147,8 @@ pub async fn cowswap_cancel_order(
     signature: &str,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("cowswap_cancel_order")?;
+
     ArgsBuilder::new("cow-swap")
         .subcommand("cancel-order")
         .arg(uid)
@@ -7099,6 +7166,8 @@ pub async fn cowswap_cancel_orders(
     signing_scheme: Option<&str>,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
+    require_write_tools_enabled("cowswap_cancel_orders")?;
+
     let uids = uids.join(",");
     ArgsBuilder::new("cow-swap")
         .subcommand("cancel-orders")
@@ -7117,18 +7186,18 @@ pub async fn cowswap_cancel_orders(
 // =============================================================================
 
 pub async fn lifi_quote(
-    from_chain: &str,
+    from_chain: u64,
     from_token: &str,
-    to_chain: &str,
+    to_chain: u64,
     to_token: &str,
     amount: &str,
     from_address: &str,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("quote")
-        .arg(from_chain)
+        .arg(&from_chain.to_string())
         .arg(from_token)
-        .arg(to_chain)
+        .arg(&to_chain.to_string())
         .arg(to_token)
         .arg(amount)
         .arg(from_address)
@@ -7139,18 +7208,18 @@ pub async fn lifi_quote(
 }
 
 pub async fn lifi_routes(
-    from_chain: &str,
+    from_chain: u64,
     from_token: &str,
-    to_chain: &str,
+    to_chain: u64,
     to_token: &str,
     amount: &str,
     from_address: &str,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("routes")
-        .arg(from_chain)
+        .arg(&from_chain.to_string())
         .arg(from_token)
-        .arg(to_chain)
+        .arg(&to_chain.to_string())
         .arg(to_token)
         .arg(amount)
         .arg(from_address)
@@ -7161,18 +7230,18 @@ pub async fn lifi_routes(
 }
 
 pub async fn lifi_best_route(
-    from_chain: &str,
+    from_chain: u64,
     from_token: &str,
-    to_chain: &str,
+    to_chain: u64,
     to_token: &str,
     amount: &str,
     from_address: &str,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("best-route")
-        .arg(from_chain)
+        .arg(&from_chain.to_string())
         .arg(from_token)
-        .arg(to_chain)
+        .arg(&to_chain.to_string())
         .arg(to_token)
         .arg(amount)
         .arg(from_address)
@@ -7202,20 +7271,20 @@ pub async fn lifi_chains() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_chain(chain: &str) -> Result<String, ToolError> {
+pub async fn lifi_chain(chain_id: u64) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("chain")
-        .arg(chain)
+        .arg(&chain_id.to_string())
         .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_tokens(chain_id: Option<&str>) -> Result<String, ToolError> {
+pub async fn lifi_tokens(chain_id: Option<u64>) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("tokens")
-        .opt("--chain-id", chain_id)
+        .opt("--chain-id", chain_id.map(|id| id.to_string()).as_deref())
         .format_json()
         .execute()
         .await
@@ -7249,21 +7318,21 @@ pub async fn lifi_exchanges() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_gas(chain_id: &str) -> Result<String, ToolError> {
+pub async fn lifi_gas(chain_id: u64) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("gas")
-        .arg(chain_id)
+        .arg(&chain_id.to_string())
         .format_json()
         .execute()
         .await
         .map_err(ToolError::from)
 }
 
-pub async fn lifi_connections(from_chain: &str, to_chain: &str) -> Result<String, ToolError> {
+pub async fn lifi_connections(from_chain: u64, to_chain: u64) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("connections")
-        .opt("--from-chain", Some(from_chain))
-        .opt("--to-chain", Some(to_chain))
+        .opt("--from-chain", Some(from_chain.to_string().as_str()))
+        .opt("--to-chain", Some(to_chain.to_string().as_str()))
         .format_json()
         .execute()
         .await
@@ -7271,18 +7340,18 @@ pub async fn lifi_connections(from_chain: &str, to_chain: &str) -> Result<String
 }
 
 pub async fn lifi_get_transaction(
-    from_chain: &str,
+    from_chain: u64,
     from_token: &str,
-    to_chain: &str,
+    to_chain: u64,
     to_token: &str,
     amount: &str,
     from_address: &str,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("lifi")
         .subcommand("get-transaction")
-        .arg(from_chain)
+        .arg(&from_chain.to_string())
         .arg(from_token)
-        .arg(to_chain)
+        .arg(&to_chain.to_string())
         .arg(to_token)
         .arg(amount)
         .arg(from_address)
@@ -7508,12 +7577,24 @@ pub async fn config_validate() -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
+/// Check a secret that is sent to ethcli as one stdin line
+fn single_line_secret<'a>(name: &str, value: &'a str) -> Result<&'a str, ToolError> {
+    let value = value.trim();
+    if value.is_empty() || value.contains(['\n', '\r']) {
+        return Err(ToolError::InvalidInput(format!(
+            "{name} must be a single non-empty line"
+        )));
+    }
+    Ok(value)
+}
+
 pub async fn config_set_etherscan_key(key: &str) -> Result<String, ToolError> {
     require_write_tools_enabled("config_set_etherscan_key")?;
 
     ArgsBuilder::new("config")
         .subcommand("set-etherscan-key")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7528,7 +7609,8 @@ pub async fn config_set_tenderly(
 
     ArgsBuilder::new("config")
         .subcommand("set-tenderly")
-        .opt("--key", Some(key))
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .opt("--account", Some(account))
         .opt("--project", Some(project))
         .execute()
@@ -7541,7 +7623,8 @@ pub async fn config_set_alchemy(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-alchemy")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7552,7 +7635,8 @@ pub async fn config_set_moralis(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-moralis")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7564,10 +7648,22 @@ pub async fn config_set_chainlink(
 ) -> Result<String, ToolError> {
     require_write_tools_enabled("config_set_chainlink")?;
 
+    // ethcli splits the stdin line at the first ':'
+    let client_id = single_line_secret("client_id", client_id)?;
+    if client_id.contains(':') {
+        return Err(ToolError::InvalidInput(
+            "client_id must not contain ':'".to_string(),
+        ));
+    }
+    let credentials = format!(
+        "{client_id}:{}",
+        single_line_secret("client_secret", client_secret)?
+    );
+
     ArgsBuilder::new("config")
         .subcommand("set-chainlink")
-        .opt("--key", Some(client_id))
-        .opt("--secret", Some(client_secret))
+        .opt_flag("--stdin", true)
+        .stdin(&credentials)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7578,7 +7674,8 @@ pub async fn config_set_dune(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-dune")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7589,7 +7686,8 @@ pub async fn config_set_solodit(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-solodit")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7600,7 +7698,8 @@ pub async fn config_set_pyth(key: &str) -> Result<String, ToolError> {
 
     ArgsBuilder::new("config")
         .subcommand("set-pyth")
-        .arg(key)
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -7654,7 +7753,7 @@ pub async fn endpoints_add(
         .chain(chain);
 
     if no_optimize {
-        builder = builder.arg("--no-optimize");
+        builder = builder.opt_flag("--no-optimize", true);
     }
 
     builder.execute().await.map_err(ToolError::from)
@@ -7677,15 +7776,20 @@ pub async fn endpoints_optimize(
 ) -> Result<String, ToolError> {
     require_write_tools_enabled("endpoints_optimize")?;
 
-    let mut builder = ArgsBuilder::new("endpoints")
-        .subcommand("optimize")
-        .chain(chain);
+    endpoints_optimize_args(url, chain)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
 
-    if let Some(u) = url {
-        builder = builder.arg(u);
+fn endpoints_optimize_args(url: Option<&str>, chain: Option<&str>) -> ArgsBuilder {
+    let builder = ArgsBuilder::new("endpoints").subcommand("optimize");
+    // Without a URL ethcli optimizes nothing unless --all is passed; --chain
+    // only filters --all.
+    match url {
+        Some(u) => builder.arg(u),
+        None => builder.opt_flag("--all", true).chain(chain),
     }
-
-    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn endpoints_test(url: &str) -> Result<String, ToolError> {
@@ -7779,7 +7883,8 @@ pub async fn chainlist_list(testnets: bool) -> Result<String, ToolError> {
 // =============================================================================
 
 /// Health check - verify ethcli-mcp and ethcli are working
-pub async fn health() -> String {
+/// Health report; `Err` (an MCP error result) when ethcli cannot be run
+pub async fn health() -> Result<String, String> {
     use crate::executor::metrics;
     use std::time::Instant;
 
@@ -7789,6 +7894,7 @@ pub async fn health() -> String {
 
     // Check ethcli binary
     let ethcli_check = ArgsBuilder::new("--version").execute().await;
+    let healthy = ethcli_check.is_ok();
     match ethcli_check {
         Ok(version) => {
             status.push_str(&format!("ethcli: OK ({})\n", version.trim()));
@@ -7810,7 +7916,11 @@ pub async fn health() -> String {
     let elapsed = start.elapsed();
     status.push_str(&format!("\nHealth check completed in {:?}\n", elapsed));
 
-    status
+    if healthy {
+        Ok(status)
+    } else {
+        Err(status)
+    }
 }
 
 #[cfg(test)]
@@ -7839,5 +7949,157 @@ mod response_tests {
         let capped = cap_response(big, 51);
         assert!(capped.starts_with(&"é".repeat(25)));
         assert!(capped.contains("output truncated to 50 of 200 bytes"));
+    }
+}
+
+#[cfg(test)]
+mod policy_tests {
+    use super::*;
+    use crate::types::{LifiQuoteInput, LogsInput, SimulateCallInput, SimulateTxInput};
+
+    fn assert_read_only_denied(result: Result<String, ToolError>) {
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("read-only mode"), "{err}");
+    }
+
+    // These run without ETHCLI_MCP_ENABLE_WRITE_TOOLS, so they never reach ethcli.
+    #[tokio::test]
+    async fn remote_side_effect_tools_are_blocked_in_read_only_mode() {
+        let uids = vec!["0x01".to_string()];
+        assert_read_only_denied(cowswap_cancel_orders(&uids, "0xsig", None, None).await);
+        assert_read_only_denied(cowswap_cancel_order("0x01", "0xsig", None).await);
+        assert_read_only_denied(alchemy_nft_report_spam("0xabc", None).await);
+        assert_read_only_denied(alchemy_nft_refresh_metadata("0xabc", "1", None).await);
+        assert_read_only_denied(moralis_nft_sync_collection("0xabc", None).await);
+        assert_read_only_denied(moralis_nft_resync_metadata("0xabc", "1", None).await);
+        assert_read_only_denied(moralis_nft_resync_traits("0xabc", None).await);
+    }
+
+    #[test]
+    fn single_line_secret_rejects_multiline_and_empty() {
+        assert_eq!(single_line_secret("key", " abc \n").unwrap(), "abc");
+        assert!(single_line_secret("key", "a\nb").is_err());
+        assert!(single_line_secret("key", "   ").is_err());
+    }
+
+    #[test]
+    fn removed_secret_fields_are_not_in_simulate_schemas() {
+        let call = serde_json::to_string(&schemars::schema_for!(SimulateCallInput)).unwrap();
+        let tx = serde_json::to_string(&schemars::schema_for!(SimulateTxInput)).unwrap();
+        for field in [
+            "tenderly_key",
+            "alchemy_key",
+            "rpc_headers",
+            "fork_headers",
+            "etherscan_api_key",
+            "show_secrets",
+        ] {
+            assert!(!call.contains(&format!("\"{field}\"")), "{field}");
+            assert!(!tx.contains(&format!("\"{field}\"")), "{field}");
+        }
+
+        // Callers still sending a removed field get an error, not silence
+        let err = serde_json::from_value::<SimulateTxInput>(serde_json::json!({
+            "hash": "0x01",
+            "etherscan_api_key": "secret",
+        }));
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn logs_input_has_no_topics_field() {
+        let err = serde_json::from_value::<LogsInput>(serde_json::json!({
+            "contract": "0xabc",
+            "topics": ["0x01"],
+        }));
+        assert!(err.is_err(), "topics was silently ignored by ethcli");
+    }
+
+    #[test]
+    fn lifi_chains_are_numeric_ids() {
+        let input: LifiQuoteInput = serde_json::from_value(serde_json::json!({
+            "from_chain": 1,
+            "from_token": "0xa",
+            "to_chain": 42161,
+            "to_token": "0xb",
+            "amount": "1",
+            "from_address": "0xc",
+        }))
+        .unwrap();
+        assert_eq!((input.from_chain, input.to_chain), (1, 42161));
+
+        let name = serde_json::from_value::<LifiQuoteInput>(serde_json::json!({
+            "from_chain": "ethereum",
+            "from_token": "0xa",
+            "to_chain": "arbitrum",
+            "to_token": "0xb",
+            "amount": "1",
+            "from_address": "0xc",
+        }));
+        assert!(name.is_err(), "ethcli parses LI.FI chains as u64 IDs");
+    }
+
+    #[test]
+    fn curve_lending_filters_by_chain() {
+        assert_eq!(
+            curve_lending_args("arbitrum").args(),
+            ["curve", "lending", "chain", "arbitrum"]
+        );
+    }
+
+    #[test]
+    fn endpoints_optimize_without_url_optimizes_all() {
+        assert_eq!(
+            endpoints_optimize_args(None, None).args(),
+            ["endpoints", "optimize", "--all"]
+        );
+        assert_eq!(
+            endpoints_optimize_args(None, Some("base")).args(),
+            ["endpoints", "optimize", "--all", "--chain", "base"]
+        );
+        assert_eq!(
+            endpoints_optimize_args(Some("https://rpc.example"), Some("base")).args(),
+            ["endpoints", "optimize", "https://rpc.example"]
+        );
+    }
+
+    #[test]
+    fn uniswap_addresses_passes_version() {
+        assert_eq!(
+            uniswap_addresses_args(Some("v3")).args(),
+            ["uniswap", "addresses", "--version", "v3"]
+        );
+    }
+
+    #[test]
+    fn mainnet_only_uniswap_tools_have_no_chain_field() {
+        use crate::types::{UniswapEthPriceInput, UniswapSubgraphPoolInput, UniswapTopPoolsInput};
+        for schema in [
+            schemars::schema_for!(UniswapEthPriceInput),
+            schemars::schema_for!(UniswapTopPoolsInput),
+            schemars::schema_for!(UniswapSubgraphPoolInput),
+        ] {
+            let json = serde_json::to_string(&schema).unwrap();
+            assert!(!json.contains("\"chain\""), "{json}");
+        }
+    }
+
+    #[test]
+    fn schemas_only_offer_fields_the_cli_takes() {
+        use crate::types::{CurveTradesInput, OpenoceanReverseQuoteInput};
+        let trades = serde_json::to_string(&schemars::schema_for!(CurveTradesInput)).unwrap();
+        assert!(!trades.contains("\"start\"") && !trades.contains("\"end\""));
+        let reverse =
+            serde_json::to_string(&schemars::schema_for!(OpenoceanReverseQuoteInput)).unwrap();
+        assert!(!reverse.contains("gas_price"));
+    }
+
+    #[tokio::test]
+    async fn file_references_are_rejected() {
+        let err = simulate_bundle("@/etc/hosts", None).await.unwrap_err();
+        assert!(err.to_string().contains("@file"), "{err}");
+        assert!(reject_file_reference("access_list", Some(" @x.json")).is_err());
+        assert!(reject_file_reference("access_list", Some("[]")).is_ok());
+        assert!(reject_file_reference("access_list", None).is_ok());
     }
 }
