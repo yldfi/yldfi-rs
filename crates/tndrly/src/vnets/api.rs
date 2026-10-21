@@ -3,8 +3,8 @@
 use super::admin_rpc::AdminRpc;
 use super::types::{
     CreateVNetRequest, DeleteVNetsRequest, ForkVNetRequest, ListVNetTransactionsQuery,
-    ListVNetsQuery, SendVNetTransactionRequest, UpdateVNetRequest, VNet, VNetRpcs,
-    VNetSimulationRequest, VNetSimulationRequestEnvelope, VNetTransaction,
+    ListVNetsQuery, SendVNetTransactionRequest, UpdateVNetRequest, VNet, VNetCallEnvelope,
+    VNetRpcs, VNetSimulationRequest, VNetTransaction,
 };
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
@@ -130,9 +130,9 @@ impl<'a> VNetsApi<'a> {
         vnet_id: &str,
         request: &VNetSimulationRequest,
     ) -> Result<serde_json::Value> {
-        let envelope = VNetSimulationRequestEnvelope {
+        let envelope = VNetCallEnvelope {
             call_args: request,
-            block_number: "latest",
+            block_number: Some("latest"),
         };
         self.client
             .post(
@@ -181,7 +181,10 @@ impl<'a> VNetsApi<'a> {
         let admin_url = rpcs
             .admin()
             .ok_or_else(|| crate::error::not_found("Admin RPC URL not available for this VNet"))?;
-        AdminRpc::new(admin_url)
+        Ok(AdminRpc::with_http_client(
+            admin_url,
+            self.client.http().clone(),
+        ))
     }
 
     /// Get an Admin RPC client from an existing `VNet` object
@@ -203,7 +206,10 @@ impl<'a> VNetsApi<'a> {
         let admin_url = rpcs
             .admin()
             .ok_or_else(|| crate::error::not_found("Admin RPC URL not available for this VNet"))?;
-        AdminRpc::new(admin_url)
+        Ok(AdminRpc::with_http_client(
+            admin_url,
+            self.client.http().clone(),
+        ))
     }
 
     /// Update a Virtual `TestNet`
@@ -223,7 +229,8 @@ impl<'a> VNetsApi<'a> {
 
     /// Send a transaction to be executed on a Virtual `TestNet`
     ///
-    /// Unlike `simulate`, this actually modifies the `VNet`'s state.
+    /// Unlike `simulate`, this actually modifies the `VNet`'s state. The
+    /// request is posted as `{"callArgs": {...}}`.
     ///
     /// # Example
     ///
@@ -232,7 +239,7 @@ impl<'a> VNetsApi<'a> {
     ///     "0x1234...",  // from
     ///     "0x5678...",  // to
     ///     "0xa9059cbb..." // data (transfer)
-    /// ).value("1000000000000000000");  // 1 ETH
+    /// ).value("1000000000000000000");  // 1 ETH, sent as 0xde0b6b3a7640000
     ///
     /// let tx = client.vnets().send_transaction("vnet-123", &request).await?;
     /// ```
@@ -241,10 +248,14 @@ impl<'a> VNetsApi<'a> {
         vnet_id: &str,
         request: &SendVNetTransactionRequest,
     ) -> Result<VNetTransaction> {
+        let envelope = VNetCallEnvelope {
+            call_args: request,
+            block_number: None,
+        };
         self.client
             .post(
                 &format!("/vnets/{}/transactions", encode_path_segment(vnet_id)),
-                request,
+                &envelope,
             )
             .await
     }
@@ -273,6 +284,90 @@ impl<'a> VNetsApi<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::Config;
+    use std::time::Duration;
+    use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_admin_rpc_uses_client_timeout() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path_regex("/vnets/vnet1$"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "vnet-1",
+                "slug": "vnet-1",
+                "display_name": "VNet",
+                "fork_config": { "network_id": 1 },
+                "virtual_network_config": {},
+                "rpcs": [{ "name": "Admin RPC", "url": format!("{}/admin", server.uri()) }],
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path_regex("/admin$"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_secs(5))
+                    .set_body_json(
+                        serde_json::json!({ "jsonrpc": "2.0", "id": 1, "result": "0x1" }),
+                    ),
+            )
+            .mount(&server)
+            .await;
+
+        let config = Config::new("key", "acct", "proj")
+            .with_base_url(server.uri())
+            .with_timeout(Duration::from_millis(200));
+        let client = Client::new(config).unwrap();
+        let admin = client.vnets().admin_rpc("vnet1").await.unwrap();
+
+        let started = std::time::Instant::now();
+        let err = admin.increase_time(1).await.unwrap_err();
+        assert!(
+            matches!(&err, crate::error::Error::Http(e) if e.is_timeout()),
+            "{err}"
+        );
+        assert!(started.elapsed() < Duration::from_secs(4));
+    }
+
+    #[tokio::test]
+    async fn test_send_transaction_posts_call_args_envelope() {
+        use wiremock::matchers::body_json;
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path_regex("/vnets/vnet1/transactions$"))
+            .and(body_json(serde_json::json!({
+                "callArgs": {
+                    "from": "0x0000000000000000000000000000000000000001",
+                    "to": "0x0000000000000000000000000000000000000002",
+                    "input": "0x",
+                    "value": "0x64"
+                }
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "00000000-0000-0000-0000-000000000001",
+                "status": "success"
+            })))
+            .mount(&server)
+            .await;
+
+        let config = Config::new("key", "acct", "proj").with_base_url(server.uri());
+        let client = Client::new(config).unwrap();
+        let request = SendVNetTransactionRequest::new(
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000002",
+            "0x",
+        )
+        .value("100");
+        let tx = client
+            .vnets()
+            .send_transaction("vnet1", &request)
+            .await
+            .unwrap();
+        assert!(tx.is_success());
+    }
 
     #[test]
     fn test_create_vnet_request_builder() {

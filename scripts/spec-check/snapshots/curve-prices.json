@@ -1,0 +1,3570 @@
+{
+ "provider": "curve-prices",
+ "url": "https://prices.curve.finance/feeds-docs/openapi.json",
+ "version": "1.0.0",
+ "operations": {
+  "GET /ping": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /v1/chains/": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].lending_tvl",
+    "data[].name*",
+    "data[].pool_tvl"
+   ]
+  },
+  "GET /v1/chains/fees": {
+   "deprecated": false,
+   "params": [
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "aggregated*",
+    "aggregated.fees_to_dao*",
+    "aggregated.fees_to_lp*",
+    "aggregated.fees_to_treasury*",
+    "aggregated.liquidity_fees*",
+    "aggregated.liquidity_volume*",
+    "aggregated.lp_fees_yb*",
+    "aggregated.total_fees*",
+    "aggregated.total_volume*",
+    "aggregated.trading_fees*",
+    "aggregated.trading_volume*",
+    "chains*",
+    "chains[].chain*",
+    "chains[].fees_to_dao*",
+    "chains[].fees_to_lp*",
+    "chains[].fees_to_treasury*",
+    "chains[].liquidity_fees*",
+    "chains[].liquidity_volume*",
+    "chains[].lp_fees_yb*",
+    "chains[].total_fees*",
+    "chains[].total_volume*",
+    "chains[].trading_fees*",
+    "chains[].trading_volume*",
+    "end*",
+    "start*"
+   ]
+  },
+  "GET /v1/chains/pool_filters": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].chain*",
+    "data[].chain_id*",
+    "data[].pools*",
+    "data[].pools[].address*",
+    "data[].pools[].name*"
+   ]
+  },
+  "GET /v1/chains/stats": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "aggregated*",
+    "aggregated.liquidity_fee_24h*",
+    "aggregated.liquidity_volume_24h*",
+    "aggregated.total_tvl*",
+    "aggregated.trading_fee_24h*",
+    "aggregated.trading_volume_24h*",
+    "cached_at",
+    "chains*",
+    "chains[].chain*",
+    "chains[].liquidity_fee_24h*",
+    "chains[].liquidity_volume_24h*",
+    "chains[].total_tvl*",
+    "chains[].trading_fee_24h*",
+    "chains[].trading_volume_24h*"
+   ]
+  },
+  "GET /v1/chains/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "cached_at",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].address*",
+    "data[].amplification_coefficient",
+    "data[].balances*",
+    "data[].balances_usd*",
+    "data[].base_daily_apr*",
+    "data[].base_pool",
+    "data[].base_weekly_apr*",
+    "data[].coins*",
+    "data[].coins[].address*",
+    "data[].coins[].decimals*",
+    "data[].coins[].name",
+    "data[].coins[].pool_index*",
+    "data[].coins[].symbol*",
+    "data[].creation_block_number",
+    "data[].creation_ts",
+    "data[].implementation_address",
+    "data[].is_metapool",
+    "data[].lending_indices",
+    "data[].liquidity_fee_24h*",
+    "data[].liquidity_volume_24h*",
+    "data[].lp_token_address",
+    "data[].lp_token_supply",
+    "data[].lp_token_symbol",
+    "data[].n_coins*",
+    "data[].name*",
+    "data[].pool_methods*",
+    "data[].pool_type",
+    "data[].price_oracle",
+    "data[].trading_fee_24h*",
+    "data[].trading_volume_24h*",
+    "data[].tvl_usd*",
+    "data[].virtual_price*",
+    "total*",
+    "total.liquidity_fee_24h*",
+    "total.liquidity_volume_24h*",
+    "total.total_tvl*",
+    "total.trading_fee_24h*",
+    "total.trading_volume_24h*"
+   ]
+  },
+  "GET /v1/chains/{chain}/registries": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "data*",
+    "data[].address*",
+    "data[].implementations*",
+    "data[].pool_count*",
+    "data[].type*"
+   ]
+  },
+  "GET /v1/crvusd/aggregated_prices/": {
+   "deprecated": false,
+   "params": [
+    "query:agg_number",
+    "query:agg_units",
+    "query:end*",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].price*",
+    "data[].timestamp*"
+   ]
+  },
+  "GET /v1/crvusd/collateral_events/{chain}/{controller}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "controller*",
+    "count*",
+    "data*",
+    "data[].collateral_change",
+    "data[].collateral_change_usd",
+    "data[].dt*",
+    "data[].is_closed*",
+    "data[].is_in_soft_liquidation",
+    "data[].is_position_closed*",
+    "data[].leverage",
+    "data[].leverage.borrowed_from_state_collateral*",
+    "data[].leverage.borrowed_from_user_collateral*",
+    "data[].leverage.debt*",
+    "data[].leverage.event_type*",
+    "data[].leverage.leverage_collateral*",
+    "data[].leverage.state_collateral_used*",
+    "data[].leverage.user*",
+    "data[].leverage.user_borrowed*",
+    "data[].leverage.user_collateral*",
+    "data[].leverage.user_collateral_from_borrowed*",
+    "data[].leverage.user_collateral_used*",
+    "data[].liquidation",
+    "data[].liquidation.collateral_received*",
+    "data[].liquidation.collateral_received_usd",
+    "data[].liquidation.debt*",
+    "data[].liquidation.debt_usd",
+    "data[].liquidation.liquidator*",
+    "data[].liquidation.stablecoin_received*",
+    "data[].liquidation.stablecoin_received_usd",
+    "data[].liquidation.user*",
+    "data[].loan_change",
+    "data[].loan_change_usd",
+    "data[].n1",
+    "data[].n2",
+    "data[].oracle_price",
+    "data[].transaction_hash*",
+    "data[].type*",
+    "data[].user*",
+    "page*",
+    "per_page*"
+   ]
+  },
+  "GET /v1/crvusd/collateral_events/{chain}/{controller}/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "path:user*",
+    "query:new_tx",
+    "query:page",
+    "query:pagination"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "controller*",
+    "count*",
+    "data*",
+    "data[].collateral_change",
+    "data[].collateral_change_usd",
+    "data[].dt*",
+    "data[].is_closed*",
+    "data[].is_in_soft_liquidation",
+    "data[].is_position_closed*",
+    "data[].leverage",
+    "data[].leverage.borrowed_from_state_collateral*",
+    "data[].leverage.borrowed_from_user_collateral*",
+    "data[].leverage.debt*",
+    "data[].leverage.event_type*",
+    "data[].leverage.leverage_collateral*",
+    "data[].leverage.state_collateral_used*",
+    "data[].leverage.user*",
+    "data[].leverage.user_borrowed*",
+    "data[].leverage.user_collateral*",
+    "data[].leverage.user_collateral_from_borrowed*",
+    "data[].leverage.user_collateral_used*",
+    "data[].liquidation",
+    "data[].liquidation.collateral_received*",
+    "data[].liquidation.collateral_received_usd",
+    "data[].liquidation.debt*",
+    "data[].liquidation.debt_usd",
+    "data[].liquidation.liquidator*",
+    "data[].liquidation.stablecoin_received*",
+    "data[].liquidation.stablecoin_received_usd",
+    "data[].liquidation.user*",
+    "data[].loan_change",
+    "data[].loan_change_usd",
+    "data[].n1",
+    "data[].n2",
+    "data[].oracle_price",
+    "data[].transaction_hash*",
+    "data[].type*",
+    "data[].user*",
+    "page",
+    "pagination",
+    "total_borrowed*",
+    "total_borrowed_precise*",
+    "total_borrowed_usd_value*",
+    "total_deposit*",
+    "total_deposit_from_user*",
+    "total_deposit_from_user_precise*",
+    "total_deposit_from_user_usd_value*",
+    "total_deposit_precise*",
+    "total_deposit_usd_value*",
+    "user*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/bad_debt": {
+   "deprecated": false,
+   "params": [
+    "query:fetch_on_chain"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].bad_debt*",
+    "data[].chain*",
+    "data[].controller_address*",
+    "data[].liquidatable_collateral_usd*",
+    "data[].liquidatable_pos_debt_usd*",
+    "data[].liquidatable_positions*",
+    "data[].liquidatable_stablecoin_usd*",
+    "data[].market*",
+    "data[].soft_liquidation_users*",
+    "total_bad_debt*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/history/aggregated": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].hard_count*",
+    "data[].hard_value*",
+    "data[].market*",
+    "data[].price*",
+    "data[].self_count*",
+    "data[].self_value*",
+    "data[].timestamp*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/cr/distribution": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].collateral*",
+    "data[].cr_decile*",
+    "data[].debt*",
+    "data[].stablecoin*",
+    "max*",
+    "mean*",
+    "median*",
+    "min*",
+    "std*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/hard/total": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "total*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/hard/users": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "users*",
+    "users[].dt*",
+    "users[].hard_liquidated_users*",
+    "users[].unique_users*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/health/distribution": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].collateral*",
+    "data[].debt*",
+    "data[].health_decile*",
+    "data[].stablecoin*",
+    "max*",
+    "mean*",
+    "median*",
+    "min*",
+    "std*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/history/aggregated": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].hard_count*",
+    "data[].hard_value*",
+    "data[].price*",
+    "data[].self_count*",
+    "data[].self_value*",
+    "data[].timestamp*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/history/detailed": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].block*",
+    "data[].collateral_received*",
+    "data[].collateral_received_usd*",
+    "data[].debt*",
+    "data[].dt*",
+    "data[].liquidator*",
+    "data[].n1*",
+    "data[].n2*",
+    "data[].oracle_price*",
+    "data[].self*",
+    "data[].stablecoin_received*",
+    "data[].tx*",
+    "data[].user*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/losses/history": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].avg_abs_loss*",
+    "data[].avg_pct_loss*",
+    "data[].median_abs_loss*",
+    "data[].median_pct_loss*",
+    "data[].ratio*",
+    "data[].timestamp*",
+    "data[].total_users*",
+    "data[].users_with_losses*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/losses_per_band_range": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start",
+    "query:statistic"
+   ],
+   "request": [],
+   "response": [
+    "ranges*",
+    "ranges[].range*",
+    "ranges[].users*",
+    "ranges[].value*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/overview": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:fetch_on_chain"
+   ],
+   "request": [],
+   "response": [
+    "average_health*",
+    "bad_debt*",
+    "collat_ratio*",
+    "debt_weighted_average_health",
+    "liquidatable_collateral*",
+    "liquidatable_collateral_usd*",
+    "liquidatable_pos_debt*",
+    "liquidatable_pos_debt_usd*",
+    "liquidatable_positions*",
+    "liquidatable_stablecoin*",
+    "liquidatable_stablecoin_usd*",
+    "median_health*",
+    "soft_liquidation_users*"
+   ]
+  },
+  "GET /v1/crvusd/liquidations/{chain}/{controller}/soft_liquidation_ratio": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].collateral_under_sl_ratio*",
+    "data[].debt_under_sl_ratio*",
+    "data[].proportion*",
+    "data[].stablecoin_under_sl_ratio*",
+    "data[].timestamp*",
+    "data[].total_collateral*",
+    "data[].total_collateral_under_sl*",
+    "data[].total_collateral_under_sl_usd*",
+    "data[].total_debt*",
+    "data[].total_debt_under_sl*",
+    "data[].total_stablecoin*",
+    "data[].total_stablecoin_under_sl*"
+   ]
+  },
+  "GET /v1/crvusd/llamma_events/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].block_number*",
+    "data[].deposit",
+    "data[].deposit.amount*",
+    "data[].deposit.amount_usd",
+    "data[].deposit.n1*",
+    "data[].deposit.n2*",
+    "data[].provider*",
+    "data[].timestamp*",
+    "data[].transaction_hash*",
+    "data[].withdrawal",
+    "data[].withdrawal.amount_borrowed*",
+    "data[].withdrawal.amount_borrowed_usd",
+    "data[].withdrawal.amount_collateral*",
+    "data[].withdrawal.amount_collateral_usd"
+   ]
+  },
+  "GET /v1/crvusd/llamma_ohlc/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:agg_number",
+    "query:agg_units",
+    "query:end*",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].base_price",
+    "data[].close",
+    "data[].high",
+    "data[].low",
+    "data[].open",
+    "data[].oracle_price",
+    "data[].time*",
+    "data[].volume"
+   ]
+  },
+  "GET /v1/crvusd/llamma_trades/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].amount_bought*",
+    "data[].amount_sold*",
+    "data[].block_number*",
+    "data[].bought_id*",
+    "data[].buyer",
+    "data[].price*",
+    "data[].sold_id*",
+    "data[].timestamp*",
+    "data[].token_bought*",
+    "data[].token_bought.address*",
+    "data[].token_bought.symbol*",
+    "data[].token_sold*",
+    "data[].token_sold.address*",
+    "data[].token_sold.symbol*",
+    "data[].transaction_hash*"
+   ]
+  },
+  "GET /v1/crvusd/markets": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "chains*"
+   ]
+  },
+  "GET /v1/crvusd/markets/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "cached_at",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].address*",
+    "data[].amm_a",
+    "data[].amm_price",
+    "data[].base_price",
+    "data[].borrow_apr",
+    "data[].borrow_apy",
+    "data[].borrow_total_apr",
+    "data[].borrow_total_apy",
+    "data[].borrowable",
+    "data[].collateral_amount*",
+    "data[].collateral_amount_usd*",
+    "data[].collateral_token*",
+    "data[].collateral_token.address*",
+    "data[].collateral_token.decimals",
+    "data[].collateral_token.rebasing_yield",
+    "data[].collateral_token.rebasing_yield_apr",
+    "data[].collateral_token.symbol*",
+    "data[].collateral_token.underlying_tokens",
+    "data[].collateral_token.underlying_tokens[].address*",
+    "data[].collateral_token.underlying_tokens[].symbol*",
+    "data[].collected_fees*",
+    "data[].created_at",
+    "data[].debt_ceiling",
+    "data[].factory_address*",
+    "data[].future_rate",
+    "data[].leverage",
+    "data[].liquidation_discount",
+    "data[].llamma*",
+    "data[].loan_discount",
+    "data[].max_band",
+    "data[].max_ltv",
+    "data[].min_band",
+    "data[].minted",
+    "data[].monetary_policy_address",
+    "data[].n_loans*",
+    "data[].oracle",
+    "data[].oracle_pools",
+    "data[].pending_fees*",
+    "data[].price_oracle",
+    "data[].rate*",
+    "data[].redeemed",
+    "data[].stablecoin_amount*",
+    "data[].stablecoin_amount_usd*",
+    "data[].stablecoin_token*",
+    "data[].stablecoin_token.address*",
+    "data[].stablecoin_token.decimals",
+    "data[].stablecoin_token.rebasing_yield",
+    "data[].stablecoin_token.rebasing_yield_apr",
+    "data[].stablecoin_token.symbol*",
+    "data[].stablecoin_token.underlying_tokens",
+    "data[].stablecoin_token.underlying_tokens[].address*",
+    "data[].stablecoin_token.underlying_tokens[].symbol*",
+    "data[].total_debt*",
+    "data[].total_debt_usd*",
+    "data[].volume_24h_usd",
+    "page",
+    "per_page"
+   ]
+  },
+  "GET /v1/crvusd/markets/{chain}/supply": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "data*",
+    "data[].borrowable*",
+    "data[].market*",
+    "data[].supply*",
+    "data[].timestamp*"
+   ]
+  },
+  "GET /v1/crvusd/markets/{chain}/tvl": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "tvl*"
+   ]
+  },
+  "GET /v1/crvusd/markets/{chain}/{address}/snapshots": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:agg",
+    "query:end",
+    "query:fetch_on_chain",
+    "query:limit",
+    "query:sort_by",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "data*",
+    "data[].amm_a",
+    "data[].amm_price*",
+    "data[].base_price*",
+    "data[].borrow_apr",
+    "data[].borrow_apy",
+    "data[].borrow_total_apr",
+    "data[].borrow_total_apy",
+    "data[].borrowable*",
+    "data[].collateral_token*",
+    "data[].collateral_token.address*",
+    "data[].collateral_token.decimals",
+    "data[].collateral_token.rebasing_yield",
+    "data[].collateral_token.rebasing_yield_apr",
+    "data[].collateral_token.symbol*",
+    "data[].dt*",
+    "data[].future_rate",
+    "data[].liquidation_discount*",
+    "data[].loan_discount*",
+    "data[].max_band*",
+    "data[].max_ltv*",
+    "data[].min_band*",
+    "data[].minted*",
+    "data[].n_loans*",
+    "data[].price_oracle*",
+    "data[].rate*",
+    "data[].redeemed*",
+    "data[].stablecoin_token*",
+    "data[].stablecoin_token.address*",
+    "data[].stablecoin_token.decimals",
+    "data[].stablecoin_token.rebasing_yield",
+    "data[].stablecoin_token.rebasing_yield_apr",
+    "data[].stablecoin_token.symbol*",
+    "data[].sum_debt_squared*",
+    "data[].total_collateral*",
+    "data[].total_collateral_usd*",
+    "data[].total_debt*",
+    "data[].total_debt_usd*",
+    "data[].total_stablecoin*",
+    "data[].total_stablecoin_usd*",
+    "market*"
+   ]
+  },
+  "GET /v1/crvusd/markets/{chain}/{controller}/borrowers": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:page",
+    "query:per_page",
+    "query:sort_by",
+    "query:sort_direction"
+   ],
+   "request": [],
+   "response": [
+    "borrowers*",
+    "borrowers[].address*",
+    "borrowers[].collateral*",
+    "borrowers[].collateral_usd*",
+    "borrowers[].debt*",
+    "borrowers[].debt_usd*",
+    "borrowers[].health*",
+    "borrowers[].percent_of_total_debt",
+    "borrowers[].rank*",
+    "borrowers[].soft_liquidation*",
+    "chain*",
+    "controller_address*",
+    "page*",
+    "per_page*",
+    "total_borrowers*",
+    "total_debt*",
+    "total_debt_usd*"
+   ]
+  },
+  "GET /v1/crvusd/markets/{chain}/{controller}/loans/distribution": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "collateral*",
+    "collateral[].label*",
+    "collateral[].value*",
+    "debt*",
+    "debt[].label*",
+    "debt[].value*",
+    "stablecoin*",
+    "stablecoin[].label*",
+    "stablecoin[].value*"
+   ]
+  },
+  "GET /v1/crvusd/oracle_ohlc/{chain}/{controller}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:agg_number",
+    "query:agg_units",
+    "query:end*",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "controller*",
+    "data*",
+    "data[].base_price",
+    "data[].close",
+    "data[].high",
+    "data[].low",
+    "data[].open",
+    "data[].oracle_price",
+    "data[].time*",
+    "oracle*",
+    "price_source_pools*",
+    "price_source_pools[].address*",
+    "price_source_pools[].borrowed_address*",
+    "price_source_pools[].borrowed_ix*",
+    "price_source_pools[].borrowed_symbol*",
+    "price_source_pools[].collateral_address*",
+    "price_source_pools[].collateral_ix*",
+    "price_source_pools[].collateral_symbol*"
+   ]
+  },
+  "GET /v1/crvusd/pegkeepers/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "keepers*",
+    "keepers[].active*",
+    "keepers[].address*",
+    "keepers[].pair*",
+    "keepers[].pair[].address*",
+    "keepers[].pair[].symbol*",
+    "keepers[].pending_profit_raw",
+    "keepers[].pending_profit_usd",
+    "keepers[].pool*",
+    "keepers[].pool_address*",
+    "keepers[].total_debt",
+    "keepers[].total_profit"
+   ]
+  },
+  "GET /v1/crvusd/pegkeepers/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:page",
+    "query:pagination"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "events*",
+    "events[].action_type*",
+    "events[].amount*",
+    "events[].block_number*",
+    "events[].debt*",
+    "events[].profit*",
+    "events[].timestamp*",
+    "events[].transaction_hash*",
+    "keeper*"
+   ]
+  },
+  "GET /v1/crvusd/savings/events": {
+   "deprecated": false,
+   "params": [
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "events*",
+    "events[].action_type*",
+    "events[].assets*",
+    "events[].block_number*",
+    "events[].owner*",
+    "events[].receiver*",
+    "events[].sender*",
+    "events[].shares*",
+    "events[].timestamp*",
+    "events[].transaction_hash*"
+   ]
+  },
+  "GET /v1/crvusd/savings/revenue": {
+   "deprecated": false,
+   "params": [
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "history*",
+    "history[].current_debt*",
+    "history[].dt*",
+    "history[].gain*",
+    "history[].loss*",
+    "history[].protocol_fees*",
+    "history[].strategy*",
+    "history[].total_fees*",
+    "history[].total_refunds*",
+    "history[].tx_hash*",
+    "total_distributed*"
+   ]
+  },
+  "GET /v1/crvusd/savings/statistics": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "last_updated*",
+    "last_updated_block*",
+    "proj_apy*",
+    "supply*"
+   ]
+  },
+  "GET /v1/crvusd/savings/yield": {
+   "deprecated": false,
+   "params": [
+    "query:agg_number",
+    "query:agg_units",
+    "query:end*",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].assets*",
+    "data[].price*",
+    "data[].proj_apy*",
+    "data[].supply*",
+    "data[].timestamp*"
+   ]
+  },
+  "GET /v1/crvusd/savings/{user}/events": {
+   "deprecated": false,
+   "params": [
+    "path:user*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "events*",
+    "events[].action_type*",
+    "events[].assets*",
+    "events[].block_number*",
+    "events[].owner*",
+    "events[].receiver*",
+    "events[].sender*",
+    "events[].shares*",
+    "events[].timestamp*",
+    "events[].transaction_hash*"
+   ]
+  },
+  "GET /v1/crvusd/savings/{user}/stats": {
+   "deprecated": false,
+   "params": [
+    "path:user*"
+   ],
+   "request": [],
+   "response": [
+    "current_balance*",
+    "total_deposited*",
+    "total_received*",
+    "total_transferred_in*",
+    "total_transferred_out*",
+    "total_withdrawn*"
+   ]
+  },
+  "GET /v1/crvusd/users/all/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:user*",
+    "query:include_closed"
+   ],
+   "request": [],
+   "response": [
+    "chains*",
+    "user*"
+   ]
+  },
+  "GET /v1/crvusd/users/{chain}/{controller}/users": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:page",
+    "query:per_page",
+    "query:sort_by",
+    "query:sort_direction"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "data*",
+    "data[].debt*",
+    "data[].first*",
+    "data[].health*",
+    "data[].health_full*",
+    "data[].last*",
+    "data[].loss*",
+    "data[].soft_liquidation*",
+    "data[].stablecoin*",
+    "data[].user*",
+    "page*",
+    "per_page*"
+   ]
+  },
+  "GET /v1/crvusd/users/{chain}/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:user*",
+    "query:include_closed",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "markets*",
+    "markets[].collateral*",
+    "markets[].controller*",
+    "markets[].first_snapshot*",
+    "markets[].last_snapshot*",
+    "page*",
+    "per_page*",
+    "user*"
+   ]
+  },
+  "GET /v1/crvusd/users/{chain}/{user}/{controller}/snapshots": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "path:user*",
+    "query:end",
+    "query:page",
+    "query:per_page",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "data*",
+    "data[].active_band",
+    "data[].block_number*",
+    "data[].collateral*",
+    "data[].collateral_up*",
+    "data[].debt*",
+    "data[].health*",
+    "data[].health_full*",
+    "data[].loss*",
+    "data[].loss_pct*",
+    "data[].n*",
+    "data[].n1*",
+    "data[].n2*",
+    "data[].oracle_price*",
+    "data[].soft_liquidation*",
+    "data[].stablecoin*",
+    "data[].timestamp*",
+    "data[].total_deposited*",
+    "page*",
+    "per_page*",
+    "user*"
+   ]
+  },
+  "GET /v1/crvusd/users/{chain}/{user}/{controller}/stats": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "path:user*"
+   ],
+   "request": [],
+   "response": [
+    "active_band",
+    "block_number*",
+    "collateral*",
+    "collateral_up*",
+    "debt*",
+    "health*",
+    "health_full*",
+    "loss*",
+    "loss_pct*",
+    "n*",
+    "n1*",
+    "n2*",
+    "oracle_price*",
+    "soft_liquidation*",
+    "stablecoin*",
+    "timestamp*",
+    "total_deposited*"
+   ]
+  },
+  "GET /v1/crvusd/yield_basis/{chain}/history": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "data*",
+    "data[].block_number*",
+    "data[].dt*",
+    "data[].yb_factory_balance*",
+    "data[].yb_max_debt*",
+    "data[].yb_total_allocated*",
+    "data[].yb_total_amm_balance*",
+    "data[].yb_total_amm_debt*"
+   ]
+  },
+  "GET /v1/crvusd/yield_basis/{chain}/supply": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "cached_at",
+    "data*",
+    "data.mint_market_debt*",
+    "data.mint_pegkeeper_debt*",
+    "data.total_supply*",
+    "data.yb_factory_balance*",
+    "data.yb_max_debt*",
+    "data.yb_total_allocated*",
+    "data.yb_total_amm_balance*",
+    "data.yb_total_amm_debt*"
+   ]
+  },
+  "GET /v1/dao/fees/collected": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].amount*",
+    "data[].coin*",
+    "data[].coin.address*",
+    "data[].coin.lp_token*",
+    "data[].coin.precision*",
+    "data[].coin.symbol*",
+    "data[].usd_amount*"
+   ]
+  },
+  "GET /v1/dao/fees/crvusd/weekly": {
+   "deprecated": false,
+   "params": [
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "fees*",
+    "fees[].collateral*",
+    "fees[].controller*",
+    "fees[].fees_usd*",
+    "fees[].timestamp*"
+   ]
+  },
+  "GET /v1/dao/fees/distributions": {
+   "deprecated": false,
+   "params": [
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "distributions*",
+    "distributions[].fees_usd*",
+    "distributions[].timestamp*",
+    "page*"
+   ]
+  },
+  "GET /v1/dao/fees/pools/weekly": {
+   "deprecated": false,
+   "params": [
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "fees*",
+    "fees[].chain*",
+    "fees[].fees_usd*",
+    "fees[].timestamp*"
+   ]
+  },
+  "GET /v1/dao/fees/settlements": {
+   "deprecated": false,
+   "params": [
+    "query:timestamp"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].amount*",
+    "data[].amount_received*",
+    "data[].block_number*",
+    "data[].coin*",
+    "data[].coin.address*",
+    "data[].coin.lp_token*",
+    "data[].coin.precision*",
+    "data[].coin.symbol*",
+    "data[].dt*",
+    "data[].epoch*",
+    "data[].fee_amount*",
+    "data[].router_received*",
+    "data[].tx_hash*"
+   ]
+  },
+  "GET /v1/dao/fees/staged": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].amount*",
+    "data[].coin*",
+    "data[].coin.address*",
+    "data[].coin.lp_token*",
+    "data[].coin.precision*",
+    "data[].coin.symbol*",
+    "data[].usd_amount*"
+   ]
+  },
+  "GET /v1/dao/fees/{chain}/pending": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "data*",
+    "data[].admin_fees*",
+    "data[].name*",
+    "data[].pool*",
+    "data[].usd_value*"
+   ]
+  },
+  "GET /v1/dao/gauges/overview": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "cached_at",
+    "gauges*",
+    "gauges[].address*",
+    "gauges[].creation_date*",
+    "gauges[].creation_tx*",
+    "gauges[].crv_apr_base",
+    "gauges[].crv_apr_boosted",
+    "gauges[].deploying_instance",
+    "gauges[].effective_address*",
+    "gauges[].emissions*",
+    "gauges[].extra_rewards",
+    "gauges[].gauge_relative_weight*",
+    "gauges[].gauge_relative_weight_60d_delta",
+    "gauges[].gauge_relative_weight_7d_delta",
+    "gauges[].gauge_type*",
+    "gauges[].gauge_weight*",
+    "gauges[].gauge_weight_60d",
+    "gauges[].gauge_weight_60d_delta",
+    "gauges[].gauge_weight_7d",
+    "gauges[].gauge_weight_7d_delta",
+    "gauges[].is_factory",
+    "gauges[].is_killed",
+    "gauges[].last_vote_date",
+    "gauges[].last_vote_tx",
+    "gauges[].lp_token",
+    "gauges[].lp_token_price",
+    "gauges[].market",
+    "gauges[].market.chain",
+    "gauges[].market.name",
+    "gauges[].name",
+    "gauges[].pool",
+    "gauges[].pool.address*",
+    "gauges[].pool.chain",
+    "gauges[].pool.name",
+    "gauges[].pool.trading_volume_24h",
+    "gauges[].pool.tvl_usd",
+    "gauges[].prev_epoch_emissions*",
+    "gauges[].prev_prev_epoch_emissions*",
+    "gauges[].root_gauge",
+    "gauges[].tokens",
+    "gauges[].tokens[].address*",
+    "gauges[].tokens[].precision*",
+    "gauges[].tokens[].symbol*",
+    "gauges[].version",
+    "gauges[].working_supply"
+   ]
+  },
+  "GET /v1/dao/gauges/votes/user/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:user*",
+    "query:tx_hash"
+   ],
+   "request": [],
+   "response": [
+    "votes*",
+    "votes[].block_number*",
+    "votes[].gauge*",
+    "votes[].gauge_name",
+    "votes[].timestamp*",
+    "votes[].transaction*",
+    "votes[].weight*"
+   ]
+  },
+  "GET /v1/dao/gauges/{gauge}/deployment": {
+   "deprecated": false,
+   "params": [
+    "path:gauge*"
+   ],
+   "request": [],
+   "response": [
+    "block_number*",
+    "calldata*",
+    "decoded_calldata*",
+    "dt*",
+    "from_address*",
+    "to_address*",
+    "transaction_hash*"
+   ]
+  },
+  "GET /v1/dao/gauges/{gauge}/metadata": {
+   "deprecated": false,
+   "params": [
+    "path:gauge*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "creation_date*",
+    "creation_tx*",
+    "crv_apr_base",
+    "crv_apr_boosted",
+    "deploying_instance",
+    "effective_address*",
+    "emissions*",
+    "extra_rewards",
+    "gauge_relative_weight*",
+    "gauge_relative_weight_60d_delta",
+    "gauge_relative_weight_7d_delta",
+    "gauge_type*",
+    "gauge_weight*",
+    "gauge_weight_60d",
+    "gauge_weight_60d_delta",
+    "gauge_weight_7d",
+    "gauge_weight_7d_delta",
+    "is_factory",
+    "is_killed",
+    "last_vote_date",
+    "last_vote_tx",
+    "lp_token",
+    "lp_token_price",
+    "market",
+    "market.chain",
+    "market.name",
+    "name",
+    "pool",
+    "pool.address*",
+    "pool.chain",
+    "pool.name",
+    "pool.trading_volume_24h",
+    "pool.tvl_usd",
+    "prev_epoch_emissions*",
+    "prev_prev_epoch_emissions*",
+    "root_gauge",
+    "tokens",
+    "tokens[].address*",
+    "tokens[].precision*",
+    "tokens[].symbol*",
+    "version",
+    "working_supply"
+   ]
+  },
+  "GET /v1/dao/gauges/{gauge}/votes": {
+   "deprecated": false,
+   "params": [
+    "path:gauge*"
+   ],
+   "request": [],
+   "response": [
+    "votes*",
+    "votes[].block_number*",
+    "votes[].timestamp*",
+    "votes[].transaction*",
+    "votes[].user*",
+    "votes[].weight*"
+   ]
+  },
+  "GET /v1/dao/gauges/{gauge}/weight_history": {
+   "deprecated": false,
+   "params": [
+    "path:gauge*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].emissions*",
+    "data[].epoch*",
+    "data[].gauge_relative_weight*",
+    "data[].gauge_weight*",
+    "data[].is_killed"
+   ]
+  },
+  "GET /v1/dao/lending/{chain}/{controller}/gauge": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "name*"
+   ]
+  },
+  "GET /v1/dao/lockers": {
+   "deprecated": false,
+   "params": [
+    "query:page",
+    "query:pagination"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "locks*",
+    "locks[].locked*",
+    "locks[].unlock_time*",
+    "locks[].user*",
+    "locks[].weight*",
+    "locks[].weight_ratio*",
+    "page*"
+   ]
+  },
+  "GET /v1/dao/lockers/{top}": {
+   "deprecated": false,
+   "params": [
+    "path:top*"
+   ],
+   "request": [],
+   "response": [
+    "users*",
+    "users[].locked*",
+    "users[].unlock_time*",
+    "users[].user*",
+    "users[].weight*",
+    "users[].weight_ratio*"
+   ]
+  },
+  "GET /v1/dao/locks/daily/{days}": {
+   "deprecated": false,
+   "params": [
+    "path:days*"
+   ],
+   "request": [],
+   "response": [
+    "locks*",
+    "locks[].amount*",
+    "locks[].day*"
+   ]
+  },
+  "GET /v1/dao/locks/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:user*"
+   ],
+   "request": [],
+   "response": [
+    "locks*",
+    "locks[].amount*",
+    "locks[].block_number*",
+    "locks[].dt*",
+    "locks[].lock_type*",
+    "locks[].locked_balance*",
+    "locks[].transaction_hash*",
+    "locks[].unlock_time*"
+   ]
+  },
+  "GET /v1/dao/pools/{chain}/{pool}/gauge": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:pool*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "name*"
+   ]
+  },
+  "GET /v1/dao/proposals": {
+   "deprecated": false,
+   "params": [
+    "query:page",
+    "query:pagination",
+    "query:search_string",
+    "query:status_filter",
+    "query:type_filter"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "page*",
+    "proposals*",
+    "proposals[].creator*",
+    "proposals[].dt*",
+    "proposals[].executed*",
+    "proposals[].execution_date*",
+    "proposals[].execution_tx*",
+    "proposals[].ipfs_metadata*",
+    "proposals[].metadata*",
+    "proposals[].min_accept_quorum*",
+    "proposals[].snapshot_block*",
+    "proposals[].start_date*",
+    "proposals[].support_required*",
+    "proposals[].total_supply*",
+    "proposals[].transaction_hash*",
+    "proposals[].vote_count*",
+    "proposals[].vote_id*",
+    "proposals[].vote_type*",
+    "proposals[].votes_against*",
+    "proposals[].votes_for*"
+   ]
+  },
+  "GET /v1/dao/proposals/details/{type}/{vote_id}": {
+   "deprecated": false,
+   "params": [
+    "path:type*",
+    "path:vote_id*",
+    "query:tx_hash"
+   ],
+   "request": [],
+   "response": [
+    "creator*",
+    "creator_voting_power*",
+    "dt*",
+    "executed*",
+    "execution_date*",
+    "execution_tx*",
+    "ipfs_metadata*",
+    "metadata*",
+    "min_accept_quorum*",
+    "script*",
+    "snapshot_block*",
+    "start_date*",
+    "support_required*",
+    "total_supply*",
+    "transaction_hash*",
+    "vote_count*",
+    "vote_id*",
+    "vote_type*",
+    "votes*",
+    "votes[].supports*",
+    "votes[].transaction_hash*",
+    "votes[].voter*",
+    "votes[].voting_power*",
+    "votes_against*",
+    "votes_for*"
+   ]
+  },
+  "GET /v1/dao/proposals/vote/user/{user}/{type}/{vote_id}": {
+   "deprecated": false,
+   "params": [
+    "path:type*",
+    "path:user*",
+    "path:vote_id*",
+    "query:tx_hash"
+   ],
+   "request": [],
+   "response": [
+    "proposal*",
+    "proposal.creator*",
+    "proposal.dt*",
+    "proposal.executed*",
+    "proposal.execution_date*",
+    "proposal.execution_tx*",
+    "proposal.ipfs_metadata*",
+    "proposal.metadata*",
+    "proposal.min_accept_quorum*",
+    "proposal.snapshot_block*",
+    "proposal.start_date*",
+    "proposal.support_required*",
+    "proposal.total_supply*",
+    "proposal.transaction_hash*",
+    "proposal.vote_count*",
+    "proposal.vote_id*",
+    "proposal.vote_type*",
+    "proposal.votes_against*",
+    "proposal.votes_for*",
+    "votes*",
+    "votes[].supports*",
+    "votes[].transaction_hash*",
+    "votes[].voter*",
+    "votes[].voting_power*"
+   ]
+  },
+  "GET /v1/dao/proposals/votes/user/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:user*",
+    "query:page",
+    "query:pagination"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "data*",
+    "data[].proposal*",
+    "data[].proposal.creator*",
+    "data[].proposal.dt*",
+    "data[].proposal.executed*",
+    "data[].proposal.execution_date*",
+    "data[].proposal.execution_tx*",
+    "data[].proposal.ipfs_metadata*",
+    "data[].proposal.metadata*",
+    "data[].proposal.min_accept_quorum*",
+    "data[].proposal.snapshot_block*",
+    "data[].proposal.start_date*",
+    "data[].proposal.support_required*",
+    "data[].proposal.total_supply*",
+    "data[].proposal.transaction_hash*",
+    "data[].proposal.vote_count*",
+    "data[].proposal.vote_id*",
+    "data[].proposal.vote_type*",
+    "data[].proposal.votes_against*",
+    "data[].proposal.votes_for*",
+    "data[].votes*",
+    "data[].votes[].supports*",
+    "data[].votes[].transaction_hash*",
+    "data[].votes[].voter*",
+    "data[].votes[].voting_power*",
+    "page*"
+   ]
+  },
+  "GET /v1/dao/supply/{days}": {
+   "deprecated": false,
+   "params": [
+    "path:days*"
+   ],
+   "request": [],
+   "response": [
+    "supply*",
+    "supply[].block_number*",
+    "supply[].circulating_supply*",
+    "supply[].crv_supply*",
+    "supply[].dt*",
+    "supply[].escrowed_crv*",
+    "supply[].locked_supply_details*",
+    "supply[].locked_supply_details[].address*",
+    "supply[].locked_supply_details[].label*",
+    "supply[].locked_supply_details[].locked*",
+    "supply[].total_vecrv*",
+    "supply[].transaction_hash*"
+   ]
+  },
+  "GET /v1/dao/votes/overview": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].epoch*",
+    "data[].gauge_unique_voters*",
+    "data[].gauge_votes*",
+    "data[].prop_unique_voters*",
+    "data[].prop_votes*",
+    "data[].proposals*"
+   ]
+  },
+  "GET /v1/gas": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data*",
+    "data.eip1559Gas*",
+    "data.eip1559Gas.base*",
+    "data.eip1559Gas.max*",
+    "data.eip1559Gas.prio*",
+    "data.gas*",
+    "data.gas.fast*",
+    "data.gas.rapid*",
+    "data.gas.slow*",
+    "data.gas.standard*",
+    "generatedTimeMs*",
+    "success"
+   ]
+  },
+  "GET /v1/lending/chains/": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data*"
+   ]
+  },
+  "GET /v1/lending/collateral_events/{chain}/{controller}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "controller*",
+    "count*",
+    "data*",
+    "data[].collateral_change",
+    "data[].collateral_change_usd",
+    "data[].dt*",
+    "data[].is_closed*",
+    "data[].is_in_soft_liquidation",
+    "data[].is_position_closed*",
+    "data[].leverage",
+    "data[].leverage.borrowed_from_state_collateral*",
+    "data[].leverage.borrowed_from_user_collateral*",
+    "data[].leverage.debt*",
+    "data[].leverage.event_type*",
+    "data[].leverage.leverage_collateral*",
+    "data[].leverage.state_collateral_used*",
+    "data[].leverage.user*",
+    "data[].leverage.user_borrowed*",
+    "data[].leverage.user_collateral*",
+    "data[].leverage.user_collateral_from_borrowed*",
+    "data[].leverage.user_collateral_used*",
+    "data[].liquidation",
+    "data[].liquidation.collateral_received*",
+    "data[].liquidation.collateral_received_usd",
+    "data[].liquidation.debt*",
+    "data[].liquidation.debt_usd",
+    "data[].liquidation.liquidator*",
+    "data[].liquidation.stablecoin_received*",
+    "data[].liquidation.stablecoin_received_usd",
+    "data[].liquidation.user*",
+    "data[].loan_change",
+    "data[].loan_change_usd",
+    "data[].n1",
+    "data[].n2",
+    "data[].oracle_price",
+    "data[].transaction_hash*",
+    "data[].type*",
+    "data[].user*",
+    "page*",
+    "per_page*"
+   ]
+  },
+  "GET /v1/lending/collateral_events/{chain}/{controller}/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "path:user*",
+    "query:new_tx",
+    "query:page",
+    "query:pagination"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "controller*",
+    "count*",
+    "data*",
+    "data[].collateral_change",
+    "data[].collateral_change_usd",
+    "data[].dt*",
+    "data[].is_closed*",
+    "data[].is_in_soft_liquidation",
+    "data[].is_position_closed*",
+    "data[].leverage",
+    "data[].leverage.borrowed_from_state_collateral*",
+    "data[].leverage.borrowed_from_user_collateral*",
+    "data[].leverage.debt*",
+    "data[].leverage.event_type*",
+    "data[].leverage.leverage_collateral*",
+    "data[].leverage.state_collateral_used*",
+    "data[].leverage.user*",
+    "data[].leverage.user_borrowed*",
+    "data[].leverage.user_collateral*",
+    "data[].leverage.user_collateral_from_borrowed*",
+    "data[].leverage.user_collateral_used*",
+    "data[].liquidation",
+    "data[].liquidation.collateral_received*",
+    "data[].liquidation.collateral_received_usd",
+    "data[].liquidation.debt*",
+    "data[].liquidation.debt_usd",
+    "data[].liquidation.liquidator*",
+    "data[].liquidation.stablecoin_received*",
+    "data[].liquidation.stablecoin_received_usd",
+    "data[].liquidation.user*",
+    "data[].loan_change",
+    "data[].loan_change_usd",
+    "data[].n1",
+    "data[].n2",
+    "data[].oracle_price",
+    "data[].transaction_hash*",
+    "data[].type*",
+    "data[].user*",
+    "page",
+    "pagination",
+    "total_borrowed*",
+    "total_borrowed_precise*",
+    "total_deposit*",
+    "total_deposit_from_user*",
+    "total_deposit_from_user_precise*",
+    "total_deposit_from_user_usd_value*",
+    "total_deposit_precise*",
+    "total_deposit_usd_value*",
+    "user*"
+   ]
+  },
+  "GET /v1/lending/liquidations/bad_debt": {
+   "deprecated": false,
+   "params": [
+    "query:fetch_on_chain"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].bad_debt*",
+    "data[].chain*",
+    "data[].controller_address*",
+    "data[].liquidatable_borrowed_usd*",
+    "data[].liquidatable_collateral_usd*",
+    "data[].liquidatable_pos_debt_usd*",
+    "data[].liquidatable_positions*",
+    "data[].market*",
+    "data[].soft_liquidation_users*",
+    "total_bad_debt*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/history/aggregated": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].hard_count*",
+    "data[].hard_value*",
+    "data[].market*",
+    "data[].price*",
+    "data[].self_count*",
+    "data[].self_value*",
+    "data[].timestamp*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/cr/distribution": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].borrowed*",
+    "data[].collateral*",
+    "data[].cr_decile*",
+    "data[].debt*",
+    "max*",
+    "mean*",
+    "median*",
+    "min*",
+    "std*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/hard/total": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "total*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/hard/users": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "users*",
+    "users[].dt*",
+    "users[].hard_liquidated_users*",
+    "users[].unique_users*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/health/distribution": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].borrowed*",
+    "data[].collateral*",
+    "data[].debt*",
+    "data[].health_decile*",
+    "max*",
+    "mean*",
+    "median*",
+    "min*",
+    "std*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/history/aggregated": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].hard_count*",
+    "data[].hard_value*",
+    "data[].price*",
+    "data[].self_count*",
+    "data[].self_value*",
+    "data[].timestamp*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/history/detailed": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].block*",
+    "data[].collateral_received*",
+    "data[].collateral_received_usd*",
+    "data[].debt*",
+    "data[].debt_usd*",
+    "data[].dt*",
+    "data[].liquidator*",
+    "data[].n1*",
+    "data[].n2*",
+    "data[].oracle_price*",
+    "data[].self*",
+    "data[].stablecoin_received*",
+    "data[].stablecoin_received_usd*",
+    "data[].tx*",
+    "data[].user*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/losses/history": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].avg_abs_loss*",
+    "data[].avg_pct_loss*",
+    "data[].median_abs_loss*",
+    "data[].median_pct_loss*",
+    "data[].ratio*",
+    "data[].timestamp*",
+    "data[].total_users*",
+    "data[].users_with_losses*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/losses_per_band_range": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start",
+    "query:statistic"
+   ],
+   "request": [],
+   "response": [
+    "ranges*",
+    "ranges[].range*",
+    "ranges[].users*",
+    "ranges[].value*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/overview": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:fetch_on_chain"
+   ],
+   "request": [],
+   "response": [
+    "average_health*",
+    "bad_debt*",
+    "collat_ratio*",
+    "debt_weighted_average_health",
+    "liquidatable_borrowed*",
+    "liquidatable_borrowed_usd*",
+    "liquidatable_collateral*",
+    "liquidatable_collateral_usd*",
+    "liquidatable_pos_debt*",
+    "liquidatable_pos_debt_usd*",
+    "liquidatable_positions*",
+    "median_health*",
+    "soft_liquidation_users*"
+   ]
+  },
+  "GET /v1/lending/liquidations/{chain}/{controller}/soft_liquidation_ratio": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].borrowed_under_sl_ratio*",
+    "data[].collateral_under_sl_ratio*",
+    "data[].debt_under_sl_ratio*",
+    "data[].proportion*",
+    "data[].timestamp*",
+    "data[].total_borrowed*",
+    "data[].total_borrowed_under_sl*",
+    "data[].total_borrowed_under_sl_usd*",
+    "data[].total_collateral*",
+    "data[].total_collateral_under_sl*",
+    "data[].total_collateral_under_sl_usd*",
+    "data[].total_debt*",
+    "data[].total_debt_under_sl*",
+    "data[].total_debt_under_sl_usd*"
+   ]
+  },
+  "GET /v1/lending/llamma_events/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].block_number*",
+    "data[].deposit",
+    "data[].deposit.amount*",
+    "data[].deposit.amount_usd",
+    "data[].deposit.n1*",
+    "data[].deposit.n2*",
+    "data[].provider*",
+    "data[].timestamp*",
+    "data[].transaction_hash*",
+    "data[].withdrawal",
+    "data[].withdrawal.amount_borrowed*",
+    "data[].withdrawal.amount_borrowed_usd",
+    "data[].withdrawal.amount_collateral*",
+    "data[].withdrawal.amount_collateral_usd",
+    "page*"
+   ]
+  },
+  "GET /v1/lending/llamma_ohlc/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:agg_number",
+    "query:agg_units",
+    "query:end*",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].base_price",
+    "data[].close",
+    "data[].high",
+    "data[].low",
+    "data[].open",
+    "data[].oracle_price",
+    "data[].time*",
+    "data[].volume"
+   ]
+  },
+  "GET /v1/lending/llamma_trades/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].amount_bought*",
+    "data[].amount_sold*",
+    "data[].block_number*",
+    "data[].bought_id*",
+    "data[].buyer",
+    "data[].price*",
+    "data[].sold_id*",
+    "data[].timestamp*",
+    "data[].token_bought*",
+    "data[].token_bought.address*",
+    "data[].token_bought.symbol*",
+    "data[].token_sold*",
+    "data[].token_sold.address*",
+    "data[].token_sold.symbol*",
+    "data[].transaction_hash*"
+   ]
+  },
+  "GET /v1/lending/markets": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "chains*"
+   ]
+  },
+  "GET /v1/lending/markets/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "cached_at",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].admin_fee",
+    "data[].amm_a*",
+    "data[].amm_price*",
+    "data[].base_price*",
+    "data[].borrow_apr",
+    "data[].borrow_apy*",
+    "data[].borrow_gauge_address",
+    "data[].borrow_total_apr",
+    "data[].borrow_total_apy",
+    "data[].borrowed_balance*",
+    "data[].borrowed_balance_usd*",
+    "data[].borrowed_token*",
+    "data[].borrowed_token.address*",
+    "data[].borrowed_token.decimals",
+    "data[].borrowed_token.rebasing_yield",
+    "data[].borrowed_token.rebasing_yield_apr",
+    "data[].borrowed_token.symbol*",
+    "data[].borrowed_token.underlying_tokens",
+    "data[].borrowed_token.underlying_tokens[].address*",
+    "data[].borrowed_token.underlying_tokens[].symbol*",
+    "data[].collateral_balance*",
+    "data[].collateral_balance_usd*",
+    "data[].collateral_token*",
+    "data[].collateral_token.address*",
+    "data[].collateral_token.decimals",
+    "data[].collateral_token.rebasing_yield",
+    "data[].collateral_token.rebasing_yield_apr",
+    "data[].collateral_token.symbol*",
+    "data[].collateral_token.underlying_tokens",
+    "data[].collateral_token.underlying_tokens[].address*",
+    "data[].collateral_token.underlying_tokens[].symbol*",
+    "data[].controller*",
+    "data[].created_at",
+    "data[].extra_reward_apr",
+    "data[].extra_reward_apr[].address*",
+    "data[].extra_reward_apr[].apr*",
+    "data[].extra_reward_apr[].decimals",
+    "data[].extra_reward_apr[].name",
+    "data[].extra_reward_apr[].price",
+    "data[].extra_reward_apr[].symbol",
+    "data[].gauge_address",
+    "data[].lend_apr*",
+    "data[].lend_apr_crv_0_boost",
+    "data[].lend_apr_crv_max_boost",
+    "data[].lend_apy*",
+    "data[].leverage*",
+    "data[].liquidation_discount*",
+    "data[].llamma*",
+    "data[].loan_discount*",
+    "data[].max_band*",
+    "data[].max_ltv*",
+    "data[].min_band*",
+    "data[].minted*",
+    "data[].minted_usd*",
+    "data[].n_loans*",
+    "data[].name*",
+    "data[].oracle*",
+    "data[].oracle_pools*",
+    "data[].policy*",
+    "data[].price_oracle*",
+    "data[].rate*",
+    "data[].redeemed*",
+    "data[].redeemed_usd*",
+    "data[].total_assets*",
+    "data[].total_assets_usd*",
+    "data[].total_debt*",
+    "data[].total_debt_usd*",
+    "data[].vault*",
+    "data[].version*",
+    "page*",
+    "per_page*"
+   ]
+  },
+  "GET /v1/lending/markets/{chain}/tvl": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "tvl*"
+   ]
+  },
+  "GET /v1/lending/markets/{chain}/{controller}/borrowers": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:page",
+    "query:per_page",
+    "query:sort_by",
+    "query:sort_direction"
+   ],
+   "request": [],
+   "response": [
+    "borrowers*",
+    "borrowers[].address*",
+    "borrowers[].collateral*",
+    "borrowers[].collateral_usd*",
+    "borrowers[].debt*",
+    "borrowers[].debt_usd*",
+    "borrowers[].health*",
+    "borrowers[].percent_of_total_debt",
+    "borrowers[].rank*",
+    "borrowers[].soft_liquidation*",
+    "chain*",
+    "controller_address*",
+    "page*",
+    "per_page*",
+    "total_borrowers*",
+    "total_debt*",
+    "total_debt_usd*",
+    "vault_address*"
+   ]
+  },
+  "GET /v1/lending/markets/{chain}/{controller}/loans/distribution": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "borrowed*",
+    "borrowed[].label*",
+    "borrowed[].value*",
+    "collateral*",
+    "collateral[].label*",
+    "collateral[].value*",
+    "debt*",
+    "debt[].label*",
+    "debt[].value*"
+   ]
+  },
+  "GET /v1/lending/markets/{chain}/{controller}/rate_curve": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "current_borrow_apr",
+    "current_borrow_apy",
+    "current_supply_apr",
+    "current_supply_apy",
+    "current_utilization",
+    "rates*",
+    "rates[].borrow_apr*",
+    "rates[].borrow_apy*",
+    "rates[].supply_apr*",
+    "rates[].supply_apy*",
+    "rates[].utilization*"
+   ]
+  },
+  "GET /v1/lending/markets/{chain}/{controller}/snapshots": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:agg",
+    "query:end",
+    "query:fetch_on_chain",
+    "query:limit",
+    "query:sort_by",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "data*",
+    "data[].amm_a*",
+    "data[].amm_price*",
+    "data[].base_price*",
+    "data[].borrow_apr",
+    "data[].borrow_apy*",
+    "data[].borrow_total_apr",
+    "data[].borrow_total_apy",
+    "data[].borrowed_balance*",
+    "data[].borrowed_balance_usd*",
+    "data[].borrowed_token*",
+    "data[].borrowed_token.address*",
+    "data[].borrowed_token.decimals",
+    "data[].borrowed_token.rebasing_yield",
+    "data[].borrowed_token.rebasing_yield_apr",
+    "data[].borrowed_token.symbol*",
+    "data[].collateral_balance*",
+    "data[].collateral_balance_usd*",
+    "data[].collateral_token*",
+    "data[].collateral_token.address*",
+    "data[].collateral_token.decimals",
+    "data[].collateral_token.rebasing_yield",
+    "data[].collateral_token.rebasing_yield_apr",
+    "data[].collateral_token.symbol*",
+    "data[].extra_rewards_apr",
+    "data[].extra_rewards_apr[].address*",
+    "data[].extra_rewards_apr[].apr*",
+    "data[].extra_rewards_apr[].decimals",
+    "data[].extra_rewards_apr[].name",
+    "data[].extra_rewards_apr[].price",
+    "data[].extra_rewards_apr[].symbol",
+    "data[].gauge_address",
+    "data[].lend_apr*",
+    "data[].lend_apr_crv_0_boost",
+    "data[].lend_apr_crv_max_boost",
+    "data[].lend_apy*",
+    "data[].liquidation_discount*",
+    "data[].loan_discount*",
+    "data[].max_band*",
+    "data[].max_ltv*",
+    "data[].min_band*",
+    "data[].minted*",
+    "data[].minted_usd*",
+    "data[].n_loans*",
+    "data[].price_oracle*",
+    "data[].rate*",
+    "data[].redeemed*",
+    "data[].redeemed_usd*",
+    "data[].sum_debt_squared*",
+    "data[].timestamp*",
+    "data[].total_assets*",
+    "data[].total_assets_usd*",
+    "data[].total_debt*",
+    "data[].total_debt_usd*",
+    "market_id*"
+   ]
+  },
+  "GET /v1/lending/oracle_ohlc/{chain}/{controller}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:agg_number",
+    "query:agg_units",
+    "query:end*",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "controller*",
+    "data*",
+    "data[].base_price",
+    "data[].close",
+    "data[].high",
+    "data[].low",
+    "data[].open",
+    "data[].oracle_price",
+    "data[].time*",
+    "oracle*",
+    "price_source_pools*",
+    "price_source_pools[].address*",
+    "price_source_pools[].borrowed_address*",
+    "price_source_pools[].borrowed_ix*",
+    "price_source_pools[].borrowed_symbol*",
+    "price_source_pools[].chain*",
+    "price_source_pools[].collateral_address*",
+    "price_source_pools[].collateral_ix*",
+    "price_source_pools[].collateral_symbol*"
+   ]
+  },
+  "GET /v1/lending/users/all/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:user*",
+    "query:include_closed"
+   ],
+   "request": [],
+   "response": [
+    "chains*",
+    "user*"
+   ]
+  },
+  "GET /v1/lending/users/lending_positions/all/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:user*",
+    "query:include_closed"
+   ],
+   "request": [],
+   "response": [
+    "chains*",
+    "user*"
+   ]
+  },
+  "GET /v1/lending/users/lending_positions/{chain}/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:user*",
+    "query:include_closed",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "markets*",
+    "markets[].boost_multiplier",
+    "markets[].current_shares*",
+    "markets[].current_shares_in_gauge*",
+    "markets[].earnings*",
+    "markets[].first_deposit*",
+    "markets[].last_activity*",
+    "markets[].market_name*",
+    "markets[].total_current_assets*",
+    "markets[].vault_address*",
+    "page*",
+    "per_page*",
+    "user*"
+   ]
+  },
+  "GET /v1/lending/users/{chain}/{controller}/users": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "query:page",
+    "query:per_page",
+    "query:sort_by",
+    "query:sort_direction"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "data*",
+    "data[].borrowed*",
+    "data[].collateral*",
+    "data[].debt*",
+    "data[].first*",
+    "data[].health*",
+    "data[].health_full*",
+    "data[].last*",
+    "data[].loss*",
+    "data[].soft_liquidation*",
+    "data[].user*",
+    "page*",
+    "per_page*"
+   ]
+  },
+  "GET /v1/lending/users/{chain}/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:user*",
+    "query:include_closed",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "markets*",
+    "markets[].controller*",
+    "markets[].first_snapshot*",
+    "markets[].last_snapshot*",
+    "markets[].market_name*",
+    "page*",
+    "per_page*",
+    "user*"
+   ]
+  },
+  "GET /v1/lending/users/{chain}/{user}/{controller}/snapshots": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "path:user*",
+    "query:end",
+    "query:page",
+    "query:per_page",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "data*",
+    "data[].active_band",
+    "data[].block_number*",
+    "data[].borrowed*",
+    "data[].collateral*",
+    "data[].collateral_up*",
+    "data[].debt*",
+    "data[].health*",
+    "data[].health_full*",
+    "data[].loss*",
+    "data[].loss_pct*",
+    "data[].n*",
+    "data[].n1*",
+    "data[].n2*",
+    "data[].oracle_price*",
+    "data[].soft_liquidation*",
+    "data[].timestamp*",
+    "data[].total_deposited*",
+    "page*",
+    "per_page*",
+    "user*"
+   ]
+  },
+  "GET /v1/lending/users/{chain}/{user}/{controller}/stats": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:controller*",
+    "path:user*"
+   ],
+   "request": [],
+   "response": [
+    "active_band",
+    "block_number*",
+    "borrowed*",
+    "collateral*",
+    "collateral_up*",
+    "debt*",
+    "health*",
+    "health_full*",
+    "loss*",
+    "loss_pct*",
+    "n*",
+    "n1*",
+    "n2*",
+    "oracle_price*",
+    "soft_liquidation*",
+    "timestamp*",
+    "total_deposited*"
+   ]
+  },
+  "GET /v1/lending/vault_events/{chain}/{vault}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:vault*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].block_number*",
+    "data[].deposit",
+    "data[].deposit.assets*",
+    "data[].deposit.shares*",
+    "data[].log_index*",
+    "data[].provider*",
+    "data[].timestamp*",
+    "data[].transaction_hash*",
+    "data[].withdrawal",
+    "data[].withdrawal.assets*",
+    "data[].withdrawal.shares*",
+    "page*"
+   ]
+  },
+  "GET /v1/lending/vaults/{chain}/{vault}/depositors": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:vault*",
+    "query:page",
+    "query:per_page",
+    "query:sort_by",
+    "query:sort_direction"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "depositors*",
+    "depositors[].address*",
+    "depositors[].assets*",
+    "depositors[].category*",
+    "depositors[].gauge_assets*",
+    "depositors[].gauge_shares*",
+    "depositors[].percent_of_total_shares",
+    "depositors[].rank*",
+    "depositors[].shares*",
+    "depositors[].wallet_assets*",
+    "depositors[].wallet_shares*",
+    "page*",
+    "per_page*",
+    "total_assets*",
+    "total_shares*",
+    "total_suppliers*",
+    "vault_address*"
+   ]
+  },
+  "GET /v1/lending/vaults/{chain}/{vault}/earnings/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:user*",
+    "path:vault*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "boost_multiplier",
+    "current_assets*",
+    "current_assets_in_convex*",
+    "current_assets_in_gauge*",
+    "current_shares*",
+    "current_shares_in_convex*",
+    "current_shares_in_gauge*",
+    "deposited*",
+    "earnings*",
+    "total_current_assets*",
+    "total_current_shares*",
+    "transfers_assets_from_convex*",
+    "transfers_assets_from_gauge*",
+    "transfers_assets_to_convex*",
+    "transfers_assets_to_gauge*",
+    "transfers_in_assets*",
+    "transfers_in_shares*",
+    "transfers_out_assets*",
+    "transfers_out_shares*",
+    "transfers_shares_from_convex*",
+    "transfers_shares_from_gauge*",
+    "transfers_shares_to_convex*",
+    "transfers_shares_to_gauge*",
+    "user*",
+    "withdrawn*"
+   ]
+  },
+  "GET /v1/lending/vaults/{chain}/{vault}/{user}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:user*",
+    "path:vault*"
+   ],
+   "request": [],
+   "response": [
+    "events*",
+    "events[].assets*",
+    "events[].block_number*",
+    "events[].dt*",
+    "events[].event_type*",
+    "events[].log_index*",
+    "events[].receiver*",
+    "events[].sender*",
+    "events[].shares*",
+    "events[].transaction_hash*",
+    "events[].user*",
+    "total_deposited*",
+    "user*"
+   ]
+  },
+  "GET /v1/liquidity/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:include_state",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].block_number*",
+    "data[].fees",
+    "data[].liquidity_event_type*",
+    "data[].pool_state",
+    "data[].pool_state.a",
+    "data[].pool_state.adjustment_step",
+    "data[].pool_state.allowed_extra_profit",
+    "data[].pool_state.donation_duration",
+    "data[].pool_state.donation_protection_expiry_ts",
+    "data[].pool_state.donation_protection_lp_threshold",
+    "data[].pool_state.donation_protection_period",
+    "data[].pool_state.donation_shares",
+    "data[].pool_state.donation_shares_max_ratio",
+    "data[].pool_state.fee",
+    "data[].pool_state.fee_gamma",
+    "data[].pool_state.gamma",
+    "data[].pool_state.last_donation_release_ts",
+    "data[].pool_state.last_prices",
+    "data[].pool_state.last_prices_timestamp",
+    "data[].pool_state.ma_half_time",
+    "data[].pool_state.mid_fee",
+    "data[].pool_state.normalized_reserves*",
+    "data[].pool_state.offpeg_fee_multiplier",
+    "data[].pool_state.out_fee",
+    "data[].pool_state.price_oracle",
+    "data[].pool_state.price_scale",
+    "data[].pool_state.reserves*",
+    "data[].pool_state.virtual_price",
+    "data[].pool_state.xcp_profit",
+    "data[].pool_state.xcp_profit_a",
+    "data[].provider",
+    "data[].time*",
+    "data[].token_amounts",
+    "data[].token_supply",
+    "data[].transaction_hash*",
+    "page*",
+    "per_page*"
+   ]
+  },
+  "GET /v1/liquidity/{chain}/{address}/depositors": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "depositors*",
+    "depositors[].add_liquidity_events*",
+    "depositors[].net_liquidity_provided*",
+    "depositors[].remove_liquidity_events*",
+    "depositors[].total_deposits*",
+    "depositors[].total_withdrawals*",
+    "depositors[].user_address*",
+    "token_supply"
+   ]
+  },
+  "GET /v1/liquidity/{chain}/{user}/positions": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:user*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "positions*",
+    "positions[].lp_token_balance*",
+    "positions[].pool_address*",
+    "positions[].pool_name*"
+   ]
+  },
+  "GET /v1/lp_ohlc/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:agg_number",
+    "query:agg_units",
+    "query:end*",
+    "query:price_units",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].close",
+    "data[].high",
+    "data[].low",
+    "data[].open",
+    "data[].time*"
+   ]
+  },
+  "GET /v1/ohlc/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:agg_number",
+    "query:agg_units",
+    "query:end*",
+    "query:main_token*",
+    "query:reference_token*",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].close",
+    "data[].high",
+    "data[].low",
+    "data[].open",
+    "data[].time*"
+   ]
+  },
+  "GET /v1/oracles/all": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "last_recorded_block*",
+    "oracles*",
+    "oracles[].address*",
+    "oracles[].block_header*",
+    "oracles[].block_header.block_hash*",
+    "oracles[].block_header.block_number*",
+    "oracles[].block_header.parent_hash*",
+    "oracles[].block_header.state_root*",
+    "oracles[].block_header.timestamp*",
+    "oracles[].chain*",
+    "oracles[].last_confirmed_block_number*",
+    "oracles[].last_updated*"
+   ]
+  },
+  "GET /v1/pools/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "amplification_coefficient",
+    "balances*",
+    "balances_usd*",
+    "base_daily_apr*",
+    "base_pool",
+    "base_weekly_apr*",
+    "coins*",
+    "coins[].address*",
+    "coins[].decimals*",
+    "coins[].name",
+    "coins[].pool_index*",
+    "coins[].symbol*",
+    "creation_block_number",
+    "creation_ts",
+    "implementation_address",
+    "is_metapool",
+    "lending_indices",
+    "liquidity_fee_24h*",
+    "liquidity_volume_24h*",
+    "lp_token_address",
+    "lp_token_supply",
+    "lp_token_symbol",
+    "n_coins*",
+    "name*",
+    "pool_methods*",
+    "pool_type",
+    "price_oracle",
+    "trading_fee_24h*",
+    "trading_volume_24h*",
+    "tvl_usd*",
+    "virtual_price*"
+   ]
+  },
+  "GET /v1/pools/{chain}/{address}/metadata": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "asset_types",
+    "base_pool",
+    "coins*",
+    "coins[].address*",
+    "coins[].decimals*",
+    "coins[].name",
+    "coins[].pool_index*",
+    "coins[].symbol*",
+    "deployment_block",
+    "deployment_date",
+    "deployment_tx",
+    "gauges*",
+    "has_donations",
+    "implementation_address",
+    "lp_token_address*",
+    "metapool*",
+    "name*",
+    "oracles",
+    "oracles[].is_verified",
+    "oracles[].method",
+    "oracles[].method_id",
+    "oracles[].oracle_address",
+    "pool_type*",
+    "registry*",
+    "registry_type*",
+    "vyper_version"
+   ]
+  },
+  "GET /v1/pools/{chain}/{lp_token}/lp_distribution": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:lp_token*",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "categories*",
+    "categories[].amount*",
+    "categories[].name*",
+    "categories[].percent_of_total_staked",
+    "categories[].percent_of_total_supply",
+    "chain*",
+    "depositors*",
+    "depositors[].address*",
+    "depositors[].amount*",
+    "depositors[].category*",
+    "depositors[].percent_of_total_staked",
+    "depositors[].percent_of_total_supply",
+    "depositors[].rank*",
+    "lp_token_address*",
+    "page*",
+    "per_page*",
+    "percent_staked_vs_total_supply",
+    "pool_address*",
+    "total_depositors*",
+    "total_lp_supply",
+    "total_staked_in_gauge*"
+   ]
+  },
+  "GET /v1/refuel/chains": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "chains*",
+    "count*"
+   ]
+  },
+  "GET /v1/refuel/{chain}/pools": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /v1/refuel/{chain}/{address}/donations/daily": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].count*",
+    "data[].timestamp*",
+    "data[].total_usd*"
+   ]
+  },
+  "GET /v1/refuel/{chain}/{address}/donations/events": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end",
+    "query:page",
+    "query:page_size",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "data*",
+    "data[].block_number*",
+    "data[].donor",
+    "data[].lp_shares_minted",
+    "data[].timestamp*",
+    "data[].token_amounts",
+    "data[].transaction_hash",
+    "data[].usd_value",
+    "page*",
+    "tokens*",
+    "tokens[].address*",
+    "tokens[].decimals*",
+    "tokens[].symbol*"
+   ]
+  },
+  "GET /v1/refuel/{chain}/{address}/donations/leaderboard": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "[].donor*",
+    "[].events*",
+    "[].first_ts",
+    "[].last_ts",
+    "[].token_amounts_breakdown",
+    "[].token_amounts_breakdown[].amount*",
+    "[].token_amounts_breakdown[].token*",
+    "[].token_amounts_breakdown[].token.address*",
+    "[].token_amounts_breakdown[].token.decimals*",
+    "[].token_amounts_breakdown[].token.symbol*",
+    "[].usd_total*"
+   ]
+  },
+  "GET /v1/refuel/{chain}/{address}/il_timeseries": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end",
+    "query:initial_lp",
+    "query:initial_usd",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "baseline_ts*",
+    "data*",
+    "data[].hodl_value_usd_per_lp*",
+    "data[].il_percent*",
+    "data[].il_usd_per_lp*",
+    "data[].lp_value_usd_per_lp*",
+    "data[].timestamp*",
+    "delta_vs_hodl_usd_per_lp",
+    "delta_vs_hodl_usd_total",
+    "hodl_value_usd_end_per_lp",
+    "hodl_value_usd_start_per_lp",
+    "il_actual_end",
+    "il_no_donation_inflows_end",
+    "il_xyk_end",
+    "lp_value_usd_end_per_lp",
+    "lp_value_usd_start_per_lp",
+    "pnl_hodl_usd_per_lp",
+    "pnl_hodl_usd_total",
+    "pnl_lp_usd_per_lp",
+    "pnl_lp_usd_total",
+    "tokens*",
+    "tokens[].address*",
+    "tokens[].decimals*",
+    "tokens[].symbol*"
+   ]
+  },
+  "GET /v1/refuel/{chain}/{address}/timeseries": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end",
+    "query:page",
+    "query:page_size",
+    "query:start",
+    "query:unit"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "data*",
+    "data[].available_shares",
+    "data[].block_number",
+    "data[].donation_duration",
+    "data[].donation_protection_expiry_ts",
+    "data[].donation_protection_period",
+    "data[].donation_shares",
+    "data[].last_donation_release_ts",
+    "data[].last_prices",
+    "data[].lp_price_scale",
+    "data[].lp_usd_price",
+    "data[].price_oracle",
+    "data[].price_scale",
+    "data[].reserves",
+    "data[].timestamp*",
+    "data[].tvl_usd",
+    "data[].unlocked_shares",
+    "data[].virtual_price",
+    "data[].vp_xcp_half_gap",
+    "data[].xcp_profit",
+    "data[].xcp_profit_a",
+    "data[].xcp_profit_half",
+    "page*",
+    "tokens*",
+    "tokens[].address*",
+    "tokens[].decimals*",
+    "tokens[].symbol*"
+   ]
+  },
+  "GET /v1/snapshots/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end*",
+    "query:start*",
+    "query:unit"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].a",
+    "data[].adjustment_step",
+    "data[].admin_fee",
+    "data[].allowed_extra_profit",
+    "data[].base_daily_apr",
+    "data[].base_weekly_apr",
+    "data[].block_number",
+    "data[].donation_duration",
+    "data[].donation_protection_expiry_ts",
+    "data[].donation_protection_lp_threshold",
+    "data[].donation_protection_period",
+    "data[].donation_shares",
+    "data[].donation_shares_max_ratio",
+    "data[].fee",
+    "data[].fee_gamma",
+    "data[].gamma",
+    "data[].last_donation_release_ts",
+    "data[].ma_half_time",
+    "data[].mid_fee",
+    "data[].offpeg_fee_multiplier",
+    "data[].out_fee",
+    "data[].price_oracle",
+    "data[].price_scale",
+    "data[].reserved_profit_fraction",
+    "data[].timestamp*",
+    "data[].virtual_price",
+    "data[].xcp_profit",
+    "data[].xcp_profit_a"
+   ]
+  },
+  "GET /v1/snapshots/{chain}/{address}/tvl": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end*",
+    "query:start*",
+    "query:unit"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].balances*",
+    "data[].block_number*",
+    "data[].timestamp*",
+    "data[].token_price*",
+    "data[].token_prices*",
+    "data[].token_supply*",
+    "data[].tvl_usd",
+    "data[].usd_price"
+   ]
+  },
+  "GET /v1/trades/all/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:include_state",
+    "query:page",
+    "query:per_page"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "count*",
+    "data*",
+    "data[].block_number*",
+    "data[].bought_id*",
+    "data[].buyer",
+    "data[].fee",
+    "data[].log_index",
+    "data[].pool_state",
+    "data[].pool_state.a",
+    "data[].pool_state.adjustment_step",
+    "data[].pool_state.allowed_extra_profit",
+    "data[].pool_state.donation_duration",
+    "data[].pool_state.donation_protection_expiry_ts",
+    "data[].pool_state.donation_protection_lp_threshold",
+    "data[].pool_state.donation_protection_period",
+    "data[].pool_state.donation_shares",
+    "data[].pool_state.donation_shares_max_ratio",
+    "data[].pool_state.fee",
+    "data[].pool_state.fee_gamma",
+    "data[].pool_state.gamma",
+    "data[].pool_state.last_donation_release_ts",
+    "data[].pool_state.last_prices",
+    "data[].pool_state.last_prices_timestamp",
+    "data[].pool_state.ma_half_time",
+    "data[].pool_state.mid_fee",
+    "data[].pool_state.normalized_reserves*",
+    "data[].pool_state.offpeg_fee_multiplier",
+    "data[].pool_state.out_fee",
+    "data[].pool_state.price_oracle",
+    "data[].pool_state.price_scale",
+    "data[].pool_state.reserves*",
+    "data[].pool_state.virtual_price",
+    "data[].pool_state.xcp_profit",
+    "data[].pool_state.xcp_profit_a",
+    "data[].price*",
+    "data[].sold_id*",
+    "data[].time*",
+    "data[].token_bought*",
+    "data[].token_bought.address*",
+    "data[].token_bought.event_index",
+    "data[].token_bought.pool_index*",
+    "data[].token_bought.symbol*",
+    "data[].token_sold*",
+    "data[].token_sold.address*",
+    "data[].token_sold.event_index",
+    "data[].token_sold.pool_index*",
+    "data[].token_sold.symbol*",
+    "data[].tokens_bought*",
+    "data[].tokens_bought_usd",
+    "data[].tokens_sold*",
+    "data[].tokens_sold_usd",
+    "data[].transaction_hash*",
+    "data[].usd_fee",
+    "page*",
+    "per_page*"
+   ]
+  },
+  "GET /v1/trades/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:include_state",
+    "query:main_token*",
+    "query:page",
+    "query:per_page",
+    "query:reference_token*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].block_number*",
+    "data[].bought_id*",
+    "data[].buyer",
+    "data[].fee",
+    "data[].log_index",
+    "data[].pool_state",
+    "data[].pool_state.a",
+    "data[].pool_state.adjustment_step",
+    "data[].pool_state.allowed_extra_profit",
+    "data[].pool_state.donation_duration",
+    "data[].pool_state.donation_protection_expiry_ts",
+    "data[].pool_state.donation_protection_lp_threshold",
+    "data[].pool_state.donation_protection_period",
+    "data[].pool_state.donation_shares",
+    "data[].pool_state.donation_shares_max_ratio",
+    "data[].pool_state.fee",
+    "data[].pool_state.fee_gamma",
+    "data[].pool_state.gamma",
+    "data[].pool_state.last_donation_release_ts",
+    "data[].pool_state.last_prices",
+    "data[].pool_state.last_prices_timestamp",
+    "data[].pool_state.ma_half_time",
+    "data[].pool_state.mid_fee",
+    "data[].pool_state.normalized_reserves*",
+    "data[].pool_state.offpeg_fee_multiplier",
+    "data[].pool_state.out_fee",
+    "data[].pool_state.price_oracle",
+    "data[].pool_state.price_scale",
+    "data[].pool_state.reserves*",
+    "data[].pool_state.virtual_price",
+    "data[].pool_state.xcp_profit",
+    "data[].pool_state.xcp_profit_a",
+    "data[].price*",
+    "data[].sold_id*",
+    "data[].time*",
+    "data[].tokens_bought*",
+    "data[].tokens_bought_usd",
+    "data[].tokens_sold*",
+    "data[].tokens_sold_usd",
+    "data[].transaction_hash*",
+    "data[].usd_fee",
+    "main_token*",
+    "main_token.address*",
+    "main_token.event_index",
+    "main_token.pool_index*",
+    "main_token.symbol*",
+    "reference_token*",
+    "reference_token.address*",
+    "reference_token.event_index",
+    "reference_token.pool_index*",
+    "reference_token.symbol*"
+   ]
+  },
+  "GET /v1/usd_price/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "cached_at",
+    "data*",
+    "data[].address*",
+    "data[].last_updated*",
+    "data[].usd_price*"
+   ]
+  },
+  "GET /v1/usd_price/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data.address*",
+    "data.last_updated*",
+    "data.usd_price*"
+   ]
+  },
+  "GET /v1/usd_price/{chain}/{address}/history": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end*",
+    "query:interval",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "data*",
+    "data[].price*",
+    "data[].timestamp*"
+   ]
+  },
+  "GET /v1/volume/usd/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end*",
+    "query:interval",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].fees*",
+    "data[].timestamp*",
+    "data[].volume*"
+   ]
+  },
+  "GET /v1/volume/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:end*",
+    "query:interval",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].fees*",
+    "data[].timestamp*",
+    "data[].volume*"
+   ]
+  },
+  "GET /v1/volume/{chain}/{address}": {
+   "deprecated": false,
+   "params": [
+    "path:address*",
+    "path:chain*",
+    "query:end*",
+    "query:interval",
+    "query:main_token*",
+    "query:reference_token*",
+    "query:start*"
+   ],
+   "request": [],
+   "response": [
+    "address*",
+    "chain*",
+    "data*",
+    "data[].fees*",
+    "data[].timestamp*",
+    "data[].volume*"
+   ]
+  },
+  "GET /v1/yield_basis/{chain}/pools": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "count*",
+    "data*",
+    "data[].address*",
+    "data[].name*"
+   ]
+  },
+  "GET /v1/yield_basis/{chain}/volume": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "chain*",
+    "stats*",
+    "stats.adjacent_dao_fees_24h*",
+    "stats.adjacent_dao_fees_7d*",
+    "stats.adjacent_dao_fees_pct_24h*",
+    "stats.adjacent_dao_fees_pct_7d*",
+    "stats.adjacent_total_fees_24h*",
+    "stats.adjacent_total_fees_7d*",
+    "stats.adjacent_volume_24h*",
+    "stats.adjacent_volume_7d*",
+    "stats.adjacent_volume_pct_24h*",
+    "stats.adjacent_volume_pct_7d*",
+    "stats.volume_24h*",
+    "stats.volume_7d*",
+    "stats.yb_dao_fees_24h*",
+    "stats.yb_dao_fees_7d*",
+    "stats.yb_total_fees_24h*",
+    "stats.yb_total_fees_7d*"
+   ]
+  },
+  "GET /v1/yield_basis/{chain}/{pool_address}/volume": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:pool_address*"
+   ],
+   "request": [],
+   "response": [
+    "pool_address*",
+    "pool_name*",
+    "transactions*",
+    "transactions[].adjacent_pools*",
+    "transactions[].adjacent_pools[].address*",
+    "transactions[].adjacent_pools[].name*",
+    "transactions[].adjacent_volume*",
+    "transactions[].block_number*",
+    "transactions[].timestamp*",
+    "transactions[].tx_hash*",
+    "transactions[].volume*"
+   ]
+  }
+ }
+}

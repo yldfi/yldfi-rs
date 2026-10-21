@@ -6,6 +6,7 @@
 //! methods (call-tracer output) instead.
 
 use super::{build_calldata, AlchemyArgs};
+use crate::utils::address::resolve_label;
 use alcmy::debug::TraceCallObject;
 
 /// Simulate a call via Alchemy's `debug_traceCall` RPC method
@@ -24,15 +25,19 @@ pub async fn simulate_via_alchemy(
     gas: Option<u64>,
     gas_price: Option<u64>,
     alchemy: &AlchemyArgs,
+    chain: crate::config::Chain,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alchemy.create_client()?;
+    let client = alchemy.create_client_for(Some(chain))?;
 
     // Build calldata from signature or raw data
     let calldata = build_calldata(sig, data, args)?;
 
+    // Address book labels, as the other backends accept
+    let to = resolve_label(to);
+    let from = from.as_deref().map(resolve_label);
     let call = TraceCallObject {
-        to: to.to_string(),
+        to: to.clone(),
         from: from.clone(),
         data: Some(calldata),
         value: if value == "0" {
@@ -44,7 +49,7 @@ pub async fn simulate_via_alchemy(
         gas_price: gas_price.map(|g| format!("0x{:x}", g)),
         ..Default::default()
     };
-    let block = format_block_param(block);
+    let block = super::utils::block_to_param(block)?;
 
     if !quiet {
         eprintln!("Simulating call via Alchemy debug_traceCall...");
@@ -69,25 +74,14 @@ pub async fn simulate_via_alchemy(
     Ok(())
 }
 
-/// Convert a block argument to a JSON-RPC block parameter
-///
-/// Decimal block numbers are converted to hex quantities; tags (`latest`,
-/// `pending`, ...) and hex values are passed through unchanged.
-fn format_block_param(block: &str) -> String {
-    let block = block.trim();
-    match block.parse::<u64>() {
-        Ok(n) => format!("0x{:x}", n),
-        Err(_) => block.to_string(),
-    }
-}
-
 /// Trace an existing transaction via Alchemy's debug API
 pub async fn trace_tx_via_alchemy(
     hash: &str,
     alchemy: &AlchemyArgs,
+    chain: crate::config::Chain,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = alchemy.create_client()?;
+    let client = alchemy.create_client_for(Some(chain))?;
 
     if !quiet {
         eprintln!("Tracing transaction via Alchemy: {}", hash);
@@ -107,31 +101,9 @@ pub async fn trace_tx_via_alchemy(
     Ok(())
 }
 
-/// Format a value string to hex
+/// Format a value string to hex (the shared simulate value parser)
 fn format_value_hex(value: &str) -> anyhow::Result<String> {
-    // Handle different formats: decimal, hex, or with units
-    let value = value.trim();
-
-    if value.starts_with("0x") || value.starts_with("0X") {
-        // Already hex
-        Ok(value.to_string())
-    } else if value.ends_with("eth") || value.ends_with("ETH") {
-        // Convert ETH to wei
-        let eth_str = value.trim_end_matches(|c: char| c.is_alphabetic()).trim();
-        let eth: f64 = eth_str.parse()?;
-        let wei = (eth * 1e18) as u128;
-        Ok(format!("0x{:x}", wei))
-    } else if value.ends_with("gwei") || value.ends_with("GWEI") {
-        // Convert gwei to wei
-        let gwei_str = value.trim_end_matches(|c: char| c.is_alphabetic()).trim();
-        let gwei: f64 = gwei_str.parse()?;
-        let wei = (gwei * 1e9) as u128;
-        Ok(format!("0x{:x}", wei))
-    } else {
-        // Assume wei (decimal)
-        let wei: u128 = value.parse()?;
-        Ok(format!("0x{:x}", wei))
-    }
+    super::utils::value_to_hex(value)
 }
 
 #[cfg(test)]
@@ -140,9 +112,11 @@ mod tests {
 
     #[test]
     fn block_param_converts_decimal_to_hex() {
-        assert_eq!(format_block_param("19000000"), "0x121eac0");
-        assert_eq!(format_block_param("latest"), "latest");
-        assert_eq!(format_block_param("0x10"), "0x10");
+        use super::super::utils::block_to_param;
+        assert_eq!(block_to_param("19000000").unwrap(), "0x121eac0");
+        assert_eq!(block_to_param("latest").unwrap(), "latest");
+        assert_eq!(block_to_param("0x10").unwrap(), "0x10");
+        assert!(block_to_param("soon").is_err());
     }
 
     #[test]
@@ -150,5 +124,6 @@ mod tests {
         assert_eq!(format_value_hex("1").unwrap(), "0x1");
         assert_eq!(format_value_hex("1gwei").unwrap(), "0x3b9aca00");
         assert_eq!(format_value_hex("0xff").unwrap(), "0xff");
+        assert_eq!(format_value_hex("0.1eth").unwrap(), "0x16345785d8a0000");
     }
 }

@@ -1,0 +1,804 @@
+{
+ "provider": "goplus",
+ "url": "https://docs.gopluslabs.io",
+ "version": "1.0",
+ "operations": {
+  "GET /api/v1/address/result": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "query:request_id*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.address_poisoned",
+    "result.address_poisoned.risk_detail",
+    "result.address_poisoned.risk_detail[].transaction_hash",
+    "result.address_poisoned.risk_detail[].transaction_time",
+    "result.address_poisoned.risk_num",
+    "result.approval_risk",
+    "result.approval_risk.risk_detail",
+    "result.approval_risk.risk_detail[].erc20_risk",
+    "result.approval_risk.risk_num",
+    "result.chain_id",
+    "result.excessive_gas_fee",
+    "result.excessive_gas_fee.risk_detail",
+    "result.excessive_gas_fee.risk_detail[].transaction_hash",
+    "result.excessive_gas_fee.risk_detail[].transaction_time",
+    "result.excessive_gas_fee.risk_num",
+    "result.nft_attention",
+    "result.nft_attention.risk_detail",
+    "result.nft_attention.risk_detail[].token_address",
+    "result.nft_attention.risk_detail[].token_symbol",
+    "result.nft_attention.risk_num",
+    "result.nft_risk",
+    "result.nft_risk.risk_detail",
+    "result.nft_risk.risk_detail[].token_address",
+    "result.nft_risk.risk_detail[].token_symbol",
+    "result.nft_risk.risk_num",
+    "result.nft_stolen",
+    "result.nft_stolen.risk_detail",
+    "result.nft_stolen.risk_detail[].transaction_hash",
+    "result.nft_stolen.risk_detail[].transaction_time",
+    "result.nft_stolen.risk_num",
+    "result.request_id",
+    "result.risky_address_interaction",
+    "result.risky_address_interaction.risk_detail",
+    "result.risky_address_interaction.risk_detail[].transaction_hash",
+    "result.risky_address_interaction.risk_detail[].transaction_time",
+    "result.risky_address_interaction.risk_num",
+    "result.scan_time",
+    "result.stablecoin_depeg",
+    "result.stablecoin_depeg.risk_detail",
+    "result.stablecoin_depeg.risk_detail[].fall_percent",
+    "result.stablecoin_depeg.risk_detail[].token_address",
+    "result.stablecoin_depeg.risk_detail[].token_symbol",
+    "result.stablecoin_depeg.risk_num",
+    "result.token_attention",
+    "result.token_attention.risk_detail",
+    "result.token_attention.risk_detail[].token_address",
+    "result.token_attention.risk_detail[].token_symbol",
+    "result.token_attention.risk_num",
+    "result.token_risk",
+    "result.token_risk.risk_detail",
+    "result.token_risk.risk_detail[].token_address",
+    "result.token_risk.risk_detail[].token_symbol",
+    "result.token_risk.risk_num"
+   ]
+  },
+  "GET /api/v1/address/scan/{chain_id}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:chain_id*",
+    "query:address*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.request_id",
+    "result.status"
+   ]
+  },
+  "GET /api/v1/address_security/{address}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:address*",
+    "query:chain_id"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.blacklist_doubt",
+    "result.blackmail_activities",
+    "result.contract_address",
+    "result.cybercrime",
+    "result.darkweb_transactions",
+    "result.data_source",
+    "result.fake_kyc",
+    "result.fake_standard_interface",
+    "result.fake_token",
+    "result.financial_crime",
+    "result.gas_abuse",
+    "result.honeypot_related_address",
+    "result.malicious_mining_activities",
+    "result.mixer",
+    "result.money_laundering",
+    "result.number_of_malicious_contracts_created",
+    "result.phishing_activities",
+    "result.reinit",
+    "result.sanctioned",
+    "result.stealing_attack"
+   ]
+  },
+  "GET /api/v1/approval_security/{chain_id}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:chain_id*",
+    "query:contract_addresses*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.contract_name",
+    "result.creator_address",
+    "result.deployed_time",
+    "result.doubt_list",
+    "result.is_contract",
+    "result.is_open_source",
+    "result.is_proxy",
+    "result.malicious_behavior",
+    "result.tag",
+    "result.trust_list"
+   ]
+  },
+  "GET /api/v1/dapp_security": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "query:url"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.audit_info",
+    "result.audit_info[].audit_firm",
+    "result.audit_info[].audit_link",
+    "result.audit_info[].audit_time",
+    "result.contracts_security",
+    "result.contracts_security[].chain_id",
+    "result.contracts_security[].contracts",
+    "result.contracts_security[].contracts[].contract_address",
+    "result.contracts_security[].contracts[].creator_address",
+    "result.contracts_security[].contracts[].deployment_time",
+    "result.contracts_security[].contracts[].is_open_source",
+    "result.contracts_security[].contracts[].malicious_behavior",
+    "result.contracts_security[].contracts[].malicious_contract",
+    "result.contracts_security[].contracts[].malicious_creator",
+    "result.contracts_security[].contracts[].malicious_creator_behavior",
+    "result.is_audit",
+    "result.project_name",
+    "result.trust_list",
+    "result.url"
+   ]
+  },
+  "GET /api/v1/nft_security/{chain_id}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:chain_id*",
+    "query:contract_addresses*",
+    "query:token_id"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.average_price_24h",
+    "result.create_block_number",
+    "result.creator_address",
+    "result.discord_url",
+    "result.github_url",
+    "result.highest_price",
+    "result.lowest_price_24h",
+    "result.malicious_nft_contract",
+    "result.medium_url",
+    "result.metadata_frozen",
+    "result.nft_description",
+    "result.nft_erc",
+    "result.nft_items",
+    "result.nft_name",
+    "result.nft_open_source",
+    "result.nft_owner_number",
+    "result.nft_proxy",
+    "result.nft_symbol",
+    "result.nft_verified",
+    "result.oversupply_minting",
+    "result.privileged_burn",
+    "result.privileged_burn.owner_address",
+    "result.privileged_burn.owner_type",
+    "result.privileged_burn.value",
+    "result.privileged_minting",
+    "result.privileged_minting.owner_address",
+    "result.privileged_minting.owner_type",
+    "result.privileged_minting.value",
+    "result.red_check_mark",
+    "result.restricted_approval",
+    "result.sales_24h",
+    "result.same_nfts",
+    "result.same_nfts[].create_block_number",
+    "result.same_nfts[].nft_address",
+    "result.same_nfts[].nft_name",
+    "result.same_nfts[].nft_owner_number",
+    "result.same_nfts[].nft_symbol",
+    "result.self_destruct",
+    "result.self_destruct.owner_address",
+    "result.self_destruct.owner_type",
+    "result.self_destruct.value",
+    "result.telegram_url",
+    "result.token_id",
+    "result.token_owner",
+    "result.total_volume",
+    "result.traded_volume_24h",
+    "result.transfer_without_approval",
+    "result.transfer_without_approval.owner_address",
+    "result.transfer_without_approval.owner_type",
+    "result.transfer_without_approval.value",
+    "result.trust_list",
+    "result.twitter_url",
+    "result.website_url"
+   ]
+  },
+  "GET /api/v1/phishing_site": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "query:url*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.phishing_site",
+    "result.website_contract_security",
+    "result.website_contract_security[].address_risk",
+    "result.website_contract_security[].contract",
+    "result.website_contract_security[].is_contract",
+    "result.website_contract_security[].is_open_source",
+    "result.website_contract_security[].nft_risk",
+    "result.website_contract_security[].nft_risk.nft_open_source",
+    "result.website_contract_security[].nft_risk.nft_proxy",
+    "result.website_contract_security[].nft_risk.oversupply_minting",
+    "result.website_contract_security[].nft_risk.privileged_burn",
+    "result.website_contract_security[].nft_risk.privileged_minting",
+    "result.website_contract_security[].nft_risk.restricted_approval",
+    "result.website_contract_security[].nft_risk.self_destruct",
+    "result.website_contract_security[].nft_risk.transfer_without_approval",
+    "result.website_contract_security[].standard"
+   ]
+  },
+  "GET /api/v1/rugpull_detecting/{chain_id}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:chain_id*",
+    "query:contract_addresses*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.approval_abuse",
+    "result.blacklist",
+    "result.contract_name",
+    "result.is_open_source",
+    "result.is_proxy",
+    "result.owner",
+    "result.owner.owner_address",
+    "result.owner.owner_name",
+    "result.owner.owner_type",
+    "result.privilege_withdraw",
+    "result.selfdestruct",
+    "result.withdraw_missing"
+   ]
+  },
+  "GET /api/v1/solana/token_security": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "query:contract_addresses*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result"
+   ]
+  },
+  "GET /api/v1/sui/token_security": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "query:contract_addresses*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result"
+   ]
+  },
+  "GET /api/v1/supported_chains": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "query:name"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result[].id",
+    "result[].name"
+   ]
+  },
+  "GET /api/v1/token_security/{chain_id}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:chain_id*",
+    "query:contract_addresses*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result"
+   ]
+  },
+  "GET /api/v2/nft1155_approval_security/{chainId}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:chainId*",
+    "query:addresses*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result[].approved_list",
+    "result[].approved_list[].address_info",
+    "result[].approved_list[].address_info.contract_name",
+    "result[].approved_list[].address_info.creator_address",
+    "result[].approved_list[].address_info.deployed_time",
+    "result[].approved_list[].address_info.doubt_list",
+    "result[].approved_list[].address_info.is_contract",
+    "result[].approved_list[].address_info.is_open_source",
+    "result[].approved_list[].address_info.malicious_behavior",
+    "result[].approved_list[].address_info.tag",
+    "result[].approved_list[].address_info.trust_list",
+    "result[].approved_list[].approved_contract",
+    "result[].approved_list[].approved_time",
+    "result[].approved_list[].hash",
+    "result[].approved_list[].initial_approval_hash",
+    "result[].approved_list[].initial_approval_time",
+    "result[].chain_id",
+    "result[].is_open_source",
+    "result[].is_verified",
+    "result[].malicious_address",
+    "result[].malicious_behavior",
+    "result[].nft_address",
+    "result[].nft_name",
+    "result[].nft_symbol"
+   ]
+  },
+  "GET /api/v2/nft721_approval_security/{chainId}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:chainId*",
+    "query:addresses*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result[].approved_list",
+    "result[].approved_list[].address_info",
+    "result[].approved_list[].address_info.contract_name",
+    "result[].approved_list[].address_info.creator_address",
+    "result[].approved_list[].address_info.deployed_time",
+    "result[].approved_list[].address_info.doubt_list",
+    "result[].approved_list[].address_info.is_contract",
+    "result[].approved_list[].address_info.is_open_source",
+    "result[].approved_list[].address_info.malicious_behavior",
+    "result[].approved_list[].address_info.tag",
+    "result[].approved_list[].address_info.trust_list",
+    "result[].approved_list[].approved_contract",
+    "result[].approved_list[].approved_for_all",
+    "result[].approved_list[].approved_time",
+    "result[].approved_list[].approved_token_id",
+    "result[].approved_list[].hash",
+    "result[].approved_list[].initial_approval_hash",
+    "result[].approved_list[].initial_approval_time",
+    "result[].chain_id",
+    "result[].is_open_source",
+    "result[].is_verified",
+    "result[].malicious_address",
+    "result[].malicious_behavior",
+    "result[].nft_address",
+    "result[].nft_name",
+    "result[].nft_symbol"
+   ]
+  },
+  "GET /api/v2/token_approval_security/{chainId}": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "path:chainId*",
+    "query:addresses*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result[].approved_list",
+    "result[].approved_list[].address_info",
+    "result[].approved_list[].address_info.contract_name",
+    "result[].approved_list[].address_info.creator_address",
+    "result[].approved_list[].address_info.deployed_time",
+    "result[].approved_list[].address_info.doubt_list",
+    "result[].approved_list[].address_info.is_contract",
+    "result[].approved_list[].address_info.is_open_source",
+    "result[].approved_list[].address_info.malicious_behavior",
+    "result[].approved_list[].address_info.tag",
+    "result[].approved_list[].address_info.trust_list",
+    "result[].approved_list[].approved_amount",
+    "result[].approved_list[].approved_contract",
+    "result[].approved_list[].approved_time",
+    "result[].approved_list[].hash",
+    "result[].approved_list[].initial_approval_hash",
+    "result[].approved_list[].initial_approval_time",
+    "result[].balance",
+    "result[].chain_id",
+    "result[].decimals",
+    "result[].is_open_source",
+    "result[].malicious_address",
+    "result[].malicious_behavior",
+    "result[].token_address",
+    "result[].token_name",
+    "result[].token_symbol"
+   ]
+  },
+  "GET /open/api/v1/locks/lpv3?chainId=56&poolAddress=0x579df956c6cE6178fBBD78bbE4f05786cFBA9B76": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "query:chainId*",
+    "query:pageNum*",
+    "query:pageSize*",
+    "query:poolAddress*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.list",
+    "result.list[].endTime",
+    "result.list[].lockId",
+    "result.list[].nftId",
+    "result.list[].nftPositionManager",
+    "result.list[].owner",
+    "result.list[].pool",
+    "result.list[].startTime",
+    "result.totalCount"
+   ]
+  },
+  "GET /open/api/v1/locks/lpv3s": {
+   "deprecated": false,
+   "params": [
+    "query:pageNum*",
+    "query:pageSize*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.list",
+    "result.list[].endTime",
+    "result.list[].liquidity",
+    "result.list[].lockId",
+    "result.list[].lockedPercent",
+    "result.list[].nftId",
+    "result.list[].nftPositionManager",
+    "result.list[].owner",
+    "result.list[].pool",
+    "result.list[].startTime",
+    "result.pageNum",
+    "result.pageSize",
+    "result.totalCount"
+   ]
+  },
+  "GET /open/api/v1/locks/lpv4": {
+   "deprecated": false,
+   "params": [
+    "query:chainId*",
+    "query:pageNum*",
+    "query:pageSize*",
+    "query:poolId*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.endTime",
+    "result.lockId",
+    "result.nftId",
+    "result.nftPositionManager",
+    "result.owner",
+    "result.poolId",
+    "result.startTime"
+   ]
+  },
+  "GET /open/api/v1/locks/lpv4s": {
+   "deprecated": false,
+   "params": [
+    "query:pageNum*",
+    "query:pageSize*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.list",
+    "result.list[].chainId",
+    "result.list[].lockList",
+    "result.list[].lockList[].endTime",
+    "result.list[].lockList[].liquidity",
+    "result.list[].lockList[].lockId",
+    "result.list[].lockList[].lockedPercent",
+    "result.list[].lockList[].nftId",
+    "result.list[].lockList[].nftPositionManager",
+    "result.list[].lockList[].owner",
+    "result.list[].lockList[].pool",
+    "result.list[].lockList[].startTime",
+    "result.list[].nftPositionManager",
+    "result.list[].poolId",
+    "result.list[].url",
+    "result.pageNum",
+    "result.pageSize",
+    "result.totalCount"
+   ]
+  },
+  "GET /open/api/v1/locks/token?chainId=8453&tokenAddress=0x6fd0303649296360f10c07b24521deda9223086d": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization",
+    "query:chainId*",
+    "query:pageNum*",
+    "query:pageSize*",
+    "query:tokenAddress*"
+   ],
+   "request": [],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.list",
+    "result.list[].amount",
+    "result.list[].endTime",
+    "result.list[].isLpToken",
+    "result.list[].lockId",
+    "result.list[].owner",
+    "result.list[].startTime",
+    "result.list[].token",
+    "result.list[].unlockedAmount",
+    "result.totalCount"
+   ]
+  },
+  "POST /api/v1/abi/input_decode": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization"
+   ],
+   "request": [
+    "chain_id*",
+    "contract_address",
+    "data*",
+    "input",
+    "signer",
+    "transcation_type"
+   ],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.contract_description",
+    "result.contract_name",
+    "result.malicious_contract",
+    "result.method",
+    "result.params",
+    "result.params[].address_info",
+    "result.params[].address_info.contract_name",
+    "result.params[].address_info.is_contract",
+    "result.params[].address_info.malicious_address",
+    "result.params[].address_info.name",
+    "result.params[].address_info.standard",
+    "result.params[].address_info.symbol",
+    "result.params[].input",
+    "result.params[].name",
+    "result.params[].type",
+    "result.risk",
+    "result.risky_signature",
+    "result.signature_detail"
+   ]
+  },
+  "POST /api/v1/dust_attack_detection": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization"
+   ],
+   "request": [
+    "from",
+    "to"
+   ],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.attack_hash",
+    "result.is_under_attack"
+   ]
+  },
+  "POST /api/v1/token": {
+   "deprecated": false,
+   "params": [],
+   "request": [
+    "app_key*",
+    "sign*",
+    "time*"
+   ],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.access_token",
+    "result.expires_in"
+   ]
+  },
+  "POST /api/v1/transaction_simulation": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization"
+   ],
+   "request": [
+    "access_list",
+    "access_list[].address",
+    "access_list[].storage_keys",
+    "chain_id",
+    "data",
+    "from",
+    "gas_limit",
+    "gas_price",
+    "max_fee_per_gas",
+    "max_priority_fee_per_gas",
+    "nonce",
+    "to",
+    "url",
+    "value"
+   ],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.erc20_allowance_changes",
+    "result.erc20_allowance_changes[].amount",
+    "result.erc20_allowance_changes[].contract_address",
+    "result.erc20_allowance_changes[].owner",
+    "result.erc20_allowance_changes[].spender",
+    "result.erc20_balance_changes",
+    "result.erc20_balance_changes[].address",
+    "result.erc20_balance_changes[].erc20_change",
+    "result.erc20_balance_changes[].erc20_change[].change",
+    "result.erc20_balance_changes[].erc20_change[].token_address",
+    "result.erc721_balance_changes",
+    "result.erc721_balance_changes[].address",
+    "result.erc721_balance_changes[].erc721_change",
+    "result.erc721_balance_changes[].erc721_change[].received",
+    "result.erc721_balance_changes[].erc721_change[].token_address",
+    "result.erc721_balance_changes[].erc721_change[].token_id",
+    "result.flagged",
+    "result.flagged[].message",
+    "result.flagged[].type",
+    "result.is_revert",
+    "result.is_simulated",
+    "result.logs",
+    "result.logs[].address",
+    "result.logs[].data",
+    "result.logs[].topics",
+    "result.native_balance_changes",
+    "result.native_balance_changes[].address",
+    "result.native_balance_changes[].native_change",
+    "result.native_balance_changes[].native_change.after",
+    "result.native_balance_changes[].native_change.before",
+    "result.native_balance_changes[].native_change.change",
+    "result.revert_reason",
+    "result.simulate_failed_reason",
+    "result.suspicious_addresses",
+    "result.suspicious_addresses[].address",
+    "result.suspicious_addresses[].storage_keys",
+    "result.suspicious_url",
+    "result.used_gas"
+   ]
+  },
+  "POST /pis/api/v1/solana/pre_execution": {
+   "deprecated": false,
+   "params": [
+    "header:Authorization"
+   ],
+   "request": [
+    "encoded_transaction"
+   ],
+   "response": [
+    "code",
+    "message",
+    "result",
+    "result.allowance_upgrades",
+    "result.allowance_upgrades[].decimals",
+    "result.allowance_upgrades[].mint",
+    "result.allowance_upgrades[].name",
+    "result.allowance_upgrades[].new_allowances",
+    "result.allowance_upgrades[].new_allowances[].allowance_change",
+    "result.allowance_upgrades[].new_allowances[].owner",
+    "result.allowance_upgrades[].new_allowances[].post_amount",
+    "result.allowance_upgrades[].new_allowances[].pre_amount",
+    "result.allowance_upgrades[].new_allowances[].risky_spender",
+    "result.allowance_upgrades[].new_allowances[].spender",
+    "result.allowance_upgrades[].symbol",
+    "result.asset_changes",
+    "result.asset_changes.nft_changes",
+    "result.asset_changes.nft_changes[].change_detail",
+    "result.asset_changes.nft_changes[].decimals",
+    "result.asset_changes.nft_changes[].mint",
+    "result.asset_changes.nft_changes[].name",
+    "result.asset_changes.nft_changes[].symbol",
+    "result.asset_changes.sol_changes",
+    "result.asset_changes.sol_changes[].address",
+    "result.asset_changes.sol_changes[].from_address",
+    "result.asset_changes.sol_changes[].lamport_changes",
+    "result.asset_changes.sol_changes[].post_lamports",
+    "result.asset_changes.sol_changes[].pre_lamports",
+    "result.asset_changes.sol_changes[].risky_address",
+    "result.asset_changes.token_changes",
+    "result.asset_changes.token_changes[].change_detail",
+    "result.asset_changes.token_changes[].decimals",
+    "result.asset_changes.token_changes[].mint",
+    "result.asset_changes.token_changes[].name",
+    "result.asset_changes.token_changes[].symbol",
+    "result.error",
+    "result.input",
+    "result.logs",
+    "result.ownership_changes",
+    "result.ownership_changes[].decimals",
+    "result.ownership_changes[].mint",
+    "result.ownership_changes[].name",
+    "result.ownership_changes[].owner_changed",
+    "result.ownership_changes[].post_owner",
+    "result.ownership_changes[].pre_owner",
+    "result.ownership_changes[].risky_post_owner",
+    "result.ownership_changes[].symbol",
+    "result.risk_detail",
+    "result.risk_type",
+    "result.risky_txn",
+    "result.sender",
+    "result.slot_height",
+    "result.transaction_fee"
+   ]
+  }
+ }
+}

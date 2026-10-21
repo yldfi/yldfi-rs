@@ -18,7 +18,8 @@ use crate::error::{DomainError, Error, Result};
 /// Only Ethereum mainnet and its testnets have beacon hosts.
 fn beacon_host(network: Network) -> Result<String> {
     match network {
-        Network::EthMainnet | Network::EthSepolia | Network::EthHolesky => {
+        #[allow(deprecated)]
+        Network::EthMainnet | Network::EthSepolia | Network::EthHoodi | Network::EthHolesky => {
             Ok(format!("{}beacon.g.alchemy.com", network.slug()))
         }
         other => Err(Error::domain(DomainError::UnsupportedBeaconNetwork(
@@ -62,8 +63,40 @@ impl<'a> BeaconApi<'a> {
     where
         R: serde::de::DeserializeOwned,
     {
+        self.get_with_query(version, path, &[]).await
+    }
+
+    /// Build a GET request with optional query parameters
+    fn build_get(
+        &self,
+        version: &str,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<reqwest::Request> {
         let url = beacon_url(self.client.network(), self.client.api_key(), version, path)?;
-        let response = self.client.http().get(&url).send().await?;
+        let mut request = self.client.http().get(&url);
+        if !query.is_empty() {
+            request = request.query(query);
+        }
+        request.build().map_err(crate::error::http)
+    }
+
+    async fn get_with_query<R>(
+        &self,
+        version: &str,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<R>
+    where
+        R: serde::de::DeserializeOwned,
+    {
+        let request = self.build_get(version, path, query)?;
+        let response = self
+            .client
+            .http()
+            .execute(request)
+            .await
+            .map_err(crate::error::http)?;
         self.client.handle_response(response).await
     }
 
@@ -73,7 +106,14 @@ impl<'a> BeaconApi<'a> {
         R: serde::de::DeserializeOwned,
     {
         let url = beacon_url(self.client.network(), self.client.api_key(), "v1", path)?;
-        let response = self.client.http().post(&url).json(body).send().await?;
+        let response = self
+            .client
+            .http()
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
         self.client.handle_response(response).await
     }
 
@@ -133,11 +173,26 @@ impl<'a> BeaconApi<'a> {
     }
 
     /// Get blob sidecars
+    ///
+    /// Beacon API v4.0.0 deprecated `blob_sidecars` in favour of
+    /// [`Self::get_blobs`].
+    #[deprecated(
+        since = "0.1.5",
+        note = "Beacon API v4 deprecated /beacon/blob_sidecars; use get_blobs()"
+    )]
     pub async fn get_blob_sidecars(
         &self,
         block_id: &str,
     ) -> Result<BeaconListResponse<BlobSidecar>> {
         self.get(&format!("/beacon/blob_sidecars/{block_id}")).await
+    }
+
+    /// Get the blobs in a block (`GET /eth/v1/beacon/blobs/{block_id}`)
+    ///
+    /// Each entry is a hex-encoded blob. Replaces the deprecated
+    /// `blob_sidecars` endpoint (Beacon API v4.0.0).
+    pub async fn get_blobs(&self, block_id: &str) -> Result<BeaconListResponse<String>> {
+        self.get(&format!("/beacon/blobs/{block_id}")).await
     }
 
     // ========== State ==========
@@ -161,13 +216,24 @@ impl<'a> BeaconApi<'a> {
             .await
     }
 
-    /// Get validators
+    /// Get validators, filtered by `ids` (indices or pubkeys) and/or
+    /// `statuses` (e.g. `active_ongoing`, `pending_queued`, `exited`)
+    ///
+    /// With both filters empty the node returns every validator (over a
+    /// million on mainnet, hundreds of MB), so pass at least one filter
+    /// unless that is really what you want.
     pub async fn get_validators(
         &self,
         state_id: &str,
+        ids: &[&str],
+        statuses: &[&str],
     ) -> Result<BeaconListResponse<ValidatorInfo>> {
-        self.get(&format!("/beacon/states/{state_id}/validators"))
-            .await
+        self.get_with_query(
+            "v1",
+            &format!("/beacon/states/{state_id}/validators"),
+            &validators_query(ids, statuses),
+        )
+        .await
     }
 
     /// Get specific validator
@@ -182,27 +248,49 @@ impl<'a> BeaconApi<'a> {
         .await
     }
 
-    /// Get validator balances
+    /// Get validator balances, filtered by `ids` (indices or pubkeys)
+    ///
+    /// An empty `ids` returns the balance of every validator.
     pub async fn get_validator_balances(
         &self,
         state_id: &str,
+        ids: &[&str],
     ) -> Result<BeaconListResponse<ValidatorBalance>> {
-        self.get(&format!("/beacon/states/{state_id}/validator_balances"))
-            .await
+        self.get_with_query(
+            "v1",
+            &format!("/beacon/states/{state_id}/validator_balances"),
+            &validators_query(ids, &[]),
+        )
+        .await
     }
 
-    /// Get sync committees
+    /// Get sync committees, optionally for a specific `epoch`
     pub async fn get_sync_committees(
         &self,
         state_id: &str,
+        epoch: Option<u64>,
     ) -> Result<BeaconResponse<SyncCommittee>> {
-        self.get(&format!("/beacon/states/{state_id}/sync_committees"))
-            .await
+        self.get_with_query(
+            "v1",
+            &format!("/beacon/states/{state_id}/sync_committees"),
+            &epoch_query(epoch),
+        )
+        .await
     }
 
-    /// Get RANDAO
-    pub async fn get_randao(&self, state_id: &str) -> Result<BeaconResponse<RandaoResponse>> {
-        self.get(&format!("/beacon/states/{state_id}/randao")).await
+    /// Get RANDAO, optionally for a specific `epoch` (defaults to the
+    /// state's epoch)
+    pub async fn get_randao(
+        &self,
+        state_id: &str,
+        epoch: Option<u64>,
+    ) -> Result<BeaconResponse<RandaoResponse>> {
+        self.get_with_query(
+            "v1",
+            &format!("/beacon/states/{state_id}/randao"),
+            &epoch_query(epoch),
+        )
+        .await
     }
 
     // ========== Pool ==========
@@ -304,9 +392,53 @@ pub struct RandaoResponse {
     pub randao: String,
 }
 
+/// `id` / `status` query pairs (comma-separated, as the Beacon API accepts)
+fn validators_query(ids: &[&str], statuses: &[&str]) -> Vec<(&'static str, String)> {
+    let mut query = Vec::new();
+    if !ids.is_empty() {
+        query.push(("id", ids.join(",")));
+    }
+    if !statuses.is_empty() {
+        query.push(("status", statuses.join(",")));
+    }
+    query
+}
+
+/// Optional `epoch` query pair
+fn epoch_query(epoch: Option<u64>) -> Vec<(&'static str, String)> {
+    epoch
+        .map(|e| ("epoch", e.to_string()))
+        .into_iter()
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn validators_request_carries_filters() {
+        let client = Client::new("KEY", Network::EthMainnet).unwrap();
+        let api = BeaconApi::new(&client);
+        let req = api
+            .build_get(
+                "v1",
+                "/beacon/states/head/validators",
+                &validators_query(&["1", "0xabc"], &["active_ongoing"]),
+            )
+            .unwrap();
+        assert_eq!(
+            req.url().as_str(),
+            "https://eth-mainnetbeacon.g.alchemy.com/v2/KEY/eth/v1/beacon/states/head/validators?id=1%2C0xabc&status=active_ongoing"
+        );
+        assert!(validators_query(&[], &[]).is_empty());
+    }
+
+    #[test]
+    fn randao_epoch_query() {
+        assert_eq!(epoch_query(Some(42)), vec![("epoch", "42".to_string())]);
+        assert!(epoch_query(None).is_empty());
+    }
 
     #[test]
     fn beacon_url_mainnet_matches_docs() {
@@ -323,8 +455,8 @@ mod tests {
             "https://eth-sepoliabeacon.g.alchemy.com/v2/KEY/eth/v2/beacon/blocks/head"
         );
         assert_eq!(
-            beacon_url(Network::EthHolesky, "KEY", "v1", "/node/version").unwrap(),
-            "https://eth-holeskybeacon.g.alchemy.com/v2/KEY/eth/v1/node/version"
+            beacon_url(Network::EthHoodi, "KEY", "v1", "/node/version").unwrap(),
+            "https://eth-hoodibeacon.g.alchemy.com/v2/KEY/eth/v1/node/version"
         );
     }
 

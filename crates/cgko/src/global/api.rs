@@ -50,8 +50,7 @@ impl<'a> GlobalApi<'a> {
 
     /// Search for coins, exchanges, categories, NFTs
     pub async fn search(&self, query: &str) -> Result<SearchResponse> {
-        let path = format!("/search?query={query}");
-        self.client.get(&path).await
+        self.client.get(&search_path(query)).await
     }
 
     /// Get BTC exchange rates
@@ -82,5 +81,22 @@ impl<'a> GlobalApi<'a> {
     pub async fn token_list(&self, asset_platform_id: &str) -> Result<TokenList> {
         let path = format!("/token_lists/{asset_platform_id}/all.json");
         self.client.get(&path).await
+    }
+}
+
+fn search_path(query: &str) -> String {
+    format!("/search?query={}", Client::encode_query(query))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn search_query_is_url_encoded() {
+        assert_eq!(
+            search_path("wrapped eth&x=1"),
+            "/search?query=wrapped+eth%26x%3D1"
+        );
     }
 }

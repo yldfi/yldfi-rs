@@ -62,9 +62,9 @@ async fn test_actions_list_and_get() {
     let client = Client::from_env().expect("Failed to create client");
 
     let resp = client.actions().list().await.unwrap();
-    println!("Found {} actions", resp.actions.len());
+    println!("Found {} actions", resp.len());
 
-    if let Some(action) = resp.actions.first() {
+    if let Some(action) = resp.first() {
         let a = client.actions().get(&action.id).await.unwrap();
         println!("Got action: {}", a.name);
     }

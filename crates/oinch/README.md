@@ -19,7 +19,7 @@
 
 ## Features
 
-- Multi-chain support (Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, etc.)
+- Multi-chain support: Ethereum, BSC, Polygon, Optimism, Arbitrum, Gnosis, Avalanche, zkSync Era, Base, Linea, Sonic, Unichain, Robinhood Chain, Monad, Cronos, HyperEVM and Arc
 - Advanced Pathfinder algorithm for optimal routing
 - Type-safe request/response handling
 - Automatic rate limiting awareness

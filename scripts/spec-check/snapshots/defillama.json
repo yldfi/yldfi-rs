@@ -1,0 +1,524 @@
+{
+ "provider": "defillama",
+ "url": "https://raw.githubusercontent.com/DefiLlama/api-docs/main/defillama-openapi-free.json",
+ "version": "1.0.0-oas3",
+ "operations": {
+  "GET /batchHistorical": {
+   "deprecated": false,
+   "params": [
+    "query:coins*"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.prices",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.prices[].confidence",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.prices[].price",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.prices[].timestamp",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.symbol"
+   ]
+  },
+  "GET /block/{chain}/{timestamp}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:timestamp*"
+   ],
+   "request": [],
+   "response": [
+    "height",
+    "timestamp"
+   ]
+  },
+  "GET /chart/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*",
+    "query:end",
+    "query:period",
+    "query:span",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.confidence*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.decimals",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.prices*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.prices[].price",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.prices[].timestamp",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.symbol*"
+   ]
+  },
+  "GET /chart/{pool}": {
+   "deprecated": true,
+   "params": [
+    "path:pool*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apyBase",
+    "data[].apyReward",
+    "data[].timestamp",
+    "data[].tvlUsd",
+    "status"
+   ]
+  },
+  "GET /overview/dexs": {
+   "deprecated": false,
+   "params": [
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "allChains",
+    "protocols",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].change_7d",
+    "protocols[].displayName",
+    "protocols[].name",
+    "protocols[].total24h",
+    "protocols[].total7d",
+    "totalDataChart"
+   ]
+  },
+  "GET /overview/dexs/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "protocols",
+    "protocols[].change_1d",
+    "protocols[].name",
+    "protocols[].total24h",
+    "totalDataChart"
+   ]
+  },
+  "GET /overview/fees": {
+   "deprecated": false,
+   "params": [
+    "query:dataType",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "protocols",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].name",
+    "protocols[].revenue24h",
+    "protocols[].total24h",
+    "totalDataChart",
+    "totalDataChartBreakdown"
+   ]
+  },
+  "GET /overview/fees/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:dataType",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "protocols",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].name",
+    "protocols[].revenue24h",
+    "protocols[].total24h",
+    "totalDataChart",
+    "totalDataChartBreakdown"
+   ]
+  },
+  "GET /overview/open-interest": {
+   "deprecated": false,
+   "params": [
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "allChains",
+    "protocols",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].change_7d",
+    "protocols[].displayName",
+    "protocols[].name",
+    "protocols[].total24h",
+    "protocols[].total7d",
+    "totalDataChart"
+   ]
+  },
+  "GET /overview/options": {
+   "deprecated": false,
+   "params": [
+    "query:dataType",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "protocols",
+    "protocols[].change_1d",
+    "protocols[].name",
+    "protocols[].total24h",
+    "totalDataChart"
+   ]
+  },
+  "GET /overview/options/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:dataType",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /percentage/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*",
+    "query:lookForward",
+    "query:period",
+    "query:timestamp"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1"
+   ]
+  },
+  "GET /pools": {
+   "deprecated": true,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apyBase",
+    "data[].apyBase7d",
+    "data[].apyBaseInception",
+    "data[].apyMean30d",
+    "data[].apyPct1D",
+    "data[].apyPct30D",
+    "data[].apyPct7D",
+    "data[].apyReward",
+    "data[].chain",
+    "data[].count",
+    "data[].exposure",
+    "data[].il7d",
+    "data[].ilRisk",
+    "data[].mu",
+    "data[].outlier",
+    "data[].pool",
+    "data[].poolMeta",
+    "data[].predictions",
+    "data[].predictions.binnedConfidence",
+    "data[].predictions.predictedClass",
+    "data[].predictions.predictedProbability",
+    "data[].project",
+    "data[].rewardTokens",
+    "data[].sigma",
+    "data[].stablecoin",
+    "data[].symbol",
+    "data[].tvlUsd",
+    "data[].underlyingTokens",
+    "data[].volumeUsd1d",
+    "data[].volumeUsd7d",
+    "status"
+   ]
+  },
+  "GET /prices/current/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.confidence",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.decimals",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.price*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.symbol*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.timestamp*"
+   ]
+  },
+  "GET /prices/first/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.price",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.symbol",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.timestamp"
+   ]
+  },
+  "GET /prices/historical/{timestamp}/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*",
+    "path:timestamp*"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.confidence",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.decimals",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.price*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.symbol*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.timestamp*"
+   ]
+  },
+  "GET /protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": [
+    "category",
+    "chainTvls",
+    "chains",
+    "currentChainTvls",
+    "id",
+    "name",
+    "symbol"
+   ]
+  },
+  "GET /protocols": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].category",
+    "[].chainTvls",
+    "[].chains",
+    "[].change_1d",
+    "[].change_7d",
+    "[].id",
+    "[].name",
+    "[].symbol",
+    "[].tvl"
+   ]
+  },
+  "GET /stablecoin/{asset}": {
+   "deprecated": false,
+   "params": [
+    "path:asset*"
+   ],
+   "request": [],
+   "response": [
+    "chainCirculating",
+    "id",
+    "name",
+    "symbol",
+    "totalCirculating",
+    "totalCirculating[].date",
+    "totalCirculating[].totalCirculating"
+   ]
+  },
+  "GET /stablecoinchains": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].name",
+    "[].totalCirculating",
+    "[].totalCirculating.peggedUSD"
+   ]
+  },
+  "GET /stablecoincharts/all": {
+   "deprecated": false,
+   "params": [
+    "query:stablecoin"
+   ],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].totalCirculating",
+    "[].totalCirculating.peggedUSD"
+   ]
+  },
+  "GET /stablecoincharts/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:stablecoin"
+   ],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].totalCirculating",
+    "[].totalCirculating.peggedUSD"
+   ]
+  },
+  "GET /stablecoinprices": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].prices"
+   ]
+  },
+  "GET /stablecoins": {
+   "deprecated": false,
+   "params": [
+    "query:includePrices"
+   ],
+   "request": [],
+   "response": [
+    "peggedAssets",
+    "peggedAssets[].chainCirculating",
+    "peggedAssets[].chains",
+    "peggedAssets[].circulating",
+    "peggedAssets[].circulating.peggedUSD",
+    "peggedAssets[].id",
+    "peggedAssets[].name",
+    "peggedAssets[].pegMechanism",
+    "peggedAssets[].pegType",
+    "peggedAssets[].price",
+    "peggedAssets[].symbol"
+   ]
+  },
+  "GET /summary/dexs/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "chains",
+    "name",
+    "total24h",
+    "totalAllTime",
+    "totalDataChart",
+    "totalDataChartBreakdown"
+   ]
+  },
+  "GET /summary/fees/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "address",
+    "audit_links",
+    "audits",
+    "category",
+    "chains",
+    "change_1d",
+    "childProtocols",
+    "cmcId",
+    "defillamaId",
+    "description",
+    "disabled",
+    "displayName",
+    "forkedFrom",
+    "gecko_id",
+    "github",
+    "governanceID",
+    "id",
+    "latestFetchIsOk",
+    "linkedProtocols",
+    "logo",
+    "methodology",
+    "methodologyURL",
+    "module",
+    "name",
+    "parentProtocol",
+    "previousNames",
+    "protocolType",
+    "referralUrl",
+    "slug",
+    "symbol",
+    "total24h",
+    "total48hto24h",
+    "total7d",
+    "totalAllTime",
+    "totalDataChart",
+    "totalDataChartBreakdown",
+    "treasury",
+    "twitter",
+    "url",
+    "versionKey"
+   ]
+  },
+  "GET /summary/options/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /tvl/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /v2/chains": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].chainId",
+    "[].cmcId",
+    "[].gecko_id",
+    "[].name",
+    "[].tokenSymbol",
+    "[].tvl"
+   ]
+  },
+  "GET /v2/historicalChainTvl": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].tvl"
+   ]
+  },
+  "GET /v2/historicalChainTvl/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].tvl"
+   ]
+  }
+ }
+}

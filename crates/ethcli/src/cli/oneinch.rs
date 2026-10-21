@@ -42,8 +42,8 @@ pub enum OneInchCommands {
         /// Connector tokens for finding best route
         #[arg(long)]
         connector_tokens: Option<String>,
-        /// Fee percentage (in basis points, e.g., 100 = 1%)
-        #[arg(long)]
+        /// Partner fee in percent of the output, 0-3 (e.g. 1 = 1%, not basis points)
+        #[arg(long, value_parser = parse_fee_percent)]
         fee: Option<f64>,
     },
 
@@ -240,21 +240,17 @@ pub async fn run(args: OneInchArgs, chain: &str) -> anyhow::Result<()> {
 }
 
 fn chain_id_to_oinch_chain(chain_id: u64) -> anyhow::Result<oinch::Chain> {
-    match chain_id {
-        1 => Ok(oinch::Chain::Ethereum),
-        56 => Ok(oinch::Chain::Bsc),
-        137 => Ok(oinch::Chain::Polygon),
-        10 => Ok(oinch::Chain::Optimism),
-        42161 => Ok(oinch::Chain::Arbitrum),
-        43114 => Ok(oinch::Chain::Avalanche),
-        100 => Ok(oinch::Chain::Gnosis),
-        250 => Ok(oinch::Chain::Fantom),
-        8453 => Ok(oinch::Chain::Base),
-        324 => Ok(oinch::Chain::ZkSync),
-        59144 => Ok(oinch::Chain::Linea),
-        1313161554 => Ok(oinch::Chain::Aurora),
-        _ => anyhow::bail!("Unsupported chain ID: {}. Supported: 1 (Ethereum), 56 (BSC), 137 (Polygon), 10 (Optimism), 42161 (Arbitrum), 43114 (Avalanche), 100 (Gnosis), 250 (Fantom), 8453 (Base), 324 (zkSync), 59144 (Linea), 1313161554 (Aurora)", chain_id),
-    }
+    oinch::Chain::from_chain_id(chain_id).ok_or_else(|| {
+        let supported: Vec<String> = oinch::Chain::all()
+            .iter()
+            .map(|c| format!("{} ({})", c.chain_id(), c.name()))
+            .collect();
+        anyhow::anyhow!(
+            "Unsupported chain ID: {}. Supported: {}",
+            chain_id,
+            supported.join(", ")
+        )
+    })
 }
 
 fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::Result<()> {
@@ -265,4 +261,28 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
     };
     println!("{}", json);
     Ok(())
+}
+
+/// 1inch takes the partner fee as a percentage between 0 and 3
+fn parse_fee_percent(s: &str) -> Result<f64, String> {
+    let fee: f64 = s.parse().map_err(|_| format!("invalid fee '{s}'"))?;
+    if !(0.0..=3.0).contains(&fee) {
+        return Err(format!(
+            "fee is a percentage between 0 and 3 (got {fee}; 1inch doesn't take basis points)"
+        ));
+    }
+    Ok(fee)
+}
+
+#[cfg(test)]
+mod fee_tests {
+    use super::parse_fee_percent;
+
+    #[test]
+    fn fee_is_a_percent_up_to_three() {
+        assert_eq!(parse_fee_percent("1").unwrap(), 1.0);
+        assert_eq!(parse_fee_percent("0.5").unwrap(), 0.5);
+        assert!(parse_fee_percent("100").is_err());
+        assert!(parse_fee_percent("-1").is_err());
+    }
 }

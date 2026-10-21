@@ -65,8 +65,19 @@ impl StrategyFilter {
     /// `v3`/`addresses` are applied client-side (see [`Self::retain`]).
     fn build_args(&self) -> String {
         match self.chain_id {
-            Some(chain_id) => format!("(chainId: {chain_id})"),
+            Some(_) => "(chainId: $chainId)".to_string(),
             None => String::new(),
+        }
+    }
+
+    /// Variable declarations and variables matching [`Self::build_args`]
+    fn build_variables(&self) -> (&'static str, serde_json::Value) {
+        match self.chain_id {
+            Some(chain_id) => (
+                "($chainId: Int)",
+                serde_json::json!({ "chainId": chain_id }),
+            ),
+            None => ("", serde_json::Value::Null),
         }
     }
 
@@ -80,6 +91,14 @@ impl StrategyFilter {
             strategies.retain(|s| wanted.contains(&s.address.to_lowercase()));
         }
     }
+}
+
+/// Query text and variables for `strategies(...)`
+fn list_query(filter: &StrategyFilter) -> (String, serde_json::Value) {
+    let (decls, variables) = filter.build_variables();
+    let args = filter.build_args();
+    let query = format!("query Strategies{decls} {{ strategies{args} {{ {STRATEGY_FIELDS} }} }}");
+    (query, variables)
 }
 
 /// Strategies API
@@ -117,30 +136,21 @@ impl<'a> StrategiesApi<'a> {
             struct Response {
                 vault_strategies: Vec<Strategy>,
             }
-            let chain_id = filter.chain_id.unwrap_or(1);
+            let chain_id = vault_chain_id(&filter)?;
             let query = format!(
-                r#"{{
-                vaultStrategies(chainId: {chain_id}, vault: "{vault}") {{
-                    {STRATEGY_FIELDS}
-                }}
-            }}"#
+                "query VaultStrategies($chainId: Int, $vault: String) {{ \
+                 vaultStrategies(chainId: $chainId, vault: $vault) {{ {STRATEGY_FIELDS} }} }}"
             );
-            let response: Response = self.client.query(&query).await?;
+            let variables = serde_json::json!({ "chainId": chain_id, "vault": vault });
+            let response: Response = self.client.query_with_variables(&query, variables).await?;
             response.vault_strategies
         } else {
             #[derive(Deserialize)]
             struct Response {
                 strategies: Vec<Strategy>,
             }
-            let args = filter.build_args();
-            let query = format!(
-                r"{{
-                strategies{args} {{
-                    {STRATEGY_FIELDS}
-                }}
-            }}"
-            );
-            let response: Response = self.client.query(&query).await?;
+            let (query, variables) = list_query(&filter);
+            let response: Response = self.client.query_with_variables(&query, variables).await?;
             response.strategies
         };
 
@@ -163,21 +173,27 @@ impl<'a> StrategiesApi<'a> {
     /// Get a single strategy by address and chain
     pub async fn get(&self, chain_id: u64, address: &str) -> Result<Option<Strategy>> {
         let query = format!(
-            r#"{{
-                strategy(chainId: {chain_id}, address: "{address}") {{
-                    {STRATEGY_FIELDS}
-                }}
-            }}"#
+            "query Strategy($chainId: Int, $address: String) {{ \
+             strategy(chainId: $chainId, address: $address) {{ {STRATEGY_FIELDS} }} }}"
         );
+        let variables = serde_json::json!({ "chainId": chain_id, "address": address });
 
         #[derive(Deserialize)]
         struct Response {
             strategy: Option<Strategy>,
         }
 
-        let response: Response = self.client.query(&query).await?;
+        let response: Response = self.client.query_with_variables(&query, variables).await?;
         Ok(response.strategy)
     }
+}
+
+/// Chain ID for a `vaultStrategies` query; a vault address is only unique
+/// per chain, so the filter must name one
+fn vault_chain_id(filter: &StrategyFilter) -> Result<u64> {
+    filter.chain_id.ok_or_else(|| {
+        crate::error::invalid_argument("filtering strategies by vault requires a chain ID")
+    })
 }
 
 #[cfg(test)]
@@ -185,10 +201,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn vault_filter_requires_chain_id() {
+        assert!(vault_chain_id(&StrategyFilter::new().vault("0xv")).is_err());
+        assert_eq!(
+            vault_chain_id(&StrategyFilter::new().chain_id(137).vault("0xv")).unwrap(),
+            137
+        );
+    }
+
+    #[test]
     fn only_supported_server_args_are_sent() {
         let f = StrategyFilter::new().chain_id(1).vault("0xv").v3(true);
-        assert_eq!(f.build_args(), "(chainId: 1)");
+        assert_eq!(f.build_args(), "(chainId: $chainId)");
         assert_eq!(StrategyFilter::new().build_args(), "");
+    }
+
+    #[test]
+    fn list_query_uses_variables() {
+        let (query, variables) = list_query(&StrategyFilter::new().chain_id(137));
+        assert!(
+            query.starts_with("query Strategies($chainId: Int) { strategies(chainId: $chainId) {"),
+            "{query}"
+        );
+        assert_eq!(variables, serde_json::json!({ "chainId": 137 }));
+
+        let (query, variables) = list_query(&StrategyFilter::new());
+        assert!(
+            query.starts_with("query Strategies { strategies {"),
+            "{query}"
+        );
+        assert!(variables.is_null());
     }
 
     #[test]

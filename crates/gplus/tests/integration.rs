@@ -629,3 +629,157 @@ async fn test_token_security_batch_reports_missing_addresses() {
         vec!["0xunknown".to_string()]
     );
 }
+
+// ==================== HTTP Error Classification Tests ====================
+
+#[tokio::test]
+async fn test_server_error_is_retryable() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .respond_with(ResponseTemplate::new(503).set_body_string("unavailable"))
+        .mount(&server)
+        .await;
+
+    let err = mock_client(&server)
+        .token_security(1, "0xtoken")
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, gplus::Error::ServerError { status: 503, .. }),
+        "{err}"
+    );
+    assert!(err.is_retryable());
+}
+
+#[tokio::test]
+async fn test_rate_limit_keeps_capped_retry_after() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "999999"))
+        .mount(&server)
+        .await;
+
+    let err = mock_client(&server)
+        .token_security(1, "0xtoken")
+        .await
+        .unwrap_err();
+    assert!(err.is_retryable());
+    assert_eq!(
+        err.retry_after(),
+        Some(std::time::Duration::from_secs(3600))
+    );
+}
+
+#[tokio::test]
+async fn test_error_body_is_sanitized() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .respond_with(ResponseTemplate::new(400).set_body_string("bad request token=hunter2"))
+        .mount(&server)
+        .await;
+
+    let err = mock_client(&server)
+        .token_security(1, "0xtoken")
+        .await
+        .unwrap_err();
+    assert!(!err.is_retryable());
+    assert!(!err.to_string().contains("hunter2"), "{err}");
+}
+
+#[tokio::test]
+async fn test_unauthorized_retries_once_with_fresh_token() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "result": { "access_token": "test_token", "expires_in": 3600 }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .respond_with(ResponseTemplate::new(401))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "code": 1,
+            "message": "ok",
+            "result": { "0xtoken": { "token_name": "Test", "token_symbol": "TEST" } }
+        })))
+        .mount(&server)
+        .await;
+
+    let result = mock_auth_client(&server).token_security(1, "0xtoken").await;
+    assert!(result.is_ok(), "{result:?}");
+}
+
+#[tokio::test]
+async fn test_access_token_failure_is_propagated() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("token service down"))
+        .mount(&server)
+        .await;
+    // Must not fall back to an unauthenticated request.
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&server)
+        .await;
+
+    let client = mock_auth_client(&server);
+    let err = client
+        .token_security(1, "0x0000000000000000000000000000000000000001")
+        .await
+        .unwrap_err();
+    assert_eq!(err.status_code(), Some(500), "{err}");
+}
+
+#[tokio::test]
+async fn test_partial_data_code_is_success() {
+    let server = MockServer::start().await;
+    let address = "0x0000000000000000000000000000000000000001";
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "code": 2,
+            "message": "partial data",
+            "result": { address: { "token_name": "Example", "token_symbol": "EX" } }
+        })))
+        .mount(&server)
+        .await;
+
+    let client = mock_client(&server);
+    let token = client.token_security(1, address).await.unwrap();
+    assert_eq!(token.token_symbol.as_deref(), Some("EX"));
+}
+
+#[tokio::test]
+async fn test_code_4029_is_rate_limited() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/token_security/1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "code": 4029,
+            "message": "request limit reached",
+            "result": null
+        })))
+        .mount(&server)
+        .await;
+
+    let client = mock_client(&server);
+    let err = client
+        .token_security(1, "0x0000000000000000000000000000000000000001")
+        .await
+        .unwrap_err();
+    assert!(err.is_retryable(), "{err}");
+    assert_eq!(err.status_code(), Some(429));
+}

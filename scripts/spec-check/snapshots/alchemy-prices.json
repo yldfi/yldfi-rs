@@ -1,0 +1,71 @@
+{
+ "provider": "alchemy-prices",
+ "url": "https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/prices/prices.yaml",
+ "version": "1.0",
+ "operations": {
+  "GET /{apiKey}/tokens/by-symbol": {
+   "deprecated": false,
+   "params": [
+    "path:apiKey*",
+    "query:symbols*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "data[].error*",
+    "data[].prices*",
+    "data[].prices[].currency*",
+    "data[].prices[].lastUpdatedAt*",
+    "data[].prices[].value*",
+    "data[].symbol*"
+   ]
+  },
+  "POST /{apiKey}/tokens/by-address": {
+   "deprecated": false,
+   "params": [
+    "path:apiKey*"
+   ],
+   "request": [
+    "addresses*",
+    "addresses[].address*",
+    "addresses[].network*"
+   ],
+   "response": [
+    "data*",
+    "data[].address*",
+    "data[].error*",
+    "data[].network*",
+    "data[].prices*",
+    "data[].prices[].currency*",
+    "data[].prices[].lastUpdatedAt*",
+    "data[].prices[].value*"
+   ]
+  },
+  "POST /{apiKey}/tokens/historical": {
+   "deprecated": false,
+   "params": [
+    "path:apiKey*"
+   ],
+   "request": [
+    "address*",
+    "endTime*",
+    "interval",
+    "network*",
+    "startTime*",
+    "symbol*",
+    "withMarketData"
+   ],
+   "response": [
+    "address*",
+    "currency*",
+    "data*",
+    "data[].marketCap",
+    "data[].timestamp*",
+    "data[].totalVolume",
+    "data[].value*",
+    "network*",
+    "symbol*"
+   ]
+  }
+ }
+}

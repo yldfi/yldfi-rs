@@ -29,6 +29,10 @@ pub enum DomainError {
     /// Slippage too high
     #[error("Slippage exceeded maximum allowed: {0}%")]
     SlippageExceeded(f64),
+
+    /// A parameter the API requires was not set
+    #[error("Missing required parameter: {0}")]
+    MissingParameter(&'static str),
 }
 
 /// Error type for LI.FI API operations
@@ -65,4 +69,10 @@ pub fn invalid_token_address(address: impl Into<String>) -> Error {
 #[must_use]
 pub fn slippage_exceeded(slippage: f64) -> Error {
     ApiError::domain(DomainError::SlippageExceeded(slippage))
+}
+
+/// Create a missing required parameter error
+#[must_use]
+pub fn missing_parameter(name: &'static str) -> Error {
+    ApiError::domain(DomainError::MissingParameter(name))
 }

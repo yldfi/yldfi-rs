@@ -2,7 +2,6 @@
 //!
 //! Fetches swap quotes from multiple DEX aggregators in parallel and finds the best quote.
 
-use crate::aggregator::chain_name_to_id;
 use crate::aggregator::swap::{
     fetch_quote_from_source, fetch_quotes_all, tokens::resolve_token, NormalizedQuote,
     QuoteAggregation, SwapSource,
@@ -19,10 +18,10 @@ pub enum SwapSourceArg {
     #[default]
     All,
     /// OpenOcean
-    #[value(alias = "oo")]
+    #[value(name = "openocean", aliases = ["oo", "open-ocean"])]
     OpenOcean,
     /// KyberSwap
-    #[value(alias = "kyber")]
+    #[value(name = "kyberswap", aliases = ["kyber", "kyber-swap"])]
     KyberSwap,
     /// 0x
     #[value(name = "0x", alias = "zerox")]
@@ -31,10 +30,10 @@ pub enum SwapSourceArg {
     #[value(name = "1inch", alias = "oneinch")]
     OneInch,
     /// CowSwap
-    #[value(alias = "cow")]
+    #[value(name = "cowswap", aliases = ["cow", "cow-swap"])]
     CowSwap,
     /// LI.FI
-    #[value(alias = "li.fi")]
+    #[value(name = "lifi", aliases = ["li.fi", "li-fi"])]
     LiFi,
     /// Velora (ParaSwap)
     #[value(alias = "paraswap")]
@@ -211,7 +210,7 @@ async fn execute_best(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
         }
     }
 
-    Ok(())
+    ensure_any_quote(&result)
 }
 
 async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
@@ -242,6 +241,7 @@ async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> a
         swap_source,
     )
     .await;
+    let failed = result.data.is_none();
 
     match args.format {
         OutputFormat::Json => {
@@ -326,6 +326,9 @@ async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> a
         }
     }
 
+    if failed {
+        anyhow::bail!("{} did not return a quote", source);
+    }
     Ok(())
 }
 
@@ -365,21 +368,29 @@ async fn execute_compare(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
         }
     }
 
+    ensure_any_quote(&result)
+}
+
+/// Exit non-zero (after printing the per-source errors) when no source quoted
+fn ensure_any_quote(
+    result: &crate::aggregator::AggregatedResult<NormalizedQuote, QuoteAggregation>,
+) -> anyhow::Result<()> {
+    if result.sources.iter().all(|s| s.data.is_none()) {
+        anyhow::bail!("No aggregator returned a quote");
+    }
     Ok(())
 }
 
 fn resolve_chain(chain: &str) -> anyhow::Result<(u64, String)> {
     // Try parsing as chain ID first
     if let Ok(id) = chain.parse::<u64>() {
-        let name = crate::aggregator::chain_id_to_name(id)
-            .unwrap_or("unknown")
-            .to_string();
+        let name = yldfi_common::Chain::from_id(id).name().to_string();
         return Ok((id, name));
     }
 
     // Try parsing as chain name
-    if let Some(id) = chain_name_to_id(chain) {
-        return Ok((id, chain.to_lowercase()));
+    if let Some(c) = yldfi_common::Chain::from_name(chain) {
+        return Ok((c.id(), chain.to_lowercase()));
     }
 
     Err(anyhow::anyhow!(
@@ -389,64 +400,48 @@ fn resolve_chain(chain: &str) -> anyhow::Result<(u64, String)> {
 }
 
 fn resolve_amount(amount: &str, decimals: Option<u8>) -> anyhow::Result<String> {
-    if let Some(dec) = decimals {
-        // Parse as decimal and convert to raw
-        let parts: Vec<&str> = amount.split('.').collect();
-        let (whole, frac) = match parts.len() {
-            1 => (parts[0], ""),
-            2 => (parts[0], parts[1]),
-            _ => return Err(anyhow::anyhow!("Invalid amount format")),
-        };
+    use alloy::primitives::U256;
 
-        let whole: u128 = whole
-            .parse()
-            .map_err(|_| anyhow::anyhow!("Invalid amount"))?;
+    let amount = amount.trim();
+    // Digits only: rejects signs ("+5", "-1"), exponents and empty parts
+    let is_digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let invalid = || anyhow::anyhow!("Invalid amount: {}", amount);
 
-        let frac_digits = frac.len();
-
-        // Validate fractional digits don't exceed token decimals
-        if frac_digits > dec as usize {
-            return Err(anyhow::anyhow!(
-                "Too many decimal places: {} has {} decimals, but {} were provided",
-                amount,
-                dec,
-                frac_digits
-            ));
+    let Some(dec) = decimals else {
+        // Already in raw units
+        if !is_digits(amount) {
+            return Err(invalid());
         }
+        let raw = U256::from_str_radix(amount, 10)
+            .map_err(|_| anyhow::anyhow!("Amount overflow: {} does not fit in uint256", amount))?;
+        return Ok(raw.to_string());
+    };
 
-        let frac_val: u128 = if frac.is_empty() {
-            0
-        } else {
-            frac.parse()
-                .map_err(|_| anyhow::anyhow!("Invalid amount"))?
-        };
-
-        // Calculate: whole * 10^dec + frac * 10^(dec - frac_digits)
-        let multiplier = 10u128.pow(dec as u32);
-        let frac_multiplier = 10u128.pow((dec as usize - frac_digits) as u32);
-
-        // Use checked arithmetic to prevent overflow
-        let whole_scaled = whole.checked_mul(multiplier).ok_or_else(|| {
-            anyhow::anyhow!(
-                "Amount overflow: {} is too large for {} decimals",
-                whole,
-                dec
-            )
-        })?;
-
-        let frac_scaled = frac_val
-            .checked_mul(frac_multiplier)
-            .ok_or_else(|| anyhow::anyhow!("Fractional amount overflow"))?;
-
-        let raw = whole_scaled
-            .checked_add(frac_scaled)
-            .ok_or_else(|| anyhow::anyhow!("Total amount overflow"))?;
-
-        Ok(raw.to_string())
-    } else {
-        // Assume already in raw format
-        Ok(amount.to_string())
+    let (whole, frac) = amount.split_once('.').unwrap_or((amount, ""));
+    if !is_digits(whole) || (amount.contains('.') && !is_digits(frac)) {
+        return Err(invalid());
     }
+
+    // Validate fractional digits don't exceed token decimals
+    if frac.len() > dec as usize {
+        return Err(anyhow::anyhow!(
+            "Too many decimal places: {} has {} decimals, but {} were provided",
+            amount,
+            dec,
+            frac.len()
+        ));
+    }
+
+    // Scale in uint256 (decimals up to 77 fit; u128 overflowed at 39)
+    let padded = format!("{}{}{}", whole, frac, "0".repeat(dec as usize - frac.len()));
+    let raw = U256::from_str_radix(&padded, 10).map_err(|_| {
+        anyhow::anyhow!(
+            "Amount overflow: {} is too large for {} decimals",
+            amount,
+            dec
+        )
+    })?;
+    Ok(raw.to_string())
 }
 
 fn build_output(
@@ -653,7 +648,8 @@ fn print_compare_output(
                         println!("  Router: {}", router);
                     }
                     if let Some(data) = &quote.tx_data {
-                        println!("  Data:   {} bytes", data.len() / 2 - 1);
+                        let hex_len = data.strip_prefix("0x").unwrap_or(data).len();
+                        println!("  Data:   {} bytes", hex_len / 2);
                         println!("          {}...", &data[..data.len().min(66)]);
                     }
                 }
@@ -687,6 +683,43 @@ fn format_large_number(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn documented_source_names_parse() {
+        for (name, expected) in [
+            ("openocean", SwapSourceArg::OpenOcean),
+            ("oo", SwapSourceArg::OpenOcean),
+            ("kyberswap", SwapSourceArg::KyberSwap),
+            ("cowswap", SwapSourceArg::CowSwap),
+            ("lifi", SwapSourceArg::LiFi),
+            ("li.fi", SwapSourceArg::LiFi),
+            ("open-ocean", SwapSourceArg::OpenOcean),
+        ] {
+            assert_eq!(
+                SwapSourceArg::from_str(name, true).unwrap(),
+                expected,
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_amount_handles_high_decimals_and_rejects_signs() {
+        assert_eq!(resolve_amount("1.5", Some(6)).unwrap(), "1500000");
+        assert_eq!(
+            resolve_amount("1", Some(40)).unwrap(),
+            format!("1{}", "0".repeat(40))
+        );
+        for bad in ["+5", "-1", "1e18", "", ".5", "1.", "1.2.3", " "] {
+            assert!(resolve_amount(bad, Some(18)).is_err(), "{bad:?}");
+        }
+        for bad in ["+5", "-1", "1.5", "0x10"] {
+            assert!(resolve_amount(bad, None).is_err(), "{bad:?}");
+        }
+        assert!(resolve_amount("1.0000001", Some(6)).is_err());
+        assert!(resolve_amount("1", Some(78)).is_err());
+    }
+
     use super::*;
     use clap::Parser;
 

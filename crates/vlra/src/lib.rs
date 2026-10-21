@@ -213,7 +213,7 @@ impl Client {
         chain: Chain,
         request: &TransactionRequest,
     ) -> Result<TransactionResponse> {
-        let path = format!("/transactions/{}", chain.chain_id());
+        let path = transaction_path(chain, request);
         self.base
             .post_json_with_headers(&path, request, self.build_headers())
             .await
@@ -256,6 +256,19 @@ impl Client {
     }
 }
 
+/// Path (with query string) for `POST /transactions/{chainId}`.
+fn transaction_path(chain: Chain, request: &TransactionRequest) -> String {
+    let path = format!("/transactions/{}", chain.chain_id());
+    let params = request.to_query_params();
+    if params.is_empty() {
+        return path;
+    }
+    let query = url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(params)
+        .finish();
+    format!("{path}?{query}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,6 +308,31 @@ mod tests {
         );
         let req = req.with_version("5");
         assert_eq!(find(&req.to_query_params(1)).as_deref(), Some("5"));
+    }
+
+    #[test]
+    fn test_transaction_path_carries_ignore_flags() {
+        let route = serde_json::json!({
+            "blockNumber": 1, "network": 1,
+            "srcToken": "0xa", "srcDecimals": 18, "srcAmount": "1",
+            "destToken": "0xb", "destDecimals": 6, "destAmount": "2",
+            "bestRoute": [], "tokenTransferProxy": "0xc", "contractAddress": "0xc",
+            "contractMethod": "swapExactAmountIn", "side": "SELL"
+        });
+        let req = TransactionRequest::from_raw_price_route(route, "0xd", 100).unwrap();
+        assert_eq!(transaction_path(Chain::Ethereum, &req), "/transactions/1");
+        let req = req.with_ignore_checks(true).with_ignore_gas(false);
+        let path = transaction_path(Chain::Ethereum, &req);
+        let url = url::Url::parse(&format!("https://example.invalid{path}")).unwrap();
+        assert_eq!(url.path(), "/transactions/1");
+        let pairs: Vec<(String, String)> = url.query_pairs().into_owned().collect();
+        assert_eq!(
+            pairs,
+            vec![
+                ("ignoreGasEstimate".to_string(), "false".to_string()),
+                ("ignoreChecks".to_string(), "true".to_string()),
+            ]
+        );
     }
 
     #[test]

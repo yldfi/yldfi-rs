@@ -8,7 +8,9 @@ use crate::subgraph::{SubgraphClient, SubgraphConfig};
 use crate::types::{PoolData, PoolDayData, PoolState, Swap};
 
 /// Configuration for the unified Uniswap client
-#[derive(Debug, Clone)]
+///
+/// `Debug` output redacts the subgraph API key.
+#[derive(Clone)]
 pub struct Config {
     /// RPC endpoint URL (required for on-chain queries)
     pub rpc_url: String,
@@ -18,6 +20,20 @@ pub struct Config {
     pub subgraph_id: Option<String>,
     /// Factory address (defaults to mainnet)
     pub factory: Option<Address>,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("rpc_url", &self.rpc_url)
+            .field(
+                "subgraph_api_key",
+                &self.subgraph_api_key.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("subgraph_id", &self.subgraph_id)
+            .field("factory", &self.factory)
+            .finish()
+    }
 }
 
 impl Config {
@@ -169,6 +185,14 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_config_debug_redacts_subgraph_key() {
+        let config = Config::new("https://rpc.example").with_subgraph_key("graph-secret-key");
+        let debug = format!("{config:?}");
+        assert!(!debug.contains("graph-secret-key"), "{debug}");
+        assert!(debug.contains("[REDACTED]"), "{debug}");
+    }
 
     #[test]
     fn test_config_builder() {

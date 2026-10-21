@@ -77,18 +77,18 @@ impl<'a> EtfApi<'a> {
     ///
     /// # Arguments
     ///
-    /// * `period` - Time period (e.g., "1d", "7d", "30d")
+    /// * `period` - Time period: "7", "30", "ytd" or "365"
     ///
     /// # Example
     ///
     /// ```no_run
     /// # async fn example() -> dllma::error::Result<()> {
     /// let client = dllma::Client::with_api_key("your-api-key")?;
-    /// let perf = client.etf().fdv_performance("7d").await?;
-    /// for p in perf.iter().take(5) {
-    ///     println!("{}: {:.2}%",
-    ///         p.name.as_deref().unwrap_or("?"),
-    ///         p.performance.unwrap_or(0.0) * 100.0);
+    /// let perf = client.etf().fdv_performance("30").await?;
+    /// if let Some(last) = perf.last() {
+    ///     for (category, value) in &last.categories {
+    ///         println!("{category}: {value:.2}");
+    ///     }
     /// }
     /// # Ok(())
     /// # }

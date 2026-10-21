@@ -161,14 +161,14 @@ pub enum LiFiCommands {
         step_json: String,
     },
 
-    /// List all connections (available routes)
+    /// List connections (available routes) between two chains
     Connections {
-        /// Source chain ID
+        /// Source chain ID (required by LI.FI)
         #[arg(long)]
-        from_chain: Option<u64>,
-        /// Destination chain ID
+        from_chain: u64,
+        /// Destination chain ID (required by LI.FI)
         #[arg(long)]
-        to_chain: Option<u64>,
+        to_chain: u64,
         /// Source token address
         #[arg(long)]
         from_token: Option<String>,
@@ -178,13 +178,18 @@ pub enum LiFiCommands {
     },
 }
 
+/// Optional LI.FI API key (`LIFI_API_KEY`); without it LI.FI rate limits by IP
+pub(crate) fn lifi_api_key() -> Option<String> {
+    std::env::var("LIFI_API_KEY").ok().filter(|k| !k.is_empty())
+}
+
 pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
     let integrator = std::env::var("LIFI_INTEGRATOR").ok();
-    let client = if let Some(int) = &integrator {
-        Client::with_integrator(int)?
-    } else {
-        Client::new()?
-    };
+    let mut config = lfi::Config::new().with_optional_api_key(lifi_api_key());
+    if let Some(int) = &integrator {
+        config = config.with_integrator(int);
+    }
+    let client = Client::with_config(config)?;
 
     match args.action {
         LiFiCommands::Quote {
@@ -317,10 +322,7 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
         LiFiCommands::Gas { chain_id } => {
             if let Some(chain_id) = chain_id {
                 let gas = client.get_gas_prices(chain_id).await?;
-                match gas {
-                    Some(g) => output_json(&g, args.format)?,
-                    None => anyhow::bail!("No gas prices found for chain ID {chain_id}"),
-                }
+                output_json(&gas, args.format)?;
             } else {
                 let gas = client.get_all_gas_prices().await?;
                 output_json(&gas, args.format)?;
@@ -371,24 +373,13 @@ pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
             from_token,
             to_token,
         } => {
-            if from_chain.is_none()
-                && to_chain.is_none()
-                && from_token.is_none()
-                && to_token.is_none()
-            {
-                let connections = client.get_all_connections().await?;
-                output_json(&connections, args.format)?;
-            } else {
-                let request = lfi::ConnectionsRequest {
-                    from_chain,
-                    to_chain,
-                    from_token,
-                    to_token,
-                    ..Default::default()
-                };
-                let connections = client.get_connections(&request).await?;
-                output_json(&connections, args.format)?;
-            }
+            let request = lfi::ConnectionsRequest {
+                from_token,
+                to_token,
+                ..lfi::ConnectionsRequest::between(from_chain, to_chain)
+            };
+            let connections = client.get_connections(&request).await?;
+            output_json(&connections, args.format)?;
         }
     }
 

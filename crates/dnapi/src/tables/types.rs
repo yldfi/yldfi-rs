@@ -181,6 +181,26 @@ pub struct UploadCsvResponse {
     pub table_name: Option<String>,
 }
 
+/// Body format accepted by `POST /v1/uploads/{namespace}/{table_name}/insert`
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InsertFormat {
+    /// CSV with a header row (`text/csv`)
+    Csv,
+    /// Newline-delimited JSON, one object per row (`application/x-ndjson`)
+    Ndjson,
+}
+
+impl InsertFormat {
+    /// The `Content-Type` header value for this format
+    #[must_use]
+    pub fn content_type(&self) -> &'static str {
+        match self {
+            InsertFormat::Csv => "text/csv",
+            InsertFormat::Ndjson => "application/x-ndjson",
+        }
+    }
+}
+
 /// Response from inserting data
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct InsertResponse {

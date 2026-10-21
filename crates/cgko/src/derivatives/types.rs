@@ -98,41 +98,6 @@ pub struct ConvertedLast {
     pub usd: Option<f64>,
 }
 
-/// Options for derivatives query
-#[derive(Debug, Clone, Default)]
-pub struct DerivativesOptions {
-    pub include_tickers: Option<String>,
-}
-
-impl DerivativesOptions {
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    #[must_use]
-    pub fn all_tickers() -> Self {
-        Self {
-            include_tickers: Some("all".to_string()),
-        }
-    }
-
-    #[must_use]
-    pub fn unexpired_tickers() -> Self {
-        Self {
-            include_tickers: Some("unexpired".to_string()),
-        }
-    }
-
-    #[must_use]
-    pub fn to_query_string(&self) -> String {
-        match &self.include_tickers {
-            Some(t) => format!("?include_tickers={t}"),
-            None => String::new(),
-        }
-    }
-}
-
 /// Options for derivatives exchanges query
 #[derive(Debug, Clone, Default)]
 pub struct DerivativeExchangesOptions {

@@ -36,9 +36,8 @@ impl<'a> ReportsApi<'a> {
     /// # }
     /// ```
     pub async fn vault_reports(&self, chain_id: u64, address: &str) -> Result<Vec<VaultReport>> {
-        let query = format!(
-            r#"{{
-                vaultReports(chainId: {chain_id}, address: "{address}") {{
+        let query = r"query VaultReports($chainId: Int, $address: String) {
+                vaultReports(chainId: $chainId, address: $address) {
                     chainId
                     address
                     eventName
@@ -68,14 +67,13 @@ impl<'a> ReportsApi<'a> {
                     totalRefundsUsd
                     priceUsd
                     priceSource
-                    apr {{ gross net }}
+                    apr { gross net }
                     blockNumber
                     blockTime
                     logIndex
                     transactionHash
-                }}
-            }}"#
-        );
+                }
+            }";
 
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase")]
@@ -83,7 +81,8 @@ impl<'a> ReportsApi<'a> {
             vault_reports: Vec<VaultReport>,
         }
 
-        let response: Response = self.client.query(&query).await?;
+        let variables = serde_json::json!({ "chainId": chain_id, "address": address });
+        let response: Response = self.client.query_with_variables(query, variables).await?;
         Ok(response.vault_reports)
     }
 
@@ -110,9 +109,8 @@ impl<'a> ReportsApi<'a> {
         chain_id: u64,
         address: &str,
     ) -> Result<Vec<StrategyReport>> {
-        let query = format!(
-            r#"{{
-                strategyReports(chainId: {chain_id}, address: "{address}") {{
+        let query = r"query StrategyReports($chainId: Int, $address: String) {
+                strategyReports(chainId: $chainId, address: $address) {
                     chainId
                     address
                     eventName
@@ -122,7 +120,7 @@ impl<'a> ReportsApi<'a> {
                     debtOutstanding
                     protocolFees
                     performanceFees
-                    apr {{ gross net }}
+                    apr { gross net }
                     profitUsd
                     lossUsd
                     debtPaymentUsd
@@ -135,9 +133,8 @@ impl<'a> ReportsApi<'a> {
                     blockTime
                     logIndex
                     transactionHash
-                }}
-            }}"#
-        );
+                }
+            }";
 
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase")]
@@ -145,7 +142,8 @@ impl<'a> ReportsApi<'a> {
             strategy_reports: Vec<StrategyReport>,
         }
 
-        let response: Response = self.client.query(&query).await?;
+        let variables = serde_json::json!({ "chainId": chain_id, "address": address });
+        let response: Response = self.client.query_with_variables(query, variables).await?;
         Ok(response.strategy_reports)
     }
 

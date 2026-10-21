@@ -42,7 +42,7 @@ async fn test_wallets_api() {
         .display_name("vitalik.eth");
 
     match client.wallets().add(&add_request).await {
-        Ok(resp) => println!("add() - added wallet, {} contracts", resp.contracts.len()),
+        Ok(resp) => println!("add() - added wallet on {} networks", resp.len()),
         Err(e) => println!("add() - {} (expected if exists)", e),
     }
 }
@@ -71,7 +71,7 @@ async fn test_actions_api() {
     let client = Client::from_env().expect("Failed to create client");
 
     let resp = client.actions().list().await.unwrap();
-    println!("list() - {} actions", resp.actions.len());
+    println!("list() - {} actions", resp.len());
 }
 
 #[tokio::test]
@@ -88,7 +88,11 @@ async fn test_alerts_api() {
 async fn test_contracts_api() {
     let client = Client::from_env().expect("Failed to create client");
 
-    let contracts = client.contracts().list(None).await.unwrap();
+    let contracts = client
+        .contracts()
+        .list(&tndrly::contracts::ListContractsQuery::default())
+        .await
+        .unwrap();
     println!("list() - {} contracts", contracts.len());
 }
 

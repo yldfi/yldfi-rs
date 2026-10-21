@@ -7,8 +7,8 @@ use crate::bytecode::{
     analyze_bytecode, analyze_handler_checks, disassemble_bytecode, extract_selectors,
     infer_dispatcher, opcode_stats, BytecodeAnalysis, RiskLevel, MAX_BYTECODE_SIZE,
 };
-use crate::config::{Chain, ConfigFile, EndpointConfig};
-use crate::etherscan::{Client, SignatureCache};
+use crate::config::{Chain, EndpointConfig};
+use crate::etherscan::Client;
 use crate::rpc::Endpoint;
 use crate::utils::format::with_thousands_sep;
 use alloy::dyn_abi::{DynSolType, DynSolValue, FunctionExt, JsonAbiExt};
@@ -17,7 +17,6 @@ use alloy::providers::Provider;
 use clap::Subcommand;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::OnceLock;
 
 /// Get EIP-1967 implementation slot (parsed once)
@@ -322,11 +321,8 @@ async fn detect_proxy_implementation<P: Provider>(
                 .to(beacon_addr)
                 .input(calldata.into());
             if let Ok(result) = provider.call(tx).await {
-                if result.len() >= 32 {
-                    let impl_addr = Address::from_slice(&result[12..32]);
-                    if !impl_addr.is_zero() {
-                        return Some(impl_addr);
-                    }
+                if let Some(impl_addr) = address_from_word(&result) {
+                    return Some(impl_addr);
                 }
             }
         }
@@ -352,14 +348,18 @@ async fn call_implementation_function<P: Provider>(
         .input(calldata.into());
 
     let result = provider.call(tx).await.ok()?;
-    if result.len() >= 32 {
-        let impl_addr = Address::from_slice(&result[result.len() - 20..]);
-        if !impl_addr.is_zero() {
-            return Some(impl_addr);
-        }
-    }
+    address_from_word(&result)
+}
 
-    None
+/// An address returned as a single ABI word: exactly 32 bytes, left-padded
+/// with zeros. Anything else (a struct, a string, two values) is not an
+/// `implementation()` answer.
+fn address_from_word(result: &[u8]) -> Option<Address> {
+    if result.len() != 32 || result[..12].iter().any(|b| *b != 0) {
+        return None;
+    }
+    let addr = Address::from_slice(&result[12..]);
+    (!addr.is_zero()).then_some(addr)
 }
 
 #[derive(Subcommand)]
@@ -600,49 +600,40 @@ pub async fn handle(
     api_key: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
-    let client = Client::new(chain, api_key)?;
-    // These subcommands need the Etherscan API (ABI, source, creation info).
-    if matches!(
-        action,
-        ContractCommands::Abi { .. }
-            | ContractCommands::Source { .. }
-            | ContractCommands::Creation { .. }
-            | ContractCommands::Call { .. }
-    ) {
+    // Built only by the subcommands that use Etherscan (ABI, source,
+    // creation, call): selectors/disassemble/opcodes/analyze are RPC-only and
+    // must work on chains Etherscan doesn't cover.
+    let etherscan = || -> anyhow::Result<Client> {
+        let client = Client::new(chain, api_key.clone())?;
         client.ensure_api_supported()?;
-    }
+        Ok(client)
+    };
+    // 4byte.directory lookups are chain-independent
+    let signature_client =
+        || Client::new(chain, api_key.clone()).or_else(|_| Client::new(Chain::Ethereum, None));
 
     match action {
         ContractCommands::Abi { address, output } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
-
-            let cache = Arc::new(SignatureCache::new());
-            let chain_id = chain.chain_id();
+            let client = etherscan()?;
+            Address::from_str(address).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
             // Check cache first
-            let json = if let Some((cached_abi, _)) = cache.get_abi(chain_id, address) {
+            let abi = if let Some(abi) = client.cached_abi(address) {
                 if !quiet {
                     eprintln!("Using cached ABI for {}...", address);
                 }
-                cached_abi
+                abi
             } else {
                 if !quiet {
                     eprintln!("Fetching ABI for {}...", address);
                 }
 
-                let abi = client
-                    .contract_abi(addr)
+                client
+                    .fetch_abi(address)
                     .await
-                    .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?;
-
-                let json = serde_json::to_string_pretty(&abi)?;
-
-                // Cache the ABI
-                cache.set_abi(chain_id, address, &json, None);
-
-                json
+                    .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?
             };
+            let json = serde_json::to_string_pretty(&abi)?;
 
             if let Some(path) = output {
                 std::fs::write(path, &json)?;
@@ -655,15 +646,15 @@ pub async fn handle(
         }
 
         ContractCommands::Source { address, output } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let client = etherscan()?;
+            Address::from_str(address).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
             if !quiet {
                 eprintln!("Fetching source code for {}...", address);
             }
 
             let metadata = client
-                .contract_source_code(addr)
+                .source_code(address)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to fetch source: {}", e))?;
 
@@ -769,15 +760,15 @@ pub async fn handle(
         }
 
         ContractCommands::Creation { address, format } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let client = etherscan()?;
+            Address::from_str(address).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
             if !quiet {
                 eprintln!("Fetching creation info for {}...", address);
             }
 
             let creation = client
-                .contract_creation_data(addr)
+                .creation_data(address)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to fetch creation data: {}", e))?;
 
@@ -808,61 +799,57 @@ pub async fn handle(
             rpc_url,
             human,
         } => {
+            let client = etherscan()?;
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
-            // Get RPC endpoint first (needed for proxy detection)
+            // Get RPC endpoint first (needed for proxy detection). A historical
+            // --block needs an archive-capable endpoint.
             let endpoint = if let Some(url) = rpc_url {
                 Endpoint::new(EndpointConfig::new(url.clone()), 30, None)?
             } else {
-                let config = ConfigFile::load_default()
-                    .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-                    .unwrap_or_default();
-
-                let chain_endpoints: Vec<_> = config
-                    .endpoints
-                    .into_iter()
-                    .filter(|e| e.enabled && e.chain == chain)
-                    .collect();
-
-                if chain_endpoints.is_empty() {
-                    return Err(anyhow::anyhow!(
-                        "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                        chain.display_name()
-                    ));
-                }
-                Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+                let target_block = crate::utils::parse_block_number(block).ok();
+                crate::rpc::selector::get_rpc_endpoint_at(chain, target_block)?
             };
 
             let provider = endpoint.provider();
 
-            // Check if this is a proxy contract
-            let abi_address =
-                if let Some(impl_addr) = detect_proxy_implementation(provider, addr).await {
-                    if !quiet {
-                        eprintln!(
-                            "Detected proxy contract, fetching implementation ABI from {:#x}...",
-                            impl_addr
-                        );
-                    }
-                    impl_addr
-                } else {
-                    if !quiet {
-                        eprintln!("Fetching ABI for {}...", address);
-                    }
-                    addr
-                };
-
-            // Fetch ABI (from implementation address if proxy)
-            let abi = client
-                .contract_abi(abi_address)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?;
-
-            // contract_abi returns JsonAbi directly
-            let json_abi = abi;
-
             let query = parse_function_query(function)?;
+
+            // The target's own ABI first: a contract that merely has an
+            // implementation() getter isn't necessarily a proxy
+            if !quiet {
+                eprintln!("Fetching ABI for {}...", address);
+            }
+            let own_key = format!("{:#x}", addr);
+            let own_abi = match client.cached_abi(&own_key) {
+                Some(abi) => Ok(abi),
+                None => client.fetch_abi(&own_key).await,
+            };
+            let has_function =
+                |abi: &alloy::json_abi::JsonAbi| abi.functions.contains_key(query.name.as_str());
+            let json_abi = match own_abi {
+                Ok(abi) if has_function(&abi) => abi,
+                own => match detect_proxy_implementation(provider, addr).await {
+                    Some(impl_addr) => {
+                        if !quiet {
+                            eprintln!(
+                                "Detected proxy contract, fetching implementation ABI from {:#x}...",
+                                impl_addr
+                            );
+                        }
+                        let impl_key = format!("{:#x}", impl_addr);
+                        match client.cached_abi(&impl_key) {
+                            Some(abi) => abi,
+                            None => client
+                                .fetch_abi(&impl_key)
+                                .await
+                                .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?,
+                        }
+                    }
+                    None => own.map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?,
+                },
+            };
 
             // Find the function - handle overloaded functions by matching arg count and types
             let funcs = json_abi
@@ -903,8 +890,9 @@ pub async fn handle(
                     .abi_decode_output(&result)
                     .map_err(|e| anyhow::anyhow!("Failed to decode output: {}", e))?;
 
-                // For human mode, try to get decimals if this looks like a token
-                let token_decimals = if *human {
+                // For human mode, scale by the token's decimals only for getters
+                // that return token amounts (decimals(), nonces, timestamps... stay raw)
+                let token_decimals = if *human && is_amount_getter(&func.name) {
                     // Try to detect if this is an ERC20 by calling decimals()
                     get_token_decimals(provider, addr).await
                 } else {
@@ -1003,13 +991,7 @@ pub async fn handle(
                     eprintln!("Looking up function signatures from 4byte.directory...");
                 }
                 // Use Client to fetch from 4byte.directory (with cache fallback)
-                for func in &mut functions {
-                    // Strip 0x prefix for lookup
-                    let selector = func.selector.trim_start_matches("0x");
-                    if let Some(sig) = client.lookup_selector(selector).await {
-                        func.signature = Some(sig);
-                    }
-                }
+                lookup_signatures(&signature_client()?, &mut functions).await;
             }
 
             if format.is_json() {
@@ -1209,7 +1191,11 @@ pub async fn handle(
 
             // Check for proxy patterns
             let proxy_info = crate::bytecode::detect_proxy(&bytecode);
-            let (analysis_address, analysis_bytecode, proxy_detected) = if proxy_info.is_proxy {
+            // With --follow-proxy, always check the implementation slots: the
+            // bytecode heuristic misses some storage proxies
+            let (analysis_address, analysis_bytecode, proxy_detected) = if proxy_info.is_proxy
+                || *follow_proxy
+            {
                 if !quiet {
                     if let Some(ref proxy_type) = proxy_info.proxy_type {
                         eprintln!("Detected: {} contract", proxy_type.name());
@@ -1243,13 +1229,16 @@ pub async fn handle(
                         } else {
                             (format!("{:#x}", impl_addr), impl_bytecode, Some(proxy_info))
                         }
-                    } else {
+                    } else if proxy_info.is_proxy {
                         if !quiet {
                             eprintln!(
                                 "Warning: Could not determine implementation address, analyzing proxy bytecode"
                             );
                         }
                         (address.clone(), bytecode, Some(proxy_info))
+                    } else {
+                        // Not a proxy after all
+                        (address.clone(), bytecode, None)
                     }
                 } else {
                     if !quiet && proxy_info.implementation.is_some() {
@@ -1286,12 +1275,7 @@ pub async fn handle(
                     eprintln!("Looking up function signatures from 4byte.directory...");
                 }
                 // Use Client to fetch from 4byte.directory (with cache fallback)
-                for func in &mut analysis.functions {
-                    let selector = func.selector.trim_start_matches("0x");
-                    if let Some(sig) = client.lookup_selector(selector).await {
-                        func.signature = Some(sig);
-                    }
-                }
+                lookup_signatures(&signature_client()?, &mut analysis.functions).await;
             }
 
             if *dispatcher || *checks {
@@ -1633,6 +1617,55 @@ pub(crate) fn format_value(value: &DynSolValue) -> String {
     format_value_internal(value, false, None)
 }
 
+/// Fill in signatures from 4byte.directory, a few lookups at a time instead
+/// of one after another
+async fn lookup_signatures(
+    client: &crate::etherscan::Client,
+    functions: &mut [crate::bytecode::ExtractedFunction],
+) {
+    use futures::StreamExt;
+    const CONCURRENT_LOOKUPS: usize = 8;
+    let selectors: Vec<String> = functions
+        .iter()
+        .map(|f| f.selector.trim_start_matches("0x").to_string())
+        .collect();
+    let signatures: Vec<Option<String>> = futures::stream::iter(selectors)
+        .map(|selector| async move { client.lookup_selector(&selector).await })
+        .buffered(CONCURRENT_LOOKUPS)
+        .collect()
+        .await;
+    for (func, sig) in functions.iter_mut().zip(signatures) {
+        if sig.is_some() {
+            func.signature = sig;
+        }
+    }
+}
+
+/// Whether a function returns a token amount that `--human` should scale by
+/// the token's decimals (ERC-20 / ERC-4626 amount getters)
+fn is_amount_getter(name: &str) -> bool {
+    const AMOUNT_GETTERS: &[&str] = &[
+        "totalsupply",
+        "balanceof",
+        "allowance",
+        "totalassets",
+        "converttoassets",
+        "converttoshares",
+        "previewdeposit",
+        "previewmint",
+        "previewwithdraw",
+        "previewredeem",
+        "maxdeposit",
+        "maxmint",
+        "maxwithdraw",
+        "maxredeem",
+        "circulatingsupply",
+        "maxsupply",
+        "cap",
+    ];
+    AMOUNT_GETTERS.contains(&name.to_ascii_lowercase().as_str())
+}
+
 /// Format a DynSolValue with human-readable formatting
 fn format_value_human(value: &DynSolValue, decimals: Option<u8>) -> String {
     format_value_internal(value, true, decimals)
@@ -1821,5 +1854,27 @@ mod tests {
         assert!(err
             .to_string()
             .contains("Use an explicit signature like foo("));
+    }
+
+    #[test]
+    fn human_scaling_applies_only_to_amount_getters() {
+        assert!(is_amount_getter("totalSupply"));
+        assert!(is_amount_getter("balanceOf"));
+        assert!(is_amount_getter("convertToAssets"));
+        assert!(!is_amount_getter("decimals"));
+        assert!(!is_amount_getter("nonces"));
+        assert!(!is_amount_getter("getRoundData"));
+    }
+
+    #[test]
+    fn implementation_answer_must_be_one_address_word() {
+        let mut word = [0u8; 32];
+        word[31] = 1;
+        assert!(address_from_word(&word).is_some());
+        assert!(address_from_word(&[word, word].concat()).is_none());
+        let mut dirty = word;
+        dirty[0] = 1;
+        assert!(address_from_word(&dirty).is_none());
+        assert!(address_from_word(&[0u8; 32]).is_none());
     }
 }

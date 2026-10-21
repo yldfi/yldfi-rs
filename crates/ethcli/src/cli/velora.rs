@@ -36,7 +36,7 @@ pub enum VeloraCommands {
         #[arg(long, default_value = "ethereum")]
         chain: String,
         /// Side: SELL or BUY
-        #[arg(long, default_value = "SELL")]
+        #[arg(long, default_value = "SELL", value_parser = ["SELL", "BUY", "sell", "buy"])]
         side: String,
         /// Source token decimals (auto-detected via RPC on non-mainnet chains)
         #[arg(long)]

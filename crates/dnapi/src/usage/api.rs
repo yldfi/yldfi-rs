@@ -2,7 +2,7 @@
 
 use super::types::{UsageRequest, UsageResponse};
 use crate::client::Client;
-use crate::error::{Error, Result};
+use crate::error::{self, Result};
 
 /// Usage API
 pub struct UsageApi<'a> {
@@ -31,9 +31,7 @@ impl<'a> UsageApi<'a> {
         if response.status().is_success() {
             Ok(response.json().await?)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 }

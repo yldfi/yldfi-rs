@@ -47,7 +47,7 @@ pub mod oracles {
         pub const UNI_USD: Address = address!("553303d460EE0afB37EdFf9bE42922D8FF63220e");
         pub const COMP_USD: Address = address!("dbd020CAeF83eFd542f4De03e3cF0C28A4428bd5");
         pub const MKR_USD: Address = address!("ec1D1B3b0443256cc3860e24a46F108e699484Aa");
-        pub const SNX_USD: Address = address!("DEc0a100EaD1FaA37407f0EDc76033426CF90b82");
+        pub const SNX_USD: Address = address!("DC3EA94CD0AC27d9A86C180091e7f78C683d3699");
         pub const YFI_USD: Address = address!("A027702dbb89fbd58938e4324ac03B58d812b0E1");
         pub const SUSHI_USD: Address = address!("Cc70F09A6CC17553b2E31954cD36E4A2d89501f7");
         /// Note: LDO only has an ETH-denominated feed on mainnet, not USD
@@ -65,7 +65,7 @@ pub mod oracles {
         use super::*;
 
         pub const ETH_USD: Address = address!("639Fe6ab55C921f74e7fac1ee960C0B6293ba612");
-        pub const BTC_USD: Address = address!("6ce185860a4963106506C203335A68A2B5E60900");
+        pub const BTC_USD: Address = address!("6ce185860a4963106506C203335A2910413708e9");
         pub const LINK_USD: Address = address!("86E53CF1B870786351Da77A57575e79CB55812CB");
         pub const USDC_USD: Address = address!("50834F3163758fcC1Df9973b6e91f0F0F0434aD3");
         pub const USDT_USD: Address = address!("3f3f5dF88dC9F13eac63DF89EC16ef6e7E25DdE7");
@@ -94,7 +94,7 @@ pub mod oracles {
 
         pub const ETH_USD: Address = address!("13e3Ee699D1909E989722E753853AE30b17e08c5");
         pub const BTC_USD: Address = address!("D702DD976Fb76Fffc2D3963D037dfDae5b04E593");
-        pub const LINK_USD: Address = address!("CbC8EEA53a9575F05d4b18a4C5F0121c2a6bd035");
+        pub const LINK_USD: Address = address!("Cc232dcFAAE6354cE191Bd574108c1aD03f86450");
         pub const USDC_USD: Address = address!("16a9FA2FDa030272Ce99B29CF780dFA30361E0f3");
         pub const USDT_USD: Address = address!("ECef79E109e997bCA29c1c0897ec9d7b03647F5E");
         pub const DAI_USD: Address = address!("8dBa75e83DA73cc766A7e5a0ee71F656BAb470d6");
@@ -109,6 +109,62 @@ pub mod oracles {
         pub const USDC_USD: Address = address!("7e860098F58bBFC8648a4311b374B1D669a2bc6B");
         pub const CBETH_ETH: Address = address!("806b4Ac04501c29769051e42783cF04dCE41440b");
     }
+
+    /// Every oracle constant above as `(chain, name, address)`.
+    ///
+    /// Used by the live test `every_oracle_is_live` (tests/chainlink_live.rs),
+    /// which the weekly API check runs to catch feeds Chainlink has moved or
+    /// stopped updating. A unit test keeps this list in sync with the modules.
+    pub const ALL: &[(&str, &str, Address)] = &[
+        ("ethereum", "ETH_USD", ethereum::ETH_USD),
+        ("ethereum", "BTC_USD", ethereum::BTC_USD),
+        ("ethereum", "LINK_USD", ethereum::LINK_USD),
+        ("ethereum", "USDC_USD", ethereum::USDC_USD),
+        ("ethereum", "USDT_USD", ethereum::USDT_USD),
+        ("ethereum", "DAI_USD", ethereum::DAI_USD),
+        ("ethereum", "CVX_USD", ethereum::CVX_USD),
+        ("ethereum", "CRV_USD", ethereum::CRV_USD),
+        ("ethereum", "CRVUSD_USD", ethereum::CRVUSD_USD),
+        ("ethereum", "AAVE_USD", ethereum::AAVE_USD),
+        ("ethereum", "UNI_USD", ethereum::UNI_USD),
+        ("ethereum", "COMP_USD", ethereum::COMP_USD),
+        ("ethereum", "MKR_USD", ethereum::MKR_USD),
+        ("ethereum", "SNX_USD", ethereum::SNX_USD),
+        ("ethereum", "YFI_USD", ethereum::YFI_USD),
+        ("ethereum", "SUSHI_USD", ethereum::SUSHI_USD),
+        ("ethereum", "LDO_ETH", ethereum::LDO_ETH),
+        ("ethereum", "RPL_USD", ethereum::RPL_USD),
+        ("ethereum", "STETH_USD", ethereum::STETH_USD),
+        ("ethereum", "STETH_ETH", ethereum::STETH_ETH),
+        ("ethereum", "RETH_ETH", ethereum::RETH_ETH),
+        ("ethereum", "CBETH_ETH", ethereum::CBETH_ETH),
+        ("arbitrum", "ETH_USD", arbitrum::ETH_USD),
+        ("arbitrum", "BTC_USD", arbitrum::BTC_USD),
+        ("arbitrum", "LINK_USD", arbitrum::LINK_USD),
+        ("arbitrum", "USDC_USD", arbitrum::USDC_USD),
+        ("arbitrum", "USDT_USD", arbitrum::USDT_USD),
+        ("arbitrum", "DAI_USD", arbitrum::DAI_USD),
+        ("arbitrum", "ARB_USD", arbitrum::ARB_USD),
+        ("arbitrum", "GMX_USD", arbitrum::GMX_USD),
+        ("polygon", "ETH_USD", polygon::ETH_USD),
+        ("polygon", "BTC_USD", polygon::BTC_USD),
+        ("polygon", "MATIC_USD", polygon::MATIC_USD),
+        ("polygon", "LINK_USD", polygon::LINK_USD),
+        ("polygon", "USDC_USD", polygon::USDC_USD),
+        ("polygon", "USDT_USD", polygon::USDT_USD),
+        ("polygon", "DAI_USD", polygon::DAI_USD),
+        ("polygon", "AAVE_USD", polygon::AAVE_USD),
+        ("optimism", "ETH_USD", optimism::ETH_USD),
+        ("optimism", "BTC_USD", optimism::BTC_USD),
+        ("optimism", "LINK_USD", optimism::LINK_USD),
+        ("optimism", "USDC_USD", optimism::USDC_USD),
+        ("optimism", "USDT_USD", optimism::USDT_USD),
+        ("optimism", "DAI_USD", optimism::DAI_USD),
+        ("optimism", "OP_USD", optimism::OP_USD),
+        ("base", "ETH_USD", base::ETH_USD),
+        ("base", "USDC_USD", base::USDC_USD),
+        ("base", "CBETH_ETH", base::CBETH_ETH),
+    ];
 }
 
 /// Token addresses used for Feed Registry lookups
@@ -293,5 +349,41 @@ pub fn supported_tokens(chain: &str) -> Vec<&'static str> {
         "optimism" | "op" => vec!["ETH", "BTC", "LINK", "USDC", "DAI", "OP"],
         "base" => vec!["ETH", "USDC"],
         _ => vec![],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `oracles::ALL` must list every oracle constant, so the live check
+    /// covers new feeds too.
+    #[test]
+    fn all_oracles_lists_every_constant() {
+        let src = include_str!("constants.rs");
+        let start = src.find("pub mod oracles {").unwrap();
+        let end = src[start..].find("pub const ALL").unwrap() + start;
+        let declared = src[start..end]
+            .lines()
+            .filter(|l| l.trim_start().starts_with("pub const "))
+            .count();
+        assert_eq!(declared, oracles::ALL.len());
+
+        let mut seen = std::collections::HashSet::new();
+        for (chain, name, addr) in oracles::ALL {
+            assert!(seen.insert(*addr), "duplicate address for {chain} {name}");
+        }
+    }
+
+    #[test]
+    fn supported_tokens_resolve() {
+        for chain in ["ethereum", "arbitrum", "polygon", "optimism", "base"] {
+            for sym in supported_tokens(chain) {
+                assert!(
+                    get_oracle_for_token(sym, chain).is_some(),
+                    "{sym} on {chain}"
+                );
+            }
+        }
     }
 }

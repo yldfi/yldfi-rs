@@ -1,0 +1,37 @@
+{
+ "provider": "alchemy-portfolio",
+ "url": "https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/portfolio/portfolio.yaml",
+ "version": "1.0",
+ "operations": {
+  "POST /{apiKey}/assets/nfts/by-address": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "POST /{apiKey}/assets/nfts/contracts/by-address": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "POST /{apiKey}/assets/tokens/balances/by-address": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "POST /{apiKey}/assets/tokens/by-address": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "POST /{apiKey}/transfers/by-address": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  }
+ }
+}

@@ -7,9 +7,9 @@
 //!
 //! - `Alert` - Triggered by a Tenderly alert
 //! - `Webhook` - Triggered by an HTTP call
-//! - `Periodic` - Triggered on a cron schedule
+//! - `Periodic` - Triggered on a cron schedule / interval
 //! - `Block` - Triggered when a block is mined
-//! - `Transaction` - Triggered by transactions to an address
+//! - `Transaction` / `TransactionSimple` - Triggered by matching transactions
 //!
 //! # Example
 //!
@@ -19,34 +19,25 @@
 //!
 //! let client = Client::from_env()?;
 //!
-//! // Create an action triggered by an alert
 //! let source = r#"
-//! module.exports = async (context, event) => {
-//!     const { alertId, transaction } = event;
-//!     console.log(`Alert ${alertId} triggered for tx ${transaction.hash}`);
-//!
-//!     // Send to Discord, Telegram, etc.
-//!     await fetch(context.secrets.DISCORD_WEBHOOK, {
-//!         method: 'POST',
-//!         body: JSON.stringify({ content: `Transaction failed: ${transaction.hash}` })
-//!     });
-//!
-//!     return { notified: true };
+//! const actionFn = async (context, blockEvent) => {
+//!     console.log(blockEvent);
 //! };
+//! module.exports = { actionFn };
 //! "#;
 //!
-//! let request = CreateActionRequest::new("Notify Discord", ActionTrigger::Alert, source)
-//!     .trigger_config(TriggerConfig::alert("alert-123"))
-//!     .secret("DISCORD_WEBHOOK", "https://discord.com/api/webhooks/...");
-//!
-//! let action = client.actions().create(&request).await?;
+//! // Publish and deploy an action that runs every 10th block on mainnet
+//! let request = CreateActionRequest::new("block-action", ActionTrigger::Block, source)
+//!     .trigger_config(TriggerConfig::block(vec!["1".into()], 10));
+//! let published = client.actions().create(&request).await?;
+//! let action_id = published.actions["block-action"].action_id.clone().unwrap();
 //!
 //! // Pause / resume it
-//! client.actions().stop(&action.id).await?;
-//! client.actions().resume(&action.id).await?;
+//! client.actions().stop(&action_id).await?;
+//! client.actions().resume(&action_id).await?;
 //!
 //! // Inspect executions
-//! let calls = client.actions().calls(&action.id, None).await?;
+//! let calls = client.actions().calls(&action_id, None).await?;
 //! ```
 //!
 //! Tenderly's public API has no `PATCH /actions/action/{id}` (update/enable/

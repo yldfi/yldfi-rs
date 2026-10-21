@@ -596,55 +596,131 @@ impl ListVNetTransactionsQuery {
     }
 }
 
-/// Wrapper for the VNet simulation API (Tenderly expects `{ "callArgs": { ... }, "blockNumber": "latest" }`)
+/// Body of the `VNet` transaction endpoints: `{ "callArgs": { ... } }`, plus
+/// `"blockNumber"` for simulations
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct VNetSimulationRequestEnvelope<'a> {
+pub(crate) struct VNetCallEnvelope<'a, T: Serialize> {
     #[serde(rename = "callArgs")]
-    pub call_args: &'a VNetSimulationRequest,
-    #[serde(rename = "blockNumber")]
-    pub block_number: &'a str,
+    pub call_args: &'a T,
+    #[serde(rename = "blockNumber", skip_serializing_if = "Option::is_none")]
+    pub block_number: Option<&'a str>,
+}
+
+/// Wire shape of `callArgs`: camelCase keys and hex-encoded quantities
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CallArgs<'a> {
+    from: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    to: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    gas: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    gas_price: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_fee_per_gas: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_priority_fee_per_gas: Option<String>,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    transaction_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    nonce: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    access_list: Option<&'a [AccessListItem]>,
+}
+
+impl<'a> CallArgs<'a> {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        from: &'a str,
+        to: Option<&'a str>,
+        input: Option<&'a str>,
+        value: Option<&'a str>,
+        gas: Option<u64>,
+        gas_price: Option<&'a str>,
+        max_fee_per_gas: Option<&'a str>,
+        max_priority_fee_per_gas: Option<&'a str>,
+        transaction_type: Option<u8>,
+    ) -> Self {
+        let hex = |v: Option<&str>| v.map(crate::utils::to_hex_quantity);
+        // An explicit type wins; otherwise EIP-1559 fees imply type 2
+        let transaction_type = transaction_type
+            .or((max_fee_per_gas.is_some() || max_priority_fee_per_gas.is_some()).then_some(2));
+        Self {
+            from,
+            to,
+            input,
+            value: hex(value),
+            gas: gas.map(|g| format!("0x{g:x}")),
+            gas_price: hex(gas_price),
+            max_fee_per_gas: hex(max_fee_per_gas),
+            max_priority_fee_per_gas: hex(max_priority_fee_per_gas),
+            transaction_type: transaction_type.map(|t| format!("0x{t:x}")),
+            nonce: None,
+            access_list: None,
+        }
+    }
 }
 
 /// Request to simulate a transaction on a `VNet`
-#[derive(Debug, Clone, Serialize)]
+///
+/// Serializes as Tenderly's `callArgs` object: camelCase keys, with `value`,
+/// `gas`, fees and `type` hex-encoded (decimal strings are converted).
+#[derive(Debug, Clone)]
 pub struct VNetSimulationRequest {
     /// Sender address
     pub from: String,
 
     /// Recipient address (None for contract deployment)
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<String>,
 
     /// Calldata
     pub input: String,
 
-    /// Value in wei
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Value in wei (decimal or `0x` hex)
     pub value: Option<String>,
 
     /// Gas limit
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub gas: Option<u64>,
 
-    /// Gas price (legacy transactions)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Gas price in wei (legacy transactions; decimal or `0x` hex)
     pub gas_price: Option<String>,
 
-    /// Max fee per gas in wei (EIP-1559)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Max fee per gas in wei (EIP-1559; decimal or `0x` hex)
     pub max_fee_per_gas: Option<String>,
 
-    /// Max priority fee per gas in wei (EIP-1559)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Max priority fee per gas in wei (EIP-1559; decimal or `0x` hex)
     pub max_priority_fee_per_gas: Option<String>,
 
     /// Transaction type (0 = legacy, 1 = access list, 2 = EIP-1559)
-    #[serde(skip_serializing_if = "Option::is_none", rename = "type")]
+    ///
+    /// When unset, type 2 is sent if either EIP-1559 fee is set.
     pub transaction_type: Option<u8>,
 
     /// Nonce
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub nonce: Option<u64>,
+}
+
+impl Serialize for VNetSimulationRequest {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut args = CallArgs::new(
+            &self.from,
+            self.to.as_deref(),
+            Some(&self.input),
+            self.value.as_deref(),
+            self.gas,
+            self.gas_price.as_deref(),
+            self.max_fee_per_gas.as_deref(),
+            self.max_priority_fee_per_gas.as_deref(),
+            self.transaction_type,
+        );
+        args.nonce = self.nonce;
+        args.serialize(serializer)
+    }
 }
 
 impl VNetSimulationRequest {
@@ -685,27 +761,33 @@ impl VNetSimulationRequest {
         self
     }
 
+    /// Set gas price (legacy)
+    #[must_use]
+    pub fn gas_price(mut self, price: impl Into<String>) -> Self {
+        self.gas_price = Some(price.into());
+        self
+    }
+
     /// Set max fee per gas (EIP-1559)
     ///
-    /// Automatically sets transaction type to 2.
+    /// Type 2 is sent unless [`transaction_type`](Self::transaction_type) is set.
     #[must_use]
     pub fn max_fee_per_gas(mut self, fee: impl Into<String>) -> Self {
         self.max_fee_per_gas = Some(fee.into());
-        self.transaction_type = Some(2);
         self
     }
 
     /// Set max priority fee per gas (EIP-1559)
     ///
-    /// Automatically sets transaction type to 2.
+    /// Type 2 is sent unless [`transaction_type`](Self::transaction_type) is set.
     #[must_use]
     pub fn max_priority_fee_per_gas(mut self, fee: impl Into<String>) -> Self {
         self.max_priority_fee_per_gas = Some(fee.into());
-        self.transaction_type = Some(2);
         self
     }
 
-    /// Set transaction type explicitly
+    /// Set transaction type explicitly (takes precedence over the type
+    /// implied by EIP-1559 fees, regardless of call order)
     #[must_use]
     pub fn transaction_type(mut self, tx_type: u8) -> Self {
         self.transaction_type = Some(tx_type);
@@ -780,41 +862,56 @@ impl UpdateVNetRequest {
 }
 
 /// Request to send a transaction on a Virtual `TestNet`
-#[derive(Debug, Clone, Serialize)]
+///
+/// Serializes as Tenderly's `callArgs` object: camelCase keys, with `value`,
+/// `gas` and fees hex-encoded (decimal strings are converted). Type 2 is sent
+/// when an EIP-1559 fee is set.
+#[derive(Debug, Clone)]
 pub struct SendVNetTransactionRequest {
     /// Sender address
     pub from: String,
 
-    /// Recipient address (can be empty for contract creation)
+    /// Recipient address (empty for contract creation)
     pub to: String,
 
     /// Calldata / input
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<String>,
 
-    /// Value in wei
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Value in wei (decimal or `0x` hex)
     pub value: Option<String>,
 
     /// Gas limit
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub gas: Option<u64>,
 
-    /// Gas price in wei (legacy)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Gas price in wei (legacy; decimal or `0x` hex)
     pub gas_price: Option<String>,
 
-    /// Max fee per gas (EIP-1559)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Max fee per gas in wei (EIP-1559; decimal or `0x` hex)
     pub max_fee_per_gas: Option<String>,
 
-    /// Max priority fee per gas (EIP-1559)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Max priority fee per gas in wei (EIP-1559; decimal or `0x` hex)
     pub max_priority_fee_per_gas: Option<String>,
 
     /// Access list (EIP-2930)
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub access_list: Option<Vec<AccessListItem>>,
+}
+
+impl Serialize for SendVNetTransactionRequest {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut args = CallArgs::new(
+            &self.from,
+            (!self.to.is_empty()).then_some(self.to.as_str()),
+            self.input.as_deref(),
+            self.value.as_deref(),
+            self.gas,
+            self.gas_price.as_deref(),
+            self.max_fee_per_gas.as_deref(),
+            self.max_priority_fee_per_gas.as_deref(),
+            None,
+        );
+        args.access_list = self.access_list.as_deref();
+        args.serialize(serializer)
+    }
 }
 
 /// Access list item for EIP-2930 transactions
@@ -824,7 +921,7 @@ pub struct AccessListItem {
     pub address: String,
 
     /// Storage keys being accessed
-    #[serde(default)]
+    #[serde(default, rename = "storageKeys", alias = "storage_keys")]
     pub storage_keys: Vec<String>,
 }
 
@@ -1039,6 +1136,87 @@ mod tests {
         // Without 0x prefix
         assert_eq!(parse_hex_u64("5208"), Some(21_000));
         assert_eq!(parse_hex_u64("170abab"), Some(24_161_195));
+    }
+
+    #[test]
+    fn test_vnet_simulation_call_args_wire_format() {
+        let request =
+            VNetSimulationRequest::new("0x0000000000000000000000000000000000000001", "0xdeadbeef")
+                .to("0x0000000000000000000000000000000000000002")
+                .value("1000000000000000000")
+                .gas(21_000)
+                .gas_price("0x10")
+                .max_fee_per_gas("100")
+                .max_priority_fee_per_gas("2");
+        let envelope = VNetCallEnvelope {
+            call_args: &request,
+            block_number: Some("latest"),
+        };
+
+        let json = serde_json::to_value(&envelope).unwrap();
+        let args = &json["callArgs"];
+        assert_eq!(json["blockNumber"], "latest");
+        assert_eq!(args["from"], "0x0000000000000000000000000000000000000001");
+        assert_eq!(args["input"], "0xdeadbeef");
+        assert_eq!(args["value"], "0xde0b6b3a7640000");
+        assert_eq!(args["gas"], "0x5208");
+        assert_eq!(args["gasPrice"], "0x10");
+        assert_eq!(args["maxFeePerGas"], "0x64");
+        assert_eq!(args["maxPriorityFeePerGas"], "0x2");
+        assert_eq!(args["type"], "0x2");
+        for snake in ["gas_price", "max_fee_per_gas", "max_priority_fee_per_gas"] {
+            assert!(args.get(snake).is_none(), "{snake} must be camelCase");
+        }
+    }
+
+    #[test]
+    fn test_vnet_simulation_explicit_type_wins_regardless_of_order() {
+        let before = VNetSimulationRequest::new("0x01", "0x")
+            .transaction_type(0)
+            .max_fee_per_gas("1");
+        let after = VNetSimulationRequest::new("0x01", "0x")
+            .max_fee_per_gas("1")
+            .transaction_type(0);
+        for request in [before, after] {
+            let json = serde_json::to_value(&request).unwrap();
+            assert_eq!(json["type"], "0x0");
+        }
+        let legacy = serde_json::to_value(VNetSimulationRequest::new("0x01", "0x")).unwrap();
+        assert!(legacy.get("type").is_none());
+    }
+
+    #[test]
+    fn test_send_vnet_transaction_call_args_envelope() {
+        let request = SendVNetTransactionRequest::new(
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000002",
+            "0xdeadbeef",
+        )
+        .value("16")
+        .max_fee_per_gas("0x10")
+        .access_list(vec![AccessListItem {
+            address: "0x0000000000000000000000000000000000000003".to_string(),
+            storage_keys: vec!["0x01".to_string()],
+        }]);
+        let envelope = VNetCallEnvelope {
+            call_args: &request,
+            block_number: None,
+        };
+
+        let json = serde_json::to_value(&envelope).unwrap();
+        assert_eq!(json.as_object().unwrap().len(), 1, "{json}");
+        let args = &json["callArgs"];
+        assert_eq!(args["to"], "0x0000000000000000000000000000000000000002");
+        assert_eq!(args["input"], "0xdeadbeef");
+        assert_eq!(args["value"], "0x10");
+        assert_eq!(args["maxFeePerGas"], "0x10");
+        assert_eq!(args["type"], "0x2");
+        assert_eq!(args["accessList"][0]["storageKeys"][0], "0x01");
+        assert!(args.get("access_list").is_none());
+
+        // Contract creation omits `to`
+        let deploy = SendVNetTransactionRequest::new("0x01", "", "0x60");
+        assert!(serde_json::to_value(&deploy).unwrap().get("to").is_none());
     }
 
     #[test]

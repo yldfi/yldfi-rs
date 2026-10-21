@@ -14,6 +14,78 @@ pub enum DisassemblyError {
     ParseError(String),
 }
 
+/// The part of legacy bytecode worth disassembling: the Solidity/Vyper CBOR
+/// metadata trailer removed, and cut before a PUSH whose immediate runs past
+/// the end. evm-disassembler `println!`s to stdout when it hits a truncated
+/// PUSH, which would corrupt JSON output, so it must never see one.
+fn code_section(bytecode: &[u8]) -> &[u8] {
+    // EOF containers have their own layout; leave them to the library
+    if bytecode.starts_with(&[0xef, 0x00]) {
+        return bytecode;
+    }
+    decodable_prefix(strip_metadata(bytecode))
+}
+
+/// Remove a trailing compiler metadata blob: the last two bytes give its
+/// length, it starts with a CBOR map header (0xa1..=0xa7) and contains a
+/// compiler metadata key. For display only: security analysis must scan the
+/// whole code, since anyone can append bytes that look like a trailer.
+fn strip_metadata(bytecode: &[u8]) -> &[u8] {
+    let Some(len_bytes) = bytecode.len().checked_sub(2).map(|i| &bytecode[i..]) else {
+        return bytecode;
+    };
+    let meta_len = u16::from_be_bytes([len_bytes[0], len_bytes[1]]) as usize;
+    let Some(start) = bytecode.len().checked_sub(meta_len + 2) else {
+        return bytecode;
+    };
+    const KEYS: &[&[u8]] = &[b"ipfs", b"bzzr0", b"bzzr1", b"solc", b"vyper"];
+    let trailer = &bytecode[start..bytecode.len() - 2];
+    let has_key = KEYS
+        .iter()
+        .any(|k| trailer.windows(k.len()).any(|w| w == *k));
+    if meta_len > 0 && (0xa1..=0xa7).contains(&bytecode[start]) && has_key {
+        &bytecode[..start]
+    } else {
+        bytecode
+    }
+}
+
+/// Disassemble the whole bytecode for security analysis: no metadata
+/// stripping (a forged trailer could hide opcodes), only the truncated-PUSH
+/// cut, which drops nothing executable
+pub fn disassemble_for_security(bytecode: &[u8]) -> Result<Vec<Operation>, DisassemblyError> {
+    if bytecode.len() > MAX_BYTECODE_SIZE {
+        return Err(DisassemblyError::BytecodeTooLarge(
+            bytecode.len(),
+            MAX_BYTECODE_SIZE,
+        ));
+    }
+    let code = if bytecode.starts_with(&[0xef, 0x00]) {
+        bytecode
+    } else {
+        decodable_prefix(bytecode)
+    };
+    disassemble_bytes(code.to_vec()).map_err(|e| DisassemblyError::ParseError(e.to_string()))
+}
+
+/// Bytecode up to (not including) the first PUSH that is cut off by the end
+fn decodable_prefix(code: &[u8]) -> &[u8] {
+    let mut i = 0;
+    while i < code.len() {
+        let op = code[i];
+        let immediate = if (0x60..=0x7f).contains(&op) {
+            (op - 0x5f) as usize
+        } else {
+            0
+        };
+        if i + 1 + immediate > code.len() {
+            return &code[..i];
+        }
+        i += 1 + immediate;
+    }
+    code
+}
+
 /// Disassemble bytecode into individual opcodes
 ///
 /// Returns a list of operations with offset, opcode name, and operand
@@ -29,7 +101,7 @@ pub fn disassemble_bytecode(bytecode: &[u8]) -> Result<Vec<DisassembledOp>, Disa
         ));
     }
 
-    let operations = disassemble_bytes(bytecode.to_vec())
+    let operations = disassemble_bytes(code_section(bytecode).to_vec())
         .map_err(|e| DisassemblyError::ParseError(e.to_string()))?;
 
     Ok(operations_to_disassembled_ops(&operations))
@@ -207,6 +279,12 @@ fn opcode_to_static_str(opcode: Opcode) -> &'static str {
         Opcode::REVERT => "REVERT",
         Opcode::INVALID => "INVALID",
         Opcode::SELFDESTRUCT => "SELFDESTRUCT",
+        // Cancun (EIP-1153, EIP-5656, EIP-4844, EIP-7516)
+        Opcode::TLOAD => "TLOAD",
+        Opcode::TSTORE => "TSTORE",
+        Opcode::MCOPY => "MCOPY",
+        Opcode::BLOBHASH => "BLOBHASH",
+        Opcode::BLOBBASEFEE => "BLOBBASEFEE",
         _ => "UNKNOWN",
     }
 }
@@ -285,7 +363,7 @@ pub fn opcode_stats_from_operations(operations: &[Operation], bytecode_size: usi
             | Opcode::CREATE2 => call_count += 1,
 
             // Storage operations (including transient storage EIP-1153)
-            Opcode::SLOAD | Opcode::SSTORE => storage_count += 1,
+            Opcode::SLOAD | Opcode::SSTORE | Opcode::TLOAD | Opcode::TSTORE => storage_count += 1,
 
             _ => {}
         }
@@ -332,7 +410,7 @@ pub fn opcode_stats(bytecode: &[u8]) -> Result<OpcodeStats, DisassemblyError> {
         ));
     }
 
-    let operations = disassemble_bytes(bytecode.to_vec())
+    let operations = disassemble_bytes(code_section(bytecode).to_vec())
         .map_err(|e| DisassemblyError::ParseError(e.to_string()))?;
 
     Ok(opcode_stats_from_operations(&operations, bytecode.len()))
@@ -354,11 +432,58 @@ pub fn disassemble_raw(bytecode: &[u8]) -> Result<Vec<Operation>, DisassemblyErr
         ));
     }
 
-    disassemble_bytes(bytecode.to_vec()).map_err(|e| DisassemblyError::ParseError(e.to_string()))
+    disassemble_bytes(code_section(bytecode).to_vec())
+        .map_err(|e| DisassemblyError::ParseError(e.to_string()))
 }
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn names_cancun_opcodes() {
+        let ops = disassemble_bytecode(&[0x5c, 0x5d, 0x5e, 0x49, 0x4a]).unwrap();
+        let names: Vec<_> = ops.iter().map(|o| o.opcode.as_str()).collect();
+        assert_eq!(
+            names,
+            ["TLOAD", "TSTORE", "MCOPY", "BLOBHASH", "BLOBBASEFEE"]
+        );
+    }
+
+    #[test]
+    fn strips_cbor_metadata() {
+        // PUSH1 0x80 STOP, then a CBOR map {"solc": ...} + its length
+        let mut code = vec![0x60, 0x80, 0x00, 0xa1, 0x64];
+        code.extend_from_slice(b"solc");
+        code.extend_from_slice(&[0x43, 0x00, 0x08, 0x1a, 0x00, 0x0a]);
+        assert_eq!(strip_metadata(&code), &code[..3]);
+        // No metadata trailer: unchanged
+        let plain = [0x60, 0x80, 0x00];
+        assert_eq!(strip_metadata(&plain), &plain);
+        let ops = disassemble_bytecode(&code).unwrap();
+        assert_eq!(ops.len(), 2);
+    }
+
+    #[test]
+    fn security_scan_sees_code_behind_a_forged_trailer() {
+        // SELFDESTRUCT hidden in a "trailer" that is just a map header + length
+        let code = [0x60, 0x00, 0xa1, 0xff, 0x00, 0x02];
+        assert_eq!(
+            strip_metadata(&code),
+            &code,
+            "no metadata key: not stripped"
+        );
+        let ops = disassemble_for_security(&code).unwrap();
+        assert!(ops.iter().any(|o| o.opcode == Opcode::SELFDESTRUCT));
+    }
+
+    #[test]
+    fn stops_before_a_truncated_push() {
+        // PUSH1 0x01, then PUSH32 with only 2 bytes left
+        let code = [0x60, 0x01, 0x7f, 0xaa, 0xbb];
+        assert_eq!(decodable_prefix(&code), &code[..2]);
+        assert_eq!(disassemble_bytecode(&code).unwrap().len(), 1);
+    }
+
     use super::*;
 
     #[test]

@@ -200,6 +200,8 @@ impl Checkpoint {
         contract: &str,
         chain_id: u64,
         event_signature: Option<&str>,
+        start_block: u64,
+        end_block: Option<u64>,
     ) -> Result<()> {
         if self.contract.to_lowercase() != contract.to_lowercase() {
             return Err(CheckpointError::Corrupted(format!(
@@ -226,6 +228,20 @@ impl Checkpoint {
             .into());
         }
 
+        // The completed ranges only make sense for the same block range
+        if self.start_block != start_block || self.end_block != end_block {
+            let fmt_end = |e: Option<u64>| e.map_or("latest".to_string(), |n| n.to_string());
+            return Err(CheckpointError::Corrupted(format!(
+                "Block range mismatch: checkpoint={}-{}, current={}-{}. \
+                 Use the original range or delete the checkpoint file",
+                self.start_block,
+                fmt_end(self.end_block),
+                start_block,
+                fmt_end(end_block)
+            ))
+            .into());
+        }
+
         Ok(())
     }
 
@@ -241,7 +257,9 @@ pub struct CheckpointManager {
     checkpoint: Checkpoint,
     /// File path
     path: PathBuf,
-    /// Save interval (number of ranges)
+    /// Save interval (number of ranges). 1: the caller writes and flushes each
+    /// range before marking it completed, so saving every time keeps the
+    /// checkpoint in step with the output and a crash can't duplicate rows.
     save_interval: usize,
     /// Ranges since last save
     ranges_since_save: usize,
@@ -253,7 +271,7 @@ impl CheckpointManager {
         Self {
             checkpoint,
             path,
-            save_interval: 10,
+            save_interval: 1,
             ranges_since_save: 0,
         }
     }
@@ -269,7 +287,7 @@ impl CheckpointManager {
     ) -> Result<Self> {
         let checkpoint = if path.exists() {
             let loaded = Checkpoint::load(path)?;
-            loaded.validate(contract, chain_id, event_signature)?;
+            loaded.validate(contract, chain_id, event_signature, start_block, end_block)?;
             loaded
         } else {
             Checkpoint::new(
@@ -368,6 +386,26 @@ mod tests {
         assert_eq!(cp.chain_id, 1);
         assert_eq!(cp.start_block, 1000);
         assert_eq!(cp.end_block, Some(2000));
+    }
+
+    #[test]
+    fn validate_rejects_a_different_block_range() {
+        let cp = Checkpoint::new("0xAbC".to_string(), 1, None, 1000, Some(2000));
+        assert!(cp.validate("0xabc", 1, None, 1000, Some(2000)).is_ok());
+        assert!(cp.validate("0xabc", 1, None, 500, Some(2000)).is_err());
+        assert!(cp.validate("0xabc", 1, None, 1000, Some(3000)).is_err());
+        assert!(cp.validate("0xabc", 1, None, 1000, None).is_err());
+    }
+
+    #[test]
+    fn manager_saves_every_completed_range() {
+        let file = NamedTempFile::new().unwrap();
+        let cp = Checkpoint::new("0x1234".to_string(), 1, None, 0, Some(1000));
+        let mut manager = CheckpointManager::new(cp, file.path().to_path_buf());
+        manager.mark_completed(0, 99, 5).unwrap();
+        // No explicit save: the range must already be on disk
+        let loaded = Checkpoint::load(file.path()).unwrap();
+        assert_eq!(loaded.completed_ranges, vec![(0, 99)]);
     }
 
     #[test]

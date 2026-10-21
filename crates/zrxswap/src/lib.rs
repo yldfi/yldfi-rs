@@ -114,7 +114,7 @@
 //!
 //!     // First, get available sources
 //!     let sources = client.get_sources(Chain::Ethereum).await?;
-//!     println!("Available sources: {:?}", sources.iter().map(|s| &s.name).collect::<Vec<_>>());
+//!     println!("Available sources: {:?}", sources);
 //!
 //!     // Then exclude specific sources
 //!     let request = QuoteRequest::sell(
@@ -144,7 +144,6 @@
 //! | Avalanche | 43114 | AVAX |
 //! | Fantom | 250 | FTM |
 //! | Celo | 42220 | CELO |
-//! | Blast | 81457 | ETH |
 //! | Linea | 59144 | ETH |
 //! | Scroll | 534352 | ETH |
 //! | Mantle | 5000 | MNT |
@@ -186,7 +185,7 @@ pub use client::{Client, Config, DEFAULT_BASE_URL};
 pub use error::{Error, Result};
 pub use types::{
     AllowanceIssue, ApiError, BalanceIssue, Chain, LiquiditySource, Permit2Data, PriceRequest,
-    PriceResponse, QuoteIssues, QuoteRequest, QuoteResponse, Route, RouteFill, RouteToken, Source,
+    PriceResponse, QuoteIssues, QuoteRequest, QuoteResponse, Route, RouteFill, RouteToken,
     SourcesResponse, TokenMetadata, Transaction, ValidationError,
 };
 

@@ -126,12 +126,16 @@
 //! | Arbitrum One | 42161 |
 //! | Gnosis Chain | 100 |
 //! | Avalanche | 43114 |
-//! | Fantom | 250 |
-//! | Klaytn | 8217 |
-//! | Aurora | 1313161554 |
 //! | zkSync Era | 324 |
 //! | Base | 8453 |
 //! | Linea | 59144 |
+//! | Sonic | 146 |
+//! | Unichain | 130 |
+//! | Robinhood Chain | 4663 |
+//! | Monad | 143 |
+//! | Cronos | 25 |
+//! | HyperEVM | 999 |
+//! | Arc | 5042 |
 //!
 //! See [`Chain`] for the full list.
 //!

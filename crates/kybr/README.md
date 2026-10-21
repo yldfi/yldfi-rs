@@ -17,7 +17,7 @@
 
 - **Route API** - Get optimal swap routes across DEXs
 - **Build API** - Get transaction calldata for execution
-- **Multi-chain** - Supports 15+ EVM chains
+- **Multi-chain** - Supports the 19 EVM chains KyberSwap lists as active
 
 ## Installation
 
@@ -41,7 +41,7 @@ async fn main() -> Result<(), kybr::Error> {
         "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // WETH
         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
         "1000000000000000000", // 1 WETH
-    ).with_slippage_bps(50); // 0.5% slippage
+    ); // slippage is set when building (BuildRouteRequest)
 
     let route = client.get_routes(Chain::Ethereum, &request).await?;
     println!("Output: {} USDC", route.amount_out);
@@ -75,7 +75,11 @@ println!("Calldata: {}", tx_data.data);
 
 ## Supported Chains
 
-Ethereum, BSC, Polygon, Arbitrum, Optimism, Avalanche, Base, Fantom, Linea, Scroll, zkSync, Blast, Mantle, Polygon zkEVM
+Ethereum, BSC, Polygon, Arbitrum, Optimism, Avalanche, Base, Linea, Sonic, Berachain, Unichain, Ronin, HyperEVM, Plasma, Monad, Etherlink, MegaETH, Robinhood Chain, Arc
+
+`Chain::all()` returns this list. KyberSwap has deactivated Fantom, Scroll,
+zkSync, Blast and Mantle, and Polygon zkEVM is no longer listed, so those
+variants were removed.
 
 ## Terms of Service
 

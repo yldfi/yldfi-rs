@@ -39,6 +39,16 @@ impl JsonWriter {
         Ok(Self::with_writer(writer, ndjson))
     }
 
+    /// Open an NDJSON file in append mode (for resumed fetches)
+    pub fn append_ndjson(path: &Path) -> Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|e| OutputError::FileCreate(format!("{}: {}", path.display(), e)))?;
+        Ok(Self::with_writer(Box::new(BufWriter::new(file)), true))
+    }
+
     /// Create a JSON writer over an arbitrary sink
     pub fn with_writer(writer: Box<dyn Write + Send>, ndjson: bool) -> Self {
         Self {
@@ -113,6 +123,12 @@ impl OutputWriter for JsonWriter {
             }
         }
         Ok(())
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        self.writer
+            .flush()
+            .map_err(|e| OutputError::JsonWrite(e.to_string()).into())
     }
 
     fn finalize(&mut self) -> Result<()> {
@@ -198,6 +214,24 @@ mod tests {
         writer.finalize().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&buf.text()).unwrap();
         assert_eq!(parsed, serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_append_ndjson_keeps_earlier_results() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.ndjson");
+        std::fs::write(&path, "{\"earlier\":true}\n").unwrap();
+
+        let mut writer = JsonWriter::append_ndjson(&path).unwrap();
+        writer.write_decoded(&test_log()).unwrap();
+        writer.finalize().unwrap();
+        drop(writer);
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<_> = text.lines().collect();
+        assert_eq!(lines.len(), 2, "{text}");
+        assert_eq!(lines[0], "{\"earlier\":true}");
+        assert!(lines[1].contains("\"Transfer\""));
     }
 
     #[test]

@@ -44,6 +44,25 @@ fn parse_transfer_log(log: &Log) -> Option<TokenFlow> {
     let from = Address::from_slice(&topics[1].0[12..]);
     let to = Address::from_slice(&topics[2].0[12..]);
 
+    let token = log.address();
+
+    // ERC-721 Transfer has the same topic0 but a third indexed param, the
+    // token id, and no data: one NFT moved, not an amount of a token
+    if let Some(token_id) = topics.get(3) {
+        return Some(TokenFlow {
+            token,
+            token_label: get_label(&token).map(String::from),
+            from,
+            from_label: get_label(&from).map(String::from),
+            to,
+            to_label: get_label(&to).map(String::from),
+            amount: "1".to_string(),
+            decimals: Some(0),
+            token_id: Some(U256::from_be_bytes(token_id.0).to_string()),
+            log_index: log.log_index.unwrap_or(0),
+        });
+    }
+
     // Extract value from data
     let data = &log.data().data;
     let amount = if data.len() >= 32 {
@@ -51,8 +70,6 @@ fn parse_transfer_log(log: &Log) -> Option<TokenFlow> {
     } else {
         U256::ZERO
     };
-
-    let token = log.address();
 
     Some(TokenFlow {
         token,
@@ -63,6 +80,7 @@ fn parse_transfer_log(log: &Log) -> Option<TokenFlow> {
         to_label: get_label(&to).map(String::from),
         amount: amount.to_string(),
         decimals: None,
+        token_id: None,
         log_index: log.log_index.unwrap_or(0),
     })
 }
@@ -150,6 +168,38 @@ pub fn unique_addresses(flows: &[TokenFlow]) -> Vec<Address> {
 
 #[cfg(test)]
 mod tests {
+
+    fn transfer_log(topics: Vec<alloy::primitives::B256>, data: Vec<u8>) -> Log {
+        Log {
+            inner: alloy::primitives::Log::new_unchecked(
+                Address::from_slice(&[9u8; 20]),
+                topics,
+                data.into(),
+            ),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn erc721_transfer_is_one_nft_not_an_amount() {
+        let from = alloy::primitives::B256::left_padding_from(&[1u8; 20]);
+        let to = alloy::primitives::B256::left_padding_from(&[2u8; 20]);
+        let id = alloy::primitives::B256::from(U256::from(1234u64));
+        let flows = parse_transfers(&[transfer_log(vec![events::TRANSFER, from, to, id], vec![])]);
+        assert_eq!(flows.len(), 1);
+        assert_eq!(flows[0].amount, "1");
+        assert_eq!(flows[0].token_id.as_deref(), Some("1234"));
+        assert_eq!(flows[0].decimals, Some(0));
+
+        // ERC-20: value in data, no token id
+        let flows = parse_transfers(&[transfer_log(
+            vec![events::TRANSFER, from, to],
+            U256::from(5u64).to_be_bytes::<32>().to_vec(),
+        )]);
+        assert_eq!(flows[0].amount, "5");
+        assert!(flows[0].token_id.is_none());
+    }
+
     use super::*;
 
     #[test]
@@ -168,6 +218,7 @@ mod tests {
                 to_label: None,
                 amount: "1000".to_string(),
                 decimals: None,
+                token_id: None,
                 log_index: 0,
             },
             TokenFlow {
@@ -179,6 +230,7 @@ mod tests {
                 to_label: None,
                 amount: "400".to_string(),
                 decimals: None,
+                token_id: None,
                 log_index: 1,
             },
         ];

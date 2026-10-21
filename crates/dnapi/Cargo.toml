@@ -19,4 +19,6 @@ tokio = { version = "1", features = ["time"] }
 yldfi-common = { version = "0.1", path = "../yldfi-common" }
 
 [dev-dependencies]
+http = "1"
+wiremock = "0.6"
 tokio = { version = "1", features = ["full", "macros"] }

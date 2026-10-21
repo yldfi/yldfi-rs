@@ -220,15 +220,27 @@ pub struct MarketCapChartData {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenList {
     pub name: Option<String>,
+    #[serde(rename = "logoURI")]
     pub logo_uri: Option<String>,
     pub keywords: Option<Vec<String>>,
     pub timestamp: Option<String>,
     pub tokens: Vec<TokenListItem>,
+    #[serde(default)]
+    pub version: Option<TokenListVersion>,
+}
+
+/// Token list version
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TokenListVersion {
+    pub major: Option<u64>,
+    pub minor: Option<u64>,
+    pub patch: Option<u64>,
 }
 
 /// Token list item
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenListItem {
+    #[serde(rename = "chainId")]
     pub chain_id: Option<i64>,
     pub address: String,
     pub name: String,
@@ -241,6 +253,23 @@ pub struct TokenListItem {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn token_list_reads_camel_case_fields() {
+        let json = r#"{"name": "CoinGecko", "logoURI": "https://example.com/logo.svg",
+            "keywords": ["defi"], "timestamp": "2026-01-01T00:00:00.000+00:00",
+            "tokens": [{"chainId": 1, "address": "0x0000000000000000000000000000000000000001",
+                "name": "Example", "symbol": "EX", "decimals": 18,
+                "logoURI": "https://example.com/ex.png"}],
+            "version": {"major": 1491, "minor": 3, "patch": 0}}"#;
+        let list: TokenList = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            list.logo_uri.as_deref(),
+            Some("https://example.com/logo.svg")
+        );
+        assert_eq!(list.tokens[0].chain_id, Some(1));
+        assert_eq!(list.version.unwrap().major, Some(1491));
+    }
 
     #[test]
     fn trending_category_accepts_integer_and_string_ids() {

@@ -72,7 +72,7 @@ async fn main() -> pythc::Result<()> {
 
 ### Supported Symbols
 
-The following symbols are mapped to Pyth feed IDs:
+`symbol_to_feed_id()` maps these symbols (case-insensitive) to Pyth feed IDs:
 
 | Symbol | Aliases | Feed |
 |--------|---------|------|
@@ -81,17 +81,24 @@ The following symbols are mapped to Pyth feed IDs:
 | SOL | SOLANA | SOL/USD |
 | USDC | - | USDC/USD |
 | USDT | TETHER | USDT/USD |
+| DAI | - | DAI/USD |
 | LINK | CHAINLINK | LINK/USD |
-| ARB | ARBITRUM | ARB/USD |
-| OP | OPTIMISM | OP/USD |
 | AAVE | - | AAVE/USD |
 | UNI | UNISWAP | UNI/USD |
 | CRV | CURVE | CRV/USD |
 | CVX | CONVEX | CVX/USD |
-| MKR | MAKER | MKR/USD |
 | SNX | SYNTHETIX | SNX/USD |
 | LDO | LIDO | LDO/USD |
-| DAI | - | DAI/USD |
+| ARB | ARBITRUM | ARB/USD |
+| OP | OPTIMISM | OP/USD |
+| DOGE | DOGECOIN | DOGE/USD |
+| AVAX | AVALANCHE | AVAX/USD |
+| ATOM | COSMOS | ATOM/USD |
+| DOT | POLKADOT | DOT/USD |
+
+Pair forms work too: `ETH/USD`, `ETH-USD` and `ETHUSD` all map to the ETH/USD feed.
+`CRVUSD` does not map to CRV/USD, since crvUSD is a stablecoin.
+`known_feeds()` lists the same feeds as `(pair, feed_id)` tuples.
 
 You can also use feed IDs directly:
 ```rust

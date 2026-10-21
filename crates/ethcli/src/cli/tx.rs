@@ -36,7 +36,7 @@ pub struct TxArgs {
     pub output: OutputFormat,
 
     /// Process transactions in parallel batches
-    #[arg(long, default_value = "10")]
+    #[arg(long, default_value = "10", value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
     pub batch_size: usize,
 
     /// Enrich with Etherscan data (contract names, token symbols, function decoding)

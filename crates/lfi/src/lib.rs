@@ -157,7 +157,7 @@
 //! // With full configuration
 //! let config = Config::new()
 //!     .with_integrator("my-dapp")
-//!     .with_fee(0.3)  // 0.3% integrator fee
+//!     .with_fee(0.003)  // 0.3% integrator fee (decimal fraction)
 //!     .with_referrer("0xYourReferrerAddress");
 //!
 //! let client = Client::with_config(config)?;

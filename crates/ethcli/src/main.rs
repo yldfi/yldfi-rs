@@ -63,6 +63,22 @@ fn parse_duration_string(s: &str) -> anyhow::Result<f64> {
     Ok(seconds)
 }
 
+/// Default checkpoint file for a fetch: the full contract and chain, so two
+/// contracts sharing an 8-character prefix (or one contract on two chains)
+/// don't share a checkpoint. An existing checkpoint under the old
+/// prefix-only name is still used.
+fn default_checkpoint_path(contract: &str, chain_id: u64) -> PathBuf {
+    let contract = contract.trim().to_lowercase();
+    let legacy = PathBuf::from(format!(
+        ".ethcli-{}.checkpoint",
+        contract.get(..8).unwrap_or(&contract)
+    ));
+    if legacy.exists() {
+        return legacy;
+    }
+    PathBuf::from(format!(".ethcli-{chain_id}-{contract}.checkpoint"))
+}
+
 /// Load config file with proper error reporting
 ///
 /// Returns None if file doesn't exist, but warns on parse errors
@@ -182,7 +198,7 @@ async fn run() -> anyhow::Result<()> {
             return ethcli::cli::address::handle(action, cli.quiet);
         }
         Commands::Blacklist(args) => {
-            return ethcli::cli::blacklist::execute(args).await;
+            return ethcli::cli::blacklist::execute(args, etherscan_key.clone()).await;
         }
         Commands::Contract { action } => {
             return ethcli::cli::contract::handle(action, chain, etherscan_key.clone(), cli.quiet)
@@ -456,8 +472,13 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
 
     let config = builder.build()?;
 
-    // Create output writer early for streaming mode
-    let mut writer = ethcli::create_writer(format, args.output.as_deref())?;
+    // Create output writer early for streaming mode. A resumed run appends:
+    // truncating would drop the results of the checkpointed ranges.
+    let mut writer = if args.resume {
+        ethcli::output::create_resume_writer(format, args.output.as_deref())?
+    } else {
+        ethcli::create_writer(format, args.output.as_deref())?
+    };
 
     if !cli.quiet {
         eprintln!("Connecting to {} endpoints...", chain.display_name());
@@ -676,12 +697,10 @@ async fn run_streaming_fetch(
     let fetcher = StreamingFetcher::new(config.clone()).await?;
 
     // Enable checkpointing if path specified or use default
-    let checkpoint_path = args.checkpoint.clone().unwrap_or_else(|| {
-        PathBuf::from(format!(
-            ".ethcli-{}.checkpoint",
-            &args.contract[..8.min(args.contract.len())]
-        ))
-    });
+    let checkpoint_path = args
+        .checkpoint
+        .clone()
+        .unwrap_or_else(|| default_checkpoint_path(&args.contract, config.chain.chain_id()));
 
     // Get an endpoint for timestamp fetching before moving the fetcher
     let endpoint_for_timestamps = if args.timestamps {
@@ -745,6 +764,8 @@ async fn run_streaming_fetch(
             }
 
             writer.write_logs(&result)?;
+            // Make the chunk durable before the fetcher checkpoints it
+            writer.flush()?;
             Ok(())
         })
         .await?;
@@ -1153,8 +1174,11 @@ async fn chainlist_add(chain_str: &str, max: usize) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // Load config and add endpoints
-    let mut config_file = load_config_with_warning().unwrap_or_default();
+    // Load config and add endpoints. A config that fails to parse must stop
+    // here: saving defaults over it would delete every key in it.
+    let mut config_file = ConfigFile::load_default()
+        .map_err(|e| anyhow::anyhow!("Failed to load config file (not modified): {e}"))?
+        .unwrap_or_default();
     let existing_urls: std::collections::HashSet<String> = config_file
         .endpoints
         .iter()
@@ -1421,7 +1445,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
                 let result = optimize_endpoint(url, expected_chain, 10).await?;
 
-                if !result.connectivity_ok {
+                if !result.is_ok() {
                     println!(
                         "Failed to connect: {}",
                         ethcli::utils::url::redact_urls_in_text(
@@ -1514,6 +1538,8 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                     .endpoints
                     .iter()
                     .enumerate()
+                    // Disabled endpoints stay as the user left them
+                    .filter(|(_, e)| e.enabled)
                     .filter(|(_, e)| {
                         if let Some(ref chain) = chain_filter_parsed {
                             e.chain == *chain
@@ -1544,7 +1570,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
 
                 match optimize_endpoint(&ep_url, expected_chain, *timeout).await {
                     Ok(result) => {
-                        if result.connectivity_ok {
+                        if result.is_ok() {
                             println!("OK");
                             println!(
                                 "  {} | {} | range:{} | logs:{}",
@@ -1557,7 +1583,9 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                                 format_thousands(result.config.max_block_range),
                                 format_thousands(result.config.max_logs as u64)
                             );
-                            config.endpoints[idx] = result.config;
+                            // Only the detected fields: keep priority, note,
+                            // proxy, enabled and anything not tested
+                            result.merge_into(&mut config.endpoints[idx]);
                         } else {
                             println!(
                                 "FAILED: {}",
@@ -1684,8 +1712,7 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 .as_ref()
                 .map(|c| c.parse())
                 .transpose()
-                .ok()
-                .flatten();
+                .map_err(|e| anyhow::anyhow!("Invalid --chain: {e}"))?;
 
             // Filter endpoints by chain if specified
             let endpoints: Vec<_> = config
@@ -1710,44 +1737,44 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 probes
             );
 
-            for ep_config in &endpoints {
-                let url = &ep_config.url;
-
-                for _ in 0..*probes {
-                    let start = Instant::now();
-
-                    // Use a simple RPC call to test connectivity
-                    let url_parsed: reqwest::Url = url
-                        .parse()
-                        .unwrap_or_else(|_| "http://localhost:8545".parse().unwrap());
+            // Endpoints are probed concurrently; each endpoint's probes run in
+            // sequence so they don't rate-limit themselves
+            let probe_endpoint = |url: String| {
+                let health_tracker = health_tracker.clone();
+                async move {
+                    // An unparsable URL is a failed endpoint, not localhost
+                    let Ok(url_parsed) = url.parse::<reqwest::Url>() else {
+                        for _ in 0..*probes {
+                            health_tracker.record_failure(&url, false, false);
+                        }
+                        return;
+                    };
                     let provider = ProviderBuilder::new().connect_http(url_parsed);
-
-                    let result = tokio::time::timeout(
-                        std::time::Duration::from_secs(10),
-                        provider.get_block_number(),
-                    )
-                    .await;
-                    match result {
-                        Ok(Ok(_)) => {
-                            let latency = start.elapsed();
-                            health_tracker.record_success(url, latency);
+                    for _ in 0..*probes {
+                        let start = Instant::now();
+                        let result = tokio::time::timeout(
+                            std::time::Duration::from_secs(10),
+                            provider.get_block_number(),
+                        )
+                        .await;
+                        match result {
+                            Ok(Ok(_)) => health_tracker.record_success(&url, start.elapsed()),
+                            Err(_) => health_tracker.record_failure(&url, false, true),
+                            Ok(Err(e)) => {
+                                let err_str = e.to_string();
+                                let is_timeout = err_str.contains("timeout");
+                                let is_rate_limit =
+                                    err_str.contains("429") || err_str.contains("rate limit");
+                                health_tracker.record_failure(&url, is_rate_limit, is_timeout);
+                            }
                         }
-                        Err(_) => {
-                            health_tracker.record_failure(url, false, true);
-                        }
-                        Ok(Err(e)) => {
-                            let err_str = e.to_string();
-                            let is_timeout = err_str.contains("timeout");
-                            let is_rate_limit =
-                                err_str.contains("429") || err_str.contains("rate limit");
-                            health_tracker.record_failure(url, is_rate_limit, is_timeout);
-                        }
+                        // Small delay between probes
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                     }
-
-                    // Small delay between probes
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 }
-            }
+            };
+            futures::future::join_all(endpoints.iter().map(|e| probe_endpoint(e.url.clone())))
+                .await;
 
             // Collect and display health data
             let all_health = health_tracker.get_all_health();
@@ -2359,9 +2386,6 @@ timeout_seconds = 30
 # Number of retry attempts on failure (default: 3)
 retry_attempts = 3
 
-# Save checkpoint every N blocks when fetching logs (default: 1000)
-checkpoint_interval = 1000
-
 # =============================================================================
 # API Keys (optional but recommended)
 # =============================================================================
@@ -2522,10 +2546,12 @@ urls = []
 # =============================================================================
 # Proxy Configuration (optional)
 # =============================================================================
+# Applies to API sources (and "rpc" is listed for completeness; RPC traffic
+# through a proxy is not supported yet and is refused when enabled).
 # [proxy]
+# enabled = true
 # default = "socks5://127.0.0.1:9050"
-# rotate = false
-# file = "/path/to/proxy-list.txt"
+# exclude_sources = ["rpc"]
 "#
     .to_string()
 }
@@ -2658,13 +2684,21 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
                         eprintln!(
                             "\n[{}] Error: {} - {}",
                             idx + 1,
-                            &hash[..hash.len().min(12)],
+                            hash.get(..12).unwrap_or(&hash),
                             e
                         );
                     }
                 }
             }
         }
+    }
+
+    if all_analyses.is_empty() {
+        anyhow::bail!(
+            "All {} transaction{} failed to analyze",
+            tx_count,
+            if tx_count == 1 { "" } else { "s" }
+        );
     }
 
     // Sort by original index to maintain order

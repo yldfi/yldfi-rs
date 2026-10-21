@@ -7,6 +7,8 @@ use crate::error::{Error, Result};
 use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
 use std::time::Duration;
+use yldfi_common::api::handle_error_response;
+use yldfi_common::http::HttpClientConfig;
 
 const PRICES_BASE_URL: &str = "https://prices.curve.finance/v1";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -21,17 +23,15 @@ pub struct PricesClient {
 impl PricesClient {
     /// Create a new Prices API client
     pub fn new() -> Result<Self> {
-        let http = HttpClient::builder().timeout(DEFAULT_TIMEOUT).build()?;
-
-        Ok(Self {
-            http,
-            base_url: PRICES_BASE_URL.to_string(),
-        })
+        Self::with_base_url(PRICES_BASE_URL)
     }
 
     /// Create with custom base URL
     pub fn with_base_url(url: impl Into<String>) -> Result<Self> {
-        let http = HttpClient::builder().timeout(DEFAULT_TIMEOUT).build()?;
+        let http = yldfi_common::build_client(&HttpClientConfig {
+            timeout: DEFAULT_TIMEOUT,
+            ..HttpClientConfig::default()
+        })?;
 
         Ok(Self {
             http,
@@ -44,9 +44,7 @@ impl PricesClient {
         let response = self.http.get(&url).send().await?;
 
         if !response.status().is_success() {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            return Err(Error::api(status, message));
+            return Err(handle_error_response(response).await);
         }
 
         let data = response.json().await?;
@@ -81,11 +79,13 @@ impl PricesClient {
 
     /// Get price history for a token
     ///
+    /// The prices API requires `start` and `end`.
+    ///
     /// # Arguments
     /// * `chain` - Chain name (e.g., "ethereum")
     /// * `address` - Token contract address
-    /// * `start` - Optional start timestamp (unix seconds)
-    /// * `end` - Optional end timestamp (unix seconds)
+    /// * `start` - Start timestamp (unix seconds, default: end - 7 days)
+    /// * `end` - End timestamp (unix seconds, default: now)
     pub async fn get_price_history(
         &self,
         chain: &str,
@@ -93,19 +93,9 @@ impl PricesClient {
         start: Option<u64>,
         end: Option<u64>,
     ) -> Result<serde_json::Value> {
-        let mut path = format!("/usd_price/{chain}/{address}/history");
-        let mut params = Vec::new();
-        if let Some(s) = start {
-            params.push(format!("start={s}"));
-        }
-        if let Some(e) = end {
-            params.push(format!("end={e}"));
-        }
-        if !params.is_empty() {
-            path.push('?');
-            path.push_str(&params.join("&"));
-        }
-        self.get(&path).await
+        let (start, end) = default_window(start, end);
+        self.get(&price_history_path(chain, address, start, end))
+            .await
     }
 
     // === Pools ===
@@ -365,6 +355,10 @@ fn chain_volume_path(
 }
 
 /// Default OHLC time window: `end` defaults to now, `start` to `end - 7d`.
+fn price_history_path(chain: &str, address: &str, start: u64, end: u64) -> String {
+    format!("/usd_price/{chain}/{address}/history?start={start}&end={end}")
+}
+
 fn default_window(start: Option<u64>, end: Option<u64>) -> (u64, u64) {
     let end = end.unwrap_or_else(|| {
         std::time::SystemTime::now()
@@ -379,6 +373,43 @@ fn default_window(start: Option<u64>, end: Option<u64>) -> (u64, u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{header_regex, method};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn sends_user_agent() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            // reqwest sends no User-Agent unless one is configured
+            .and(header_regex("user-agent", "Mozilla"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .mount(&server)
+            .await;
+        let client = PricesClient::with_base_url(server.uri()).unwrap();
+        client.get_chains().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn server_error_is_retryable_and_rate_limit_keeps_retry_after() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(502))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "7"))
+            .mount(&server)
+            .await;
+        let client = PricesClient::with_base_url(server.uri()).unwrap();
+
+        let err = client.get_chains().await.unwrap_err();
+        assert!(err.is_retryable(), "{err}");
+        assert_eq!(err.status_code(), Some(502));
+
+        let err = client.get_chains().await.unwrap_err();
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(7)));
+    }
 
     #[test]
     fn chain_volume_path_includes_required_bounds() {
@@ -390,6 +421,17 @@ mod tests {
             chain_volume_path("arbitrum", 10, 20, Some(VolumeInterval::Week)),
             "/volume/arbitrum?start=10&end=20&interval=week"
         );
+    }
+
+    #[test]
+    fn price_history_path_includes_required_bounds() {
+        assert_eq!(
+            price_history_path("ethereum", "0xtoken", 1, 2),
+            "/usd_price/ethereum/0xtoken/history?start=1&end=2"
+        );
+        let (start, end) = default_window(None, Some(10 * 86_400));
+        assert_eq!((start, end), (3 * 86_400, 10 * 86_400));
+        assert!(default_window(None, None).1 > 0);
     }
 
     #[test]

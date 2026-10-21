@@ -7,13 +7,18 @@ use thiserror::Error;
 /// Regex patterns for API keys that should be sanitized from error messages
 static API_KEY_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     vec![
-        // Query parameter patterns
-        Regex::new(r"(?i)(\?|&)(api_?key|apikey|key|token|secret|auth|password)=[^&\s]+")
-            .expect("valid query param regex"),
+        // Query/form parameter patterns (also outside URLs, e.g. in bodies)
+        Regex::new(
+            r"(?i)(\?|&|\b)(api[_-]?key|apikey|key|dkey|token|access[_-]?token|secret|auth|password|x-api-key)=[^&\s]+",
+        )
+        .expect("valid query param regex"),
+        // Header-style secrets ("x-api-key: ...", "authorization: ...")
+        // The whole header value, whatever the auth scheme
+        Regex::new(r"(?i)(x-api-key|authorization)\s*:[^\r\n]*").expect("valid header regex"),
         // Path segment patterns (e.g., /v1/key123abc/)
         Regex::new(r"/v\d+/[a-zA-Z0-9_-]{20,}(/|$)").expect("valid path segment regex"),
         // Bearer tokens
-        Regex::new(r"(?i)bearer\s+[a-zA-Z0-9_.-]+").expect("valid bearer token regex"),
+        Regex::new(r"(?i)bearer\s+[a-zA-Z0-9_.+/=-]+").expect("valid bearer token regex"),
     ]
 });
 
@@ -25,14 +30,21 @@ pub const REDACTED: &str = "[REDACTED]";
 /// Replaces detected API keys, tokens, and secrets with [`REDACTED`].
 /// Returns a `Cow` to avoid allocation when the input contains no sensitive data.
 pub fn sanitize_error_message(msg: &str) -> std::borrow::Cow<'_, str> {
-    // First, check if any pattern matches to avoid allocation
-    let needs_sanitization = API_KEY_PATTERNS.iter().any(|p| p.is_match(msg));
+    // URLs first: drops credentials (user:pass@), paths (QuickNode/Ankr/
+    // Chainstack keys live there) and query strings
+    let urls_redacted = crate::utils::url::redact_urls_in_text(msg);
+
+    // Then secrets outside URLs; avoid allocating when nothing matched
+    let needs_sanitization = API_KEY_PATTERNS.iter().any(|p| p.is_match(&urls_redacted));
     if !needs_sanitization {
-        return std::borrow::Cow::Borrowed(msg);
+        return if urls_redacted == msg {
+            std::borrow::Cow::Borrowed(msg)
+        } else {
+            std::borrow::Cow::Owned(urls_redacted)
+        };
     }
 
-    // Only allocate if we need to sanitize
-    let mut result = msg.to_string();
+    let mut result = urls_redacted;
     for pattern in API_KEY_PATTERNS.iter() {
         result = pattern
             .replace_all(&result, |caps: &regex::Captures| {
@@ -366,8 +378,42 @@ mod tests {
         let url = "https://api.example.com?apikey=secret123&foo=bar";
         let sanitized = sanitize_error_message(url);
         assert!(!sanitized.contains("secret123"));
-        assert!(sanitized.contains(REDACTED));
-        assert!(sanitized.contains("foo=bar"));
+        assert!(sanitized.contains("api.example.com"));
+    }
+
+    #[test]
+    fn test_sanitize_credentials_path_keys_and_bare_params() {
+        for (msg, secret) in [
+            (
+                "error sending request for url (https://user:hunter2@rpc.example)",
+                "hunter2",
+            ),
+            (
+                "https://x.quiknode.pro/0123456789abcdef0123456789/ failed",
+                "0123456789abcdef",
+            ),
+            (
+                "https://rpc.ankr.com/eth/abcdef0123456789abcdef: 401",
+                "abcdef0123456789",
+            ),
+            (
+                "https://nd-123.p2pify.com/abcdef0123456789abcd timed out",
+                "abcdef0123456789",
+            ),
+            ("body: dkey=s3cr3tvalue", "s3cr3tvalue"),
+            ("access_token=tok123 rejected", "tok123"),
+            ("x-api-key: k3y-value", "k3y-value"),
+            ("Authorization: Bearer abc.def-ghi", "abc.def-ghi"),
+            ("authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
+            (
+                "Authorization: Digest username=\"u\", response=\"r3sp\"",
+                "r3sp",
+            ),
+            ("Bearer dGhpcyBpcyBh+c2VjcmV0/dG9rZW4=", "dGhpcyBpcyBh"),
+        ] {
+            let sanitized = sanitize_error_message(msg);
+            assert!(!sanitized.contains(secret), "{msg} -> {sanitized}");
+        }
     }
 
     #[test]

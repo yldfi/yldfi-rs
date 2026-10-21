@@ -283,6 +283,15 @@ pub fn get_rpc_endpoint_for_block(chain: Chain, target_block: u64) -> anyhow::Re
     )
 }
 
+/// Get an RPC endpoint for a read at `block` (archive-preferring when a
+/// historical block number is given, otherwise the normal smart selection)
+pub fn get_rpc_endpoint_at(chain: Chain, block: Option<u64>) -> anyhow::Result<Endpoint> {
+    match block {
+        Some(n) => get_rpc_endpoint_for_block(chain, n),
+        None => get_rpc_endpoint(chain),
+    }
+}
+
 /// Get an RPC endpoint that is guaranteed to be an archive node
 ///
 /// Returns an error if no archive nodes are configured.

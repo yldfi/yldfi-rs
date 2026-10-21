@@ -124,28 +124,6 @@ pub fn unix_timestamp_ms() -> u128 {
         .as_millis()
 }
 
-/// Validate that a string looks like an Ethereum address
-///
-/// Returns true if the string starts with "0x" and is 42 characters long
-/// with only hex characters (case-insensitive).
-pub fn is_valid_eth_address(s: &str) -> bool {
-    if !s.starts_with("0x") || s.len() != 42 {
-        return false;
-    }
-    s[2..].chars().all(|c| c.is_ascii_hexdigit())
-}
-
-/// Validate that a string looks like a transaction hash
-///
-/// Returns true if the string starts with "0x" and is 66 characters long
-/// with only hex characters (case-insensitive).
-pub fn is_valid_tx_hash(s: &str) -> bool {
-    if !s.starts_with("0x") || s.len() != 66 {
-        return false;
-    }
-    s[2..].chars().all(|c| c.is_ascii_hexdigit())
-}
-
 /// Validate that a string doesn't contain CLI flag injection characters
 ///
 /// Returns true if the string doesn't start with a dash and doesn't contain
@@ -424,56 +402,6 @@ mod tests {
         // Milliseconds should be roughly 1000x the seconds
         assert!(ms > (ts as u128) * 1000 - 1000);
         assert!(ms < (ts as u128) * 1000 + 1000);
-    }
-
-    #[test]
-    fn test_is_valid_eth_address() {
-        // Valid addresses
-        assert!(is_valid_eth_address(
-            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-        ));
-        assert!(is_valid_eth_address(
-            "0x0000000000000000000000000000000000000000"
-        ));
-        assert!(is_valid_eth_address(
-            "0xffffffffffffffffffffffffffffffffffffffff"
-        ));
-
-        // Invalid addresses
-        assert!(!is_valid_eth_address(
-            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4"
-        )); // Too short
-        assert!(!is_valid_eth_address(
-            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48a"
-        )); // Too long
-        assert!(!is_valid_eth_address(
-            "A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-        )); // No 0x
-        assert!(!is_valid_eth_address(
-            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4G"
-        )); // Invalid hex
-        assert!(!is_valid_eth_address("")); // Empty
-    }
-
-    #[test]
-    fn test_is_valid_tx_hash() {
-        // Valid hashes
-        assert!(is_valid_tx_hash(
-            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-        ));
-        assert!(is_valid_tx_hash(
-            "0x0000000000000000000000000000000000000000000000000000000000000000"
-        ));
-
-        // Invalid hashes
-        assert!(!is_valid_tx_hash("0x1234567890abcdef")); // Too short
-        assert!(!is_valid_tx_hash(
-            "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-        )); // No 0x
-        assert!(!is_valid_tx_hash(
-            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdeg"
-        )); // Invalid hex
-        assert!(!is_valid_tx_hash("")); // Empty
     }
 
     #[test]

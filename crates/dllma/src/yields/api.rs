@@ -1,14 +1,44 @@
 //! Yields API endpoints
 //!
-//! Some yields endpoints are free (pools, chart) and some require Pro API key.
+//! `DefiLlama` shuts down the free yields endpoints (`yields.llama.fi/pools`
+//! and `/chart/{pool}`) on 2026-11-13; from then on yields data needs the
+//! API plan. Clients with an API key already use the Pro `/yields/v1/*`
+//! routes, which return the same format. Without a key, [`YieldsApi::pools`]
+//! and [`YieldsApi::chart`] keep using the free host and explain the
+//! shutdown when it fails.
 
 use crate::client::Client;
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 use super::types::{
     BorrowPool, LegacyPool, LendBorrowChartPoint, LsdRate, LstRate, PerpRate, YieldChartPoint,
     YieldPool, YieldsResponse,
 };
+
+/// Date (UTC) on which `DefiLlama` stops serving the free yields endpoints.
+pub const FREE_YIELDS_SHUTDOWN: &str = "2026-11-13";
+
+/// Add the free-endpoint shutdown to an error from `yields.llama.fi`.
+///
+/// Rate limits and transport failures are passed through unchanged; any
+/// other failure (404, 402, 410, 5xx, an HTML page instead of JSON) is what
+/// the shutdown is expected to look like.
+fn free_yields_error(err: Error) -> Error {
+    let status = match &err {
+        Error::RateLimited { .. } | Error::Http(_) => return err,
+        Error::Api { status, .. } | Error::ServerError { status, .. } => *status,
+        Error::Domain(crate::error::DomainError::NotFound(_)) => 404,
+        _ => 0,
+    };
+    Error::api(
+        status,
+        format!(
+            "{err} (DefiLlama shuts down the free yields endpoints on {FREE_YIELDS_SHUTDOWN}; \
+             after that, yields data needs an API plan key: set DEFILLAMA_API_KEY or use \
+             Client::with_api_key())"
+        ),
+    )
+}
 
 /// Yields API client
 pub struct YieldsApi<'a> {
@@ -24,7 +54,9 @@ impl<'a> YieldsApi<'a> {
 
     /// Get all yield pools with current APY
     ///
-    /// This is a **free** endpoint that doesn't require an API key.
+    /// With an API key this calls the Pro `/yields/v1/pools` route. Without
+    /// one it calls the free `yields.llama.fi/pools`, which `DefiLlama` shuts
+    /// down on 2026-11-13 (see [`FREE_YIELDS_SHUTDOWN`]).
     ///
     /// # Example
     ///
@@ -40,13 +72,32 @@ impl<'a> YieldsApi<'a> {
     /// # }
     /// ```
     pub async fn pools(&self) -> Result<Vec<YieldPool>> {
-        let resp: YieldsResponse<Vec<YieldPool>> = self.client.get_yields("/pools").await?;
+        if self.client.has_pro_access() {
+            let resp: YieldsResponse<Vec<YieldPool>> =
+                self.client.get_pro("/yields/v1/pools").await?;
+            return Ok(resp.data);
+        }
+        let resp: YieldsResponse<Vec<YieldPool>> = self
+            .client
+            .get_yields("/pools")
+            .await
+            .map_err(free_yields_error)?;
+        // The free endpoint has thousands of pools; an empty list means it
+        // stopped serving data rather than that there are no pools.
+        if resp.data.is_empty() {
+            return Err(free_yields_error(Error::api(
+                200,
+                "yields.llama.fi/pools returned no pools",
+            )));
+        }
         Ok(resp.data)
     }
 
     /// Get historical APY/TVL chart for a pool
     ///
-    /// This is a **free** endpoint that doesn't require an API key.
+    /// With an API key this calls the Pro `/yields/v1/chart/{pool}` route.
+    /// Without one it calls the free `yields.llama.fi/chart/{pool}`, which
+    /// `DefiLlama` shuts down on 2026-11-13 (see [`FREE_YIELDS_SHUTDOWN`]).
     ///
     /// # Arguments
     ///
@@ -62,12 +113,21 @@ impl<'a> YieldsApi<'a> {
     /// # }
     /// ```
     pub async fn chart(&self, pool: &str) -> Result<Vec<YieldChartPoint>> {
+        if self.client.has_pro_access() {
+            let path = format!("/yields/v1/chart/{pool}");
+            let resp: YieldsResponse<Vec<YieldChartPoint>> = self.client.get_pro(&path).await?;
+            return Ok(resp.data);
+        }
         let path = format!("/chart/{pool}");
-        let resp: YieldsResponse<Vec<YieldChartPoint>> = self.client.get_yields(&path).await?;
+        let resp: YieldsResponse<Vec<YieldChartPoint>> = self
+            .client
+            .get_yields(&path)
+            .await
+            .map_err(free_yields_error)?;
         Ok(resp.data)
     }
 
-    /// Get legacy pools with contract addresses
+    /// Get pools with old pool IDs and token addresses (`GET /yields/v1/pools`)
     ///
     /// **Requires Pro API key**
     ///
@@ -99,7 +159,7 @@ impl<'a> YieldsApi<'a> {
     ///     println!("{}: lend {:.2}%, borrow {:.2}%",
     ///         pool.symbol,
     ///         pool.apy.unwrap_or(0.0),
-    ///         pool.apy_borrow.unwrap_or(0.0));
+    ///         pool.apy_base_borrow.unwrap_or(0.0));
     /// }
     /// # Ok(())
     /// # }
@@ -133,7 +193,7 @@ impl<'a> YieldsApi<'a> {
         Ok(resp.data)
     }
 
-    /// Get perpetual futures funding rates
+    /// Get perpetual futures funding rates (`GET /api/perpFundingRates`)
     ///
     /// **Requires Pro API key**
     ///
@@ -151,7 +211,8 @@ impl<'a> YieldsApi<'a> {
     /// # }
     /// ```
     pub async fn perps(&self) -> Result<Vec<PerpRate>> {
-        let resp: YieldsResponse<Vec<PerpRate>> = self.client.get_pro("/yields/perps").await?;
+        let resp: YieldsResponse<Vec<PerpRate>> =
+            self.client.get_pro("/api/perpFundingRates").await?;
         Ok(resp.data)
     }
 
@@ -191,5 +252,35 @@ impl<'a> YieldsApi<'a> {
     pub async fn lst_rates(&self) -> Result<Vec<LstRate>> {
         // Returns an array directly, not wrapped in {status, data}
         self.client.get_pro("/api/lstRates").await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn free_yields_error_mentions_shutdown() {
+        let err = free_yields_error(crate::error::from_response(410, "Gone", None));
+        let msg = err.to_string();
+        assert!(msg.contains(FREE_YIELDS_SHUTDOWN), "{msg}");
+        assert!(msg.contains("DEFILLAMA_API_KEY"), "{msg}");
+        assert!(matches!(err, Error::Api { status: 410, .. }));
+
+        let err = free_yields_error(crate::error::from_response(404, "not found", None));
+        assert!(matches!(err, Error::Api { status: 404, .. }));
+    }
+
+    #[test]
+    fn free_yields_error_keeps_rate_limits() {
+        let err = free_yields_error(Error::RateLimited {
+            retry_after: Some(5),
+        });
+        assert!(matches!(
+            err,
+            Error::RateLimited {
+                retry_after: Some(5)
+            }
+        ));
     }
 }

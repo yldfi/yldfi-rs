@@ -148,6 +148,11 @@ impl Client {
         self.is_pro
     }
 
+    /// Percent-encode a value for use in a query string
+    pub(crate) fn encode_query(value: &str) -> String {
+        url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
+    }
+
     pub(crate) async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
         let mut req = self.http.get(&url);

@@ -2,7 +2,7 @@
 
 use super::types::{ExecutePipelineRequest, ExecutePipelineResponse, PipelineExecutionStatus};
 use crate::client::Client;
-use crate::error::{self, Error, Result};
+use crate::error::{self, Result};
 
 /// Pipelines API
 pub struct PipelinesApi<'a> {
@@ -26,12 +26,8 @@ impl<'a> PipelinesApi<'a> {
             Ok(response.json().await?)
         } else if response.status() == 402 {
             Err(error::insufficient_credits())
-        } else if response.status() == 429 {
-            Err(Error::rate_limited(None))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 
@@ -51,9 +47,7 @@ impl<'a> PipelinesApi<'a> {
                 "Pipeline execution {pipeline_execution_id}"
             )))
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(error::handle_error_response(response).await)
         }
     }
 }

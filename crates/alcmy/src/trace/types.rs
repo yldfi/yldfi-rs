@@ -118,18 +118,24 @@ pub struct StateDiffAccount {
     pub storage: Option<std::collections::HashMap<String, StateDiffValue>>,
 }
 
-/// State diff value (from -> to)
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(untagged)]
+/// State diff value in Parity encoding
+///
+/// `"="` (unchanged), `{"+": v}` (created), `{"-": v}` (deleted) or
+/// `{"*": {"from": a, "to": b}}` (changed).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum StateDiffValue {
     /// Value unchanged
-    Unchanged(String),
+    #[serde(rename = "=")]
+    Unchanged,
+    /// Value added (account or slot created)
+    #[serde(rename = "+")]
+    Added(String),
+    /// Value removed (account or slot deleted)
+    #[serde(rename = "-")]
+    Removed(String),
     /// Value changed
+    #[serde(rename = "*")]
     Changed { from: String, to: String },
-    /// Value added
-    Added { from: (), to: String },
-    /// Value removed
-    Removed { from: String, to: () },
 }
 
 /// Trace call response
@@ -171,4 +177,59 @@ pub struct TraceFilter {
     /// Maximum traces to return
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn state_diff_parses_parity_encoding() {
+        let account: StateDiffAccount = serde_json::from_value(serde_json::json!({
+            "balance": { "*": { "from": "0x1", "to": "0x2" } },
+            "code": "=",
+            "nonce": { "+": "0x0" },
+            "storage": {
+                "0x01": { "-": "0x05" },
+                "0x02": { "*": { "from": "0x00", "to": "0x01" } }
+            }
+        }))
+        .unwrap();
+        assert_eq!(
+            account.balance,
+            Some(StateDiffValue::Changed {
+                from: "0x1".into(),
+                to: "0x2".into()
+            })
+        );
+        assert_eq!(account.code, Some(StateDiffValue::Unchanged));
+        assert_eq!(account.nonce, Some(StateDiffValue::Added("0x0".into())));
+        let storage = account.storage.unwrap();
+        assert_eq!(storage["0x01"], StateDiffValue::Removed("0x05".into()));
+
+        // Round-trips back to the same encoding
+        let value = serde_json::to_value(StateDiffValue::Unchanged).unwrap();
+        assert_eq!(value, serde_json::json!("="));
+        let value = serde_json::to_value(StateDiffValue::Added("0x1".into())).unwrap();
+        assert_eq!(value, serde_json::json!({ "+": "0x1" }));
+    }
+
+    #[test]
+    fn trace_call_response_with_state_diff_parses() {
+        let response: TraceCallResponse = serde_json::from_value(serde_json::json!({
+            "output": "0x",
+            "trace": [],
+            "stateDiff": {
+                "0x0000000000000000000000000000000000000001": {
+                    "balance": "=",
+                    "code": "=",
+                    "nonce": { "*": { "from": "0x1", "to": "0x2" } },
+                    "storage": {}
+                }
+            },
+            "vmTrace": null
+        }))
+        .unwrap();
+        assert_eq!(response.state_diff.unwrap().len(), 1);
+    }
 }

@@ -32,7 +32,7 @@ pub enum KyberCommands {
         token_out: String,
         /// Amount in smallest units (wei)
         amount_in: String,
-        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, avalanche, fantom, linea, scroll, zksync)
+        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, sonic, etc.)
         #[arg(long, default_value = "ethereum")]
         chain: String,
         /// Save gas (may reduce output)
@@ -91,7 +91,7 @@ pub enum KyberCommands {
 }
 
 pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
-    let client = Client::new()?;
+    let client = Client::with_config(kyber_config())?;
 
     match args.action {
         KyberCommands::Routes {
@@ -134,9 +134,9 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
         }
 
         KyberCommands::Build {
-            token_in: _,
-            token_out: _,
-            amount_in: _,
+            token_in,
+            token_out,
+            amount_in,
             sender,
             recipient,
             chain,
@@ -152,6 +152,7 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
                 );
             }
             let summary = extract_route_summary(&route_summary)?;
+            check_summary_matches(&summary, &token_in, &token_out, &amount_in)?;
             let deadline = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() + deadline)
@@ -174,6 +175,31 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The route summary is sent as-is, so the positional token/amount
+/// arguments must agree with it (they were silently ignored before)
+fn check_summary_matches(
+    summary: &serde_json::Value,
+    token_in: &str,
+    token_out: &str,
+    amount_in: &str,
+) -> anyhow::Result<()> {
+    for (field, given) in [
+        ("tokenIn", token_in),
+        ("tokenOut", token_out),
+        ("amountIn", amount_in),
+    ] {
+        if let Some(actual) = summary.get(field).and_then(|v| v.as_str()) {
+            if !actual.eq_ignore_ascii_case(given.trim()) {
+                anyhow::bail!(
+                    "{field} in --route-summary is {actual}, but the command says {given}; \
+                     rebuild the route or fix the arguments"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Accept either a bare routeSummary or the full route-data output.
 fn extract_route_summary(json: &str) -> anyhow::Result<serde_json::Value> {
     let value: serde_json::Value = serde_json::from_str(json)
@@ -186,24 +212,24 @@ fn extract_route_summary(json: &str) -> anyhow::Result<serde_json::Value> {
     }
 }
 
-fn chain_name_to_kybr_chain(name: &str) -> anyhow::Result<kybr::Chain> {
-    match name.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" => Ok(kybr::Chain::Ethereum),
-        "bsc" | "bnb" | "binance" => Ok(kybr::Chain::Bsc),
-        "polygon" | "matic" => Ok(kybr::Chain::Polygon),
-        "arbitrum" | "arb" => Ok(kybr::Chain::Arbitrum),
-        "optimism" | "op" => Ok(kybr::Chain::Optimism),
-        "avalanche" | "avax" => Ok(kybr::Chain::Avalanche),
-        "fantom" | "ftm" => Ok(kybr::Chain::Fantom),
-        "base" => Ok(kybr::Chain::Base),
-        "linea" => Ok(kybr::Chain::Linea),
-        "scroll" => Ok(kybr::Chain::Scroll),
-        "zksync" | "zksync-era" => Ok(kybr::Chain::Zksync),
-        _ => anyhow::bail!(
-            "Unsupported chain: {}. Supported: ethereum, bsc, polygon, arbitrum, optimism, avalanche, fantom, base, linea, scroll, zksync",
-            name
-        ),
+/// KyberSwap config: the API gateway when `KYBERSWAP_API_KEY` is set,
+/// otherwise the keyless (rate-limited) aggregator API
+pub(crate) fn kyber_config() -> kybr::Config {
+    match std::env::var("KYBERSWAP_API_KEY") {
+        Ok(key) if !key.is_empty() => kybr::gateway_config(key),
+        _ => kybr::default_config(),
     }
+}
+
+fn chain_name_to_kybr_chain(name: &str) -> anyhow::Result<kybr::Chain> {
+    name.parse().map_err(|_| {
+        let supported: Vec<&str> = kybr::Chain::all().iter().map(|c| c.as_str()).collect();
+        anyhow::anyhow!(
+            "Unsupported chain: {}. Supported: {}",
+            name,
+            supported.join(", ")
+        )
+    })
 }
 
 fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::Result<()> {
@@ -218,6 +244,14 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn build_args_must_match_the_route_summary() {
+        let summary = serde_json::json!({"tokenIn": "0xAA", "tokenOut": "0xbb", "amountIn": "100"});
+        assert!(check_summary_matches(&summary, "0xaa", "0xBB", "100").is_ok());
+        assert!(check_summary_matches(&summary, "0xaa", "0xbb", "5").is_err());
+    }
+
     use super::*;
 
     #[test]

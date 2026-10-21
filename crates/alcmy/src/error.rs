@@ -18,9 +18,13 @@ pub enum DomainError {
     #[error("Invalid API key")]
     InvalidApiKey,
 
-    /// Rate limited (HTTP 429), including the (sanitized, truncated) response
-    /// body so callers can distinguish e.g. a monthly compute-unit cap from a
-    /// per-second throughput limit.
+    /// The app's monthly compute-unit capacity is used up (HTTP 429 with
+    /// Alchemy's "Monthly capacity limit exceeded" body), including the
+    /// sanitized, truncated response body.
+    ///
+    /// Retrying won't help until the cap resets, so this is a domain error and
+    /// not retryable. Other 429s (per-second throughput limits) are returned
+    /// as the retryable [`ApiError::RateLimited`].
     #[error(
         "Rate limited (HTTP 429){}{}",
         .retry_after.map(|s| format!(", retry after {s}s")).unwrap_or_default(),
@@ -59,7 +63,7 @@ pub enum DomainError {
     /// The requested network has no Beacon (consensus layer) endpoint
     #[error(
         "Beacon API is not available for network '{0}' \
-         (supported: eth-mainnet, eth-sepolia, eth-holesky)"
+         (supported: eth-mainnet, eth-sepolia, eth-hoodi)"
     )]
     UnsupportedBeaconNetwork(&'static str),
 
@@ -102,22 +106,45 @@ pub fn missing_access_key() -> Error {
     ApiError::domain(DomainError::MissingAccessKey)
 }
 
-/// Create a rate limited error from a `Retry-After` value and raw body.
+/// Create a rate limited error from a `Retry-After` value and the raw 429 body.
 ///
-/// The body is sanitized (secrets redacted) and truncated.
+/// Returns the retryable [`ApiError::RateLimited`], unless the body says the
+/// monthly capacity is used up, in which case it returns the non-retryable
+/// [`DomainError::RateLimited`] with the sanitized, truncated body.
 pub fn rate_limited(retry_after: Option<u64>, body: &str) -> Error {
-    ApiError::domain(DomainError::RateLimited {
-        retry_after,
-        message: sanitize_error_body(body.trim()),
-    })
+    if body.to_ascii_lowercase().contains("monthly capacity") {
+        ApiError::domain(DomainError::RateLimited {
+            retry_after,
+            message: sanitize_error_body(body.trim()),
+        })
+    } else {
+        ApiError::rate_limited(retry_after)
+    }
 }
 
-/// Build a rate limited error from a 429 response, preserving the
-/// `Retry-After` header and the response body.
-pub(crate) async fn rate_limited_from_response(response: reqwest::Response) -> Error {
+/// Convert a non-success response into an error.
+///
+/// 429 goes through [`rate_limited`]; everything else through
+/// [`ApiError::from_response`] (5xx are retryable, bodies are sanitized).
+/// `Retry-After` is read with the shared, capped parser.
+pub(crate) async fn handle_error_response(response: reqwest::Response) -> Error {
+    let status = response.status().as_u16();
     let retry_after = extract_retry_after(response.headers());
     let body = response.text().await.unwrap_or_default();
-    rate_limited(retry_after, &body)
+    if status == 429 {
+        rate_limited(retry_after, &body)
+    } else {
+        ApiError::from_response(status, &body, retry_after)
+    }
+}
+
+/// Convert a transport or decode error, dropping the request URL.
+///
+/// Alchemy app keys live in the URL path, and `reqwest::Error`'s `Display`
+/// includes the URL, so every `send()`/`json()`/`text()` error goes through
+/// this instead of the plain `From` conversion.
+pub(crate) fn http(e: reqwest::Error) -> Error {
+    ApiError::Http(e.without_url())
 }
 
 /// Create an unsupported-method error
@@ -137,20 +164,50 @@ pub fn unsupported_method(
 mod tests {
     use super::*;
 
+    use std::time::Duration;
+
+    fn response(status: u16, retry_after: Option<&str>, body: &str) -> reqwest::Response {
+        let mut builder = http::Response::builder().status(status);
+        if let Some(value) = retry_after {
+            builder = builder.header("retry-after", value);
+        }
+        builder.body(body.to_string()).unwrap().into()
+    }
+
     #[test]
-    fn rate_limited_includes_body_and_retry_after() {
+    fn throughput_429_is_retryable_with_retry_after() {
+        let err = rate_limited(
+            Some(30),
+            r#"{"error":{"code":429,"message":"Your app has exceeded its compute units per second capacity."}}"#,
+        );
+        assert!(matches!(
+            err,
+            ApiError::RateLimited {
+                retry_after: Some(30)
+            }
+        ));
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn monthly_capacity_429_is_not_retryable_and_keeps_body() {
         let err = rate_limited(
             Some(30),
             r#"{"error":{"code":429,"message":"Monthly capacity limit exceeded."}}"#,
         );
+        assert!(!err.is_retryable());
         let msg = err.to_string();
         assert!(msg.contains("retry after 30s"), "{msg}");
         assert!(msg.contains("Monthly capacity limit exceeded"), "{msg}");
     }
 
     #[test]
-    fn rate_limited_truncates_and_sanitizes_body() {
-        let long = format!("apikey=supersecret {}", "x".repeat(2000));
+    fn monthly_capacity_body_is_truncated_and_sanitized() {
+        let long = format!(
+            "Monthly capacity limit exceeded apikey=supersecret {}",
+            "x".repeat(2000)
+        );
         let msg = rate_limited(None, &long).to_string();
         assert!(!msg.contains("supersecret"), "{msg}");
         assert!(msg.contains("truncated"), "{msg}");
@@ -159,9 +216,43 @@ mod tests {
 
     #[test]
     fn rate_limited_empty_body() {
-        assert_eq!(
-            rate_limited(None, "").to_string(),
-            "Rate limited (HTTP 429)"
-        );
+        assert_eq!(rate_limited(None, "").to_string(), "Rate limited");
+    }
+
+    #[tokio::test]
+    async fn handle_error_response_429_is_retryable_with_capped_retry_after() {
+        let err = handle_error_response(response(429, Some("99999"), "slow down")).await;
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(3600)));
+    }
+
+    #[tokio::test]
+    async fn handle_error_response_5xx_is_retryable() {
+        let err = handle_error_response(response(503, None, "unavailable")).await;
+        assert!(matches!(err, ApiError::ServerError { status: 503, .. }));
+        assert!(err.is_retryable());
+    }
+
+    #[tokio::test]
+    async fn handle_error_response_4xx_sanitizes_body() {
+        let err = handle_error_response(response(400, None, "bad request apikey=hunter2")).await;
+        assert!(matches!(err, ApiError::Api { status: 400, .. }));
+        assert!(!err.is_retryable());
+        assert!(!err.to_string().contains("hunter2"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn http_error_display_omits_key_in_url() {
+        let raw = reqwest::Client::new()
+            .get("http://127.0.0.1:1/v2/FAKEKEY")
+            .send()
+            .await
+            .expect_err("nothing listens on port 1");
+        assert!(raw.to_string().contains("FAKEKEY"), "{raw}");
+
+        let err = http(raw);
+        assert!(matches!(err, ApiError::Http(_)));
+        assert!(!err.to_string().contains("FAKEKEY"), "{err}");
+        assert!(!format!("{err:?}").contains("FAKEKEY"), "{err:?}");
     }
 }

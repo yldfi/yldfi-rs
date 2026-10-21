@@ -208,7 +208,7 @@ impl<'a> TvlApi<'a> {
     /// # async fn example() -> dllma::error::Result<()> {
     /// let client = dllma::Client::with_api_key("your-api-key")?;
     /// let assets = client.tvl().chain_assets().await?;
-    /// for (chain, breakdown) in assets.0.iter().take(3) {
+    /// for (chain, breakdown) in assets.chains.iter().take(3) {
     ///     if let Some(canonical) = &breakdown.canonical {
     ///         println!("{}: {} canonical", chain, canonical.total);
     ///     }

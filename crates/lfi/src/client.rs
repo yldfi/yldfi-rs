@@ -10,6 +10,7 @@ use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::time::Duration;
+use yldfi_common::api::SecretApiKey;
 use yldfi_common::http::HttpClientConfig;
 
 const DEFAULT_BASE_URL: &str = "https://li.quest/v1";
@@ -25,8 +26,12 @@ pub struct Config {
     pub integrator: Option<String>,
     /// Default referrer address
     pub referrer: Option<String>,
-    /// Default fee percentage (0-3%)
+    /// Default integrator fee as a decimal fraction (`0.003` = 0.3%; LI.FI
+    /// requires a value below 1)
     pub fee: Option<f64>,
+    /// Optional API key, sent as `x-lifi-api-key`. Without one, LI.FI rate
+    /// limits by IP. Keep it server-side.
+    pub api_key: Option<SecretApiKey>,
 }
 
 impl Default for Config {
@@ -37,6 +42,7 @@ impl Default for Config {
             integrator: None,
             referrer: None,
             fee: None,
+            api_key: None,
         }
     }
 }
@@ -55,6 +61,20 @@ impl Config {
         self
     }
 
+    /// Set the API key (sent as the `x-lifi-api-key` header)
+    #[must_use]
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.api_key = Some(SecretApiKey::new(api_key));
+        self
+    }
+
+    /// Set the API key if one is given
+    #[must_use]
+    pub fn with_optional_api_key(mut self, api_key: Option<String>) -> Self {
+        self.api_key = api_key.map(SecretApiKey::new);
+        self
+    }
+
     /// Set the referrer address
     #[must_use]
     pub fn with_referrer(mut self, referrer: impl Into<String>) -> Self {
@@ -62,7 +82,9 @@ impl Config {
         self
     }
 
-    /// Set the integrator fee (0-3%)
+    /// Set the integrator fee as a decimal fraction (`0.003` = 0.3%)
+    ///
+    /// Sent to LI.FI unchanged; `0.3` would be a **30%** fee.
     #[must_use]
     pub fn with_fee(mut self, fee: f64) -> Self {
         self.fee = Some(fee);
@@ -115,6 +137,7 @@ pub struct Client {
     integrator: Option<String>,
     referrer: Option<String>,
     fee: Option<f64>,
+    api_key: Option<SecretApiKey>,
 }
 
 impl Client {
@@ -141,7 +164,16 @@ impl Client {
             integrator: config.integrator,
             referrer: config.referrer,
             fee: config.fee,
+            api_key: config.api_key,
         })
+    }
+
+    /// Attach the API key header, if configured
+    fn authed(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        match &self.api_key {
+            Some(key) => req.header("x-lifi-api-key", key.expose()),
+            None => req,
+        }
     }
 
     /// Get the integrator identifier
@@ -153,7 +185,7 @@ impl Client {
     /// Make a GET request to the API
     async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
-        let response = self.http.get(&url).send().await?;
+        let response = self.authed(self.http.get(&url)).send().await?;
 
         self.handle_response(response).await
     }
@@ -165,7 +197,7 @@ impl Client {
         query: &Q,
     ) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
-        let response = self.http.get(&url).query(query).send().await?;
+        let response = self.authed(self.http.get(&url).query(query)).send().await?;
 
         self.handle_response(response).await
     }
@@ -173,7 +205,7 @@ impl Client {
     /// Make a POST request to the API
     async fn post<T: DeserializeOwned, B: Serialize>(&self, path: &str, body: &B) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self.authed(self.http.post(&url).json(body)).send().await?;
 
         self.handle_response(response).await
     }
@@ -184,14 +216,9 @@ impl Client {
 
         if !status.is_success() {
             let status_code = status.as_u16();
+            let retry_after = yldfi_common::api::extract_retry_after(response.headers());
             let body = response.text().await.unwrap_or_default();
-
-            // Try to parse error message from response
-            if let Ok(error) = serde_json::from_str::<crate::types::ApiError>(&body) {
-                return Err(Error::api(status_code, error.message));
-            }
-
-            return Err(Error::from_response(status_code, &body, None));
+            return Err(error_from_body(status_code, &body, retry_after));
         }
 
         let data = response.json().await?;
@@ -478,9 +505,7 @@ impl Client {
     ///     let client = Client::new()?;
     ///
     ///     // Get connections from Ethereum to Arbitrum
-    ///     let request = ConnectionsRequest::new()
-    ///         .with_from_chain(chains::ETHEREUM)
-    ///         .with_to_chain(chains::ARBITRUM);
+    ///     let request = ConnectionsRequest::between(chains::ETHEREUM, chains::ARBITRUM);
     ///
     ///     let connections = client.get_connections(&request).await?;
     ///     println!("Found {} connections", connections.len());
@@ -488,12 +513,25 @@ impl Client {
     ///     Ok(())
     /// }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a `MissingParameter` error without sending a request when
+    /// `from_chain` or `to_chain` is not set (LI.FI requires both).
     pub async fn get_connections(&self, request: &ConnectionsRequest) -> Result<Vec<Connection>> {
+        check_connections_request(request)?;
         let response: ConnectionsResponse = self.get_with_query("/connections", request).await?;
         Ok(response.connections)
     }
 
     /// Get all connections (no filtering)
+    ///
+    /// LI.FI now requires `fromChain` and `toChain`, so this always returns a
+    /// `MissingParameter` error.
+    #[deprecated(
+        note = "LI.FI requires fromChain and toChain; use get_connections with \
+                ConnectionsRequest::between"
+    )]
     pub async fn get_all_connections(&self) -> Result<Vec<Connection>> {
         self.get_connections(&ConnectionsRequest::default()).await
     }
@@ -572,7 +610,9 @@ impl Client {
         self.get("/gas/prices").await
     }
 
-    /// Get gas prices for a specific chain
+    /// Get gas prices for a specific chain (`GET /gas/prices/{chainId}`)
+    ///
+    /// An unsupported chain is reported by the API as an error.
     ///
     /// # Example
     ///
@@ -583,20 +623,13 @@ impl Client {
     /// async fn main() -> Result<(), lfi::Error> {
     ///     let client = Client::new()?;
     ///     let gas = client.get_gas_prices(chains::ETHEREUM).await?;
-    ///
-    ///     if let Some(gas) = gas {
-    ///         println!("Fast gas price: {:?} wei", gas.fast);
-    ///     }
+    ///     println!("Fast gas price: {:?} wei", gas.fast);
     ///
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_gas_prices(
-        &self,
-        chain_id: ChainId,
-    ) -> Result<Option<crate::types::GasPrice>> {
-        let all_prices = self.get_all_gas_prices().await?;
-        Ok(all_prices.get(&chain_id.to_string()).cloned())
+    pub async fn get_gas_prices(&self, chain_id: ChainId) -> Result<crate::types::GasPrice> {
+        self.get(&gas_prices_path(chain_id)).await
     }
 
     // ========================================================================
@@ -625,10 +658,128 @@ impl Client {
     }
 }
 
+/// Path for a single chain's gas prices
+fn gas_prices_path(chain_id: ChainId) -> String {
+    format!("/gas/prices/{chain_id}")
+}
+
+/// Check the parameters `/connections` requires
+fn check_connections_request(request: &ConnectionsRequest) -> Result<()> {
+    if request.from_chain.is_none() {
+        return Err(error::missing_parameter("fromChain"));
+    }
+    if request.to_chain.is_none() {
+        return Err(error::missing_parameter("toChain"));
+    }
+    Ok(())
+}
+
+/// Build an error from a non-success response body
+///
+/// LI.FI error bodies are JSON (`{"message": ..., "code": ...}`); the message
+/// is extracted, but the status still decides the variant so 429 and 5xx stay
+/// retryable.
+fn error_from_body(status: u16, body: &str, retry_after: Option<u64>) -> Error {
+    match serde_json::from_str::<crate::types::ApiError>(body) {
+        Ok(error) => Error::from_response(status, &error.message, retry_after),
+        Err(_) => Error::from_response(status, body, retry_after),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::{chains, RouteOrder, RoutesOptions};
+
+    #[test]
+    fn test_connections_require_both_chains() {
+        assert!(check_connections_request(&ConnectionsRequest::new()).is_err());
+        assert!(check_connections_request(&ConnectionsRequest::new().with_from_chain(1)).is_err());
+        let request = ConnectionsRequest::between(chains::ETHEREUM, chains::ARBITRUM);
+        assert!(check_connections_request(&request).is_ok());
+        let built = reqwest::Client::new()
+            .get("https://lifi.invalid/v1/connections")
+            .query(&request)
+            .build()
+            .unwrap();
+        assert_eq!(built.url().query(), Some("fromChain=1&toChain=42161"));
+    }
+
+    #[test]
+    fn test_fee_is_sent_as_fraction() {
+        let request = QuoteRequest::new(1, 1, "0xa", "0xb", "1000", "0xc").with_fee(0.003);
+        let built = reqwest::Client::new()
+            .get("https://lifi.invalid/v1/quote")
+            .query(&request)
+            .build()
+            .unwrap();
+        let query = built.url().query().unwrap();
+        assert!(query.contains("fee=0.003"), "{query}");
+        assert!(!query.contains("allowSwitchChain"), "{query}");
+    }
+
+    #[test]
+    fn test_status_response_documented_fields() {
+        let status: StatusResponse = serde_json::from_value(serde_json::json!({
+            "transactionId": "0x01",
+            "sending": {
+                "txHash": "0xaa",
+                "chainId": 42161,
+                "gasAmount": "21000",
+                "gasToken": {"address": "0x0000000000000000000000000000000000000000",
+                    "chainId": 42161, "symbol": "ETH", "decimals": 18, "name": "ETH"},
+                "amountUSD": "1.00",
+                "value": "0",
+                "includedSteps": [{"tool": "example"}]
+            },
+            "fromAddress": "0x1111111111111111111111111111111111111111",
+            "toAddress": "0x2222222222222222222222222222222222222222",
+            "tool": "example",
+            "status": "DONE",
+            "substatus": "COMPLETED",
+            "feeCosts": [{"name": "Integrator fee", "amount": "1"}]
+        }))
+        .unwrap();
+        assert_eq!(status.tool.as_deref(), Some("example"));
+        assert_eq!(
+            status.from_address.as_deref(),
+            Some("0x1111111111111111111111111111111111111111")
+        );
+        assert_eq!(status.fee_costs.as_ref().map(Vec::len), Some(1));
+        let sending = status.sending.unwrap();
+        assert_eq!(sending.gas_amount.as_deref(), Some("21000"));
+        assert_eq!(sending.gas_token.unwrap().symbol, "ETH");
+        assert_eq!(sending.amount_usd.as_deref(), Some("1.00"));
+        assert_eq!(sending.included_steps.map(|s| s.len()), Some(1));
+    }
+
+    #[test]
+    fn test_json_error_bodies_keep_retryable_status() {
+        let body = r#"{"message":"Too many requests","code":1005}"#;
+        let err = error_from_body(429, body, Some(5));
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(5)));
+
+        let err = error_from_body(503, r#"{"message":"Service unavailable"}"#, None);
+        assert!(err.is_retryable());
+        assert!(err.to_string().contains("Service unavailable"));
+
+        let err = error_from_body(400, r#"{"message":"Invalid fromToken","code":1011}"#, None);
+        assert!(!err.is_retryable());
+        assert_eq!(err.status_code(), Some(400));
+        assert!(err.to_string().contains("Invalid fromToken"));
+    }
+
+    #[test]
+    fn test_gas_prices_uses_per_chain_path() {
+        assert_eq!(gas_prices_path(chains::ETHEREUM), "/gas/prices/1");
+        let gas: crate::types::GasPrice = serde_json::from_str(
+            r#"{"standard":1000000000,"fast":2000000000,"fastest":3000000000,"lastUpdated":1700000000}"#,
+        )
+        .unwrap();
+        assert_eq!(gas.fast, Some(2_000_000_000));
+        assert_eq!(gas.last_updated, Some(1_700_000_000));
+    }
 
     #[test]
     fn test_client_creation() {
@@ -647,12 +798,12 @@ mod tests {
         let config = Config::new()
             .with_integrator("my-app")
             .with_referrer("0x1234")
-            .with_fee(0.3)
+            .with_fee(0.003)
             .with_timeout(Duration::from_secs(60));
 
         assert_eq!(config.integrator, Some("my-app".to_string()));
         assert_eq!(config.referrer, Some("0x1234".to_string()));
-        assert_eq!(config.fee, Some(0.3));
+        assert_eq!(config.fee, Some(0.003));
         assert_eq!(config.http.timeout, Duration::from_secs(60));
     }
 

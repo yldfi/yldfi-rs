@@ -30,8 +30,6 @@ pub enum Chain {
     Fantom,
     /// Celo (chain ID: 42220)
     Celo,
-    /// Blast (chain ID: 81457)
-    Blast,
     /// Linea (chain ID: 59144)
     Linea,
     /// Scroll (chain ID: 534352)
@@ -56,7 +54,6 @@ impl Chain {
             Self::Avalanche => 43114,
             Self::Fantom => 250,
             Self::Celo => 42220,
-            Self::Blast => 81457,
             Self::Linea => 59144,
             Self::Scroll => 534352,
             Self::Mantle => 5000,
@@ -77,7 +74,6 @@ impl Chain {
             Self::Avalanche => "avalanche",
             Self::Fantom => "fantom",
             Self::Celo => "celo",
-            Self::Blast => "blast",
             Self::Linea => "linea",
             Self::Scroll => "scroll",
             Self::Mantle => "mantle",
@@ -98,7 +94,6 @@ impl Chain {
             "avalanche" | "avax" | "43114" => Some(Self::Avalanche),
             "fantom" | "ftm" | "250" => Some(Self::Fantom),
             "celo" | "42220" => Some(Self::Celo),
-            "blast" | "81457" => Some(Self::Blast),
             "linea" | "59144" => Some(Self::Linea),
             "scroll" | "534352" => Some(Self::Scroll),
             "mantle" | "mnt" | "5000" => Some(Self::Mantle),
@@ -120,7 +115,6 @@ impl Chain {
             43114 => Some(Self::Avalanche),
             250 => Some(Self::Fantom),
             42220 => Some(Self::Celo),
-            81457 => Some(Self::Blast),
             59144 => Some(Self::Linea),
             534352 => Some(Self::Scroll),
             5000 => Some(Self::Mantle),
@@ -150,7 +144,6 @@ impl TryFrom<yldfi_common::Chain> for Chain {
             yldfi_common::Chain::Avalanche => Ok(Self::Avalanche),
             yldfi_common::Chain::Fantom => Ok(Self::Fantom),
             yldfi_common::Chain::Celo => Ok(Self::Celo),
-            yldfi_common::Chain::Blast => Ok(Self::Blast),
             yldfi_common::Chain::Linea => Ok(Self::Linea),
             yldfi_common::Chain::Scroll => Ok(Self::Scroll),
             yldfi_common::Chain::Mantle => Ok(Self::Mantle),
@@ -172,7 +165,6 @@ impl From<Chain> for yldfi_common::Chain {
             Chain::Avalanche => Self::Avalanche,
             Chain::Fantom => Self::Fantom,
             Chain::Celo => Self::Celo,
-            Chain::Blast => Self::Blast,
             Chain::Linea => Self::Linea,
             Chain::Scroll => Self::Scroll,
             Chain::Mantle => Self::Mantle,
@@ -203,16 +195,14 @@ pub struct QuoteRequest {
     pub excluded_sources: Option<String>,
     /// Enable gasless trading (requires affiliate address)
     pub gasless: Option<bool>,
-    /// Affiliate address for fee collection
-    pub affiliate_address: Option<String>,
-    /// Affiliate fee in basis points
-    pub affiliate_fee_bps: Option<u32>,
     /// Skip validation of the quote
     pub skip_validation: Option<bool>,
-    /// Fee recipient address (for integrators)
-    pub fee_recipient: Option<String>,
-    /// Buy token fee percentage (for integrators)
-    pub buy_token_percentage_fee: Option<String>,
+    /// Integrator fee recipient address (`swapFeeRecipient`)
+    pub swap_fee_recipient: Option<String>,
+    /// Integrator fee in basis points (`swapFeeBps`, requires `swapFeeRecipient`)
+    pub swap_fee_bps: Option<u32>,
+    /// Token the integrator fee is taken in (`swapFeeToken`, buy or sell token)
+    pub swap_fee_token: Option<String>,
     /// Intent on fulfillment (for gasless trades)
     pub intent_on_filling: Option<bool>,
 }
@@ -277,7 +267,7 @@ impl QuoteRequest {
     /// Set slippage tolerance as a percentage (1.0 = 1%)
     #[must_use]
     pub fn with_slippage_percent(mut self, percent: f64) -> Self {
-        self.slippage_bps = Some((percent * 100.0) as u32);
+        self.slippage_bps = Some((percent * 100.0).round() as u32);
         self
     }
 
@@ -295,11 +285,18 @@ impl QuoteRequest {
         self
     }
 
-    /// Set affiliate address for fee collection
+    /// Charge an integrator fee (`swapFeeRecipient` + `swapFeeBps`)
     #[must_use]
-    pub fn with_affiliate(mut self, address: impl Into<String>, fee_bps: u32) -> Self {
-        self.affiliate_address = Some(address.into());
-        self.affiliate_fee_bps = Some(fee_bps);
+    pub fn with_swap_fee(mut self, recipient: impl Into<String>, fee_bps: u32) -> Self {
+        self.swap_fee_recipient = Some(recipient.into());
+        self.swap_fee_bps = Some(fee_bps);
+        self
+    }
+
+    /// Set the token the integrator fee is taken in (`swapFeeToken`)
+    #[must_use]
+    pub fn with_swap_fee_token(mut self, token: impl Into<String>) -> Self {
+        self.swap_fee_token = Some(token.into());
         self
     }
 
@@ -307,18 +304,6 @@ impl QuoteRequest {
     #[must_use]
     pub fn with_skip_validation(mut self, skip: bool) -> Self {
         self.skip_validation = Some(skip);
-        self
-    }
-
-    /// Set fee recipient for integrators
-    #[must_use]
-    pub fn with_fee_recipient(
-        mut self,
-        recipient: impl Into<String>,
-        percentage: impl Into<String>,
-    ) -> Self {
-        self.fee_recipient = Some(recipient.into());
-        self.buy_token_percentage_fee = Some(percentage.into());
         self
     }
 
@@ -348,20 +333,17 @@ impl QuoteRequest {
         if let Some(gasless) = self.gasless {
             params.push(("gasless".to_string(), gasless.to_string()));
         }
-        if let Some(ref address) = self.affiliate_address {
-            params.push(("affiliateAddress".to_string(), address.clone()));
-        }
-        if let Some(fee) = self.affiliate_fee_bps {
-            params.push(("affiliateFeeBps".to_string(), fee.to_string()));
-        }
         if let Some(skip) = self.skip_validation {
             params.push(("skipValidation".to_string(), skip.to_string()));
         }
-        if let Some(ref recipient) = self.fee_recipient {
-            params.push(("feeRecipient".to_string(), recipient.clone()));
+        if let Some(ref recipient) = self.swap_fee_recipient {
+            params.push(("swapFeeRecipient".to_string(), recipient.clone()));
         }
-        if let Some(ref fee) = self.buy_token_percentage_fee {
-            params.push(("buyTokenPercentageFee".to_string(), fee.clone()));
+        if let Some(fee) = self.swap_fee_bps {
+            params.push(("swapFeeBps".to_string(), fee.to_string()));
+        }
+        if let Some(ref token) = self.swap_fee_token {
+            params.push(("swapFeeToken".to_string(), token.clone()));
         }
         if let Some(intent) = self.intent_on_filling {
             params.push(("intentOnFilling".to_string(), intent.to_string()));
@@ -688,9 +670,12 @@ pub struct QuoteIssues {
     /// Balance issues
     #[serde(default)]
     pub balance: Option<BalanceIssue>,
-    /// Simulation issues
+    /// Whether the API could not fully simulate the swap
+    #[serde(default, alias = "simulationIncompleted")]
+    pub simulation_incomplete: Option<bool>,
+    /// Requested `excludedSources` entries the API did not recognise
     #[serde(default)]
-    pub simulation_incompleted: Option<bool>,
+    pub invalid_sources_passed: Option<Vec<String>>,
 }
 
 /// Allowance issue details
@@ -703,6 +688,9 @@ pub struct AllowanceIssue {
     /// Required allowance
     #[serde(default)]
     pub expected: Option<String>,
+    /// Contract that needs the allowance
+    #[serde(default)]
+    pub spender: Option<String>,
 }
 
 /// Balance issue details
@@ -720,23 +708,16 @@ pub struct BalanceIssue {
     pub expected: Option<String>,
 }
 
-/// Liquidity source information from the /sources endpoint
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Source {
-    /// Source identifier used in API requests
-    pub name: String,
-    /// Human-readable source name
-    #[serde(default)]
-    pub display_name: Option<String>,
-}
-
 /// Response from the /sources endpoint
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourcesResponse {
-    /// Available liquidity sources
-    pub sources: Vec<Source>,
+    /// Available liquidity source names (e.g. `"Uniswap_V3"`), as used in
+    /// `excludedSources`
+    pub sources: Vec<String>,
+    /// 0x request ID
+    #[serde(default)]
+    pub zid: Option<String>,
 }
 
 /// API error response
@@ -863,5 +844,68 @@ mod tests {
         assert_eq!(tx.gas_limit(), Some(200_000));
         assert_eq!(tx.value_wei(), Some(1_000_000_000_000_000_000));
         assert!(tx.is_native_token_tx());
+    }
+
+    #[test]
+    fn test_quote_request_swap_fee_params() {
+        let request = QuoteRequest::sell("0xa", "0xb", "1000")
+            .with_swap_fee("0x0000000000000000000000000000000000000001", 15)
+            .with_swap_fee_token("0xb");
+        let params = request.to_query_params();
+        let get = |k: &str| {
+            params
+                .iter()
+                .find(|(key, _)| key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(
+            get("swapFeeRecipient"),
+            Some("0x0000000000000000000000000000000000000001")
+        );
+        assert_eq!(get("swapFeeBps"), Some("15"));
+        assert_eq!(get("swapFeeToken"), Some("0xb"));
+        for v1 in [
+            "affiliateAddress",
+            "affiliateFeeBps",
+            "feeRecipient",
+            "buyTokenPercentageFee",
+        ] {
+            assert_eq!(get(v1), None, "{v1} is a v1-only param");
+        }
+    }
+
+    #[test]
+    fn test_slippage_percent_rounds() {
+        // 0.29 * 100.0 == 28.999999999999996, which used to truncate to 28
+        let request = QuoteRequest::sell("0xa", "0xb", "1").with_slippage_percent(0.29);
+        assert_eq!(request.slippage_bps, Some(29));
+    }
+
+    #[test]
+    fn test_sources_response_deserialize() {
+        let json = r#"{"sources": ["0x_RFQ", "Uniswap_V3"], "zid": "0x1"}"#;
+        let response: SourcesResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.sources, vec!["0x_RFQ", "Uniswap_V3"]);
+        assert_eq!(response.zid.as_deref(), Some("0x1"));
+    }
+
+    #[test]
+    fn test_quote_issues_deserialize() {
+        let json = r#"{
+            "allowance": {"actual": "0", "spender": "0x0000000000000000000000000000000000000002"},
+            "balance": {"token": "0xa", "actual": "0", "expected": "1000"},
+            "simulationIncomplete": true,
+            "invalidSourcesPassed": ["Nope"]
+        }"#;
+        let issues: QuoteIssues = serde_json::from_str(json).unwrap();
+        assert_eq!(issues.simulation_incomplete, Some(true));
+        assert_eq!(
+            issues.allowance.unwrap().spender.as_deref(),
+            Some("0x0000000000000000000000000000000000000002")
+        );
+        assert_eq!(
+            issues.invalid_sources_passed,
+            Some(vec!["Nope".to_string()])
+        );
     }
 }

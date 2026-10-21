@@ -1,11 +1,11 @@
 //! Types for Web3 Actions API
 
-use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-/// Trigger type for a Web3 Action
+/// Trigger type for a Web3 Action (`triggerType`)
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "UPPERCASE")]
 #[non_exhaustive]
 pub enum ActionTrigger {
     /// Triggered by an alert
@@ -18,10 +18,16 @@ pub enum ActionTrigger {
     Block,
     /// Triggered by a transaction
     Transaction,
+    /// Triggered by a transaction (simplified filter)
+    #[serde(rename = "TRANSACTIONSIMPLE")]
+    TransactionSimple,
+    /// Unknown trigger type (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl ActionTrigger {
-    /// Get the string representation
+    /// Get the lowercase string representation (as used in the trigger object's `type`)
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -30,6 +36,8 @@ impl ActionTrigger {
             Self::Periodic => "periodic",
             Self::Block => "block",
             Self::Transaction => "transaction",
+            Self::TransactionSimple => "transactionsimple",
+            Self::Unknown => "unknown",
         }
     }
 }
@@ -44,60 +52,85 @@ impl std::str::FromStr for ActionTrigger {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
+        match s.to_lowercase().replace(['-', '_'], "").as_str() {
             "alert" => Ok(Self::Alert),
             "webhook" => Ok(Self::Webhook),
             "periodic" | "cron" | "schedule" => Ok(Self::Periodic),
             "block" => Ok(Self::Block),
             "transaction" | "tx" => Ok(Self::Transaction),
+            "transactionsimple" => Ok(Self::TransactionSimple),
             _ => Err(format!("Invalid action trigger: {s}")),
         }
     }
 }
 
-/// Execution type for a Web3 Action
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+/// Invocation type for a Web3 Action (`invocationType`)
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "UPPERCASE")]
 #[non_exhaustive]
-pub enum ActionExecution {
-    /// Sequential execution
-    Sequential,
-    /// Parallel execution
-    Parallel,
+pub enum InvocationType {
+    /// Synchronous invocation
+    Sync,
+    /// Asynchronous invocation
+    #[default]
+    Async,
+    /// Unknown invocation type (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
-impl ActionExecution {
+impl InvocationType {
     /// Get the string representation
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Sequential => "sequential",
-            Self::Parallel => "parallel",
+            Self::Sync => "sync",
+            Self::Async => "async",
+            Self::Unknown => "unknown",
         }
     }
 }
 
-impl std::fmt::Display for ActionExecution {
+impl std::fmt::Display for InvocationType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
-impl std::str::FromStr for ActionExecution {
+impl std::str::FromStr for InvocationType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "sequential" | "seq" => Ok(Self::Sequential),
-            "parallel" | "par" => Ok(Self::Parallel),
-            _ => Err(format!("Invalid action execution: {s}")),
+            "sync" | "synchronous" => Ok(Self::Sync),
+            "async" | "asynchronous" => Ok(Self::Async),
+            _ => Err(format!("Invalid invocation type: {s}")),
         }
     }
 }
 
-/// Request to create a Web3 Action
+/// Default runtime for new actions
+pub const DEFAULT_RUNTIME: &str = "V2";
+
+/// Default exported function name for new actions
+pub const DEFAULT_FUNCTION: &str = "actionFn";
+
+/// Request to publish (create) a Web3 Action: `POST /actions/publishFile`
+///
+/// Serializes as `{"action": {...}, "deploy": bool}`.
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateActionRequest {
+    /// Action definition
+    pub action: ActionPayload,
+
+    /// Whether to deploy the action immediately
+    pub deploy: bool,
+}
+
+/// Action definition sent to `POST /actions/publishFile`
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionPayload {
     /// Action name
     pub name: String,
 
@@ -105,247 +138,164 @@ pub struct CreateActionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
+    /// Source code (JavaScript)
+    pub source: String,
+
     /// Trigger type
-    pub trigger: ActionTrigger,
+    pub trigger_type: ActionTrigger,
 
-    /// Trigger configuration
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub trigger_config: Option<TriggerConfig>,
-
-    /// Execution type
-    #[serde(default = "default_execution")]
-    pub execution: ActionExecution,
-
-    /// Source code (JavaScript or TypeScript)
-    pub source_code: String,
-
-    /// Runtime (e.g., "nodejs18")
-    #[serde(default = "default_runtime")]
+    /// Runtime (e.g. "V2")
     pub runtime: String,
 
-    /// Environment secrets
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secrets: Option<Vec<ActionSecret>>,
+    /// Exported function to invoke (e.g. "actionFn")
+    pub function: String,
 
-    /// Whether the action is enabled
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-}
+    /// Invocation type
+    pub invocation_type: InvocationType,
 
-// Used by serde(default = "...") attribute; rustc doesn't recognize serde's usage
-#[allow(dead_code)]
-fn default_execution() -> ActionExecution {
-    ActionExecution::Sequential
-}
-
-// Used by serde(default = "...") attribute; rustc doesn't recognize serde's usage
-#[allow(dead_code)]
-fn default_runtime() -> String {
-    "nodejs18".to_string()
-}
-
-// Used by serde(default = "...") attribute; rustc doesn't recognize serde's usage
-#[allow(dead_code)]
-fn default_true() -> bool {
-    true
+    /// Trigger configuration object
+    pub trigger: TriggerConfig,
 }
 
 impl CreateActionRequest {
     /// Create a new action request
-    pub fn new(
-        name: impl Into<String>,
-        trigger: ActionTrigger,
-        source_code: impl Into<String>,
-    ) -> Self {
+    ///
+    /// Defaults: runtime `V2`, function `actionFn`, `ASYNC` invocation,
+    /// `deploy: true`, and a minimal trigger object `{"type": "<trigger>"}`
+    /// (most triggers need a full config; see [`TriggerConfig`]).
+    pub fn new(name: impl Into<String>, trigger: ActionTrigger, source: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            description: None,
-            trigger,
-            trigger_config: None,
-            execution: ActionExecution::Sequential,
-            source_code: source_code.into(),
-            runtime: "nodejs18".to_string(),
-            secrets: None,
-            enabled: true,
+            action: ActionPayload {
+                name: name.into(),
+                description: None,
+                source: source.into(),
+                trigger_type: trigger,
+                runtime: DEFAULT_RUNTIME.to_string(),
+                function: DEFAULT_FUNCTION.to_string(),
+                invocation_type: InvocationType::Async,
+                trigger: TriggerConfig::of_type(trigger),
+            },
+            deploy: true,
         }
     }
 
     /// Set description
     #[must_use]
     pub fn description(mut self, desc: impl Into<String>) -> Self {
-        self.description = Some(desc.into());
+        self.action.description = Some(desc.into());
         self
     }
 
     /// Set trigger configuration
     #[must_use]
     pub fn trigger_config(mut self, config: TriggerConfig) -> Self {
-        self.trigger_config = Some(config);
-        self
-    }
-
-    /// Set execution type
-    #[must_use]
-    pub fn execution(mut self, execution: ActionExecution) -> Self {
-        self.execution = execution;
+        self.action.trigger = config;
         self
     }
 
     /// Set runtime
     #[must_use]
     pub fn runtime(mut self, runtime: impl Into<String>) -> Self {
-        self.runtime = runtime.into();
+        self.action.runtime = runtime.into();
         self
     }
 
-    /// Add a secret
+    /// Set the exported function name
     #[must_use]
-    pub fn secret(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        self.secrets
-            .get_or_insert_with(Vec::new)
-            .push(ActionSecret::new(name, value));
+    pub fn function(mut self, function: impl Into<String>) -> Self {
+        self.action.function = function.into();
         self
     }
 
-    /// Set enabled state
+    /// Set invocation type
     #[must_use]
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
+    pub fn invocation_type(mut self, invocation_type: InvocationType) -> Self {
+        self.action.invocation_type = invocation_type;
+        self
+    }
+
+    /// Set whether to deploy immediately
+    #[must_use]
+    pub fn deploy(mut self, deploy: bool) -> Self {
+        self.deploy = deploy;
         self
     }
 }
 
-/// Trigger configuration
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct TriggerConfig {
-    /// Alert ID (for Alert trigger)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub alert_id: Option<String>,
-
-    /// Network ID (for Block/Transaction triggers)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub network_id: Option<String>,
-
-    /// Cron expression (for Periodic trigger)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cron: Option<String>,
-
-    /// Address filter (for Transaction trigger)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub address: Option<String>,
-}
+/// Trigger configuration object (`trigger`)
+///
+/// The shape depends on the trigger type, e.g.
+/// `{"type": "block", "block": {"network": ["1"], "blocks": 10}}`.
+/// Use the constructors for documented shapes or [`TriggerConfig::from_value`]
+/// for anything else.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TriggerConfig(pub serde_json::Value);
 
 impl TriggerConfig {
-    /// Create config for alert trigger
-    pub fn alert(alert_id: impl Into<String>) -> Self {
-        Self {
-            alert_id: Some(alert_id.into()),
-            ..Default::default()
-        }
-    }
-
-    /// Create config for periodic trigger
-    pub fn periodic(cron: impl Into<String>) -> Self {
-        Self {
-            cron: Some(cron.into()),
-            ..Default::default()
-        }
-    }
-
-    /// Create config for block trigger
-    pub fn block(network_id: impl Into<String>) -> Self {
-        Self {
-            network_id: Some(network_id.into()),
-            ..Default::default()
-        }
-    }
-
-    /// Create config for transaction trigger
-    pub fn transaction(network_id: impl Into<String>, address: impl Into<String>) -> Self {
-        Self {
-            network_id: Some(network_id.into()),
-            address: Some(address.into()),
-            ..Default::default()
-        }
-    }
-}
-
-/// Action secret
-///
-/// The value is protected with `SecretString` to prevent accidental leakage in logs.
-/// The `Debug` implementation redacts the value.
-///
-/// # Warning
-///
-/// The `Serialize` implementation **does expose the secret value** because it must
-/// be sent to the Tenderly API. Be careful not to serialize `ActionSecret` or any
-/// containing struct for logging purposes, as this will expose the secret.
-#[derive(Clone)]
-pub struct ActionSecret {
-    /// Secret name
-    pub name: String,
-    /// Secret value (protected)
-    value: SecretString,
-}
-
-impl ActionSecret {
-    /// Create a new action secret
-    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            value: SecretString::from(value.into()),
-        }
-    }
-
-    /// Expose the secret value (use with care)
+    /// Wrap a raw trigger object
     #[must_use]
-    pub fn expose_value(&self) -> &str {
-        self.value.expose_secret()
+    pub fn from_value(value: serde_json::Value) -> Self {
+        Self(value)
+    }
+
+    /// Minimal trigger object `{"type": "<trigger>"}`
+    #[must_use]
+    pub fn of_type(trigger: ActionTrigger) -> Self {
+        Self(serde_json::json!({ "type": trigger.as_str() }))
+    }
+
+    /// Block trigger: run every `blocks` blocks on the given networks
+    #[must_use]
+    pub fn block(networks: Vec<String>, blocks: u64) -> Self {
+        Self(serde_json::json!({
+            "type": "block",
+            "block": { "network": networks, "blocks": blocks }
+        }))
+    }
+
+    /// Periodic trigger from a cron expression
+    pub fn periodic(cron: impl Into<String>) -> Self {
+        Self(serde_json::json!({
+            "type": "periodic",
+            "periodic": { "cron": cron.into() }
+        }))
+    }
+
+    /// Periodic trigger from an interval (e.g. "1h")
+    pub fn interval(interval: impl Into<String>) -> Self {
+        Self(serde_json::json!({
+            "type": "periodic",
+            "periodic": { "interval": interval.into() }
+        }))
+    }
+
+    /// Webhook trigger
+    #[must_use]
+    pub fn webhook(authenticated: bool) -> Self {
+        Self(serde_json::json!({
+            "type": "webhook",
+            "webhook": { "authenticated": authenticated }
+        }))
     }
 }
 
-impl std::fmt::Debug for ActionSecret {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ActionSecret")
-            .field("name", &self.name)
-            .field("value", &"[REDACTED]")
-            .finish()
+impl From<serde_json::Value> for TriggerConfig {
+    fn from(value: serde_json::Value) -> Self {
+        Self(value)
     }
 }
 
-impl Serialize for ActionSecret {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("ActionSecret", 2)?;
-        state.serialize_field("name", &self.name)?;
-        state.serialize_field("value", self.value.expose_secret())?;
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for ActionSecret {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct Helper {
-            name: String,
-            value: String,
-        }
-        let helper = Helper::deserialize(deserializer)?;
-        Ok(Self::new(helper.name, helper.value))
-    }
-}
-
-/// Web3 Action details
+/// Web3 Action details (`GET /actions`, `GET /actions/action/{id}`)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Action {
     /// Action ID
     pub id: String,
+
+    /// Project ID
+    #[serde(default)]
+    pub project_id: Option<String>,
 
     /// Action name
     pub name: String,
@@ -354,38 +304,111 @@ pub struct Action {
     #[serde(default)]
     pub description: Option<String>,
 
-    /// Trigger type
-    pub trigger: ActionTrigger,
-
-    /// Execution type
-    pub execution: ActionExecution,
-
-    /// Runtime
-    pub runtime: String,
-
-    /// Whether enabled
+    /// Status (e.g. "DEPLOYED", "PUBLISHED")
     #[serde(default)]
-    pub enabled: bool,
+    pub status: Option<String>,
+
+    /// Whether the action is stopped
+    #[serde(default)]
+    pub stopped: bool,
+
+    /// Whether the action is editable
+    #[serde(default)]
+    pub editable: bool,
 
     /// Creation timestamp
     #[serde(default)]
     pub created_at: Option<String>,
 
-    /// Last updated timestamp
+    /// Current version (code, runtime and trigger)
     #[serde(default)]
-    pub updated_at: Option<String>,
+    pub version: Option<ActionVersion>,
 
-    /// Last execution timestamp
-    #[serde(default)]
-    pub last_executed_at: Option<String>,
+    /// Delivery channels
+    #[serde(default, deserialize_with = "deserialize_null_default")]
+    pub delivery_channels: Vec<serde_json::Value>,
 }
 
-/// Response when listing actions
+impl Action {
+    /// Trigger type of the current version
+    #[must_use]
+    pub fn trigger_type(&self) -> Option<ActionTrigger> {
+        self.version.as_ref().and_then(|v| v.trigger_type)
+    }
+
+    /// Runtime of the current version
+    #[must_use]
+    pub fn runtime(&self) -> Option<&str> {
+        self.version.as_ref().and_then(|v| v.runtime.as_deref())
+    }
+}
+
+/// A published version of a Web3 Action
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListActionsResponse {
-    /// List of actions (handles null as empty)
+#[serde(rename_all = "camelCase")]
+pub struct ActionVersion {
+    /// Version ID
+    pub id: String,
+
+    /// Version index
+    #[serde(default)]
+    pub index: Option<u64>,
+
+    /// Action ID
+    #[serde(default)]
+    pub action_id: Option<String>,
+
+    /// Parent action ID
+    #[serde(default)]
+    pub parent_action_id: Option<String>,
+
+    /// Runtime (e.g. "V2")
+    #[serde(default)]
+    pub runtime: Option<String>,
+
+    /// Exported function (e.g. "actionFn")
+    #[serde(default)]
+    pub function: Option<String>,
+
+    /// Trigger type
+    #[serde(default)]
+    pub trigger_type: Option<ActionTrigger>,
+
+    /// Trigger configuration object
+    #[serde(default)]
+    pub trigger: serde_json::Value,
+
+    /// Commitish
+    #[serde(default)]
+    pub commitish: Option<String>,
+
+    /// Source code
+    #[serde(default)]
+    pub source: Option<String>,
+
+    /// Creation timestamp
+    #[serde(default)]
+    pub created_at: Option<String>,
+
+    /// Whether deployment was requested
+    #[serde(default)]
+    pub deploy_requested: bool,
+
+    /// Deployment error, if any
+    #[serde(default)]
+    pub deploy_error: Option<String>,
+
+    /// Invocation type
+    #[serde(default)]
+    pub invocation_type: Option<InvocationType>,
+}
+
+/// Response from `POST /actions/publishFile`: published versions keyed by action name
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublishActionResponse {
+    /// Published action versions, keyed by action name
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub actions: Vec<Action>,
+    pub actions: HashMap<String, ActionVersion>,
 }
 
 /// Deserialize null as default value
@@ -398,33 +421,52 @@ where
     Ok(opt.unwrap_or_default())
 }
 
-/// Action execution status
+/// Action execution (call) status
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[non_exhaustive]
 pub enum ActionLogStatus {
+    /// Enabled
+    Enabled,
+    /// Disabled
+    Disabled,
     /// Execution succeeded
-    Success,
+    Succeeded,
+    /// Execution submitted
+    Submitted,
+    /// Execution skipped
+    Skipped,
     /// Execution failed
     Failed,
-    /// Execution timed out
-    Timeout,
     /// Execution pending
     Pending,
-    /// Execution in progress
-    Running,
+    /// Execution will be retried
+    Retry,
+    /// Execution timed out
+    TimedOut,
+    /// Execution was rate limited
+    RateLimited,
+    /// Unknown status (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl ActionLogStatus {
-    /// Get the string representation
+    /// Get the API string representation
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Success => "success",
-            Self::Failed => "failed",
-            Self::Timeout => "timeout",
-            Self::Pending => "pending",
-            Self::Running => "running",
+            Self::Enabled => "ENABLED",
+            Self::Disabled => "DISABLED",
+            Self::Succeeded => "SUCCEEDED",
+            Self::Submitted => "SUBMITTED",
+            Self::Skipped => "SKIPPED",
+            Self::Failed => "FAILED",
+            Self::Pending => "PENDING",
+            Self::Retry => "RETRY",
+            Self::TimedOut => "TIMED_OUT",
+            Self::RateLimited => "RATE_LIMITED",
+            Self::Unknown => "UNKNOWN",
         }
     }
 }
@@ -439,12 +481,17 @@ impl std::str::FromStr for ActionLogStatus {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "success" | "succeeded" | "ok" => Ok(Self::Success),
+        match s.to_lowercase().replace('-', "_").as_str() {
+            "enabled" => Ok(Self::Enabled),
+            "disabled" => Ok(Self::Disabled),
+            "succeeded" | "success" | "ok" => Ok(Self::Succeeded),
+            "submitted" => Ok(Self::Submitted),
+            "skipped" => Ok(Self::Skipped),
             "failed" | "failure" | "error" => Ok(Self::Failed),
-            "timeout" | "timed_out" => Ok(Self::Timeout),
             "pending" | "queued" => Ok(Self::Pending),
-            "running" | "in_progress" => Ok(Self::Running),
+            "retry" => Ok(Self::Retry),
+            "timed_out" | "timeout" => Ok(Self::TimedOut),
+            "rate_limited" => Ok(Self::RateLimited),
             _ => Err(format!("Invalid action log status: {s}")),
         }
     }
@@ -458,15 +505,22 @@ pub struct StopResumeActionsRequest {
 }
 
 /// Query parameters for action calls/executions
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default)]
 pub struct ActionCallsQuery {
     /// Page number (1-indexed)
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub page: Option<u32>,
 
-    /// Items per page
-    #[serde(rename = "perPage", skip_serializing_if = "Option::is_none")]
-    pub per_page: Option<u32>,
+    /// Items per page (`pageSize`, max 100)
+    pub page_size: Option<u32>,
+
+    /// Only return calls with these statuses (repeated `status` param)
+    pub status: Vec<ActionLogStatus>,
+
+    /// Only return calls after this timestamp
+    pub after: Option<String>,
+
+    /// Only return calls before this timestamp
+    pub before: Option<String>,
 }
 
 impl ActionCallsQuery {
@@ -485,14 +539,58 @@ impl ActionCallsQuery {
 
     /// Set items per page
     #[must_use]
-    pub fn per_page(mut self, per_page: u32) -> Self {
-        self.per_page = Some(per_page);
+    pub fn page_size(mut self, page_size: u32) -> Self {
+        self.page_size = Some(page_size);
         self
+    }
+
+    /// Filter by a status (can be called multiple times)
+    #[must_use]
+    pub fn status(mut self, status: ActionLogStatus) -> Self {
+        self.status.push(status);
+        self
+    }
+
+    /// Only return calls after this timestamp
+    #[must_use]
+    pub fn after(mut self, after: impl Into<String>) -> Self {
+        self.after = Some(after.into());
+        self
+    }
+
+    /// Only return calls before this timestamp
+    #[must_use]
+    pub fn before(mut self, before: impl Into<String>) -> Self {
+        self.before = Some(before.into());
+        self
+    }
+
+    /// Build the query string pairs (`status` is repeated once per value)
+    #[must_use]
+    pub fn to_query_pairs(&self) -> Vec<(&'static str, String)> {
+        let mut pairs = Vec::new();
+        if let Some(page) = self.page {
+            pairs.push(("page", page.to_string()));
+        }
+        if let Some(page_size) = self.page_size {
+            pairs.push(("pageSize", page_size.to_string()));
+        }
+        for status in &self.status {
+            pairs.push(("status", status.as_str().to_string()));
+        }
+        if let Some(after) = &self.after {
+            pairs.push(("after", after.clone()));
+        }
+        if let Some(before) = &self.before {
+            pairs.push(("before", before.clone()));
+        }
+        pairs
     }
 }
 
 /// Action call/execution details
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ActionCall {
     /// Execution ID
     pub id: String,
@@ -501,43 +599,51 @@ pub struct ActionCall {
     #[serde(default)]
     pub action_id: Option<String>,
 
+    /// Action version ID
+    #[serde(default)]
+    pub version_id: Option<String>,
+
+    /// Creation timestamp
+    #[serde(default)]
+    pub created_at: Option<String>,
+
+    /// Call type (e.g. "AUTOMATIC", "MANUAL", "RERUN")
+    #[serde(default, rename = "type")]
+    pub call_type: Option<String>,
+
     /// Status
     #[serde(default)]
     pub status: Option<ActionLogStatus>,
 
-    /// Start time
+    /// When the status last changed
     #[serde(default)]
-    pub started_at: Option<String>,
+    pub status_updated_at: Option<String>,
 
-    /// End time
+    /// Trigger payload
     #[serde(default)]
-    pub finished_at: Option<String>,
+    pub payload: serde_json::Value,
 
-    /// Duration in milliseconds
+    /// Storage type (e.g. "WRITE", "COPY_ON_WRITE", "EMPTY")
     #[serde(default)]
-    pub duration_ms: Option<u64>,
+    pub storage_type: Option<String>,
 
-    /// Trigger information
+    /// Storage ID
     #[serde(default)]
-    pub trigger: Option<serde_json::Value>,
+    pub storage_id: Option<String>,
 
-    /// Output/result
+    /// Memory used
     #[serde(default)]
-    pub output: Option<serde_json::Value>,
+    pub memory: Option<f64>,
 
-    /// Error message (if failed)
+    /// Execution time
     #[serde(default)]
-    pub error: Option<String>,
+    pub time: Option<f64>,
 
-    /// Logs from execution
+    /// Parsed logs
     #[serde(default)]
-    pub logs: Option<Vec<String>>,
-}
+    pub parsed_logs: Option<serde_json::Value>,
 
-/// Response for action calls list
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActionCallsResponse {
-    /// List of executions
+    /// Parsed error
     #[serde(default)]
-    pub executions: Vec<ActionCall>,
+    pub parsed_error: Option<serde_json::Value>,
 }

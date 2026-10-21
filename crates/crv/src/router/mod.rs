@@ -166,22 +166,26 @@ pub struct RouterStats {
     pub edge_count: usize,
 }
 
-/// ABI encoding helpers
-///
-/// The router contract has two main functions:
-/// - `exchange(address[11] _route, uint256[5][5] _swap_params, uint256 _amount, uint256 _expected)`
-/// - `get_dy(address[11] _route, uint256[5][5] _swap_params, uint256 _amount)`
-///
+// ABI encoding helpers
+//
+// The router's `exchange` and `get_dy` take optional trailing `_pools` (and
+// `_receiver`) arguments; Vyper exposes one selector per arity. We encode the
+// shortest forms, which leave `_pools` empty (fine for every swap type but 3):
+// - `exchange(address[11] _route, uint256[5][5] _swap_params, uint256 _amount, uint256 _min_dy)`
+// - `get_dy(address[11] _route, uint256[5][5] _swap_params, uint256 _amount)`
+
+/// `keccak256("exchange(address[11],uint256[5][5],uint256,uint256)")[0..4]`
+const EXCHANGE_SELECTOR: [u8; 4] = [0x37, 0x1d, 0xc4, 0x47];
+
+/// `keccak256("get_dy(address[11],uint256[5][5],uint256)")[0..4]`
+const GET_DY_SELECTOR: [u8; 4] = [0x81, 0x88, 0x9a, 0x2c];
+
 /// Encode calldata for the `exchange` function
 fn encode_exchange_calldata(
     route: &Route,
     amount_in: &str,
     min_amount_out: &str,
 ) -> Result<Vec<u8>> {
-    // Function selector: exchange(address[11],uint256[5][5],uint256,uint256)
-    // keccak256("exchange(address[11],uint256[5][5],uint256,uint256)")[0:4]
-    let selector: [u8; 4] = [0x1a, 0x4c, 0x1c, 0xa3];
-
     let (route_addrs, swap_params) = route.to_contract_format();
 
     // Parse amounts
@@ -194,7 +198,7 @@ fn encode_exchange_calldata(
 
     // Build calldata
     let mut calldata = Vec::with_capacity(4 + 32 * 11 + 32 * 25 + 32 + 32);
-    calldata.extend_from_slice(&selector);
+    calldata.extend_from_slice(&EXCHANGE_SELECTOR);
 
     // Encode address[11] - each address is padded to 32 bytes
     for addr in &route_addrs {
@@ -228,10 +232,6 @@ fn encode_exchange_calldata(
 
 /// Encode calldata for the `get_dy` function (quote)
 fn encode_get_dy_calldata(route: &Route, amount_in: &str) -> Result<Vec<u8>> {
-    // Function selector: get_dy(address[11],uint256[5][5],uint256)
-    // keccak256("get_dy(address[11],uint256[5][5],uint256)")[0:4]
-    let selector: [u8; 4] = [0x55, 0x6d, 0x6e, 0x9f];
-
     let (route_addrs, swap_params) = route.to_contract_format();
 
     // Parse amount
@@ -241,7 +241,7 @@ fn encode_get_dy_calldata(route: &Route, amount_in: &str) -> Result<Vec<u8>> {
 
     // Build calldata
     let mut calldata = Vec::with_capacity(4 + 32 * 11 + 32 * 25 + 32);
-    calldata.extend_from_slice(&selector);
+    calldata.extend_from_slice(&GET_DY_SELECTOR);
 
     // Encode address[11]
     for addr in &route_addrs {
@@ -385,11 +385,68 @@ mod tests {
             .unwrap();
 
         // Should start with function selector
-        assert_eq!(&calldata[0..4], &[0x1a, 0x4c, 0x1c, 0xa3]);
+        assert_eq!(&calldata[0..4], &EXCHANGE_SELECTOR);
 
         // Calldata should be: 4 (selector) + 11*32 (addresses) + 25*32 (params) + 32 (amount) + 32 (expected)
         // = 4 + 352 + 800 + 32 + 32 = 1220 bytes
         assert_eq!(calldata.len(), 1220);
+    }
+
+    fn selector(signature: &str) -> [u8; 4] {
+        use tiny_keccak::{Hasher, Keccak};
+        let mut hash = [0u8; 32];
+        let mut keccak = Keccak::v256();
+        keccak.update(signature.as_bytes());
+        keccak.finalize(&mut hash);
+        [hash[0], hash[1], hash[2], hash[3]]
+    }
+
+    #[test]
+    fn test_selectors_match_signatures() {
+        assert_eq!(
+            EXCHANGE_SELECTOR,
+            selector("exchange(address[11],uint256[5][5],uint256,uint256)")
+        );
+        assert_eq!(
+            GET_DY_SELECTOR,
+            selector("get_dy(address[11],uint256[5][5],uint256)")
+        );
+    }
+
+    #[test]
+    fn test_encode_quote_calldata() {
+        // 3pool DAI -> USDC, 1 DAI
+        let mut route = Route::new(
+            "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        );
+        route.push(RouteStep::new(
+            "0",
+            "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+            "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            SwapParams::new(0, 1, SwapType::Exchange, PoolType::Stable, 3),
+            1_000_000.0,
+        ));
+        let router = RouterApi::new("ethereum", &[]);
+        let calldata = router.encode_quote(&route, "1000000000000000000").unwrap();
+
+        // selector + address[11] + uint256[5][5] + uint256
+        assert_eq!(calldata.len(), 4 + 11 * 32 + 25 * 32 + 32);
+        assert_eq!(&calldata[0..4], &GET_DY_SELECTOR);
+        // route[1] = pool
+        assert_eq!(
+            &calldata[4 + 32 + 12..4 + 64],
+            &parse_address("0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7").unwrap()
+        );
+        // swap_params[0] = [0, 1, 1, 1, 3]
+        let params: Vec<u8> = (0..5)
+            .map(|k| calldata[4 + 11 * 32 + k * 32 + 31])
+            .collect();
+        assert_eq!(params, [0, 1, 1, 1, 3]);
+        // _amount = 1e18
+        let amount = u128::from_be_bytes(calldata[calldata.len() - 16..].try_into().unwrap());
+        assert_eq!(amount, 1_000_000_000_000_000_000);
     }
 
     #[test]

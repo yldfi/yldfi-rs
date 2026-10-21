@@ -20,12 +20,13 @@ fn is_native_token(addr: &str) -> bool {
     addr.to_lowercase() == NATIVE_TOKEN.to_lowercase()
 }
 
-/// Get WETH address for a chain (for protocols that don't support native ETH)
+/// Wrapped native token for a chain (for protocols that don't support the
+/// native token). On Gnosis the native token is xDAI, so it's WXDAI, not WETH.
 fn get_weth_address(chain_id: u64) -> Option<&'static str> {
     match chain_id {
         1 => Some("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"), // Ethereum
         42161 => Some("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"), // Arbitrum
-        100 => Some("0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1"), // Gnosis (WETH)
+        100 => Some("0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d"), // Gnosis (WXDAI)
         11155111 => Some("0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"), // Sepolia
         _ => None,
     }
@@ -145,16 +146,17 @@ pub async fn fetch_kyber_quote(
         .as_ref()
         .and_then(|c| c.proxy_for_source("kyberswap"));
 
-    let client = match kybr::Client::with_config(kybr::default_config().optional_proxy(proxy)) {
-        Ok(c) => c,
-        Err(e) => {
-            return SourceResult::error(
-                "kyberswap",
-                format!("Client error: {}", e),
-                measure.elapsed_ms(),
-            )
-        }
-    };
+    let client =
+        match kybr::Client::with_config(crate::cli::kyber::kyber_config().optional_proxy(proxy)) {
+            Ok(c) => c,
+            Err(e) => {
+                return SourceResult::error(
+                    "kyberswap",
+                    format!("Client error: {}", e),
+                    measure.elapsed_ms(),
+                )
+            }
+        };
 
     let request = kybr::RouteRequest::new(token_in, token_out, amount_in);
 
@@ -176,7 +178,7 @@ pub async fn fetch_kyber_quote(
                 quote = quote.with_gas_usd(gas_usd);
             }
 
-            if let Some(impact) = route_summary.price_impact {
+            if let Some(impact) = route_summary.price_impact_percent() {
                 quote = quote.with_price_impact(impact);
             }
 
@@ -458,16 +460,12 @@ pub async fn fetch_cowswap_quote(
     sender: Option<&str>,
     measure: LatencyMeasure,
 ) -> SourceResult<NormalizedQuote> {
-    // CowSwap only supports certain chains
     let chain = match cowp::Chain::from_chain_id(chain_id) {
         Some(c) => c,
         None => {
             return SourceResult::error(
                 "cowswap",
-                format!(
-                    "Unsupported chain ID: {} (CowSwap supports Ethereum, Gnosis, Arbitrum)",
-                    chain_id
-                ),
+                format!("Unsupported chain ID: {}", chain_id),
                 measure.elapsed_ms(),
             )
         }
@@ -605,7 +603,10 @@ pub async fn fetch_lifi_quote(
     let config = get_cached_config();
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("lifi"));
 
-    let client = match lfi::Client::with_config(lfi::Config::new().with_optional_proxy(proxy)) {
+    let lifi_config = lfi::Config::new()
+        .with_optional_proxy(proxy)
+        .with_optional_api_key(crate::cli::lifi::lifi_api_key());
+    let client = match lfi::Client::with_config(lifi_config) {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(
@@ -879,6 +880,15 @@ pub async fn fetch_enso_quote(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn gnosis_native_wraps_to_wxdai() {
+        assert_eq!(
+            get_weth_address(100),
+            Some("0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d")
+        );
+    }
+
     use super::*;
 
     #[test]

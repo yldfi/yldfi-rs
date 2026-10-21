@@ -1,6 +1,6 @@
 use crate::{
     config::Chain,
-    utils::{address::resolve_label, is_safe_cli_value, is_valid_eth_address, is_valid_tx_hash},
+    utils::{address::resolve_label, is_safe_cli_value},
 };
 use std::process::Command;
 
@@ -138,8 +138,19 @@ fn validate_values(values: &[String], name: &str) -> anyhow::Result<()> {
 }
 
 fn push_rpc_options(cmd: &mut Command, options: &CastCallOptions, rpc_url: &Option<String>) {
-    if let Some(rpc) = rpc_url {
-        cmd.arg("--rpc-url").arg(rpc);
+    // --rpc-url, else ETH_RPC_URL (cast reads it itself), else the endpoint
+    // configured for --chain; cast would otherwise fall back to localhost
+    let rpc = rpc_url.clone().or_else(|| {
+        if std::env::var_os("ETH_RPC_URL").is_some() {
+            None
+        } else {
+            crate::rpc::get_rpc_url(options.chain).ok()
+        }
+    });
+    // Via the environment, not argv: RPC URLs often embed API keys, and
+    // argv is visible to every user on the machine (ps)
+    if let Some(rpc) = rpc {
+        cmd.env("ETH_RPC_URL", rpc);
     }
 
     if let Some(timeout) = options.rpc_timeout {
@@ -248,7 +259,7 @@ pub(crate) fn build_cast_call_command(
     let resolved_to = resolve_label(request.to);
 
     // Validate resolved address looks like an address (unless it's a label)
-    if !is_valid_eth_address(&resolved_to) && !request.to.contains('.') {
+    if !yldfi_common::is_valid_address(&resolved_to) && !request.to.contains('.') {
         // Allow ENS names (contain dots) and address book labels
         validate_cli_arg(&resolved_to, "to address")?;
     }
@@ -351,7 +362,7 @@ pub async fn trace_tx_via_cast(
     quiet: bool,
 ) -> anyhow::Result<()> {
     // Validate transaction hash format
-    if !is_valid_tx_hash(hash) {
+    if !yldfi_common::is_valid_tx_hash(hash) {
         anyhow::bail!(
             "Invalid transaction hash: '{}'. Expected 0x followed by 64 hex characters.",
             hash
@@ -396,13 +407,14 @@ pub async fn trace_tx_via_cast(
     }
 
     if let Some(key) = &options.etherscan_api_key {
-        cmd.arg("--etherscan-api-key").arg(key);
+        cmd.env("ETHERSCAN_API_KEY", key);
     }
 
     cmd.arg("--chain").arg(options.chain.chain_id().to_string());
 
+    // Environment rather than argv (see push_rpc_options)
     if let Some(rpc) = rpc_url {
-        cmd.arg("--rpc-url").arg(rpc);
+        cmd.env("ETH_RPC_URL", rpc);
     }
 
     if let Some(timeout) = options.rpc_timeout {

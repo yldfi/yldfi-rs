@@ -95,6 +95,9 @@ pub enum QueryCommands {
         /// Timeout in seconds (default: 300)
         #[arg(long, default_value = "300")]
         timeout: u64,
+        /// Query parameters as a JSON object, e.g. '{"address": "0x..."}'
+        #[arg(long)]
+        params: Option<String>,
     },
 
     /// Get cached results for a query
@@ -400,12 +403,12 @@ pub enum MatviewsCommands {
 pub enum PipelinesCommands {
     /// Execute a pipeline of queries/matviews
     Execute {
-        /// Pipeline definition as JSON: {"nodes":[{"node_type":"query_execution","query_id":123}]}
+        /// Pipeline definition as JSON: {"nodes":[{"id":1,"query_execution":{"query_id":123}}]}
         pipeline_json: String,
-        /// Query parameters as JSON: {"key":"value"}
+        /// Query parameters as JSON: {"key":"value"} (applied to query nodes without their own)
         #[arg(long)]
         params: Option<String>,
-        /// Performance tier: medium or large
+        /// Performance tier: small, medium or large (applied to nodes without their own)
         #[arg(long)]
         performance: Option<String>,
     },
@@ -467,13 +470,18 @@ async fn handle_query(
     quiet: bool,
 ) -> anyhow::Result<()> {
     match action {
-        QueryCommands::Execute { query_id, timeout } => {
+        QueryCommands::Execute {
+            query_id,
+            timeout,
+            params,
+        } => {
             if !quiet {
                 eprintln!("Executing query {}...", query_id);
             }
+            let request = query_params_request(params.as_deref())?;
             let response = client
                 .executions()
-                .run_query(*query_id, Some(*timeout))
+                .run_query_with_options(*query_id, &request, Some(*timeout))
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -804,9 +812,15 @@ async fn handle_tables(
             }
             let json_data: serde_json::Value = serde_json::from_str(data)
                 .map_err(|e| anyhow::anyhow!("Invalid data JSON: {}", e))?;
+            // The insert endpoint takes NDJSON, so send each row as its own line
+            let rows = match json_data {
+                serde_json::Value::Array(rows) => rows,
+                row @ serde_json::Value::Object(_) => vec![row],
+                _ => anyhow::bail!("Data must be a JSON object or an array of objects"),
+            };
             let response = client
                 .tables()
-                .insert(namespace, table_name, &json_data)
+                .insert_rows(namespace, table_name, &rows)
                 .await?;
             print_output(&response, args.format)?;
         }
@@ -944,21 +958,18 @@ async fn handle_pipelines(
             if !quiet {
                 eprintln!("Executing pipeline...");
             }
-            let pipeline: dnapi::pipelines::Pipeline = serde_json::from_str(pipeline_json)
+            let mut pipeline: dnapi::pipelines::Pipeline = serde_json::from_str(pipeline_json)
                 .map_err(|e| anyhow::anyhow!("Invalid pipeline JSON: {}", e))?;
-            let query_parameters = if let Some(p) = params {
-                Some(
+            if let Some(p) = params {
+                let query_parameters: std::collections::HashMap<String, serde_json::Value> =
                     serde_json::from_str(p)
-                        .map_err(|e| anyhow::anyhow!("Invalid params JSON: {}", e))?,
-                )
-            } else {
-                None
-            };
-            let request = dnapi::pipelines::ExecutePipelineRequest {
-                pipeline,
-                query_parameters,
-                performance: performance.clone(),
-            };
+                        .map_err(|e| anyhow::anyhow!("Invalid params JSON: {}", e))?;
+                pipeline = pipeline.with_query_parameters(&query_parameters);
+            }
+            if let Some(perf) = performance {
+                pipeline = pipeline.with_performance(perf);
+            }
+            let request = dnapi::pipelines::ExecutePipelineRequest { pipeline };
             let response = client.pipelines().execute(&request).await?;
             print_output(&response, args.format)?;
         }
@@ -1000,4 +1011,50 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         }
     }
     Ok(())
+}
+
+/// Build an execute request from `--params` JSON (values may be strings,
+/// numbers or booleans; Dune takes them as strings)
+fn query_params_request(
+    params: Option<&str>,
+) -> anyhow::Result<dnapi::executions::ExecuteQueryRequest> {
+    let mut request = dnapi::executions::ExecuteQueryRequest::new();
+    let Some(json) = params else {
+        return Ok(request);
+    };
+    let value: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| anyhow::anyhow!("Invalid --params JSON: {}", e))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("--params must be a JSON object"))?;
+    for (key, v) in object {
+        let text = match v {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Number(_) | serde_json::Value::Bool(_) => v.to_string(),
+            _ => anyhow::bail!(
+                "--params value for '{}' must be a string, number or boolean",
+                key
+            ),
+        };
+        request = request.param(key, &text);
+    }
+    Ok(request)
+}
+
+#[cfg(test)]
+mod params_tests {
+    use super::query_params_request;
+
+    #[test]
+    fn params_become_string_query_parameters() {
+        let request = query_params_request(Some(r#"{"address": "0xabc", "days": 7}"#)).unwrap();
+        let params = request.query_parameters.unwrap();
+        assert_eq!(params["address"], "0xabc");
+        assert_eq!(params["days"], "7");
+        assert!(query_params_request(Some("[1]")).is_err());
+        assert!(query_params_request(None)
+            .unwrap()
+            .query_parameters
+            .is_none());
+    }
 }

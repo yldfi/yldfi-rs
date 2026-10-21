@@ -360,56 +360,61 @@ pub struct EncodeStateResponse {
     pub encoded_state: serde_json::Value,
 }
 
-/// Query parameters for listing contracts
+/// Account type filter for `GET /contracts` (`accountType` query param)
+///
+/// The endpoint returns either contracts or wallets; the parameter is required.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AccountType {
+    /// Smart contracts
+    #[default]
+    Contract,
+    /// Wallets (EOAs)
+    Wallet,
+}
+
+impl AccountType {
+    /// Get the string representation
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Contract => "contract",
+            Self::Wallet => "wallet",
+        }
+    }
+}
+
+impl std::fmt::Display for AccountType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+/// Query parameters for listing contracts (or wallets)
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ListContractsQuery {
-    /// Filter by tag
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tag: Option<String>,
+    /// Account type to list (required by the API)
+    #[serde(rename = "accountType")]
+    pub account_type: AccountType,
 
-    /// Filter by network
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub network_id: Option<String>,
-
-    /// Filter by verification status
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub verified: Option<bool>,
-
-    /// Page number
+    /// Page number (1-indexed)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page: Option<u32>,
 
     /// Results per page
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "perPage", skip_serializing_if = "Option::is_none")]
     pub per_page: Option<u32>,
 }
 
 impl ListContractsQuery {
-    /// Create a new query
+    /// Create a new query for the given account type
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Filter by tag
-    #[must_use]
-    pub fn tag(mut self, tag: impl Into<String>) -> Self {
-        self.tag = Some(tag.into());
-        self
-    }
-
-    /// Filter by network
-    #[must_use]
-    pub fn network_id(mut self, network_id: impl Into<String>) -> Self {
-        self.network_id = Some(network_id.into());
-        self
-    }
-
-    /// Filter by verification status
-    #[must_use]
-    pub fn verified(mut self, verified: bool) -> Self {
-        self.verified = Some(verified);
-        self
+    pub fn new(account_type: AccountType) -> Self {
+        Self {
+            account_type,
+            page: None,
+            per_page: None,
+        }
     }
 
     /// Set page

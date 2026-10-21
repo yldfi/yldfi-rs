@@ -1,0 +1,2253 @@
+{
+ "provider": "etherscan",
+ "url": "https://docs.etherscan.io",
+ "version": "2.0.0",
+ "operations": {
+  "GET /v1/api.ashx?module=nametag&action=exportaddresstags": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:format",
+    "query:label",
+    "query:module*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /v1/api.ashx?module=nametag&action=getlabelmasterlist": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].labelname",
+    "result[].labelslug",
+    "result[].lastupdatedtimestamp",
+    "result[].notes",
+    "result[].shortdescription",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=addresstokenbalance": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*",
+    "query:offset",
+    "query:page"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].TokenAddress",
+    "result[].TokenDivisor",
+    "result[].TokenName",
+    "result[].TokenPriceUSD",
+    "result[].TokenQuantity",
+    "result[].TokenSymbol",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=addresstokennftbalance": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*",
+    "query:offset",
+    "query:page"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].TokenAddress",
+    "result[].TokenName",
+    "result[].TokenQuantity",
+    "result[].TokenSymbol",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=addresstokennftinventory": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*",
+    "query:offset",
+    "query:page"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].TokenAddress",
+    "result[].TokenId",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=balance": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=balancehistory": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:blockno*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=balancemulti": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].account",
+    "result[].balance",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=fundedby": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.block",
+    "result.fundingAddress",
+    "result.fundingTxn",
+    "result.timeStamp",
+    "result.value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=getdeposittxs": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].L1TxOrigin",
+    "result[].L1transactionhash",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].cumulativeGasUsed",
+    "result[].errDescription",
+    "result[].from",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].isError",
+    "result[].nonce",
+    "result[].queueIndex",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].tokenAddress",
+    "result[].tokenSentFrom",
+    "result[].tokenSentTo",
+    "result[].tokenValue",
+    "result[].txreceipt_status",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=getminedblocks": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:blocktype",
+    "query:chainid*",
+    "query:module*",
+    "query:offset",
+    "query:page"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockNumber",
+    "result[].blockReward",
+    "result[].timeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=getwithdrawaltxs": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].L1transactionhash",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].cumulativeGasUsed",
+    "result[].errDescription",
+    "result[].from",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].isError",
+    "result[].nonce",
+    "result[].status",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].tokenAddress",
+    "result[].tokenValue",
+    "result[].txreceipt_status",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=token1155tx (advanced-filter-token1155tx)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddress",
+    "query:endblock",
+    "query:from",
+    "query:fromto_opr",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock",
+    "query:to"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].confirmations",
+    "result[].contractAddress",
+    "result[].cumulativeGasUsed",
+    "result[].from",
+    "result[].functionName",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].methodId",
+    "result[].nonce",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].tokenID",
+    "result[].tokenName",
+    "result[].tokenSymbol",
+    "result[].tokenValue",
+    "result[].transactionIndex",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=token1155tx (token1155tx)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address",
+    "query:chainid*",
+    "query:contractaddress",
+    "query:endblock",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].confirmations",
+    "result[].contractAddress",
+    "result[].cumulativeGasUsed",
+    "result[].from",
+    "result[].functionName",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].methodId",
+    "result[].nonce",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].tokenID",
+    "result[].tokenName",
+    "result[].tokenSymbol",
+    "result[].tokenValue",
+    "result[].transactionIndex",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=tokenbalance": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=tokenbalancehistory": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:blockno*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=tokennfttx (advanced-filter-tokennfttx)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddress",
+    "query:endblock",
+    "query:from",
+    "query:fromto_opr",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock",
+    "query:to"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].confirmations",
+    "result[].contractAddress",
+    "result[].cumulativeGasUsed",
+    "result[].from",
+    "result[].functionName",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].methodId",
+    "result[].nonce",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].tokenDecimal",
+    "result[].tokenID",
+    "result[].tokenName",
+    "result[].tokenSymbol",
+    "result[].transactionIndex",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=tokennfttx (tokennfttx)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address",
+    "query:chainid*",
+    "query:contractaddress",
+    "query:endblock",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].confirmations",
+    "result[].contractAddress",
+    "result[].cumulativeGasUsed",
+    "result[].from",
+    "result[].functionName",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].methodId",
+    "result[].nonce",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].tokenDecimal",
+    "result[].tokenID",
+    "result[].tokenName",
+    "result[].tokenSymbol",
+    "result[].transactionIndex",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=tokentx (advanced-filter-tokentx)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddress",
+    "query:endblock",
+    "query:from",
+    "query:fromto_opr",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock",
+    "query:to"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].confirmations",
+    "result[].contractAddress",
+    "result[].cumulativeGasUsed",
+    "result[].from",
+    "result[].functionName",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].methodId",
+    "result[].nonce",
+    "result[].statusRep",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].tokenDecimal",
+    "result[].tokenName",
+    "result[].tokenSymbol",
+    "result[].transactionIndex",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=tokentx (tokentx)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address",
+    "query:chainid*",
+    "query:contractaddress",
+    "query:endblock",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].confirmations",
+    "result[].contractAddress",
+    "result[].cumulativeGasUsed",
+    "result[].from",
+    "result[].functionName",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].methodId",
+    "result[].nonce",
+    "result[].statusRep",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].tokenDecimal",
+    "result[].tokenName",
+    "result[].tokenSymbol",
+    "result[].transactionIndex",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=txlist (advanced-filter-txlist)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:endblock",
+    "query:from",
+    "query:fromto_opr",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock",
+    "query:to"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].confirmations",
+    "result[].contractAddress",
+    "result[].cumulativeGasUsed",
+    "result[].from",
+    "result[].functionName",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].isError",
+    "result[].methodId",
+    "result[].nonce",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].transactionIndex",
+    "result[].txreceipt_status",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=txlist (txlist)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:endblock",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].confirmations",
+    "result[].contractAddress",
+    "result[].cumulativeGasUsed",
+    "result[].from",
+    "result[].functionName",
+    "result[].gas",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].isError",
+    "result[].methodId",
+    "result[].nonce",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].transactionIndex",
+    "result[].txreceipt_status",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=txlistinternal (advanced-filter-txlistinternal)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:endblock",
+    "query:from",
+    "query:fromto_opr",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock",
+    "query:to"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockNumber",
+    "result[].contractAddress",
+    "result[].errCode",
+    "result[].from",
+    "result[].gas",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].isError",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].traceId",
+    "result[].type",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=txlistinternal (txlistinternal)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:endblock",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockNumber",
+    "result[].contractAddress",
+    "result[].errCode",
+    "result[].from",
+    "result[].gas",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].isError",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].traceId",
+    "result[].type",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=txlistinternal (txlistinternal-blockrange)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:endblock*",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockNumber",
+    "result[].contractAddress",
+    "result[].errCode",
+    "result[].from",
+    "result[].gas",
+    "result[].gasUsed",
+    "result[].hash",
+    "result[].input",
+    "result[].isError",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].traceId",
+    "result[].type",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=txlistinternal (txlistinternal-txhash)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*",
+    "query:txhash*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockNumber",
+    "result[].contractAddress",
+    "result[].errCode",
+    "result[].from",
+    "result[].gas",
+    "result[].gasUsed",
+    "result[].input",
+    "result[].isError",
+    "result[].timeStamp",
+    "result[].to",
+    "result[].type",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=txnbridge": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address",
+    "query:chainid*",
+    "query:module*",
+    "query:offset",
+    "query:page"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].address",
+    "result[].amount",
+    "result[].blockNumber",
+    "result[].contractAddress",
+    "result[].divisor",
+    "result[].from",
+    "result[].hash",
+    "result[].symbol",
+    "result[].timeStamp",
+    "result[].tokenName",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=account&action=txsBeaconWithdrawal": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address",
+    "query:chainid*",
+    "query:endblock",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:sort",
+    "query:startblock"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].address",
+    "result[].amount",
+    "result[].blockNumber",
+    "result[].timestamp",
+    "result[].validatorIndex",
+    "result[].withdrawalIndex",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=block&action=getblockcountdown": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:blockno*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.CountdownBlock",
+    "result.CurrentBlock",
+    "result.EstimateTimeInSec",
+    "result.RemainingBlock",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=block&action=getblocknobytime": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:closest*",
+    "query:module*",
+    "query:timestamp*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=block&action=getblockreward": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:blockno*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.blockMiner",
+    "result.blockNumber",
+    "result.blockReward",
+    "result.timeStamp",
+    "result.uncleInclusionReward",
+    "result.uncles",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=block&action=getblocktxnscount": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:blockno*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.block",
+    "result.erc1155TxsCount",
+    "result.erc20TxsCount",
+    "result.erc721TxsCount",
+    "result.internalTxsCount",
+    "result.txsCount",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=contract&action=checkproxyverification": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:guid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=contract&action=checkverifystatus": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:guid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=contract&action=getabi": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=contract&action=getcontractcreation": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddresses*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockNumber",
+    "result[].contractAddress",
+    "result[].contractCreator",
+    "result[].contractFactory",
+    "result[].creationBytecode",
+    "result[].timestamp",
+    "result[].txHash",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=contract&action=getsourcecode": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].ABI",
+    "result[].CompilerType",
+    "result[].CompilerVersion",
+    "result[].ConstructorArguments",
+    "result[].ContractFileName",
+    "result[].ContractName",
+    "result[].EVMVersion",
+    "result[].Implementation",
+    "result[].Library",
+    "result[].LicenseType",
+    "result[].OptimizationUsed",
+    "result[].Proxy",
+    "result[].Runs",
+    "result[].SimilarMatch",
+    "result[].SourceCode",
+    "result[].SwarmSource",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=ens&action=forwardresolve": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*",
+    "query:name*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=gastracker&action=gasestimate": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:gasprice",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=gastracker&action=gasoracle": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.FastGasPrice",
+    "result.LastBlock",
+    "result.ProposeGasPrice",
+    "result.SafeGasPrice",
+    "result.gasUsedRatio",
+    "result.suggestBaseFee",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=getapilimit&action=getapilimit": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.creditLimit",
+    "result.creditsAvailable",
+    "result.creditsUsed",
+    "result.intervalExpiryTimespan",
+    "result.limitInterval",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=logs&action=getLogs (getlogs)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:fromBlock*",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:toBlock*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].address",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].data",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].logIndex",
+    "result[].timeStamp",
+    "result[].topics",
+    "result[].transactionHash",
+    "result[].transactionIndex",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=logs&action=getLogs (getlogs-address-topics)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:fromBlock*",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:toBlock*",
+    "query:topic0",
+    "query:topic0_1_opr",
+    "query:topic1"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].address",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].data",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].logIndex",
+    "result[].timeStamp",
+    "result[].topics",
+    "result[].transactionHash",
+    "result[].transactionIndex",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=logs&action=getLogs (getlogs-topics)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:fromBlock*",
+    "query:module*",
+    "query:offset",
+    "query:page",
+    "query:toBlock*",
+    "query:topic0",
+    "query:topic0_1_opr",
+    "query:topic0_2_opr",
+    "query:topic0_3_opr",
+    "query:topic1",
+    "query:topic1_2_opr",
+    "query:topic1_3_opr",
+    "query:topic2",
+    "query:topic2_3_opr",
+    "query:topic3"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].address",
+    "result[].blockHash",
+    "result[].blockNumber",
+    "result[].data",
+    "result[].gasPrice",
+    "result[].gasUsed",
+    "result[].logIndex",
+    "result[].timeStamp",
+    "result[].topics",
+    "result[].transactionHash",
+    "result[].transactionIndex",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=nametag&action=exportaddresstags": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:format",
+    "query:label*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=nametag&action=getaddresstag": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].address",
+    "result[].internal_nametag",
+    "result[].labels",
+    "result[].labels_slug",
+    "result[].lastupdatedtimestamp",
+    "result[].nametag",
+    "result[].notes_1",
+    "result[].notes_2",
+    "result[].other_attributes",
+    "result[].reputation",
+    "result[].shortdescription",
+    "result[].url",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=nametag&action=getlabelmasterlist": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_blockNumber": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_call": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:data",
+    "query:module*",
+    "query:tag",
+    "query:to*"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_estimateGas": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:data",
+    "query:gas",
+    "query:gasPrice",
+    "query:module*",
+    "query:to",
+    "query:value"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_gasPrice": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getBlockByNumber": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:boolean*",
+    "query:chainid*",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result",
+    "result.difficulty",
+    "result.extraData",
+    "result.gasLimit",
+    "result.gasUsed",
+    "result.hash",
+    "result.logsBloom",
+    "result.miner",
+    "result.mixHash",
+    "result.nonce",
+    "result.number",
+    "result.parentHash",
+    "result.receiptsRoot",
+    "result.sha3Uncles",
+    "result.size",
+    "result.stateRoot",
+    "result.timestamp",
+    "result.transactions",
+    "result.transactionsRoot",
+    "result.uncles"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getBlockTransactionCountByNumber": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getCode": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getStorageAt": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address*",
+    "query:chainid*",
+    "query:module*",
+    "query:position*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getTransactionByBlockNumberAndIndex": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:index",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result",
+    "result.accessList",
+    "result.blockHash",
+    "result.blockNumber",
+    "result.chainId",
+    "result.from",
+    "result.gas",
+    "result.gasPrice",
+    "result.hash",
+    "result.input",
+    "result.maxFeePerGas",
+    "result.maxPriorityFeePerGas",
+    "result.nonce",
+    "result.r",
+    "result.s",
+    "result.to",
+    "result.transactionIndex",
+    "result.type",
+    "result.v",
+    "result.value",
+    "result.yParity"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getTransactionByHash": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*",
+    "query:txhash*"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result",
+    "result.accessList",
+    "result.blockHash",
+    "result.blockNumber",
+    "result.chainId",
+    "result.from",
+    "result.gas",
+    "result.gasPrice",
+    "result.hash",
+    "result.input",
+    "result.maxFeePerGas",
+    "result.maxPriorityFeePerGas",
+    "result.nonce",
+    "result.r",
+    "result.s",
+    "result.to",
+    "result.transactionIndex",
+    "result.type",
+    "result.v",
+    "result.value",
+    "result.yParity"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getTransactionCount": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:address",
+    "query:chainid*",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getTransactionReceipt": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*",
+    "query:txhash*"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result",
+    "result.blockHash",
+    "result.blockNumber",
+    "result.contractAddress",
+    "result.cumulativeGasUsed",
+    "result.effectiveGasPrice",
+    "result.from",
+    "result.gasUsed",
+    "result.logs",
+    "result.logsBloom",
+    "result.status",
+    "result.to",
+    "result.transactionHash",
+    "result.transactionIndex",
+    "result.type"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_getUncleByBlockNumberAndIndex": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:index",
+    "query:module*",
+    "query:tag"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "jsonrpc",
+    "result",
+    "result.baseFeePerGas",
+    "result.difficulty",
+    "result.extraData",
+    "result.gasLimit",
+    "result.gasUsed",
+    "result.hash",
+    "result.logsBloom",
+    "result.miner",
+    "result.mixHash",
+    "result.nonce",
+    "result.number",
+    "result.parentHash",
+    "result.receiptsRoot",
+    "result.sha3Uncles",
+    "result.size",
+    "result.stateRoot",
+    "result.timestamp",
+    "result.transactionsRoot",
+    "result.uncles"
+   ]
+  },
+  "GET /v2/api?module=proxy&action=eth_sendRawTransaction": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:hex*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /v2/api?module=stats&action=chainsize": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:clienttype*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*",
+    "query:syncmode*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].blockNumber",
+    "result[].chainSize",
+    "result[].chainTimeStamp",
+    "result[].clientType",
+    "result[].syncMode",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyavgblocksize": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].blockSize_bytes",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyavgblocktime": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].blockTime_sec",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyavggaslimit": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].gasLimit",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyavggasprice": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].avgGasPrice_Wei",
+    "result[].maxGasPrice_Wei",
+    "result[].minGasPrice_Wei",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyavghashrate": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].networkHashRate",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyavgnetdifficulty": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].networkDifficulty",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyblkcount": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].blockCount",
+    "result[].blockRewards_Eth",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyblockrewards": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].blockRewards_Eth",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyensregister": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].ensRegistrationCount",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailygasused": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].gasUsed",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailynetutilization": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].networkUtilization",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailynewaddress": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].newAddressCount",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailytx": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].transactionCount",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailytxnfee": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].transactionFee_Eth",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=dailyuncleblkcount": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].uncleBlockCount",
+    "result[].uncleBlockRewards_Eth",
+    "result[].unixTimeStamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=ethdailyprice": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].UTCDate",
+    "result[].unixTimeStamp",
+    "result[].value",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=ethprice": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.ethbtc",
+    "result.ethbtc_timestamp",
+    "result.ethusd",
+    "result.ethusd_timestamp",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=ethsupply": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=ethsupply2": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.BurntFees",
+    "result.Eth2Staking",
+    "result.EthSupply",
+    "result.WithdrawnTotal",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=nodecount": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.TotalNodeCount",
+    "result.UTCDate",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=nodecounthistory": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:enddate*",
+    "query:module*",
+    "query:sort",
+    "query:startdate*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].TotalNodeCount",
+    "result[].UTCDate",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=tokensupply": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=stats&action=tokensupplyhistory": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:blockno*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=token&action=tokenholdercount": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=token&action=tokenholderlist": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*",
+    "query:offset",
+    "query:page"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].TokenHolderAddress",
+    "result[].TokenHolderQuantity",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=token&action=tokeninfo": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].bitcointalk",
+    "result[].blog",
+    "result[].blueCheckmark",
+    "result[].contractAddress",
+    "result[].description",
+    "result[].discord",
+    "result[].divisor",
+    "result[].email",
+    "result[].facebook",
+    "result[].github",
+    "result[].image",
+    "result[].linkedin",
+    "result[].reddit",
+    "result[].slack",
+    "result[].symbol",
+    "result[].telegram",
+    "result[].tokenName",
+    "result[].tokenPriceUSD",
+    "result[].tokenType",
+    "result[].totalSupply",
+    "result[].twitter",
+    "result[].website",
+    "result[].wechat",
+    "result[].whitepaper",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=token&action=topholders": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:contractaddress*",
+    "query:module*",
+    "query:offset"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].TokenHolderAddress",
+    "result[].TokenHolderAddressType",
+    "result[].TokenHolderQuantity",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=transaction&action=getstatus": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*",
+    "query:txhash*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.errDescription",
+    "result.isError",
+    "status"
+   ]
+  },
+  "GET /v2/api?module=transaction&action=gettxreceiptstatus": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*",
+    "query:txhash*"
+   ],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result.status",
+    "status"
+   ]
+  },
+  "GET /v2/chainlist": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "message",
+    "result",
+    "result[].apiurl",
+    "result[].blockexplorer",
+    "result[].chainid",
+    "result[].chainname",
+    "result[].comment",
+    "result[].status",
+    "status"
+   ]
+  },
+  "POST /v2/api?module=contract&action=verifyproxycontract": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [
+    "address*",
+    "expectedimplementation"
+   ],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "POST /v2/api?module=contract&action=verifysourcecode (verifysourcecode)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [
+    "codeformat",
+    "compilerversion*",
+    "constructorArguments",
+    "contractaddress*",
+    "contractname*",
+    "evmVersion",
+    "licenseType",
+    "optimizationUsed",
+    "runs",
+    "sourceCode*"
+   ],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "POST /v2/api?module=contract&action=verifysourcecode (verifystylus)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [
+    "codeformat*",
+    "compilerversion*",
+    "contractaddress*",
+    "contractname*",
+    "licenseType",
+    "sourceCode*"
+   ],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "POST /v2/api?module=contract&action=verifysourcecode (verifyvyper)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [
+    "codeformat*",
+    "compilerversion*",
+    "constructorArguments",
+    "contractaddress*",
+    "contractname*",
+    "optimizationUsed*",
+    "sourceCode*"
+   ],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  },
+  "POST /v2/api?module=contract&action=verifysourcecode (verifyzksyncsourcecode)": {
+   "deprecated": false,
+   "params": [
+    "query:action*",
+    "query:chainid*",
+    "query:module*"
+   ],
+   "request": [
+    "codeformat",
+    "compilerversion*",
+    "constructorArguments",
+    "contractaddress*",
+    "contractname*",
+    "optimizationUsed",
+    "sourceCode*",
+    "zksolcVersion*"
+   ],
+   "response": [
+    "message",
+    "result",
+    "status"
+   ]
+  }
+ }
+}

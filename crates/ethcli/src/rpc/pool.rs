@@ -21,22 +21,13 @@
 //!
 //! # Concurrency Model
 //!
-//! ## Config File Persistence (TOCTOU Considerations)
+//! ## Config File Persistence
 //!
-//! Config persistence uses a global mutex (`CONFIG_WRITE_LOCK`) to serialize writes
-//! within a single process. However, there are trade-offs to be aware of:
-//!
-//! - **Single process**: The mutex prevents race conditions between concurrent async tasks.
-//! - **Multiple processes**: If multiple ethcli processes run simultaneously, there's a
-//!   theoretical TOCTOU (time-of-check-to-time-of-use) window between reading and writing
-//!   the config file. In practice, this is rare for CLI usage and the worst case is a
-//!   lost optimization (not data corruption).
-//! - **Fire-and-forget**: Persistence is done in background tasks. If the process exits
-//!   quickly (Ctrl+C), writes may not complete. This is acceptable since learned limits
-//!   are optimizations, not critical data.
-//!
-//! If this code were used in a long-running daemon or library context, consider adding
-//! file-level locking (e.g., `fs2::FileExt::lock_exclusive`).
+//! Learned limits are written with `ConfigFile::update_default`, which holds an
+//! exclusive lock on `config.toml.lock` while it re-reads the file, patches the
+//! one field and writes it back, so concurrent ethcli processes and edits made
+//! meanwhile are not overwritten. Persistence is fire-and-forget on the blocking
+//! pool; if the process exits first, the limit is re-learned on the next run.
 
 use crate::config::{
     Chain, ConfigFile, EndpointConfig, NodeType, RpcConfig, DEFAULT_MAX_BLOCK_RANGE,
@@ -51,98 +42,127 @@ use rand::seq::SliceRandom;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 
 /// Maximum endpoints tried for a single read-only `eth_call`.
 const MAX_CALL_ATTEMPTS: usize = 6;
 
-/// Global mutex to serialize config file updates within a single process.
+/// Persist a learned limit to the config file, in the background.
 ///
-/// This prevents race conditions between concurrent async tasks. For multi-process
-/// scenarios, see the module-level documentation on TOCTOU considerations.
-static CONFIG_WRITE_LOCK: Mutex<()> = Mutex::const_new(());
-
-/// PERF-005 fix: Cached config to avoid repeated disk I/O on hot paths.
-/// The config is loaded once and cached for the duration of the process.
-/// Updates are written through to disk but the cached copy is updated in-memory.
-static CACHED_CONFIG: std::sync::OnceLock<parking_lot::Mutex<Option<ConfigFile>>> =
-    std::sync::OnceLock::new();
-
-/// Get or initialize the cached config
-fn get_cached_config() -> &'static parking_lot::Mutex<Option<ConfigFile>> {
-    CACHED_CONFIG.get_or_init(|| {
-        let config = ConfigFile::load_default().ok().flatten();
-        parking_lot::Mutex::new(config)
-    })
+/// The update re-reads the file under the config's exclusive lock and patches
+/// only this endpoint's field, so edits made elsewhere since this process
+/// started are kept. Blocking file I/O runs on the blocking pool. It is
+/// fire-and-forget: errors are logged at debug level, and if the process exits
+/// first the limit is simply re-learned next time.
+fn persist_learned_limit(
+    what: &'static str,
+    url: &str,
+    limit: u64,
+    apply: fn(&mut ConfigFile, &str, u64) -> bool,
+) {
+    if cfg!(test) {
+        return;
+    }
+    let url = url.to_string();
+    tokio::task::spawn_blocking(move || {
+        match ConfigFile::update_default(|config| apply(config, &url, limit)) {
+            Ok(true) => tracing::info!(
+                "Learned {} for {}: {} (saved to config)",
+                what,
+                crate::utils::url::redact_url(&url),
+                limit
+            ),
+            Ok(false) => {}
+            Err(e) => tracing::debug!("Failed to persist {}: {}", what, e),
+        }
+    });
 }
 
-/// Persist a learned block range limit to the config file.
-///
-/// This function spawns a background task to update the config file with the
-/// learned limit. The operation is **fire-and-forget**:
-///
-/// - Errors are logged at debug level but don't affect the caller
-/// - If the process exits quickly (e.g., Ctrl+C), the write may not complete
-/// - Multiple concurrent calls are serialized via `CONFIG_WRITE_LOCK`
-///
-/// This trade-off is acceptable for a CLI tool since:
-/// 1. Learned limits are optimizations, not critical data
-/// 2. The limit will be re-learned on the next run if not persisted
-/// 3. Blocking the main operation for config writes would hurt UX
+/// Persist a learned block range limit (see [`persist_learned_limit`])
 fn persist_block_range_limit(url: &str, limit: u64) {
-    let url = url.to_string();
-    // Spawn a blocking task to avoid blocking the async runtime
-    tokio::spawn(async move {
-        // Acquire lock to prevent concurrent config modifications
-        let _guard = CONFIG_WRITE_LOCK.lock().await;
-        // PERF-005 fix: Use cached config instead of loading from disk
-        let cached = get_cached_config();
-        let mut guard = cached.lock();
-        if let Some(ref mut config) = *guard {
-            match config.update_endpoint_block_range(&url, limit) {
-                Ok(true) => {
-                    tracing::info!(
-                        "Learned block range limit for {}: {} blocks (saved to config)",
-                        crate::utils::url::redact_url(&url),
-                        limit
-                    );
-                }
-                Ok(false) => {} // No update needed
-                Err(e) => {
-                    tracing::debug!("Failed to persist block range limit: {}", e);
-                }
-            }
-        }
+    persist_learned_limit("block range limit", url, limit, |c, url, limit| {
+        c.update_endpoint_block_range_in_memory(url, limit)
     });
 }
 
-/// Persist a learned max logs limit to the config file.
-///
-/// See [`persist_block_range_limit`] for details on the fire-and-forget behavior.
+/// Persist a learned max logs limit (see [`persist_learned_limit`])
 fn persist_max_logs_limit(url: &str, limit: usize) {
-    let url = url.to_string();
-    tokio::spawn(async move {
-        // Acquire lock to prevent concurrent config modifications
-        let _guard = CONFIG_WRITE_LOCK.lock().await;
-        // PERF-005 fix: Use cached config instead of loading from disk
-        let cached = get_cached_config();
-        let mut guard = cached.lock();
-        if let Some(ref mut config) = *guard {
-            match config.update_endpoint_max_logs(&url, limit) {
-                Ok(true) => {
-                    tracing::info!(
-                        "Learned max logs limit for {}: {} logs (saved to config)",
-                        crate::utils::url::redact_url(&url),
-                        limit
-                    );
-                }
-                Ok(false) => {}
-                Err(e) => {
-                    tracing::debug!("Failed to persist max logs limit: {}", e);
-                }
+    persist_learned_limit("max logs limit", url, limit as u64, |c, url, limit| {
+        c.update_endpoint_max_logs_in_memory(url, limit as usize)
+    });
+}
+
+/// The proxy to use for RPC traffic: only when the proxy is enabled and
+/// applies to the "rpc" source. Proxy files and rotation aren't implemented,
+/// so they are refused rather than silently sending traffic direct.
+fn rpc_proxy(proxy: Option<&crate::config::ProxyConfig>) -> Result<Option<String>> {
+    let Some(p) = proxy.filter(|p| p.should_proxy("rpc")) else {
+        return Ok(None);
+    };
+    if p.file.is_some() || p.rotate_per_request {
+        return Err(RpcError::ProxyNotSupported(
+            "proxy files and --proxy-rotate are not supported for RPC traffic; \
+             remove them (or disable the proxy with --no-proxy)"
+                .to_string(),
+        )
+        .into());
+    }
+    Ok(p.url.clone())
+}
+
+/// Result of a by-hash/by-number lookup that found nothing: `None` if some
+/// endpoint answered null, otherwise the last error.
+fn resolve_lookup<T>(answered_null: bool, last_err: Option<Error>) -> Result<Option<T>> {
+    match (answered_null, last_err) {
+        (true, _) => Ok(None),
+        (false, Some(e)) => Err(e),
+        (false, None) => Err(RpcError::NoHealthyEndpoints.into()),
+    }
+}
+
+/// Number of blocks covered by a filter (inclusive), if both bounds are numbers
+fn filter_block_span(filter: &Filter) -> Option<u64> {
+    let from = filter.get_from_block()?;
+    let to = filter.get_to_block()?;
+    Some(to.saturating_sub(from).saturating_add(1))
+}
+
+/// How useful a `get_logs` error is to the caller: a range/size error means
+/// "split and retry", a rate limit means "back off", anything else is opaque.
+fn logs_error_rank(e: &Error) -> u8 {
+    match e {
+        Error::Rpc(RpcError::BlockRangeTooLarge { .. } | RpcError::ResponseTooLarge(_)) => 2,
+        Error::Rpc(RpcError::RateLimited(_)) => 1,
+        _ => 0,
+    }
+}
+
+/// Update health and learned limits after a failed `eth_getLogs`.
+///
+/// A request that was too large says nothing about the endpoint's health, so it
+/// doesn't count towards the circuit breaker. The learned limit is kept for this
+/// session; it is saved to config only when the provider stated it.
+fn learn_from_logs_error(health: &HealthTracker, url: &str, e: &Error) {
+    match e {
+        Error::Rpc(RpcError::BlockRangeTooLarge { max, requested }) => {
+            if *max > 0 {
+                health.record_block_range_limit(url, *max);
+                persist_block_range_limit(url, *max);
+            } else if *requested > 1 {
+                health.record_block_range_limit(url, *requested / 2);
             }
         }
-    });
+        Error::Rpc(RpcError::ResponseTooLarge(count)) => {
+            if *count > 0 {
+                health.record_logs_limit(url, *count);
+                persist_max_logs_limit(url, *count);
+            }
+        }
+        _ => {
+            let is_rate_limit = matches!(e, Error::Rpc(RpcError::RateLimited(_)));
+            let is_timeout = matches!(e, Error::Rpc(RpcError::Timeout(_)));
+            health.record_failure(url, is_rate_limit, is_timeout);
+        }
+    }
 }
 
 /// Pool of RPC endpoints with load balancing and health tracking.
@@ -217,8 +237,7 @@ impl RpcPool {
             return Err(RpcError::NoHealthyEndpoints.into());
         }
 
-        // Get global proxy
-        let proxy = config.proxy.as_ref().and_then(|p| p.url.clone());
+        let proxy = rpc_proxy(config.proxy.as_ref())?;
 
         // Create endpoint instances (wrapped in Arc to avoid cloning config strings)
         // Note: cfg is consumed by Endpoint::new, capture URL before move for error logging
@@ -227,6 +246,8 @@ impl RpcPool {
             let url = cfg.url.clone(); // Capture before move for error message
             match Endpoint::new(cfg, config.timeout_secs, proxy.as_deref()) {
                 Ok(ep) => endpoints.push(Arc::new(ep)),
+                // Not per-endpoint: say so instead of "no healthy endpoints"
+                Err(e @ Error::Rpc(RpcError::ProxyNotSupported(_))) => return Err(e),
                 Err(e) => {
                     tracing::warn!(
                         "Failed to create endpoint {}: {}",
@@ -307,6 +328,9 @@ impl RpcPool {
         // Try more endpoints for historical data - archive coverage varies
         let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
 
+        let mut answered_null = false;
+        let mut last_err: Option<Error> = None;
+
         for endpoint in endpoints {
             match endpoint.get_transaction(hash).await {
                 Ok(Some(tx)) => {
@@ -315,6 +339,7 @@ impl RpcPool {
                     return Ok(Some(tx));
                 }
                 Ok(None) => {
+                    answered_null = true;
                     // Transaction not found on this endpoint, try others
                     tracing::debug!(
                         "Transaction not found on {}, trying next endpoint",
@@ -328,12 +353,14 @@ impl RpcPool {
                         crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
+                    last_err = Some(e);
                 }
             }
         }
 
-        // No endpoint had the transaction
-        Ok(None)
+        // Only "not found" if an endpoint actually answered null; if every
+        // endpoint errored, report the error instead of a false "not found".
+        resolve_lookup(answered_null, last_err)
     }
 
     /// Execute a read-only `eth_call` at the latest block, failing over
@@ -375,6 +402,9 @@ impl RpcPool {
         // Try more endpoints for historical data - archive coverage varies
         let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
 
+        let mut answered_null = false;
+        let mut last_err: Option<Error> = None;
+
         for endpoint in endpoints {
             match endpoint.get_transaction_receipt(hash).await {
                 Ok(Some(receipt)) => {
@@ -383,6 +413,7 @@ impl RpcPool {
                     return Ok(Some(receipt));
                 }
                 Ok(None) => {
+                    answered_null = true;
                     // Receipt not found on this endpoint, try others
                     tracing::debug!(
                         "Receipt not found on {}, trying next endpoint",
@@ -396,17 +427,22 @@ impl RpcPool {
                         crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
+                    last_err = Some(e);
                 }
             }
         }
 
-        // No endpoint had the receipt
-        Ok(None)
+        // Only "not found" if an endpoint actually answered null; if every
+        // endpoint errored, report the error instead of a false "not found".
+        resolve_lookup(answered_null, last_err)
     }
 
     /// Get a block by number with full transaction objects (tries multiple endpoints)
     pub async fn get_block_with_txs(&self, block_number: u64) -> Result<Option<Block>> {
         let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
+
+        let mut answered_null = false;
+        let mut last_err: Option<Error> = None;
 
         for endpoint in endpoints {
             match endpoint.get_block_with_txs(block_number).await {
@@ -416,6 +452,7 @@ impl RpcPool {
                     return Ok(Some(block));
                 }
                 Ok(None) => {
+                    answered_null = true;
                     tracing::debug!(
                         "Block {} not found on {}, trying next endpoint",
                         block_number,
@@ -430,22 +467,38 @@ impl RpcPool {
                         crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
+                    last_err = Some(e);
                 }
             }
         }
 
-        Ok(None)
+        // Only "not found" if an endpoint actually answered null; if every
+        // endpoint errored, report the error instead of a false "not found".
+        resolve_lookup(answered_null, last_err)
     }
 
-    /// Fetch logs with automatic retry and load balancing
+    /// Fetch logs with automatic retry and load balancing.
+    ///
+    /// Only endpoints whose block range limit covers the filter are tried. When
+    /// none can, or every endpoint fails, the most actionable typed error is
+    /// returned (range/size errors first, then rate limits, then the last
+    /// error) so the caller can split the range or back off.
     pub async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>> {
-        let endpoints = self.select_endpoints(self.concurrency);
+        let requested = filter_block_span(filter);
+        let endpoints = self.select_endpoints_for_range(self.concurrency, requested);
 
         if endpoints.is_empty() {
+            if let Some(max) = requested.and_then(|r| self.largest_available_range_below(r)) {
+                return Err(RpcError::BlockRangeTooLarge {
+                    max,
+                    requested: requested.unwrap_or(0),
+                }
+                .into());
+            }
             return Err(RpcError::NoHealthyEndpoints.into());
         }
 
-        // Try endpoints in order of health score
+        let mut best_error: Option<Error> = None;
         for endpoint in &endpoints {
             match endpoint.get_logs(filter).await {
                 Ok((logs, latency)) => {
@@ -453,51 +506,23 @@ impl RpcPool {
                     return Ok(logs);
                 }
                 Err(e) => {
-                    let is_rate_limit = matches!(&e, Error::Rpc(RpcError::RateLimited(_)));
-                    let is_timeout = matches!(&e, Error::Rpc(RpcError::Timeout(_)));
-
-                    self.health
-                        .record_failure(endpoint.url(), is_rate_limit, is_timeout);
-
-                    // Learn from block range errors
-                    // When we get a BlockRangeTooLarge error, the 'max' is the configured value
-                    // that was too high. We should record a reduced value to actually back off.
-                    if let Error::Rpc(RpcError::BlockRangeTooLarge { max, requested }) = &e {
-                        // Halve the failed range, with a floor of 100 blocks to allow
-                        // adapting to very restrictive endpoints while remaining practical
-                        let reduced_limit = if *requested > 0 {
-                            (*requested / 2).max(100)
-                        } else {
-                            (*max / 2).max(100)
-                        };
-                        self.health
-                            .record_block_range_limit(endpoint.url(), reduced_limit);
-
-                        // Persist the learned limit to config
-                        persist_block_range_limit(endpoint.url(), reduced_limit);
-                    }
-
-                    // Learn from response too large errors (max logs exceeded)
-                    if let Error::Rpc(RpcError::ResponseTooLarge(count)) = &e {
-                        // Use the count if available, otherwise estimate based on typical limits
-                        let reduced_limit = if *count > 0 {
-                            (*count / 2).max(1000)
-                        } else {
-                            5000 // Conservative default
-                        };
-                        persist_max_logs_limit(endpoint.url(), reduced_limit);
-                    }
-
+                    learn_from_logs_error(&self.health, endpoint.url(), &e);
                     tracing::debug!(
                         "Failed to get logs from {}: {}",
                         crate::utils::url::redact_url(endpoint.url()),
                         e
                     );
+                    if best_error
+                        .as_ref()
+                        .is_none_or(|b| logs_error_rank(&e) >= logs_error_rank(b))
+                    {
+                        best_error = Some(e);
+                    }
                 }
             }
         }
 
-        Err(RpcError::AllEndpointsFailed.into())
+        Err(best_error.unwrap_or_else(|| RpcError::AllEndpointsFailed.into()))
     }
 
     /// Fetch logs from multiple filters in parallel
@@ -527,31 +552,7 @@ impl RpcPool {
                             Ok(logs)
                         }
                         Err(e) => {
-                            let is_rate_limit = matches!(&e, Error::Rpc(RpcError::RateLimited(_)));
-                            let is_timeout = matches!(&e, Error::Rpc(RpcError::Timeout(_)));
-                            health.record_failure(endpoint.url(), is_rate_limit, is_timeout);
-
-                            // Learn from errors and persist to config
-                            if let Error::Rpc(RpcError::BlockRangeTooLarge { max, requested }) = &e
-                            {
-                                let reduced_limit = if *requested > 0 {
-                                    (*requested / 2).max(100)
-                                } else {
-                                    (*max / 2).max(100)
-                                };
-                                health.record_block_range_limit(endpoint.url(), reduced_limit);
-                                persist_block_range_limit(endpoint.url(), reduced_limit);
-                            }
-
-                            if let Error::Rpc(RpcError::ResponseTooLarge(count)) = &e {
-                                let reduced_limit = if *count > 0 {
-                                    (*count / 2).max(1000)
-                                } else {
-                                    5000
-                                };
-                                persist_max_logs_limit(endpoint.url(), reduced_limit);
-                            }
-
+                            learn_from_logs_error(&health, endpoint.url(), &e);
                             Err(e)
                         }
                     }
@@ -560,6 +561,37 @@ impl RpcPool {
             .collect();
 
         join_all(tasks).await
+    }
+
+    /// Like [`select_endpoints`](Self::select_endpoints), but only endpoints whose
+    /// effective block range limit covers `range` blocks (0 = unlimited).
+    fn select_endpoints_for_range(&self, count: usize, range: Option<u64>) -> Vec<Arc<Endpoint>> {
+        let Some(range) = range else {
+            return self.select_endpoints(count);
+        };
+        let mut endpoints = self.select_endpoints(usize::MAX);
+        endpoints.retain(|e| {
+            let limit = self
+                .health
+                .effective_max_block_range(e.url(), e.max_block_range());
+            limit == 0 || range <= limit
+        });
+        endpoints.truncate(count);
+        endpoints
+    }
+
+    /// The largest effective block range among available endpoints, when it is
+    /// smaller than `range` (i.e. no endpoint can serve `range` in one request).
+    fn largest_available_range_below(&self, range: u64) -> Option<u64> {
+        self.endpoints
+            .iter()
+            .filter(|e| self.health.is_available(e.url()))
+            .map(|e| {
+                self.health
+                    .effective_max_block_range(e.url(), e.max_block_range())
+            })
+            .filter(|limit| *limit != 0 && *limit < range)
+            .max()
     }
 
     /// Select endpoints for a request based on health and priority
@@ -701,6 +733,38 @@ impl RpcPool {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn disabled_proxy_is_ignored_and_rotation_is_refused() {
+        let mut proxy = crate::config::ProxyConfig {
+            enabled: false,
+            url: Some("http://127.0.0.1:8080".into()),
+            file: None,
+            rotate_per_request: false,
+            sources: vec![],
+            exclude_sources: vec![],
+        };
+        assert_eq!(rpc_proxy(Some(&proxy)).unwrap(), None);
+        // With enabled=false the pool must still build
+        let config = RpcConfig {
+            endpoints: vec![EndpointConfig::new("http://127.0.0.1:1")],
+            proxy: Some(proxy.clone()),
+            ..Default::default()
+        };
+        assert!(RpcPool::new(Chain::Ethereum, &config).is_ok());
+
+        proxy.enabled = true;
+        proxy.rotate_per_request = true;
+        assert!(rpc_proxy(Some(&proxy)).is_err());
+        proxy.rotate_per_request = false;
+        proxy.file = Some("proxies.txt".into());
+        assert!(rpc_proxy(Some(&proxy)).is_err());
+        // Excluded source: no proxy
+        proxy.file = None;
+        proxy.exclude_sources = vec!["rpc".into()];
+        assert_eq!(rpc_proxy(Some(&proxy)).unwrap(), None);
+    }
+
     use super::*;
 
     #[test]
@@ -714,6 +778,92 @@ mod tests {
         let result = RpcPool::new(Chain::Ethereum, &config);
         // This may fail due to URL validation, which is fine for unit test
         assert!(result.is_ok() || result.is_err());
+    }
+
+    fn pool_with_limits(limits: &[(&str, u64)]) -> RpcPool {
+        let config = RpcConfig {
+            endpoints: limits
+                .iter()
+                .map(|(url, max)| EndpointConfig::new(*url).with_max_block_range(*max))
+                .collect(),
+            ..Default::default()
+        };
+        RpcPool::new(Chain::Ethereum, &config).unwrap()
+    }
+
+    #[tokio::test]
+    async fn get_logs_reports_range_too_large_when_no_endpoint_can_serve() {
+        let pool = pool_with_limits(&[("http://127.0.0.1:1", 10), ("http://127.0.0.1:2", 100)]);
+        let filter = Filter::new().from_block(0u64).to_block(499u64);
+        match pool.get_logs(&filter).await {
+            Err(Error::Rpc(RpcError::BlockRangeTooLarge { max, requested })) => {
+                assert_eq!((max, requested), (100, 500));
+            }
+            other => panic!("expected BlockRangeTooLarge, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn endpoint_selection_skips_endpoints_with_a_smaller_limit() {
+        let pool = pool_with_limits(&[
+            ("http://small.invalid", 10),
+            ("http://big.invalid", 1_000),
+            ("http://unlimited.invalid", 0),
+        ]);
+        let mut urls: Vec<_> = pool
+            .select_endpoints_for_range(5, Some(500))
+            .iter()
+            .map(|e| e.url().to_string())
+            .collect();
+        urls.sort();
+        assert_eq!(urls, vec!["http://big.invalid", "http://unlimited.invalid"]);
+    }
+
+    #[test]
+    fn oversized_requests_do_not_trip_the_circuit_breaker() {
+        let health = HealthTracker::new();
+        let url = "http://a.invalid";
+        for _ in 0..20 {
+            let e = RpcError::BlockRangeTooLarge {
+                max: 0,
+                requested: 1_000,
+            }
+            .into();
+            learn_from_logs_error(&health, url, &e);
+            learn_from_logs_error(&health, url, &RpcError::ResponseTooLarge(0).into());
+        }
+        assert!(health.is_available(url));
+        assert_eq!(health.effective_max_block_range(url, 10_000), 500);
+        // A heuristic limit also applies to endpoints configured as unlimited
+        assert_eq!(health.effective_max_block_range(url, 0), 500);
+    }
+
+    #[tokio::test]
+    async fn lookups_report_errors_instead_of_not_found_during_outages() {
+        // Nothing listens on these ports: every endpoint errors
+        let pool = pool_with_limits(&[("http://127.0.0.1:1", 10), ("http://127.0.0.1:2", 10)]);
+        assert!(pool.get_transaction(B256::ZERO).await.is_err());
+        assert!(pool.get_transaction_receipt(B256::ZERO).await.is_err());
+        assert!(pool.get_block_with_txs(1).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn lookups_return_none_when_an_endpoint_answers_null() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"jsonrpc": "2.0", "id": 0, "result": null})),
+            )
+            .mount(&server)
+            .await;
+        let pool = RpcPool::from_url(&server.uri(), 5).unwrap();
+        assert!(pool.get_transaction(B256::ZERO).await.unwrap().is_none());
+        assert!(pool
+            .get_transaction_receipt(B256::ZERO)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test]

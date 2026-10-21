@@ -27,6 +27,10 @@ pub enum DomainError {
     #[error("URL parsing error: {0}")]
     UrlParse(#[from] url::ParseError),
 
+    /// Invalid or missing argument
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+
     /// API endpoint removed
     #[error("API endpoint '{endpoint}' has been removed. {alternative}")]
     ApiEndpointRemoved {
@@ -56,18 +60,50 @@ pub fn strategy_not_found(address: impl Into<String>) -> Error {
     ApiError::domain(DomainError::StrategyNotFound(address.into()))
 }
 
+/// Create an invalid argument error
+pub fn invalid_argument(message: impl Into<String>) -> Error {
+    ApiError::domain(DomainError::InvalidArgument(message.into()))
+}
+
 /// Create from HTTP response status and body
+///
+/// A GraphQL `errors` message is used when present, but 429 and 5xx keep
+/// their rate-limited/server-error variants so they stay retryable.
 #[must_use]
 pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error {
-    // Check for GraphQL errors in JSON response
-    if let Ok(json) = serde_json::from_str::<serde_json::Value>(body) {
-        if let Some(errors) = json.get("errors").and_then(|e| e.as_array()) {
-            if let Some(first) = errors.first() {
-                if let Some(msg) = first.get("message").and_then(|m| m.as_str()) {
-                    return graphql_error(msg);
-                }
-            }
-        }
+    let graphql_message = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|json| {
+            json.get("errors")?
+                .as_array()?
+                .first()?
+                .get("message")?
+                .as_str()
+                .map(str::to_string)
+        });
+    match graphql_message {
+        Some(msg) if status != 429 && !(500..=599).contains(&status) => graphql_error(msg),
+        Some(msg) => ApiError::from_response(status, &msg, retry_after),
+        None => ApiError::from_response(status, body, retry_after),
     }
-    ApiError::from_response(status, body, retry_after)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn server_errors_with_graphql_body_stay_retryable() {
+        let body = r#"{"errors":[{"message":"upstream timeout"}]}"#;
+        let err = from_response(503, body, None);
+        assert!(err.is_retryable());
+        assert!(err.to_string().contains("upstream timeout"));
+
+        let err = from_response(429, body, Some(3));
+        assert!(err.is_retryable());
+
+        let err = from_response(400, r#"{"errors":[{"message":"bad field"}]}"#, None);
+        assert!(!err.is_retryable());
+        assert!(matches!(err, ApiError::Domain(DomainError::GraphQL(_))));
+    }
 }

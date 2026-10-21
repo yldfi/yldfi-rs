@@ -515,6 +515,18 @@ impl LogDecoder {
         }
     }
 
+    /// Whether this decoder knows the event with this topic0
+    pub fn knows_topic(&self, topic0: &alloy::primitives::B256) -> bool {
+        self.events.contains_key(topic0)
+    }
+
+    /// Add the events of `other` that this decoder doesn't know yet
+    pub fn merge(&mut self, other: LogDecoder) {
+        for (topic, info) in other.events {
+            self.events.entry(topic).or_insert(info);
+        }
+    }
+
     /// Check if a log can be decoded by this decoder
     pub fn can_decode(&self, log: &Log) -> bool {
         log.topics()

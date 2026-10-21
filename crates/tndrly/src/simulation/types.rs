@@ -746,13 +746,49 @@ pub struct TransactionInfo {
     #[serde(default)]
     pub status: Option<bool>,
 
+    /// Execution details: call trace, logs, state and asset changes
+    #[serde(default)]
+    pub transaction_info: Option<TransactionExecutionInfo>,
+}
+
+/// Execution details of a simulated transaction (`transaction.transaction_info`)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TransactionExecutionInfo {
     /// Call trace
     #[serde(default)]
     pub call_trace: Option<serde_json::Value>,
 
-    /// Transaction logs
+    /// Emitted logs
+    #[serde(default, deserialize_with = "deserialize_null_vec")]
+    pub logs: Vec<serde_json::Value>,
+
+    /// Storage state changes
     #[serde(default)]
-    pub logs: Option<Vec<serde_json::Value>>,
+    pub state_diff: Option<serde_json::Value>,
+
+    /// Asset (token) transfers
+    #[serde(default)]
+    pub asset_changes: Option<serde_json::Value>,
+
+    /// Per-address balance changes
+    #[serde(default)]
+    pub balance_changes: Option<serde_json::Value>,
+
+    /// Stack trace (for failed transactions)
+    #[serde(default)]
+    pub stack_trace: Option<serde_json::Value>,
+
+    /// Any other fields
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// Deserialize a JSON `null` array as empty
+fn deserialize_null_vec<'de, D>(deserializer: D) -> Result<Vec<serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Option::<Vec<serde_json::Value>>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 /// Request for simulating a bundle of transactions

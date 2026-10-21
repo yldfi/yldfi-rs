@@ -130,6 +130,7 @@
 //! - `RetryConfig::none()` - No retries
 
 mod client;
+mod de;
 pub mod error;
 
 // API modules

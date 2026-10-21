@@ -1,0 +1,312 @@
+{
+ "provider": "curve",
+ "url": "https://api.curve.finance/v1/openapi.json",
+ "version": "1.0.0",
+ "operations": {
+  "GET /getAllGauges": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getAllGaugesStatus": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getAllPoolsVolume/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getBaseApys/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getCrvCircSupply": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getCrvusdTotalSupply": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getCrvusdTotalSupplyNumber": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getETHprice": {
+   "deprecated": true,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getFactoGauges/{blockchainId}": {
+   "deprecated": true,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getFactoGaugesCrvRewards/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getFactoryAPYs/{blockchainId}/{version}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*",
+    "path:version*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getFactoryCryptoPools/{blockchainId}": {
+   "deprecated": true,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getFactoryPools": {
+   "deprecated": true,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getFactoryTVL": {
+   "deprecated": true,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getFactoryV2Pools/{blockchainId}": {
+   "deprecated": true,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getGas": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getHiddenPools": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getLendingVaults/all": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getLendingVaults/all/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:lendingBlockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getLendingVaults/{lendingBlockchainId}/{lendingRegistryId}": {
+   "deprecated": false,
+   "params": [
+    "path:lendingBlockchainId*",
+    "path:lendingRegistryId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getMainPoolsAPYs/{blockchainId}": {
+   "deprecated": true,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getMainPoolsGaugeRewards": {
+   "deprecated": true,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getMainRegistryPools": {
+   "deprecated": true,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getMainRegistryPoolsAndLpTokens": {
+   "deprecated": true,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getPlatforms": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getPointsCampaigns": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getPoolList/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/all": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/all/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/big": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/big/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/empty": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/empty/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/small": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/small/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getPools/{blockchainId}/{registryId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*",
+    "path:registryId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getRegistryAddress": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getScrvusdTotalSupplyNumber": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getScrvusdTotalSupplyResult": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getSubgraphData/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getTokens/all/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getVolumes/ethereum/crvusd-amms": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /getVolumes/{blockchainId}": {
+   "deprecated": false,
+   "params": [
+    "path:blockchainId*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /getWeeklyFees": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  }
+ }
+}

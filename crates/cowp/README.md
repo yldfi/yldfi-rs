@@ -21,7 +21,7 @@
 - **Quote API** - Get swap quotes (free, no authentication)
 - **Order Management** - Create, query, and cancel orders
 - **Trade History** - Query executed trades
-- **Multi-chain** - Supports Ethereum, Gnosis Chain, and Arbitrum
+- **Multi-chain** - Supports Ethereum, Gnosis Chain, Arbitrum, Base, Polygon, Avalanche, BNB Chain, Linea, Plasma, Ink and Sepolia
 
 ## Installation
 
@@ -79,7 +79,16 @@ println!("You will pay: {} WETH", quote.quote.sell_amount);
 | Ethereum | `https://api.cow.fi/mainnet` |
 | Gnosis | `https://api.cow.fi/xdai` |
 | Arbitrum | `https://api.cow.fi/arbitrum_one` |
+| Base | `https://api.cow.fi/base` |
+| Polygon | `https://api.cow.fi/polygon` |
+| Avalanche | `https://api.cow.fi/avalanche` |
+| BNB Chain | `https://api.cow.fi/bnb` |
+| Linea | `https://api.cow.fi/linea` |
+| Plasma | `https://api.cow.fi/plasma` |
+| Ink | `https://api.cow.fi/ink` |
 | Sepolia | `https://api.cow.fi/sepolia` |
+
+`Chain` parses names, aliases (`eth`, `bsc`, `xdai`) and numeric chain IDs.
 
 ## Terms of Service
 

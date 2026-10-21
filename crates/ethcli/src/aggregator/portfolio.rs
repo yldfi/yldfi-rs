@@ -4,8 +4,8 @@
 //! and merges them into a unified view.
 
 use super::{
-    chain_map::normalize_chain_for_source, fan_out_result, get_cached_config, sum_usd,
-    AggregatedResult, LatencyMeasure, SourceResult,
+    chain_map::{chain_id_from_name, normalize_chain_for_source},
+    fan_out_result, get_cached_config, sum_usd, AggregatedResult, LatencyMeasure, SourceResult,
 };
 use futures::future::join_all;
 use secrecy::ExposeSecret;
@@ -277,25 +277,67 @@ async fn fetch_alchemy_portfolio(
     // Build address-network pairs
     let addr_networks: Vec<(&str, &[&str])> = vec![(address, networks_refs.as_slice())];
 
+    // Alchemy network name -> the chain name the caller asked for, so rows
+    // merge with the other sources' rows for the same chain
+    let chain_for_network: HashMap<&str, &str> = networks
+        .iter()
+        .map(String::as_str)
+        .zip(chains.iter().map(String::as_str))
+        .collect();
+
     match client.portfolio().get_token_balances(&addr_networks).await {
         Ok(response) => {
+            // The balances endpoint carries no metadata: look up symbol and
+            // decimals on-chain rather than showing "???" with 18 decimals
+            let metadata = alchemy_token_metadata(&response.data.tokens, &chain_for_network).await;
             let mut balances = Vec::new();
+            let mut skipped = 0usize;
             for token in &response.data.tokens {
-                // Use token_address for ERC20s, or "ETH" for native token
-                let token_addr = token
-                    .token_address
-                    .as_deref()
-                    .unwrap_or("0x0000000000000000000000000000000000000000");
+                let chain = chain_for_network
+                    .get(token.network.as_str())
+                    .copied()
+                    .unwrap_or(token.network.as_str());
+                let (token_addr, symbol, decimals) = match token.token_address.as_deref() {
+                    // Native token
+                    None => {
+                        let native = crate::config::Chain::from_str_or_default(chain);
+                        (
+                            "0x0000000000000000000000000000000000000000".to_string(),
+                            Some(native.native_symbol().to_string()),
+                            Some(18),
+                        )
+                    }
+                    Some(addr) => {
+                        let looked_up = metadata.get(&addr.to_lowercase());
+                        (
+                            addr.to_string(),
+                            token
+                                .symbol
+                                .as_deref()
+                                .map(sanitize_symbol)
+                                .or_else(|| looked_up.and_then(|m| m.0.clone())),
+                            token.decimals.or_else(|| looked_up.and_then(|m| m.1)),
+                        )
+                    }
+                };
+                // Without decimals the amount would be wrong by orders of magnitude
+                let Some(decimals) = decimals else {
+                    skipped += 1;
+                    continue;
+                };
                 let balance = PortfolioBalance::new(
-                    token_addr,
-                    token.symbol.as_deref().unwrap_or("???"),
-                    &token.network,
+                    &token_addr,
+                    symbol.as_deref().unwrap_or("?"),
+                    chain,
                     &token.token_balance,
-                    token.decimals.unwrap_or(18),
+                    decimals,
                 )
                 .with_name(token.name.clone())
                 .with_logo(token.logo.clone());
                 balances.push(balance);
+            }
+            if skipped > 0 {
+                tracing::warn!("Alchemy: skipped {} tokens with unknown decimals", skipped);
             }
             SourceResult::success("alchemy", balances, measure.elapsed_ms())
         }
@@ -305,6 +347,73 @@ async fn fetch_alchemy_portfolio(
             measure.elapsed_ms(),
         ),
     }
+}
+
+/// A token symbol safe to print: no control or bidi-override characters
+/// (on-chain strings can carry terminal escapes), at most 32 characters
+fn sanitize_symbol(symbol: &str) -> String {
+    symbol
+        .chars()
+        .filter(|c| {
+            !c.is_control()
+                && !('\u{202a}'..='\u{202e}').contains(c)
+                && !('\u{2066}'..='\u{2069}').contains(c)
+        })
+        .take(32)
+        .collect()
+}
+
+/// Symbol and decimals for Alchemy balance rows without metadata, via one
+/// multicall per chain, keyed by lowercase token address
+async fn alchemy_token_metadata(
+    tokens: &[alcmy::portfolio::TokenBalanceEntry],
+    chain_for_network: &HashMap<&str, &str>,
+) -> HashMap<String, (Option<String>, Option<u8>)> {
+    use crate::rpc::multicall::{selectors, MulticallBuilder};
+    use alloy::primitives::Address;
+
+    let mut by_chain: HashMap<&str, Vec<Address>> = HashMap::new();
+    for token in tokens {
+        if token.symbol.is_some() && token.decimals.is_some() {
+            continue;
+        }
+        let Some(addr) = token.token_address.as_deref().and_then(|a| a.parse().ok()) else {
+            continue;
+        };
+        let chain = chain_for_network
+            .get(token.network.as_str())
+            .copied()
+            .unwrap_or(token.network.as_str());
+        by_chain.entry(chain).or_default().push(addr);
+    }
+
+    let mut out = HashMap::new();
+    for (chain, addrs) in by_chain {
+        let chain = crate::config::Chain::from_str_or_default(chain);
+        let Ok(endpoint) = crate::rpc::get_rpc_endpoint(chain) else {
+            continue;
+        };
+        for batch in addrs.chunks(100) {
+            let mut builder = MulticallBuilder::new();
+            for addr in batch {
+                builder = builder
+                    .add_call_allow_failure(*addr, selectors::symbol())
+                    .add_call_allow_failure(*addr, selectors::decimals());
+            }
+            let Ok(results) = builder.execute_with_retry(endpoint.provider(), 2).await else {
+                continue;
+            };
+            for (addr, pair) in batch.iter().zip(results.chunks(2)) {
+                let symbol = pair
+                    .first()
+                    .and_then(|r| r.decode_string())
+                    .map(|s| sanitize_symbol(&s));
+                let decimals = pair.get(1).and_then(|r| r.decode_uint8());
+                out.insert(format!("{:#x}", addr), (symbol, decimals));
+            }
+        }
+    }
+    out
 }
 
 /// Fetch portfolio from Moralis
@@ -352,6 +461,9 @@ async fn fetch_moralis_portfolio(
             let chain = chain.clone();
             let address = address.to_string();
             async move {
+                if let Some(reason) = super::chain_map::moralis_dropped_chain(&chain) {
+                    return Err(format!("{chain}: {reason}"));
+                }
                 let chain_name = normalize_chain_for_source("moralis", &chain);
                 let query = mrls::wallet::WalletQuery::new().chain(chain_name);
 
@@ -657,7 +769,6 @@ async fn fetch_yearn_portfolio(
 ) -> SourceResult<Vec<PortfolioBalance>> {
     use crate::config::Chain;
     use crate::rpc::multicall::{selectors, MulticallBuilder};
-    use crate::rpc::Endpoint;
     use alloy::primitives::Address;
 
     // Create ykong client (no API key needed)
@@ -684,7 +795,7 @@ async fn fetch_yearn_portfolio(
     let chain_futures: Vec<_> = chains
         .iter()
         .filter_map(|chain| {
-            let chain_id = chain_name_to_id(chain)?;
+            let chain_id = chain_id_from_name(chain)?;
             Some((chain.clone(), chain_id))
         })
         .map(|(chain, chain_id)| {
@@ -695,38 +806,25 @@ async fn fetch_yearn_portfolio(
                 // Get all vaults for this chain from Kong
                 let vaults = match client.vaults().by_chain(chain_id).await {
                     Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("Yearn: Failed to get vault list for chain {}: {}", chain, e);
-                        return balances;
-                    }
+                    Err(e) => return Err(format!("{chain}: failed to get vault list: {e}")),
                 };
 
                 if vaults.is_empty() {
-                    return balances;
+                    return Ok(balances);
                 }
 
                 // Get RPC endpoint for this chain
                 let target_chain = Chain::from_chain_id(chain_id);
-                let config = match get_cached_config() {
-                    Some(c) => c,
-                    None => return balances,
+                let Some(config) = get_cached_config() else {
+                    return Err(format!("{chain}: no config with RPC endpoints"));
                 };
 
-                let chain_endpoints: Vec<_> = config
-                    .endpoints
-                    .iter()
-                    .filter(|e| e.enabled && e.chain == target_chain)
-                    .cloned()
-                    .collect();
-
-                if chain_endpoints.is_empty() {
-                    eprintln!("Yearn: No RPC endpoint configured for {}", chain);
-                    return balances;
-                }
-
-                let endpoint = match Endpoint::new(chain_endpoints[0].clone(), 30, None) {
+                let endpoint = match crate::rpc::selector::get_rpc_endpoint_from_config(
+                    config,
+                    target_chain,
+                ) {
                     Ok(e) => e,
-                    Err(_) => return balances,
+                    Err(_) => return Err(format!("{chain}: no RPC endpoint configured")),
                 };
 
                 let provider = endpoint.provider();
@@ -735,9 +833,13 @@ async fn fetch_yearn_portfolio(
                 // Process in batches to avoid RPC limits (max ~500 calls per batch)
                 const BATCH_SIZE: usize = 200;
                 let mut vault_balances: Vec<(ykong::Vault, u128)> = Vec::new();
+                let mut multicall_errors: Vec<String> = Vec::new();
 
                 for batch in vaults.chunks(BATCH_SIZE) {
                     let mut builder = MulticallBuilder::new();
+                    // Vaults actually queried, in call order: results index this,
+                    // not `batch`, since vaults with bad addresses are skipped
+                    let mut queried: Vec<&ykong::Vault> = Vec::new();
 
                     for vault in batch {
                         if let Ok(vault_addr) = vault.address.parse::<Address>() {
@@ -745,6 +847,7 @@ async fn fetch_yearn_portfolio(
                                 vault_addr,
                                 selectors::balance_of(user_address),
                             );
+                            queried.push(vault);
                         }
                     }
 
@@ -761,15 +864,21 @@ async fn fetch_yearn_portfolio(
                                         // Store vault with non-zero balance
                                         let balance_u128: u128 =
                                             balance.try_into().unwrap_or(u128::MAX);
-                                        vault_balances.push((batch[i].clone(), balance_u128));
+                                        vault_balances.push((queried[i].clone(), balance_u128));
                                     }
                                 }
                             }
                         }
-                        Err(e) => {
-                            eprintln!("Yearn: Multicall failed for {}: {}", chain, e);
-                        }
+                        Err(e) => multicall_errors.push(e.to_string()),
                     }
+                }
+
+                // Every balance query failed: the positions are unknown, not empty
+                if vault_balances.is_empty() && !multicall_errors.is_empty() {
+                    return Err(format!(
+                        "{chain}: balance multicall failed: {}",
+                        multicall_errors.join("; ")
+                    ));
                 }
 
                 // Collect unique underlying token addresses for price lookup
@@ -853,18 +962,34 @@ async fn fetch_yearn_portfolio(
                     balances.push(balance);
                 }
 
-                balances
+                Ok(balances)
             }
         })
         .collect();
 
-    // Execute all chain queries in parallel and flatten results
+    // Execute all chain queries in parallel. An empty position list is a
+    // valid answer; chains that failed are warnings, and the source fails
+    // only when every chain did.
     let results = join_all(chain_futures).await;
-    let all_balances: Vec<PortfolioBalance> = results.into_iter().flatten().collect();
-
-    // Return empty success instead of error when no vault positions found
-    // An empty position list is a valid state, not an error
-    SourceResult::success("yearn", all_balances, measure.elapsed_ms())
+    let mut all_balances = Vec::new();
+    let mut successes = 0;
+    let mut errors = Vec::new();
+    for result in results {
+        match result {
+            Ok(balances) => {
+                successes += 1;
+                all_balances.extend(balances);
+            }
+            Err(e) => errors.push(e),
+        }
+    }
+    fan_out_result(
+        "yearn",
+        all_balances,
+        successes,
+        errors,
+        measure.elapsed_ms(),
+    )
 }
 
 /// Calculate USD value and price of a Yearn vault position
@@ -914,20 +1039,6 @@ fn calculate_yearn_position_value_with_price(
     }
 
     (None, None)
-}
-
-/// Convert chain name to chain ID for Yearn
-fn chain_name_to_id(chain: &str) -> Option<u64> {
-    match chain.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" | "eth-mainnet" => Some(1),
-        "polygon" | "matic" | "polygon-mainnet" => Some(137),
-        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => Some(42161),
-        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => Some(10),
-        "base" | "base-mainnet" => Some(8453),
-        "fantom" | "ftm" => Some(250),
-        "gnosis" | "xdai" => Some(100),
-        _ => None,
-    }
 }
 
 /// Maximum number of unique tokens to track (prevents unbounded memory growth)
@@ -1123,8 +1234,8 @@ fn parse_balance(balance: &str, decimals: u8) -> f64 {
 
     // Parse as u128 and divide by 10^decimals
     if let Ok(raw) = balance.parse::<u128>() {
-        let divisor = 10u128.pow(decimals as u32);
-        raw as f64 / divisor as f64
+        // 10u128.pow overflows past 38 decimals
+        raw as f64 / 10f64.powi(decimals as i32)
     } else {
         balance.parse::<f64>().unwrap_or(0.0)
     }
@@ -1166,6 +1277,14 @@ fn estimate_lp_usd_value(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn symbols_lose_escapes_and_length() {
+        assert_eq!(sanitize_symbol("US\x1b[31mDC"), "US[31mDC");
+        assert_eq!(sanitize_symbol("A\u{202e}B"), "AB");
+        assert_eq!(sanitize_symbol(&"X".repeat(100)).len(), 32);
+    }
+
     use super::*;
 
     #[test]

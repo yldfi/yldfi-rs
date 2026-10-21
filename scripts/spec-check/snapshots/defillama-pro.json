@@ -1,0 +1,3206 @@
+{
+ "provider": "defillama-pro",
+ "url": "https://raw.githubusercontent.com/DefiLlama/api-docs/main/defillama-openapi-pro.json",
+ "version": "1.0.0",
+ "operations": {
+  "GET /api/categories": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "categories",
+    "chart"
+   ]
+  },
+  "GET /api/chainAssets": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "chain",
+    "chain.canonical",
+    "chain.canonical.breakdown",
+    "chain.canonical.total",
+    "chain.native",
+    "chain.native.breakdown",
+    "chain.native.total",
+    "chain.thirdParty",
+    "chain.thirdParty.breakdown",
+    "chain.thirdParty.total",
+    "chain.total",
+    "chain.total.breakdown",
+    "chain.total.total",
+    "timestamp"
+   ]
+  },
+  "GET /api/emission/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": [
+    "body",
+    "body.documentedData",
+    "body.documentedData.data",
+    "body.documentedData.data[].data",
+    "body.documentedData.data[].label",
+    "body.documentedData.tokenAllocation",
+    "body.documentedData.tokenAllocation.current",
+    "body.documentedData.tokenAllocation.final",
+    "body.documentedData.tokenAllocation.progress",
+    "body.metadata",
+    "body.metadata.categories",
+    "body.metadata.categories.airdrop",
+    "body.metadata.categories.farming",
+    "body.metadata.categories.insiders",
+    "body.metadata.categories.noncirculating",
+    "body.metadata.categories.publicSale",
+    "body.metadata.chain",
+    "body.metadata.chainName",
+    "body.metadata.defillamaIds",
+    "body.metadata.gecko_id",
+    "body.metadata.name",
+    "body.metadata.notes",
+    "body.metadata.pId",
+    "body.metadata.protocolCategory",
+    "body.metadata.protocolIds",
+    "body.metadata.sources",
+    "body.metadata.token",
+    "body.metadata.total",
+    "lastModified"
+   ]
+  },
+  "GET /api/emissions": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].circSupply",
+    "[].circSupply30d",
+    "[].events",
+    "[].events[].category",
+    "[].events[].description",
+    "[].events[].noOfTokens",
+    "[].events[].timestamp",
+    "[].events[].unlockType",
+    "[].gecko_id",
+    "[].maxSupply",
+    "[].mcap",
+    "[].name",
+    "[].nextEvent",
+    "[].nextEvent.date",
+    "[].nextEvent.toUnlock",
+    "[].protocolId",
+    "[].sources",
+    "[].token",
+    "[].totalLocked",
+    "[].unlocksPerDay"
+   ]
+  },
+  "GET /api/entities": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].category",
+    "[].chain",
+    "[].chainTvls",
+    "[].chains",
+    "[].change_1d",
+    "[].change_1h",
+    "[].change_7d",
+    "[].cmcId",
+    "[].description",
+    "[].gecko_id",
+    "[].id",
+    "[].logo",
+    "[].mcap",
+    "[].module",
+    "[].name",
+    "[].slug",
+    "[].symbol",
+    "[].tokenBreakdowns",
+    "[].tokenBreakdowns.majors",
+    "[].tokenBreakdowns.others",
+    "[].tokenBreakdowns.ownTokens",
+    "[].tokenBreakdowns.stablecoins",
+    "[].tvl",
+    "[].twitter",
+    "[].url"
+   ]
+  },
+  "GET /api/forks": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "chart",
+    "forks"
+   ]
+  },
+  "GET /api/hacks": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].amount",
+    "[].bridgeHack",
+    "[].chain",
+    "[].classification",
+    "[].date",
+    "[].defillamaId",
+    "[].language",
+    "[].name",
+    "[].returnedFunds",
+    "[].source",
+    "[].targetType",
+    "[].technique"
+   ]
+  },
+  "GET /api/historicalLiquidity/{token}": {
+   "deprecated": false,
+   "params": [
+    "path:token*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/inflows/{protocol}/{timestamp}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "path:timestamp*"
+   ],
+   "request": [],
+   "response": [
+    "currentTokens",
+    "currentTokens.date",
+    "currentTokens.tvl",
+    "oldTokens",
+    "oldTokens.date",
+    "oldTokens.tvl",
+    "outflows"
+   ]
+  },
+  "GET /api/lstRates": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].address",
+    "[].ethPeg",
+    "[].expectedRate",
+    "[].fee",
+    "[].marketRate",
+    "[].name",
+    "[].symbol",
+    "[].type"
+   ]
+  },
+  "GET /api/oracles": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "chainsByOracle",
+    "chart",
+    "oracles"
+   ]
+  },
+  "GET /api/overview/derivatives": {
+   "deprecated": false,
+   "params": [
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "allChains",
+    "breakdown24h",
+    "breakdown30d",
+    "chain",
+    "change_1d",
+    "change_1m",
+    "change_30dover30d",
+    "change_7d",
+    "change_7dover7d",
+    "protocols",
+    "protocols[].average1y",
+    "protocols[].breakdown24h",
+    "protocols[].breakdown30d",
+    "protocols[].category",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].change_1m",
+    "protocols[].change_30dover30d",
+    "protocols[].change_7d",
+    "protocols[].change_7dover7d",
+    "protocols[].defillamaId",
+    "protocols[].displayName",
+    "protocols[].id",
+    "protocols[].latestFetchIsOk",
+    "protocols[].linkedProtocols",
+    "protocols[].logo",
+    "protocols[].methodology",
+    "protocols[].methodologyURL",
+    "protocols[].module",
+    "protocols[].name",
+    "protocols[].parentProtocol",
+    "protocols[].protocolType",
+    "protocols[].slug",
+    "protocols[].total14dto7d",
+    "protocols[].total1y",
+    "protocols[].total24h",
+    "protocols[].total30DaysAgo",
+    "protocols[].total30d",
+    "protocols[].total48hto24h",
+    "protocols[].total60dto30d",
+    "protocols[].total7DaysAgo",
+    "protocols[].total7d",
+    "protocols[].totalAllTime",
+    "total14dto7d",
+    "total1y",
+    "total24h",
+    "total30DaysAgo",
+    "total30d",
+    "total48hto24h",
+    "total60dto30d",
+    "total7DaysAgo",
+    "total7d",
+    "totalAllTime",
+    "totalDataChart",
+    "totalDataChartBreakdown"
+   ]
+  },
+  "GET /api/overview/dexs": {
+   "deprecated": false,
+   "params": [
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "allChains",
+    "protocols",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].change_7d",
+    "protocols[].displayName",
+    "protocols[].name",
+    "protocols[].total24h",
+    "protocols[].total7d",
+    "totalDataChart"
+   ]
+  },
+  "GET /api/overview/dexs/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "protocols",
+    "protocols[].change_1d",
+    "protocols[].name",
+    "protocols[].total24h",
+    "totalDataChart"
+   ]
+  },
+  "GET /api/overview/fees": {
+   "deprecated": false,
+   "params": [
+    "query:dataType",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "protocols",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].name",
+    "protocols[].revenue24h",
+    "protocols[].total24h",
+    "totalDataChart",
+    "totalDataChartBreakdown"
+   ]
+  },
+  "GET /api/overview/fees/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:dataType",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "protocols",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].name",
+    "protocols[].revenue24h",
+    "protocols[].total24h",
+    "totalDataChart",
+    "totalDataChartBreakdown"
+   ]
+  },
+  "GET /api/overview/open-interest": {
+   "deprecated": false,
+   "params": [
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "allChains",
+    "protocols",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].change_7d",
+    "protocols[].displayName",
+    "protocols[].name",
+    "protocols[].total24h",
+    "protocols[].total7d",
+    "totalDataChart"
+   ]
+  },
+  "GET /api/overview/options": {
+   "deprecated": false,
+   "params": [
+    "query:dataType",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "protocols",
+    "protocols[].change_1d",
+    "protocols[].name",
+    "protocols[].total24h",
+    "totalDataChart"
+   ]
+  },
+  "GET /api/overview/options/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:dataType",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "allChains",
+    "breakdown24h",
+    "breakdown30d",
+    "chain",
+    "change_1d",
+    "change_1m",
+    "change_30dover30d",
+    "change_7d",
+    "change_7dover7d",
+    "protocols",
+    "protocols[].average1y",
+    "protocols[].category",
+    "protocols[].chains",
+    "protocols[].change_1d",
+    "protocols[].change_1m",
+    "protocols[].change_30dover30d",
+    "protocols[].change_7d",
+    "protocols[].change_7dover7d",
+    "protocols[].defillamaId",
+    "protocols[].displayName",
+    "protocols[].id",
+    "protocols[].latestFetchIsOk",
+    "protocols[].linkedProtocols",
+    "protocols[].logo",
+    "protocols[].methodology",
+    "protocols[].methodologyURL",
+    "protocols[].module",
+    "protocols[].name",
+    "protocols[].parentProtocol",
+    "protocols[].protocolType",
+    "protocols[].slug",
+    "protocols[].total14dto7d",
+    "protocols[].total1y",
+    "protocols[].total24h",
+    "protocols[].total30DaysAgo",
+    "protocols[].total30d",
+    "protocols[].total48hto24h",
+    "protocols[].total60dto30d",
+    "protocols[].total7DaysAgo",
+    "protocols[].total7d",
+    "protocols[].totalAllTime",
+    "total14dto7d",
+    "total1y",
+    "total24h",
+    "total30DaysAgo",
+    "total30d",
+    "total48hto24h",
+    "total60dto30d",
+    "total7DaysAgo",
+    "total7d",
+    "totalAllTime",
+    "totalDataChart",
+    "totalDataChartBreakdown"
+   ]
+  },
+  "GET /api/perpFundingRates": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].baseAsset",
+    "data[].fundingRate",
+    "data[].fundingRate30dAverage",
+    "data[].fundingRate30dSum",
+    "data[].fundingRate7dAverage",
+    "data[].fundingRate7dSum",
+    "data[].fundingRatePrevious",
+    "data[].fundingTimePrevious",
+    "data[].indexPrice",
+    "data[].market",
+    "data[].marketplace",
+    "data[].openInterest",
+    "data[].perp_id",
+    "data[].timestamp",
+    "status"
+   ]
+  },
+  "GET /api/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": [
+    "category",
+    "chainTvls",
+    "chains",
+    "currentChainTvls",
+    "id",
+    "name",
+    "symbol"
+   ]
+  },
+  "GET /api/protocols": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].category",
+    "[].chainTvls",
+    "[].chains",
+    "[].change_1d",
+    "[].change_7d",
+    "[].id",
+    "[].name",
+    "[].symbol",
+    "[].tvl"
+   ]
+  },
+  "GET /api/raises": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "raises",
+    "raises[].amount",
+    "raises[].category",
+    "raises[].categoryGroup",
+    "raises[].chains",
+    "raises[].date",
+    "raises[].defillamaId",
+    "raises[].leadInvestors",
+    "raises[].name",
+    "raises[].otherInvestors",
+    "raises[].round",
+    "raises[].sector",
+    "raises[].source",
+    "raises[].valuation"
+   ]
+  },
+  "GET /api/summary/derivatives/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "address",
+    "audit_links",
+    "audits",
+    "category",
+    "chains",
+    "change_1d",
+    "childProtocols",
+    "cmcId",
+    "defillamaId",
+    "description",
+    "disabled",
+    "displayName",
+    "forkedFrom",
+    "gecko_id",
+    "github",
+    "governanceID",
+    "id",
+    "latestFetchIsOk",
+    "linkedProtocols",
+    "logo",
+    "methodology",
+    "methodologyURL",
+    "module",
+    "name",
+    "parentProtocol",
+    "previousNames",
+    "protocolType",
+    "referralUrl",
+    "slug",
+    "symbol",
+    "total24h",
+    "total48hto24h",
+    "total7d",
+    "totalAllTime",
+    "totalDataChart",
+    "totalDataChartBreakdown",
+    "treasury",
+    "twitter",
+    "url",
+    "versionKey"
+   ]
+  },
+  "GET /api/summary/dexs/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:excludeTotalDataChart*",
+    "query:excludeTotalDataChartBreakdown*"
+   ],
+   "request": [],
+   "response": [
+    "chains",
+    "name",
+    "total24h",
+    "totalAllTime",
+    "totalDataChart",
+    "totalDataChartBreakdown"
+   ]
+  },
+  "GET /api/summary/fees/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "address",
+    "audit_links",
+    "audits",
+    "category",
+    "chains",
+    "change_1d",
+    "childProtocols",
+    "cmcId",
+    "defillamaId",
+    "description",
+    "disabled",
+    "displayName",
+    "forkedFrom",
+    "gecko_id",
+    "github",
+    "governanceID",
+    "id",
+    "latestFetchIsOk",
+    "linkedProtocols",
+    "logo",
+    "methodology",
+    "methodologyURL",
+    "module",
+    "name",
+    "parentProtocol",
+    "previousNames",
+    "protocolType",
+    "referralUrl",
+    "slug",
+    "symbol",
+    "total24h",
+    "total48hto24h",
+    "total7d",
+    "totalAllTime",
+    "totalDataChart",
+    "totalDataChartBreakdown",
+    "treasury",
+    "twitter",
+    "url",
+    "versionKey"
+   ]
+  },
+  "GET /api/summary/options/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "address",
+    "audit_links",
+    "audits",
+    "category",
+    "chains",
+    "change_1d",
+    "childProtocols",
+    "cmcId",
+    "defillamaId",
+    "description",
+    "disabled",
+    "displayName",
+    "forkedFrom",
+    "gecko_id",
+    "github",
+    "governanceID",
+    "id",
+    "latestFetchIsOk",
+    "linkedProtocols",
+    "logo",
+    "methodology",
+    "methodologyURL",
+    "module",
+    "name",
+    "parentProtocol",
+    "previousNames",
+    "protocolType",
+    "slug",
+    "symbol",
+    "total24h",
+    "total48hto24h",
+    "total7d",
+    "totalAllTime",
+    "totalDataChart",
+    "totalDataChartBreakdown",
+    "treasury",
+    "twitter",
+    "url",
+    "versionKey"
+   ]
+  },
+  "GET /api/tokenProtocols/{symbol}": {
+   "deprecated": false,
+   "params": [
+    "path:symbol*"
+   ],
+   "request": [],
+   "response": [
+    "[].amountUsd",
+    "[].category",
+    "[].name"
+   ]
+  },
+  "GET /api/treasuries": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].address",
+    "[].audit_note",
+    "[].audits",
+    "[].category",
+    "[].chain",
+    "[].chainTvls",
+    "[].chains",
+    "[].change_1d",
+    "[].change_1h",
+    "[].change_7d",
+    "[].cmcId",
+    "[].description",
+    "[].forkedFromIds",
+    "[].gecko_id",
+    "[].id",
+    "[].logo",
+    "[].mcap",
+    "[].module",
+    "[].name",
+    "[].slug",
+    "[].symbol",
+    "[].tokenBreakdowns",
+    "[].tokenBreakdowns.majors",
+    "[].tokenBreakdowns.others",
+    "[].tokenBreakdowns.ownTokens",
+    "[].tokenBreakdowns.stablecoins",
+    "[].treasury",
+    "[].tvl",
+    "[].twitter",
+    "[].url"
+   ]
+  },
+  "GET /api/tvl/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chains": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].chainId",
+    "[].cmcId",
+    "[].gecko_id",
+    "[].name",
+    "[].tokenSymbol",
+    "[].tvl"
+   ]
+  },
+  "GET /api/v2/chart/fork/protocol-breakdown": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].timestamp"
+   ]
+  },
+  "GET /api/v2/chart/fork/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/oracle": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/oracle/chain-breakdown": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].timestamp"
+   ]
+  },
+  "GET /api/v2/chart/oracle/chain/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/oracle/chain/{chain}/protocol-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "[].timestamp"
+   ]
+  },
+  "GET /api/v2/chart/oracle/protocol-breakdown": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].timestamp"
+   ]
+  },
+  "GET /api/v2/chart/oracle/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/oracle/protocol/{protocol}/chain-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": [
+    "[].timestamp"
+   ]
+  },
+  "GET /api/v2/chart/treasury/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:key"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/treasury/protocol/{protocol}/chain-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:key"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/treasury/protocol/{protocol}/token-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:currency",
+    "query:key"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/tvl/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:key"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/tvl/protocol/{protocol}/chain-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:key"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/tvl/protocol/{protocol}/token-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*",
+    "query:currency",
+    "query:key"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/category/{category}": {
+   "deprecated": false,
+   "params": [
+    "path:category*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/category/{category}/chain-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:category*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/category/{category}/chain/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:category*",
+    "path:chain*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/category/{category}/chain/{chain}/protocol-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:category*",
+    "path:chain*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/category/{category}/protocol-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:category*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/chain-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/chain/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/chain/{chain}/protocol-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/protocol-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/protocol/{protocol}/chain-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/protocol/{protocol}/label-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/chart/{metric}/protocol/{protocol}/version-breakdown": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/historicalChainTvl": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].tvl"
+   ]
+  },
+  "GET /api/v2/historicalChainTvl/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].tvl"
+   ]
+  },
+  "GET /api/v2/metrics/financial-statement/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": [
+    "address",
+    "aggregates",
+    "aggregates.monthly",
+    "aggregates.quarterly",
+    "aggregates.yearly",
+    "audit_links",
+    "audits",
+    "breakdownMethodology",
+    "category",
+    "chain",
+    "chains",
+    "childProtocols",
+    "childProtocols[].breakdownMethodology",
+    "childProtocols[].defillamaId",
+    "childProtocols[].displayName",
+    "childProtocols[].methodology",
+    "childProtocols[].methodologyURL",
+    "childProtocols[].name",
+    "defillamaId",
+    "description",
+    "dimensions",
+    "displayName",
+    "github",
+    "hallmarks",
+    "hasLabelBreakdown",
+    "id",
+    "linkedProtocols",
+    "listedAt",
+    "logo",
+    "methodology",
+    "methodologyURL",
+    "module",
+    "name",
+    "oraclesBreakdown",
+    "oraclesBreakdown[].name",
+    "oraclesBreakdown[].proof",
+    "oraclesBreakdown[].type",
+    "parentProtocol",
+    "protocolType",
+    "slug",
+    "symbol",
+    "tvlCodePath",
+    "twitter",
+    "url"
+   ]
+  },
+  "GET /api/v2/metrics/fork": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /api/v2/metrics/oracle": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "oracles"
+   ]
+  },
+  "GET /api/v2/metrics/treasury/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": [
+    "address",
+    "audit_links",
+    "audit_note",
+    "audits",
+    "category",
+    "chain",
+    "chains",
+    "cmcId",
+    "currentChainTvls",
+    "deadUrl",
+    "deprecated",
+    "description",
+    "forkedFrom",
+    "gecko_id",
+    "github",
+    "governanceID",
+    "hallmarks",
+    "id",
+    "isParentProtocol",
+    "logo",
+    "mcap",
+    "methodology",
+    "misrepresentedTokens",
+    "module",
+    "name",
+    "openSource",
+    "oraclesByChain",
+    "otherProtocols",
+    "parentProtocol",
+    "raises",
+    "raises[].amount",
+    "raises[].date",
+    "raises[].defillamaId",
+    "raises[].investors",
+    "raises[].leadInvestors",
+    "raises[].otherInvestors",
+    "raises[].round",
+    "raises[].source",
+    "raises[].valuation",
+    "referralUrl",
+    "rugged",
+    "stablecoins",
+    "symbol",
+    "tags",
+    "tokenRights",
+    "treasury",
+    "tvlCodePath",
+    "twitter",
+    "url",
+    "warningBanners",
+    "warningBanners[].level",
+    "warningBanners[].message",
+    "warningBanners[].until",
+    "wrongLiquidity"
+   ]
+  },
+  "GET /api/v2/metrics/tvl/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:protocol*"
+   ],
+   "request": [],
+   "response": [
+    "address",
+    "audit_links",
+    "audit_note",
+    "audits",
+    "category",
+    "chain",
+    "chains",
+    "cmcId",
+    "currentChainTvls",
+    "deadUrl",
+    "deprecated",
+    "description",
+    "forkedFrom",
+    "gecko_id",
+    "github",
+    "governanceID",
+    "hallmarks",
+    "id",
+    "isParentProtocol",
+    "logo",
+    "mcap",
+    "methodology",
+    "misrepresentedTokens",
+    "module",
+    "name",
+    "openSource",
+    "oraclesByChain",
+    "otherProtocols",
+    "parentProtocol",
+    "raises",
+    "raises[].amount",
+    "raises[].date",
+    "raises[].defillamaId",
+    "raises[].investors",
+    "raises[].leadInvestors",
+    "raises[].otherInvestors",
+    "raises[].round",
+    "raises[].source",
+    "raises[].valuation",
+    "referralUrl",
+    "rugged",
+    "stablecoins",
+    "symbol",
+    "tags",
+    "tokenRights",
+    "treasury",
+    "tvlCodePath",
+    "twitter",
+    "url",
+    "warningBanners",
+    "warningBanners[].level",
+    "warningBanners[].message",
+    "warningBanners[].until",
+    "wrongLiquidity"
+   ]
+  },
+  "GET /api/v2/metrics/{metric}": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "allChains",
+    "change_1d",
+    "change_1m",
+    "change_30dover30d",
+    "change_7d",
+    "change_7dover7d",
+    "total14dto7d",
+    "total1y",
+    "total24h",
+    "total30d",
+    "total48hto24h",
+    "total60dto30d",
+    "total7d"
+   ]
+  },
+  "GET /api/v2/metrics/{metric}/category/{category}": {
+   "deprecated": false,
+   "params": [
+    "path:category*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "allCategories",
+    "allChains",
+    "category",
+    "change_1d",
+    "change_1m",
+    "change_30dover30d",
+    "change_7d",
+    "change_7dover7d",
+    "total14dto7d",
+    "total1y",
+    "total24h",
+    "total30d",
+    "total48hto24h",
+    "total60dto30d",
+    "total7d"
+   ]
+  },
+  "GET /api/v2/metrics/{metric}/category/{category}/chain/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:category*",
+    "path:chain*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "allCategories",
+    "allChains",
+    "category",
+    "chain",
+    "change_1d",
+    "change_1m",
+    "change_30dover30d",
+    "change_7d",
+    "change_7dover7d",
+    "total14dto7d",
+    "total1y",
+    "total24h",
+    "total30d",
+    "total48hto24h",
+    "total60dto30d",
+    "total7d"
+   ]
+  },
+  "GET /api/v2/metrics/{metric}/chain/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "allChains",
+    "chain",
+    "change_1d",
+    "change_1m",
+    "change_30dover30d",
+    "change_7d",
+    "change_7dover7d",
+    "total14dto7d",
+    "total1y",
+    "total24h",
+    "total30d",
+    "total48hto24h",
+    "total60dto30d",
+    "total7d"
+   ]
+  },
+  "GET /api/v2/metrics/{metric}/protocol/{protocol}": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "path:protocol*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "chains",
+    "change_1d",
+    "change_1m",
+    "change_7d",
+    "cmcId",
+    "description",
+    "gecko_id",
+    "github",
+    "governanceID",
+    "id",
+    "logo",
+    "name",
+    "stablecoins",
+    "symbol",
+    "total1y",
+    "total24h",
+    "total30d",
+    "total48hto24h",
+    "total7d",
+    "treasury",
+    "twitter",
+    "url",
+    "wrongLiquidity"
+   ]
+  },
+  "GET /bridges/bridge/{id}": {
+   "deprecated": false,
+   "params": [
+    "path:id*"
+   ],
+   "request": [],
+   "response": [
+    "chainBreakdown",
+    "currentDayTxs",
+    "currentDayTxs.deposits",
+    "currentDayTxs.withdrawals",
+    "currentDayVolume",
+    "dayBeforeLastTxs",
+    "dayBeforeLastTxs.deposits",
+    "dayBeforeLastTxs.withdrawals",
+    "dayBeforeLastVolume",
+    "destinationChain",
+    "displayName",
+    "id",
+    "lastDailyVolume",
+    "lastHourlyTxs",
+    "lastHourlyTxs.deposits",
+    "lastHourlyTxs.withdrawals",
+    "lastHourlyVolume",
+    "monthlyTxs",
+    "monthlyTxs.deposits",
+    "monthlyTxs.withdrawals",
+    "monthlyVolume",
+    "name",
+    "prevDayTxs",
+    "prevDayTxs.deposits",
+    "prevDayTxs.withdrawals",
+    "weeklyTxs",
+    "weeklyTxs.deposits",
+    "weeklyTxs.withdrawals",
+    "weeklyVolume"
+   ]
+  },
+  "GET /bridges/bridgedaystats/{timestamp}/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:timestamp*",
+    "query:id"
+   ],
+   "request": [],
+   "response": [
+    "date",
+    "totalAddressDeposited",
+    "totalAddressWithdrawn",
+    "totalTokensDeposited",
+    "totalTokensWithdrawn"
+   ]
+  },
+  "GET /bridges/bridges": {
+   "deprecated": false,
+   "params": [
+    "query:includeChains"
+   ],
+   "request": [],
+   "response": [
+    "bridges",
+    "bridges[].chains",
+    "bridges[].dayBeforeLastVolume",
+    "bridges[].destinationChain",
+    "bridges[].displayName",
+    "bridges[].icon",
+    "bridges[].id",
+    "bridges[].last24hVolume",
+    "bridges[].lastDailyVolume",
+    "bridges[].lastHourlyVolume",
+    "bridges[].monthlyVolume",
+    "bridges[].name",
+    "bridges[].slug",
+    "bridges[].url",
+    "bridges[].volumePrev2Day",
+    "bridges[].volumePrevDay",
+    "bridges[].weeklyVolume"
+   ]
+  },
+  "GET /bridges/bridgevolume/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:id"
+   ],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].depositTxs",
+    "[].depositUSD",
+    "[].withdrawTxs",
+    "[].withdrawUSD"
+   ]
+  },
+  "GET /bridges/transactions/{id}": {
+   "deprecated": false,
+   "params": [
+    "path:id*",
+    "query:address",
+    "query:endtimestamp",
+    "query:limit",
+    "query:sourcechain",
+    "query:starttimestamp"
+   ],
+   "request": [],
+   "response": [
+    "[].amount",
+    "[].bridge_name",
+    "[].chain",
+    "[].sourceChain",
+    "[].token",
+    "[].ts",
+    "[].tx_block",
+    "[].tx_from",
+    "[].tx_hash",
+    "[].tx_to",
+    "[].usd_value",
+    "chainBreakdown",
+    "currentDayTxs",
+    "currentDayTxs.deposits",
+    "currentDayTxs.withdrawals",
+    "currentDayVolume",
+    "dayBeforeLastTxs",
+    "dayBeforeLastTxs.deposits",
+    "dayBeforeLastTxs.withdrawals",
+    "dayBeforeLastVolume",
+    "destinationChain",
+    "displayName",
+    "id",
+    "lastDailyVolume",
+    "lastHourlyTxs",
+    "lastHourlyTxs.deposits",
+    "lastHourlyTxs.withdrawals",
+    "lastHourlyVolume",
+    "monthlyTxs",
+    "monthlyTxs.deposits",
+    "monthlyTxs.withdrawals",
+    "monthlyVolume",
+    "name",
+    "prevDayTxs",
+    "prevDayTxs.deposits",
+    "prevDayTxs.withdrawals",
+    "weeklyTxs",
+    "weeklyTxs.deposits",
+    "weeklyTxs.withdrawals",
+    "weeklyVolume"
+   ]
+  },
+  "GET /coins/batchHistorical": {
+   "deprecated": false,
+   "params": [
+    "query:coins*"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.prices",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.prices[].confidence",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.prices[].price",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.prices[].timestamp",
+    "coins.avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e.symbol"
+   ]
+  },
+  "GET /coins/block/{chain}/{timestamp}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "path:timestamp*"
+   ],
+   "request": [],
+   "response": [
+    "height",
+    "timestamp"
+   ]
+  },
+  "GET /coins/chart/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*",
+    "query:end",
+    "query:period",
+    "query:span",
+    "query:start"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.confidence*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.decimals",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.prices*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.prices[].price",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.prices[].timestamp",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.symbol*"
+   ]
+  },
+  "GET /coins/percentage/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*",
+    "query:lookForward",
+    "query:period",
+    "query:timestamp"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1"
+   ]
+  },
+  "GET /coins/prices/current/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.confidence",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.decimals",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.price*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.symbol*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.timestamp*"
+   ]
+  },
+  "GET /coins/prices/first/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.price",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.symbol",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.timestamp"
+   ]
+  },
+  "GET /coins/prices/historical/{timestamp}/{coins}": {
+   "deprecated": false,
+   "params": [
+    "path:coins*",
+    "path:timestamp*"
+   ],
+   "request": [],
+   "response": [
+    "coins",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.confidence",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.decimals",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.price*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.symbol*",
+    "coins.ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1.timestamp*"
+   ]
+  },
+  "GET /dat/institutions": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "assetMetadata",
+    "assets",
+    "flows",
+    "institutionMetadata",
+    "institutions",
+    "institutions[].institutionId",
+    "institutions[].totalCost",
+    "institutions[].totalUsdValue",
+    "lastUpdated",
+    "mNAV",
+    "totalCompanies"
+   ]
+  },
+  "GET /dat/institutions/{symbol}": {
+   "deprecated": false,
+   "params": [
+    "path:symbol*"
+   ],
+   "request": [],
+   "response": [
+    "assetValue",
+    "assets",
+    "assetsMeta",
+    "fd_max",
+    "fd_realistic",
+    "fd_realized",
+    "institutionId",
+    "lastUpdated",
+    "max_mNAV",
+    "mcap_max",
+    "mcap_realistic",
+    "mcap_realized",
+    "name",
+    "ohlcv",
+    "price",
+    "priceChange24h",
+    "rank",
+    "realistic_mNAV",
+    "realized_mNAV",
+    "stats",
+    "ticker",
+    "totalCost",
+    "totalUsdValue",
+    "transactions",
+    "transactions[].amount",
+    "transactions[].asset",
+    "transactions[].assetName",
+    "transactions[].assetTicker",
+    "transactions[].avg_price",
+    "transactions[].end_date",
+    "transactions[].id",
+    "transactions[].is_approved",
+    "transactions[].last_updated",
+    "transactions[].reject_reason",
+    "transactions[].report_date",
+    "transactions[].source_note",
+    "transactions[].source_type",
+    "transactions[].source_url",
+    "transactions[].start_date",
+    "transactions[].ticker",
+    "transactions[].type",
+    "transactions[].usd_value",
+    "type",
+    "volume24h"
+   ]
+  },
+  "GET /equities/v1/companies-list": {
+   "deprecated": false,
+   "params": [
+    "query:industry",
+    "query:sector"
+   ],
+   "request": [],
+   "response": [
+    "[].companyName",
+    "[].country",
+    "[].countryName",
+    "[].industrySlug",
+    "[].sectorSlug",
+    "[].ticker"
+   ]
+  },
+  "GET /equities/v1/dimensions": {
+   "deprecated": false,
+   "params": [
+    "query:country*",
+    "query:ticker*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /equities/v1/earnings-calendar": {
+   "deprecated": false,
+   "params": [
+    "query:from",
+    "query:limit",
+    "query:status",
+    "query:ticker",
+    "query:to"
+   ],
+   "request": [],
+   "response": [
+    "[].accepted_at",
+    "[].accession_number",
+    "[].cik",
+    "[].date_status",
+    "[].event_key",
+    "[].first_published_at",
+    "[].fiscal_period",
+    "[].fiscal_year",
+    "[].inserted_at",
+    "[].iso2_country_code",
+    "[].max_drift_days",
+    "[].period_end",
+    "[].previous_report_date",
+    "[].report_date",
+    "[].report_time",
+    "[].revision_count",
+    "[].source",
+    "[].source_form",
+    "[].ticker"
+   ]
+  },
+  "GET /equities/v1/filings": {
+   "deprecated": false,
+   "params": [
+    "query:country*",
+    "query:ticker*"
+   ],
+   "request": [],
+   "response": [
+    "[].documentDescription",
+    "[].filingDate",
+    "[].form",
+    "[].primaryDocumentUrl",
+    "[].reportDate"
+   ]
+  },
+  "GET /equities/v1/industries": {
+   "deprecated": false,
+   "params": [
+    "query:industry",
+    "query:sector"
+   ],
+   "request": [],
+   "response": [
+    "[].companyCount",
+    "[].coverage",
+    "[].dividendYield",
+    "[].dollarVolume24h",
+    "[].dollarVolumeShare24h",
+    "[].earningsTTM",
+    "[].earningsYield",
+    "[].ebitdaTTM",
+    "[].employeeCount",
+    "[].enterpriseValue",
+    "[].enterpriseValueToEbitda",
+    "[].holdersYield",
+    "[].industry",
+    "[].industrySlug",
+    "[].marketCap",
+    "[].marketCapChange1d",
+    "[].operatingProfitMarginTTM",
+    "[].priceChangePercentage1d",
+    "[].priceChangePercentage1m",
+    "[].priceChangePercentage1y",
+    "[].priceChangePercentage3m",
+    "[].priceChangePercentage6m",
+    "[].priceChangePercentage7d",
+    "[].priceChangePercentageYtd",
+    "[].priceToBook",
+    "[].priceToRevenue",
+    "[].rank",
+    "[].revenueTTM",
+    "[].sector",
+    "[].sectorSlug",
+    "[].sectorWeight",
+    "[].topHoldings",
+    "[].topHoldings[].marketCap",
+    "[].topHoldings[].name",
+    "[].topHoldings[].priceChangePercentage1d",
+    "[].topHoldings[].sectorWeight",
+    "[].topHoldings[].ticker",
+    "[].trailingPE",
+    "[].updatedAt",
+    "[].volumeAsOf",
+    "[].weight"
+   ]
+  },
+  "GET /equities/v1/ohlcv": {
+   "deprecated": false,
+   "params": [
+    "query:country*",
+    "query:ticker*",
+    "query:timeframe"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /equities/v1/onchain": {
+   "deprecated": false,
+   "params": [
+    "query:country*",
+    "query:ticker*"
+   ],
+   "request": [],
+   "response": [
+    "perps",
+    "perps[].annualizedFundingRate",
+    "perps[].contractSlug",
+    "perps[].exchangeProtocolSlug",
+    "perps[].exchangeType",
+    "perps[].openInterest",
+    "perps[].pair",
+    "perps[].price",
+    "perps[].rwaPlatformSlug",
+    "perps[].tradeUrl",
+    "perps[].updatedAt",
+    "perps[].volume24h",
+    "tokens",
+    "tokens[].activeMarketcap",
+    "tokens[].assetSlug",
+    "tokens[].issuer",
+    "tokens[].issuerRwaPlatformSlug",
+    "tokens[].price"
+   ]
+  },
+  "GET /equities/v1/price-history": {
+   "deprecated": false,
+   "params": [
+    "query:country*",
+    "query:ticker*",
+    "query:timeframe"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /equities/v1/sector": {
+   "deprecated": false,
+   "params": [
+    "query:sector*"
+   ],
+   "request": [],
+   "response": [
+    "companyCount",
+    "concentration",
+    "concentration.hhi",
+    "concentration.medianMarketCap",
+    "concentration.megaCapCount",
+    "concentration.megaCapThreshold",
+    "concentration.top10MarketCapShare",
+    "coverage",
+    "description",
+    "dividendYield",
+    "dollarVolume24h",
+    "dollarVolumeShare24h",
+    "earningsTTM",
+    "earningsYield",
+    "ebitdaTTM",
+    "employeeCount",
+    "enterpriseValue",
+    "enterpriseValueToEbitda",
+    "holdersYield",
+    "industryCount",
+    "marketCap",
+    "marketCapChange1d",
+    "operatingProfitMarginTTM",
+    "priceChangePercentage1d",
+    "priceChangePercentage1m",
+    "priceChangePercentage1y",
+    "priceChangePercentage3m",
+    "priceChangePercentage6m",
+    "priceChangePercentage7d",
+    "priceChangePercentageYtd",
+    "priceToBook",
+    "priceToRevenue",
+    "rank",
+    "revenueTTM",
+    "sector",
+    "sectorSlug",
+    "topHoldings",
+    "topHoldings[].marketCap",
+    "topHoldings[].name",
+    "topHoldings[].priceChangePercentage1d",
+    "topHoldings[].sectorWeight",
+    "topHoldings[].ticker",
+    "trailingPE",
+    "updatedAt",
+    "valuation",
+    "valuation.dividendYield",
+    "valuation.earningsYield",
+    "valuation.enterpriseValueToEbitda",
+    "valuation.medianDividendYield",
+    "valuation.medianEnterpriseValueToEbitda",
+    "valuation.medianOperatingProfitMarginTTM",
+    "valuation.medianPriceToBook",
+    "valuation.medianPriceToRevenue",
+    "valuation.medianTrailingPE",
+    "valuation.operatingProfitMarginTTM",
+    "valuation.priceToBook",
+    "valuation.priceToRevenue",
+    "valuation.trailingPE",
+    "volumeAsOf",
+    "weight"
+   ]
+  },
+  "GET /equities/v1/sectors": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].companyCount",
+    "[].coverage",
+    "[].dividendYield",
+    "[].dollarVolume24h",
+    "[].dollarVolumeShare24h",
+    "[].earningsTTM",
+    "[].earningsYield",
+    "[].ebitdaTTM",
+    "[].employeeCount",
+    "[].enterpriseValue",
+    "[].enterpriseValueToEbitda",
+    "[].holdersYield",
+    "[].industryCount",
+    "[].marketCap",
+    "[].marketCapChange1d",
+    "[].operatingProfitMarginTTM",
+    "[].priceChangePercentage1d",
+    "[].priceChangePercentage1m",
+    "[].priceChangePercentage1y",
+    "[].priceChangePercentage3m",
+    "[].priceChangePercentage6m",
+    "[].priceChangePercentage7d",
+    "[].priceChangePercentageYtd",
+    "[].priceToBook",
+    "[].priceToRevenue",
+    "[].rank",
+    "[].revenueTTM",
+    "[].sector",
+    "[].sectorSlug",
+    "[].topHoldings",
+    "[].topHoldings[].marketCap",
+    "[].topHoldings[].name",
+    "[].topHoldings[].priceChangePercentage1d",
+    "[].topHoldings[].sectorWeight",
+    "[].topHoldings[].ticker",
+    "[].trailingPE",
+    "[].updatedAt",
+    "[].volumeAsOf",
+    "[].weight"
+   ]
+  },
+  "GET /equities/v1/sectors-overview": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "bestSector1d",
+    "bestSector1d.priceChangePercentage1d",
+    "bestSector1d.sector",
+    "bestSector1d.sectorSlug",
+    "bestSector1d.weight",
+    "companyCount",
+    "coverage",
+    "dividendYield",
+    "dollarVolume24h",
+    "earningsTTM",
+    "earningsYield",
+    "ebitdaTTM",
+    "employeeCount",
+    "enterpriseValue",
+    "enterpriseValueToEbitda",
+    "holdersYield",
+    "industryCount",
+    "largestSector",
+    "largestSector.priceChangePercentage1d",
+    "largestSector.sector",
+    "largestSector.sectorSlug",
+    "largestSector.weight",
+    "marketCap",
+    "marketCapChange1d",
+    "medianDividendYield",
+    "medianEnterpriseValueToEbitda",
+    "medianMarketCap",
+    "medianOperatingProfitMarginTTM",
+    "medianPriceToBook",
+    "medianPriceToRevenue",
+    "medianTrailingPE",
+    "operatingProfitMarginTTM",
+    "priceChangePercentage1d",
+    "priceChangePercentage1m",
+    "priceChangePercentage1y",
+    "priceChangePercentage3m",
+    "priceChangePercentage6m",
+    "priceChangePercentage7d",
+    "priceChangePercentageYtd",
+    "priceToBook",
+    "priceToRevenue",
+    "revenueTTM",
+    "sectorCount",
+    "trailingPE",
+    "updatedAt",
+    "volumeAsOf",
+    "worstSector1d",
+    "worstSector1d.priceChangePercentage1d",
+    "worstSector1d.sector",
+    "worstSector1d.sectorSlug",
+    "worstSector1d.weight"
+   ]
+  },
+  "GET /equities/v1/statements": {
+   "deprecated": false,
+   "params": [
+    "query:country*",
+    "query:ticker*"
+   ],
+   "request": [],
+   "response": [
+    "balanceSheet",
+    "balanceSheet.annual",
+    "balanceSheet.annual.children",
+    "balanceSheet.annual.periodEnding",
+    "balanceSheet.annual.values",
+    "balanceSheet.children",
+    "balanceSheet.children.annual",
+    "balanceSheet.children.quarterly",
+    "balanceSheet.labels",
+    "balanceSheet.quarterly",
+    "balanceSheet.quarterly.children",
+    "balanceSheet.quarterly.periodEnding",
+    "balanceSheet.quarterly.values",
+    "cashflow",
+    "cashflow.annual",
+    "cashflow.annual.children",
+    "cashflow.annual.periodEnding",
+    "cashflow.annual.values",
+    "cashflow.children",
+    "cashflow.children.annual",
+    "cashflow.children.quarterly",
+    "cashflow.labels",
+    "cashflow.quarterly",
+    "cashflow.quarterly.children",
+    "cashflow.quarterly.periodEnding",
+    "cashflow.quarterly.values",
+    "incomeStatement",
+    "incomeStatement.annual",
+    "incomeStatement.annual.children",
+    "incomeStatement.annual.periodEnding",
+    "incomeStatement.annual.values",
+    "incomeStatement.children",
+    "incomeStatement.children.annual",
+    "incomeStatement.children.quarterly",
+    "incomeStatement.labels",
+    "incomeStatement.quarterly",
+    "incomeStatement.quarterly.children",
+    "incomeStatement.quarterly.periodEnding",
+    "incomeStatement.quarterly.values"
+   ]
+  },
+  "GET /equities/v1/summary": {
+   "deprecated": false,
+   "params": [
+    "query:country*",
+    "query:ticker*"
+   ],
+   "request": [],
+   "response": [
+    "cashAndCashEquivalents",
+    "circulatingMarketCap",
+    "circulatingSupply",
+    "currentPrice",
+    "dividendYield",
+    "dividendsTTM",
+    "earningsTTM",
+    "ebitdaTTM",
+    "employeeCount",
+    "enterpriseValue",
+    "enterpriseValueToEbitda",
+    "fiftyTwoWeekHigh",
+    "fiftyTwoWeekLow",
+    "grossProfitTTM",
+    "holderEarningsTTM",
+    "holdersRevenueTTM",
+    "holdersYield",
+    "marketCap",
+    "marketCapChange1d",
+    "operatingProfitMarginTTM",
+    "priceChange1d",
+    "priceChangePercentage1d",
+    "priceChangePercentage1m",
+    "priceChangePercentage7d",
+    "priceToBook",
+    "priceToRevenue",
+    "revenueTTM",
+    "stockBasedCompensationTTM",
+    "stockIssuanceTTM",
+    "stockRepurchaseTTM",
+    "totalAssets",
+    "totalDebt",
+    "totalLiabilities",
+    "totalShareholdersEquity",
+    "totalSupply",
+    "trailingPE",
+    "updatedAt",
+    "volume"
+   ]
+  },
+  "GET /etfs/flows": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].day",
+    "[].gecko_id",
+    "[].total_flow_usd"
+   ]
+  },
+  "GET /etfs/snapshot": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].asset",
+    "[].aum",
+    "[].custodian",
+    "[].etf_name",
+    "[].flows",
+    "[].issuer",
+    "[].pct_fee",
+    "[].ticker",
+    "[].timestamp",
+    "[].url",
+    "[].volume"
+   ]
+  },
+  "GET /fdv/performance/{period}": {
+   "deprecated": false,
+   "params": [
+    "path:period*"
+   ],
+   "request": [],
+   "response": [
+    "[].Analytics",
+    "[].Artificial Intelligence (AI)",
+    "[].Bitcoin",
+    "[].Bridge Governance Tokens",
+    "[].Centralized Exchange (CEX) Token",
+    "[].Data Availability",
+    "[].DePIN",
+    "[].Decentralized Finance (DeFi)",
+    "[].Decentralized Identifier (DID)",
+    "[].Ethereum",
+    "[].Gaming (GameFi)",
+    "[].Liquid Staking Governance Tokens",
+    "[].Meme",
+    "[].NFT Marketplace",
+    "[].Oracle",
+    "[].PolitiFi",
+    "[].Prediction Markets",
+    "[].Real World Assets (RWA)",
+    "[].Rollup",
+    "[].Smart Contract Platform",
+    "[].SocialFi",
+    "[].Solana",
+    "[].date"
+   ]
+  },
+  "GET /pre-ipo/v1/companies-list": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].description",
+    "data[].id",
+    "data[].lastValuationDate",
+    "data[].latestEstimatedValuation",
+    "data[].latestFundingDate",
+    "data[].latestFundingValuation",
+    "data[].latestRaise",
+    "data[].name",
+    "data[].premiumVsLatestFundingPercentage",
+    "data[].sector",
+    "data[].totalRaised",
+    "data[].valuationChange1YPercentage",
+    "data[].website",
+    "updatedAt"
+   ]
+  },
+  "GET /pre-ipo/v1/integrations": {
+   "deprecated": false,
+   "params": [
+    "query:company*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.perps",
+    "data.perps[].annualizedFundingRate",
+    "data.perps[].defillamaContract",
+    "data.perps[].estimatedValuation",
+    "data.perps[].exchangeName",
+    "data.perps[].exchangeType",
+    "data.perps[].openInterest",
+    "data.perps[].platformSlug",
+    "data.perps[].price",
+    "data.perps[].tradeUrl",
+    "data.perps[].volume",
+    "data.tokenIssuers",
+    "data.tokenIssuers[].backing",
+    "data.tokenIssuers[].estimatedValuation",
+    "data.tokenIssuers[].issuerName",
+    "data.tokenIssuers[].marketCap",
+    "data.tokenIssuers[].price",
+    "data.tokenIssuers[].productUrl",
+    "data.tokenIssuers[].slug",
+    "updatedAt"
+   ]
+  },
+  "GET /pre-ipo/v1/raises": {
+   "deprecated": false,
+   "params": [
+    "query:company*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].amountRaised",
+    "data[].date",
+    "data[].series",
+    "data[].valuation",
+    "updatedAt"
+   ]
+  },
+  "GET /pre-ipo/v1/summary": {
+   "deprecated": false,
+   "params": [
+    "query:company*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.description",
+    "data.id",
+    "data.lastValuationDate",
+    "data.latestEstimatedValuation",
+    "data.latestRaise",
+    "data.latestRaise.amountRaised",
+    "data.latestRaise.date",
+    "data.latestRaise.series",
+    "data.latestRaise.valuation",
+    "data.name",
+    "data.sector",
+    "data.summary",
+    "data.website",
+    "updatedAt"
+   ]
+  },
+  "GET /pre-ipo/v1/valuations": {
+   "deprecated": false,
+   "params": [
+    "query:company*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].date",
+    "data[].estimatedValuation",
+    "updatedAt"
+   ]
+  },
+  "GET /rwa/chain/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].accessModel",
+    "data[].activeMcap",
+    "data[].activeMcapData",
+    "data[].assetClass",
+    "data[].assetGroup",
+    "data[].assetName",
+    "data[].canonicalMarketId",
+    "data[].category",
+    "data[].chain",
+    "data[].coingeckoId",
+    "data[].defiActiveTvl",
+    "data[].governance",
+    "data[].id",
+    "data[].issuer",
+    "data[].logo",
+    "data[].onChainMcap",
+    "data[].parentPlatform",
+    "data[].price",
+    "data[].primaryChain",
+    "data[].rwaClassification",
+    "data[].stablecoin",
+    "data[].ticker",
+    "data[].type"
+   ]
+  },
+  "GET /rwa/chart/chain-breakdown": {
+   "deprecated": false,
+   "params": [
+    "query:includeGovernance",
+    "query:includeStablecoin",
+    "query:key"
+   ],
+   "request": [],
+   "response": [
+    "[].timestamp*"
+   ]
+  },
+  "GET /rwa/chart/chain/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*"
+   ],
+   "request": [],
+   "response": [
+    "[].activeMcap",
+    "[].defiActiveTvl",
+    "[].onChainMcap",
+    "[].timestamp"
+   ]
+  },
+  "GET /rwa/current": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].accessModel",
+    "[].activeMcap",
+    "[].activeMcapData",
+    "[].assetClass",
+    "[].assetGroup",
+    "[].assetName",
+    "[].canonicalMarketId",
+    "[].category",
+    "[].chain",
+    "[].coingeckoId",
+    "[].defiActiveTvl",
+    "[].governance",
+    "[].id",
+    "[].issuer",
+    "[].logo",
+    "[].onChainMcap",
+    "[].parentPlatform",
+    "[].price",
+    "[].primaryChain",
+    "[].rwaClassification",
+    "[].stablecoin",
+    "[].ticker",
+    "[].type"
+   ]
+  },
+  "GET /rwa/list": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "assetGroups",
+    "canonicalMarketIds",
+    "categories",
+    "chains",
+    "idMap",
+    "platforms"
+   ]
+  },
+  "GET /rwa/stats": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "assetCount",
+    "assetIssuers",
+    "byAssetGroup",
+    "byCategory",
+    "byChain",
+    "byPlatform",
+    "totalActiveMcap",
+    "totalDefiActiveTvl",
+    "totalOnChainMcap"
+   ]
+  },
+  "GET /stablecoins/stablecoin/{asset}": {
+   "deprecated": false,
+   "params": [
+    "path:asset*"
+   ],
+   "request": [],
+   "response": [
+    "chainCirculating",
+    "id",
+    "name",
+    "symbol",
+    "totalCirculating",
+    "totalCirculating[].date",
+    "totalCirculating[].totalCirculating"
+   ]
+  },
+  "GET /stablecoins/stablecoinchains": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].name",
+    "[].totalCirculating",
+    "[].totalCirculating.peggedUSD"
+   ]
+  },
+  "GET /stablecoins/stablecoincharts/all": {
+   "deprecated": false,
+   "params": [
+    "query:stablecoin"
+   ],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].totalCirculating",
+    "[].totalCirculating.peggedUSD"
+   ]
+  },
+  "GET /stablecoins/stablecoincharts/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:stablecoin"
+   ],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].totalCirculating",
+    "[].totalCirculating.peggedUSD"
+   ]
+  },
+  "GET /stablecoins/stablecoindominance/{chain}": {
+   "deprecated": false,
+   "params": [
+    "path:chain*",
+    "query:stablecoin"
+   ],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].greatestMcap",
+    "[].greatestMcap.gecko_id",
+    "[].greatestMcap.mcap",
+    "[].greatestMcap.symbol",
+    "[].totalCirculatingUSD",
+    "[].totalCirculatingUSD.peggedEUR",
+    "[].totalCirculatingUSD.peggedUSD",
+    "[].totalCirculatingUSD.peggedVAR"
+   ]
+  },
+  "GET /stablecoins/stablecoinprices": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[].date",
+    "[].prices"
+   ]
+  },
+  "GET /stablecoins/stablecoins": {
+   "deprecated": false,
+   "params": [
+    "query:includePrices"
+   ],
+   "request": [],
+   "response": [
+    "peggedAssets",
+    "peggedAssets[].chainCirculating",
+    "peggedAssets[].chains",
+    "peggedAssets[].circulating",
+    "peggedAssets[].circulating.peggedUSD",
+    "peggedAssets[].id",
+    "peggedAssets[].name",
+    "peggedAssets[].pegMechanism",
+    "peggedAssets[].pegType",
+    "peggedAssets[].price",
+    "peggedAssets[].symbol"
+   ]
+  },
+  "GET /usage/{YOUR_API_KEY}": {
+   "deprecated": false,
+   "params": [
+    "path:YOUR_API_KEY*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /yields/v1/chart/{pool}": {
+   "deprecated": false,
+   "params": [
+    "path:pool*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apyBase",
+    "data[].apyBase7d",
+    "data[].apyReward",
+    "data[].il7d",
+    "data[].pricePerShare",
+    "data[].timestamp",
+    "data[].tvlUsd",
+    "status"
+   ]
+  },
+  "GET /yields/v1/chartLendBorrow/{pool}": {
+   "deprecated": false,
+   "params": [
+    "path:pool*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apyBase",
+    "data[].apyBaseBorrow",
+    "data[].apyReward",
+    "data[].apyRewardBorrow",
+    "data[].debtCeilingUsd",
+    "data[].timestamp",
+    "data[].totalBorrowUsd",
+    "data[].totalSupplyUsd",
+    "status"
+   ]
+  },
+  "GET /yields/v1/pools": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apyBase",
+    "data[].apyBase7d",
+    "data[].apyBaseInception",
+    "data[].apyMean30d",
+    "data[].apyMeanExpanding",
+    "data[].apyPct1D",
+    "data[].apyPct30D",
+    "data[].apyPct7D",
+    "data[].apyReward",
+    "data[].apyStdExpanding",
+    "data[].chain",
+    "data[].chain_factorized",
+    "data[].count",
+    "data[].exposure",
+    "data[].il7d",
+    "data[].ilRisk",
+    "data[].mu",
+    "data[].outlier",
+    "data[].pool",
+    "data[].poolMeta",
+    "data[].poolTokenAddress",
+    "data[].pool_old",
+    "data[].predictions",
+    "data[].predictions.binnedConfidence",
+    "data[].predictions.predictedClass",
+    "data[].predictions.predictedProbability",
+    "data[].project",
+    "data[].project_factorized",
+    "data[].return",
+    "data[].rewardTokens",
+    "data[].sigma",
+    "data[].stablecoin",
+    "data[].symbol",
+    "data[].timestamp",
+    "data[].tvlUsd",
+    "data[].underlyingTokens",
+    "data[].url",
+    "data[].volumeUsd1d",
+    "data[].volumeUsd7d",
+    "status"
+   ]
+  },
+  "GET /yields/v1/poolsBorrow": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apyBase",
+    "data[].apyBase7d",
+    "data[].apyBaseBorrow",
+    "data[].apyBaseInception",
+    "data[].apyMean30d",
+    "data[].apyPct1D",
+    "data[].apyPct30D",
+    "data[].apyPct7D",
+    "data[].apyReward",
+    "data[].apyRewardBorrow",
+    "data[].borrowFactor",
+    "data[].borrowable",
+    "data[].chain",
+    "data[].count",
+    "data[].debtCeilingUsd",
+    "data[].exposure",
+    "data[].il7d",
+    "data[].ilRisk",
+    "data[].ltv",
+    "data[].mintedCoin",
+    "data[].mu",
+    "data[].outlier",
+    "data[].pool",
+    "data[].poolMeta",
+    "data[].predictions",
+    "data[].predictions.binnedConfidence",
+    "data[].predictions.predictedClass",
+    "data[].predictions.predictedProbability",
+    "data[].project",
+    "data[].rewardTokens",
+    "data[].sigma",
+    "data[].stablecoin",
+    "data[].symbol",
+    "data[].totalBorrowUsd",
+    "data[].totalSupplyUsd",
+    "data[].tvlUsd",
+    "data[].underlyingTokens",
+    "data[].volumeUsd1d",
+    "data[].volumeUsd7d",
+    "status"
+   ]
+  },
+  "GET /yields/v2/borrow/markets": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].available_borrow_usd",
+    "data[].borrow_cost_apy",
+    "data[].borrow_cost_apy.avg_30d",
+    "data[].borrow_cost_apy.avg_30d.base",
+    "data[].borrow_cost_apy.avg_30d.reward",
+    "data[].borrow_cost_apy.avg_30d.total",
+    "data[].borrow_cost_apy.avg_7d",
+    "data[].borrow_cost_apy.avg_7d.base",
+    "data[].borrow_cost_apy.avg_7d.reward",
+    "data[].borrow_cost_apy.avg_7d.total",
+    "data[].borrow_cost_apy.current",
+    "data[].borrow_cost_apy.current.base",
+    "data[].borrow_cost_apy.current.reward",
+    "data[].borrow_cost_apy.current.total",
+    "data[].borrow_token",
+    "data[].borrow_token.address",
+    "data[].borrow_token.decimals",
+    "data[].borrow_token.symbol",
+    "data[].chain",
+    "data[].collateral_token",
+    "data[].collateral_token.address",
+    "data[].collateral_token.decimals",
+    "data[].collateral_token.symbol",
+    "data[].display",
+    "data[].display.detail",
+    "data[].display.label",
+    "data[].id",
+    "data[].intrinsic",
+    "data[].intrinsic.borrow",
+    "data[].intrinsic.borrow.apy",
+    "data[].intrinsic.borrow.source_pool",
+    "data[].intrinsic.supply",
+    "data[].intrinsic.supply.apy",
+    "data[].intrinsic.supply.source_pool",
+    "data[].loan_to_value",
+    "data[].pool_key",
+    "data[].pool_token",
+    "data[].pool_token.address",
+    "data[].pool_token.name",
+    "data[].pool_token.symbol",
+    "data[].protocol",
+    "data[].reward_tokens",
+    "data[].reward_tokens[].address",
+    "data[].reward_tokens[].decimals",
+    "data[].reward_tokens[].symbol",
+    "data[].supply_apy",
+    "data[].supply_apy.avg_30d",
+    "data[].supply_apy.avg_30d.base",
+    "data[].supply_apy.avg_30d.reward",
+    "data[].supply_apy.avg_30d.total",
+    "data[].supply_apy.avg_7d",
+    "data[].supply_apy.avg_7d.base",
+    "data[].supply_apy.avg_7d.reward",
+    "data[].supply_apy.avg_7d.total",
+    "data[].supply_apy.current",
+    "data[].supply_apy.current.base",
+    "data[].supply_apy.current.reward",
+    "data[].supply_apy.current.total",
+    "data[].total_borrow_usd",
+    "data[].total_supply_usd",
+    "data[].url"
+   ]
+  },
+  "GET /yields/v2/borrow/markets/{id}/history": {
+   "deprecated": false,
+   "params": [
+    "path:id*",
+    "query:range"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].available_borrow_usd",
+    "data[].borrow_cost_apy",
+    "data[].borrow_cost_apy.avg_1d",
+    "data[].borrow_cost_apy.avg_1d.base",
+    "data[].borrow_cost_apy.avg_1d.reward",
+    "data[].borrow_cost_apy.avg_1d.total",
+    "data[].borrow_cost_apy.avg_30d",
+    "data[].borrow_cost_apy.avg_30d.base",
+    "data[].borrow_cost_apy.avg_30d.reward",
+    "data[].borrow_cost_apy.avg_30d.total",
+    "data[].borrow_cost_apy.avg_7d",
+    "data[].borrow_cost_apy.avg_7d.base",
+    "data[].borrow_cost_apy.avg_7d.reward",
+    "data[].borrow_cost_apy.avg_7d.total",
+    "data[].date",
+    "data[].intrinsic",
+    "data[].intrinsic.apy",
+    "data[].intrinsic.apy.avg_1d",
+    "data[].intrinsic.apy.avg_30d",
+    "data[].intrinsic.apy.avg_7d",
+    "data[].total_borrow_usd"
+   ]
+  },
+  "GET /yields/v2/borrow/routes": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].borrow",
+    "data[].borrow.available_borrow_usd",
+    "data[].borrow.cost_apy",
+    "data[].borrow.cost_apy.avg_30d",
+    "data[].borrow.cost_apy.avg_7d",
+    "data[].borrow.cost_apy.current",
+    "data[].borrow.id",
+    "data[].borrow.intrinsic",
+    "data[].borrow.intrinsic.apy",
+    "data[].borrow.intrinsic.source_pool",
+    "data[].borrow.pool_key",
+    "data[].borrow.reward_tokens",
+    "data[].borrow.reward_tokens[].address",
+    "data[].borrow.reward_tokens[].decimals",
+    "data[].borrow.reward_tokens[].symbol",
+    "data[].borrow.token",
+    "data[].borrow.token.address",
+    "data[].borrow.token.decimals",
+    "data[].borrow.token.symbol",
+    "data[].borrow.total_borrow_usd",
+    "data[].borrow.url",
+    "data[].chain",
+    "data[].collateral",
+    "data[].collateral.apy",
+    "data[].collateral.apy.avg_30d",
+    "data[].collateral.apy.avg_7d",
+    "data[].collateral.apy.current",
+    "data[].collateral.id",
+    "data[].collateral.intrinsic",
+    "data[].collateral.intrinsic.apy",
+    "data[].collateral.intrinsic.source_pool",
+    "data[].collateral.loan_to_value",
+    "data[].collateral.pool_key",
+    "data[].collateral.reward_tokens",
+    "data[].collateral.reward_tokens[].address",
+    "data[].collateral.reward_tokens[].decimals",
+    "data[].collateral.reward_tokens[].symbol",
+    "data[].collateral.token",
+    "data[].collateral.token.address",
+    "data[].collateral.token.decimals",
+    "data[].collateral.token.symbol",
+    "data[].collateral.total_supply_usd",
+    "data[].collateral.url",
+    "data[].display",
+    "data[].display.detail",
+    "data[].net_apy",
+    "data[].net_apy.avg_30d",
+    "data[].net_apy.avg_30d.base",
+    "data[].net_apy.avg_30d.base_intrinsic",
+    "data[].net_apy.avg_30d.base_reward",
+    "data[].net_apy.avg_30d.base_reward_intrinsic",
+    "data[].net_apy.avg_7d",
+    "data[].net_apy.avg_7d.base",
+    "data[].net_apy.avg_7d.base_intrinsic",
+    "data[].net_apy.avg_7d.base_reward",
+    "data[].net_apy.avg_7d.base_reward_intrinsic",
+    "data[].net_apy.current",
+    "data[].net_apy.current.base",
+    "data[].net_apy.current.base_intrinsic",
+    "data[].net_apy.current.base_reward",
+    "data[].net_apy.current.base_reward_intrinsic",
+    "data[].protocol"
+   ]
+  },
+  "GET /yields/v2/earn": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apy.avg_30d",
+    "data[].apy.avg_30d.base",
+    "data[].apy.avg_30d.reward",
+    "data[].apy.avg_30d.total",
+    "data[].apy.avg_7d",
+    "data[].apy.avg_7d.base",
+    "data[].apy.avg_7d.reward",
+    "data[].apy.avg_7d.total",
+    "data[].apy.current",
+    "data[].apy.current.base",
+    "data[].apy.current.reward",
+    "data[].apy.current.total",
+    "data[].attributes",
+    "data[].attributes.impermanent_loss_risk",
+    "data[].attributes.single_asset_exposure",
+    "data[].attributes.stablecoin_only",
+    "data[].available_supply_usd",
+    "data[].chain",
+    "data[].display",
+    "data[].display.detail",
+    "data[].display.label",
+    "data[].holders",
+    "data[].holders.avg_position_usd",
+    "data[].holders.count",
+    "data[].holders.top_10_share_pct",
+    "data[].id",
+    "data[].intrinsic",
+    "data[].intrinsic.apy",
+    "data[].intrinsic.apy.avg_30d",
+    "data[].intrinsic.apy.avg_7d",
+    "data[].intrinsic.apy.current",
+    "data[].intrinsic.source_pool",
+    "data[].intrinsic.source_pool.id",
+    "data[].intrinsic.source_pool.pool_token",
+    "data[].intrinsic.source_pool.symbol",
+    "data[].pool_key",
+    "data[].pool_token",
+    "data[].pool_token.address",
+    "data[].pool_token.name",
+    "data[].pool_token.symbol",
+    "data[].price_per_share",
+    "data[].protocol",
+    "data[].reference_asset_symbol",
+    "data[].reward_tokens",
+    "data[].reward_tokens[].address",
+    "data[].reward_tokens[].decimals",
+    "data[].reward_tokens[].symbol",
+    "data[].stability_30d",
+    "data[].stability_30d.base",
+    "data[].stability_30d.base_intrinsic",
+    "data[].stability_30d.base_reward",
+    "data[].stability_30d.base_reward_intrinsic",
+    "data[].tvl_usd",
+    "data[].underlying_tokens",
+    "data[].underlying_tokens[].address",
+    "data[].underlying_tokens[].decimals",
+    "data[].underlying_tokens[].symbol",
+    "data[].url",
+    "data[].volume_1d_usd"
+   ]
+  },
+  "GET /yields/v2/earn/query": {
+   "deprecated": false,
+   "params": [
+    "query:chain",
+    "query:impermanent_loss_risk",
+    "query:limit",
+    "query:min_tvl",
+    "query:page",
+    "query:protocol",
+    "query:single_asset_exposure",
+    "query:stablecoin"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apy.avg_30d",
+    "data[].apy.avg_30d.base",
+    "data[].apy.avg_30d.reward",
+    "data[].apy.avg_30d.total",
+    "data[].apy.avg_7d",
+    "data[].apy.avg_7d.base",
+    "data[].apy.avg_7d.reward",
+    "data[].apy.avg_7d.total",
+    "data[].apy.current",
+    "data[].apy.current.base",
+    "data[].apy.current.reward",
+    "data[].apy.current.total",
+    "data[].attributes",
+    "data[].attributes.impermanent_loss_risk",
+    "data[].attributes.single_asset_exposure",
+    "data[].attributes.stablecoin_only",
+    "data[].available_supply_usd",
+    "data[].chain",
+    "data[].display",
+    "data[].display.detail",
+    "data[].display.label",
+    "data[].holders",
+    "data[].holders.avg_position_usd",
+    "data[].holders.count",
+    "data[].holders.top_10_share_pct",
+    "data[].id",
+    "data[].intrinsic",
+    "data[].intrinsic.apy",
+    "data[].intrinsic.apy.avg_30d",
+    "data[].intrinsic.apy.avg_7d",
+    "data[].intrinsic.apy.current",
+    "data[].intrinsic.source_pool",
+    "data[].intrinsic.source_pool.id",
+    "data[].intrinsic.source_pool.pool_token",
+    "data[].intrinsic.source_pool.symbol",
+    "data[].pool_key",
+    "data[].pool_token",
+    "data[].pool_token.address",
+    "data[].pool_token.name",
+    "data[].pool_token.symbol",
+    "data[].price_per_share",
+    "data[].protocol",
+    "data[].reference_asset_symbol",
+    "data[].reward_tokens",
+    "data[].reward_tokens[].address",
+    "data[].reward_tokens[].decimals",
+    "data[].reward_tokens[].symbol",
+    "data[].stability_30d",
+    "data[].stability_30d.base",
+    "data[].stability_30d.base_intrinsic",
+    "data[].stability_30d.base_reward",
+    "data[].stability_30d.base_reward_intrinsic",
+    "data[].tvl_usd",
+    "data[].underlying_tokens",
+    "data[].underlying_tokens[].address",
+    "data[].underlying_tokens[].decimals",
+    "data[].underlying_tokens[].symbol",
+    "data[].url",
+    "data[].volume_1d_usd",
+    "pagination",
+    "pagination.limit",
+    "pagination.page",
+    "pagination.total"
+   ]
+  },
+  "GET /yields/v2/earn/verified": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apy.avg_1d",
+    "data[].apy.avg_30d",
+    "data[].apy.avg_7d",
+    "data[].apy_as_of",
+    "data[].apy_confidence",
+    "data[].apy_note",
+    "data[].denomination",
+    "data[].denomination.address",
+    "data[].denomination.decimals",
+    "data[].exit",
+    "data[].exit.as_of",
+    "data[].exit.eta_seconds",
+    "data[].exit.fee_bps",
+    "data[].exit.status",
+    "data[].exit_liquidity",
+    "data[].exit_liquidity.amount",
+    "data[].exit_liquidity.as_of",
+    "data[].exit_liquidity.slippage_bps",
+    "data[].exit_liquidity.usd",
+    "data[].id",
+    "data[].price_per_share",
+    "data[].tvl",
+    "data[].tvl.amount",
+    "data[].tvl.as_of",
+    "data[].tvl.usd"
+   ]
+  },
+  "GET /yields/v2/earn/verified/{id}": {
+   "deprecated": false,
+   "params": [
+    "path:id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.apy",
+    "data.apy.avg_1d",
+    "data.apy.avg_30d",
+    "data.apy.avg_7d",
+    "data.apy_as_of",
+    "data.apy_confidence",
+    "data.apy_note",
+    "data.denomination",
+    "data.denomination.address",
+    "data.denomination.decimals",
+    "data.exit",
+    "data.exit.as_of",
+    "data.exit.eta_seconds",
+    "data.exit.fee_bps",
+    "data.exit.status",
+    "data.exit_liquidity",
+    "data.exit_liquidity.amount",
+    "data.exit_liquidity.as_of",
+    "data.exit_liquidity.slippage_bps",
+    "data.exit_liquidity.usd",
+    "data.id",
+    "data.methods",
+    "data.price_per_share",
+    "data.tvl",
+    "data.tvl.amount",
+    "data.tvl.as_of",
+    "data.tvl.usd"
+   ]
+  },
+  "GET /yields/v2/earn/verified/{id}/history": {
+   "deprecated": false,
+   "params": [
+    "path:id*",
+    "query:range"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apy.avg_1d",
+    "data[].apy.avg_30d",
+    "data[].apy.avg_7d",
+    "data[].confidence",
+    "data[].date",
+    "data[].eta_seconds",
+    "data[].exit_liquidity",
+    "data[].exit_liquidity.amount",
+    "data[].exit_liquidity.slippage_bps",
+    "data[].exit_liquidity.usd",
+    "data[].outcome",
+    "data[].price_per_share",
+    "data[].price_per_share_quoted",
+    "data[].reason",
+    "data[].tvl",
+    "data[].tvl.amount",
+    "data[].tvl.usd",
+    "data[].tvl_quoted",
+    "data[].tvl_quoted.amount",
+    "data[].tvl_quoted.usd"
+   ]
+  },
+  "GET /yields/v2/earn/{id}/history": {
+   "deprecated": false,
+   "params": [
+    "path:id*",
+    "query:range"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].apy",
+    "data[].apy.avg_1d",
+    "data[].apy.avg_1d.base",
+    "data[].apy.avg_1d.reward",
+    "data[].apy.avg_1d.total",
+    "data[].apy.avg_30d",
+    "data[].apy.avg_30d.base",
+    "data[].apy.avg_30d.reward",
+    "data[].apy.avg_30d.total",
+    "data[].apy.avg_7d",
+    "data[].apy.avg_7d.base",
+    "data[].apy.avg_7d.reward",
+    "data[].apy.avg_7d.total",
+    "data[].date",
+    "data[].intrinsic",
+    "data[].intrinsic.apy",
+    "data[].intrinsic.apy.avg_1d",
+    "data[].intrinsic.apy.avg_30d",
+    "data[].intrinsic.apy.avg_7d",
+    "data[].price_per_share",
+    "data[].tvl_usd"
+   ]
+  },
+  "GET /yields/v2/loops": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].available_borrow_usd",
+    "data[].borrow_cost_apy",
+    "data[].borrow_cost_apy.avg_30d",
+    "data[].borrow_cost_apy.avg_30d.base",
+    "data[].borrow_cost_apy.avg_30d.reward",
+    "data[].borrow_cost_apy.avg_30d.total",
+    "data[].borrow_cost_apy.avg_7d",
+    "data[].borrow_cost_apy.avg_7d.base",
+    "data[].borrow_cost_apy.avg_7d.reward",
+    "data[].borrow_cost_apy.avg_7d.total",
+    "data[].borrow_cost_apy.current",
+    "data[].borrow_cost_apy.current.base",
+    "data[].borrow_cost_apy.current.reward",
+    "data[].borrow_cost_apy.current.total",
+    "data[].chain",
+    "data[].display",
+    "data[].display.detail",
+    "data[].id",
+    "data[].intrinsic",
+    "data[].intrinsic.apy",
+    "data[].intrinsic.apy.avg_30d",
+    "data[].intrinsic.apy.avg_7d",
+    "data[].intrinsic.apy.current",
+    "data[].intrinsic.source_pool",
+    "data[].intrinsic.source_pool.id",
+    "data[].intrinsic.source_pool.pool_token",
+    "data[].intrinsic.source_pool.symbol",
+    "data[].leverage",
+    "data[].leverage.borrow_multiplier",
+    "data[].leverage.supply_multiplier",
+    "data[].loan_to_value",
+    "data[].loop_apy",
+    "data[].loop_apy.loop_count",
+    "data[].loop_apy.total",
+    "data[].protocol",
+    "data[].reward_tokens",
+    "data[].reward_tokens.borrow",
+    "data[].reward_tokens.borrow[].address",
+    "data[].reward_tokens.borrow[].decimals",
+    "data[].reward_tokens.borrow[].symbol",
+    "data[].reward_tokens.supply",
+    "data[].reward_tokens.supply[].address",
+    "data[].reward_tokens.supply[].decimals",
+    "data[].reward_tokens.supply[].symbol",
+    "data[].supply_apy",
+    "data[].supply_apy.avg_30d",
+    "data[].supply_apy.avg_30d.base",
+    "data[].supply_apy.avg_30d.reward",
+    "data[].supply_apy.avg_30d.total",
+    "data[].supply_apy.avg_7d",
+    "data[].supply_apy.avg_7d.base",
+    "data[].supply_apy.avg_7d.reward",
+    "data[].supply_apy.avg_7d.total",
+    "data[].supply_apy.current",
+    "data[].supply_apy.current.base",
+    "data[].supply_apy.current.reward",
+    "data[].supply_apy.current.total",
+    "data[].token",
+    "data[].token.address",
+    "data[].token.decimals",
+    "data[].token.symbol",
+    "data[].total_borrow_usd",
+    "data[].total_supply_usd",
+    "data[].url"
+   ]
+  }
+ }
+}

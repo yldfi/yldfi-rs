@@ -5,8 +5,7 @@
 
 use crate::error::{Error, Result};
 use crate::types::{
-    ApiError, Chain, PriceRequest, PriceResponse, QuoteRequest, QuoteResponse, Source,
-    SourcesResponse,
+    ApiError, Chain, PriceRequest, PriceResponse, QuoteRequest, QuoteResponse, SourcesResponse,
 };
 use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
@@ -20,7 +19,9 @@ pub const DEFAULT_BASE_URL: &str = "https://api.0x.org";
 const API_VERSION: &str = "v2";
 
 /// Configuration for the 0x API client
-#[derive(Debug, Clone)]
+///
+/// `Debug` output redacts the API key.
+#[derive(Clone)]
 pub struct Config {
     /// Base URL for the API
     pub base_url: String,
@@ -28,6 +29,16 @@ pub struct Config {
     pub api_key: Option<String>,
     /// HTTP client configuration (timeout, proxy, user-agent)
     pub http: HttpClientConfig,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field("http", &self.http)
+            .finish()
+    }
 }
 
 impl Default for Config {
@@ -238,11 +249,7 @@ impl Client {
         let status = response.status();
 
         if !status.is_success() {
-            let retry_after = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok());
+            let retry_after = yldfi_common::api::extract_retry_after(response.headers());
 
             let body = response.text().await.unwrap_or_default();
 
@@ -260,6 +267,22 @@ impl Client {
 
         let data = response.json().await?;
         Ok(data)
+    }
+
+    /// GET a `/swap/permit2/{price,quote}` endpoint.
+    ///
+    /// When no route exists the API answers 200 with only
+    /// `{"liquidityAvailable": false, "zid": ...}`. Report that as
+    /// [`DomainError::NoRouteFound`](crate::error::DomainError::NoRouteFound)
+    /// instead of failing to decode the missing quote fields (which surfaced
+    /// as a retryable HTTP error).
+    async fn get_swap<T: DeserializeOwned>(
+        &self,
+        url: &str,
+        params: &[(String, String)],
+    ) -> Result<T> {
+        let value: serde_json::Value = self.get(url, params).await?;
+        decode_swap_response(value)
     }
 
     /// Get a swap quote with transaction data
@@ -304,7 +327,7 @@ impl Client {
         let url = format!("{}/swap/permit2/quote", self.api_base_url());
         let mut params = request.to_query_params();
         self.add_chain_param(chain, &mut params);
-        self.get(&url, &params).await
+        self.get_swap(&url, &params).await
     }
 
     /// Get an indicative price (no transaction data)
@@ -349,7 +372,7 @@ impl Client {
         let url = format!("{}/swap/permit2/price", self.api_base_url());
         let mut params = request.to_query_params();
         self.add_chain_param(chain, &mut params);
-        self.get(&url, &params).await
+        self.get_swap(&url, &params).await
     }
 
     /// Get available liquidity sources for a chain
@@ -375,13 +398,13 @@ impl Client {
     ///
     ///     println!("Available sources on Ethereum:");
     ///     for source in &sources {
-    ///         println!("  - {}", source.name);
+    ///         println!("  - {source}");
     ///     }
     ///
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_sources(&self, chain: Chain) -> Result<Vec<Source>> {
+    pub async fn get_sources(&self, chain: Chain) -> Result<Vec<String>> {
         let url = format!("{}/sources", self.api_base_url());
         let mut params = vec![];
         self.add_chain_param(chain, &mut params);
@@ -390,9 +413,95 @@ impl Client {
     }
 }
 
+/// Decode a swap price/quote body, mapping `liquidityAvailable: false` to
+/// a non-retryable "no route" error.
+fn decode_swap_response<T: DeserializeOwned>(value: serde_json::Value) -> Result<T> {
+    if value.get("liquidityAvailable") == Some(&serde_json::Value::Bool(false)) {
+        return Err(crate::error::no_route_found());
+    }
+    Ok(serde_json::from_value(value)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_no_liquidity_is_non_retryable_no_route() {
+        use crate::error::DomainError;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/swap/permit2/price"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(r#"{"liquidityAvailable":false,"zid":"0x1"}"#),
+            )
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        let request = PriceRequest::sell("0xa", "0xb", "1");
+        let err = client
+            .get_price(Chain::Ethereum, &request)
+            .await
+            .unwrap_err();
+        assert!(!err.is_retryable(), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                crate::error::ApiError::Domain(DomainError::NoRouteFound)
+            ),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn test_decode_swap_response() {
+        let ok: PriceResponse = decode_swap_response(serde_json::json!({
+            "liquidityAvailable": true,
+            "sellAmount": "1", "buyAmount": "2", "sellToken": "0xa", "buyToken": "0xb"
+        }))
+        .unwrap();
+        assert_eq!(ok.buy_amount, "2");
+
+        // A malformed body is a non-retryable JSON error, not a transport error
+        let err =
+            decode_swap_response::<PriceResponse>(serde_json::json!({"zid": "0x1"})).unwrap_err();
+        assert!(matches!(err, crate::error::ApiError::Json(_)), "{err:?}");
+        assert!(!err.is_retryable());
+    }
+
+    #[tokio::test]
+    async fn test_retry_after_is_capped() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "999999"))
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        let err = client
+            .get::<serde_json::Value>(&server.uri(), &[])
+            .await
+            .unwrap_err();
+        assert!(err.is_retryable());
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(3600)));
+    }
+
+    #[test]
+    fn test_debug_redacts_api_key() {
+        let config = Config::with_api_key("zrx-secret-456");
+        let client = Client::with_config(config.clone()).unwrap();
+        for debug in [format!("{config:?}"), format!("{client:?}")] {
+            assert!(!debug.contains("zrx-secret-456"), "{debug}");
+            assert!(debug.contains("[REDACTED]"), "{debug}");
+        }
+        assert!(format!("{:?}", Config::new()).contains("api_key: None"));
+    }
 
     #[test]
     fn test_client_creation() {

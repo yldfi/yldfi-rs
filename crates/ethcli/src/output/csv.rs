@@ -144,7 +144,9 @@ impl CsvWriter {
             DecodedValue::Int(s) => s.clone(),
             DecodedValue::Bool(b) => b.to_string(),
             DecodedValue::Bytes(s) => s.clone(),
-            DecodedValue::String(s) => s.clone(),
+            // Only free text can start a spreadsheet formula; numbers (e.g. a
+            // negative int) must stay numbers
+            DecodedValue::String(s) => Self::escape_formula_injection(s),
             DecodedValue::Array(arr) => {
                 let items: Vec<String> = arr.iter().map(Self::value_to_string).collect();
                 format!("[{}]", items.join(","))
@@ -154,8 +156,7 @@ impl CsvWriter {
                 format!("({})", items.join(","))
             }
         };
-        // Apply formula injection protection
-        Self::escape_formula_injection(&raw)
+        raw
     }
 
     /// Flush buffer and write header
@@ -262,6 +263,17 @@ impl OutputWriter for CsvWriter {
         Ok(())
     }
 
+    fn flush(&mut self) -> Result<()> {
+        // Rows buffered before the header is known stay buffered; once the
+        // header is out, push written rows to the sink.
+        if self.header_written {
+            self.writer
+                .flush()
+                .map_err(|e| OutputError::CsvWrite(e.to_string()))?;
+        }
+        Ok(())
+    }
+
     fn finalize(&mut self) -> Result<()> {
         // Flush any remaining buffer
         if !self.header_written && !self.buffer.is_empty() {
@@ -294,6 +306,19 @@ impl OutputWriter for CsvWriter {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn formula_escaping_applies_to_text_not_numbers() {
+        assert_eq!(
+            CsvWriter::value_to_string(&DecodedValue::Int("-5".into())),
+            "-5"
+        );
+        assert_eq!(
+            CsvWriter::value_to_string(&DecodedValue::String("=HYPERLINK(1)".into())),
+            "'=HYPERLINK(1)"
+        );
+    }
+
     use super::*;
 
     #[test]

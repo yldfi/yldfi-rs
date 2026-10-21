@@ -51,20 +51,41 @@ impl<'a> DeliveryChannelsApi<'a> {
     /// List all delivery channels (both account and project level)
     ///
     /// Convenience method that combines account and project channels.
-    /// Returns an error if both requests fail; returns partial results if one succeeds.
+    /// Fails if either request fails, so a missing half is never mistaken
+    /// for "no channels".
     pub async fn list_all(&self) -> Result<Vec<DeliveryChannel>> {
-        let account_result = self.list_account().await;
-        let project_result = self.list_project().await;
+        let mut channels = self.list_account().await?.delivery_channels;
+        channels.extend(self.list_project().await?.delivery_channels);
+        Ok(channels)
+    }
+}
 
-        match (account_result, project_result) {
-            (Ok(account), Ok(project)) => {
-                let mut channels = account.delivery_channels;
-                channels.extend(project.delivery_channels);
-                Ok(channels)
-            }
-            (Ok(account), Err(_)) => Ok(account.delivery_channels),
-            (Err(_), Ok(project)) => Ok(project.delivery_channels),
-            (Err(e), Err(_)) => Err(e), // Return the first error
-        }
+#[cfg(test)]
+mod tests {
+    use crate::client::{Client, Config};
+    use wiremock::matchers::{method, path_regex};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_list_all_propagates_partial_failure() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path_regex("/account/acct/delivery-channels$"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "delivery_channels": [] })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_regex("/project/proj/delivery-channels$"))
+            .respond_with(ResponseTemplate::new(503).set_body_string("down"))
+            .mount(&server)
+            .await;
+
+        let config = Config::new("key", "acct", "proj").with_base_url(server.uri());
+        let client = Client::new(config).unwrap();
+        let err = client.delivery_channels().list_all().await.unwrap_err();
+        assert!(err.is_retryable(), "{err}");
     }
 }

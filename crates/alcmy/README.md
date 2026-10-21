@@ -206,14 +206,20 @@ Available on `EthMainnet`, `EthSepolia` and `EthHolesky`
 // Get genesis info
 let genesis = client.beacon().get_genesis().await?;
 
-// Get validators
-let validators = client.beacon().get_validators("head").await?;
+// Get validators (filter by index/pubkey and/or status; unfiltered mainnet
+// responses contain over a million validators)
+let validators = client
+    .beacon()
+    .get_validators("head", &["0", "1"], &["active_ongoing"])
+    .await?;
 
 // Get block
 let block = client.beacon().get_block("head").await?;
 ```
 
 ### Solana DAS API
+
+Use a Solana network (`Network::SolanaMainnet` / `Network::SolanaDevnet`).
 
 ```rust
 // Get asset by ID
@@ -223,7 +229,12 @@ let asset = client.solana().get_asset("AssetId123...").await?;
 let assets = client.solana().get_assets_by_owner("WalletAddress...").await?;
 
 // Search assets
-let request = SearchAssetsRequest::new().owner("...").collection("...");
+let request = SearchAssetsRequest {
+    owner_address: Some("WalletAddress...".into()),
+    group_key: Some("collection".into()),
+    group_value: Some("CollectionAddress...".into()),
+    ..Default::default()
+};
 let results = client.solana().search_assets(&request).await?;
 ```
 

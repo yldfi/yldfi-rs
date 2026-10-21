@@ -28,11 +28,43 @@ pub enum Chain {
     Gnosis,
     /// Arbitrum One
     Arbitrum,
+    /// Base
+    Base,
+    /// Polygon PoS
+    Polygon,
+    /// Avalanche C-Chain
+    Avalanche,
+    /// BNB Smart Chain
+    Bnb,
+    /// Linea
+    Linea,
+    /// Plasma
+    Plasma,
+    /// Ink
+    Ink,
     /// Sepolia testnet
     Sepolia,
 }
 
 impl Chain {
+    /// All supported chains
+    #[must_use]
+    pub const fn all() -> &'static [Chain] {
+        &[
+            Chain::Mainnet,
+            Chain::Gnosis,
+            Chain::Arbitrum,
+            Chain::Base,
+            Chain::Polygon,
+            Chain::Avalanche,
+            Chain::Bnb,
+            Chain::Linea,
+            Chain::Plasma,
+            Chain::Ink,
+            Chain::Sepolia,
+        ]
+    }
+
     /// Convert from EVM chain ID
     #[must_use]
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
@@ -40,7 +72,14 @@ impl Chain {
             1 => Some(Chain::Mainnet),
             100 => Some(Chain::Gnosis),
             42161 => Some(Chain::Arbitrum),
-            11155111 => Some(Chain::Sepolia),
+            8453 => Some(Chain::Base),
+            137 => Some(Chain::Polygon),
+            43114 => Some(Chain::Avalanche),
+            56 => Some(Chain::Bnb),
+            59144 => Some(Chain::Linea),
+            9745 => Some(Chain::Plasma),
+            57073 => Some(Chain::Ink),
+            11_155_111 => Some(Chain::Sepolia),
             _ => None,
         }
     }
@@ -52,6 +91,13 @@ impl Chain {
             Chain::Mainnet => "https://api.cow.fi/mainnet",
             Chain::Gnosis => "https://api.cow.fi/xdai",
             Chain::Arbitrum => "https://api.cow.fi/arbitrum_one",
+            Chain::Base => "https://api.cow.fi/base",
+            Chain::Polygon => "https://api.cow.fi/polygon",
+            Chain::Avalanche => "https://api.cow.fi/avalanche",
+            Chain::Bnb => "https://api.cow.fi/bnb",
+            Chain::Linea => "https://api.cow.fi/linea",
+            Chain::Plasma => "https://api.cow.fi/plasma",
+            Chain::Ink => "https://api.cow.fi/ink",
             Chain::Sepolia => "https://api.cow.fi/sepolia",
         }
     }
@@ -63,7 +109,14 @@ impl Chain {
             Chain::Mainnet => 1,
             Chain::Gnosis => 100,
             Chain::Arbitrum => 42161,
-            Chain::Sepolia => 11155111,
+            Chain::Base => 8453,
+            Chain::Polygon => 137,
+            Chain::Avalanche => 43114,
+            Chain::Bnb => 56,
+            Chain::Linea => 59144,
+            Chain::Plasma => 9745,
+            Chain::Ink => 57073,
+            Chain::Sepolia => 11_155_111,
         }
     }
 
@@ -80,6 +133,13 @@ impl Chain {
             Chain::Mainnet => "mainnet",
             Chain::Gnosis => "gnosis",
             Chain::Arbitrum => "arbitrum",
+            Chain::Base => "base",
+            Chain::Polygon => "polygon",
+            Chain::Avalanche => "avalanche",
+            Chain::Bnb => "bnb",
+            Chain::Linea => "linea",
+            Chain::Plasma => "plasma",
+            Chain::Ink => "ink",
             Chain::Sepolia => "sepolia",
         }
     }
@@ -94,15 +154,27 @@ impl std::fmt::Display for Chain {
 impl FromStr for Chain {
     type Err = ParseChainError;
 
+    /// Accepts a chain name, an alias or a numeric chain ID
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let err = || ParseChainError {
+            input: s.to_string(),
+        };
+        if let Ok(id) = s.parse::<u64>() {
+            return Self::from_chain_id(id).ok_or_else(err);
+        }
         match s.to_lowercase().as_str() {
-            "mainnet" | "ethereum" | "eth" | "1" => Ok(Chain::Mainnet),
-            "gnosis" | "xdai" | "100" => Ok(Chain::Gnosis),
-            "arbitrum" | "arb" | "42161" => Ok(Chain::Arbitrum),
-            "sepolia" | "11155111" => Ok(Chain::Sepolia),
-            _ => Err(ParseChainError {
-                input: s.to_string(),
-            }),
+            "mainnet" | "ethereum" | "eth" => Ok(Chain::Mainnet),
+            "gnosis" | "xdai" => Ok(Chain::Gnosis),
+            "arbitrum" | "arb" | "arbitrum-one" => Ok(Chain::Arbitrum),
+            "base" => Ok(Chain::Base),
+            "polygon" | "matic" => Ok(Chain::Polygon),
+            "avalanche" | "avax" => Ok(Chain::Avalanche),
+            "bnb" | "bsc" | "binance" => Ok(Chain::Bnb),
+            "linea" => Ok(Chain::Linea),
+            "plasma" => Ok(Chain::Plasma),
+            "ink" => Ok(Chain::Ink),
+            "sepolia" => Ok(Chain::Sepolia),
+            _ => Err(err()),
         }
     }
 }
@@ -111,24 +183,13 @@ impl TryFrom<yldfi_common::Chain> for Chain {
     type Error = &'static str;
 
     fn try_from(chain: yldfi_common::Chain) -> Result<Self, Self::Error> {
-        match chain {
-            yldfi_common::Chain::Ethereum => Ok(Self::Mainnet),
-            yldfi_common::Chain::Gnosis => Ok(Self::Gnosis),
-            yldfi_common::Chain::Arbitrum => Ok(Self::Arbitrum),
-            yldfi_common::Chain::Sepolia => Ok(Self::Sepolia),
-            _ => Err("Chain not supported by CoW Protocol"),
-        }
+        Self::from_chain_id(chain.id()).ok_or("Chain not supported by CoW Protocol")
     }
 }
 
 impl From<Chain> for yldfi_common::Chain {
     fn from(chain: Chain) -> Self {
-        match chain {
-            Chain::Mainnet => Self::Ethereum,
-            Chain::Gnosis => Self::Gnosis,
-            Chain::Arbitrum => Self::Arbitrum,
-            Chain::Sepolia => Self::Sepolia,
-        }
+        Self::from_id(chain.chain_id())
     }
 }
 
@@ -167,8 +228,8 @@ pub struct QuoteRequest {
     /// Price quality preference
     #[serde(skip_serializing_if = "Option::is_none")]
     pub price_quality: Option<PriceQuality>,
-    /// Whether to only check for EIP-1271 signature
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether the order will be placed on-chain (sent as `onchainOrder`)
+    #[serde(rename = "onchainOrder", skip_serializing_if = "Option::is_none")]
     pub on_chain_order: Option<bool>,
     /// App data (bytes32 hash)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -314,6 +375,8 @@ pub enum SigningScheme {
     Eip1271,
     /// Pre-signed order
     PreSign,
+    /// `eth_sign` (EIP-191) signature
+    EthSign,
 }
 
 /// Price quality preference
@@ -336,8 +399,9 @@ pub struct QuoteResponse {
     pub id: Option<i64>,
     /// Quote details
     pub quote: QuoteDetails,
-    /// Address placing the order
-    pub from: String,
+    /// Address placing the order (optional in the response)
+    #[serde(default)]
+    pub from: Option<String>,
     /// Expiration timestamp
     pub expiration: String,
     /// Whether the quote is verified
@@ -416,11 +480,33 @@ pub struct OrderCreation {
 }
 
 /// Order response after submission
-#[derive(Debug, Clone, Deserialize, Serialize)]
+///
+/// `POST /api/v1/orders` returns the order UID as a bare JSON string. An
+/// object of the form `{"UID": "0x..."}` is also accepted for compatibility.
+#[derive(Debug, Clone, Serialize)]
 pub struct OrderResponse {
     /// Order UID
     #[serde(rename = "UID")]
     pub uid: String,
+}
+
+impl<'de> Deserialize<'de> for OrderResponse {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Bare(String),
+            Object {
+                #[serde(rename = "UID")]
+                uid: String,
+            },
+        }
+
+        let uid = match Repr::deserialize(deserializer)? {
+            Repr::Bare(uid) | Repr::Object { uid } => uid,
+        };
+        Ok(Self { uid })
+    }
 }
 
 /// Order details

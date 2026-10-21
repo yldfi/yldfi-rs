@@ -95,7 +95,7 @@ pub async fn run(args: EnsoArgs, chain: &str) -> anyhow::Result<()> {
         Client::with_api_key(&key)?
     } else {
         anyhow::bail!(
-            "Enso API key required. Set ENSO_API_KEY environment variable or use `ethcli config set-enso <key>`.\n\
+            "Enso API key required. Set the ENSO_API_KEY environment variable or add api_key under [enso] in the config file (see: ethcli config path).\n\
              Get an API key at: https://enso.finance"
         );
     };

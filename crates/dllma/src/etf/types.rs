@@ -1,6 +1,7 @@
 //! Types for ETF data (Pro)
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::HashMap;
 
 /// ETF overview data
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -66,16 +67,35 @@ pub struct EtfHistoryData {
     pub flow: Option<f64>,
 }
 
-/// FDV performance data
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+/// FDV performance for one day, across token categories
+///
+/// Each response item is `{"date": <unix>, "<Category>": <value>, ...}`.
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct FdvPerformance {
-    /// Category name
-    pub name: Option<String>,
-    /// Performance value (as decimal, e.g., 0.05 = 5%)
-    pub performance: Option<f64>,
-    /// Date/timestamp
-    pub date: Option<String>,
+    /// Day (Unix timestamp)
+    pub date: Option<u64>,
+    /// Performance keyed by category name (e.g. "Meme", "Oracle")
+    pub categories: HashMap<String, f64>,
+}
+
+// Hand-written rather than `#[serde(flatten)]`: flattened numbers fail to
+// deserialize with serde_json's `arbitrary_precision` (see `crate::de`).
+impl<'de> Deserialize<'de> for FdvPerformance {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let mut map = HashMap::<String, serde_json::Value>::deserialize(deserializer)?;
+        let date = map
+            .remove("date")
+            .as_ref()
+            .and_then(crate::de::value_to_u64);
+        let categories = map
+            .into_iter()
+            .filter_map(|(k, v)| crate::de::value_to_f64(&v).map(|n| (k, n)))
+            .collect();
+        Ok(Self { date, categories })
+    }
 }
 
 /// ETF daily flows data
@@ -116,4 +136,19 @@ pub struct EtfSnapshot {
     pub aum: Option<f64>,
     /// Trading volume
     pub volume: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fdv_performance_splits_date_and_categories() {
+        let json = r#"[{"date":1700000000,"Meme":1.25,"Oracle":-0.5,"Bitcoin":null}]"#;
+        let p: Vec<FdvPerformance> = serde_json::from_str(json).unwrap();
+        assert_eq!(p[0].date, Some(1_700_000_000));
+        assert_eq!(p[0].categories.len(), 2);
+        assert_eq!(p[0].categories["Meme"], 1.25);
+        assert_eq!(p[0].categories["Oracle"], -0.5);
+    }
 }

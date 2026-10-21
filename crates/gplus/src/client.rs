@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use url::Url;
-use yldfi_common::api::ApiConfig;
+use yldfi_common::api::{handle_error_response, ApiConfig};
 
 use crate::error::{token_not_found, Error, Result};
 use crate::types::{
@@ -274,10 +274,8 @@ impl Client {
             .send()
             .await?;
 
-        let status = response.status().as_u16();
         if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(Error::api(status, body));
+            return Err(handle_error_response(response).await);
         }
 
         #[derive(serde::Deserialize)]
@@ -359,7 +357,7 @@ impl Client {
         let mut req = self.http.get(&url);
 
         // Add auth header if we have credentials
-        if let Ok(Some(token)) = self.get_access_token().await {
+        if let Some(token) = self.get_access_token().await? {
             req = req.header("Authorization", format!("Bearer {token}"));
         }
 
@@ -373,8 +371,6 @@ impl Client {
         }
 
         if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-
             // On 401 Unauthorized, clear token cache and retry once
             if status == 401 && allow_retry && self.credentials.is_some() {
                 self.clear_token_cache().await;
@@ -382,7 +378,7 @@ impl Client {
                 return self.get_fresh(path).await;
             }
 
-            return Err(Error::api(status, body));
+            return Err(handle_error_response(response).await);
         }
 
         let body = response.text().await?;
@@ -395,7 +391,7 @@ impl Client {
         let mut req = self.http.get(&url);
 
         // Get fresh token after cache clear
-        if let Ok(Some(token)) = self.get_access_token().await {
+        if let Some(token) = self.get_access_token().await? {
             req = req.header("Authorization", format!("Bearer {token}"));
         }
 
@@ -409,8 +405,7 @@ impl Client {
         }
 
         if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(Error::api(status, body));
+            return Err(handle_error_response(response).await);
         }
 
         let body = response.text().await?;
@@ -431,7 +426,7 @@ impl Client {
         let body: Response<TokenSecurityResponse> = self.get(&path).await?;
 
         if !body.is_success() {
-            return Err(Error::api(400, body.message));
+            return Err(response_error(body));
         }
 
         body.result
@@ -506,7 +501,7 @@ impl Client {
         let body: Response<TokenSecurityResponse> = self.get(&path).await?;
 
         if !body.is_success() {
-            return Err(Error::api(400, body.message));
+            return Err(response_error(body));
         }
 
         Ok(body.result.unwrap_or_default())
@@ -526,7 +521,7 @@ impl Client {
         let body: Response<AddressSecurity> = self.get(&path).await?;
 
         if !body.is_success() {
-            return Err(Error::api(400, body.message));
+            return Err(response_error(body));
         }
 
         body.result.ok_or_else(|| token_not_found(&address))
@@ -546,7 +541,7 @@ impl Client {
         let body: Response<NftSecurity> = self.get(&path).await?;
 
         if !body.is_success() {
-            return Err(Error::api(400, body.message));
+            return Err(response_error(body));
         }
 
         body.result.ok_or_else(|| token_not_found(&address))
@@ -570,16 +565,44 @@ impl Client {
         let body: Response<ApprovalSecurity> = self.get(&path).await?;
 
         if !body.is_success() {
-            return Err(Error::api(400, body.message));
+            return Err(response_error(body));
         }
 
         body.result.ok_or_else(|| token_not_found(&address))
     }
 }
 
+/// Convert an unsuccessful `GoPlus` response body into an error
+fn response_error<T>(body: Response<T>) -> Error {
+    if body.is_rate_limited() {
+        return Error::rate_limited(None);
+    }
+    Error::api(400, body.message)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_response_codes() {
+        let partial: Response<TokenSecurityResponse> =
+            serde_json::from_str(r#"{"code":2,"message":"partial","result":{}}"#).unwrap();
+        assert!(partial.is_success());
+        assert!(partial.is_partial());
+
+        let limited: Response<TokenSecurityResponse> =
+            serde_json::from_str(r#"{"code":4029,"message":"limit","result":null}"#).unwrap();
+        assert!(!limited.is_success());
+        assert!(matches!(
+            response_error(limited),
+            Error::RateLimited { retry_after: None }
+        ));
+
+        let other: Response<TokenSecurityResponse> =
+            serde_json::from_str(r#"{"code":2004,"message":"bad address","result":null}"#).unwrap();
+        assert_eq!(response_error(other).status_code(), Some(400));
+    }
 
     #[test]
     fn test_url_construction() {

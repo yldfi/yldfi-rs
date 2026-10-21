@@ -60,14 +60,16 @@ impl EthcliMcpServer {
     // LOGS
     // =========================================================================
 
-    #[tool(description = "Query event logs from a contract with optional filters")]
+    #[tool(
+        description = "Query event logs from a contract with optional filters",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn logs(&self, Parameters(input): Parameters<LogsInput>) -> CallToolResult {
         tools::logs(
             &input.contract,
             input.event.as_deref(),
             input.from_block.as_deref(),
             input.to_block.as_deref(),
-            input.topics,
             Some(&input.chain),
         )
         .await
@@ -79,7 +81,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Analyze an Ethereum transaction including decoded events, token transfers, and method calls. Supports partial tx hashes when block number is provided."
+        description = "Analyze an Ethereum transaction including decoded events, token transfers, and method calls. Supports partial tx hashes when block number is provided.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn tx_analyze(&self, Parameters(input): Parameters<TxAnalyzeInput>) -> CallToolResult {
         tools::tx_analyze(&input.hash, Some(&input.chain), input.block)
@@ -92,7 +95,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get comprehensive account information including balance and transaction count"
+        description = "Get comprehensive account information including balance and transaction count",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn account_info(
         &self,
@@ -103,7 +107,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get the native token (ETH) balance for one or more addresses")]
+    #[tool(
+        description = "Get the native token (ETH) balance for one or more addresses",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn account_balance(
         &self,
         Parameters(input): Parameters<AccountBalanceInput>,
@@ -121,7 +128,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "List transactions for an address with pagination and inclusive block bounds. Narrow the block range when the explorer result-window limit is reached."
+        description = "List transactions for an address with pagination and inclusive block bounds. Narrow the block range when the explorer result-window limit is reached.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn account_txs(&self, Parameters(input): Parameters<AccountTxsInput>) -> CallToolResult {
         tools::account_txs(
@@ -137,7 +145,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get internal transactions for an address with pagination")]
+    #[tool(
+        description = "Get internal transactions for an address with pagination",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn account_internal_txs(
         &self,
         Parameters(input): Parameters<AccountInternalTxsInput>,
@@ -148,7 +159,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get ERC20 token transfers for an address with optional token filter and pagination"
+        description = "Get ERC20 token transfers for an address with optional token filter and pagination",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn account_erc20(
         &self,
@@ -166,7 +178,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get ERC721 NFT transfers for an address with optional token filter and pagination"
+        description = "Get ERC721 NFT transfers for an address with optional token filter and pagination",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn account_erc721(
         &self,
@@ -184,7 +197,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get ERC1155 token transfers for an address with optional token filter and pagination"
+        description = "Get ERC1155 token transfers for an address with optional token filter and pagination",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn account_erc1155(
         &self,
@@ -205,7 +219,10 @@ impl EthcliMcpServer {
     // CONTRACT
     // =========================================================================
 
-    #[tool(description = "Fetch the ABI for a verified contract from Etherscan")]
+    #[tool(
+        description = "Fetch the ABI for a verified contract from Etherscan",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn contract_abi(
         &self,
         Parameters(input): Parameters<ContractAbiInput>,
@@ -215,7 +232,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Download verified source code for a contract")]
+    #[tool(
+        description = "Download verified source code for a contract",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn contract_source(
         &self,
         Parameters(input): Parameters<ContractSourceInput>,
@@ -225,7 +245,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get contract creation transaction and creator address")]
+    #[tool(
+        description = "Get contract creation transaction and creator address",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn contract_creation(
         &self,
         Parameters(input): Parameters<ContractAddressInput>,
@@ -236,7 +259,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Extract function selectors from bytecode using evmole. Returns selectors, arguments, and state mutability without requiring ABI or source code."
+        description = "Extract function selectors from bytecode using evmole. Returns selectors, arguments, and state mutability without requiring ABI or source code.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_selectors(
         &self,
@@ -253,7 +277,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Disassemble contract bytecode into EVM opcodes. Shows offset, opcode name, and operands."
+        description = "Disassemble contract bytecode into EVM opcodes. Shows offset, opcode name, and operands.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_disassemble(
         &self,
@@ -265,7 +290,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get opcode frequency statistics for contract bytecode. Shows category totals and top opcodes by frequency."
+        description = "Get opcode frequency statistics for contract bytecode. Shows category totals and top opcodes by frequency.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_opcodes(
         &self,
@@ -277,7 +303,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Comprehensive bytecode security analysis. Detects dangerous opcodes, extracts selectors, follows proxies, and can include dispatcher mapping plus handler guard/check heuristics. Use follow_proxy with dispatcher/checks for unverified contract review."
+        description = "Comprehensive bytecode security analysis. Detects dangerous opcodes, extracts selectors, follows proxies, and can include dispatcher mapping plus handler guard/check heuristics. Use follow_proxy with dispatcher/checks for unverified contract review.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_analyze(
         &self,
@@ -301,14 +328,20 @@ impl EthcliMcpServer {
     // TOKEN
     // =========================================================================
 
-    #[tool(description = "Get token metadata (name, symbol, decimals, total supply)")]
+    #[tool(
+        description = "Get token metadata (name, symbol, decimals, total supply)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn token_info(&self, Parameters(input): Parameters<TokenInfoInput>) -> CallToolResult {
         tools::token_info(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get top token holders")]
+    #[tool(
+        description = "Get top token holders",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn token_holders(
         &self,
         Parameters(input): Parameters<TokenHoldersInput>,
@@ -319,7 +352,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get token balance for one or more tokens and holders, with optional tag filtering"
+        description = "Get token balance for one or more tokens and holders, with optional tag filtering",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn token_balance(
         &self,
@@ -354,12 +388,18 @@ impl EthcliMcpServer {
     // GAS
     // =========================================================================
 
-    #[tool(description = "Get current gas prices from multiple sources")]
+    #[tool(
+        description = "Get current gas prices from multiple sources",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gas_oracle(&self, Parameters(input): Parameters<GasOracleInput>) -> CallToolResult {
         tools::gas_oracle(Some(&input.chain)).await.to_response()
     }
 
-    #[tool(description = "Estimate confirmation time for a given gas price in gwei")]
+    #[tool(
+        description = "Estimate confirmation time for a given gas price in gwei",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gas_estimate(
         &self,
         Parameters(input): Parameters<GasEstimateInput>,
@@ -373,12 +413,18 @@ impl EthcliMcpServer {
     // SIGNATURE LOOKUP
     // =========================================================================
 
-    #[tool(description = "Lookup function signature from 4-byte selector")]
+    #[tool(
+        description = "Lookup function signature from 4-byte selector",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn sig_fn(&self, Parameters(input): Parameters<SigLookupInput>) -> CallToolResult {
         tools::sig_fn(&input.selector).await.to_response()
     }
 
-    #[tool(description = "Lookup event signature from topic hash")]
+    #[tool(
+        description = "Lookup event signature from topic hash",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn sig_event(&self, Parameters(input): Parameters<SigLookupInput>) -> CallToolResult {
         tools::sig_event(&input.selector).await.to_response()
     }
@@ -387,14 +433,20 @@ impl EthcliMcpServer {
     // CAST (Conversions)
     // =========================================================================
 
-    #[tool(description = "Convert amount to wei")]
+    #[tool(
+        description = "Convert amount to wei",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_to_wei(&self, Parameters(input): Parameters<CastToWeiInput>) -> CallToolResult {
         tools::cast_to_wei(&input.amount, Some(&input.unit))
             .await
             .to_response()
     }
 
-    #[tool(description = "Convert wei to ether or gwei")]
+    #[tool(
+        description = "Convert wei to ether or gwei",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_from_wei(
         &self,
         Parameters(input): Parameters<CastFromWeiInput>,
@@ -404,37 +456,58 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Convert decimal to hex")]
+    #[tool(
+        description = "Convert decimal to hex",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_to_hex(&self, Parameters(input): Parameters<CastValueInput>) -> CallToolResult {
         tools::cast_to_hex(&input.value).await.to_response()
     }
 
-    #[tool(description = "Convert hex to decimal")]
+    #[tool(
+        description = "Convert hex to decimal",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_to_dec(&self, Parameters(input): Parameters<CastValueInput>) -> CallToolResult {
         tools::cast_to_dec(&input.value).await.to_response()
     }
 
-    #[tool(description = "Compute keccak256 hash")]
+    #[tool(
+        description = "Compute keccak256 hash",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_keccak(&self, Parameters(input): Parameters<CastValueInput>) -> CallToolResult {
         tools::cast_keccak(&input.value).await.to_response()
     }
 
-    #[tool(description = "Get 4-byte function selector from signature")]
+    #[tool(
+        description = "Get 4-byte function selector from signature",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_sig(&self, Parameters(input): Parameters<CastSigInput>) -> CallToolResult {
         tools::cast_sig(&input.signature).await.to_response()
     }
 
-    #[tool(description = "Get event topic from signature")]
+    #[tool(
+        description = "Get event topic from signature",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_topic(&self, Parameters(input): Parameters<CastSigInput>) -> CallToolResult {
         tools::cast_topic(&input.signature).await.to_response()
     }
 
-    #[tool(description = "Checksum an Ethereum address (EIP-55)")]
+    #[tool(
+        description = "Checksum an Ethereum address (EIP-55)",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_checksum(&self, Parameters(input): Parameters<CastValueInput>) -> CallToolResult {
         tools::cast_checksum(&input.value).await.to_response()
     }
 
-    #[tool(description = "ABI encode function arguments")]
+    #[tool(
+        description = "ABI encode function arguments",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_abi_encode(
         &self,
         Parameters(input): Parameters<CastAbiEncodeInput>,
@@ -444,7 +517,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "ABI decode calldata with selector or raw ABI-encoded payload")]
+    #[tool(
+        description = "ABI decode calldata with selector or raw ABI-encoded payload",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_abi_decode(
         &self,
         Parameters(input): Parameters<CastAbiDecodeInput>,
@@ -458,7 +534,10 @@ impl EthcliMcpServer {
     // RPC
     // =========================================================================
 
-    #[tool(description = "Make an eth_call to a contract (read-only)")]
+    #[tool(
+        description = "Make an eth_call to a contract (read-only)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_call(&self, Parameters(input): Parameters<RpcCallInput>) -> CallToolResult {
         tools::rpc_call(
             &input.to,
@@ -470,7 +549,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get block information with optional full transactions")]
+    #[tool(
+        description = "Get block information with optional full transactions",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_block(&self, Parameters(input): Parameters<RpcBlockInput>) -> CallToolResult {
         tools::rpc_block(
             &input.block,
@@ -482,35 +564,50 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get storage value at a slot")]
+    #[tool(
+        description = "Get storage value at a slot",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_storage(&self, Parameters(input): Parameters<RpcStorageInput>) -> CallToolResult {
         tools::rpc_storage(&input.address, &input.slot, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get contract bytecode")]
+    #[tool(
+        description = "Get contract bytecode",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_code(&self, Parameters(input): Parameters<RpcAddressInput>) -> CallToolResult {
         tools::rpc_code(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get account nonce (transaction count)")]
+    #[tool(
+        description = "Get account nonce (transaction count)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_nonce(&self, Parameters(input): Parameters<RpcAddressInput>) -> CallToolResult {
         tools::rpc_nonce(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get transaction receipt")]
+    #[tool(
+        description = "Get transaction receipt",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_receipt(&self, Parameters(input): Parameters<RpcHashInput>) -> CallToolResult {
         tools::rpc_receipt(&input.hash, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get latest block number")]
+    #[tool(
+        description = "Get latest block number",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_block_number(
         &self,
         Parameters(input): Parameters<RpcChainInput>,
@@ -520,12 +617,18 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get chain ID")]
+    #[tool(
+        description = "Get chain ID",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_chain_id(&self, Parameters(input): Parameters<RpcChainInput>) -> CallToolResult {
         tools::rpc_chain_id(Some(&input.chain)).await.to_response()
     }
 
-    #[tool(description = "Get current gas price")]
+    #[tool(
+        description = "Get current gas price",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn rpc_gas_price(&self, Parameters(input): Parameters<RpcChainInput>) -> CallToolResult {
         tools::rpc_gas_price(Some(&input.chain)).await.to_response()
     }
@@ -534,17 +637,26 @@ impl EthcliMcpServer {
     // ENS
     // =========================================================================
 
-    #[tool(description = "Resolve ENS name to Ethereum address")]
+    #[tool(
+        description = "Resolve ENS name to Ethereum address",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ens_resolve(&self, Parameters(input): Parameters<EnsResolveInput>) -> CallToolResult {
         tools::ens_resolve(&input.name).await.to_response()
     }
 
-    #[tool(description = "Reverse lookup address to ENS name")]
+    #[tool(
+        description = "Reverse lookup address to ENS name",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ens_lookup(&self, Parameters(input): Parameters<EnsLookupInput>) -> CallToolResult {
         tools::ens_lookup(&input.address).await.to_response()
     }
 
-    #[tool(description = "Compute ENS namehash for a domain")]
+    #[tool(
+        description = "Compute ENS namehash for a domain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ens_namehash(
         &self,
         Parameters(input): Parameters<EnsNamehashInput>,
@@ -556,7 +668,10 @@ impl EthcliMcpServer {
     // PRICE (Aggregated)
     // =========================================================================
 
-    #[tool(description = "Get token price from multiple aggregated sources")]
+    #[tool(
+        description = "Get token price from multiple aggregated sources",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn price(&self, Parameters(input): Parameters<PriceInput>) -> CallToolResult {
         tools::price(&input.token, Some(&input.chain))
             .await
@@ -568,7 +683,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get aggregated portfolio/balances from multiple sources. Supports multiple addresses, tag filtering, aggregation, and min-value filtering."
+        description = "Get aggregated portfolio/balances from multiple sources. Supports multiple addresses, tag filtering, aggregation, and min-value filtering.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn portfolio(&self, Parameters(input): Parameters<PortfolioInput>) -> CallToolResult {
         tools::portfolio(
@@ -589,7 +705,10 @@ impl EthcliMcpServer {
     // NFTS
     // =========================================================================
 
-    #[tool(description = "Get NFTs owned by an address")]
+    #[tool(
+        description = "Get NFTs owned by an address",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn nfts(&self, Parameters(input): Parameters<NftsInput>) -> CallToolResult {
         tools::nfts(&input.address, Some(&input.chain))
             .await
@@ -600,7 +719,10 @@ impl EthcliMcpServer {
     // YIELDS
     // =========================================================================
 
-    #[tool(description = "Get DeFi yield opportunities")]
+    #[tool(
+        description = "Get DeFi yield opportunities",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn yields(&self, Parameters(input): Parameters<YieldsInput>) -> CallToolResult {
         tools::yields(input.protocol.as_deref(), input.chain.as_deref())
             .await
@@ -612,7 +734,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get best swap quote across DEX aggregators. Supports human-readable amounts with decimals param."
+        description = "Get best swap quote across DEX aggregators. Supports human-readable amounts with decimals param.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn quote_best(&self, Parameters(input): Parameters<QuoteBestInput>) -> CallToolResult {
         tools::quote_best(
@@ -629,7 +752,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Compare quotes across DEX aggregators side-by-side")]
+    #[tool(
+        description = "Compare quotes across DEX aggregators side-by-side",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn quote_compare(
         &self,
         Parameters(input): Parameters<QuoteCompareInput>,
@@ -652,7 +778,10 @@ impl EthcliMcpServer {
     // CHAINLINK
     // =========================================================================
 
-    #[tool(description = "Get Chainlink oracle price")]
+    #[tool(
+        description = "Get Chainlink oracle price",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlink_price(
         &self,
         Parameters(input): Parameters<ChainlinkPriceInput>,
@@ -662,7 +791,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Chainlink feed address for a token")]
+    #[tool(
+        description = "Get Chainlink feed address for a token",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlink_feed(
         &self,
         Parameters(input): Parameters<ChainlinkFeedInput>,
@@ -672,7 +804,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List available Chainlink oracles")]
+    #[tool(
+        description = "List available Chainlink oracles",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlink_oracles(
         &self,
         Parameters(input): Parameters<ChainlinkOraclesInput>,
@@ -686,28 +821,40 @@ impl EthcliMcpServer {
     // GOPLUS (Security)
     // =========================================================================
 
-    #[tool(description = "Check token security info via GoPlus")]
+    #[tool(
+        description = "Check token security info via GoPlus",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn goplus_token(&self, Parameters(input): Parameters<GoplusInput>) -> CallToolResult {
         tools::goplus_token(&input.address, input.chain_id)
             .await
             .to_response()
     }
 
-    #[tool(description = "Check address security info via GoPlus")]
+    #[tool(
+        description = "Check address security info via GoPlus",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn goplus_address(&self, Parameters(input): Parameters<GoplusInput>) -> CallToolResult {
         tools::goplus_address(&input.address, input.chain_id)
             .await
             .to_response()
     }
 
-    #[tool(description = "Check NFT security info via GoPlus")]
+    #[tool(
+        description = "Check NFT security info via GoPlus",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn goplus_nft(&self, Parameters(input): Parameters<GoplusInput>) -> CallToolResult {
         tools::goplus_nft(&input.address, input.chain_id)
             .await
             .to_response()
     }
 
-    #[tool(description = "Check token approval security via GoPlus")]
+    #[tool(
+        description = "Check token approval security via GoPlus",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn goplus_approval(&self, Parameters(input): Parameters<GoplusInput>) -> CallToolResult {
         tools::goplus_approval(&input.address, input.chain_id)
             .await
@@ -719,7 +866,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Search security findings in Solodit database (filters: impact, firm, tag, protocol, protocol_category, forked, language, finder, reported, sort)"
+        description = "Search security findings in Solodit database (filters: impact, firm, tag, protocol, protocol_category, forked, language, finder, reported, sort)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn solodit_search(
         &self,
@@ -729,7 +877,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get a Solodit finding by slug, ID, or URL (best-effort: the API has no get-by-id endpoint, so this searches and matches exactly)"
+        description = "Get a Solodit finding by slug, ID, or URL (best-effort: the API has no get-by-id endpoint, so this searches and matches exactly)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn solodit_get(&self, Parameters(input): Parameters<SoloditGetInput>) -> CallToolResult {
         tools::solodit_get(&input.slug).await.to_response()
@@ -739,7 +888,10 @@ impl EthcliMcpServer {
     // UNISWAP
     // =========================================================================
 
-    #[tool(description = "Get Uniswap pool information")]
+    #[tool(
+        description = "Get Uniswap pool information",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn uniswap_pool(
         &self,
         Parameters(input): Parameters<UniswapPoolInput>,
@@ -749,27 +901,36 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get ETH price from Uniswap")]
+    #[tool(
+        description = "Get ETH price from the Uniswap subgraph (Ethereum mainnet only)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn uniswap_eth_price(
         &self,
         Parameters(input): Parameters<UniswapEthPriceInput>,
     ) -> CallToolResult {
-        tools::uniswap_eth_price(Some(&input.chain), input.version.as_deref())
+        tools::uniswap_eth_price(input.version.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(description = "Get top Uniswap pools by TVL")]
+    #[tool(
+        description = "Get top Uniswap pools by TVL from the subgraph (Ethereum mainnet only)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn uniswap_top_pools(
         &self,
         Parameters(input): Parameters<UniswapTopPoolsInput>,
     ) -> CallToolResult {
-        tools::uniswap_top_pools(input.limit, Some(&input.chain), input.version.as_deref())
+        tools::uniswap_top_pools(input.limit, input.version.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(description = "Get Uniswap LP positions for an address")]
+    #[tool(
+        description = "Get Uniswap LP positions for an address",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn uniswap_positions(
         &self,
         Parameters(input): Parameters<UniswapPositionsInput>,
@@ -783,12 +944,18 @@ impl EthcliMcpServer {
     // CURVE
     // =========================================================================
 
-    #[tool(description = "List Curve pools")]
+    #[tool(
+        description = "List Curve pools",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_pools(&self, Parameters(input): Parameters<CurvePoolsInput>) -> CallToolResult {
         tools::curve_pools(Some(&input.chain)).await.to_response()
     }
 
-    #[tool(description = "Get Curve router route for a swap")]
+    #[tool(
+        description = "Get Curve router route for a swap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_router_route(
         &self,
         Parameters(input): Parameters<CurveRouteInput>,
@@ -802,7 +969,10 @@ impl EthcliMcpServer {
     // ALCHEMY
     // =========================================================================
 
-    #[tool(description = "Get portfolio via Alchemy API")]
+    #[tool(
+        description = "Get portfolio via Alchemy API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_portfolio(
         &self,
         Parameters(input): Parameters<AlchemyPortfolioInput>,
@@ -812,7 +982,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token transfers via Alchemy API")]
+    #[tool(
+        description = "Get token transfers via Alchemy API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_transfers(
         &self,
         Parameters(input): Parameters<AlchemyTransfersInput>,
@@ -826,7 +999,10 @@ impl EthcliMcpServer {
     // COINGECKO
     // =========================================================================
 
-    #[tool(description = "Get coin info from CoinGecko")]
+    #[tool(
+        description = "Get coin info from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_info(
         &self,
         Parameters(input): Parameters<GeckoCoinInput>,
@@ -834,7 +1010,10 @@ impl EthcliMcpServer {
         tools::gecko_coins_info(&input.id).await.to_response()
     }
 
-    #[tool(description = "Get simple price from CoinGecko")]
+    #[tool(
+        description = "Get simple price from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_simple_price(
         &self,
         Parameters(input): Parameters<GeckoPriceInput>,
@@ -848,12 +1027,18 @@ impl EthcliMcpServer {
     // DEFILLAMA
     // =========================================================================
 
-    #[tool(description = "Get protocol TVL from DefiLlama")]
+    #[tool(
+        description = "Get protocol TVL from DefiLlama",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn llama_tvl(&self, Parameters(input): Parameters<LlamaTvlInput>) -> CallToolResult {
         tools::llama_tvl(&input.protocol).await.to_response()
     }
 
-    #[tool(description = "Get yield pools from DefiLlama")]
+    #[tool(
+        description = "Get yield pools from DefiLlama",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn llama_yields(
         &self,
         Parameters(_input): Parameters<LlamaYieldsInput>,
@@ -865,7 +1050,10 @@ impl EthcliMcpServer {
     // DEX AGGREGATORS
     // =========================================================================
 
-    #[tool(description = "Get quote from 1inch DEX aggregator")]
+    #[tool(
+        description = "Get quote from 1inch DEX aggregator",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn oneinch_quote(
         &self,
         Parameters(input): Parameters<OneinchQuoteInput>,
@@ -875,7 +1063,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get quote from 0x DEX aggregator")]
+    #[tool(
+        description = "Get quote from 0x DEX aggregator",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn zerox_quote(&self, Parameters(input): Parameters<ZeroxQuoteInput>) -> CallToolResult {
         tools::zerox_quote(
             &input.sell_token,
@@ -888,7 +1079,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get quote from De¹ (formerly OpenOcean) DEX aggregator")]
+    #[tool(
+        description = "Get quote from De¹ (formerly OpenOcean) DEX aggregator",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn openocean_quote(
         &self,
         Parameters(input): Parameters<OpenoceanQuoteInput>,
@@ -904,7 +1098,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get quote from CoW Swap DEX aggregator")]
+    #[tool(
+        description = "Get quote from CoW Swap DEX aggregator",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn cowswap_quote(
         &self,
         Parameters(input): Parameters<CowswapQuoteInput>,
@@ -920,12 +1117,15 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get cross-chain quote from LI.FI")]
+    #[tool(
+        description = "Get cross-chain quote from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn lifi_quote(&self, Parameters(input): Parameters<LifiQuoteInput>) -> CallToolResult {
         tools::lifi_quote(
-            &input.from_chain,
+            input.from_chain,
             &input.from_token,
-            &input.to_chain,
+            input.to_chain,
             &input.to_token,
             &input.amount,
             &input.from_address,
@@ -939,13 +1139,17 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get price from Pyth Network oracle (requires PYTH_API_KEY or config_set_pyth)"
+        description = "Get price from Pyth Network oracle (requires PYTH_API_KEY or config_set_pyth)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn pyth_price(&self, Parameters(input): Parameters<PythPriceInput>) -> CallToolResult {
         tools::pyth_price(&input.symbols).await.to_response()
     }
 
-    #[tool(description = "Search Pyth price feeds")]
+    #[tool(
+        description = "Search Pyth price feeds",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn pyth_search(&self, Parameters(input): Parameters<PythSearchInput>) -> CallToolResult {
         tools::pyth_search(&input.query).await.to_response()
     }
@@ -954,14 +1158,20 @@ impl EthcliMcpServer {
     // CCXT (Exchange Data)
     // =========================================================================
 
-    #[tool(description = "Get ticker from centralized exchange via CCXT")]
+    #[tool(
+        description = "Get ticker from centralized exchange via CCXT",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ccxt_ticker(&self, Parameters(input): Parameters<CcxtTickerInput>) -> CallToolResult {
         tools::ccxt_ticker(&input.exchange, &input.symbol)
             .await
             .to_response()
     }
 
-    #[tool(description = "Get order book from centralized exchange via CCXT")]
+    #[tool(
+        description = "Get order book from centralized exchange via CCXT",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ccxt_orderbook(
         &self,
         Parameters(input): Parameters<CcxtOrderbookInput>,
@@ -975,7 +1185,15 @@ impl EthcliMcpServer {
     // SIMULATE
     // =========================================================================
 
-    #[tool(description = "Simulate a contract call with full state/block override support")]
+    #[tool(
+        description = "Simulate a contract call with full state/block override support. save=true stores the simulation in Tenderly and requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn simulate_call(
         &self,
         Parameters(input): Parameters<SimulateCallInput>,
@@ -1021,13 +1239,11 @@ impl EthcliMcpServer {
             input.evm_version.as_deref(),
             input.with_local_artifacts,
             input.rpc_timeout,
-            &input.rpc_headers,
             input.no_proxy,
             &input.fork_urls,
             input.fork_block_number.as_deref(),
             input.fork_transaction_hash.as_deref(),
             input.fork_chain_id,
-            &input.fork_headers,
             input.hardfork.as_deref(),
             input.network.as_deref(),
             input.no_rate_limit,
@@ -1043,22 +1259,20 @@ impl EthcliMcpServer {
             input.network_id,
             input.save,
             // Tenderly options
-            input.tenderly_key.as_deref(),
             input.tenderly_account.as_deref(),
             input.tenderly_project.as_deref(),
             // Alchemy options
-            input.alchemy_key.as_deref(),
             input.alchemy_network.as_deref(),
             // Debug options
             input.dry_run.as_deref(),
-            false,
         )
         .await
         .to_response()
     }
 
     #[tool(
-        description = "Simulate/trace a historical transaction. With via=debug, returns a decoded call tree (contract names, function args, events) from debug_traceTransaction; set raw=true for the raw callTracer JSON"
+        description = "Simulate/trace a historical transaction. With via=debug, returns a decoded call tree (contract names, function args, events) from debug_traceTransaction; set raw=true for the raw callTracer JSON",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn simulate_tx(&self, Parameters(input): Parameters<SimulateTxInput>) -> CallToolResult {
         tools::simulate_tx(tools::SimulateTxOptions {
@@ -1078,10 +1292,8 @@ impl EthcliMcpServer {
             with_local_artifacts: input.with_local_artifacts,
             no_proxy: input.no_proxy,
             rpc_timeout: input.rpc_timeout,
-            rpc_headers: &input.rpc_headers,
             enable_tx_gas_limit: input.enable_tx_gas_limit,
             disable_block_gas_limit: input.disable_block_gas_limit,
-            etherscan_api_key: input.etherscan_api_key.as_deref(),
             raw: input.raw,
         })
         .await
@@ -1092,7 +1304,10 @@ impl EthcliMcpServer {
     // DOCTOR (Diagnostics)
     // =========================================================================
 
-    #[tool(description = "Run ethcli diagnostics to check configuration and connectivity")]
+    #[tool(
+        description = "Run ethcli diagnostics to check configuration and connectivity",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn doctor(&self) -> CallToolResult {
         tools::doctor().await.to_response()
     }
@@ -1101,7 +1316,10 @@ impl EthcliMcpServer {
     // ACCOUNT (additional)
     // =========================================================================
 
-    #[tool(description = "Get mined blocks for a validator/miner address")]
+    #[tool(
+        description = "Get mined blocks for a validator/miner address",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn account_mined_blocks(
         &self,
         Parameters(input): Parameters<AccountAddressInput>,
@@ -1116,7 +1334,13 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Add an address to the local address book with optional description, tags, and chain"
+        description = "Add an address to the local address book with optional description, tags, and chain. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     async fn address_add(&self, Parameters(input): Parameters<AddressAddInput>) -> CallToolResult {
         tools::address_add(
@@ -1130,7 +1354,15 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Remove an address from the local address book")]
+    #[tool(
+        description = "Remove an address from the local address book. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn address_remove(
         &self,
         Parameters(input): Parameters<AddressNameInput>,
@@ -1138,17 +1370,26 @@ impl EthcliMcpServer {
         tools::address_remove(&input.name).await.to_response()
     }
 
-    #[tool(description = "List all addresses in the local address book")]
+    #[tool(
+        description = "List all addresses in the local address book",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn address_list(&self) -> CallToolResult {
         tools::address_list().await.to_response()
     }
 
-    #[tool(description = "Get an address from the local address book by name")]
+    #[tool(
+        description = "Get an address from the local address book by name",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn address_get(&self, Parameters(input): Parameters<AddressNameInput>) -> CallToolResult {
         tools::address_get(&input.name).await.to_response()
     }
 
-    #[tool(description = "Search the local address book")]
+    #[tool(
+        description = "Search the local address book",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn address_search(
         &self,
         Parameters(input): Parameters<AddressSearchInput>,
@@ -1156,7 +1397,15 @@ impl EthcliMcpServer {
         tools::address_search(&input.query).await.to_response()
     }
 
-    #[tool(description = "Import addresses from a JSON file with optional overwrite")]
+    #[tool(
+        description = "Import addresses from a JSON file with optional overwrite. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     async fn address_import(
         &self,
         Parameters(input): Parameters<AddressImportInput>,
@@ -1166,7 +1415,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Export addresses to JSON in the tool response")]
+    #[tool(
+        description = "Export addresses to JSON in the tool response",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn address_export(
         &self,
         Parameters(input): Parameters<AddressExportInput>,
@@ -1181,7 +1433,13 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Add a token to the local blacklist with optional symbol, reason, and chain"
+        description = "Add a token to the local blacklist with optional symbol, reason, and chain. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     async fn blacklist_add(
         &self,
@@ -1197,7 +1455,15 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Remove an address from the local blacklist")]
+    #[tool(
+        description = "Remove an address from the local blacklist. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn blacklist_remove(
         &self,
         Parameters(input): Parameters<BlacklistAddressInput>,
@@ -1205,12 +1471,18 @@ impl EthcliMcpServer {
         tools::blacklist_remove(&input.address).await.to_response()
     }
 
-    #[tool(description = "List all addresses in the local blacklist")]
+    #[tool(
+        description = "List all addresses in the local blacklist",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn blacklist_list(&self) -> CallToolResult {
         tools::blacklist_list().await.to_response()
     }
 
-    #[tool(description = "Check if an address is in the local blacklist")]
+    #[tool(
+        description = "Check if an address is in the local blacklist",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn blacklist_check(
         &self,
         Parameters(input): Parameters<BlacklistAddressInput>,
@@ -1218,7 +1490,10 @@ impl EthcliMcpServer {
         tools::blacklist_check(&input.address).await.to_response()
     }
 
-    #[tool(description = "Scan an address against OFAC sanctions and known blacklists")]
+    #[tool(
+        description = "Scan an address against OFAC sanctions and known blacklists",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn blacklist_scan(
         &self,
         Parameters(input): Parameters<BlacklistScanInput>,
@@ -1228,7 +1503,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Scan a portfolio for sanctioned/blacklisted addresses")]
+    #[tool(
+        description = "Scan a portfolio for sanctioned/blacklisted addresses",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn blacklist_scan_portfolio(
         &self,
         Parameters(input): Parameters<BlacklistScanInput>,
@@ -1238,7 +1516,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Show the blacklist file path")]
+    #[tool(
+        description = "Show the blacklist file path",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn blacklist_path(
         &self,
         Parameters(_input): Parameters<BlacklistPathInput>,
@@ -1251,7 +1532,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Call a contract function by name or full signature (read-only) with optional block, RPC URL, and human-readable output"
+        description = "Call a contract function by name or full signature (read-only) with optional block, RPC URL, and human-readable output",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_call(
         &self,
@@ -1274,12 +1556,23 @@ impl EthcliMcpServer {
     // SIG (additional)
     // =========================================================================
 
-    #[tool(description = "Get signature cache statistics")]
+    #[tool(
+        description = "Get signature cache statistics",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn sig_cache_stats(&self) -> CallToolResult {
         tools::sig_cache_stats().await.to_response()
     }
 
-    #[tool(description = "Clear the signature cache")]
+    #[tool(
+        description = "Clear the signature cache. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn sig_cache_clear(&self) -> CallToolResult {
         tools::sig_cache_clear().await.to_response()
     }
@@ -1288,7 +1581,10 @@ impl EthcliMcpServer {
     // CAST (additional)
     // =========================================================================
 
-    #[tool(description = "Compute the CREATE address for a deployer and nonce")]
+    #[tool(
+        description = "Compute the CREATE address for a deployer and nonce",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_compute_address(
         &self,
         Parameters(input): Parameters<CastComputeAddressInput>,
@@ -1298,7 +1594,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Compute the CREATE2 address")]
+    #[tool(
+        description = "Compute the CREATE2 address",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_create2(
         &self,
         Parameters(input): Parameters<CastCreate2Input>,
@@ -1308,12 +1607,18 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Concatenate hex values")]
+    #[tool(
+        description = "Concatenate hex values",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_concat(&self, Parameters(input): Parameters<CastConcatInput>) -> CallToolResult {
         tools::cast_concat(input.values).await.to_response()
     }
 
-    #[tool(description = "Convert value to bytes32")]
+    #[tool(
+        description = "Convert value to bytes32",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn cast_to_bytes32(
         &self,
         Parameters(input): Parameters<CastValueInput>,
@@ -1325,7 +1630,10 @@ impl EthcliMcpServer {
     // ENS (additional)
     // =========================================================================
 
-    #[tool(description = "Get the resolver address for an ENS name")]
+    #[tool(
+        description = "Get the resolver address for an ENS name",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ens_resolver(
         &self,
         Parameters(input): Parameters<EnsNamehashInput>,
@@ -1337,7 +1645,10 @@ impl EthcliMcpServer {
     // SIMULATE (additional)
     // =========================================================================
 
-    #[tool(description = "Simulate a bundle of transactions")]
+    #[tool(
+        description = "Simulate a bundle of transactions",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn simulate_bundle(
         &self,
         Parameters(input): Parameters<SimulateBundleInput>,
@@ -1347,17 +1658,26 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List saved simulations")]
+    #[tool(
+        description = "List saved simulations",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn simulate_list(&self) -> CallToolResult {
         tools::simulate_list().await.to_response()
     }
 
-    #[tool(description = "Get a saved simulation by ID")]
+    #[tool(
+        description = "Get a saved simulation by ID",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn simulate_get(&self, Parameters(input): Parameters<SimulateIdInput>) -> CallToolResult {
         tools::simulate_get(&input.id).await.to_response()
     }
 
-    #[tool(description = "Get simulation info by ID")]
+    #[tool(
+        description = "Get simulation info by ID",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn simulate_info(
         &self,
         Parameters(input): Parameters<SimulateIdInput>,
@@ -1365,7 +1685,15 @@ impl EthcliMcpServer {
         tools::simulate_info(&input.id).await.to_response()
     }
 
-    #[tool(description = "Share a simulation publicly")]
+    #[tool(
+        description = "Share a simulation publicly. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn simulate_share(
         &self,
         Parameters(input): Parameters<SimulateIdInput>,
@@ -1373,7 +1701,15 @@ impl EthcliMcpServer {
         tools::simulate_share(&input.id).await.to_response()
     }
 
-    #[tool(description = "Unshare a simulation")]
+    #[tool(
+        description = "Unshare a simulation. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn simulate_unshare(
         &self,
         Parameters(input): Parameters<SimulateIdInput>,
@@ -1385,7 +1721,10 @@ impl EthcliMcpServer {
     // TENDERLY
     // =========================================================================
 
-    #[tool(description = "Simulate a transaction via Tenderly")]
+    #[tool(
+        description = "Simulate a transaction via Tenderly",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_simulate(
         &self,
         Parameters(input): Parameters<TenderlySimulateInput>,
@@ -1395,37 +1734,58 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List Tenderly virtual networks")]
+    #[tool(
+        description = "List Tenderly virtual networks",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_vnets(&self) -> CallToolResult {
         tools::tenderly_vnets().await.to_response()
     }
 
-    #[tool(description = "List Tenderly wallets")]
+    #[tool(
+        description = "List Tenderly wallets",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_wallets(&self) -> CallToolResult {
         tools::tenderly_wallets().await.to_response()
     }
 
-    #[tool(description = "List Tenderly contracts")]
+    #[tool(
+        description = "List Tenderly contracts",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_contracts(&self) -> CallToolResult {
         tools::tenderly_contracts().await.to_response()
     }
 
-    #[tool(description = "List Tenderly alerts")]
+    #[tool(
+        description = "List Tenderly alerts",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_alerts(&self) -> CallToolResult {
         tools::tenderly_alerts().await.to_response()
     }
 
-    #[tool(description = "List Tenderly web3 actions")]
+    #[tool(
+        description = "List Tenderly web3 actions",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_actions(&self) -> CallToolResult {
         tools::tenderly_actions().await.to_response()
     }
 
-    #[tool(description = "List supported Tenderly networks")]
+    #[tool(
+        description = "List supported Tenderly networks",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_networks(&self) -> CallToolResult {
         tools::tenderly_networks().await.to_response()
     }
 
-    #[tool(description = "List Tenderly notification channels")]
+    #[tool(
+        description = "List Tenderly notification channels",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_channels(&self) -> CallToolResult {
         tools::tenderly_channels().await.to_response()
     }
@@ -1434,7 +1794,15 @@ impl EthcliMcpServer {
     // TENDERLY VNETS - Full CRUD + Simulate + Admin
     // =========================================================================
 
-    #[tool(description = "Create a new Tenderly Virtual TestNet forked from a network")]
+    #[tool(
+        description = "Create a new Tenderly Virtual TestNet forked from a network. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_create(
         &self,
         Parameters(input): Parameters<TenderlyVnetsCreateInput>,
@@ -1451,7 +1819,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get details of a Tenderly Virtual TestNet by ID")]
+    #[tool(
+        description = "Get details of a Tenderly Virtual TestNet by ID",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_vnets_get(
         &self,
         Parameters(input): Parameters<TenderlyVnetsIdInput>,
@@ -1459,7 +1830,15 @@ impl EthcliMcpServer {
         tools::tenderly_vnets_get(&input.id).await.to_response()
     }
 
-    #[tool(description = "Delete one or more Tenderly Virtual TestNets")]
+    #[tool(
+        description = "Delete one or more Tenderly Virtual TestNets. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_delete(
         &self,
         Parameters(input): Parameters<TenderlyVnetsDeleteInput>,
@@ -1469,7 +1848,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Update a Tenderly Virtual TestNet (name, slug, sync state)")]
+    #[tool(
+        description = "Update a Tenderly Virtual TestNet (name, slug, sync state). Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_update(
         &self,
         Parameters(input): Parameters<TenderlyVnetsUpdateInput>,
@@ -1484,7 +1871,15 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Fork an existing Tenderly Virtual TestNet")]
+    #[tool(
+        description = "Fork an existing Tenderly Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_fork(
         &self,
         Parameters(input): Parameters<TenderlyVnetsForkInput>,
@@ -1494,7 +1889,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get RPC URLs (public and admin) for a Virtual TestNet")]
+    #[tool(
+        description = "Get RPC URLs (public and admin) for a Virtual TestNet",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_vnets_rpc(
         &self,
         Parameters(input): Parameters<TenderlyVnetsIdInput>,
@@ -1502,7 +1900,10 @@ impl EthcliMcpServer {
         tools::tenderly_vnets_rpc(&input.id).await.to_response()
     }
 
-    #[tool(description = "List transactions on a Virtual TestNet")]
+    #[tool(
+        description = "List transactions on a Virtual TestNet",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_vnets_transactions(
         &self,
         Parameters(input): Parameters<TenderlyVnetsTransactionsInput>,
@@ -1512,7 +1913,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get a specific transaction from a Virtual TestNet")]
+    #[tool(
+        description = "Get a specific transaction from a Virtual TestNet",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_vnets_get_transaction(
         &self,
         Parameters(input): Parameters<TenderlyVnetsGetTransactionInput>,
@@ -1522,7 +1926,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Send a transaction to a Virtual TestNet (persists state)")]
+    #[tool(
+        description = "Send a transaction to a Virtual TestNet (persists state). Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_send(
         &self,
         Parameters(input): Parameters<TenderlyVnetsSendInput>,
@@ -1538,7 +1950,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Simulate a transaction against a VNet's state without persisting")]
+    #[tool(
+        description = "Simulate a transaction against a VNet's state without persisting",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_vnets_simulate(
         &self,
         Parameters(input): Parameters<TenderlyVnetsSimulateInput>,
@@ -1560,7 +1975,15 @@ impl EthcliMcpServer {
 
     // --- VNet Admin tools ---
 
-    #[tool(description = "Set ETH balance for an address on a Virtual TestNet")]
+    #[tool(
+        description = "Set ETH balance for an address on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_set_balance(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminBalanceInput>,
@@ -1570,7 +1993,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Add ETH to an address balance on a Virtual TestNet")]
+    #[tool(
+        description = "Add ETH to an address balance on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_add_balance(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminBalanceInput>,
@@ -1580,7 +2011,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Set ERC20 token balance for a wallet on a Virtual TestNet")]
+    #[tool(
+        description = "Set ERC20 token balance for a wallet on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_set_erc20_balance(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
@@ -1600,7 +2039,15 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Set maximum possible ERC20 token balance on a Virtual TestNet")]
+    #[tool(
+        description = "Set maximum possible ERC20 token balance on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_set_max_erc20_balance(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminErc20Input>,
@@ -1610,7 +2057,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Advance blockchain time by seconds on a Virtual TestNet")]
+    #[tool(
+        description = "Advance blockchain time by seconds on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_increase_time(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
@@ -1620,7 +2075,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Set timestamp for the next block on a Virtual TestNet")]
+    #[tool(
+        description = "Set timestamp for the next block on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_set_timestamp(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
@@ -1630,7 +2093,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Set next block timestamp without mining on a Virtual TestNet")]
+    #[tool(
+        description = "Set next block timestamp without mining on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_set_timestamp_no_mine(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminTimeInput>,
@@ -1640,7 +2111,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Skip a number of blocks on a Virtual TestNet")]
+    #[tool(
+        description = "Skip a number of blocks on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_increase_blocks(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminBlocksInput>,
@@ -1650,7 +2129,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Create a state snapshot on a Virtual TestNet")]
+    #[tool(
+        description = "Create a state snapshot on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_snapshot(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminVnetInput>,
@@ -1660,7 +2147,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Revert to a previous snapshot on a Virtual TestNet")]
+    #[tool(
+        description = "Revert to a previous snapshot on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_revert(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminRevertInput>,
@@ -1670,7 +2165,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Set storage at a specific slot on a Virtual TestNet")]
+    #[tool(
+        description = "Set storage at a specific slot on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_set_storage(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminStorageInput>,
@@ -1685,7 +2188,15 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Set bytecode at an address on a Virtual TestNet")]
+    #[tool(
+        description = "Set bytecode at an address on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_set_code(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminCodeInput>,
@@ -1695,7 +2206,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Send an unsigned transaction via Admin RPC on a Virtual TestNet")]
+    #[tool(
+        description = "Send an unsigned transaction via Admin RPC on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_send_tx(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminSendTxInput>,
@@ -1712,7 +2231,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get the latest block/transaction info on a Virtual TestNet")]
+    #[tool(
+        description = "Get the latest block/transaction info on a Virtual TestNet",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_vnets_admin_get_latest(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminVnetInput>,
@@ -1723,7 +2245,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Simulate a transaction via tenderly_simulateTransaction RPC. Supports state overrides (balance, nonce, code, storage) and block overrides. Returns rich decoded results including logs, traces, asset changes, and state changes."
+        description = "Simulate a transaction via tenderly_simulateTransaction RPC. Supports state overrides (balance, nonce, code, storage) and block overrides. Returns rich decoded results including logs, traces, asset changes, and state changes.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn tenderly_vnets_admin_simulate_tx(
         &self,
@@ -1745,7 +2268,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Simulate a bundle of transactions via tenderly_simulateBundle RPC. Executes multiple transactions sequentially, each seeing state changes from previous ones. Supports state and block overrides."
+        description = "Simulate a bundle of transactions via tenderly_simulateBundle RPC. Executes multiple transactions sequentially, each seeing state changes from previous ones. Supports state and block overrides.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn tenderly_vnets_admin_simulate_bundle(
         &self,
@@ -1763,7 +2287,15 @@ impl EthcliMcpServer {
 
     // --- Tenderly Actions Batch ---
 
-    #[tool(description = "Stop multiple Tenderly web3 actions by ID")]
+    #[tool(
+        description = "Stop multiple Tenderly web3 actions by ID. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_actions_stop_many(
         &self,
         Parameters(input): Parameters<TenderlyActionsIdsInput>,
@@ -1773,7 +2305,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Resume multiple Tenderly web3 actions by ID")]
+    #[tool(
+        description = "Resume multiple Tenderly web3 actions by ID. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_actions_resume_many(
         &self,
         Parameters(input): Parameters<TenderlyActionsIdsInput>,
@@ -1783,7 +2323,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get execution details for a Tenderly web3 action call")]
+    #[tool(
+        description = "Get execution details for a Tenderly web3 action call",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_actions_get_call(
         &self,
         Parameters(input): Parameters<TenderlyActionsGetCallInput>,
@@ -1795,7 +2338,15 @@ impl EthcliMcpServer {
 
     // --- Tenderly Alerts Batch ---
 
-    #[tool(description = "Update a Tenderly alert configuration (name, type, network, addresses)")]
+    #[tool(
+        description = "Update a Tenderly alert configuration (name, type, network, addresses). Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_alerts_update(
         &self,
         Parameters(input): Parameters<TenderlyAlertsUpdateInput>,
@@ -1813,7 +2364,15 @@ impl EthcliMcpServer {
 
     // --- Tenderly Contracts Batch ---
 
-    #[tool(description = "Remove a tag from a Tenderly contract")]
+    #[tool(
+        description = "Remove a tag from a Tenderly contract. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_contracts_remove_tag(
         &self,
         Parameters(input): Parameters<TenderlyContractsRemoveTagInput>,
@@ -1823,7 +2382,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Apply a tag to multiple Tenderly contracts at once")]
+    #[tool(
+        description = "Apply a tag to multiple Tenderly contracts at once. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_contracts_bulk_tag(
         &self,
         Parameters(input): Parameters<TenderlyContractsBulkTagInput>,
@@ -1834,7 +2401,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Encode named-variable state overrides (e.g. balances[0xHolder]) into raw storage slots for Tenderly simulations via POST /contracts/encode-states"
+        description = "Encode named-variable state overrides (e.g. balances[0xHolder]) into raw storage slots for Tenderly simulations via POST /contracts/encode-states",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn tenderly_contracts_encode_state(
         &self,
@@ -1851,7 +2419,15 @@ impl EthcliMcpServer {
 
     // --- Tenderly VNets Admin Batch ---
 
-    #[tool(description = "Set ETH balance for multiple addresses on a Virtual TestNet")]
+    #[tool(
+        description = "Set ETH balance for multiple addresses on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_set_balances(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminBatchBalanceInput>,
@@ -1861,7 +2437,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Add ETH to balances for multiple addresses on a Virtual TestNet")]
+    #[tool(
+        description = "Add ETH to balances for multiple addresses on a Virtual TestNet. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn tenderly_vnets_admin_add_balances(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminBatchBalanceInput>,
@@ -1871,7 +2455,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Create an EIP-2930 access list for a transaction on a Virtual TestNet")]
+    #[tool(
+        description = "Create an EIP-2930 access list for a transaction on a Virtual TestNet",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn tenderly_vnets_admin_create_access_list(
         &self,
         Parameters(input): Parameters<TenderlyVnetsAdminCreateAccessListInput>,
@@ -1893,7 +2480,10 @@ impl EthcliMcpServer {
     // ALCHEMY (additional)
     // =========================================================================
 
-    #[tool(description = "Get NFTs for an address via Alchemy")]
+    #[tool(
+        description = "Get NFTs for an address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_nft(
         &self,
         Parameters(input): Parameters<AlchemyPortfolioInput>,
@@ -1903,7 +2493,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token info via Alchemy")]
+    #[tool(
+        description = "Get token info via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_token(
         &self,
         Parameters(input): Parameters<AlchemyPortfolioInput>,
@@ -1913,7 +2506,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token prices via Alchemy")]
+    #[tool(
+        description = "Get token prices via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_prices(
         &self,
         Parameters(input): Parameters<AlchemyPricesInput>,
@@ -1923,7 +2519,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Debug a transaction via Alchemy")]
+    #[tool(
+        description = "Debug a transaction via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_debug(
         &self,
         Parameters(input): Parameters<AlchemyDebugInput>,
@@ -1933,7 +2532,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT metadata by contract and token ID via Alchemy")]
+    #[tool(
+        description = "Get NFT metadata by contract and token ID via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_nft_metadata(
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
@@ -1943,7 +2545,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get floor price for an NFT collection via Alchemy")]
+    #[tool(
+        description = "Get floor price for an NFT collection via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_nft_floor_price(
         &self,
         Parameters(input): Parameters<AlchemyNftContractInput>,
@@ -1953,7 +2558,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get owners of a specific NFT via Alchemy")]
+    #[tool(
+        description = "Get owners of a specific NFT via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_nft_owners(
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
@@ -1964,7 +2572,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Check if an address holds an NFT from a contract via Alchemy (uses getNFTsForOwner)"
+        description = "Check if an address holds an NFT from a contract via Alchemy (uses getNFTsForOwner)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn alchemy_nft_is_holder(
         &self,
@@ -1975,7 +2584,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token metadata by contract address via Alchemy")]
+    #[tool(
+        description = "Get token metadata by contract address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_token_metadata(
         &self,
         Parameters(input): Parameters<AlchemyTokenMetadataInput>,
@@ -1985,7 +2597,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token allowance for owner/spender pair via Alchemy")]
+    #[tool(
+        description = "Get token allowance for owner/spender pair via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_token_allowances(
         &self,
         Parameters(input): Parameters<AlchemyTokenAllowancesInput>,
@@ -2000,7 +2615,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get token transfers TO an address via Alchemy")]
+    #[tool(
+        description = "Get token transfers TO an address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_transfers_to(
         &self,
         Parameters(input): Parameters<AlchemyTransfersToInput>,
@@ -2015,7 +2633,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get token prices by contract address via Alchemy")]
+    #[tool(
+        description = "Get token prices by contract address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_prices_by_address(
         &self,
         Parameters(input): Parameters<AlchemyPricesByAddressInput>,
@@ -2029,7 +2650,10 @@ impl EthcliMcpServer {
     // ALCHEMY NFT (additional)
     // =========================================================================
 
-    #[tool(description = "Get all owners of an NFT contract via Alchemy")]
+    #[tool(
+        description = "Get all owners of an NFT contract via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_nft_owners_for_contract(
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
@@ -2040,7 +2664,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get NFT contracts owned by an address via Alchemy (replaces the retired collections-for-owner)"
+        description = "Get NFT contracts owned by an address via Alchemy (replaces the retired collections-for-owner)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn alchemy_nft_contracts_for_owner(
         &self,
@@ -2051,7 +2676,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get all NFTs for a contract with pagination via Alchemy")]
+    #[tool(
+        description = "Get all NFTs for a contract with pagination via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_nft_nfts_for_contract(
         &self,
         Parameters(input): Parameters<AlchemyNftForContractInput>,
@@ -2067,7 +2695,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get contract metadata for an NFT contract via Alchemy, incl. OpenSea collection data in openSeaMetadata (replaces the retired collection-metadata/search-contract-metadata)"
+        description = "Get contract metadata for an NFT contract via Alchemy, incl. OpenSea collection data in openSeaMetadata (replaces the retired collection-metadata/search-contract-metadata)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn alchemy_nft_contract_metadata(
         &self,
@@ -2078,7 +2707,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Refresh metadata for a specific NFT via Alchemy")]
+    #[tool(
+        description = "Refresh metadata for a specific NFT via Alchemy. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn alchemy_nft_refresh_metadata(
         &self,
         Parameters(input): Parameters<AlchemyNftMetadataInput>,
@@ -2089,7 +2726,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Check if an NFT contract is spam via Alchemy (replaces the retired spam-contracts list)"
+        description = "Check if an NFT contract is spam via Alchemy (replaces the retired spam-contracts list)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn alchemy_nft_is_spam(
         &self,
@@ -2100,7 +2738,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Report an NFT contract as spam via Alchemy")]
+    #[tool(
+        description = "Report an NFT contract as spam via Alchemy. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn alchemy_nft_report_spam(
         &self,
         Parameters(input): Parameters<AlchemyNftContractOwnerInput>,
@@ -2110,7 +2756,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get all NFTs for a collection by slug via Alchemy")]
+    #[tool(
+        description = "Get all NFTs for a collection by slug via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_nft_nfts_for_collection(
         &self,
         Parameters(input): Parameters<AlchemyNftForCollectionInput>,
@@ -2129,7 +2778,10 @@ impl EthcliMcpServer {
     // ALCHEMY TOKEN (additional)
     // =========================================================================
 
-    #[tool(description = "Get token balances for specific tokens at an address via Alchemy")]
+    #[tool(
+        description = "Get token balances for specific tokens at an address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_token_balances_for_tokens(
         &self,
         Parameters(input): Parameters<AlchemyTokenBalancesForTokensInput>,
@@ -2147,7 +2799,10 @@ impl EthcliMcpServer {
     // ALCHEMY TRANSFERS (additional)
     // =========================================================================
 
-    #[tool(description = "Get all transfers (sent and received) for an address via Alchemy")]
+    #[tool(
+        description = "Get all transfers (sent and received) for an address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_transfers_all(
         &self,
         Parameters(input): Parameters<AlchemyTransfersAllInput>,
@@ -2161,7 +2816,10 @@ impl EthcliMcpServer {
     // ALCHEMY PORTFOLIO (additional)
     // =========================================================================
 
-    #[tool(description = "Get token info for multiple tokens via Alchemy Portfolio API")]
+    #[tool(
+        description = "Get token info for multiple tokens via Alchemy Portfolio API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_portfolio_token_info(
         &self,
         Parameters(input): Parameters<AlchemyPortfolioTokenInfoInput>,
@@ -2171,7 +2829,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFTs owned by an address via Alchemy Portfolio API")]
+    #[tool(
+        description = "Get NFTs owned by an address via Alchemy Portfolio API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_portfolio_nfts(
         &self,
         Parameters(input): Parameters<AlchemyPortfolioNftsInput>,
@@ -2181,7 +2842,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT contracts owned by an address via Alchemy Portfolio API")]
+    #[tool(
+        description = "Get NFT contracts owned by an address via Alchemy Portfolio API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_portfolio_nft_contracts(
         &self,
         Parameters(input): Parameters<AlchemyPortfolioNftContractsInput>,
@@ -2195,7 +2859,10 @@ impl EthcliMcpServer {
     // ALCHEMY PRICES (additional)
     // =========================================================================
 
-    #[tool(description = "Get token prices by symbol via Alchemy")]
+    #[tool(
+        description = "Get token prices by symbol via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_prices_by_symbol(
         &self,
         Parameters(input): Parameters<AlchemyPricesBySymbolInput>,
@@ -2205,7 +2872,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get historical token prices by symbol via Alchemy")]
+    #[tool(
+        description = "Get historical token prices by symbol via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_prices_historical_by_symbol(
         &self,
         Parameters(input): Parameters<AlchemyPricesHistoricalBySymbolInput>,
@@ -2221,7 +2891,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get historical token prices by contract address via Alchemy")]
+    #[tool(
+        description = "Get historical token prices by contract address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_prices_historical_by_address(
         &self,
         Parameters(input): Parameters<AlchemyPricesHistoricalByAddressInput>,
@@ -2241,7 +2914,10 @@ impl EthcliMcpServer {
     // ALCHEMY DEBUG (additional)
     // =========================================================================
 
-    #[tool(description = "Trace a call without executing it on-chain via Alchemy debug API")]
+    #[tool(
+        description = "Trace a call without executing it on-chain via Alchemy debug API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_debug_trace_call(
         &self,
         Parameters(input): Parameters<AlchemyDebugTraceCallInput>,
@@ -2259,7 +2935,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Trace all transactions in a block by hash via Alchemy debug API")]
+    #[tool(
+        description = "Trace all transactions in a block by hash via Alchemy debug API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_debug_trace_block_by_hash(
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockHashInput>,
@@ -2269,7 +2948,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Trace all transactions in a block by number via Alchemy debug API")]
+    #[tool(
+        description = "Trace all transactions in a block by number via Alchemy debug API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_debug_trace_block_by_number(
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
@@ -2279,7 +2961,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get RLP-encoded block via Alchemy debug API")]
+    #[tool(
+        description = "Get RLP-encoded block via Alchemy debug API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_debug_get_raw_block(
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
@@ -2289,7 +2974,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get RLP-encoded block header via Alchemy debug API")]
+    #[tool(
+        description = "Get RLP-encoded block header via Alchemy debug API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_debug_get_raw_header(
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
@@ -2299,7 +2987,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get EIP-2718 binary-encoded receipts for a block via Alchemy debug API")]
+    #[tool(
+        description = "Get EIP-2718 binary-encoded receipts for a block via Alchemy debug API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_debug_get_raw_receipts(
         &self,
         Parameters(input): Parameters<AlchemyDebugBlockInput>,
@@ -2313,7 +3004,10 @@ impl EthcliMcpServer {
     // ALCHEMY TRACE (Parity-style)
     // =========================================================================
 
-    #[tool(description = "Get Parity-style traces for a block via Alchemy")]
+    #[tool(
+        description = "Get Parity-style traces for a block via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_trace_block(
         &self,
         Parameters(input): Parameters<AlchemyTraceBlockInput>,
@@ -2323,7 +3017,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Execute a call and return Parity-style traces via Alchemy")]
+    #[tool(
+        description = "Execute a call and return Parity-style traces via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_trace_call(
         &self,
         Parameters(input): Parameters<AlchemyTraceCallInput>,
@@ -2343,7 +3040,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get a specific trace by position in a transaction via Alchemy (trace_get; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+        description = "Get a specific trace by position in a transaction via Alchemy (trace_get; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn alchemy_trace_get(
         &self,
@@ -2355,7 +3053,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Trace a raw transaction without executing via Alchemy (trace_rawTransaction; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+        description = "Trace a raw transaction without executing via Alchemy (trace_rawTransaction; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn alchemy_trace_raw_transaction(
         &self,
@@ -2370,7 +3069,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Replay all transactions in a block with traces via Alchemy")]
+    #[tool(
+        description = "Replay all transactions in a block with traces via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_trace_replay_block_transactions(
         &self,
         Parameters(input): Parameters<AlchemyTraceReplayBlockInput>,
@@ -2384,7 +3086,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Replay a transaction with traces via Alchemy")]
+    #[tool(
+        description = "Replay a transaction with traces via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_trace_replay_transaction(
         &self,
         Parameters(input): Parameters<AlchemyTraceReplayTxInput>,
@@ -2398,7 +3103,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get all traces for a transaction via Alchemy")]
+    #[tool(
+        description = "Get all traces for a transaction via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_trace_transaction(
         &self,
         Parameters(input): Parameters<AlchemyTraceTxInput>,
@@ -2409,7 +3117,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Filter traces by criteria (block range, addresses) via Alchemy (trace_filter; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)"
+        description = "Filter traces by criteria (block range, addresses) via Alchemy (trace_filter; unavailable on polygon-mainnet/polygon-amoy since 2026-08-01)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn alchemy_trace_filter(
         &self,
@@ -2432,7 +3141,10 @@ impl EthcliMcpServer {
     // ALCHEMY BUNDLER (ERC-4337)
     // =========================================================================
 
-    #[tool(description = "Get supported ERC-4337 entry points via Alchemy")]
+    #[tool(
+        description = "Get supported ERC-4337 entry points via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_bundler_supported_entry_points(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2442,7 +3154,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Estimate gas for an ERC-4337 UserOperation via Alchemy")]
+    #[tool(
+        description = "Estimate gas for an ERC-4337 UserOperation via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_bundler_estimate_gas(
         &self,
         Parameters(input): Parameters<AlchemyBundlerEstimateGasInput>,
@@ -2456,7 +3171,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get a UserOperation by hash via Alchemy")]
+    #[tool(
+        description = "Get a UserOperation by hash via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_bundler_get_by_hash(
         &self,
         Parameters(input): Parameters<AlchemyBundlerHashInput>,
@@ -2466,7 +3184,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get a UserOperation receipt via Alchemy")]
+    #[tool(
+        description = "Get a UserOperation receipt via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_bundler_get_receipt(
         &self,
         Parameters(input): Parameters<AlchemyBundlerHashInput>,
@@ -2476,7 +3197,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get recommended max priority fee per gas via Alchemy Bundler")]
+    #[tool(
+        description = "Get recommended max priority fee per gas via Alchemy Bundler",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_bundler_max_priority_fee(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2490,7 +3214,10 @@ impl EthcliMcpServer {
     // ALCHEMY GAS MANAGER
     // =========================================================================
 
-    #[tool(description = "List all gas manager policies via Alchemy")]
+    #[tool(
+        description = "List all gas manager policies via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_gas_manager_list_policies(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2500,7 +3227,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get a gas manager policy by ID via Alchemy")]
+    #[tool(
+        description = "Get a gas manager policy by ID via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_gas_manager_get_policy(
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
@@ -2510,7 +3240,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get gas manager policy statistics via Alchemy")]
+    #[tool(
+        description = "Get gas manager policy statistics via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_gas_manager_policy_stats(
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
@@ -2520,7 +3253,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List sponsorships for a gas manager policy via Alchemy")]
+    #[tool(
+        description = "List sponsorships for a gas manager policy via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_gas_manager_list_sponsorships(
         &self,
         Parameters(input): Parameters<AlchemyGasManagerPolicyInput>,
@@ -2534,7 +3270,10 @@ impl EthcliMcpServer {
     // ALCHEMY NOTIFY
     // =========================================================================
 
-    #[tool(description = "List all webhooks via Alchemy Notify")]
+    #[tool(
+        description = "List all webhooks via Alchemy Notify",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_notify_list_webhooks(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2544,7 +3283,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List addresses tracked by a webhook via Alchemy Notify")]
+    #[tool(
+        description = "List addresses tracked by a webhook via Alchemy Notify",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_notify_list_addresses(
         &self,
         Parameters(input): Parameters<AlchemyNotifyWebhookInput>,
@@ -2554,7 +3296,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List NFT filters for a webhook via Alchemy Notify")]
+    #[tool(
+        description = "List NFT filters for a webhook via Alchemy Notify",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_notify_list_nft_filters(
         &self,
         Parameters(input): Parameters<AlchemyNotifyWebhookInput>,
@@ -2568,7 +3313,10 @@ impl EthcliMcpServer {
     // ALCHEMY BEACON
     // =========================================================================
 
-    #[tool(description = "Get Ethereum beacon chain genesis info via Alchemy")]
+    #[tool(
+        description = "Get Ethereum beacon chain genesis info via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_genesis(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2578,7 +3326,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain fork schedule via Alchemy")]
+    #[tool(
+        description = "Get beacon chain fork schedule via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_fork_schedule(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2588,7 +3339,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain deposit contract info via Alchemy")]
+    #[tool(
+        description = "Get beacon chain deposit contract info via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_deposit_contract(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2598,7 +3352,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain spec/config values via Alchemy")]
+    #[tool(
+        description = "Get beacon chain spec/config values via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_spec(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2608,7 +3365,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain block headers via Alchemy")]
+    #[tool(
+        description = "Get beacon chain block headers via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_headers(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2618,7 +3378,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get a beacon chain block header by ID via Alchemy")]
+    #[tool(
+        description = "Get a beacon chain block header by ID via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_header(
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
@@ -2628,7 +3391,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get a beacon chain block by ID via Alchemy")]
+    #[tool(
+        description = "Get a beacon chain block by ID via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_block(
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
@@ -2638,7 +3404,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain block root via Alchemy")]
+    #[tool(
+        description = "Get beacon chain block root via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_block_root(
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
@@ -2648,7 +3417,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain block attestations via Alchemy")]
+    #[tool(
+        description = "Get beacon chain block attestations via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_block_attestations(
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
@@ -2658,7 +3430,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get blob sidecars for a beacon chain block via Alchemy")]
+    #[tool(
+        description = "Get blob sidecars for a beacon chain block via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_blob_sidecars(
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
@@ -2668,7 +3443,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain state root via Alchemy")]
+    #[tool(
+        description = "Get beacon chain state root via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_state_root(
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
@@ -2678,7 +3456,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain fork info for a state via Alchemy")]
+    #[tool(
+        description = "Get beacon chain fork info for a state via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_state_fork(
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
@@ -2688,7 +3469,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain finality checkpoints via Alchemy")]
+    #[tool(
+        description = "Get beacon chain finality checkpoints via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_finality_checkpoints(
         &self,
         Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
@@ -2698,17 +3482,28 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain validators for a state via Alchemy")]
+    #[tool(
+        description = "Get beacon chain validators for a state via Alchemy (filter by id or status; one is required)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_validators(
         &self,
-        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+        Parameters(input): Parameters<AlchemyBeaconValidatorsInput>,
     ) -> CallToolResult {
-        tools::alchemy_beacon_validators(&input.state_id, Some(&input.network))
-            .await
-            .to_response()
+        tools::alchemy_beacon_validators(
+            &input.state_id,
+            input.id.as_deref(),
+            input.status.as_deref(),
+            Some(&input.network),
+        )
+        .await
+        .to_response()
     }
 
-    #[tool(description = "Get a specific beacon chain validator via Alchemy")]
+    #[tool(
+        description = "Get a specific beacon chain validator via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_validator(
         &self,
         Parameters(input): Parameters<AlchemyBeaconValidatorInput>,
@@ -2718,37 +3513,49 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain validator balances for a state via Alchemy")]
+    #[tool(
+        description = "Get beacon chain validator balances for a state via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_validator_balances(
         &self,
-        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+        Parameters(input): Parameters<AlchemyBeaconValidatorBalancesInput>,
     ) -> CallToolResult {
-        tools::alchemy_beacon_validator_balances(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_validator_balances(&input.state_id, &input.id, Some(&input.network))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain sync committees for a state via Alchemy")]
+    #[tool(
+        description = "Get beacon chain sync committees for a state via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_sync_committees(
         &self,
-        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+        Parameters(input): Parameters<AlchemyBeaconStateEpochInput>,
     ) -> CallToolResult {
-        tools::alchemy_beacon_sync_committees(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_sync_committees(&input.state_id, input.epoch, Some(&input.network))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get RANDAO value for a beacon chain state via Alchemy")]
+    #[tool(
+        description = "Get RANDAO value for a beacon chain state via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_randao(
         &self,
-        Parameters(input): Parameters<AlchemyBeaconStateIdInput>,
+        Parameters(input): Parameters<AlchemyBeaconStateEpochInput>,
     ) -> CallToolResult {
-        tools::alchemy_beacon_randao(&input.state_id, Some(&input.network))
+        tools::alchemy_beacon_randao(&input.state_id, input.epoch, Some(&input.network))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain pool attestations via Alchemy")]
+    #[tool(
+        description = "Get beacon chain pool attestations via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_pool_attestations(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2758,7 +3565,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get voluntary exits in the beacon chain pool via Alchemy")]
+    #[tool(
+        description = "Get voluntary exits in the beacon chain pool via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_voluntary_exits(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2768,7 +3578,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain block rewards via Alchemy")]
+    #[tool(
+        description = "Get beacon chain block rewards via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_block_rewards(
         &self,
         Parameters(input): Parameters<AlchemyBeaconBlockIdInput>,
@@ -2778,7 +3591,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain node sync status via Alchemy")]
+    #[tool(
+        description = "Get beacon chain node sync status via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_syncing(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2788,7 +3604,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain node version via Alchemy")]
+    #[tool(
+        description = "Get beacon chain node version via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_version(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2798,7 +3617,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain peers via Alchemy")]
+    #[tool(
+        description = "Get beacon chain peers via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_peers(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2808,7 +3630,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get beacon chain peer count via Alchemy")]
+    #[tool(
+        description = "Get beacon chain peer count via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_peer_count(
         &self,
         Parameters(input): Parameters<AlchemyChainOnlyInput>,
@@ -2818,7 +3643,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get attester duties for an epoch via Alchemy beacon API")]
+    #[tool(
+        description = "Get attester duties for an epoch via Alchemy beacon API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_attester_duties(
         &self,
         Parameters(input): Parameters<AlchemyBeaconDutiesInput>,
@@ -2828,7 +3656,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get proposer duties for an epoch via Alchemy beacon API")]
+    #[tool(
+        description = "Get proposer duties for an epoch via Alchemy beacon API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_proposer_duties(
         &self,
         Parameters(input): Parameters<AlchemyBeaconEpochInput>,
@@ -2838,7 +3669,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get sync duties for an epoch via Alchemy beacon API")]
+    #[tool(
+        description = "Get sync duties for an epoch via Alchemy beacon API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_beacon_sync_duties(
         &self,
         Parameters(input): Parameters<AlchemyBeaconDutiesInput>,
@@ -2852,7 +3686,10 @@ impl EthcliMcpServer {
     // ALCHEMY SOLANA
     // =========================================================================
 
-    #[tool(description = "Get a single Solana asset by ID via Alchemy")]
+    #[tool(
+        description = "Get a single Solana asset by ID via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_asset(
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
@@ -2862,7 +3699,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get multiple Solana assets by IDs via Alchemy")]
+    #[tool(
+        description = "Get multiple Solana assets by IDs via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_assets(
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetsInput>,
@@ -2872,7 +3712,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get proof for a compressed Solana asset via Alchemy")]
+    #[tool(
+        description = "Get proof for a compressed Solana asset via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_asset_proof(
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
@@ -2882,7 +3725,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get proofs for multiple compressed Solana assets via Alchemy")]
+    #[tool(
+        description = "Get proofs for multiple compressed Solana assets via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_asset_proofs(
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetsInput>,
@@ -2892,7 +3738,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Solana assets owned by an address via Alchemy")]
+    #[tool(
+        description = "Get Solana assets owned by an address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_assets_by_owner(
         &self,
         Parameters(input): Parameters<AlchemySolanaOwnerInput>,
@@ -2907,7 +3756,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get Solana assets by creator address via Alchemy")]
+    #[tool(
+        description = "Get Solana assets by creator address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_assets_by_creator(
         &self,
         Parameters(input): Parameters<AlchemySolanaAddressInput>,
@@ -2917,7 +3769,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Solana assets by authority address via Alchemy")]
+    #[tool(
+        description = "Get Solana assets by authority address via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_assets_by_authority(
         &self,
         Parameters(input): Parameters<AlchemySolanaAddressInput>,
@@ -2927,7 +3782,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Solana assets by group (e.g., collection) via Alchemy")]
+    #[tool(
+        description = "Get Solana assets by group (e.g., collection) via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_assets_by_group(
         &self,
         Parameters(input): Parameters<AlchemySolanaGroupInput>,
@@ -2941,7 +3799,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get Solana token accounts via Alchemy")]
+    #[tool(
+        description = "Get Solana token accounts via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_token_accounts(
         &self,
         Parameters(input): Parameters<AlchemySolanaTokenAccountsInput>,
@@ -2955,7 +3816,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get Solana NFT editions via Alchemy")]
+    #[tool(
+        description = "Get Solana NFT editions via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_nft_editions(
         &self,
         Parameters(input): Parameters<AlchemySolanaMintInput>,
@@ -2965,7 +3829,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Solana asset signatures (transactions) via Alchemy")]
+    #[tool(
+        description = "Get Solana asset signatures (transactions) via Alchemy",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn alchemy_solana_get_asset_signatures(
         &self,
         Parameters(input): Parameters<AlchemySolanaAssetInput>,
@@ -2979,17 +3846,26 @@ impl EthcliMcpServer {
     // COINGECKO (additional)
     // =========================================================================
 
-    #[tool(description = "Get global crypto market data from CoinGecko")]
+    #[tool(
+        description = "Get global crypto market data from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_global(&self) -> CallToolResult {
         tools::gecko_global().await.to_response()
     }
 
-    #[tool(description = "Get NFT collection info from CoinGecko")]
+    #[tool(
+        description = "Get NFT collection info from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_nfts(&self, Parameters(input): Parameters<GeckoNftInput>) -> CallToolResult {
         tools::gecko_nfts(&input.id).await.to_response()
     }
 
-    #[tool(description = "Get on-chain token info from CoinGecko")]
+    #[tool(
+        description = "Get on-chain token info from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain(
         &self,
         Parameters(input): Parameters<GeckoOnchainInput>,
@@ -3001,7 +3877,10 @@ impl EthcliMcpServer {
 
     // --- Gecko Simple (additional) ---
 
-    #[tool(description = "Get token price by contract address from CoinGecko")]
+    #[tool(
+        description = "Get token price by contract address from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_simple_token_price(
         &self,
         Parameters(input): Parameters<GeckoTokenPriceInput>,
@@ -3011,14 +3890,20 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List supported vs currencies from CoinGecko")]
+    #[tool(
+        description = "List supported vs currencies from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_simple_currencies(&self) -> CallToolResult {
         tools::gecko_simple_currencies().await.to_response()
     }
 
     // --- Gecko Coins (additional) ---
 
-    #[tool(description = "List all coins from CoinGecko")]
+    #[tool(
+        description = "List all coins from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_list(
         &self,
         Parameters(input): Parameters<GeckoCoinsListInput>,
@@ -3028,7 +3913,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get coin market data from CoinGecko")]
+    #[tool(
+        description = "Get coin market data from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_markets(
         &self,
         Parameters(input): Parameters<GeckoCoinsMarketsInput>,
@@ -3038,7 +3926,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get coin exchange tickers from CoinGecko")]
+    #[tool(
+        description = "Get coin exchange tickers from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_tickers(
         &self,
         Parameters(input): Parameters<GeckoCoinInput>,
@@ -3046,7 +3937,10 @@ impl EthcliMcpServer {
         tools::gecko_coins_tickers(&input.id).await.to_response()
     }
 
-    #[tool(description = "Get coin market chart data from CoinGecko")]
+    #[tool(
+        description = "Get coin market chart data from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_chart(
         &self,
         Parameters(input): Parameters<GeckoCoinsChartInput>,
@@ -3056,7 +3950,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get coin OHLC candlestick data from CoinGecko")]
+    #[tool(
+        description = "Get coin OHLC candlestick data from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_ohlc(
         &self,
         Parameters(input): Parameters<GeckoCoinsOhlcInput>,
@@ -3066,7 +3963,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get coin historical data for a specific date from CoinGecko")]
+    #[tool(
+        description = "Get coin historical data for a specific date from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_history(
         &self,
         Parameters(input): Parameters<GeckoCoinsHistoryInput>,
@@ -3076,7 +3976,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get top gainers and losers from CoinGecko")]
+    #[tool(
+        description = "Get top gainers and losers from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_top_movers(
         &self,
         Parameters(input): Parameters<GeckoCoinsTopMoversInput>,
@@ -3086,12 +3989,18 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get recently added coins from CoinGecko")]
+    #[tool(
+        description = "Get recently added coins from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_new(&self) -> CallToolResult {
         tools::gecko_coins_new().await.to_response()
     }
 
-    #[tool(description = "Get coin data by contract address from CoinGecko")]
+    #[tool(
+        description = "Get coin data by contract address from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_coins_by_contract(
         &self,
         Parameters(input): Parameters<GeckoContractInput>,
@@ -3103,22 +4012,34 @@ impl EthcliMcpServer {
 
     // --- Gecko Global (additional) ---
 
-    #[tool(description = "Ping CoinGecko API status")]
+    #[tool(
+        description = "Ping CoinGecko API status",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_global_ping(&self) -> CallToolResult {
         tools::gecko_global_ping().await.to_response()
     }
 
-    #[tool(description = "Get global DeFi market data from CoinGecko")]
+    #[tool(
+        description = "Get global DeFi market data from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_global_defi(&self) -> CallToolResult {
         tools::gecko_global_defi().await.to_response()
     }
 
-    #[tool(description = "Get trending coins, NFTs, and categories from CoinGecko")]
+    #[tool(
+        description = "Get trending coins, NFTs, and categories from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_global_trending(&self) -> CallToolResult {
         tools::gecko_global_trending().await.to_response()
     }
 
-    #[tool(description = "Search coins, exchanges, categories, and NFTs on CoinGecko")]
+    #[tool(
+        description = "Search coins, exchanges, categories, and NFTs on CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_global_search(
         &self,
         Parameters(input): Parameters<GeckoSearchInput>,
@@ -3126,24 +4047,36 @@ impl EthcliMcpServer {
         tools::gecko_global_search(&input.query).await.to_response()
     }
 
-    #[tool(description = "Get BTC exchange rates from CoinGecko")]
+    #[tool(
+        description = "Get BTC exchange rates from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_global_exchange_rates(&self) -> CallToolResult {
         tools::gecko_global_exchange_rates().await.to_response()
     }
 
-    #[tool(description = "List asset platforms (blockchains) from CoinGecko")]
+    #[tool(
+        description = "List asset platforms (blockchains) from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_global_platforms(&self) -> CallToolResult {
         tools::gecko_global_platforms().await.to_response()
     }
 
     // --- Gecko NFTs (additional) ---
 
-    #[tool(description = "List NFT collections from CoinGecko")]
+    #[tool(
+        description = "List NFT collections from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_nfts_list(&self) -> CallToolResult {
         tools::gecko_nfts_list().await.to_response()
     }
 
-    #[tool(description = "Get NFT collection by contract address from CoinGecko")]
+    #[tool(
+        description = "Get NFT collection by contract address from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_nfts_by_contract(
         &self,
         Parameters(input): Parameters<GeckoContractInput>,
@@ -3153,12 +4086,18 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT markets data from CoinGecko")]
+    #[tool(
+        description = "Get NFT markets data from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_nfts_markets(&self) -> CallToolResult {
         tools::gecko_nfts_markets().await.to_response()
     }
 
-    #[tool(description = "Get NFT collection tickers from CoinGecko")]
+    #[tool(
+        description = "Get NFT collection tickers from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_nfts_tickers(
         &self,
         Parameters(input): Parameters<GeckoNftInput>,
@@ -3168,12 +4107,18 @@ impl EthcliMcpServer {
 
     // --- Gecko Onchain (additional) ---
 
-    #[tool(description = "List supported onchain networks from CoinGecko")]
+    #[tool(
+        description = "List supported onchain networks from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_networks(&self) -> CallToolResult {
         tools::gecko_onchain_networks().await.to_response()
     }
 
-    #[tool(description = "List DEXes on a network from CoinGecko")]
+    #[tool(
+        description = "List DEXes on a network from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_dexes(
         &self,
         Parameters(input): Parameters<GeckoOnchainNetworkInput>,
@@ -3183,7 +4128,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get trending pools from CoinGecko onchain data")]
+    #[tool(
+        description = "Get trending pools from CoinGecko onchain data",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_trending_pools(
         &self,
         Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
@@ -3193,7 +4141,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get top pools from CoinGecko onchain data")]
+    #[tool(
+        description = "Get top pools from CoinGecko onchain data",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_top_pools(
         &self,
         Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
@@ -3203,7 +4154,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get new pools from CoinGecko onchain data")]
+    #[tool(
+        description = "Get new pools from CoinGecko onchain data",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_new_pools(
         &self,
         Parameters(input): Parameters<GeckoOnchainOptionalNetworkInput>,
@@ -3213,7 +4167,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get onchain token data from CoinGecko")]
+    #[tool(
+        description = "Get onchain token data from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_token(
         &self,
         Parameters(input): Parameters<GeckoOnchainInput>,
@@ -3223,7 +4180,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get onchain token prices from CoinGecko")]
+    #[tool(
+        description = "Get onchain token prices from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_token_price(
         &self,
         Parameters(input): Parameters<GeckoOnchainTokenPriceInput>,
@@ -3233,7 +4193,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get pools for a token from CoinGecko onchain data")]
+    #[tool(
+        description = "Get pools for a token from CoinGecko onchain data",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_token_pools(
         &self,
         Parameters(input): Parameters<GeckoOnchainInput>,
@@ -3243,7 +4206,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get pool OHLCV candlestick data from CoinGecko onchain")]
+    #[tool(
+        description = "Get pool OHLCV candlestick data from CoinGecko onchain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_pool_ohlcv(
         &self,
         Parameters(input): Parameters<GeckoOnchainPoolOhlcvInput>,
@@ -3253,7 +4219,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Search pools on CoinGecko onchain")]
+    #[tool(
+        description = "Search pools on CoinGecko onchain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn gecko_onchain_search_pools(
         &self,
         Parameters(input): Parameters<GeckoSearchInput>,
@@ -3267,7 +4236,10 @@ impl EthcliMcpServer {
     // GOPLUS (additional)
     // =========================================================================
 
-    #[tool(description = "Batch check multiple token addresses via GoPlus")]
+    #[tool(
+        description = "Batch check multiple token addresses via GoPlus",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn goplus_token_batch(
         &self,
         Parameters(input): Parameters<GoplusBatchInput>,
@@ -3277,7 +4249,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List supported chains for GoPlus")]
+    #[tool(
+        description = "List supported chains for GoPlus",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn goplus_chains(&self) -> CallToolResult {
         tools::goplus_chains().await.to_response()
     }
@@ -3286,17 +4261,26 @@ impl EthcliMcpServer {
     // SOLODIT (additional)
     // =========================================================================
 
-    #[tool(description = "Get Solodit API rate limit status")]
+    #[tool(
+        description = "Get Solodit API rate limit status",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn solodit_rate_limit(&self) -> CallToolResult {
         tools::solodit_rate_limit().await.to_response()
     }
 
-    #[tool(description = "List available Solodit tags")]
+    #[tool(
+        description = "List available Solodit tags",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn solodit_tags(&self) -> CallToolResult {
         tools::solodit_tags().await.to_response()
     }
 
-    #[tool(description = "List audit firms on Solodit")]
+    #[tool(
+        description = "List audit firms on Solodit",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn solodit_firms(&self) -> CallToolResult {
         tools::solodit_firms().await.to_response()
     }
@@ -3305,12 +4289,18 @@ impl EthcliMcpServer {
     // DEFILLAMA (additional)
     // =========================================================================
 
-    #[tool(description = "Get token prices from DefiLlama")]
+    #[tool(
+        description = "Get token prices from DefiLlama",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn llama_coins(&self, Parameters(input): Parameters<LlamaCoinsInput>) -> CallToolResult {
         tools::llama_coins(&input.addresses).await.to_response()
     }
 
-    #[tool(description = "Get DEX volumes from DefiLlama")]
+    #[tool(
+        description = "Get DEX volumes from DefiLlama",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn llama_volumes(
         &self,
         Parameters(input): Parameters<LlamaProtocolInput>,
@@ -3318,7 +4308,10 @@ impl EthcliMcpServer {
         tools::llama_volumes(&input.protocol).await.to_response()
     }
 
-    #[tool(description = "Get protocol fees from DefiLlama")]
+    #[tool(
+        description = "Get protocol fees from DefiLlama",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn llama_fees(
         &self,
         Parameters(input): Parameters<LlamaProtocolInput>,
@@ -3326,7 +4319,10 @@ impl EthcliMcpServer {
         tools::llama_fees(&input.protocol).await.to_response()
     }
 
-    #[tool(description = "Get stablecoin data from DefiLlama")]
+    #[tool(
+        description = "Get stablecoin data from DefiLlama",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn llama_stablecoins(&self) -> CallToolResult {
         tools::llama_stablecoins().await.to_response()
     }
@@ -3335,7 +4331,10 @@ impl EthcliMcpServer {
     // MORALIS TOKEN
     // =========================================================================
 
-    #[tool(description = "Get token metadata via Moralis (name, symbol, decimals, supply)")]
+    #[tool(
+        description = "Get token metadata via Moralis (name, symbol, decimals, supply)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_metadata(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3345,7 +4344,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token price via Moralis")]
+    #[tool(
+        description = "Get token price via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_price(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3355,7 +4357,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get top token holders via Moralis")]
+    #[tool(
+        description = "Get top token holders via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_holders(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3365,7 +4370,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token DEX pairs via Moralis")]
+    #[tool(
+        description = "Get token DEX pairs via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_pairs(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3375,7 +4383,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token transfers via Moralis")]
+    #[tool(
+        description = "Get token transfers via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_transfers(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3389,7 +4400,10 @@ impl EthcliMcpServer {
     // MORALIS WALLET
     // =========================================================================
 
-    #[tool(description = "Get native token balance (ETH, MATIC, etc.) via Moralis")]
+    #[tool(
+        description = "Get native token balance (ETH, MATIC, etc.) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_balance(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3399,7 +4413,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get ERC20 token balances for a wallet via Moralis")]
+    #[tool(
+        description = "Get ERC20 token balances for a wallet via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_tokens(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3409,7 +4426,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get decoded wallet transaction history via Moralis")]
+    #[tool(
+        description = "Get decoded wallet transaction history via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_history(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3419,7 +4439,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get wallet net worth across all chains via Moralis")]
+    #[tool(
+        description = "Get wallet net worth across all chains via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_net_worth(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3433,7 +4456,10 @@ impl EthcliMcpServer {
     // MORALIS RESOLVE
     // =========================================================================
 
-    #[tool(description = "Resolve ENS/domain name to address via Moralis")]
+    #[tool(
+        description = "Resolve ENS/domain name to address via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_resolve_domain(
         &self,
         Parameters(input): Parameters<MoralisDomainInput>,
@@ -3443,7 +4469,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Reverse lookup address to ENS/domain via Moralis")]
+    #[tool(
+        description = "Reverse lookup address to ENS/domain via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_resolve_address(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3457,7 +4486,10 @@ impl EthcliMcpServer {
     // MORALIS WALLET (additional)
     // =========================================================================
 
-    #[tool(description = "Get wallet transactions via Moralis")]
+    #[tool(
+        description = "Get wallet transactions via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_transactions(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3467,7 +4499,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get chains where a wallet has been active via Moralis")]
+    #[tool(
+        description = "Get chains where a wallet has been active via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_active_chains(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3477,7 +4512,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token approvals for a wallet via Moralis")]
+    #[tool(
+        description = "Get token approvals for a wallet via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_approvals(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3487,7 +4525,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get wallet stats (transaction counts, volumes) via Moralis")]
+    #[tool(
+        description = "Get wallet stats (transaction counts, volumes) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_stats(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3497,7 +4538,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get wallet profitability summary via Moralis")]
+    #[tool(
+        description = "Get wallet profitability summary via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_profitability(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3511,7 +4555,10 @@ impl EthcliMcpServer {
     // MORALIS TOKEN (additional)
     // =========================================================================
 
-    #[tool(description = "Get token swaps/trades via Moralis")]
+    #[tool(
+        description = "Get token swaps/trades via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_swaps(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3521,7 +4568,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Search for tokens by name or symbol via Moralis")]
+    #[tool(
+        description = "Search for tokens by name or symbol via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_search(
         &self,
         Parameters(input): Parameters<MoralisSearchInput>,
@@ -3531,7 +4581,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get trending tokens via Moralis")]
+    #[tool(
+        description = "Get trending tokens via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_trending(
         &self,
         Parameters(input): Parameters<MoralisChainOnlyInput>,
@@ -3541,7 +4594,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get OHLCV candlestick data for a token pair via Moralis")]
+    #[tool(
+        description = "Get OHLCV candlestick data for a token pair via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_pair_ohlcv(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3551,7 +4607,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get pair stats (volume, liquidity, price change) via Moralis")]
+    #[tool(
+        description = "Get pair stats (volume, liquidity, price change) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_pair_stats(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3565,7 +4624,10 @@ impl EthcliMcpServer {
     // MORALIS NFT
     // =========================================================================
 
-    #[tool(description = "Get NFTs owned by a wallet via Moralis")]
+    #[tool(
+        description = "Get NFTs owned by a wallet via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_list(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3575,7 +4637,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT metadata (name, image, attributes) via Moralis")]
+    #[tool(
+        description = "Get NFT metadata (name, image, attributes) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_metadata(
         &self,
         Parameters(input): Parameters<MoralisNftMetadataInput>,
@@ -3585,7 +4650,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT transfers for a wallet or contract via Moralis")]
+    #[tool(
+        description = "Get NFT transfers for a wallet or contract via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_transfers(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3595,7 +4663,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT collection metadata via Moralis")]
+    #[tool(
+        description = "Get NFT collection metadata via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_collection(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3605,7 +4676,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT collection stats (volume, sales, floor price) via Moralis")]
+    #[tool(
+        description = "Get NFT collection stats (volume, sales, floor price) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_collection_stats(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3615,7 +4689,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get owners of an NFT collection via Moralis")]
+    #[tool(
+        description = "Get owners of an NFT collection via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_owners(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3625,7 +4702,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT trades/sales history via Moralis")]
+    #[tool(
+        description = "Get NFT trades/sales history via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_trades(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3635,7 +4715,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT collection floor price via Moralis")]
+    #[tool(
+        description = "Get NFT collection floor price via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_floor_price(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3649,7 +4732,10 @@ impl EthcliMcpServer {
     // MORALIS WALLET (new)
     // =========================================================================
 
-    #[tool(description = "Get profitability breakdown by token for a wallet via Moralis")]
+    #[tool(
+        description = "Get profitability breakdown by token for a wallet via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_wallet_profitability_tokens(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3660,7 +4746,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get native balances for multiple wallets in batch (comma-separated addresses) via Moralis"
+        description = "Get native balances for multiple wallets in batch (comma-separated addresses) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_wallet_multiple_balances(
         &self,
@@ -3675,7 +4762,10 @@ impl EthcliMcpServer {
     // MORALIS TOKEN (new)
     // =========================================================================
 
-    #[tool(description = "Get token swaps for a wallet address via Moralis")]
+    #[tool(
+        description = "Get token swaps for a wallet address via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_wallet_swaps(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3685,7 +4775,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get swaps for a specific token pair via Moralis")]
+    #[tool(
+        description = "Get swaps for a specific token pair via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_pair_swaps(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3695,7 +4788,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get all token categories via Moralis")]
+    #[tool(
+        description = "Get all token categories via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_categories(
         &self,
         Parameters(input): Parameters<MoralisChainOnlyInput>,
@@ -3706,7 +4802,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get prices for multiple tokens in batch (comma-separated addresses) via Moralis"
+        description = "Get prices for multiple tokens in batch (comma-separated addresses) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_token_multiple_prices(
         &self,
@@ -3717,7 +4814,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get transfers for a token contract (not wallet transfers) via Moralis")]
+    #[tool(
+        description = "Get transfers for a token contract (not wallet transfers) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_contract_transfers(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3727,7 +4827,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get holders summary for a token via Moralis")]
+    #[tool(
+        description = "Get holders summary for a token via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_holders_summary(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3737,7 +4840,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get top gainers/traders for a token via Moralis")]
+    #[tool(
+        description = "Get top gainers/traders for a token via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_token_top_gainers(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3751,7 +4857,10 @@ impl EthcliMcpServer {
     // MORALIS NFT (new)
     // =========================================================================
 
-    #[tool(description = "Get NFT collections owned by a wallet via Moralis")]
+    #[tool(
+        description = "Get NFT collections owned by a wallet via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_wallet_collections(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3761,7 +4870,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT transfers by contract address via Moralis")]
+    #[tool(
+        description = "Get NFT transfers by contract address via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_contract_transfers(
         &self,
         Parameters(input): Parameters<MoralisNftContractInput>,
@@ -3771,7 +4883,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get transfers for a specific NFT token via Moralis")]
+    #[tool(
+        description = "Get transfers for a specific NFT token via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_token_transfers(
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
@@ -3785,7 +4900,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get owners of a specific NFT token via Moralis")]
+    #[tool(
+        description = "Get owners of a specific NFT token via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_token_owners(
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
@@ -3799,7 +4917,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get floor price for a specific NFT token via Moralis")]
+    #[tool(
+        description = "Get floor price for a specific NFT token via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_token_floor_price(
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
@@ -3813,7 +4934,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get trades for a specific NFT token via Moralis")]
+    #[tool(
+        description = "Get trades for a specific NFT token via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_token_trades(
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
@@ -3827,7 +4951,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get NFT trades for a wallet via Moralis")]
+    #[tool(
+        description = "Get NFT trades for a wallet via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_wallet_trades(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3837,7 +4964,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT collection traits via Moralis")]
+    #[tool(
+        description = "Get NFT collection traits via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_collection_traits(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3847,7 +4977,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT collection traits with pagination via Moralis")]
+    #[tool(
+        description = "Get NFT collection traits with pagination via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_collection_traits_paginated(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3857,7 +4990,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get unique owners count for an NFT collection via Moralis")]
+    #[tool(
+        description = "Get unique owners count for an NFT collection via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_unique_owners(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3867,7 +5003,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Resync metadata for a specific NFT token via Moralis")]
+    #[tool(
+        description = "Resync metadata for a specific NFT token via Moralis. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn moralis_nft_resync_metadata(
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
@@ -3882,7 +5026,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get multiple NFTs by token addresses and IDs in batch (format: addr:id,addr:id) via Moralis"
+        description = "Get multiple NFTs by token addresses and IDs in batch (format: addr:id,addr:id) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_nft_multiple_nfts(
         &self,
@@ -3893,7 +5038,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get historical floor price data for an NFT collection via Moralis")]
+    #[tool(
+        description = "Get historical floor price data for an NFT collection via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_floor_price_historical(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3903,7 +5051,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Sync NFT collection metadata via Moralis")]
+    #[tool(
+        description = "Sync NFT collection metadata via Moralis. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn moralis_nft_sync_collection(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3913,7 +5069,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get all NFTs by contract address via Moralis")]
+    #[tool(
+        description = "Get all NFTs by contract address via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_contract_nfts(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3924,7 +5083,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get metadata for multiple NFT contracts in batch (comma-separated addresses) via Moralis"
+        description = "Get metadata for multiple NFT contracts in batch (comma-separated addresses) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_nft_multiple_collections(
         &self,
@@ -3935,7 +5095,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Resync NFT collection traits via Moralis")]
+    #[tool(
+        description = "Resync NFT collection traits via Moralis. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn moralis_nft_resync_traits(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3945,7 +5113,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT sale prices for a collection via Moralis")]
+    #[tool(
+        description = "Get NFT sale prices for a collection via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_collection_prices(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3955,7 +5126,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get NFT sale prices for a specific token via Moralis")]
+    #[tool(
+        description = "Get NFT sale prices for a specific token via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_nft_token_prices(
         &self,
         Parameters(input): Parameters<MoralisNftTokenInput>,
@@ -3973,7 +5147,10 @@ impl EthcliMcpServer {
     // MORALIS RESOLVE (new)
     // =========================================================================
 
-    #[tool(description = "Get all domains for an address via Moralis")]
+    #[tool(
+        description = "Get all domains for an address via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_resolve_address_domains(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -3983,7 +5160,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get ENS domain details via Moralis")]
+    #[tool(
+        description = "Get ENS domain details via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_resolve_ens_domain(
         &self,
         Parameters(input): Parameters<MoralisDomainInput>,
@@ -3997,7 +5177,10 @@ impl EthcliMcpServer {
     // MORALIS TRANSACTION
     // =========================================================================
 
-    #[tool(description = "Get transaction details by hash via Moralis")]
+    #[tool(
+        description = "Get transaction details by hash via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_transaction_get(
         &self,
         Parameters(input): Parameters<MoralisTxHashInput>,
@@ -4008,7 +5191,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get verbose transaction with decoded data and optional internal transactions via Moralis"
+        description = "Get verbose transaction with decoded data and optional internal transactions via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_transaction_verbose(
         &self,
@@ -4023,7 +5207,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get transactions for a wallet address via Moralis transaction API")]
+    #[tool(
+        description = "Get transactions for a wallet address via Moralis transaction API",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_transaction_wallet(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -4034,7 +5221,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get verbose transactions for a wallet with decoded data and optional internal transactions via Moralis"
+        description = "Get verbose transactions for a wallet with decoded data and optional internal transactions via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_transaction_wallet_verbose(
         &self,
@@ -4054,7 +5242,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get block by number or hash with optional transaction details via Moralis"
+        description = "Get block by number or hash with optional transaction details via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_block_get(
         &self,
@@ -4069,7 +5258,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get the latest block number for a chain via Moralis")]
+    #[tool(
+        description = "Get the latest block number for a chain via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_block_latest(
         &self,
         Parameters(input): Parameters<MoralisChainOnlyInput>,
@@ -4080,7 +5272,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get block number by date (ISO 8601 format, e.g. 2023-01-01T00:00:00Z) via Moralis"
+        description = "Get block number by date (ISO 8601 format, e.g. 2023-01-01T00:00:00Z) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_block_date_to_block(
         &self,
@@ -4095,7 +5288,10 @@ impl EthcliMcpServer {
     // MORALIS DEFI
     // =========================================================================
 
-    #[tool(description = "Get price between two tokens in a DEX pair via Moralis")]
+    #[tool(
+        description = "Get price between two tokens in a DEX pair via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_defi_pair_price(
         &self,
         Parameters(input): Parameters<MoralisDefiPairPriceInput>,
@@ -4110,7 +5306,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get reserves for a DEX pair via Moralis")]
+    #[tool(
+        description = "Get reserves for a DEX pair via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_defi_pair_reserves(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -4120,7 +5319,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get pair address for two tokens on a DEX via Moralis")]
+    #[tool(
+        description = "Get pair address for two tokens on a DEX via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_defi_pair_address(
         &self,
         Parameters(input): Parameters<MoralisDefiPairAddressInput>,
@@ -4135,7 +5337,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get DeFi summary for a wallet via Moralis")]
+    #[tool(
+        description = "Get DeFi summary for a wallet via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_defi_wallet_summary(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -4145,7 +5350,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get all DeFi positions for a wallet via Moralis")]
+    #[tool(
+        description = "Get all DeFi positions for a wallet via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_defi_wallet_positions(
         &self,
         Parameters(input): Parameters<MoralisAddressInput>,
@@ -4155,7 +5363,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get DeFi positions for a specific protocol via Moralis")]
+    #[tool(
+        description = "Get DeFi positions for a specific protocol via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_defi_protocol_positions(
         &self,
         Parameters(input): Parameters<MoralisProtocolPositionsInput>,
@@ -4174,7 +5385,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get token analytics (buyers, sellers, volume) for a specific token via Moralis discovery"
+        description = "Get token analytics (buyers, sellers, volume) for a specific token via Moralis discovery",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_discovery_token_analytics(
         &self,
@@ -4186,7 +5398,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get token score (security, verification, spam status) via Moralis discovery"
+        description = "Get token score (security, verification, spam status) via Moralis discovery",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_discovery_token_score(
         &self,
@@ -4202,7 +5415,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get token analytics timeseries data (comma-separated addresses, optional timeframe and date range) via Moralis"
+        description = "Get token analytics timeseries data (comma-separated addresses, optional timeframe) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_analytics_timeseries(
         &self,
@@ -4211,8 +5425,6 @@ impl EthcliMcpServer {
         tools::moralis_analytics_timeseries(
             &input.addresses,
             input.timeframe.as_deref(),
-            input.from_date.as_deref(),
-            input.to_date.as_deref(),
             Some(input.chain.as_str()),
         )
         .await
@@ -4220,7 +5432,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get batch token analytics for multiple tokens (comma-separated addresses) via Moralis"
+        description = "Get batch token analytics for multiple tokens (comma-separated addresses) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn moralis_analytics_batch(
         &self,
@@ -4235,7 +5448,10 @@ impl EthcliMcpServer {
     // MORALIS ENTITIES
     // =========================================================================
 
-    #[tool(description = "Search for entities (wallets, protocols, exchanges) via Moralis")]
+    #[tool(
+        description = "Search for entities (wallets, protocols, exchanges) via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_entities_search(
         &self,
         Parameters(input): Parameters<MoralisSearchInput>,
@@ -4245,7 +5461,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get entity details by ID via Moralis")]
+    #[tool(
+        description = "Get entity details by ID via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_entities_get(
         &self,
         Parameters(input): Parameters<MoralisEntityIdInput>,
@@ -4255,7 +5474,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get all entity categories via Moralis")]
+    #[tool(
+        description = "Get all entity categories via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_entities_categories(
         &self,
         Parameters(input): Parameters<MoralisChainOnlyInput>,
@@ -4265,7 +5487,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get entities in a specific category via Moralis")]
+    #[tool(
+        description = "Get entities in a specific category via Moralis",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn moralis_entities_category_entities(
         &self,
         Parameters(input): Parameters<MoralisCategoryIdInput>,
@@ -4279,17 +5504,28 @@ impl EthcliMcpServer {
     // DUNE
     // =========================================================================
 
-    #[tool(description = "Execute a Dune Analytics query")]
+    #[tool(
+        description = "Execute a Dune Analytics query",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_query(&self, Parameters(input): Parameters<DuneQueryInput>) -> CallToolResult {
-        tools::dune_query(&input.query_id).await.to_response()
+        tools::dune_query(&input.query_id, input.params.as_deref())
+            .await
+            .to_response()
     }
 
-    #[tool(description = "Execute SQL directly on Dune")]
+    #[tool(
+        description = "Execute SQL directly on Dune",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_sql(&self, Parameters(input): Parameters<DuneSqlInput>) -> CallToolResult {
         tools::dune_sql(&input.sql).await.to_response()
     }
 
-    #[tool(description = "Get Dune query execution results")]
+    #[tool(
+        description = "Get Dune query execution results",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_execution(
         &self,
         Parameters(input): Parameters<DuneExecutionInput>,
@@ -4301,7 +5537,15 @@ impl EthcliMcpServer {
 
     // --- Dune Queries CRUD ---
 
-    #[tool(description = "Create a saved Dune Analytics query")]
+    #[tool(
+        description = "Create a saved Dune Analytics query. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn dune_queries_create(
         &self,
         Parameters(input): Parameters<DuneQueriesCreateInput>,
@@ -4317,7 +5561,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get details of a saved Dune query")]
+    #[tool(
+        description = "Get details of a saved Dune query",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_queries_get(
         &self,
         Parameters(input): Parameters<DuneQueriesGetInput>,
@@ -4325,7 +5572,15 @@ impl EthcliMcpServer {
         tools::dune_queries_get(&input.query_id).await.to_response()
     }
 
-    #[tool(description = "Update an existing Dune query")]
+    #[tool(
+        description = "Update an existing Dune query. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_queries_update(
         &self,
         Parameters(input): Parameters<DuneQueriesUpdateInput>,
@@ -4341,7 +5596,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "List all saved Dune queries")]
+    #[tool(
+        description = "List all saved Dune queries",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_queries_list(
         &self,
         Parameters(input): Parameters<DuneQueriesListInput>,
@@ -4351,7 +5609,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Archive a Dune query")]
+    #[tool(
+        description = "Archive a Dune query. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_queries_archive(
         &self,
         Parameters(input): Parameters<DuneQueriesIdInput>,
@@ -4361,7 +5627,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Unarchive a Dune query")]
+    #[tool(
+        description = "Unarchive a Dune query. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_queries_unarchive(
         &self,
         Parameters(input): Parameters<DuneQueriesIdInput>,
@@ -4371,7 +5645,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Make a Dune query private")]
+    #[tool(
+        description = "Make a Dune query private. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_queries_make_private(
         &self,
         Parameters(input): Parameters<DuneQueriesIdInput>,
@@ -4381,7 +5663,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Make a Dune query public")]
+    #[tool(
+        description = "Make a Dune query public. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_queries_make_public(
         &self,
         Parameters(input): Parameters<DuneQueriesIdInput>,
@@ -4393,7 +5683,15 @@ impl EthcliMcpServer {
 
     // --- Dune Tables CRUD ---
 
-    #[tool(description = "Create a Dune table with a JSON schema definition")]
+    #[tool(
+        description = "Create a Dune table with a JSON schema definition. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn dune_tables_create(
         &self,
         Parameters(input): Parameters<DuneTablesCreateInput>,
@@ -4409,7 +5707,15 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Upload CSV data to a Dune table")]
+    #[tool(
+        description = "Upload CSV data to a Dune table. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn dune_tables_upload_csv(
         &self,
         Parameters(input): Parameters<DuneTablesUploadCsvInput>,
@@ -4424,7 +5730,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "List Dune tables")]
+    #[tool(
+        description = "List Dune tables",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_tables_list(
         &self,
         Parameters(input): Parameters<DuneTablesListInput>,
@@ -4434,7 +5743,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get details of a Dune table")]
+    #[tool(
+        description = "Get details of a Dune table",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_tables_get(
         &self,
         Parameters(input): Parameters<DuneTablesGetInput>,
@@ -4444,7 +5756,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Insert rows into a Dune table")]
+    #[tool(
+        description = "Insert rows into a Dune table. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn dune_tables_insert(
         &self,
         Parameters(input): Parameters<DuneTablesInsertInput>,
@@ -4454,7 +5774,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Clear all data from a Dune table")]
+    #[tool(
+        description = "Clear all data from a Dune table. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_tables_clear(
         &self,
         Parameters(input): Parameters<DuneTablesNamespaceTableInput>,
@@ -4464,7 +5792,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Delete a Dune table")]
+    #[tool(
+        description = "Delete a Dune table. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_tables_delete(
         &self,
         Parameters(input): Parameters<DuneTablesNamespaceTableInput>,
@@ -4476,7 +5812,15 @@ impl EthcliMcpServer {
 
     // --- Dune Materialized Views ---
 
-    #[tool(description = "Create or update a Dune materialized view")]
+    #[tool(
+        description = "Create or update a Dune materialized view. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_matviews_upsert(
         &self,
         Parameters(input): Parameters<DuneMatviewsUpsertInput>,
@@ -4493,7 +5837,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get details of a Dune materialized view")]
+    #[tool(
+        description = "Get details of a Dune materialized view",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_matviews_get(
         &self,
         Parameters(input): Parameters<DuneMatviewsNameInput>,
@@ -4501,7 +5848,10 @@ impl EthcliMcpServer {
         tools::dune_matviews_get(&input.name).await.to_response()
     }
 
-    #[tool(description = "List Dune materialized views")]
+    #[tool(
+        description = "List Dune materialized views",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_matviews_list(
         &self,
         Parameters(input): Parameters<DuneMatviewsListInput>,
@@ -4511,7 +5861,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Refresh a Dune materialized view")]
+    #[tool(
+        description = "Refresh a Dune materialized view. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn dune_matviews_refresh(
         &self,
         Parameters(input): Parameters<DuneMatviewsRefreshInput>,
@@ -4521,7 +5879,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Delete a Dune materialized view")]
+    #[tool(
+        description = "Delete a Dune materialized view. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn dune_matviews_delete(
         &self,
         Parameters(input): Parameters<DuneMatviewsNameInput>,
@@ -4531,7 +5897,15 @@ impl EthcliMcpServer {
 
     // --- Dune Pipelines ---
 
-    #[tool(description = "Execute a Dune pipeline")]
+    #[tool(
+        description = "Execute a Dune pipeline. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn dune_pipelines_execute(
         &self,
         Parameters(input): Parameters<DunePipelinesExecuteInput>,
@@ -4545,7 +5919,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get Dune pipeline execution status")]
+    #[tool(
+        description = "Get Dune pipeline execution status",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_pipelines_status(
         &self,
         Parameters(input): Parameters<DunePipelinesStatusInput>,
@@ -4557,7 +5934,10 @@ impl EthcliMcpServer {
 
     // --- Dune Usage ---
 
-    #[tool(description = "Get Dune Analytics usage and billing information")]
+    #[tool(
+        description = "Get Dune Analytics usage and billing information",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn dune_usage(&self) -> CallToolResult {
         tools::dune_usage().await.to_response()
     }
@@ -4566,7 +5946,10 @@ impl EthcliMcpServer {
     // CURVE (additional)
     // =========================================================================
 
-    #[tool(description = "Get Curve pool volumes")]
+    #[tool(
+        description = "Get Curve pool volumes",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_volumes(
         &self,
         Parameters(input): Parameters<CurvePoolsInput>,
@@ -4574,31 +5957,44 @@ impl EthcliMcpServer {
         tools::curve_volumes(Some(&input.chain)).await.to_response()
     }
 
-    #[tool(description = "Get Curve lending markets")]
+    #[tool(
+        description = "Get Curve lending vaults on a chain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_lending(
         &self,
         Parameters(input): Parameters<CurvePoolsInput>,
     ) -> CallToolResult {
-        tools::curve_lending(Some(&input.chain)).await.to_response()
+        tools::curve_lending(&input.chain).await.to_response()
     }
 
-    #[tool(description = "Get Curve token list")]
+    #[tool(
+        description = "Get Curve token list",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_tokens(&self, Parameters(input): Parameters<CurvePoolsInput>) -> CallToolResult {
         tools::curve_tokens(Some(&input.chain)).await.to_response()
     }
 
-    #[tool(description = "Get crvUSD market data")]
+    #[tool(
+        description = "Get crvUSD market data",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_crvusd(&self) -> CallToolResult {
         tools::curve_crvusd().await.to_response()
     }
 
-    #[tool(description = "Get Curve token prices")]
+    #[tool(
+        description = "Get Curve token prices",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_prices(&self, Parameters(input): Parameters<CurvePoolsInput>) -> CallToolResult {
         tools::curve_prices(Some(&input.chain)).await.to_response()
     }
 
     #[tool(
-        description = "Get Curve pool OHLC data: price of reference_token denominated in main_token (both pool coins). Defaults to the last 7 days."
+        description = "Get Curve pool OHLC data: price of reference_token denominated in main_token (both pool coins). Defaults to the last 7 days.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn curve_ohlc(
         &self,
@@ -4617,11 +6013,12 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get Curve pool trades between two pool coins (main_token, reference_token)"
+        description = "Get Curve pool trades between two pool coins (main_token, reference_token)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn curve_trades(
         &self,
-        Parameters(input): Parameters<CurvePoolPairInput>,
+        Parameters(input): Parameters<CurveTradesInput>,
     ) -> CallToolResult {
         tools::curve_trades(
             &input.chain,
@@ -4633,14 +6030,20 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get Curve DAO data")]
+    #[tool(
+        description = "Get Curve DAO data",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_dao(&self) -> CallToolResult {
         tools::curve_dao().await.to_response()
     }
 
     // --- Router additional ---
 
-    #[tool(description = "Get calldata for a Curve swap (encode route into transaction data)")]
+    #[tool(
+        description = "Get calldata for a Curve swap (encode route into transaction data)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_router_encode(
         &self,
         Parameters(input): Parameters<CurveRouterEncodeInput>,
@@ -4656,7 +6059,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get Curve router graph statistics (token count, edge count)")]
+    #[tool(
+        description = "Get Curve router graph statistics (token count, edge count)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_router_stats(
         &self,
         Parameters(input): Parameters<CurvePoolsInput>,
@@ -4666,7 +6072,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Curve router contract address for a chain")]
+    #[tool(
+        description = "Get Curve router contract address for a chain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_router_address(
         &self,
         Parameters(input): Parameters<CurvePoolsInput>,
@@ -4678,7 +6087,10 @@ impl EthcliMcpServer {
 
     // --- Pools additional ---
 
-    #[tool(description = "Get Curve pools from a specific registry on a chain")]
+    #[tool(
+        description = "Get Curve pools from a specific registry on a chain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_pools_registry(
         &self,
         Parameters(input): Parameters<CurveChainRegistryInput>,
@@ -4688,12 +6100,18 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get all Curve pools across all chains")]
+    #[tool(
+        description = "Get all Curve pools across all chains",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_pools_all(&self) -> CallToolResult {
         tools::curve_pools_all().await.to_response()
     }
 
-    #[tool(description = "Get Curve pools with TVL >= $10k (optionally filtered by chain)")]
+    #[tool(
+        description = "Get Curve pools with TVL >= $10k (optionally filtered by chain)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_pools_big(
         &self,
         Parameters(input): Parameters<CurveOptionalChainInput>,
@@ -4703,7 +6121,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Curve pools with TVL < $10k (optionally filtered by chain)")]
+    #[tool(
+        description = "Get Curve pools with TVL < $10k (optionally filtered by chain)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_pools_small(
         &self,
         Parameters(input): Parameters<CurveOptionalChainInput>,
@@ -4713,7 +6134,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Curve pools with $0 TVL (optionally filtered by chain)")]
+    #[tool(
+        description = "Get Curve pools with $0 TVL (optionally filtered by chain)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_pools_empty(
         &self,
         Parameters(input): Parameters<CurveOptionalChainInput>,
@@ -4723,7 +6147,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Curve pool addresses on a chain")]
+    #[tool(
+        description = "Get Curve pool addresses on a chain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_pools_addresses(
         &self,
         Parameters(input): Parameters<CurvePoolsInput>,
@@ -4733,19 +6160,28 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get hidden/dysfunctional Curve pools")]
+    #[tool(
+        description = "Get hidden/dysfunctional Curve pools",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_pools_hidden(&self) -> CallToolResult {
         tools::curve_pools_hidden().await.to_response()
     }
 
     // --- Volumes additional ---
 
-    #[tool(description = "Get all Curve gauge data")]
+    #[tool(
+        description = "Get all Curve gauge data",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_volumes_gauges(&self) -> CallToolResult {
         tools::curve_volumes_gauges().await.to_response()
     }
 
-    #[tool(description = "Get total 24h Curve volume for a chain")]
+    #[tool(
+        description = "Get total 24h Curve volume for a chain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_volumes_total(
         &self,
         Parameters(input): Parameters<CurvePoolsInput>,
@@ -4755,7 +6191,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Curve base APYs for pools on a chain")]
+    #[tool(
+        description = "Get Curve base APYs for pools on a chain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_volumes_apys(
         &self,
         Parameters(input): Parameters<CurvePoolsInput>,
@@ -4765,19 +6204,28 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get crvUSD AMM volumes")]
+    #[tool(
+        description = "Get crvUSD AMM volumes",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_volumes_crvusd(&self) -> CallToolResult {
         tools::curve_volumes_crvusd().await.to_response()
     }
 
     // --- Lending additional ---
 
-    #[tool(description = "Get all Curve lending vaults across all chains")]
+    #[tool(
+        description = "Get all Curve lending vaults across all chains",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_lending_all(&self) -> CallToolResult {
         tools::curve_lending_all().await.to_response()
     }
 
-    #[tool(description = "Get Curve lending vaults from a specific registry on a chain")]
+    #[tool(
+        description = "Get Curve lending vaults from a specific registry on a chain",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_lending_registry(
         &self,
         Parameters(input): Parameters<CurveChainRegistryInput>,
@@ -4790,18 +6238,25 @@ impl EthcliMcpServer {
     // --- CrvUSD additional ---
 
     #[tool(
-        description = "Get CRV (not crvUSD) circulating supply. For crvUSD supply use curve_crvusd."
+        description = "Get CRV (not crvUSD) circulating supply. For crvUSD supply use curve_crvusd.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn curve_crv_circulating_supply(&self) -> CallToolResult {
         tools::curve_crv_circulating_supply().await.to_response()
     }
 
-    #[tool(description = "Get scrvUSD total supply")]
+    #[tool(
+        description = "Get scrvUSD total supply",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_crvusd_scrvusd_supply(&self) -> CallToolResult {
         tools::curve_crvusd_scrvusd_supply().await.to_response()
     }
 
-    #[tool(description = "Get crvUSD markets (optionally filtered by chain)")]
+    #[tool(
+        description = "Get crvUSD markets (optionally filtered by chain)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_crvusd_markets(
         &self,
         Parameters(input): Parameters<CurveOptionalChainInput>,
@@ -4811,24 +6266,36 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get crvUSD savings stats")]
+    #[tool(
+        description = "Get crvUSD savings stats",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_crvusd_savings(&self) -> CallToolResult {
         tools::curve_crvusd_savings().await.to_response()
     }
 
     // --- Prices additional ---
 
-    #[tool(description = "Get Curve supported chains for prices")]
+    #[tool(
+        description = "Get Curve supported chains for prices",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_prices_chains(&self) -> CallToolResult {
         tools::curve_prices_chains().await.to_response()
     }
 
-    #[tool(description = "Get Curve chain stats")]
+    #[tool(
+        description = "Get Curve chain stats",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_prices_chain_stats(&self) -> CallToolResult {
         tools::curve_prices_chain_stats().await.to_response()
     }
 
-    #[tool(description = "Get USD price for a specific token on Curve")]
+    #[tool(
+        description = "Get USD price for a specific token on Curve",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_prices_token(
         &self,
         Parameters(input): Parameters<CurveChainAddressInput>,
@@ -4839,7 +6306,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get price history for a token on Curve. Requires start and end timestamps."
+        description = "Get price history for a token on Curve. Requires start and end timestamps.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn curve_prices_history(
         &self,
@@ -4851,7 +6319,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get USD volume for a chain from the Curve Prices API (default: last 30 days, daily)"
+        description = "Get USD volume for a chain from the Curve Prices API (default: last 30 days, daily)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn curve_prices_volume(
         &self,
@@ -4870,7 +6339,8 @@ impl EthcliMcpServer {
     // --- OHLC additional ---
 
     #[tool(
-        description = "Get LP token OHLC data on Curve (address is the pool address). start/end default to the last 7 days."
+        description = "Get LP token OHLC data on Curve (address is the pool address). start/end default to the last 7 days.",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn curve_ohlc_lp_token(
         &self,
@@ -4883,12 +6353,18 @@ impl EthcliMcpServer {
 
     // --- DAO additional ---
 
-    #[tool(description = "Get Curve DAO proposals")]
+    #[tool(
+        description = "Get Curve DAO proposals",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_dao_proposals(&self) -> CallToolResult {
         tools::curve_dao_proposals().await.to_response()
     }
 
-    #[tool(description = "Get top CRV lockers")]
+    #[tool(
+        description = "Get top CRV lockers",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn curve_dao_lockers(
         &self,
         Parameters(input): Parameters<CurveDaoLockersInput>,
@@ -4901,7 +6377,8 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get quote from a specific aggregator (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)"
+        description = "Get quote from a specific aggregator (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, enso)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn quote_from(&self, Parameters(input): Parameters<QuoteFromInput>) -> CallToolResult {
         tools::quote_from(
@@ -4923,12 +6400,18 @@ impl EthcliMcpServer {
     // CHAINLINK (additional)
     // =========================================================================
 
-    #[tool(description = "List available Chainlink Data Streams feeds")]
+    #[tool(
+        description = "List available Chainlink Data Streams feeds",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlink_streams_feeds(&self) -> CallToolResult {
         tools::chainlink_streams_feeds().await.to_response()
     }
 
-    #[tool(description = "Get latest report for a Chainlink Data Streams feed")]
+    #[tool(
+        description = "Get latest report for a Chainlink Data Streams feed",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlink_streams_latest(
         &self,
         Parameters(input): Parameters<ChainlinkStreamsFeedInput>,
@@ -4938,7 +6421,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Chainlink Data Streams report at a specific timestamp")]
+    #[tool(
+        description = "Get Chainlink Data Streams report at a specific timestamp",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlink_streams_report(
         &self,
         Parameters(input): Parameters<ChainlinkStreamsReportInput>,
@@ -4949,7 +6435,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get bulk Chainlink Data Streams reports for multiple feeds at a timestamp"
+        description = "Get bulk Chainlink Data Streams reports for multiple feeds at a timestamp",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn chainlink_streams_bulk(
         &self,
@@ -4960,7 +6447,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get paginated Chainlink Data Streams report history for a feed")]
+    #[tool(
+        description = "Get paginated Chainlink Data Streams report history for a feed",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlink_streams_history(
         &self,
         Parameters(input): Parameters<ChainlinkStreamsHistoryInput>,
@@ -4974,7 +6464,10 @@ impl EthcliMcpServer {
     // CCXT (additional)
     // =========================================================================
 
-    #[tool(description = "Get all tickers from an exchange")]
+    #[tool(
+        description = "Get all tickers from an exchange",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ccxt_tickers(
         &self,
         Parameters(input): Parameters<CcxtExchangeInput>,
@@ -4984,21 +6477,30 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get OHLCV candlestick data from an exchange")]
+    #[tool(
+        description = "Get OHLCV candlestick data from an exchange",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ccxt_ohlcv(&self, Parameters(input): Parameters<CcxtOhlcvInput>) -> CallToolResult {
         tools::ccxt_ohlcv(&input.exchange, &input.symbol, input.timeframe.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(description = "Get recent trades from an exchange")]
+    #[tool(
+        description = "Get recent trades from an exchange",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ccxt_trades(&self, Parameters(input): Parameters<CcxtTradesInput>) -> CallToolResult {
         tools::ccxt_trades(&input.exchange, &input.symbol)
             .await
             .to_response()
     }
 
-    #[tool(description = "Get market info from an exchange")]
+    #[tool(
+        description = "Get market info from an exchange",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ccxt_markets(
         &self,
         Parameters(input): Parameters<CcxtExchangeInput>,
@@ -5006,7 +6508,10 @@ impl EthcliMcpServer {
         tools::ccxt_markets(&input.exchange).await.to_response()
     }
 
-    #[tool(description = "Compare prices across exchanges")]
+    #[tool(
+        description = "Compare prices across exchanges",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn ccxt_compare(
         &self,
         Parameters(input): Parameters<CcxtCompareInput>,
@@ -5018,7 +6523,10 @@ impl EthcliMcpServer {
     // UNISWAP (additional)
     // =========================================================================
 
-    #[tool(description = "Get Uniswap pool liquidity data")]
+    #[tool(
+        description = "Get Uniswap pool liquidity data",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn uniswap_liquidity(
         &self,
         Parameters(input): Parameters<UniswapPoolAddressInput>,
@@ -5028,27 +6536,36 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get recent swaps for a Uniswap pool")]
+    #[tool(
+        description = "Get recent swaps for a Uniswap pool from the subgraph (Ethereum mainnet only)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn uniswap_swaps(
         &self,
-        Parameters(input): Parameters<UniswapPoolAddressInput>,
+        Parameters(input): Parameters<UniswapSubgraphPoolInput>,
     ) -> CallToolResult {
-        tools::uniswap_swaps(&input.pool, Some(&input.chain))
+        tools::uniswap_swaps(&input.pool, input.version.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(description = "Get Uniswap pool daily data")]
+    #[tool(
+        description = "Get Uniswap pool daily data from the subgraph (Ethereum mainnet only)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn uniswap_day_data(
         &self,
-        Parameters(input): Parameters<UniswapPoolAddressInput>,
+        Parameters(input): Parameters<UniswapSubgraphPoolInput>,
     ) -> CallToolResult {
-        tools::uniswap_day_data(&input.pool, Some(&input.chain))
+        tools::uniswap_day_data(&input.pool, input.version.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(description = "Get token balance from Uniswap")]
+    #[tool(
+        description = "Get token balance from Uniswap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn uniswap_balance(
         &self,
         Parameters(input): Parameters<UniswapBalanceInput>,
@@ -5058,12 +6575,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get Uniswap contract addresses for a chain")]
+    #[tool(
+        description = "Get well-known Uniswap factory, pool and token addresses (Ethereum mainnet)",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn uniswap_addresses(
         &self,
         Parameters(input): Parameters<UniswapEthPriceInput>,
     ) -> CallToolResult {
-        tools::uniswap_addresses(Some(&input.chain))
+        tools::uniswap_addresses(input.version.as_deref())
             .await
             .to_response()
     }
@@ -5072,14 +6592,20 @@ impl EthcliMcpServer {
     // KONG (Yearn)
     // =========================================================================
 
-    #[tool(description = "Get Yearn vaults via Kong")]
+    #[tool(
+        description = "Get Yearn vaults via Kong",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn kong_vaults(&self, Parameters(input): Parameters<KongChainInput>) -> CallToolResult {
         tools::kong_vaults(Some(&input.chain_id))
             .await
             .to_response()
     }
 
-    #[tool(description = "List all strategies via Kong")]
+    #[tool(
+        description = "List all strategies via Kong",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn kong_strategies(
         &self,
         Parameters(input): Parameters<KongChainInput>,
@@ -5089,21 +6615,30 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get token prices via Kong")]
+    #[tool(
+        description = "Get token prices via Kong",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn kong_prices(&self, Parameters(input): Parameters<KongPricesInput>) -> CallToolResult {
         tools::kong_prices(&input.address, Some(&input.chain_id))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get Yearn TVL via Kong")]
+    #[tool(
+        description = "Get Yearn TVL via Kong",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn kong_tvl(&self, Parameters(input): Parameters<KongTvlInput>) -> CallToolResult {
         tools::kong_tvl(&input.address, Some(&input.chain_id))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get vault reports via Kong")]
+    #[tool(
+        description = "Get vault reports via Kong",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn kong_reports(
         &self,
         Parameters(input): Parameters<KongReportsInput>,
@@ -5117,7 +6652,10 @@ impl EthcliMcpServer {
     // 1INCH (additional)
     // =========================================================================
 
-    #[tool(description = "Get swap calldata from 1inch")]
+    #[tool(
+        description = "Get swap calldata from 1inch",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn oneinch_swap(
         &self,
         Parameters(input): Parameters<OneinchSwapInput>,
@@ -5133,7 +6671,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get supported tokens from 1inch")]
+    #[tool(
+        description = "Get supported tokens from 1inch",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn oneinch_tokens(
         &self,
         Parameters(input): Parameters<OneinchChainInput>,
@@ -5141,7 +6682,10 @@ impl EthcliMcpServer {
         tools::oneinch_tokens(input.chain_id).await.to_response()
     }
 
-    #[tool(description = "Get liquidity sources from 1inch")]
+    #[tool(
+        description = "Get liquidity sources from 1inch",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn oneinch_sources(
         &self,
         Parameters(input): Parameters<OneinchChainInput>,
@@ -5149,7 +6693,10 @@ impl EthcliMcpServer {
         tools::oneinch_sources(input.chain_id).await.to_response()
     }
 
-    #[tool(description = "Get spender address from 1inch")]
+    #[tool(
+        description = "Get spender address from 1inch",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn oneinch_spender(
         &self,
         Parameters(input): Parameters<OneinchChainInput>,
@@ -5157,7 +6704,10 @@ impl EthcliMcpServer {
         tools::oneinch_spender(input.chain_id).await.to_response()
     }
 
-    #[tool(description = "Check token allowance for 1inch")]
+    #[tool(
+        description = "Check token allowance for 1inch",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn oneinch_allowance(
         &self,
         Parameters(input): Parameters<OneinchAllowanceInput>,
@@ -5167,7 +6717,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get approve calldata for 1inch")]
+    #[tool(
+        description = "Get approve calldata for 1inch",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn oneinch_approve(
         &self,
         Parameters(input): Parameters<OneinchApproveInput>,
@@ -5181,7 +6734,10 @@ impl EthcliMcpServer {
     // OPENOCEAN (additional)
     // =========================================================================
 
-    #[tool(description = "Get swap calldata from De¹ (formerly OpenOcean)")]
+    #[tool(
+        description = "Get swap calldata from De¹ (formerly OpenOcean)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn openocean_swap(
         &self,
         Parameters(input): Parameters<OpenoceanSwapInput>,
@@ -5197,10 +6753,13 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get reverse quote from De¹ (formerly OpenOcean)")]
+    #[tool(
+        description = "Get reverse quote from De¹ (formerly OpenOcean)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn openocean_reverse_quote(
         &self,
-        Parameters(input): Parameters<OpenoceanQuoteInput>,
+        Parameters(input): Parameters<OpenoceanReverseQuoteInput>,
     ) -> CallToolResult {
         tools::openocean_reverse_quote(
             &input.in_token,
@@ -5212,7 +6771,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get supported tokens from De¹ (formerly OpenOcean)")]
+    #[tool(
+        description = "Get supported tokens from De¹ (formerly OpenOcean)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn openocean_tokens(
         &self,
         Parameters(input): Parameters<OpenoceanChainInput>,
@@ -5222,7 +6784,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get supported DEXes from De¹ (formerly OpenOcean)")]
+    #[tool(
+        description = "Get supported DEXes from De¹ (formerly OpenOcean)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn openocean_dexes(
         &self,
         Parameters(input): Parameters<OpenoceanChainInput>,
@@ -5236,7 +6801,10 @@ impl EthcliMcpServer {
     // KYBERSWAP
     // =========================================================================
 
-    #[tool(description = "Get swap routes from KyberSwap")]
+    #[tool(
+        description = "Get swap routes from KyberSwap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn kyberswap_routes(
         &self,
         Parameters(input): Parameters<KyberRoutesInput>,
@@ -5251,7 +6819,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get route data from KyberSwap")]
+    #[tool(
+        description = "Get route data from KyberSwap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn kyberswap_route_data(
         &self,
         Parameters(input): Parameters<KyberRoutesInput>,
@@ -5266,7 +6837,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Build swap transaction from KyberSwap")]
+    #[tool(
+        description = "Build swap transaction from KyberSwap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn kyberswap_build(
         &self,
         Parameters(input): Parameters<KyberBuildInput>,
@@ -5288,7 +6862,10 @@ impl EthcliMcpServer {
     // 0X (additional)
     // =========================================================================
 
-    #[tool(description = "Get price indicative quote from 0x")]
+    #[tool(
+        description = "Get price indicative quote from 0x",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn zerox_price(&self, Parameters(input): Parameters<ZeroxPriceInput>) -> CallToolResult {
         tools::zerox_price(
             &input.sell_token,
@@ -5301,7 +6878,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get liquidity sources from 0x")]
+    #[tool(
+        description = "Get liquidity sources from 0x",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn zerox_sources(
         &self,
         Parameters(input): Parameters<ZeroxChainInput>,
@@ -5313,7 +6893,10 @@ impl EthcliMcpServer {
     // COWSWAP (additional)
     // =========================================================================
 
-    #[tool(description = "Get order details from CoW Swap")]
+    #[tool(
+        description = "Get order details from CoW Swap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn cowswap_order(
         &self,
         Parameters(input): Parameters<CowswapOrderInput>,
@@ -5323,17 +6906,23 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get orders for an address from CoW Swap")]
+    #[tool(
+        description = "Get orders for an address from CoW Swap (paginated, optional offset and limit)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn cowswap_orders(
         &self,
-        Parameters(input): Parameters<CowswapOwnerInput>,
+        Parameters(input): Parameters<CowswapOrdersInput>,
     ) -> CallToolResult {
-        tools::cowswap_orders(&input.owner, Some(&input.chain))
+        tools::cowswap_orders(&input.owner, input.offset, input.limit, Some(&input.chain))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get trades for an address from CoW Swap (paginated, newest first)")]
+    #[tool(
+        description = "Get trades for an address from CoW Swap (paginated, newest first)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn cowswap_trades(
         &self,
         Parameters(input): Parameters<CowswapTradesInput>,
@@ -5343,7 +6932,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Get trades for an order from CoW Swap (paginated, newest first)")]
+    #[tool(
+        description = "Get trades for an order from CoW Swap (paginated, newest first)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn cowswap_order_trades(
         &self,
         Parameters(input): Parameters<CowswapOrderTradesInput>,
@@ -5358,7 +6950,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get current auction from CoW Swap")]
+    #[tool(
+        description = "Get current auction from CoW Swap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn cowswap_auction(
         &self,
         Parameters(input): Parameters<CowswapChainInput>,
@@ -5369,7 +6964,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get solver competition data from CoW Swap by auction ID, settlement tx hash, or latest"
+        description = "Get solver competition data from CoW Swap by auction ID, settlement tx hash, or latest",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn cowswap_competition(
         &self,
@@ -5384,7 +6980,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get native token price from CoW Swap")]
+    #[tool(
+        description = "Get native token price from CoW Swap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn cowswap_native_price(
         &self,
         Parameters(input): Parameters<CowswapTokenInput>,
@@ -5394,7 +6993,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Create a new order on CoW Swap (MEV-protected)")]
+    #[tool(
+        description = "Create a new order on CoW Swap (MEV-protected). Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn cowswap_create_order(
         &self,
         Parameters(input): Parameters<CowswapCreateOrderInput>,
@@ -5421,7 +7028,13 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Cancel a single CoW Swap order (deprecated upstream API; prefer cowswap_cancel_orders)"
+        description = "Cancel a single CoW Swap order (deprecated upstream API; prefer cowswap_cancel_orders). Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn cowswap_cancel_order(
         &self,
@@ -5433,7 +7046,13 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Cancel one or more CoW Swap orders (up to 128) with a signed OrderCancellations payload"
+        description = "Cancel one or more CoW Swap orders (up to 128) with a signed OrderCancellations payload. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn cowswap_cancel_orders(
         &self,
@@ -5453,100 +7072,15 @@ impl EthcliMcpServer {
     // LIFI (additional)
     // =========================================================================
 
-    #[tool(description = "Get multiple routes from LI.FI")]
+    #[tool(
+        description = "Get multiple routes from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn lifi_routes(&self, Parameters(input): Parameters<LifiQuoteInput>) -> CallToolResult {
         tools::lifi_routes(
-            &input.from_chain,
+            input.from_chain,
             &input.from_token,
-            &input.to_chain,
-            &input.to_token,
-            &input.amount,
-            &input.from_address,
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(description = "Get best route from LI.FI")]
-    async fn lifi_best_route(
-        &self,
-        Parameters(input): Parameters<LifiQuoteInput>,
-    ) -> CallToolResult {
-        tools::lifi_best_route(
-            &input.from_chain,
-            &input.from_token,
-            &input.to_chain,
-            &input.to_token,
-            &input.amount,
-            &input.from_address,
-        )
-        .await
-        .to_response()
-    }
-
-    #[tool(description = "Get transaction status from LI.FI")]
-    async fn lifi_status(&self, Parameters(input): Parameters<LifiStatusInput>) -> CallToolResult {
-        tools::lifi_status(&input.tx_hash, input.bridge.as_deref())
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get supported chains from LI.FI")]
-    async fn lifi_chains(&self) -> CallToolResult {
-        tools::lifi_chains().await.to_response()
-    }
-
-    #[tool(description = "Get chain details from LI.FI")]
-    async fn lifi_chain(&self, Parameters(input): Parameters<LifiChainInput>) -> CallToolResult {
-        tools::lifi_chain(&input.chain).await.to_response()
-    }
-
-    #[tool(description = "Get supported tokens from LI.FI")]
-    async fn lifi_tokens(&self, Parameters(input): Parameters<LifiTokensInput>) -> CallToolResult {
-        tools::lifi_tokens(Some(&input.chain_id))
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get available tools from LI.FI")]
-    async fn lifi_tools(&self) -> CallToolResult {
-        tools::lifi_tools().await.to_response()
-    }
-
-    #[tool(description = "Get supported bridges from LI.FI")]
-    async fn lifi_bridges(&self) -> CallToolResult {
-        tools::lifi_bridges().await.to_response()
-    }
-
-    #[tool(description = "Get supported exchanges from LI.FI")]
-    async fn lifi_exchanges(&self) -> CallToolResult {
-        tools::lifi_exchanges().await.to_response()
-    }
-
-    #[tool(description = "Get gas prices for a chain from LI.FI")]
-    async fn lifi_gas(&self, Parameters(input): Parameters<LifiGasInput>) -> CallToolResult {
-        tools::lifi_gas(&input.chain_id).await.to_response()
-    }
-
-    #[tool(description = "Get cross-chain connections from LI.FI")]
-    async fn lifi_connections(
-        &self,
-        Parameters(input): Parameters<LifiConnectionsInput>,
-    ) -> CallToolResult {
-        tools::lifi_connections(input.from_chain.as_deref(), input.to_chain.as_deref())
-            .await
-            .to_response()
-    }
-
-    #[tool(description = "Get just the transaction data from a LI.FI quote (convenience wrapper)")]
-    async fn lifi_get_transaction(
-        &self,
-        Parameters(input): Parameters<LifiQuoteInput>,
-    ) -> CallToolResult {
-        tools::lifi_get_transaction(
-            &input.from_chain,
-            &input.from_token,
-            &input.to_chain,
+            input.to_chain,
             &input.to_token,
             &input.amount,
             &input.from_address,
@@ -5556,7 +7090,127 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get updated transaction data for a route step from LI.FI (pass step JSON from a route response)"
+        description = "Get best route from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_best_route(
+        &self,
+        Parameters(input): Parameters<LifiQuoteInput>,
+    ) -> CallToolResult {
+        tools::lifi_best_route(
+            input.from_chain,
+            &input.from_token,
+            input.to_chain,
+            &input.to_token,
+            &input.amount,
+            &input.from_address,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get transaction status from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_status(&self, Parameters(input): Parameters<LifiStatusInput>) -> CallToolResult {
+        tools::lifi_status(&input.tx_hash, input.bridge.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get supported chains from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_chains(&self) -> CallToolResult {
+        tools::lifi_chains().await.to_response()
+    }
+
+    #[tool(
+        description = "Get chain details from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_chain(&self, Parameters(input): Parameters<LifiChainInput>) -> CallToolResult {
+        tools::lifi_chain(input.chain).await.to_response()
+    }
+
+    #[tool(
+        description = "Get supported tokens from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_tokens(&self, Parameters(input): Parameters<LifiTokensInput>) -> CallToolResult {
+        tools::lifi_tokens(Some(input.chain_id)).await.to_response()
+    }
+
+    #[tool(
+        description = "Get available tools from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_tools(&self) -> CallToolResult {
+        tools::lifi_tools().await.to_response()
+    }
+
+    #[tool(
+        description = "Get supported bridges from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_bridges(&self) -> CallToolResult {
+        tools::lifi_bridges().await.to_response()
+    }
+
+    #[tool(
+        description = "Get supported exchanges from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_exchanges(&self) -> CallToolResult {
+        tools::lifi_exchanges().await.to_response()
+    }
+
+    #[tool(
+        description = "Get gas prices for a chain from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_gas(&self, Parameters(input): Parameters<LifiGasInput>) -> CallToolResult {
+        tools::lifi_gas(input.chain_id).await.to_response()
+    }
+
+    #[tool(
+        description = "Get cross-chain connections from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_connections(
+        &self,
+        Parameters(input): Parameters<LifiConnectionsInput>,
+    ) -> CallToolResult {
+        tools::lifi_connections(input.from_chain, input.to_chain)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get just the transaction data from a LI.FI quote (convenience wrapper)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_get_transaction(
+        &self,
+        Parameters(input): Parameters<LifiQuoteInput>,
+    ) -> CallToolResult {
+        tools::lifi_get_transaction(
+            input.from_chain,
+            &input.from_token,
+            input.to_chain,
+            &input.to_token,
+            &input.amount,
+            &input.from_address,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get updated transaction data for a route step from LI.FI (pass step JSON from a route response)",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn lifi_step_transaction(
         &self,
@@ -5571,7 +7225,10 @@ impl EthcliMcpServer {
     // VELORA
     // =========================================================================
 
-    #[tool(description = "Get swap price/route from Velora (ParaSwap)")]
+    #[tool(
+        description = "Get swap price/route from Velora (ParaSwap)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn velora_price(
         &self,
         Parameters(input): Parameters<VeloraPriceInput>,
@@ -5586,7 +7243,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Build swap transaction from Velora (ParaSwap)")]
+    #[tool(
+        description = "Build swap transaction from Velora (ParaSwap)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn velora_transaction(
         &self,
         Parameters(input): Parameters<VeloraTxInput>,
@@ -5601,7 +7261,10 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get supported tokens from Velora")]
+    #[tool(
+        description = "Get supported tokens from Velora",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn velora_tokens(
         &self,
         Parameters(input): Parameters<VeloraChainInput>,
@@ -5613,7 +7276,10 @@ impl EthcliMcpServer {
     // ENSO
     // =========================================================================
 
-    #[tool(description = "Get swap route from Enso")]
+    #[tool(
+        description = "Get swap route from Enso",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn enso_route(&self, Parameters(input): Parameters<EnsoRouteInput>) -> CallToolResult {
         tools::enso_route(
             &input.from_token,
@@ -5626,14 +7292,20 @@ impl EthcliMcpServer {
         .to_response()
     }
 
-    #[tool(description = "Get token price from Enso")]
+    #[tool(
+        description = "Get token price from Enso",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn enso_price(&self, Parameters(input): Parameters<EnsoPriceInput>) -> CallToolResult {
         tools::enso_price(&input.token, Some(&input.chain_id))
             .await
             .to_response()
     }
 
-    #[tool(description = "Get token balances from Enso")]
+    #[tool(
+        description = "Get token balances from Enso",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn enso_balances(
         &self,
         Parameters(input): Parameters<EnsoBalancesInput>,
@@ -5644,7 +7316,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Bundle multiple DeFi actions into one transaction via Enso. Actions format: [{\"protocol\":\"...\",\"action\":\"...\",\"args\":{...}}]"
+        description = "Bundle multiple DeFi actions into one transaction via Enso. Actions format: [{\"protocol\":\"...\",\"action\":\"...\",\"args\":{...}}]",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn enso_bundle(&self, Parameters(input): Parameters<EnsoBundleInput>) -> CallToolResult {
         tools::enso_bundle(
@@ -5661,14 +7334,20 @@ impl EthcliMcpServer {
     // PYTH (additional)
     // =========================================================================
 
-    #[tool(description = "List Pyth price feeds")]
+    #[tool(
+        description = "List Pyth price feeds",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn pyth_feeds(&self, Parameters(input): Parameters<PythFeedsInput>) -> CallToolResult {
         tools::pyth_feeds(input.asset_type.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(description = "Get known Pyth price feeds")]
+    #[tool(
+        description = "Get known Pyth price feeds",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn pyth_known_feeds(&self) -> CallToolResult {
         tools::pyth_known_feeds().await.to_response()
     }
@@ -5677,27 +7356,52 @@ impl EthcliMcpServer {
     // CONFIG
     // =========================================================================
 
-    #[tool(description = "Initialize ethcli config file")]
+    #[tool(
+        description = "Initialize ethcli config file. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn config_init(&self) -> CallToolResult {
         tools::config_init().await.to_response()
     }
 
-    #[tool(description = "Get the path to ethcli config file")]
+    #[tool(
+        description = "Get the path to ethcli config file",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn config_path(&self) -> CallToolResult {
         tools::config_path().await.to_response()
     }
 
-    #[tool(description = "Show safe ethcli config status without exposing config contents")]
+    #[tool(
+        description = "Show safe ethcli config status without exposing config contents",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn config_show(&self) -> CallToolResult {
         tools::config_show().await.to_response()
     }
 
-    #[tool(description = "Validate ethcli config file")]
+    #[tool(
+        description = "Validate ethcli config file",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn config_validate(&self) -> CallToolResult {
         tools::config_validate().await.to_response()
     }
 
-    #[tool(description = "Set Etherscan API key in config")]
+    #[tool(
+        description = "Set Etherscan API key in config. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn config_set_etherscan_key(
         &self,
         Parameters(input): Parameters<ConfigKeyInput>,
@@ -5707,7 +7411,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Set Tenderly credentials in config")]
+    #[tool(
+        description = "Set Tenderly credentials in config. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn config_set_tenderly(
         &self,
         Parameters(input): Parameters<ConfigTenderlyInput>,
@@ -5717,7 +7429,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Set Moralis API key in config")]
+    #[tool(
+        description = "Set Moralis API key in config. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn config_set_moralis(
         &self,
         Parameters(input): Parameters<ConfigKeyInput>,
@@ -5725,7 +7445,15 @@ impl EthcliMcpServer {
         tools::config_set_moralis(&input.key).await.to_response()
     }
 
-    #[tool(description = "Set Alchemy API key in config")]
+    #[tool(
+        description = "Set Alchemy API key in config. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn config_set_alchemy(
         &self,
         Parameters(input): Parameters<ConfigKeyInput>,
@@ -5733,7 +7461,15 @@ impl EthcliMcpServer {
         tools::config_set_alchemy(&input.key).await.to_response()
     }
 
-    #[tool(description = "Set Dune API key in config")]
+    #[tool(
+        description = "Set Dune API key in config. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn config_set_dune(
         &self,
         Parameters(input): Parameters<ConfigKeyInput>,
@@ -5741,7 +7477,15 @@ impl EthcliMcpServer {
         tools::config_set_dune(&input.key).await.to_response()
     }
 
-    #[tool(description = "Set Solodit API key in config")]
+    #[tool(
+        description = "Set Solodit API key in config. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn config_set_solodit(
         &self,
         Parameters(input): Parameters<ConfigKeyInput>,
@@ -5750,7 +7494,13 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Set Pyth API key in config (required by Pyth Hermes since the Pyth Core upgrade; get one at https://pythdata.app)"
+        description = "Set Pyth API key in config (required by Pyth Hermes since the Pyth Core upgrade; get one at https://pythdata.app). Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn config_set_pyth(
         &self,
@@ -5759,7 +7509,15 @@ impl EthcliMcpServer {
         tools::config_set_pyth(&input.key).await.to_response()
     }
 
-    #[tool(description = "Set Chainlink Data Streams credentials")]
+    #[tool(
+        description = "Set Chainlink Data Streams credentials. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn config_set_chainlink(
         &self,
         Parameters(input): Parameters<ConfigChainlinkInput>,
@@ -5769,7 +7527,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Add debug RPC endpoint")]
+    #[tool(
+        description = "Add debug RPC endpoint. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn config_add_debug_rpc(
         &self,
         Parameters(input): Parameters<ConfigDebugRpcInput>,
@@ -5777,7 +7543,15 @@ impl EthcliMcpServer {
         tools::config_add_debug_rpc(&input.url).await.to_response()
     }
 
-    #[tool(description = "Remove debug RPC endpoint")]
+    #[tool(
+        description = "Remove debug RPC endpoint. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn config_remove_debug_rpc(
         &self,
         Parameters(input): Parameters<ConfigDebugRpcInput>,
@@ -5791,7 +7565,10 @@ impl EthcliMcpServer {
     // ENDPOINTS
     // =========================================================================
 
-    #[tool(description = "List configured RPC endpoints")]
+    #[tool(
+        description = "List configured RPC endpoints",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
     async fn endpoints_list(
         &self,
         Parameters(input): Parameters<EndpointsChainInput>,
@@ -5801,7 +7578,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Add a new RPC endpoint with optional auto-optimization")]
+    #[tool(
+        description = "Add a new RPC endpoint with optional auto-optimization. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn endpoints_add(
         &self,
         Parameters(input): Parameters<EndpointsAddInput>,
@@ -5811,7 +7596,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Remove an RPC endpoint")]
+    #[tool(
+        description = "Remove an RPC endpoint. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn endpoints_remove(
         &self,
         Parameters(input): Parameters<EndpointsUrlInput>,
@@ -5819,7 +7612,10 @@ impl EthcliMcpServer {
         tools::endpoints_remove(&input.url).await.to_response()
     }
 
-    #[tool(description = "Check health of RPC endpoints")]
+    #[tool(
+        description = "Check health of RPC endpoints",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn endpoints_health(
         &self,
         Parameters(input): Parameters<EndpointsHealthInput>,
@@ -5829,7 +7625,15 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "Enable a disabled RPC endpoint")]
+    #[tool(
+        description = "Enable a disabled RPC endpoint. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn endpoints_enable(
         &self,
         Parameters(input): Parameters<EndpointsUrlInput>,
@@ -5837,7 +7641,15 @@ impl EthcliMcpServer {
         tools::endpoints_enable(&input.url).await.to_response()
     }
 
-    #[tool(description = "Disable an RPC endpoint")]
+    #[tool(
+        description = "Disable an RPC endpoint. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn endpoints_disable(
         &self,
         Parameters(input): Parameters<EndpointsUrlInput>,
@@ -5845,17 +7657,28 @@ impl EthcliMcpServer {
         tools::endpoints_disable(&input.url).await.to_response()
     }
 
-    #[tool(description = "Optimize/rank RPC endpoints by performance")]
+    #[tool(
+        description = "Optimize/rank RPC endpoints by performance. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
     async fn endpoints_optimize(
         &self,
         Parameters(input): Parameters<EndpointsOptimizeInput>,
     ) -> CallToolResult {
-        tools::endpoints_optimize(input.url.as_deref(), Some(&input.chain))
+        tools::endpoints_optimize(input.url.as_deref(), input.chain.as_deref())
             .await
             .to_response()
     }
 
-    #[tool(description = "Test RPC endpoint for archive support")]
+    #[tool(
+        description = "Test RPC endpoint for archive support",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn endpoints_test(
         &self,
         Parameters(input): Parameters<EndpointsUrlInput>,
@@ -5867,7 +7690,10 @@ impl EthcliMcpServer {
     // CHAINLIST
     // =========================================================================
 
-    #[tool(description = "Search EVM chains by name or chain ID from chainlist.org (2500+ chains)")]
+    #[tool(
+        description = "Search EVM chains by name or chain ID from chainlist.org (2500+ chains)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlist_search(
         &self,
         Parameters(input): Parameters<ChainlistSearchInput>,
@@ -5878,7 +7704,8 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "List public RPC endpoints for a chain from chainlist.org with tracking/privacy info"
+        description = "List public RPC endpoints for a chain from chainlist.org with tracking/privacy info",
+        annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn chainlist_rpcs(
         &self,
@@ -5888,7 +7715,13 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Add public RPC endpoints for a chain from chainlist.org to local config (prefers no-tracking endpoints)"
+        description = "Add public RPC endpoints for a chain from chainlist.org to local config (prefers no-tracking endpoints). Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn chainlist_add(
         &self,
@@ -5899,7 +7732,10 @@ impl EthcliMcpServer {
             .to_response()
     }
 
-    #[tool(description = "List all known EVM chains supported by ethcli")]
+    #[tool(
+        description = "List all known EVM chains supported by ethcli",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn chainlist_list(
         &self,
         Parameters(input): Parameters<ChainlistListInput>,
@@ -5911,9 +7747,12 @@ impl EthcliMcpServer {
     // HEALTH CHECK
     // =========================================================================
 
-    #[tool(description = "Health check - verify ethcli-mcp and ethcli are working")]
+    #[tool(
+        description = "Health check - verify ethcli-mcp and ethcli are working",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
     async fn health(&self) -> CallToolResult {
-        CallToolResult::success(vec![ContentBlock::text(tools::health().await)])
+        tools::health().await.to_response()
     }
 }
 
@@ -5928,7 +7767,9 @@ impl ServerHandler for EthcliMcpServer {
                  contract interactions, ENS, gas prices, DEX quotes, oracles (Chainlink/Pyth), \
                  security checks (GoPlus/Solodit), portfolio tracking, and more. \
                  Supports multiple chains: ethereum, polygon, arbitrum, optimism, base, etc. \
-                 Also supports gnosis, fantom, linea, zksync, scroll, blast, mantle, and any chain by ID.",
+                 Also supports gnosis, fantom, linea, zksync, scroll, blast, mantle, and any chain by ID. \
+                 Tools that change local config or remote state (annotated readOnlyHint=false) \
+                 are disabled unless the server runs with ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
             )
     }
 }
@@ -5945,31 +7786,15 @@ fn server_implementation() -> Implementation {
 async fn verify_ethcli() -> anyhow::Result<String> {
     use tokio::process::Command;
 
-    let ethcli = if let Ok(path) = std::env::var("ETHCLI_PATH") {
-        std::path::PathBuf::from(path)
-    } else {
-        std::env::current_exe()
-            .ok()
-            .and_then(|exe| {
-                exe.parent().and_then(|dir| {
-                    let adjacent = dir.join(format!("ethcli{}", std::env::consts::EXE_SUFFIX));
-                    adjacent.exists().then_some(adjacent)
-                })
-            })
-            .unwrap_or_else(|| std::path::PathBuf::from("ethcli"))
-    };
+    // Same lookup the executor uses for every tool call
+    let ethcli = executor::find_ethcli_binary()?;
 
     let output = Command::new(&ethcli)
         .arg("--version")
+        .stdin(std::process::Stdio::null())
         .output()
         .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to execute ethcli at {}: {}. Is ethcli installed?",
-                ethcli.display(),
-                e
-            )
-        })?;
+        .map_err(|e| anyhow::anyhow!("Failed to execute ethcli at {}: {}", ethcli.display(), e))?;
 
     if !output.status.success() {
         anyhow::bail!("ethcli --version failed. Is ethcli installed correctly?");
@@ -6011,7 +7836,10 @@ async fn main() -> anyhow::Result<()> {
     let server = EthcliMcpServer::new();
     let service = server.serve(stdio()).await?;
 
-    tracing::info!(tools = 240, "ethcli-mcp server ready");
+    tracing::info!(
+        tools = EthcliMcpServer::tool_router().list_all().len(),
+        "ethcli-mcp server ready"
+    );
 
     // Wait for completion
     service.waiting().await?;
@@ -6030,5 +7858,111 @@ mod server_info_tests {
         let info = EthcliMcpServer::new().get_info();
         assert_eq!(info.server_info.name, "ethcli-mcp");
         assert_eq!(info.server_info.version, env!("CARGO_PKG_VERSION"));
+        assert!(info
+            .instructions
+            .unwrap_or_default()
+            .contains("ETHCLI_MCP_ENABLE_WRITE_TOOLS=1"));
+    }
+}
+
+#[cfg(test)]
+mod annotation_tests {
+    use super::*;
+    use regex::Regex;
+    use std::collections::HashMap;
+
+    /// tools.rs function name -> the argv its ArgsBuilder chain produces
+    /// (literal command path and flags, with placeholder values), and whether
+    /// it calls `require_write_tools_enabled`.
+    fn tool_function_argv() -> HashMap<String, (Vec<String>, bool)> {
+        let src = include_str!("tools.rs");
+        let src = src.split("#[cfg(test)]").next().unwrap();
+        let fn_re = Regex::new(r"pub async fn (\w+)\s*[<(]").unwrap();
+        let step_re = Regex::new(
+            r#"ArgsBuilder::new\("([^"]+)"\)|\.subcommand\("([^"]+)"\)|\.opt_flag\("([^"]+)"|\.opt\("([^"]+)""#,
+        )
+        .unwrap();
+        let starts: Vec<_> = fn_re
+            .captures_iter(src)
+            .map(|c| (c.get(0).unwrap().start(), c[1].to_string()))
+            .collect();
+        let mut out = HashMap::new();
+        for (i, (start, name)) in starts.iter().enumerate() {
+            let end = starts.get(i + 1).map_or(src.len(), |(s, _)| *s);
+            let body = &src[*start..end];
+            let mut argv = Vec::new();
+            for c in step_re.captures_iter(body) {
+                if let Some(m) = c.get(1).or_else(|| c.get(2)).or_else(|| c.get(3)) {
+                    argv.push(m.as_str().to_string());
+                } else if let Some(m) = c.get(4) {
+                    argv.push(m.as_str().to_string());
+                    argv.push("value".to_string());
+                }
+            }
+            out.insert(
+                name.clone(),
+                (argv, body.contains("require_write_tools_enabled(")),
+            );
+        }
+        out
+    }
+
+    /// MCP tool name -> the tools.rs function it calls
+    fn registered_tool_functions() -> HashMap<String, String> {
+        let src = include_str!("main.rs");
+        let fn_re = Regex::new(r"async fn (\w+)\s*\(").unwrap();
+        let call_re = Regex::new(r"tools::(\w+)\s*\(").unwrap();
+        src.split("#[tool(")
+            .skip(1)
+            .filter_map(|chunk| {
+                let name = fn_re.captures(chunk)?[1].to_string();
+                let call = call_re.captures(chunk)?[1].to_string();
+                Some((name, call))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn mutating_tools_are_annotated_as_writes() {
+        let functions = tool_function_argv();
+        let calls = registered_tool_functions();
+        let tools = EthcliMcpServer::tool_router().list_all();
+        assert!(tools.len() > 500, "found {} tools", tools.len());
+
+        let mut problems = Vec::new();
+        for tool in &tools {
+            let name = tool.name.to_string();
+            let Some((argv, gated)) = calls.get(&name).and_then(|f| functions.get(f)) else {
+                problems.push(format!("{name}: could not find its tools.rs function"));
+                continue;
+            };
+            let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+            let writes = *gated || executor::is_mutating_command(&argv);
+
+            let read_only = tool.annotations.as_ref().and_then(|a| a.read_only_hint);
+            let description = tool.description.as_deref().unwrap_or_default();
+            if writes {
+                if read_only != Some(false) {
+                    problems.push(format!("{name}: writes but read_only_hint={read_only:?}"));
+                }
+                if !description.contains("ETHCLI_MCP_ENABLE_WRITE_TOOLS=1") {
+                    problems.push(format!("{name}: description must mention write gating"));
+                }
+            } else if read_only != Some(true) {
+                problems.push(format!(
+                    "{name}: read-only but read_only_hint={read_only:?}"
+                ));
+            }
+            if tool
+                .annotations
+                .as_ref()
+                .and_then(|a| a.open_world_hint)
+                .is_none()
+            {
+                problems.push(format!("{name}: missing open_world_hint"));
+            }
+        }
+        problems.sort();
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 }

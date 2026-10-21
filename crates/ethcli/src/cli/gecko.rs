@@ -610,7 +610,7 @@ async fn handle_nfts(
 }
 
 const GECKO_KEY_HINT: &str = "Set COINGECKO_API_KEY (and COINGECKO_PRO=1 for a Pro key) \
-     or configure via: ethcli config set-gecko-key <key>";
+     or add api_key under [coingecko] in the config file (see: ethcli config path)";
 
 /// Explain CoinGecko plan / key errors instead of passing raw JSON through.
 ///
@@ -825,7 +825,7 @@ mod error_tests {
         let msg =
             explain_gecko_error(&Error::rate_limited(Some(60)), GeckoTier::Public, true).unwrap();
         assert!(msg.contains("require an API key"), "{msg}");
-        assert!(msg.contains("config set-gecko-key"), "{msg}");
+        assert!(msg.contains("[coingecko]"), "{msg}");
     }
 
     #[test]

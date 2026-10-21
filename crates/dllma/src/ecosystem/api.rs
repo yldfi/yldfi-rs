@@ -4,8 +4,8 @@ use crate::client::Client;
 use crate::error::Result;
 
 use super::types::{
-    Category, ChainAssets, Entity, Fork, Hack, LiquidityData, Oracle, ProtocolInflows, Raise,
-    TokenProtocols, Treasury,
+    CategoriesResponse, ChainAssets, Entity, ForksResponse, Hack, LiquidityData, OraclesResponse,
+    ProtocolInflows, Raise, RaisesResponse, TokenProtocol, Treasury,
 };
 
 /// Ecosystem API client (mostly Pro)
@@ -20,24 +20,24 @@ impl<'a> EcosystemApi<'a> {
         Self { client }
     }
 
-    /// Get TVL by category
+    /// Get protocols per category and daily TVL by category
     ///
     /// **Requires Pro API key**
-    pub async fn categories(&self) -> Result<Vec<Category>> {
+    pub async fn categories(&self) -> Result<CategoriesResponse> {
         self.client.get_pro("/api/categories").await
     }
 
-    /// Get protocol fork relationships
+    /// Get protocol fork relationships and daily TVL of forks
     ///
     /// **Requires Pro API key**
-    pub async fn forks(&self) -> Result<Vec<Fork>> {
+    pub async fn forks(&self) -> Result<ForksResponse> {
         self.client.get_pro("/api/forks").await
     }
 
-    /// Get oracle protocol data
+    /// Get protocols and chains per oracle and daily TVL secured
     ///
     /// **Requires Pro API key**
-    pub async fn oracles(&self) -> Result<Vec<Oracle>> {
+    pub async fn oracles(&self) -> Result<OraclesResponse> {
         self.client.get_pro("/api/oracles").await
     }
 
@@ -66,7 +66,8 @@ impl<'a> EcosystemApi<'a> {
     ///
     /// **Requires Pro API key**
     pub async fn raises(&self) -> Result<Vec<Raise>> {
-        self.client.get_pro("/api/raises").await
+        let resp: RaisesResponse = self.client.get_pro("/api/raises").await?;
+        Ok(resp.raises)
     }
 
     /// Get historical liquidity for a token
@@ -88,7 +89,7 @@ impl<'a> EcosystemApi<'a> {
     /// # Arguments
     ///
     /// * `symbol` - Token symbol (e.g., "ETH", "USDC")
-    pub async fn token_protocols(&self, symbol: &str) -> Result<TokenProtocols> {
+    pub async fn token_protocols(&self, symbol: &str) -> Result<Vec<TokenProtocol>> {
         let path = format!("/api/tokenProtocols/{symbol}");
         self.client.get_pro(&path).await
     }
@@ -109,7 +110,7 @@ impl<'a> EcosystemApi<'a> {
     /// Get asset breakdown across all chains
     ///
     /// **Requires Pro API key**
-    pub async fn chain_assets(&self) -> Result<Vec<ChainAssets>> {
+    pub async fn chain_assets(&self) -> Result<ChainAssets> {
         self.client.get_pro("/api/chainAssets").await
     }
 }

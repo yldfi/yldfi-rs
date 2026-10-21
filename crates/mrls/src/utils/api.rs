@@ -1,7 +1,7 @@
 //! Utils/Contract API client
 
 use super::types::{
-    ContractEventsResponse, ContractReview, ContractReviewRequest, EndpointWeight,
+    ContractEventsResponse, ContractReviewRequest, ContractReviewResponse, EndpointWeight,
     GetContractEventsRequest, RunContractFunctionRequest, Web3Version,
 };
 use crate::client::Client;
@@ -139,11 +139,18 @@ impl<'a> UtilsApi<'a> {
         }
     }
 
-    /// Review contracts for security and verification status
+    /// Report contracts as spam or not spam (`POST /contracts-review`)
     pub async fn review_contracts(
         &self,
         request: &ContractReviewRequest,
-    ) -> Result<Vec<ContractReview>> {
-        self.client.post("/contracts-review", request).await
+        chain: Option<&str>,
+    ) -> Result<ContractReviewResponse> {
+        let query = UtilsQuery {
+            chain: chain.map(str::to_string),
+            ..UtilsQuery::default()
+        };
+        self.client
+            .post_with_query("/contracts-review", request, &query)
+            .await
     }
 }

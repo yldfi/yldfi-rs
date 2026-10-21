@@ -96,10 +96,42 @@ pub struct HistoricalPriceQuery {
 }
 
 /// Batch historical price request body
+///
+/// Not sent as a body: [`super::CoinsApi::batch_historical`] sends `coins`
+/// as a URL-encoded JSON query parameter on `GET /batchHistorical`.
 #[derive(Debug, Clone, Serialize)]
 pub struct BatchHistoricalRequest {
     /// List of coin/timestamp pairs to query
     pub coins: HashMap<String, Vec<u64>>,
+}
+
+/// Response from `GET /batchHistorical`
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BatchHistoricalResponse {
+    /// Map of token ID to its prices at the requested timestamps
+    #[serde(default)]
+    pub coins: HashMap<String, BatchHistoricalCoin>,
+}
+
+/// Batch historical prices for a single coin
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BatchHistoricalCoin {
+    /// Token symbol
+    pub symbol: Option<String>,
+    /// One price per requested timestamp that had data
+    #[serde(default)]
+    pub prices: Vec<BatchHistoricalPrice>,
+}
+
+/// Price at one requested timestamp (`/batchHistorical`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BatchHistoricalPrice {
+    /// Unix timestamp of the price found
+    pub timestamp: u64,
+    /// Price in USD
+    pub price: f64,
+    /// Confidence score (0-1)
+    pub confidence: Option<f64>,
 }
 
 /// Price chart data point
@@ -189,5 +221,24 @@ mod percentage_tests {
         let r: PercentageResponse = serde_json::from_str(json).unwrap();
         assert!((r.coins["coingecko:ethereum"] - 0.2719).abs() < 1e-3);
         assert_eq!(r.coins.len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod batch_historical_tests {
+    use super::*;
+
+    #[test]
+    fn batch_historical_response_has_price_list_per_coin() {
+        let json = r#"{"coins":{"coingecko:ethereum":{"symbol":"ETH","prices":[
+            {"timestamp":1600000000,"price":1234.5,"confidence":0.99},
+            {"timestamp":1600086400,"price":1250.0}]}}}"#;
+        let r: BatchHistoricalResponse = serde_json::from_str(json).unwrap();
+        let coin = &r.coins["coingecko:ethereum"];
+        assert_eq!(coin.symbol.as_deref(), Some("ETH"));
+        assert_eq!(coin.prices.len(), 2);
+        assert_eq!(coin.prices[1].timestamp, 1_600_086_400);
+        assert_eq!(coin.prices[0].confidence, Some(0.99));
+        assert!(coin.prices[1].confidence.is_none());
     }
 }

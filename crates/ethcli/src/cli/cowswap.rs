@@ -40,7 +40,7 @@ pub enum CowSwapCommands {
         amount: String,
         /// From address (order creator)
         from: String,
-        /// Chain (ethereum, gnosis, arbitrum, sepolia)
+        /// Chain name or ID (ethereum, gnosis, arbitrum, base, polygon, bnb, etc.)
         #[arg(long, default_value = "ethereum")]
         chain: String,
         /// Receiver address (defaults to from address)
@@ -57,10 +57,16 @@ pub enum CowSwapCommands {
         chain: String,
     },
 
-    /// Get orders for an address
+    /// Get orders for an address (paginated, newest first)
     Orders {
         /// Owner address
         owner: String,
+        /// Pagination offset
+        #[arg(long)]
+        offset: Option<u64>,
+        /// Max orders to return, 1-1000 (API default: 10)
+        #[arg(long)]
+        limit: Option<u32>,
         /// Chain
         #[arg(long, default_value = "ethereum")]
         chain: String,
@@ -116,7 +122,7 @@ pub enum CowSwapCommands {
         chain: String,
     },
 
-    /// Get native token price for a token
+    /// Get a token's price in the native token (wei per token atom, not USD)
     NativePrice {
         /// Token address
         token: String,
@@ -146,7 +152,7 @@ pub enum CowSwapCommands {
         /// Order kind: sell or buy
         #[arg(long, default_value = "sell")]
         kind: String,
-        /// Signing scheme: eip712, eip1271, presign
+        /// Signing scheme: eip712, eip1271, presign, ethsign
         #[arg(long, default_value = "eip712")]
         signing_scheme: String,
         /// Fee amount in sell token (smallest units)
@@ -236,9 +242,16 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
             output_json(&order, args.format)?;
         }
 
-        CowSwapCommands::Orders { owner, chain } => {
+        CowSwapCommands::Orders {
+            owner,
+            offset,
+            limit,
+            chain,
+        } => {
             let cow_chain = chain_name_to_cow_chain(&chain)?;
-            let orders = client.get_orders_by_owner(Some(cow_chain), &owner).await?;
+            let orders = client
+                .get_orders_by_owner_paginated(Some(cow_chain), &owner, offset, limit)
+                .await?;
             output_json(&orders, args.format)?;
         }
 
@@ -327,8 +340,9 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
                 "eip712" => SigningScheme::Eip712,
                 "eip1271" => SigningScheme::Eip1271,
                 "presign" => SigningScheme::PreSign,
+                "ethsign" => SigningScheme::EthSign,
                 _ => anyhow::bail!(
-                    "Invalid signing scheme: {}. Use 'eip712', 'eip1271', or 'presign'",
+                    "Invalid signing scheme: {}. Use 'eip712', 'eip1271', 'presign' or 'ethsign'",
                     signing_scheme
                 ),
             };
@@ -409,16 +423,14 @@ fn paginate(mut query: TradesQuery, offset: Option<u64>, limit: Option<u32>) -> 
 }
 
 fn chain_name_to_cow_chain(name: &str) -> anyhow::Result<cowp::Chain> {
-    match name.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" => Ok(cowp::Chain::Mainnet),
-        "gnosis" | "xdai" => Ok(cowp::Chain::Gnosis),
-        "arbitrum" | "arb" => Ok(cowp::Chain::Arbitrum),
-        "sepolia" => Ok(cowp::Chain::Sepolia),
-        _ => anyhow::bail!(
-            "Unsupported chain: {}. Supported: ethereum, gnosis, arbitrum, sepolia",
-            name
-        ),
-    }
+    name.parse().map_err(|_| {
+        let supported: Vec<&str> = cowp::Chain::all().iter().map(|c| c.as_str()).collect();
+        anyhow::anyhow!(
+            "Unsupported chain: {}. Supported: {}",
+            name,
+            supported.join(", ")
+        )
+    })
 }
 
 fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::Result<()> {

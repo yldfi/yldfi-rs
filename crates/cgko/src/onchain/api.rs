@@ -103,15 +103,32 @@ impl<'a> OnchainApi<'a> {
     }
 
     /// Get pool trades
+    ///
+    /// Since 2026-10-20 `CoinGecko` leaves out trades it flags as anomalous;
+    /// use [`Self::pool_trades_with_anomalous`] to include them.
     pub async fn pool_trades(&self, network: &str, pool_address: &str) -> Result<TradesResponse> {
         let path = format!("/onchain/networks/{network}/pools/{pool_address}/trades");
         self.client.get(&path).await
     }
 
+    /// Get pool trades, choosing whether to include trades `CoinGecko`
+    /// flags as anomalous (`include_anomalous`; each trade then carries
+    /// `is_anomalous`)
+    pub async fn pool_trades_with_anomalous(
+        &self,
+        network: &str,
+        pool_address: &str,
+        include_anomalous: bool,
+    ) -> Result<TradesResponse> {
+        let path = format!(
+            "/onchain/networks/{network}/pools/{pool_address}/trades?include_anomalous={include_anomalous}"
+        );
+        self.client.get(&path).await
+    }
+
     /// Search pools
     pub async fn search_pools(&self, query: &str) -> Result<PoolsResponse> {
-        let path = format!("/onchain/search/pools?query={query}");
-        self.client.get(&path).await
+        self.client.get(&search_pools_path(query)).await
     }
 
     /// Get new pools across all networks
@@ -226,12 +243,29 @@ impl<'a> OnchainApi<'a> {
     }
 
     /// Get token trades across all pools (Pro API only)
+    ///
+    /// Since 2026-10-20 `CoinGecko` leaves out trades it flags as anomalous;
+    /// use [`Self::token_trades_with_anomalous`] to include them.
     pub async fn token_trades(
         &self,
         network: &str,
         token_address: &str,
     ) -> Result<TokenTradesResponse> {
         let path = format!("/onchain/networks/{network}/tokens/{token_address}/trades");
+        self.client.get(&path).await
+    }
+
+    /// Get token trades across all pools, choosing whether to include
+    /// trades `CoinGecko` flags as anomalous (Pro API only)
+    pub async fn token_trades_with_anomalous(
+        &self,
+        network: &str,
+        token_address: &str,
+        include_anomalous: bool,
+    ) -> Result<TokenTradesResponse> {
+        let path = format!(
+            "/onchain/networks/{network}/tokens/{token_address}/trades?include_anomalous={include_anomalous}"
+        );
         self.client.get(&path).await
     }
 
@@ -255,5 +289,25 @@ impl<'a> OnchainApi<'a> {
     pub async fn category_pools(&self, category_id: &str) -> Result<PoolsResponse> {
         let path = format!("/onchain/categories/{category_id}/pools");
         self.client.get(&path).await
+    }
+}
+
+fn search_pools_path(query: &str) -> String {
+    format!(
+        "/onchain/search/pools?query={}",
+        Client::encode_query(query)
+    )
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::*;
+
+    #[test]
+    fn search_pools_query_is_url_encoded() {
+        assert_eq!(
+            search_pools_path("weth/usdc #1"),
+            "/onchain/search/pools?query=weth%2Fusdc+%231"
+        );
     }
 }

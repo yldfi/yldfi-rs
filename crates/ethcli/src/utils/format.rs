@@ -127,6 +127,18 @@ pub fn format_u256_with_decimals(value: &alloy::primitives::U256, decimals: u8) 
     format_token_amount(&value.to_string(), decimals)
 }
 
+/// Parse a non-negative decimal amount in `unit` ("wei", "gwei", "ether") into
+/// wei, exactly (no f64 rounding). Negative amounts are rejected.
+pub fn parse_wei_amount(value: &str, unit: &str) -> anyhow::Result<alloy::primitives::U256> {
+    let value = value.trim();
+    let parsed = alloy::primitives::utils::parse_units(value, unit)
+        .map_err(|e| anyhow::anyhow!("Failed to parse '{}' as {}: {}", value, unit, e))?;
+    if parsed.is_negative() {
+        anyhow::bail!("Amount must not be negative: {}", value);
+    }
+    Ok(parsed.get_absolute())
+}
+
 /// Truncate a string to a maximum length, adding "..." if truncated.
 ///
 /// This function is UTF-8 safe and will not panic on multi-byte characters.
@@ -252,6 +264,28 @@ impl Table {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn parse_wei_amount_is_exact_and_rejects_negatives() {
+        // 0.1 eth is not exactly representable in f64
+        assert_eq!(
+            parse_wei_amount("0.1", "ether").unwrap().to_string(),
+            "100000000000000000"
+        );
+        assert_eq!(
+            parse_wei_amount("123456789.123456789", "ether")
+                .unwrap()
+                .to_string(),
+            "123456789123456789000000000"
+        );
+        assert_eq!(
+            parse_wei_amount("1.5", "gwei").unwrap().to_string(),
+            "1500000000"
+        );
+        assert!(parse_wei_amount("-1", "ether").is_err());
+        assert!(parse_wei_amount("abc", "ether").is_err());
+    }
+
     use super::*;
 
     #[test]

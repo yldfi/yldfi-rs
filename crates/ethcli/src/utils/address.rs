@@ -63,13 +63,6 @@ pub fn resolve_from_book(input: &str) -> anyhow::Result<(Address, Option<String>
     ))
 }
 
-/// Check if an input is a valid hex address format (without validating checksum).
-pub fn is_hex_address(input: &str) -> bool {
-    input.starts_with("0x")
-        && input.len() == 42
-        && input[2..].chars().all(|c| c.is_ascii_hexdigit())
-}
-
 /// Check if an input looks like an ENS name.
 pub fn is_ens_name(input: &str) -> bool {
     input.contains('.') && !input.starts_with("0x")
@@ -78,18 +71,6 @@ pub fn is_ens_name(input: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_is_hex_address() {
-        assert!(is_hex_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"));
-        assert!(is_hex_address("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"));
-        assert!(!is_hex_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4")); // too short
-        assert!(!is_hex_address(
-            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB488"
-        )); // too long
-        assert!(!is_hex_address("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")); // no 0x prefix
-        assert!(!is_hex_address("usdc"));
-    }
 
     #[test]
     fn test_is_ens_name() {

@@ -3,7 +3,9 @@
 //! Combines yield data from multiple sources to provide comprehensive
 //! DeFi yield information with cross-source comparison.
 
-use super::{get_cached_config, AggregatedResult, LatencyMeasure, SourceResult};
+use super::{
+    chain_id_from_name, get_cached_config, AggregatedResult, LatencyMeasure, SourceResult,
+};
 use futures::future::join_all;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -367,9 +369,12 @@ async fn fetch_llama_yields(
                             return false;
                         }
                     }
-                    // Filter by project if specified
+                    // Filter by project: same rule as YieldFilters::matches,
+                    // so "uniswap" keeps "uniswap-v3" etc.
                     if let Some(proj) = project {
-                        if !p.project.eq_ignore_ascii_case(proj) {
+                        let have = p.project.to_lowercase();
+                        let want = proj.to_lowercase();
+                        if have != want && !have.starts_with(&format!("{want}-")) {
                             return false;
                         }
                     }
@@ -664,11 +669,24 @@ async fn fetch_uniswap_yields(chain: &str) -> SourceResult<Vec<NormalizedYield>>
     if all_yields.is_empty() && !errors.is_empty() {
         SourceResult::error("uniswap", errors.join("; "), measure.elapsed_ms())
     } else {
-        let mut result = SourceResult::success("uniswap", all_yields, measure.elapsed_ms());
-        if !errors.is_empty() {
-            result.error = Some(errors.join("; "));
+        // Some versions answered: a success (a result with an error set
+        // counts as failed), with the other versions' errors as warnings
+        for e in &errors {
+            eprintln!("Warning: uniswap: {e}");
         }
-        result
+        SourceResult::success("uniswap", all_yields, measure.elapsed_ms())
+    }
+}
+
+/// Yearn yields for `chain`: all chains when none was given, an error for a
+/// chain with no Yearn id (rather than every chain's vaults)
+async fn fetch_yearn_for_chain(chain: Option<&str>) -> SourceResult<Vec<NormalizedYield>> {
+    match chain {
+        None => fetch_yearn_yields(None).await,
+        Some(c) => match chain_id_from_name(c) {
+            Some(id) => fetch_yearn_yields(Some(id)).await,
+            None => SourceResult::error("yearn", format!("Unsupported chain for Yearn: {c}"), 0),
+        },
     }
 }
 
@@ -799,20 +817,6 @@ async fn fetch_yearn_yields(chain_id: Option<u64>) -> SourceResult<Vec<Normalize
     }
 }
 
-/// Map chain name to Yearn chain ID
-fn chain_name_to_yearn_id(chain: &str) -> Option<u64> {
-    match chain.to_lowercase().as_str() {
-        "ethereum" | "mainnet" | "eth" => Some(1),
-        "optimism" | "op" => Some(10),
-        "polygon" | "matic" => Some(137),
-        "fantom" | "ftm" => Some(250),
-        "arbitrum" | "arb" => Some(42161),
-        "avalanche" | "avax" => Some(43114),
-        "base" => Some(8453),
-        _ => None,
-    }
-}
-
 /// Check if a pool contains stablecoin pairs
 fn is_stablecoin_pool(tokens: &[String]) -> bool {
     let stablecoins = [
@@ -900,13 +904,12 @@ pub async fn fetch_yields_aggregated(
         YieldSource::All => {
             let curve_chain = chain.unwrap_or("ethereum");
             let uniswap_chain = chain.unwrap_or("ethereum");
-            let yearn_chain_id = chain.and_then(chain_name_to_yearn_id);
             vec![
                 Box::pin(fetch_curve_yields(curve_chain))
                     as std::pin::Pin<Box<dyn std::future::Future<Output = _> + Send>>,
                 Box::pin(fetch_llama_yields(chain, project)),
                 Box::pin(fetch_uniswap_yields(uniswap_chain)),
-                Box::pin(fetch_yearn_yields(yearn_chain_id)),
+                Box::pin(fetch_yearn_for_chain(chain)),
             ]
         }
         YieldSource::Curve => {
@@ -921,8 +924,7 @@ pub async fn fetch_yields_aggregated(
             vec![Box::pin(fetch_uniswap_yields(uniswap_chain))]
         }
         YieldSource::Yearn => {
-            let yearn_chain_id = chain.and_then(chain_name_to_yearn_id);
-            vec![Box::pin(fetch_yearn_yields(yearn_chain_id))]
+            vec![Box::pin(fetch_yearn_for_chain(chain))]
         }
     };
 
@@ -1086,15 +1088,23 @@ pub struct LendingYieldAggregation {
 /// DefiLlama identifies pools by UUID, so pools are matched by their
 /// (sorted) underlying token addresses; when several Curve pools share the
 /// same coins, the one with the closest TVL is used.
-pub async fn compare_curve_yields() -> Vec<YieldComparison> {
+///
+/// Returns an error naming the failed source(s) if either fetch fails, so a
+/// source outage is not reported as "no matching pools".
+pub async fn compare_curve_yields() -> Result<Vec<YieldComparison>, String> {
     let (llama_result, curve_result) = tokio::join!(
         fetch_llama_yields(Some("ethereum"), None),
         fetch_curve_yields("ethereum")
     );
 
     match (llama_result.data, curve_result.data) {
-        (Some(llama), Some(curve)) => match_curve_yields(&llama, &curve),
-        _ => Vec::new(),
+        (Some(llama), Some(curve)) => Ok(match_curve_yields(&llama, &curve)),
+        _ => Err([llama_result.error, curve_result.error]
+            .into_iter()
+            .zip(["llama", "curve"])
+            .filter_map(|(err, source)| err.map(|e| format!("{source}: {e}")))
+            .collect::<Vec<_>>()
+            .join("; ")),
     }
 }
 

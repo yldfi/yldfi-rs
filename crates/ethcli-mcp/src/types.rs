@@ -22,12 +22,18 @@ fn default_network() -> String {
     "eth-mainnet".to_string()
 }
 
+fn default_solana_network() -> String {
+    "solana-mainnet".to_string()
+}
+
 fn default_unit() -> String {
     "ether".to_string()
 }
 
 // --- Logs ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+// Unknown fields are errors so callers still sending removed fields find out
+#[serde(deny_unknown_fields)]
 pub struct LogsInput {
     /// Contract address to query logs from
     pub contract: String,
@@ -37,8 +43,6 @@ pub struct LogsInput {
     pub from_block: Option<String>,
     /// Ending block number or tag
     pub to_block: Option<String>,
-    /// Additional topic filters
-    pub topics: Option<Vec<String>>,
     /// Chain name (ethereum, polygon, arbitrum, gnosis, fantom, linea, zksync, etc.) or numeric chain ID
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -97,7 +101,7 @@ pub struct AccountTxsInput {
     pub sort: Option<String>,
     /// First block to include (inclusive; default: 0)
     pub start_block: Option<u64>,
-    /// Last block to include (inclusive; default: 99999999)
+    /// Last block to include (inclusive; default: latest)
     pub end_block: Option<u64>,
 }
 
@@ -571,7 +575,7 @@ pub struct QuoteCompareInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct QuoteFromInput {
-    /// The aggregator to use (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)
+    /// The aggregator to use (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, enso)
     pub source: String,
     /// Source token address (or symbol like ETH, USDC)
     pub from_token: String,
@@ -724,10 +728,7 @@ pub struct UniswapPoolInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct UniswapEthPriceInput {
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
-    /// Uniswap version (v2, v3)
+    /// Uniswap version (v2, v3, v4)
     pub version: Option<String>,
 }
 
@@ -735,9 +736,6 @@ pub struct UniswapEthPriceInput {
 pub struct UniswapTopPoolsInput {
     /// Number of pools to return
     pub limit: Option<u32>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
     /// Uniswap version
     pub version: Option<String>,
 }
@@ -877,6 +875,19 @@ pub struct OpenoceanQuoteInput {
     pub gas_price: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OpenoceanReverseQuoteInput {
+    /// Token to sell
+    pub in_token: String,
+    /// Token to receive
+    pub out_token: String,
+    /// Desired output amount, human-readable (e.g. "1")
+    pub amount: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 fn default_gas_price() -> String {
     "30".to_string()
 }
@@ -898,12 +909,12 @@ pub struct CowswapQuoteInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiQuoteInput {
-    /// Source chain name
-    pub from_chain: String,
+    /// Source chain ID (e.g. 1 for Ethereum, 42161 for Arbitrum)
+    pub from_chain: u64,
     /// Source token address
     pub from_token: String,
-    /// Destination chain name
-    pub to_chain: String,
+    /// Destination chain ID (e.g. 10 for Optimism, 8453 for Base)
+    pub to_chain: u64,
     /// Destination token address
     pub to_token: String,
     /// Amount
@@ -1408,7 +1419,7 @@ pub struct TenderlyAlertsUpdateInput {
     pub id: String,
     /// Alert name (required)
     pub name: String,
-    /// Alert type (required, e.g., "successful_transaction", "failed_transaction", "event_emitted")
+    /// Alert type, as Tenderly's simple_type (required, e.g., "successful_tx", "failed_tx", "log_emitted", "function_called", "erc20_transfer_log_emitted")
     pub alert_type: String,
     /// Network ID (e.g., "1" for mainnet)
     #[serde(default)]
@@ -1949,6 +1960,41 @@ pub struct AlchemyBeaconStateIdInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconValidatorsInput {
+    /// State ID (slot number, "head", "finalized", "justified", or state root hash)
+    pub state_id: String,
+    /// Comma-separated validator indices or pubkeys (this or `status` is required)
+    pub id: Option<String>,
+    /// Comma-separated validator statuses, e.g. active_ongoing,pending_queued (this or `id` is required)
+    pub status: Option<String>,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconValidatorBalancesInput {
+    /// State ID (slot number, "head", "finalized", "justified", or state root hash)
+    pub state_id: String,
+    /// Comma-separated validator indices or pubkeys
+    pub id: String,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AlchemyBeaconStateEpochInput {
+    /// State ID (slot number, "head", "finalized", "justified", or state root hash)
+    pub state_id: String,
+    /// Epoch (defaults to the state's epoch)
+    pub epoch: Option<u64>,
+    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
+    #[serde(default = "default_network")]
+    pub network: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlchemyBeaconValidatorInput {
     /// State ID
     pub state_id: String,
@@ -1985,8 +2031,8 @@ pub struct AlchemyBeaconEpochInput {
 pub struct AlchemySolanaAssetInput {
     /// Asset ID (mint address)
     pub id: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -1994,8 +2040,8 @@ pub struct AlchemySolanaAssetInput {
 pub struct AlchemySolanaAssetsInput {
     /// Comma-separated asset IDs
     pub ids: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2007,8 +2053,8 @@ pub struct AlchemySolanaOwnerInput {
     pub page: Option<u32>,
     /// Results per page (default: 100)
     pub limit: Option<u32>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2016,8 +2062,8 @@ pub struct AlchemySolanaOwnerInput {
 pub struct AlchemySolanaAddressInput {
     /// Address (creator, authority, etc.)
     pub address: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2027,8 +2073,8 @@ pub struct AlchemySolanaGroupInput {
     pub group_key: String,
     /// Group value (e.g., collection address)
     pub group_value: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2038,8 +2084,8 @@ pub struct AlchemySolanaTokenAccountsInput {
     pub owner: Option<String>,
     /// Mint address
     pub mint: Option<String>,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2047,8 +2093,8 @@ pub struct AlchemySolanaTokenAccountsInput {
 pub struct AlchemySolanaMintInput {
     /// Mint address
     pub mint: String,
-    /// Alchemy network name (e.g., eth-mainnet, polygon-mainnet)
-    #[serde(default = "default_network")]
+    /// Alchemy Solana network (solana-mainnet or solana-devnet). Defaults to solana-mainnet.
+    #[serde(default = "default_solana_network")]
     pub network: String,
 }
 
@@ -2331,7 +2377,7 @@ pub struct MoralisWalletVerboseInput {
 pub struct MoralisBlockInput {
     /// Block number or hash
     pub block_number_or_hash: String,
-    /// Include transactions in the response
+    /// Include internal transactions in the response
     #[serde(default)]
     pub include_transactions: bool,
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
@@ -2389,12 +2435,8 @@ pub struct MoralisProtocolPositionsInput {
 pub struct MoralisAnalyticsTimeseriesInput {
     /// Comma-separated token addresses
     pub addresses: String,
-    /// Timeframe (e.g., 1h, 4h, 1d)
+    /// Timeframe (1d, 7d or 30d). Defaults to 1d.
     pub timeframe: Option<String>,
-    /// From date (ISO 8601)
-    pub from_date: Option<String>,
-    /// To date (ISO 8601)
-    pub to_date: Option<String>,
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
@@ -2423,6 +2465,9 @@ pub struct MoralisCategoryIdInput {
 pub struct DuneQueryInput {
     /// Query ID
     pub query_id: String,
+    /// Query parameters as a JSON object, e.g. {"address": "0x..."}
+    #[serde(default)]
+    pub params: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2593,7 +2638,7 @@ pub struct DuneMatviewsRefreshInput {
 // --- Dune Pipelines ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DunePipelinesExecuteInput {
-    /// Pipeline definition as JSON
+    /// Pipeline definition as JSON, e.g. {"nodes":[{"id":1,"query_execution":{"query_id":123}},{"id":2,"dependencies":[1],"materialized_view_refresh":{"name":"dune.team.result_x"}}]}
     pub pipeline_json: String,
     /// Parameters as JSON string
     pub params: Option<String>,
@@ -2645,6 +2690,20 @@ pub struct CurveChainAddressInput {
     pub chain: String,
     /// Token or contract address
     pub address: String,
+}
+
+/// Input for `curve_trades` (the trades endpoint takes no time range)
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CurveTradesInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Pool contract address
+    pub address: String,
+    /// Main token address (pool coin)
+    pub main_token: String,
+    /// Reference token address (pool coin being priced)
+    pub reference_token: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2722,6 +2781,15 @@ pub struct UniswapPoolAddressInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+}
+
+/// A pool on the Ethereum mainnet Uniswap subgraph
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct UniswapSubgraphPoolInput {
+    /// Pool address (Ethereum mainnet)
+    pub pool: String,
+    /// Uniswap version (v2, v3, v4)
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2903,9 +2971,13 @@ pub struct CowswapOrderInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CowswapOwnerInput {
+pub struct CowswapOrdersInput {
     /// Owner address
     pub owner: String,
+    /// Pagination offset
+    pub offset: Option<u64>,
+    /// Max orders to return, 1-1000 (API default: 10)
+    pub limit: Option<u32>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -3006,7 +3078,7 @@ pub struct CowswapCreateOrderInput {
     pub partially_fillable: bool,
     /// Quote ID reference
     pub quote_id: Option<i64>,
-    /// Chain name (ethereum, gnosis, arbitrum)
+    /// Chain name or ID (ethereum, gnosis, arbitrum, base, polygon, bnb, etc.)
     #[serde(default = "default_chain")]
     pub chain: String,
 }
@@ -3025,7 +3097,7 @@ pub struct CowswapCancelOrderInput {
     pub uid: String,
     /// EIP-712 signature proving ownership
     pub signature: String,
-    /// Chain name (ethereum, gnosis, arbitrum)
+    /// Chain name or ID (ethereum, gnosis, arbitrum, base, polygon, bnb, etc.)
     #[serde(default = "default_chain")]
     pub chain: String,
 }
@@ -3039,7 +3111,7 @@ pub struct CowswapCancelOrdersInput {
     /// Signing scheme: "eip712" or "ethsign"
     #[serde(default)]
     pub signing_scheme: Option<String>,
-    /// Chain name (ethereum, gnosis, arbitrum)
+    /// Chain name or ID (ethereum, gnosis, arbitrum, base, polygon, bnb, etc.)
     #[serde(default = "default_chain")]
     pub chain: String,
 }
@@ -3055,29 +3127,33 @@ pub struct LifiStatusInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiChainInput {
-    /// Chain name
-    pub chain: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    pub chain: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiGasInput {
-    /// Chain ID (e.g., "1" for Ethereum, "137" for Polygon)
-    pub chain_id: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    pub chain_id: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiTokensInput {
     /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
-    #[serde(default = "default_chain_id")]
-    pub chain_id: String,
+    #[serde(default = "default_lifi_chain_id")]
+    pub chain_id: u64,
+}
+
+fn default_lifi_chain_id() -> u64 {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LifiConnectionsInput {
-    /// Source chain ID (optional)
-    pub from_chain: Option<String>,
-    /// Destination chain ID (optional)
-    pub to_chain: Option<String>,
+    /// Source chain ID (required by LI.FI)
+    pub from_chain: u64,
+    /// Destination chain ID (required by LI.FI)
+    pub to_chain: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -3192,6 +3268,8 @@ pub struct CcxtOrderbookInput {
 
 // --- Simulate ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+// Unknown fields are errors so callers still sending removed fields find out
+#[serde(deny_unknown_fields)]
 pub struct SimulateCallInput {
     /// Target contract address
     pub contract: String,
@@ -3292,9 +3370,6 @@ pub struct SimulateCallInput {
     pub with_local_artifacts: bool,
     /// RPC timeout in seconds for Foundry calls
     pub rpc_timeout: Option<u64>,
-    /// Disabled over MCP because headers can carry credentials; configure RPC auth outside MCP
-    #[serde(default)]
-    pub rpc_headers: Vec<String>,
     /// Disable automatic proxy detection in Foundry RPC clients
     #[serde(default)]
     pub no_proxy: bool,
@@ -3307,9 +3382,6 @@ pub struct SimulateCallInput {
     pub fork_transaction_hash: Option<String>,
     /// Anvil fork chain ID for offline-start mode
     pub fork_chain_id: Option<u64>,
-    /// Disabled over MCP because headers can carry credentials; configure fork RPC auth outside MCP
-    #[serde(default)]
-    pub fork_headers: Vec<String>,
     /// Anvil hardfork to use (e.g., prague, cancun)
     pub hardfork: Option<String>,
     /// Anvil network family to enable (ethereum, optimism, tempo)
@@ -3336,7 +3408,7 @@ pub struct SimulateCallInput {
     /// Generate EIP-2930 access list in response (Tenderly)
     #[serde(default)]
     pub generate_access_list: bool,
-    /// Provide access list (JSON format)
+    /// Access list as inline JSON
     pub access_list: Option<String>,
     /// Simulation type: full, quick, or abi
     pub simulation_type: Option<String>,
@@ -3347,28 +3419,23 @@ pub struct SimulateCallInput {
     pub save: bool,
 
     // === Tenderly options ===
-    /// Disabled over MCP; use TENDERLY_ACCESS_KEY env or ethcli config instead
-    pub tenderly_key: Option<String>,
     /// Tenderly account slug (or use TENDERLY_ACCOUNT env)
     pub tenderly_account: Option<String>,
     /// Tenderly project slug (or use TENDERLY_PROJECT env)
     pub tenderly_project: Option<String>,
 
     // === Alchemy options ===
-    /// Disabled over MCP; use ALCHEMY_API_KEY env or ethcli config instead
-    pub alchemy_key: Option<String>,
     /// Alchemy network (e.g., eth-mainnet, polygon-mainnet, arb-mainnet)
     pub alchemy_network: Option<String>,
 
     // === Debug options ===
     /// Dry run - output request without executing (json, curl, fetch, powershell, url, python, httpie, wget, go, rust, axios)
     pub dry_run: Option<String>,
-    /// Disabled over MCP; dry-run output is always masked
-    #[serde(default)]
-    pub show_secrets: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+// Unknown fields are errors so callers still sending removed fields find out
+#[serde(deny_unknown_fields)]
 pub struct SimulateTxInput {
     /// Transaction hash to simulate
     pub hash: String,
@@ -3413,17 +3480,12 @@ pub struct SimulateTxInput {
     pub no_proxy: bool,
     /// RPC timeout in seconds for Foundry replay
     pub rpc_timeout: Option<u64>,
-    /// Disabled over MCP because headers can carry credentials; configure RPC auth outside MCP
-    #[serde(default)]
-    pub rpc_headers: Vec<String>,
     /// Enable transaction gas limit checks in Foundry replay
     #[serde(default)]
     pub enable_tx_gas_limit: bool,
     /// Disable block gas limit checks in Foundry replay
     #[serde(default)]
     pub disable_block_gas_limit: bool,
-    /// Disabled over MCP; use ETHERSCAN_API_KEY env or ethcli config instead
-    pub etherscan_api_key: Option<String>,
     /// Print raw callTracer JSON instead of the decoded call tree (debug backend)
     #[serde(default)]
     pub raw: bool,
@@ -3503,9 +3565,8 @@ pub struct EndpointsAddInput {
 pub struct EndpointsOptimizeInput {
     /// Optional specific RPC URL to optimize (if omitted, optimizes all)
     pub url: Option<String>,
-    /// Chain name
-    #[serde(default = "default_chain")]
-    pub chain: String,
+    /// Only optimize endpoints for this chain (ignored when url is set; omit for all chains)
+    pub chain: Option<String>,
 }
 
 // --- Chainlist ---

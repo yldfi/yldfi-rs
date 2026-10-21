@@ -240,13 +240,45 @@ pub struct TokenSnapshot {
 }
 
 /// Chain assets breakdown (Pro)
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ChainAssets(pub HashMap<String, ChainAssetBreakdown>);
+///
+/// The response is an object keyed by chain name plus a top-level
+/// `timestamp` entry, which is split out here.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ChainAssets {
+    /// Snapshot timestamp (Unix seconds)
+    pub timestamp: Option<u64>,
+    /// Asset breakdown keyed by chain name
+    pub chains: HashMap<String, ChainAssetBreakdown>,
+}
+
+impl<'de> Deserialize<'de> for ChainAssets {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        let mut map = HashMap::<String, serde_json::Value>::deserialize(deserializer)?;
+        let timestamp = map
+            .remove("timestamp")
+            .as_ref()
+            .and_then(crate::de::value_to_u64);
+        let chains = map
+            .into_iter()
+            .map(|(chain, v)| {
+                serde_json::from_value(v)
+                    .map(|b| (chain, b))
+                    .map_err(D::Error::custom)
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Self { timestamp, chains })
+    }
+}
 
 /// Asset breakdown for a chain
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ChainAssetBreakdown {
-    /// Canonical (native) assets
+    /// Canonically bridged assets
     pub canonical: Option<AssetCategory>,
     /// Native assets
     pub native: Option<AssetCategory>,
@@ -256,6 +288,8 @@ pub struct ChainAssetBreakdown {
     /// Own tokens
     #[serde(rename = "ownTokens")]
     pub own_tokens: Option<AssetCategory>,
+    /// All assets combined
+    pub total: Option<AssetCategory>,
 }
 
 /// Asset category with total and breakdown
@@ -286,6 +320,20 @@ mod rename_tests {
             Some(&["https://a".to_string()][..])
         );
         assert!(p.governance_id.is_some());
+    }
+
+    #[test]
+    fn chain_assets_splits_timestamp() {
+        let json = r#"{"ExampleChain":{"canonical":{"total":"10.5","breakdown":{"FOO":"10.5"}},
+            "native":{"total":"1","breakdown":{}},"thirdParty":{"total":"2","breakdown":{"BAR":"2"}},
+            "total":{"total":"13.5","breakdown":{"FOO":"10.5"}}},"timestamp":1700000000}"#;
+        let a: ChainAssets = serde_json::from_str(json).unwrap();
+        assert_eq!(a.timestamp, Some(1_700_000_000));
+        assert_eq!(a.chains.len(), 1);
+        let c = &a.chains["ExampleChain"];
+        assert_eq!(c.canonical.as_ref().unwrap().breakdown["FOO"], "10.5");
+        assert_eq!(c.third_party.as_ref().unwrap().total, "2");
+        assert_eq!(c.total.as_ref().unwrap().total, "13.5");
     }
 
     #[test]

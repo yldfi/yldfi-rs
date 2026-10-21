@@ -1,28 +1,18 @@
-//! Etherscan ABI fetcher using API v2
+//! Etherscan ABI fetcher
 //!
-//! Uses the unified Etherscan API v2 endpoint which works for all supported chains.
+//! The `contract/*` calls go through the [`crate::etherscan::Client`] wrapper
+//! around foundry-block-explorers, the same path `ethcli contract` uses. Only
+//! the `proxy/eth_getTransactionByHash` lookup is built by hand, because the
+//! library has no proxy module.
 
 use crate::config::Chain;
-use crate::error::{AbiError, Result};
-use crate::etherscan::support::describe_etherscan_error;
-use crate::etherscan::{ensure_etherscan_supported, SignatureCache};
-use crate::utils::{
-    decode_string_from_hex, decode_uint8_from_hex, get_shared_http_client, urlencoding_encode,
-    TokenMetadata,
-};
+use crate::error::{AbiError, Error, Result};
+use crate::etherscan::{ensure_etherscan_supported, Client as EtherscanClient, SignatureCache};
+use crate::utils::{get_shared_http_client, urlencoding_encode, TokenMetadata};
 use alloy::json_abi::JsonAbi;
-use serde::Deserialize;
 use std::borrow::Cow;
 use std::path::Path;
 use std::sync::Arc;
-
-/// Etherscan API response
-#[derive(Debug, Deserialize)]
-struct EtherscanResponse {
-    status: String,
-    message: String,
-    result: serde_json::Value,
-}
 
 /// Contract creation info from Etherscan
 #[derive(Debug, Clone)]
@@ -73,7 +63,7 @@ impl AbiFetcher {
         Ok(Self {
             client,
             api_key,
-            cache: Arc::new(SignatureCache::new()),
+            cache: SignatureCache::shared(),
         })
     }
 
@@ -93,100 +83,31 @@ impl AbiFetcher {
         })
     }
 
-    /// Fetch ABI from Etherscan API v2
-    ///
-    /// Works without an API key (rate limited to ~5 calls/sec)
-    /// With API key: ~100 calls/sec
+    /// Etherscan client for `chain`, sharing this fetcher's API key and cache
+    fn etherscan(&self, chain: Chain) -> Result<EtherscanClient> {
+        EtherscanClient::with_cache(chain, self.api_key.clone(), Arc::clone(&self.cache))
+    }
+
+    /// Fetch ABI from Etherscan
     ///
     /// Uses local cache to avoid repeated fetches.
     pub async fn fetch_from_etherscan(&self, chain: Chain, address: &str) -> Result<JsonAbi> {
-        let chain_id = chain.chain_id();
-
-        // Check cache first
-        if let Some((cached_abi, _)) = self.cache.get_abi(chain_id, address) {
-            tracing::debug!("Using cached ABI for {} on chain {}", address, chain_id);
-            if let Ok(abi) = serde_json::from_str(&cached_abi) {
-                return Ok(abi);
-            }
-            // If cache is corrupted, fall through to fetch
+        let client = self.etherscan(chain)?;
+        if let Some(abi) = client.cached_abi(address) {
+            tracing::debug!(
+                "Using cached ABI for {} on chain {}",
+                address,
+                chain.chain_id()
+            );
+            return Ok(abi);
         }
-
-        ensure_etherscan_supported(chain_id)?;
-
-        // URL-encode the address to prevent parameter injection
-        let encoded_address: Cow<str> = urlencoding_encode(address);
-
-        // Build URL with API v2 using proper URL encoding to prevent parameter injection
-        let base_url = format!(
-            "https://api.etherscan.io/v2/api?chainid={}&module=contract&action=getabi&address={}",
-            chain_id, encoded_address
-        );
-
-        let url = if let Some(key) = &self.api_key {
-            // URL-encode the API key to prevent injection attacks
-            let encoded_key: Cow<str> = urlencoding_encode(key);
-            format!("{}&apikey={}", base_url, encoded_key)
-        } else {
-            base_url
-        };
 
         tracing::debug!(
             "Fetching ABI from Etherscan for {} on chain {}",
             address,
-            chain_id
+            chain.chain_id()
         );
-
-        let response = self.client.get(&url).send().await.map_err(|e| {
-            AbiError::EtherscanFetch(format!(
-                "Request failed: {}",
-                crate::error::sanitize_error_message(&e.to_string())
-            ))
-        })?;
-
-        if !response.status().is_success() {
-            return Err(
-                AbiError::EtherscanFetch(format!("HTTP error: {}", response.status())).into(),
-            );
-        }
-
-        let etherscan_response: EtherscanResponse = response.json().await.map_err(|e| {
-            AbiError::EtherscanFetch(format!(
-                "Failed to parse response: {}",
-                crate::error::sanitize_error_message(&e.to_string())
-            ))
-        })?;
-
-        // Check for errors
-        if etherscan_response.status != "1" {
-            let message = etherscan_response.message;
-            let result = etherscan_response
-                .result
-                .as_str()
-                .unwrap_or("Unknown error");
-
-            if result.contains("not verified") || message.contains("not verified") {
-                return Err(AbiError::ContractNotVerified(address.to_string()).into());
-            }
-
-            return Err(
-                AbiError::EtherscanFetch(describe_etherscan_error(&message, result)).into(),
-            );
-        }
-
-        // Parse ABI from result
-        let abi_str = etherscan_response
-            .result
-            .as_str()
-            .ok_or_else(|| AbiError::ParseError("ABI result is not a string".to_string()))?;
-
-        let abi: JsonAbi = serde_json::from_str(abi_str)
-            .map_err(|e| AbiError::ParseError(format!("Failed to parse ABI JSON: {}", e)))?;
-
-        // Cache the ABI for future use
-        self.cache.set_abi(chain_id, address, abi_str, None);
-        tracing::debug!("Cached ABI for {} on chain {}", address, chain_id);
-
-        Ok(abi)
+        client.fetch_abi(address).await
     }
 
     /// Load ABI from a local file
@@ -221,11 +142,27 @@ impl AbiFetcher {
         event.selector()
     }
 
-    /// Get the full event signature string from an ABI event
-    /// e.g., "Transfer(address,address,uint256)"
+    /// Get the full event signature string from an ABI event, keeping
+    /// `indexed` and names so the decoder assigns topics to the right params,
+    /// with canonical types (structs as `(..)`) so topic0 is correct.
+    /// e.g., "Transfer(address indexed from,address indexed to,uint256 value)"
     pub fn event_signature_string(event: &alloy::json_abi::Event) -> String {
-        let param_types: Vec<String> = event.inputs.iter().map(|p| p.ty.to_string()).collect();
-        format!("{}({})", event.name, param_types.join(","))
+        let params: Vec<String> = event
+            .inputs
+            .iter()
+            .map(|p| {
+                let mut param = p.selector_type().into_owned();
+                if p.indexed {
+                    param.push_str(" indexed");
+                }
+                if !p.name.is_empty() {
+                    param.push(' ');
+                    param.push_str(&p.name);
+                }
+                param
+            })
+            .collect();
+        format!("{}({})", event.name, params.join(","))
     }
 
     /// Resolve an event name to its full signature using the contract ABI
@@ -285,80 +222,26 @@ impl AbiFetcher {
         chain: Chain,
         contract: &str,
     ) -> Result<ContractCreation> {
-        let chain_id = chain.chain_id();
-        ensure_etherscan_supported(chain_id)?;
-        let encoded_address: Cow<str> = urlencoding_encode(contract);
-
-        let base_url = format!(
-            "https://api.etherscan.io/v2/api?chainid={}&module=contract&action=getcontractcreation&contractaddresses={}",
-            chain_id, encoded_address
-        );
-
-        let url = if let Some(key) = &self.api_key {
-            let encoded_key: Cow<str> = urlencoding_encode(key);
-            format!("{}&apikey={}", base_url, encoded_key)
-        } else {
-            base_url
-        };
-
         tracing::debug!(
             "Fetching contract creation for {} on chain {}",
             contract,
-            chain_id
+            chain.chain_id()
         );
 
-        let response = self.client.get(&url).send().await.map_err(|e| {
-            AbiError::EtherscanFetch(format!(
-                "Request failed: {}",
-                crate::error::sanitize_error_message(&e.to_string())
-            ))
-        })?;
+        let data = self
+            .etherscan(chain)?
+            .creation_data(contract)
+            .await
+            .map_err(|e| match e {
+                Error::Abi(AbiError::EtherscanFetch(msg)) => {
+                    AbiError::EtherscanFetch(format!("Failed to get contract creation: {}", msg))
+                        .into()
+                }
+                other => other,
+            })?;
 
-        if !response.status().is_success() {
-            return Err(
-                AbiError::EtherscanFetch(format!("HTTP error: {}", response.status())).into(),
-            );
-        }
-
-        let etherscan_response: EtherscanResponse = response.json().await.map_err(|e| {
-            AbiError::EtherscanFetch(format!(
-                "Failed to parse response: {}",
-                crate::error::sanitize_error_message(&e.to_string())
-            ))
-        })?;
-
-        if etherscan_response.status != "1" {
-            let result = etherscan_response
-                .result
-                .as_str()
-                .unwrap_or("Unknown error");
-            return Err(AbiError::EtherscanFetch(format!(
-                "Failed to get contract creation: {}",
-                describe_etherscan_error(&etherscan_response.message, result)
-            ))
-            .into());
-        }
-
-        // Parse the result array
-        let results = etherscan_response
-            .result
-            .as_array()
-            .ok_or_else(|| AbiError::ParseError("Expected array result".to_string()))?;
-
-        let first = results
-            .first()
-            .ok_or_else(|| AbiError::ParseError("Empty result array".to_string()))?;
-
-        // Extract fields - txHash contains the creation tx
-        let tx_hash = first["txHash"]
-            .as_str()
-            .ok_or_else(|| AbiError::ParseError("Missing txHash".to_string()))?
-            .to_string();
-
-        let creator = first["contractCreator"]
-            .as_str()
-            .ok_or_else(|| AbiError::ParseError("Missing contractCreator".to_string()))?
-            .to_string();
+        let tx_hash = format!("{:#x}", data.transaction_hash);
+        let creator = format!("{:#x}", data.contract_creator);
 
         // We need to fetch the transaction to get the block number
         // Use eth_getTransactionByHash via a simple RPC call
@@ -377,188 +260,49 @@ impl AbiFetcher {
         chain: Chain,
         address: &str,
     ) -> Result<ContractMetadata> {
-        let chain_id = chain.chain_id();
-        ensure_etherscan_supported(chain_id)?;
-        let encoded_address: Cow<str> = urlencoding_encode(address);
-
-        let base_url = format!(
-            "https://api.etherscan.io/v2/api?chainid={}&module=contract&action=getsourcecode&address={}",
-            chain_id, encoded_address
-        );
-
-        let url = if let Some(key) = &self.api_key {
-            let encoded_key: Cow<str> = urlencoding_encode(key);
-            format!("{}&apikey={}", base_url, encoded_key)
-        } else {
-            base_url
-        };
-
         tracing::debug!(
             "Fetching contract metadata for {} on chain {}",
             address,
-            chain_id
+            chain.chain_id()
         );
 
-        let response = self.client.get(&url).send().await.map_err(|e| {
-            AbiError::EtherscanFetch(format!(
-                "Request failed: {}",
-                crate::error::sanitize_error_message(&e.to_string())
-            ))
-        })?;
-
-        if !response.status().is_success() {
-            return Err(
-                AbiError::EtherscanFetch(format!("HTTP error: {}", response.status())).into(),
-            );
-        }
-
-        let etherscan_response: EtherscanResponse = response.json().await.map_err(|e| {
-            AbiError::EtherscanFetch(format!(
-                "Failed to parse response: {}",
-                crate::error::sanitize_error_message(&e.to_string())
-            ))
-        })?;
-
-        // For getsourcecode, status "1" means success
-        if etherscan_response.status != "1" {
-            return Ok(ContractMetadata {
-                name: None,
-                is_verified: false,
-                is_proxy: false,
-                implementation: None,
-            });
-        }
-
-        // Parse the result array
-        let results = match etherscan_response.result.as_array() {
-            Some(arr) => arr,
-            None => {
-                return Ok(ContractMetadata {
-                    name: None,
-                    is_verified: false,
-                    is_proxy: false,
-                    implementation: None,
-                });
-            }
+        let unverified = ContractMetadata {
+            name: None,
+            is_verified: false,
+            is_proxy: false,
+            implementation: None,
         };
 
-        let first = match results.first() {
-            Some(f) => f,
-            None => {
-                return Ok(ContractMetadata {
-                    name: None,
-                    is_verified: false,
-                    is_proxy: false,
-                    implementation: None,
-                });
-            }
+        let source = match self.etherscan(chain)?.source_code(address).await {
+            Ok(source) => source,
+            Err(Error::Abi(AbiError::ContractNotVerified(_))) => return Ok(unverified),
+            Err(e) => return Err(e),
+        };
+
+        let Some(first) = source.items.first() else {
+            return Ok(unverified);
         };
 
         // Check if verified by looking at ABI field
-        let abi_str = first["ABI"].as_str().unwrap_or("");
-        let is_verified = !abi_str.is_empty()
-            && abi_str != "Contract source code not verified"
-            && !abi_str.starts_with("Contract");
+        let is_verified = !first.abi.is_empty() && !first.abi.starts_with("Contract");
 
-        // Get contract name
-        let name = first["ContractName"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(String::from);
-
-        // Check if proxy
-        let is_proxy = first["Proxy"].as_str() == Some("1");
-        let implementation = first["Implementation"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(String::from);
+        let name = Some(first.contract_name.clone()).filter(|s| !s.is_empty());
 
         Ok(ContractMetadata {
             name,
             is_verified,
-            is_proxy,
-            implementation,
+            is_proxy: first.proxy == 1,
+            implementation: first.implementation.map(|a| format!("{:#x}", a)),
         })
     }
 
-    /// Get token metadata via RPC calls (ERC20 standard methods)
+    /// Get token metadata via Etherscan's `eth_call` proxy (ERC20 name/symbol/decimals)
     pub async fn get_token_metadata_rpc(
         &self,
         chain: Chain,
         address: &str,
     ) -> Result<TokenMetadata> {
-        let chain_id = chain.chain_id();
-
-        // Function selectors
-        // name() = 0x06fdde03
-        // symbol() = 0x95d89b41
-        // decimals() = 0x313ce567
-
-        let name = self
-            .eth_call(chain_id, address, "0x06fdde03")
-            .await
-            .ok()
-            .and_then(|data| decode_string_from_hex(&data));
-
-        let symbol = self
-            .eth_call(chain_id, address, "0x95d89b41")
-            .await
-            .ok()
-            .and_then(|data| decode_string_from_hex(&data));
-
-        let decimals = self
-            .eth_call(chain_id, address, "0x313ce567")
-            .await
-            .ok()
-            .and_then(|data| decode_uint8_from_hex(&data));
-
-        Ok(TokenMetadata {
-            name,
-            symbol,
-            decimals,
-        })
-    }
-
-    /// Make an eth_call via Etherscan proxy
-    async fn eth_call(&self, chain_id: u64, to: &str, data: &str) -> Result<String> {
-        ensure_etherscan_supported(chain_id)?;
-        let encoded_to: Cow<str> = urlencoding_encode(to);
-        let encoded_data: Cow<str> = urlencoding_encode(data);
-
-        let base_url = format!(
-            "https://api.etherscan.io/v2/api?chainid={}&module=proxy&action=eth_call&to={}&data={}&tag=latest",
-            chain_id, encoded_to, encoded_data
-        );
-
-        let url = if let Some(key) = &self.api_key {
-            let encoded_key: Cow<str> = urlencoding_encode(key);
-            format!("{}&apikey={}", base_url, encoded_key)
-        } else {
-            base_url
-        };
-
-        let response = self.client.get(&url).send().await.map_err(|e| {
-            AbiError::EtherscanFetch(format!(
-                "eth_call failed: {}",
-                crate::error::sanitize_error_message(&e.to_string())
-            ))
-        })?;
-
-        let json: serde_json::Value = response.json().await.map_err(|e| {
-            AbiError::EtherscanFetch(format!("Failed to parse eth_call response: {}", e))
-        })?;
-
-        // Result should be a hex string
-        let result = json["result"]
-            .as_str()
-            .ok_or_else(|| AbiError::ParseError("Missing result in eth_call".to_string()))?;
-
-        // Check for empty result (0x is empty, but 0x00 or 0x01 are valid)
-        if result == "0x" {
-            return Err(AbiError::ParseError("Empty eth_call result".to_string()).into());
-        }
-
-        Ok(result.to_string())
+        self.etherscan(chain)?.get_token_metadata(address).await
     }
 
     /// Get transaction block number from Etherscan
@@ -885,6 +629,31 @@ fn format_sol_value(value: &alloy::dyn_abi::DynSolValue) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn event_signature_keeps_indexed_and_canonical_struct_types() {
+        let event: alloy::json_abi::Event = serde_json::from_value(serde_json::json!({
+            "type": "event",
+            "name": "Supply",
+            "anonymous": false,
+            "inputs": [
+                {"name": "reserve", "type": "address", "indexed": true, "internalType": "address"},
+                {"name": "user", "type": "address", "indexed": false, "internalType": "address"},
+                {"name": "cfg", "type": "tuple", "indexed": false, "internalType": "struct Cfg",
+                 "components": [{"name": "a", "type": "uint256"}, {"name": "b", "type": "bool"}]}
+            ]
+        }))
+        .unwrap();
+        let sig = AbiFetcher::event_signature_string(&event);
+        assert_eq!(
+            sig,
+            "Supply(address indexed reserve,address user,(uint256,bool) cfg)"
+        );
+        let parsed = crate::abi::EventSignature::parse(&sig).unwrap();
+        assert_eq!(parsed.topic, event.selector());
+        assert!(parsed.params[0].indexed && !parsed.params[1].indexed);
+    }
+
     use super::*;
 
     #[test]

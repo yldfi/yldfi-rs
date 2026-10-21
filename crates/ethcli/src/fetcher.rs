@@ -233,9 +233,34 @@ impl LogFetcher {
                 let sig = EventSignature::parse(sig_str)?;
                 decoder.add_signature(&sig)?;
             }
+
+            // Filters given as raw topic hashes need the ABI to decode; without
+            // it their logs would be fetched and then silently dropped
+            let hash_topics: Vec<B256> = resolved_events
+                .iter()
+                .filter(|s| !s.contains('('))
+                .filter_map(|s| s.parse().ok())
+                .filter(|t| !decoder.knows_topic(t))
+                .collect();
+            if !hash_topics.is_empty() {
+                if let Ok(abi_decoder) = Self::abi_decoder(config).await {
+                    decoder.merge(abi_decoder);
+                }
+                if let Some(missing) = hash_topics.iter().find(|t| !decoder.knows_topic(t)) {
+                    return Err(Error::Abi(AbiError::InvalidEventSignature(format!(
+                        "can't decode topic {missing:#x}: pass its event signature instead, \
+                         an --abi that contains it, or use --raw"
+                    ))));
+                }
+            }
             return Ok(decoder);
         }
 
+        Self::abi_decoder(config).await
+    }
+
+    /// A decoder for the contract's ABI (--abi file, else Etherscan)
+    async fn abi_decoder(config: &Config) -> Result<LogDecoder> {
         // If ABI file provided, load it
         if let Some(abi_path) = &config.abi_path {
             let fetcher = AbiFetcher::new(None)?;
@@ -248,7 +273,27 @@ impl LogFetcher {
         let abi = fetcher
             .fetch_from_etherscan(config.chain, &config.contract)
             .await?;
-        LogDecoder::from_abi(&abi)
+        let mut decoder = LogDecoder::from_abi(&abi)?;
+
+        // A proxy emits its implementation's events: add that ABI too
+        if let Ok(meta) = fetcher
+            .get_contract_metadata(config.chain, &config.contract)
+            .await
+        {
+            if let Some(implementation) = meta.implementation {
+                if !implementation.eq_ignore_ascii_case(&config.contract) {
+                    if let Ok(impl_abi) = fetcher
+                        .fetch_from_etherscan(config.chain, &implementation)
+                        .await
+                    {
+                        if let Ok(impl_decoder) = LogDecoder::from_abi(&impl_abi) {
+                            decoder.merge(impl_decoder);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(decoder)
     }
 
     /// Set progress callback
@@ -444,35 +489,48 @@ impl LogFetcher {
         max_retries: u32,
     ) -> Result<Vec<Log>> {
         let mut current_from = from;
-        let mut current_to = to;
+        // Blocks per request; shrinks when a range is too large and stays shrunk,
+        // so the remainder isn't resent at the size that just failed.
+        let mut chunk_size = to.saturating_sub(from).saturating_add(1);
         let mut all_logs = Vec::new();
         let mut retries = 0;
 
         while current_from <= to {
+            let current_to = current_from
+                .saturating_add(chunk_size.saturating_sub(1))
+                .min(to);
             let chunk_filter = filter.clone().from_block(current_from).to_block(current_to);
 
             match pool.get_logs(&chunk_filter).await {
                 Ok(logs) => {
                     all_logs.extend(logs);
+                    if current_to == u64::MAX {
+                        break;
+                    }
                     current_from = current_to + 1;
-                    current_to = to;
                     retries = 0;
                 }
-                Err(Error::Rpc(RpcError::BlockRangeTooLarge { .. }))
-                | Err(Error::Rpc(RpcError::ResponseTooLarge(_))) => {
-                    // Split the range in half
-                    let mid = (current_from + current_to) / 2;
-                    if mid == current_from {
-                        // Can't split further
-                        return Err(RpcError::ResponseTooLarge(0).into());
+                Err(e @ Error::Rpc(RpcError::BlockRangeTooLarge { .. }))
+                | Err(e @ Error::Rpc(RpcError::ResponseTooLarge(_))) => {
+                    let span = current_to - current_from + 1;
+                    if span <= 1 {
+                        // A single block can't be split further
+                        return Err(e);
                     }
-                    current_to = mid;
+                    // Use the provider's stated limit when it has one, else halve
+                    chunk_size = match e {
+                        Error::Rpc(RpcError::BlockRangeTooLarge { max, .. })
+                            if max > 0 && max < span =>
+                        {
+                            max
+                        }
+                        _ => span / 2,
+                    };
                     tracing::debug!(
-                        "Range too large, splitting: {} - {} -> {} - {}",
+                        "Range too large, splitting: {} - {} -> {} blocks per request",
                         current_from,
-                        to,
-                        current_from,
-                        current_to
+                        current_to,
+                        chunk_size
                     );
                 }
                 Err(Error::Rpc(RpcError::RateLimited(_))) => {
@@ -738,8 +796,16 @@ impl StreamingFetcher {
                         },
                     };
 
-                    // Call handler to process/write the chunk
-                    handler(fetch_result)?;
+                    // Call handler to process/write the chunk. On failure, save
+                    // the ranges completed so far before giving up.
+                    if let Err(e) = handler(fetch_result) {
+                        if let Some(ref manager) = self.checkpoint_manager {
+                            if let Err(save_err) = manager.lock().save_now() {
+                                tracing::warn!("Failed to save checkpoint: {}", save_err);
+                            }
+                        }
+                        return Err(e);
+                    }
 
                     // Update checkpoint
                     if let Some(ref manager) = self.checkpoint_manager {
@@ -813,6 +879,76 @@ impl StreamingFetcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// JSON-RPC server that rejects `eth_getLogs` spanning more than `limit`
+    /// blocks with `message`, and records every requested (from, to) range.
+    struct RangeLimitedRpc {
+        limit: u64,
+        message: &'static str,
+        seen: std::sync::Arc<std::sync::Mutex<Vec<(u64, u64)>>>,
+    }
+
+    impl wiremock::Respond for RangeLimitedRpc {
+        fn respond(&self, req: &wiremock::Request) -> wiremock::ResponseTemplate {
+            let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+            let hex = |v: &serde_json::Value| {
+                u64::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap()
+            };
+            let params = &body["params"][0];
+            let (from, to) = (hex(&params["fromBlock"]), hex(&params["toBlock"]));
+            self.seen.lock().unwrap().push((from, to));
+            let reply = if to - from + 1 > self.limit {
+                serde_json::json!({"jsonrpc": "2.0", "id": body["id"],
+                    "error": {"code": -32600, "message": self.message}})
+            } else {
+                serde_json::json!({"jsonrpc": "2.0", "id": body["id"], "result": []})
+            };
+            wiremock::ResponseTemplate::new(200).set_body_json(reply)
+        }
+    }
+
+    async fn requested_ranges(
+        limit: u64,
+        message: &'static str,
+        from: u64,
+        to: u64,
+    ) -> Vec<(u64, u64)> {
+        let server = wiremock::MockServer::start().await;
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(RangeLimitedRpc {
+                limit,
+                message,
+                seen: seen.clone(),
+            })
+            .mount(&server)
+            .await;
+        let pool = RpcPool::from_url(&server.uri(), 5).unwrap();
+        LogFetcher::fetch_chunk_with_retry(&pool, &Filter::new(), from, to, 0)
+            .await
+            .unwrap();
+        let ranges = seen.lock().unwrap().clone();
+        ranges
+    }
+
+    #[tokio::test]
+    async fn split_keeps_the_smaller_chunk_for_the_remainder() {
+        let ranges = requested_ranges(2, "block range too large", 0, 4).await;
+        // After the first failure, no request may exceed the size that worked
+        assert_eq!(ranges, vec![(0, 4), (0, 1), (2, 3), (4, 4)]);
+    }
+
+    #[tokio::test]
+    async fn split_handles_a_two_block_range() {
+        let ranges = requested_ranges(1, "block range too large", 7, 8).await;
+        assert_eq!(ranges, vec![(7, 8), (7, 7), (8, 8)]);
+    }
+
+    #[tokio::test]
+    async fn split_uses_the_stated_provider_limit() {
+        let ranges = requested_ranges(3, "query exceeds max block range 3", 0, 9).await;
+        assert_eq!(ranges, vec![(0, 9), (0, 2), (3, 5), (6, 8), (9, 9)]);
+    }
 
     #[test]
     fn test_calculate_chunks() {

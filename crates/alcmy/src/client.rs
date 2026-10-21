@@ -13,7 +13,11 @@ pub enum Network {
     // Ethereum
     EthMainnet,
     EthSepolia,
+    /// Holesky testnet, retired by Ethereum in 2025; use [`Network::EthHoodi`]
+    #[deprecated(since = "0.1.5", note = "Holesky is retired; use Network::EthHoodi")]
     EthHolesky,
+    /// Hoodi testnet (Holesky's replacement)
+    EthHoodi,
     // Polygon
     PolygonMainnet,
     PolygonAmoy,
@@ -55,7 +59,9 @@ impl Network {
             // Ethereum
             Network::EthMainnet => "eth-mainnet",
             Network::EthSepolia => "eth-sepolia",
+            #[allow(deprecated)]
             Network::EthHolesky => "eth-holesky",
+            Network::EthHoodi => "eth-hoodi",
             // Polygon
             Network::PolygonMainnet => "polygon-mainnet",
             Network::PolygonAmoy => "polygon-amoy",
@@ -115,7 +121,9 @@ impl Network {
             Network::Gnosis => "gnosis-mainnet",
             // Testnets
             Network::EthSepolia => "eth-sepolia",
+            #[allow(deprecated)]
             Network::EthHolesky => "eth-holesky",
+            Network::EthHoodi => "eth-hoodi",
             Network::PolygonAmoy => "polygon-amoy",
             Network::ArbitrumSepolia => "arb-sepolia",
             Network::OptSepolia => "opt-sepolia",
@@ -397,33 +405,21 @@ impl Client {
             params,
         };
 
-        let response = self.http.post(self.rpc_url()).json(&request).send().await?;
+        let response = self
+            .http
+            .post(self.rpc_url())
+            .json(&request)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
-        if response.status() == 429 {
-            return Err(error::rate_limited_from_response(response).await);
+        let status = response.status();
+        if status == 429 || status.is_server_error() {
+            return Err(error::handle_error_response(response).await);
         }
-
-        let result: serde_json::Value = response.json().await?;
-
-        if let Some(error) = result.get("error") {
-            let code = error
-                .get("code")
-                .and_then(serde_json::Value::as_i64)
-                .unwrap_or(-1);
-            let message = error
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("Unknown error")
-                .to_string();
-            return Err(error::rpc(code, message));
-        }
-
-        let result = result
-            .get("result")
-            .ok_or_else(|| error::rpc(-1, "No result in response"))?
-            .clone();
-
-        Ok(serde_json::from_value(result)?)
+        // Other error statuses may still carry a JSON-RPC error object
+        let body = response.text().await.map_err(crate::error::http)?;
+        parse_rpc_body(status, &body)
     }
 
     /// Make a GET request to the NFT API
@@ -432,7 +428,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.nft_url(), path);
-        let response = self.http.get(&url).query(query).send().await?;
+        let response = self
+            .http
+            .get(&url)
+            .query(query)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -444,7 +446,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.nft_url(), path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self
+            .http
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -455,7 +463,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.prices_url(), path);
-        let response = self.http.get(&url).query(query).send().await?;
+        let response = self
+            .http
+            .get(&url)
+            .query(query)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -467,7 +481,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.prices_url(), path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self
+            .http
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -479,7 +499,13 @@ impl Client {
         R: DeserializeOwned,
     {
         let url = format!("{}/{}", self.data_url(), path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self
+            .http
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(crate::error::http)?;
 
         self.handle_response(response).await
     }
@@ -489,24 +515,94 @@ impl Client {
     where
         R: DeserializeOwned,
     {
-        if response.status() == 429 {
-            return Err(error::rate_limited_from_response(response).await);
-        }
-
         if response.status().is_success() {
-            Ok(response.json().await?)
+            response.json().await.map_err(crate::error::http)
         } else {
-            let status = response.status().as_u16();
-            let message = response.text().await.unwrap_or_default();
-            Err(Error::api(status, message))
+            Err(crate::error::handle_error_response(response).await)
         }
     }
+}
+
+/// Decode a JSON-RPC response body
+///
+/// A JSON-RPC `error` object (`{code, message}`) wins regardless of status.
+/// A non-2xx response without one is reported as an HTTP error with its
+/// status, rather than as a generic RPC failure.
+fn parse_rpc_body<R: DeserializeOwned>(status: reqwest::StatusCode, body: &str) -> Result<R> {
+    let http_error = || Error::from_response(status.as_u16(), body, None);
+    let result: serde_json::Value = match serde_json::from_str(body) {
+        Ok(value) => value,
+        Err(_) if !status.is_success() => return Err(http_error()),
+        Err(e) => return Err(e.into()),
+    };
+
+    if let Some(error) = result.get("error").filter(|e| e.is_object()) {
+        if let Some(code) = error.get("code").and_then(serde_json::Value::as_i64) {
+            let message = error
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown error")
+                .to_string();
+            return Err(error::rpc(code, message));
+        }
+    }
+
+    if !status.is_success() {
+        return Err(http_error());
+    }
+    if let Some(error) = result.get("error").filter(|e| !e.is_null()) {
+        let message = error
+            .get("message")
+            .and_then(|m| m.as_str())
+            .or_else(|| error.as_str())
+            .unwrap_or("Unknown error")
+            .to_string();
+        return Err(error::rpc(-1, message));
+    }
+
+    let result = result
+        .get("result")
+        .ok_or_else(|| error::rpc(-1, "No result in response"))?
+        .clone();
+
+    Ok(serde_json::from_value(result)?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::error::DomainError;
+    use reqwest::StatusCode;
+
+    #[test]
+    fn rpc_body_decodes_result_and_rpc_errors() {
+        let ok: String =
+            parse_rpc_body(StatusCode::OK, r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#).unwrap();
+        assert_eq!(ok, "0x1");
+
+        // A JSON-RPC error object is surfaced as-is, even on a 4xx
+        let err = parse_rpc_body::<String>(
+            StatusCode::BAD_REQUEST,
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"invalid params"}}"#,
+        )
+        .unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("invalid params"), "{msg}");
+    }
+
+    #[test]
+    fn rpc_body_keeps_http_status_without_rpc_error_object() {
+        for body in [
+            r#"{"error":"Must be authenticated!"}"#,
+            r#"{"message":"forbidden"}"#,
+            "not json",
+        ] {
+            let err = parse_rpc_body::<String>(StatusCode::UNAUTHORIZED, body).unwrap_err();
+            let rpc_like = matches!(&err, Error::Domain(DomainError::Rpc { code: -1, .. }));
+            assert!(!rpc_like, "status lost for {body}: {err:?}");
+            assert_eq!(err.status_code(), Some(401), "{body}: {err:?}");
+        }
+    }
 
     #[test]
     fn missing_credentials_give_specific_errors() {

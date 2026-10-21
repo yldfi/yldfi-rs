@@ -96,7 +96,12 @@ pub struct NftExplorer {
     pub link: Option<String>,
 }
 
-/// NFT market data item
+/// NFT market data item (`/nfts/markets`)
+///
+/// Prices, market cap and volume are `{native_currency, usd}` objects, as are
+/// the `*_24h_percentage_change` fields (except the scalar
+/// `floor_price_in_usd_24h_percentage_change` and
+/// `volume_in_usd_24h_percentage_change`).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NftMarketItem {
     pub id: String,
@@ -105,15 +110,24 @@ pub struct NftMarketItem {
     pub name: String,
     pub symbol: Option<String>,
     pub image: Option<NftImage>,
-    pub floor_price_in_native_currency: Option<f64>,
-    pub floor_price_24h_percentage_change: Option<f64>,
-    pub volume_in_usd_24h: Option<f64>,
-    pub market_cap_in_native_currency: Option<f64>,
-    pub market_cap_24h_percentage_change: Option<f64>,
+    pub description: Option<String>,
     pub native_currency: Option<String>,
     pub native_currency_symbol: Option<String>,
-    pub h24_volume: Option<f64>,
-    pub h24_volume_percentage_change: Option<f64>,
+    pub floor_price: Option<NftFloorPrice>,
+    pub market_cap: Option<NftMarketCap>,
+    pub volume_24h: Option<NftVolume>,
+    pub floor_price_in_usd_24h_percentage_change: Option<f64>,
+    pub floor_price_24h_percentage_change: Option<NftPercentageChange>,
+    pub market_cap_24h_percentage_change: Option<NftPercentageChange>,
+    pub volume_24h_percentage_change: Option<NftPercentageChange>,
+    pub number_of_unique_addresses: Option<f64>,
+    pub number_of_unique_addresses_24h_percentage_change: Option<f64>,
+    pub volume_in_usd_24h_percentage_change: Option<f64>,
+    pub total_supply: Option<f64>,
+    pub one_day_sales: Option<f64>,
+    pub one_day_sales_24h_percentage_change: Option<f64>,
+    pub one_day_average_sale_price: Option<f64>,
+    pub one_day_average_sale_price_24h_percentage_change: Option<f64>,
 }
 
 /// NFT ticker data
@@ -180,4 +194,44 @@ pub struct NftMarketChart {
     pub h24_volume_native: Option<Vec<(f64, f64)>>,
     pub market_cap_usd: Option<Vec<(f64, f64)>>,
     pub market_cap_native: Option<Vec<(f64, f64)>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nft_market_item_percentage_changes_are_objects() {
+        let json = r#"[{
+            "id": "example-nft", "contract_address": "0x0000000000000000000000000000000000000001",
+            "asset_platform_id": "ethereum", "name": "Example", "symbol": "EX",
+            "image": {"small": "https://example.com/s.png", "small_2x": "https://example.com/s2.png"},
+            "description": "d", "native_currency": "ethereum", "native_currency_symbol": "ETH",
+            "floor_price": {"native_currency": 1.5, "usd": 3000},
+            "market_cap": {"native_currency": 15000, "usd": 30000000},
+            "volume_24h": {"native_currency": 0.0, "usd": 0.0},
+            "floor_price_in_usd_24h_percentage_change": -2.6,
+            "floor_price_24h_percentage_change": {"usd": -2.6, "native_currency": -0.7},
+            "market_cap_24h_percentage_change": {"usd": -2.6, "native_currency": -0.7},
+            "volume_24h_percentage_change": {"usd": -100.0, "native_currency": -100.0},
+            "number_of_unique_addresses": 100.0,
+            "number_of_unique_addresses_24h_percentage_change": 0.0,
+            "volume_in_usd_24h_percentage_change": -100.0,
+            "total_supply": 10000.0, "one_day_sales": null,
+            "one_day_sales_24h_percentage_change": 0.0,
+            "one_day_average_sale_price": null,
+            "one_day_average_sale_price_24h_percentage_change": 0.0
+        }]"#;
+        let items: Vec<NftMarketItem> = serde_json::from_str(json).unwrap();
+        let item = &items[0];
+        assert_eq!(
+            item.floor_price_24h_percentage_change
+                .as_ref()
+                .and_then(|p| p.usd),
+            Some(-2.6)
+        );
+        assert_eq!(item.floor_price.as_ref().and_then(|p| p.usd), Some(3000.0));
+        assert_eq!(item.volume_in_usd_24h_percentage_change, Some(-100.0));
+        assert!(item.one_day_sales.is_none());
+    }
 }

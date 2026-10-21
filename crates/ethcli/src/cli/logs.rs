@@ -67,7 +67,8 @@ pub struct LogsArgs {
     #[arg(short = 'n', long, value_name = "N")]
     pub concurrency: Option<usize>,
 
-    /// Resume from checkpoint if available
+    /// Resume from checkpoint if available (appends to the output file;
+    /// requires ndjson or sqlite when writing to a file)
     #[arg(long)]
     pub resume: bool,
 
