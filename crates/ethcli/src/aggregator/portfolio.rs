@@ -4,8 +4,8 @@
 //! and merges them into a unified view.
 
 use super::{
-    chain_map::normalize_chain_for_source, fan_out_result, get_cached_config, sum_usd,
-    AggregatedResult, LatencyMeasure, SourceResult,
+    chain_map::{chain_id_from_name, normalize_chain_for_source},
+    fan_out_result, get_cached_config, sum_usd, AggregatedResult, LatencyMeasure, SourceResult,
 };
 use futures::future::join_all;
 use secrecy::ExposeSecret;
@@ -684,7 +684,7 @@ async fn fetch_yearn_portfolio(
     let chain_futures: Vec<_> = chains
         .iter()
         .filter_map(|chain| {
-            let chain_id = chain_name_to_id(chain)?;
+            let chain_id = chain_id_from_name(chain)?;
             Some((chain.clone(), chain_id))
         })
         .map(|(chain, chain_id)| {
@@ -914,20 +914,6 @@ fn calculate_yearn_position_value_with_price(
     }
 
     (None, None)
-}
-
-/// Convert chain name to chain ID for Yearn
-fn chain_name_to_id(chain: &str) -> Option<u64> {
-    match chain.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" | "eth-mainnet" => Some(1),
-        "polygon" | "matic" | "polygon-mainnet" => Some(137),
-        "arbitrum" | "arb" | "arbitrum-mainnet" | "arb-mainnet" => Some(42161),
-        "optimism" | "op" | "optimism-mainnet" | "op-mainnet" => Some(10),
-        "base" | "base-mainnet" => Some(8453),
-        "fantom" | "ftm" => Some(250),
-        "gnosis" | "xdai" => Some(100),
-        _ => None,
-    }
 }
 
 /// Maximum number of unique tokens to track (prevents unbounded memory growth)

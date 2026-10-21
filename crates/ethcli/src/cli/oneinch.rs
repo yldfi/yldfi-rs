@@ -240,21 +240,17 @@ pub async fn run(args: OneInchArgs, chain: &str) -> anyhow::Result<()> {
 }
 
 fn chain_id_to_oinch_chain(chain_id: u64) -> anyhow::Result<oinch::Chain> {
-    match chain_id {
-        1 => Ok(oinch::Chain::Ethereum),
-        56 => Ok(oinch::Chain::Bsc),
-        137 => Ok(oinch::Chain::Polygon),
-        10 => Ok(oinch::Chain::Optimism),
-        42161 => Ok(oinch::Chain::Arbitrum),
-        43114 => Ok(oinch::Chain::Avalanche),
-        100 => Ok(oinch::Chain::Gnosis),
-        250 => Ok(oinch::Chain::Fantom),
-        8453 => Ok(oinch::Chain::Base),
-        324 => Ok(oinch::Chain::ZkSync),
-        59144 => Ok(oinch::Chain::Linea),
-        1313161554 => Ok(oinch::Chain::Aurora),
-        _ => anyhow::bail!("Unsupported chain ID: {}. Supported: 1 (Ethereum), 56 (BSC), 137 (Polygon), 10 (Optimism), 42161 (Arbitrum), 43114 (Avalanche), 100 (Gnosis), 250 (Fantom), 8453 (Base), 324 (zkSync), 59144 (Linea), 1313161554 (Aurora)", chain_id),
-    }
+    oinch::Chain::from_chain_id(chain_id).ok_or_else(|| {
+        let supported: Vec<String> = oinch::Chain::all()
+            .iter()
+            .map(|c| format!("{} ({})", c.chain_id(), c.name()))
+            .collect();
+        anyhow::anyhow!(
+            "Unsupported chain ID: {}. Supported: {}",
+            chain_id,
+            supported.join(", ")
+        )
+    })
 }
 
 fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::Result<()> {

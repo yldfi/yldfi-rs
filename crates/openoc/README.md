@@ -92,7 +92,10 @@ async fn main() -> Result<(), openoc::Error> {
 
 ## Supported Chains
 
-Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Fantom, Gnosis, zkSync Era, Linea, Scroll, Mantle, Blast, Solana, Sui
+Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Fantom, Gnosis, zkSync Era, Linea, Scroll, Mantle, Blast, Polygon zkEVM, Mode, Celo, Aurora, Klaytn, Cronos, Sonic, Berachain, Unichain, HyperEVM, Plasma, Monad, Robinhood Chain, Arc, Solana, Sui
+
+The De¹/OpenOcean API serves more chains than this. `Chain` covers the ones
+`yldfi_common` knows, plus Solana and Sui.
 
 ## Terms of Service
 

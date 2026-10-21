@@ -3045,7 +3045,7 @@ pub struct CowswapCreateOrderInput {
     pub partially_fillable: bool,
     /// Quote ID reference
     pub quote_id: Option<i64>,
-    /// Chain name (ethereum, gnosis, arbitrum)
+    /// Chain name or ID (ethereum, gnosis, arbitrum, base, polygon, bnb, etc.)
     #[serde(default = "default_chain")]
     pub chain: String,
 }
@@ -3064,7 +3064,7 @@ pub struct CowswapCancelOrderInput {
     pub uid: String,
     /// EIP-712 signature proving ownership
     pub signature: String,
-    /// Chain name (ethereum, gnosis, arbitrum)
+    /// Chain name or ID (ethereum, gnosis, arbitrum, base, polygon, bnb, etc.)
     #[serde(default = "default_chain")]
     pub chain: String,
 }
@@ -3078,7 +3078,7 @@ pub struct CowswapCancelOrdersInput {
     /// Signing scheme: "eip712" or "ethsign"
     #[serde(default)]
     pub signing_scheme: Option<String>,
-    /// Chain name (ethereum, gnosis, arbitrum)
+    /// Chain name or ID (ethereum, gnosis, arbitrum, base, polygon, bnb, etc.)
     #[serde(default = "default_chain")]
     pub chain: String,
 }

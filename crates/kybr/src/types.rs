@@ -18,7 +18,10 @@ impl fmt::Display for ParseChainError {
 
 impl std::error::Error for ParseChainError {}
 
-/// Supported chains for `KyberSwap`
+/// Chains served by the `KyberSwap` aggregator API
+///
+/// Matches the active chains in `KyberSwap`'s supported-chains list
+/// (`common-service.kyberswap.com/api/v1/aggregator/supported-chains`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Chain {
@@ -29,16 +32,47 @@ pub enum Chain {
     Optimism,
     Avalanche,
     Base,
-    Fantom,
     Linea,
-    Scroll,
-    Zksync,
-    Blast,
-    Mantle,
-    PolygonZkEvm,
+    Sonic,
+    Berachain,
+    Unichain,
+    Ronin,
+    HyperEvm,
+    Plasma,
+    Monad,
+    Etherlink,
+    MegaEth,
+    Robinhood,
+    Arc,
 }
 
 impl Chain {
+    /// All supported chains
+    #[must_use]
+    pub const fn all() -> &'static [Chain] {
+        &[
+            Chain::Ethereum,
+            Chain::Bsc,
+            Chain::Polygon,
+            Chain::Arbitrum,
+            Chain::Optimism,
+            Chain::Avalanche,
+            Chain::Base,
+            Chain::Linea,
+            Chain::Sonic,
+            Chain::Berachain,
+            Chain::Unichain,
+            Chain::Ronin,
+            Chain::HyperEvm,
+            Chain::Plasma,
+            Chain::Monad,
+            Chain::Etherlink,
+            Chain::MegaEth,
+            Chain::Robinhood,
+            Chain::Arc,
+        ]
+    }
+
     /// Convert from EVM chain ID
     #[must_use]
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
@@ -50,17 +84,49 @@ impl Chain {
             10 => Some(Chain::Optimism),
             43114 => Some(Chain::Avalanche),
             8453 => Some(Chain::Base),
-            250 => Some(Chain::Fantom),
             59144 => Some(Chain::Linea),
-            534352 => Some(Chain::Scroll),
-            324 => Some(Chain::Zksync),
-            81457 => Some(Chain::Blast),
-            5000 => Some(Chain::Mantle),
-            1101 => Some(Chain::PolygonZkEvm),
+            146 => Some(Chain::Sonic),
+            80094 => Some(Chain::Berachain),
+            130 => Some(Chain::Unichain),
+            2020 => Some(Chain::Ronin),
+            999 => Some(Chain::HyperEvm),
+            9745 => Some(Chain::Plasma),
+            143 => Some(Chain::Monad),
+            42793 => Some(Chain::Etherlink),
+            4326 => Some(Chain::MegaEth),
+            4663 => Some(Chain::Robinhood),
+            5042 => Some(Chain::Arc),
             _ => None,
         }
     }
 
+    /// EVM chain ID
+    #[must_use]
+    pub const fn chain_id(&self) -> u64 {
+        match self {
+            Chain::Ethereum => 1,
+            Chain::Bsc => 56,
+            Chain::Polygon => 137,
+            Chain::Arbitrum => 42161,
+            Chain::Optimism => 10,
+            Chain::Avalanche => 43114,
+            Chain::Base => 8453,
+            Chain::Linea => 59144,
+            Chain::Sonic => 146,
+            Chain::Berachain => 80094,
+            Chain::Unichain => 130,
+            Chain::Ronin => 2020,
+            Chain::HyperEvm => 999,
+            Chain::Plasma => 9745,
+            Chain::Monad => 143,
+            Chain::Etherlink => 42793,
+            Chain::MegaEth => 4326,
+            Chain::Robinhood => 4663,
+            Chain::Arc => 5042,
+        }
+    }
+
+    /// Chain name used in API paths
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -71,13 +137,18 @@ impl Chain {
             Chain::Optimism => "optimism",
             Chain::Avalanche => "avalanche",
             Chain::Base => "base",
-            Chain::Fantom => "fantom",
             Chain::Linea => "linea",
-            Chain::Scroll => "scroll",
-            Chain::Zksync => "zksync",
-            Chain::Blast => "blast",
-            Chain::Mantle => "mantle",
-            Chain::PolygonZkEvm => "polygon-zkevm",
+            Chain::Sonic => "sonic",
+            Chain::Berachain => "berachain",
+            Chain::Unichain => "unichain",
+            Chain::Ronin => "ronin",
+            Chain::HyperEvm => "hyperevm",
+            Chain::Plasma => "plasma",
+            Chain::Monad => "monad",
+            Chain::Etherlink => "etherlink",
+            Chain::MegaEth => "megaeth",
+            Chain::Robinhood => "robinhood",
+            Chain::Arc => "arc",
         }
     }
 
@@ -94,19 +165,24 @@ impl FromStr for Chain {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "ethereum" | "eth" | "mainnet" => Ok(Chain::Ethereum),
-            "bsc" | "bnb" => Ok(Chain::Bsc),
+            "bsc" | "bnb" | "binance" => Ok(Chain::Bsc),
             "polygon" | "matic" => Ok(Chain::Polygon),
             "arbitrum" | "arb" => Ok(Chain::Arbitrum),
             "optimism" | "op" => Ok(Chain::Optimism),
             "avalanche" | "avax" => Ok(Chain::Avalanche),
             "base" => Ok(Chain::Base),
-            "fantom" | "ftm" => Ok(Chain::Fantom),
             "linea" => Ok(Chain::Linea),
-            "scroll" => Ok(Chain::Scroll),
-            "zksync" | "era" => Ok(Chain::Zksync),
-            "blast" => Ok(Chain::Blast),
-            "mantle" | "mnt" => Ok(Chain::Mantle),
-            "polygon-zkevm" | "zkevm" => Ok(Chain::PolygonZkEvm),
+            "sonic" => Ok(Chain::Sonic),
+            "berachain" | "bera" => Ok(Chain::Berachain),
+            "unichain" => Ok(Chain::Unichain),
+            "ronin" => Ok(Chain::Ronin),
+            "hyperevm" | "hyperliquid" => Ok(Chain::HyperEvm),
+            "plasma" => Ok(Chain::Plasma),
+            "monad" => Ok(Chain::Monad),
+            "etherlink" => Ok(Chain::Etherlink),
+            "megaeth" => Ok(Chain::MegaEth),
+            "robinhood" => Ok(Chain::Robinhood),
+            "arc" => Ok(Chain::Arc),
             _ => Err(ParseChainError {
                 input: s.to_string(),
             }),
@@ -124,44 +200,13 @@ impl TryFrom<yldfi_common::Chain> for Chain {
     type Error = &'static str;
 
     fn try_from(chain: yldfi_common::Chain) -> Result<Self, Self::Error> {
-        match chain {
-            yldfi_common::Chain::Ethereum => Ok(Self::Ethereum),
-            yldfi_common::Chain::Bsc => Ok(Self::Bsc),
-            yldfi_common::Chain::Polygon => Ok(Self::Polygon),
-            yldfi_common::Chain::Arbitrum => Ok(Self::Arbitrum),
-            yldfi_common::Chain::Optimism => Ok(Self::Optimism),
-            yldfi_common::Chain::Avalanche => Ok(Self::Avalanche),
-            yldfi_common::Chain::Base => Ok(Self::Base),
-            yldfi_common::Chain::Fantom => Ok(Self::Fantom),
-            yldfi_common::Chain::Linea => Ok(Self::Linea),
-            yldfi_common::Chain::Scroll => Ok(Self::Scroll),
-            yldfi_common::Chain::ZkSync => Ok(Self::Zksync),
-            yldfi_common::Chain::Blast => Ok(Self::Blast),
-            yldfi_common::Chain::Mantle => Ok(Self::Mantle),
-            yldfi_common::Chain::PolygonZkEvm => Ok(Self::PolygonZkEvm),
-            _ => Err("Chain not supported by KyberSwap"),
-        }
+        Self::from_chain_id(chain.id()).ok_or("Chain not supported by KyberSwap")
     }
 }
 
 impl From<Chain> for yldfi_common::Chain {
     fn from(chain: Chain) -> Self {
-        match chain {
-            Chain::Ethereum => Self::Ethereum,
-            Chain::Bsc => Self::Bsc,
-            Chain::Polygon => Self::Polygon,
-            Chain::Arbitrum => Self::Arbitrum,
-            Chain::Optimism => Self::Optimism,
-            Chain::Avalanche => Self::Avalanche,
-            Chain::Base => Self::Base,
-            Chain::Fantom => Self::Fantom,
-            Chain::Linea => Self::Linea,
-            Chain::Scroll => Self::Scroll,
-            Chain::Zksync => Self::ZkSync,
-            Chain::Blast => Self::Blast,
-            Chain::Mantle => Self::Mantle,
-            Chain::PolygonZkEvm => Self::PolygonZkEvm,
-        }
+        Self::from_id(chain.chain_id())
     }
 }
 
@@ -491,6 +536,46 @@ pub struct TokenInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chain_aliases_parse() {
+        for (name, chain) in [
+            ("ETH", Chain::Ethereum),
+            ("binance", Chain::Bsc),
+            ("bnb", Chain::Bsc),
+            ("sonic", Chain::Sonic),
+            ("bera", Chain::Berachain),
+            ("hyperevm", Chain::HyperEvm),
+        ] {
+            assert_eq!(name.parse::<Chain>().unwrap(), chain, "{name}");
+        }
+        // Chains KyberSwap has deactivated
+        for name in [
+            "fantom",
+            "scroll",
+            "zksync",
+            "blast",
+            "mantle",
+            "polygon-zkevm",
+            "gnosis",
+        ] {
+            assert!(name.parse::<Chain>().is_err(), "{name}");
+        }
+    }
+
+    #[test]
+    fn chain_mappings_round_trip() {
+        for chain in Chain::all() {
+            assert_eq!(chain.as_str().parse::<Chain>().unwrap(), *chain);
+            assert_eq!(Chain::from_chain_id(chain.chain_id()), Some(*chain));
+            let common = yldfi_common::Chain::from(*chain);
+            assert!(
+                !matches!(common, yldfi_common::Chain::Other(_)),
+                "{chain:?}"
+            );
+            assert_eq!(Chain::try_from(common), Ok(*chain));
+        }
+    }
 
     const LIVE_ROUTE_DATA: &str = r#"{"routeSummary":{"tokenIn":"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         "amountIn":"1000000000000000000","amountInUsd":"2691.83","tokenOut":"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",

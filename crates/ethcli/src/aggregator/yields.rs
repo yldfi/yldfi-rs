@@ -3,7 +3,9 @@
 //! Combines yield data from multiple sources to provide comprehensive
 //! DeFi yield information with cross-source comparison.
 
-use super::{get_cached_config, AggregatedResult, LatencyMeasure, SourceResult};
+use super::{
+    chain_id_from_name, get_cached_config, AggregatedResult, LatencyMeasure, SourceResult,
+};
 use futures::future::join_all;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -799,20 +801,6 @@ async fn fetch_yearn_yields(chain_id: Option<u64>) -> SourceResult<Vec<Normalize
     }
 }
 
-/// Map chain name to Yearn chain ID
-fn chain_name_to_yearn_id(chain: &str) -> Option<u64> {
-    match chain.to_lowercase().as_str() {
-        "ethereum" | "mainnet" | "eth" => Some(1),
-        "optimism" | "op" => Some(10),
-        "polygon" | "matic" => Some(137),
-        "fantom" | "ftm" => Some(250),
-        "arbitrum" | "arb" => Some(42161),
-        "avalanche" | "avax" => Some(43114),
-        "base" => Some(8453),
-        _ => None,
-    }
-}
-
 /// Check if a pool contains stablecoin pairs
 fn is_stablecoin_pool(tokens: &[String]) -> bool {
     let stablecoins = [
@@ -900,7 +888,7 @@ pub async fn fetch_yields_aggregated(
         YieldSource::All => {
             let curve_chain = chain.unwrap_or("ethereum");
             let uniswap_chain = chain.unwrap_or("ethereum");
-            let yearn_chain_id = chain.and_then(chain_name_to_yearn_id);
+            let yearn_chain_id = chain.and_then(chain_id_from_name);
             vec![
                 Box::pin(fetch_curve_yields(curve_chain))
                     as std::pin::Pin<Box<dyn std::future::Future<Output = _> + Send>>,
@@ -921,7 +909,7 @@ pub async fn fetch_yields_aggregated(
             vec![Box::pin(fetch_uniswap_yields(uniswap_chain))]
         }
         YieldSource::Yearn => {
-            let yearn_chain_id = chain.and_then(chain_name_to_yearn_id);
+            let yearn_chain_id = chain.and_then(chain_id_from_name);
             vec![Box::pin(fetch_yearn_yields(yearn_chain_id))]
         }
     };

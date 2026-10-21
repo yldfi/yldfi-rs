@@ -32,7 +32,7 @@ pub enum KyberCommands {
         token_out: String,
         /// Amount in smallest units (wei)
         amount_in: String,
-        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, avalanche, fantom, linea, scroll, zksync)
+        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, sonic, etc.)
         #[arg(long, default_value = "ethereum")]
         chain: String,
         /// Save gas (may reduce output)
@@ -187,23 +187,14 @@ fn extract_route_summary(json: &str) -> anyhow::Result<serde_json::Value> {
 }
 
 fn chain_name_to_kybr_chain(name: &str) -> anyhow::Result<kybr::Chain> {
-    match name.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" => Ok(kybr::Chain::Ethereum),
-        "bsc" | "bnb" | "binance" => Ok(kybr::Chain::Bsc),
-        "polygon" | "matic" => Ok(kybr::Chain::Polygon),
-        "arbitrum" | "arb" => Ok(kybr::Chain::Arbitrum),
-        "optimism" | "op" => Ok(kybr::Chain::Optimism),
-        "avalanche" | "avax" => Ok(kybr::Chain::Avalanche),
-        "fantom" | "ftm" => Ok(kybr::Chain::Fantom),
-        "base" => Ok(kybr::Chain::Base),
-        "linea" => Ok(kybr::Chain::Linea),
-        "scroll" => Ok(kybr::Chain::Scroll),
-        "zksync" | "zksync-era" => Ok(kybr::Chain::Zksync),
-        _ => anyhow::bail!(
-            "Unsupported chain: {}. Supported: ethereum, bsc, polygon, arbitrum, optimism, avalanche, fantom, base, linea, scroll, zksync",
-            name
-        ),
-    }
+    name.parse().map_err(|_| {
+        let supported: Vec<&str> = kybr::Chain::all().iter().map(|c| c.as_str()).collect();
+        anyhow::anyhow!(
+            "Unsupported chain: {}. Supported: {}",
+            name,
+            supported.join(", ")
+        )
+    })
 }
 
 fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::Result<()> {

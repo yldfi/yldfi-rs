@@ -9,7 +9,7 @@
 use crate::cli::OutputFormat;
 use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
-use pythc::{feed_ids, Client, Config};
+use pythc::{symbol_to_feed_id, Client, Config};
 use secrecy::ExposeSecret;
 
 /// Help text shown when a Pyth API key is required but not configured.
@@ -141,55 +141,13 @@ pub async fn run(args: PythArgs, _chain: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Convert common symbols to Pyth feed IDs
-fn symbol_to_feed_id(symbol: &str) -> Option<&'static str> {
-    match symbol.to_uppercase().as_str() {
-        "BTC" | "BTC/USD" | "BTCUSD" => Some(feed_ids::BTC_USD),
-        "ETH" | "ETH/USD" | "ETHUSD" => Some(feed_ids::ETH_USD),
-        "SOL" | "SOL/USD" | "SOLUSD" => Some(feed_ids::SOL_USD),
-        "USDC" | "USDC/USD" => Some(feed_ids::USDC_USD),
-        "USDT" | "USDT/USD" => Some(feed_ids::USDT_USD),
-        "DAI" | "DAI/USD" => Some(feed_ids::DAI_USD),
-        "AVAX" | "AVAX/USD" => Some(feed_ids::AVAX_USD),
-        "ARB" | "ARB/USD" => Some(feed_ids::ARB_USD),
-        "OP" | "OP/USD" => Some(feed_ids::OP_USD),
-        "LINK" | "LINK/USD" => Some(feed_ids::LINK_USD),
-        "UNI" | "UNI/USD" => Some(feed_ids::UNI_USD),
-        "AAVE" | "AAVE/USD" => Some(feed_ids::AAVE_USD),
-        "CRV" | "CRV/USD" => Some(feed_ids::CRV_USD),
-        "CVX" | "CVX/USD" => Some(feed_ids::CVX_USD),
-        "SNX" | "SNX/USD" => Some(feed_ids::SNX_USD),
-        "LDO" | "LDO/USD" => Some(feed_ids::LDO_USD),
-        "DOGE" | "DOGE/USD" => Some(feed_ids::DOGE_USD),
-        "ATOM" | "ATOM/USD" => Some(feed_ids::ATOM_USD),
-        "DOT" | "DOT/USD" => Some(feed_ids::DOT_USD),
-        _ => None,
-    }
-}
-
 fn get_known_feeds() -> serde_json::Value {
+    let crypto: serde_json::Map<String, serde_json::Value> = pythc::known_feeds()
+        .iter()
+        .map(|(pair, id)| (pair.to_string(), serde_json::Value::from(*id)))
+        .collect();
     serde_json::json!({
-        "crypto": {
-            "BTC/USD": feed_ids::BTC_USD,
-            "ETH/USD": feed_ids::ETH_USD,
-            "SOL/USD": feed_ids::SOL_USD,
-            "USDC/USD": feed_ids::USDC_USD,
-            "USDT/USD": feed_ids::USDT_USD,
-            "DAI/USD": feed_ids::DAI_USD,
-            "AVAX/USD": feed_ids::AVAX_USD,
-            "ARB/USD": feed_ids::ARB_USD,
-            "OP/USD": feed_ids::OP_USD,
-            "LINK/USD": feed_ids::LINK_USD,
-            "UNI/USD": feed_ids::UNI_USD,
-            "AAVE/USD": feed_ids::AAVE_USD,
-            "CRV/USD": feed_ids::CRV_USD,
-            "CVX/USD": feed_ids::CVX_USD,
-            "SNX/USD": feed_ids::SNX_USD,
-            "LDO/USD": feed_ids::LDO_USD,
-            "DOGE/USD": feed_ids::DOGE_USD,
-            "ATOM/USD": feed_ids::ATOM_USD,
-            "DOT/USD": feed_ids::DOT_USD,
-        },
+        "crypto": crypto,
         "note": "Use 'ethcli pyth search <symbol>' to find additional feeds"
     })
 }
