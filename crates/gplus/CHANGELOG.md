@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/gplus-v0.1.2...gplus-v0.2.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **gplus:** report every documented red flag ([b2a7138](https://github.com/yldfi/yldfi-rs/commit/b2a7138363db44b3ab07321719cda1ae7f597e02))
+* **gplus:** treat code 2 as success, map 4029, propagate token errors ([4d95660](https://github.com/yldfi/yldfi-rs/commit/4d95660882730330ac46c414efc379ab55e1c9b0))
+* route API errors through yldfi-common and redact API keys ([f5595c5](https://github.com/yldfi/yldfi-rs/commit/f5595c5dc4a6a2d496e6a3565c4d6eb20d6a5232))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/gplus-v0.1.1...gplus-v0.1.2) (2026-09-25)
 
 

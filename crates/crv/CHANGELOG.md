@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/crv-v0.1.7...crv-v0.2.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **crv:** correct Router-NG selectors, pool types and swap types ([18b51d8](https://github.com/yldfi/yldfi-rs/commit/18b51d8947458df17fa4e8e91a456e21a5bc84d9))
+* route API errors through yldfi-common and redact API keys ([f5595c5](https://github.com/yldfi/yldfi-rs/commit/f5595c5dc4a6a2d496e6a3565c4d6eb20d6a5232))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/crv-v0.1.6...crv-v0.1.7) (2026-09-25)
 
 

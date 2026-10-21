@@ -1,6 +1,6 @@
 [package]
 name = "unswp"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 description = "Unofficial Rust client for Uniswap - combining on-chain lens queries and subgraph historical data"
 license = "MIT"
@@ -16,7 +16,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
-yldfi-common = { version = "0.1", path = "../yldfi-common" }
+yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
 
 # Uniswap ecosystem crates
 uniswap-sdk-core = "7.0"

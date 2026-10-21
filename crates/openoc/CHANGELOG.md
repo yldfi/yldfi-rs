@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/openoc-v0.1.5...openoc-v0.2.0) (2026-10-21)
+
+
+### Features
+
+* **openoc:** add Sonic, Berachain, Unichain, HyperEVM and other chains ([0cb76c4](https://github.com/yldfi/yldfi-rs/commit/0cb76c41f91cd9d37c5a6be3b4c8a5a9bbbc77d2))
+
+
+### Bug Fixes
+
+* **openoc:** use xdai in API paths for Gnosis ([3ae12b3](https://github.com/yldfi/yldfi-rs/commit/3ae12b31850a60811b9ba8c72a7136ba931faad1))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/openoc-v0.1.4...openoc-v0.1.5) (2026-09-25)
 
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.1.5...cgko-v0.2.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **cgko:** onchain holders/traders/pool info, NFT markets, treasury shapes ([1b0d80b](https://github.com/yldfi/yldfi-rs/commit/1b0d80bdc316fa6db0187f07c99c9c7bb753d1f0))
+* **cgko:** URL-encode search queries ([d1e0039](https://github.com/yldfi/yldfi-rs/commit/d1e003973545534d98d387679ac969cc1641cc41))
+* smaller upstream API changes (0x, 1inch, Moralis, CoinGecko, Alchemy, LI.FI, KyberSwap) ([964be4c](https://github.com/yldfi/yldfi-rs/commit/964be4c1ba63778f9aac630b509886e0349123e7))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.1.4...cgko-v0.1.5) (2026-09-25)
 
 

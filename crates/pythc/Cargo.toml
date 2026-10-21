@@ -1,6 +1,6 @@
 [package]
 name = "pythc"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Rust client for the Pyth Network Hermes API"
 license = "MIT"
@@ -15,7 +15,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
-yldfi-common = { version = "0.1", path = "../yldfi-common" }
+yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
 
 [dev-dependencies]
 wiremock = "0.6"

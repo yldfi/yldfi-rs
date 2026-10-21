@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/yldfi/yldfi-rs/compare/tndrly-v0.4.0...tndrly-v0.5.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* route API errors through yldfi-common and redact API keys ([f5595c5](https://github.com/yldfi/yldfi-rs/commit/f5595c5dc4a6a2d496e6a3565c4d6eb20d6a5232))
+* **tndrly:** remodel actions, alerts, contracts and channels from the spec ([4929be9](https://github.com/yldfi/yldfi-rs/commit/4929be9cb52495937c3f5d05e2cc8ac88698ecba))
+* **tndrly:** vnet callArgs, alert update merge, nested transaction_info ([c07bb48](https://github.com/yldfi/yldfi-rs/commit/c07bb484bde6314b47a0a23ca5180e870f90b414))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.4.0](https://github.com/yldfi/yldfi-rs/compare/tndrly-v0.3.8...tndrly-v0.4.0) (2026-09-25)
 
 

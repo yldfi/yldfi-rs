@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.1.4...vlra-v0.2.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **vlra:** drop excludePoolsWithLowTVL ([7c4b8fe](https://github.com/yldfi/yldfi-rs/commit/7c4b8fecff1d63a59c149b82c8b419d053906e93))
+* **vlra:** send ignore flags as query params and destAmount for BUY ([e61ff0f](https://github.com/yldfi/yldfi-rs/commit/e61ff0fc53f092aa3f574cd681b8bd51c02dac22))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.4](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.1.3...vlra-v0.1.4) (2026-09-25)
 
 

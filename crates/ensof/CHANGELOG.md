@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/ensof-v0.1.5...ensof-v0.2.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **ensof:** keep preTransactions and approvals; balance price is a unit price ([9411796](https://github.com/yldfi/yldfi-rs/commit/9411796c3a24365277c5aa8a5ee8db9220a1985b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/ensof-v0.1.4...ensof-v0.1.5) (2026-09-25)
 
 

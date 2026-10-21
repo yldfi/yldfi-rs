@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.3.2...ethcli-mcp-v0.3.3) (2026-10-21)
+
+
+### Features
+
+* **ethcli:** dune query execute --params ([29dbef4](https://github.com/yldfi/yldfi-rs/commit/29dbef47acc42ee45b8cf957511b4791c6ab4868))
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** annotate tools, redact errors, fix tool argv gaps ([89afed5](https://github.com/yldfi/yldfi-rs/commit/89afed500a4e0ebe2541a25dd911aaeb4425dc1e))
+* **ethcli-mcp:** close subprocess stdin, block flag injection, gate side effects ([84a3c34](https://github.com/yldfi/yldfi-rs/commit/84a3c344cdb61ad5091f89a9aa867e33886f1e27))
+* **ethcli-mcp:** sync beacon, solana, lifi and moralis tool args ([657f6c2](https://github.com/yldfi/yldfi-rs/commit/657f6c287b38bcba3a191e99c24d3eb8e752030e))
+* **ethcli-mcp:** sync moralis timeseries and cowswap orders args ([59e8e1f](https://github.com/yldfi/yldfi-rs/commit/59e8e1f17b9abaa8bf36cef0d3efe1816ae67d7a))
+* **ethcli:** accept the documented quote source names ([c27a464](https://github.com/yldfi/yldfi-rs/commit/c27a4642091e1a0ca3e2c150508c4fd27ea4c201))
+* **ethcli:** alerts update keeps the target; --with-metadata can be false ([661676f](https://github.com/yldfi/yldfi-rs/commit/661676f1f58827c65ccde98d5744a8f4d9d04d8f))
+* **ethcli:** stop capping account history at block 99,999,999 ([a6f5c17](https://github.com/yldfi/yldfi-rs/commit/a6f5c1762709218d046d7a2b4f57af4f533fafef))
+
 ## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.3.1...ethcli-mcp-v0.3.2) (2026-10-13)
 
 

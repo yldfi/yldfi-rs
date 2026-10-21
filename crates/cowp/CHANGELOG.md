@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/cowp-v0.1.5...cowp-v0.2.0) (2026-10-21)
+
+
+### Features
+
+* **cowp:** add Base, Polygon, Avalanche, BNB, Linea, Plasma and Ink ([4748952](https://github.com/yldfi/yldfi-rs/commit/47489521979534e6b619dd9b99e9f1a8c2aefb50))
+
+
+### Bug Fixes
+
+* **cowp:** accept bare-string order UID and page owner orders ([01159f4](https://github.com/yldfi/yldfi-rs/commit/01159f40fde07768c81bfcff6a876768142e36d0))
+* **cowp:** onchainOrder, optional quote from, ethsign ([8aace42](https://github.com/yldfi/yldfi-rs/commit/8aace425eaac6848d31df35cf5facbc81ce8e3d9))
+* handle dated upstream API changes (Etherscan, DefiLlama, Chainlink, Kong, CoW) ([b713e16](https://github.com/yldfi/yldfi-rs/commit/b713e1618c9a9ca3cd0d5d79cec0149c08498006))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/cowp-v0.1.4...cowp-v0.1.5) (2026-09-25)
 
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/pythc-v0.2.0...pythc-v0.2.1) (2026-10-21)
+
+
+### Features
+
+* **pythc:** allow searching feeds without the crypto filter ([330569e](https://github.com/yldfi/yldfi-rs/commit/330569e0523ef973e5b9cee9a48ff90fd87cb50f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/pythc-v0.1.3...pythc-v0.2.0) (2026-09-25)
 
 

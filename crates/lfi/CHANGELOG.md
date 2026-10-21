@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.1.5...lfi-v0.2.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **lfi:** fee is a fraction; status, connections and error fixes ([d967bb0](https://github.com/yldfi/yldfi-rs/commit/d967bb06363dd874b7b2501090fb8e1bbf891c59))
+* **lfi:** use /v1/gas/prices/{chainId} ([23a2dec](https://github.com/yldfi/yldfi-rs/commit/23a2decc686a6304ddb9d3b5359dfed1ab2b2f8d))
+* smaller upstream API changes (0x, 1inch, Moralis, CoinGecko, Alchemy, LI.FI, KyberSwap) ([964be4c](https://github.com/yldfi/yldfi-rs/commit/964be4c1ba63778f9aac630b509886e0349123e7))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.1.4...lfi-v0.1.5) (2026-09-25)
 
 

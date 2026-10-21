@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/dllma-v0.1.5...dllma-v0.2.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **dllma:** ecosystem, bridges, emissions, DAT and yields shapes ([b72a755](https://github.com/yldfi/yldfi-rs/commit/b72a755c4ec34c831c50171cfde8ae9cdbe5811a))
+* **dllma:** strip key from errors, fix batchHistorical, perps, dominance ([1de6b2f](https://github.com/yldfi/yldfi-rs/commit/1de6b2fec1eadcfd3db922b7ab0ba9002b01de5e))
+* **dllma:** strip URLs (which hold the Pro API key) from transport errors ([f761980](https://github.com/yldfi/yldfi-rs/commit/f7619806c8cd56d8854608906cbc793354005400))
+* handle dated upstream API changes (Etherscan, DefiLlama, Chainlink, Kong, CoW) ([b713e16](https://github.com/yldfi/yldfi-rs/commit/b713e1618c9a9ca3cd0d5d79cec0149c08498006))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/dllma-v0.1.4...dllma-v0.1.5) (2026-09-25)
 
 

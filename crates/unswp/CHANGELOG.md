@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.6...unswp-v0.1.7) (2026-10-21)
+
+
+### Bug Fixes
+
+* route API errors through yldfi-common and redact API keys ([f5595c5](https://github.com/yldfi/yldfi-rs/commit/f5595c5dc4a6a2d496e6a3565c4d6eb20d6a5232))
+* **unswp:** pass subgraph filters as variables and page day stats ([d0de7c4](https://github.com/yldfi/yldfi-rs/commit/d0de7c43485a27fa82167feeaa67d3b5170dc06a))
+* **unswp:** V2 day data, day-stats ranking window, exact V2 deltas ([a398bfb](https://github.com/yldfi/yldfi-rs/commit/a398bfb33b2609e080f2fb57bb1556505946a979))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.5...unswp-v0.1.6) (2026-09-25)
 
 
