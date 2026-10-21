@@ -223,10 +223,17 @@ impl DataStreamsClient {
         };
 
         let response = request.send().await?;
-        let response = response
-            .error_for_status()
-            .map_err(|e| DataStreamsError::Api(e.to_string()))?;
+        let status = response.status();
         let body = response.bytes().await?;
+        if !status.is_success() {
+            // Keep the API's explanation (bad feed id, auth, plan limits)
+            let detail = String::from_utf8_lossy(&body);
+            let detail: String = detail.chars().take(500).collect();
+            return Err(DataStreamsError::Api(format!(
+                "HTTP {status}: {}",
+                crate::error::sanitize_error_message(detail.trim())
+            )));
+        }
 
         Ok(serde_json::from_slice(&body)?)
     }

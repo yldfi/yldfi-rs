@@ -116,11 +116,11 @@ impl<P: Provider + Clone> FeedRegistry<P> {
             }
         };
 
-        // Get decimals
-        let decimals = contract.decimals(base, quote).call().await?;
-
-        // Get latest round data
-        let round_data = contract.latestRoundData(base, quote).call().await?;
+        // Decimals and the latest round don't depend on each other: one round trip
+        let decimals_call = contract.decimals(base, quote);
+        let round_call = contract.latestRoundData(base, quote);
+        let (decimals, round_data) = tokio::join!(decimals_call.call(), round_call.call());
+        let (decimals, round_data) = (decimals?, round_data?);
 
         PriceData::from_round_data(
             round_data.answer,
