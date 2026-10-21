@@ -12,6 +12,10 @@ use crate::utils::format::format_wei_to_eth;
 use alloy::primitives::Address;
 use alloy::providers::Provider;
 use clap::Subcommand;
+
+/// Etherscan `endblock` meaning "up to the latest block". A fixed 99_999_999 cap
+/// silently dropped history on chains past that height (Arbitrum, Optimism).
+const LATEST_BLOCK: u64 = u64::MAX;
 use std::io::Write;
 use std::str::FromStr;
 
@@ -97,9 +101,9 @@ pub enum AccountCommands {
         #[arg(long, default_value = "0")]
         start_block: u64,
 
-        /// Last block to include (inclusive)
-        #[arg(long, default_value = "99999999")]
-        end_block: u64,
+        /// Last block to include (inclusive; default: latest)
+        #[arg(long)]
+        end_block: Option<u64>,
 
         /// Page number (1-indexed)
         #[arg(long, default_value = "1")]
@@ -271,8 +275,7 @@ pub async fn handle(
 
     match action {
         AccountCommands::Info { address, output } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching account info for {}...", address);
@@ -286,7 +289,7 @@ pub async fn handle(
             // Fetch recent transactions (last 10)
             let tx_params = foundry_block_explorers::account::TxListParams {
                 start_block: 0,
-                end_block: 99999999,
+                end_block: LATEST_BLOCK,
                 page: 1,
                 offset: 10,
                 sort: foundry_block_explorers::account::Sort::Desc,
@@ -296,7 +299,7 @@ pub async fn handle(
             // Fetch ERC20 transfers to identify token holdings
             let token_params = foundry_block_explorers::account::TxListParams {
                 start_block: 0,
-                end_block: 99999999,
+                end_block: LATEST_BLOCK,
                 page: 1,
                 offset: 20,
                 sort: foundry_block_explorers::account::Sort::Desc,
@@ -517,12 +520,12 @@ pub async fn handle(
             sort,
             output,
         } => {
+            let end_block = end_block.unwrap_or(LATEST_BLOCK);
             anyhow::ensure!(
-                start_block <= end_block,
+                *start_block <= end_block,
                 "start-block must not exceed end-block"
             );
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching transactions for {}...", address);
@@ -531,7 +534,7 @@ pub async fn handle(
 
             let params = foundry_block_explorers::account::TxListParams {
                 start_block: *start_block,
-                end_block: *end_block,
+                end_block,
                 page: *page,
                 offset: *limit,
                 sort: if sort == "asc" {
@@ -614,8 +617,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching internal transactions for {}...", address);
@@ -625,7 +627,7 @@ pub async fn handle(
             let query = foundry_block_explorers::account::InternalTxQueryOption::ByAddress(addr);
             let params = foundry_block_explorers::account::TxListParams {
                 start_block: 0,
-                end_block: 99999999,
+                end_block: LATEST_BLOCK,
                 page: *page,
                 offset: *limit,
                 sort: foundry_block_explorers::account::Sort::Desc,
@@ -673,8 +675,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching ERC20 transfers for {}...", address);
@@ -693,7 +694,7 @@ pub async fn handle(
 
             let params = foundry_block_explorers::account::TxListParams {
                 start_block: 0,
-                end_block: 99999999,
+                end_block: LATEST_BLOCK,
                 page: *page,
                 offset: *limit,
                 sort: foundry_block_explorers::account::Sort::Desc,
@@ -720,10 +721,18 @@ pub async fn handle(
                         .as_number()
                         .map(|n| n.to::<u64>())
                         .unwrap_or(0);
+                    // Raw units scaled by the token's decimals
+                    let amount = match tx.token_decimal.parse::<u8>() {
+                        Ok(decimals) => crate::utils::format::format_token_amount(
+                            &tx.value.to_string(),
+                            decimals,
+                        ),
+                        Err(_) => tx.value.to_string(),
+                    };
                     println!(
                         "Block {} | {} {} | {} → {}",
                         block_num,
-                        tx.value,
+                        amount,
                         symbol,
                         truncate_addr(&format!("{:#x}", tx.from)),
                         truncate_addr(&to_addr)
@@ -742,8 +751,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching ERC721 transfers for {}...", address);
@@ -762,7 +770,7 @@ pub async fn handle(
 
             let params = foundry_block_explorers::account::TxListParams {
                 start_block: 0,
-                end_block: 99999999,
+                end_block: LATEST_BLOCK,
                 page: *page,
                 offset: *limit,
                 sort: foundry_block_explorers::account::Sort::Desc,
@@ -811,8 +819,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching ERC1155 transfers for {}...", address);
@@ -831,7 +838,7 @@ pub async fn handle(
 
             let params = foundry_block_explorers::account::TxListParams {
                 start_block: 0,
-                end_block: 99999999,
+                end_block: LATEST_BLOCK,
                 page: *page,
                 offset: *limit,
                 sort: foundry_block_explorers::account::Sort::Desc,
@@ -878,8 +885,7 @@ pub async fn handle(
             limit,
             output,
         } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let (addr, _) = resolve_address(address, chain, quiet).await?;
 
             if !quiet {
                 eprintln!("Fetching mined blocks for {}...", address);
@@ -1020,7 +1026,7 @@ mod block_range_tests {
         for (args, expected) in [
             (
                 vec!["test", "txs", "0x0000000000000000000000000000000000000000"],
-                (0, 99_999_999),
+                (0, None),
             ),
             (
                 vec![
@@ -1032,7 +1038,7 @@ mod block_range_tests {
                     "--end-block",
                     "26047833",
                 ],
-                (26_047_833, 26_047_833),
+                (26_047_833, Some(26_047_833)),
             ),
         ] {
             let AccountCommands::Txs {

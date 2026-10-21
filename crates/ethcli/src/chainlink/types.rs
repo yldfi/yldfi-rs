@@ -4,6 +4,14 @@ use alloy::primitives::{I256, U256};
 use serde::Serialize;
 use thiserror::Error;
 
+/// Oldest Chainlink answer accepted as a current price.
+///
+/// Standard price feeds update at least once per heartbeat, and the longest
+/// common heartbeat is 24 hours. The per-feed heartbeat isn't readable on-chain,
+/// so the longest one plus an hour of slack is used. A feed older than this has
+/// stopped updating (typically deprecated) and its answer must not be used.
+pub const MAX_PRICE_AGE_SECS: u64 = 25 * 60 * 60;
+
 /// Chainlink price data from an aggregator
 #[derive(Debug, Clone, Serialize)]
 pub struct PriceData {
@@ -117,6 +125,15 @@ impl PriceData {
         Some(answer_f64 / 10f64.powi(self.decimals as i32))
     }
 
+    /// Like [`to_f64`](Self::to_f64), but also `None` when the answer is older
+    /// than [`MAX_PRICE_AGE_SECS`] at `now`. Use for current prices.
+    pub fn to_fresh_f64(&self, now: u64) -> Option<f64> {
+        if !self.is_fresh(now, MAX_PRICE_AGE_SECS) {
+            return None;
+        }
+        self.to_f64()
+    }
+
     /// Get the price as a U256 (for on-chain calculations)
     ///
     /// Returns None if negative
@@ -199,6 +216,27 @@ impl From<alloy::transports::TransportError> for ChainlinkError {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn to_fresh_f64_rejects_answers_older_than_the_heartbeat() {
+        let now = 1_700_000_000;
+        let data = |updated_at| {
+            PriceData::from_round_data(
+                I256::try_from(200_000_000_000_i64).unwrap(),
+                8,
+                5u128,
+                updated_at,
+                5u128,
+                None,
+            )
+            .unwrap()
+        };
+        assert_eq!(data(now - 3_600).to_fresh_f64(now), Some(2000.0));
+        // A deprecated feed that stopped updating days ago
+        assert_eq!(data(now - 3 * 86_400).to_fresh_f64(now), None);
+        // Historical reads still convert without the age check
+        assert_eq!(data(now - 3 * 86_400).to_f64(), Some(2000.0));
+    }
+
     use super::*;
 
     #[test]

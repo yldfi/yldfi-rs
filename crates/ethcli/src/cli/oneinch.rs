@@ -42,8 +42,8 @@ pub enum OneInchCommands {
         /// Connector tokens for finding best route
         #[arg(long)]
         connector_tokens: Option<String>,
-        /// Fee percentage (in basis points, e.g., 100 = 1%)
-        #[arg(long)]
+        /// Partner fee in percent of the output, 0-3 (e.g. 1 = 1%, not basis points)
+        #[arg(long, value_parser = parse_fee_percent)]
         fee: Option<f64>,
     },
 
@@ -261,4 +261,28 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
     };
     println!("{}", json);
     Ok(())
+}
+
+/// 1inch takes the partner fee as a percentage between 0 and 3
+fn parse_fee_percent(s: &str) -> Result<f64, String> {
+    let fee: f64 = s.parse().map_err(|_| format!("invalid fee '{s}'"))?;
+    if !(0.0..=3.0).contains(&fee) {
+        return Err(format!(
+            "fee is a percentage between 0 and 3 (got {fee}; 1inch doesn't take basis points)"
+        ));
+    }
+    Ok(fee)
+}
+
+#[cfg(test)]
+mod fee_tests {
+    use super::parse_fee_percent;
+
+    #[test]
+    fn fee_is_a_percent_up_to_three() {
+        assert_eq!(parse_fee_percent("1").unwrap(), 1.0);
+        assert_eq!(parse_fee_percent("0.5").unwrap(), 0.5);
+        assert!(parse_fee_percent("100").is_err());
+        assert!(parse_fee_percent("-1").is_err());
+    }
 }

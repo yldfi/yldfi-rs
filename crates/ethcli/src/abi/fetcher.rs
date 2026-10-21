@@ -63,7 +63,7 @@ impl AbiFetcher {
         Ok(Self {
             client,
             api_key,
-            cache: Arc::new(SignatureCache::new()),
+            cache: SignatureCache::shared(),
         })
     }
 
@@ -142,11 +142,27 @@ impl AbiFetcher {
         event.selector()
     }
 
-    /// Get the full event signature string from an ABI event
-    /// e.g., "Transfer(address,address,uint256)"
+    /// Get the full event signature string from an ABI event, keeping
+    /// `indexed` and names so the decoder assigns topics to the right params,
+    /// with canonical types (structs as `(..)`) so topic0 is correct.
+    /// e.g., "Transfer(address indexed from,address indexed to,uint256 value)"
     pub fn event_signature_string(event: &alloy::json_abi::Event) -> String {
-        let param_types: Vec<String> = event.inputs.iter().map(|p| p.ty.to_string()).collect();
-        format!("{}({})", event.name, param_types.join(","))
+        let params: Vec<String> = event
+            .inputs
+            .iter()
+            .map(|p| {
+                let mut param = p.selector_type().into_owned();
+                if p.indexed {
+                    param.push_str(" indexed");
+                }
+                if !p.name.is_empty() {
+                    param.push(' ');
+                    param.push_str(&p.name);
+                }
+                param
+            })
+            .collect();
+        format!("{}({})", event.name, params.join(","))
     }
 
     /// Resolve an event name to its full signature using the contract ABI
@@ -613,6 +629,31 @@ fn format_sol_value(value: &alloy::dyn_abi::DynSolValue) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn event_signature_keeps_indexed_and_canonical_struct_types() {
+        let event: alloy::json_abi::Event = serde_json::from_value(serde_json::json!({
+            "type": "event",
+            "name": "Supply",
+            "anonymous": false,
+            "inputs": [
+                {"name": "reserve", "type": "address", "indexed": true, "internalType": "address"},
+                {"name": "user", "type": "address", "indexed": false, "internalType": "address"},
+                {"name": "cfg", "type": "tuple", "indexed": false, "internalType": "struct Cfg",
+                 "components": [{"name": "a", "type": "uint256"}, {"name": "b", "type": "bool"}]}
+            ]
+        }))
+        .unwrap();
+        let sig = AbiFetcher::event_signature_string(&event);
+        assert_eq!(
+            sig,
+            "Supply(address indexed reserve,address user,(uint256,bool) cfg)"
+        );
+        let parsed = crate::abi::EventSignature::parse(&sig).unwrap();
+        assert_eq!(parsed.topic, event.selector());
+        assert!(parsed.params[0].indexed && !parsed.params[1].indexed);
+    }
+
     use super::*;
 
     #[test]

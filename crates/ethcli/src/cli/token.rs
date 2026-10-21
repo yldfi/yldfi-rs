@@ -107,7 +107,9 @@ pub async fn handle(
             let display = label.as_ref().unwrap_or(&addr_str);
 
             let cache = get_token_cache();
-            let chain_name = chain.name();
+            // Keyed by chain id: every unnamed chain shares the name "custom"
+            let chain_name = chain.chain_id().to_string();
+            let chain_name = chain_name.as_str();
 
             // name/symbol/decimals are effectively immutable and cached;
             // totalSupply changes every mint/burn and is always fetched live.

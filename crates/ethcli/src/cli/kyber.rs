@@ -134,9 +134,9 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
         }
 
         KyberCommands::Build {
-            token_in: _,
-            token_out: _,
-            amount_in: _,
+            token_in,
+            token_out,
+            amount_in,
             sender,
             recipient,
             chain,
@@ -152,6 +152,7 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
                 );
             }
             let summary = extract_route_summary(&route_summary)?;
+            check_summary_matches(&summary, &token_in, &token_out, &amount_in)?;
             let deadline = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() + deadline)
@@ -171,6 +172,31 @@ pub async fn run(args: KyberArgs, _chain: &str) -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// The route summary is sent as-is, so the positional token/amount
+/// arguments must agree with it (they were silently ignored before)
+fn check_summary_matches(
+    summary: &serde_json::Value,
+    token_in: &str,
+    token_out: &str,
+    amount_in: &str,
+) -> anyhow::Result<()> {
+    for (field, given) in [
+        ("tokenIn", token_in),
+        ("tokenOut", token_out),
+        ("amountIn", amount_in),
+    ] {
+        if let Some(actual) = summary.get(field).and_then(|v| v.as_str()) {
+            if !actual.eq_ignore_ascii_case(given.trim()) {
+                anyhow::bail!(
+                    "{field} in --route-summary is {actual}, but the command says {given}; \
+                     rebuild the route or fix the arguments"
+                );
+            }
+        }
+    }
     Ok(())
 }
 
@@ -218,6 +244,14 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn build_args_must_match_the_route_summary() {
+        let summary = serde_json::json!({"tokenIn": "0xAA", "tokenOut": "0xbb", "amountIn": "100"});
+        assert!(check_summary_matches(&summary, "0xaa", "0xBB", "100").is_ok());
+        assert!(check_summary_matches(&summary, "0xaa", "0xbb", "5").is_err());
+    }
+
     use super::*;
 
     #[test]

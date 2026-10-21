@@ -137,38 +137,20 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
             eprintln!("Verifying checksum...");
         }
 
-        let checksum_response = download_client
-            .get(&checksum_asset.browser_download_url)
-            .header("User-Agent", "ethcli")
-            .send()
-            .await?;
+        let checksum_text = fetch_checksum(&download_client, &checksum_asset.browser_download_url)
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Security: {}\nCannot safely install update without integrity verification.\n\
+                 Please download manually from: {}",
+                    e,
+                    release.html_url
+                )
+            })?;
+        verify_sha256(&bytes, &checksum_text)?;
 
-        if checksum_response.status().is_success() {
-            let checksum_text = checksum_response.text().await?;
-            // Checksum file format: "<hash>  <filename>" or just "<hash>"
-            let expected_hash = checksum_text
-                .split_whitespace()
-                .next()
-                .unwrap_or(&checksum_text)
-                .trim()
-                .to_lowercase();
-
-            // Compute actual hash
-            let mut hasher = Sha256::new();
-            hasher.update(&bytes);
-            let actual_hash = hex::encode(hasher.finalize());
-
-            if actual_hash != expected_hash {
-                anyhow::bail!(
-                    "Checksum verification failed!\nExpected: {}\nActual:   {}\n\nThe downloaded file may be corrupted or tampered with.",
-                    expected_hash,
-                    actual_hash
-                );
-            }
-
-            if !quiet {
-                eprintln!("Checksum verified.");
-            }
+        if !quiet {
+            eprintln!("Checksum verified.");
         }
     } else {
         // Require checksum verification for security - abort if no checksum available
@@ -278,6 +260,45 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
     println!("\n✓ Updated to {}!", release.tag_name);
     println!("  Restart your terminal or run: ethcli --version");
 
+    Ok(())
+}
+
+/// Download a checksum file. Any non-success status is an error: a listed
+/// checksum that can't be fetched must abort the install, never skip verification.
+async fn fetch_checksum(client: &reqwest::Client, url: &str) -> anyhow::Result<String> {
+    let response = client
+        .get(url)
+        .header("User-Agent", "ethcli")
+        .send()
+        .await?;
+    if !response.status().is_success() {
+        anyhow::bail!("failed to download checksum file: {}", response.status());
+    }
+    Ok(response.text().await?)
+}
+
+/// Check `bytes` against a checksum file ("<hash>  <filename>" or just "<hash>").
+fn verify_sha256(bytes: &[u8], checksum_text: &str) -> anyhow::Result<()> {
+    let expected_hash = checksum_text
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .to_lowercase();
+    if expected_hash.len() != 64 || !expected_hash.bytes().all(|b| b.is_ascii_hexdigit()) {
+        anyhow::bail!("Checksum file is malformed: expected a SHA-256 hex digest");
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let actual_hash = hex::encode(hasher.finalize());
+
+    if actual_hash != expected_hash {
+        anyhow::bail!(
+            "Checksum verification failed!\nExpected: {}\nActual:   {}\n\nThe downloaded file may be corrupted or tampered with.",
+            expected_hash,
+            actual_hash
+        );
+    }
     Ok(())
 }
 
@@ -651,6 +672,42 @@ fn install_binary(source: &Path, destination: &Path) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod checksum_tests {
+    use super::{fetch_checksum, verify_sha256};
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const HELLO_SHA256: &str = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+    #[test]
+    fn verify_sha256_accepts_matching_hash_with_filename() {
+        let text = format!("{}  ethcli.tar.gz\n", HELLO_SHA256.to_uppercase());
+        verify_sha256(b"hello", &text).unwrap();
+    }
+
+    #[test]
+    fn verify_sha256_rejects_mismatch_and_malformed() {
+        assert!(verify_sha256(b"hellx", HELLO_SHA256).is_err());
+        assert!(verify_sha256(b"hello", "").is_err());
+        assert!(verify_sha256(b"hello", "<html>Not Found</html>").is_err());
+    }
+
+    #[tokio::test]
+    async fn fetch_checksum_fails_on_error_status() {
+        for status in [403, 404, 500] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .respond_with(ResponseTemplate::new(status))
+                .mount(&server)
+                .await;
+            let client = reqwest::Client::new();
+            let err = fetch_checksum(&client, &server.uri()).await.unwrap_err();
+            assert!(err.to_string().contains(&status.to_string()), "{err}");
+        }
+    }
 }
 
 #[cfg(all(test, unix))]

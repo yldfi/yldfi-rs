@@ -2,7 +2,7 @@
 //!
 //! Resolve ENS names to addresses and vice versa
 
-use crate::config::{Chain, ConfigFile, EndpointConfig};
+use crate::config::{Chain, EndpointConfig};
 use crate::rpc::Endpoint;
 use alloy::primitives::{keccak256, Address, B256};
 use alloy::providers::Provider;
@@ -67,30 +67,36 @@ pub async fn handle(
         return Err(anyhow::anyhow!("ENS is only available on Ethereum mainnet"));
     }
 
-    // Get RPC endpoint
-    let endpoint = if let Some(url) = rpc_url {
-        Endpoint::new(EndpointConfig::new(url), 30, None)?
+    // An explicit --rpc-url is used alone; otherwise try the ranked endpoints,
+    // moving on when one is rate limited or unreachable
+    let candidates = if let Some(url) = rpc_url {
+        vec![Endpoint::new(EndpointConfig::new(url), 30, None)?]
     } else {
-        // Use config endpoints
-        let config = ConfigFile::load_default()
-            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-            .unwrap_or_default();
-
-        let chain_endpoints: Vec<_> = config
-            .endpoints
-            .into_iter()
-            .filter(|e| e.enabled && e.chain == chain)
-            .collect();
-
-        if chain_endpoints.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                chain.display_name()
-            ));
-        }
-        Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+        crate::rpc::candidate_endpoints(
+            chain,
+            &crate::rpc::SelectionOptions::default(),
+            crate::rpc::MAX_FAILOVER_ATTEMPTS,
+        )?
     };
+    if candidates.is_empty() {
+        return Err(anyhow::anyhow!(
+            "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
+            chain.display_name()
+        ));
+    }
 
+    crate::rpc::with_failover(candidates, |endpoint| async move {
+        run_on_endpoint(action, &endpoint, quiet).await
+    })
+    .await
+}
+
+/// Run an RPC-backed ENS command against one endpoint
+async fn run_on_endpoint(
+    action: &EnsCommands,
+    endpoint: &Endpoint,
+    quiet: bool,
+) -> anyhow::Result<()> {
     let provider = endpoint.provider();
 
     match action {
@@ -113,9 +119,26 @@ pub async fn handle(
                 let _ = std::io::stderr().flush();
             }
 
-            match reverse_lookup(&provider, addr).await {
-                Ok(name) => println!("{}", name),
-                Err(_) => println!("No ENS name found for this address"),
+            match reverse_lookup(&provider, addr).await? {
+                ReverseName::Verified(name) => println!("{}", name),
+                ReverseName::NotSet => println!("No ENS name found for this address"),
+                ReverseName::Unverified {
+                    claimed,
+                    resolves_to,
+                } => {
+                    println!("No verified ENS name found for this address");
+                    if !quiet {
+                        let target = match resolves_to {
+                            Some(a) if a == addr => "it is not in normalised form".to_string(),
+                            Some(a) => format!("it resolves to {}", a.to_checksum(None)),
+                            None => "it does not resolve".to_string(),
+                        };
+                        eprintln!(
+                            "Warning: ignoring the reverse record {:?}: {}",
+                            claimed, target
+                        );
+                    }
+                }
             }
         }
 
@@ -125,7 +148,9 @@ pub async fn handle(
                 let _ = std::io::stderr().flush();
             }
 
-            let resolver = get_resolver(&provider, name).await?;
+            let resolver = get_resolver(&provider, name)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("No resolver set for {}", name))?;
             println!("{}", resolver.to_checksum(None));
         }
 
@@ -138,10 +163,31 @@ pub async fn handle(
     Ok(())
 }
 
-/// Compute the namehash of an ENS name
+/// Normalise an ENS name before hashing: trim, lowercase and NFC.
+///
+/// This covers the common ENSIP-15 cases (case folding, composed characters),
+/// so "Vitalik.eth" hashes to the same node as in other clients. ENSIP-15's
+/// emoji, confusable and disallowed-character rules are not applied.
+fn normalize_name(name: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    name.trim().to_lowercase().nfc().collect()
+}
+
+/// True if a name has no control or bidi-override characters, which could make
+/// an on-chain string render as something else in a terminal
+fn is_displayable(name: &str) -> bool {
+    !name.chars().any(|c| {
+        c.is_control()
+            || ('\u{202a}'..='\u{202e}').contains(&c)
+            || ('\u{2066}'..='\u{2069}').contains(&c)
+    })
+}
+
+/// Compute the namehash of an ENS name (normalised first)
 fn namehash(name: &str) -> B256 {
     let mut node = B256::ZERO;
 
+    let name = normalize_name(name);
     if name.is_empty() {
         return node;
     }
@@ -160,8 +206,8 @@ fn namehash(name: &str) -> B256 {
     node
 }
 
-/// Get the resolver contract for an ENS name
-async fn get_resolver<P: Provider>(provider: &P, name: &str) -> anyhow::Result<Address> {
+/// Get the resolver contract for an ENS name (`None` if none is set)
+async fn get_resolver<P: Provider>(provider: &P, name: &str) -> anyhow::Result<Option<Address>> {
     let registry = Address::from_str(ENS_REGISTRY)?;
     let node = namehash(name);
 
@@ -186,34 +232,43 @@ async fn get_resolver<P: Provider>(provider: &P, name: &str) -> anyhow::Result<A
     // Decode address from last 20 bytes of the 32-byte response
     let addr = Address::from_slice(&result[12..32]);
 
-    if addr.is_zero() {
-        return Err(anyhow::anyhow!("No resolver set for {}", name));
-    }
-
-    Ok(addr)
+    Ok((!addr.is_zero()).then_some(addr))
 }
 
-/// Resolve an ENS name to an address
+/// Resolve an ENS name to an address.
+///
+/// Supports ENSIP-10 wildcard resolution (a resolver set on a parent name,
+/// e.g. `*.base.eth`, `*.cb.id`) and EIP-3668 CCIP-read offchain lookups.
 pub async fn resolve_name<P: Provider>(provider: &P, name: &str) -> anyhow::Result<Address> {
-    let resolver = get_resolver(provider, name).await?;
+    use alloy::sol_types::{SolCall, SolValue};
+
+    let (resolver, exact) = find_resolver(provider, name)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("No resolver set for {}", name))?;
     let node = namehash(name);
 
     // Call addr(bytes32)
-    let mut calldata = Vec::with_capacity(36);
-    calldata.extend_from_slice(&ADDR_SELECTOR);
-    calldata.extend_from_slice(node.as_slice());
+    let mut addr_call = Vec::with_capacity(36);
+    addr_call.extend_from_slice(&ADDR_SELECTOR);
+    addr_call.extend_from_slice(node.as_slice());
 
-    let tx = alloy::rpc::types::TransactionRequest::default()
-        .to(resolver)
-        .input(calldata.into());
-
-    let result = provider
-        .call(tx.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to resolve name: {}", e))?;
+    // A resolver found on a parent name must be an extended (ENSIP-10)
+    // resolver; one set on the name itself may be either kind
+    let extended = !exact || supports_extended_resolver(provider, resolver).await;
+    let result = if extended {
+        let call = ens_abi::resolveCall {
+            name: dns_encode(name)?.into(),
+            data: addr_call.into(),
+        };
+        let out = ccip_call(provider, resolver, call.abi_encode()).await?;
+        alloy::primitives::Bytes::abi_decode(&out)
+            .map_err(|e| anyhow::anyhow!("Invalid resolve() response: {}", e))?
+    } else {
+        ccip_call(provider, resolver, addr_call).await?
+    };
 
     if result.len() < 32 {
-        return Err(anyhow::anyhow!("Invalid address response"));
+        return Err(anyhow::anyhow!("Name {} not found", name));
     }
 
     let addr = Address::from_slice(&result[12..32]);
@@ -225,15 +280,285 @@ pub async fn resolve_name<P: Provider>(provider: &P, name: &str) -> anyhow::Resu
     Ok(addr)
 }
 
-/// Reverse lookup - find ENS name for an address
-async fn reverse_lookup<P: Provider>(provider: &P, address: Address) -> anyhow::Result<String> {
+mod ens_abi {
+    alloy::sol! {
+        error OffchainLookup(address sender, string[] urls, bytes callData, bytes4 callbackFunction, bytes extraData);
+        function resolve(bytes name, bytes data) external view returns (bytes);
+        function supportsInterface(bytes4 interfaceID) external view returns (bool);
+    }
+}
+
+/// IExtendedResolver interface id (resolve(bytes,bytes))
+const EXTENDED_RESOLVER_INTERFACE: [u8; 4] = [0x90, 0x61, 0xb9, 0x23];
+
+/// Find the resolver for `name`, walking up to parent names (ENSIP-10).
+/// Returns the resolver and whether it was set on `name` itself.
+async fn find_resolver<P: Provider>(
+    provider: &P,
+    name: &str,
+) -> anyhow::Result<Option<(Address, bool)>> {
+    let name = normalize_name(name);
+    let mut current = name.as_str();
+    loop {
+        if let Some(resolver) = get_resolver(provider, current).await? {
+            return Ok(Some((resolver, current == name)));
+        }
+        match current.split_once('.') {
+            Some((_, parent)) if !parent.is_empty() => current = parent,
+            _ => return Ok(None),
+        }
+    }
+}
+
+/// Whether a resolver implements IExtendedResolver (ERC-165)
+async fn supports_extended_resolver<P: Provider>(provider: &P, resolver: Address) -> bool {
+    use alloy::sol_types::SolCall;
+    let call = ens_abi::supportsInterfaceCall {
+        interfaceID: EXTENDED_RESOLVER_INTERFACE.into(),
+    };
+    let tx = alloy::rpc::types::TransactionRequest::default()
+        .to(resolver)
+        .input(call.abi_encode().into());
+    match provider.call(tx).await {
+        Ok(out) => out.len() >= 32 && out[31] == 1,
+        Err(_) => false,
+    }
+}
+
+/// DNS wire-format encoding of a (normalised) name, as resolve(bytes,bytes) takes
+fn dns_encode(name: &str) -> anyhow::Result<Vec<u8>> {
+    let name = normalize_name(name);
+    let mut out = Vec::with_capacity(name.len() + 2);
+    for label in name.split('.').filter(|l| !l.is_empty()) {
+        let len = u8::try_from(label.len())
+            .map_err(|_| anyhow::anyhow!("ENS label too long: {}", label))?;
+        out.push(len);
+        out.extend_from_slice(label.as_bytes());
+    }
+    out.push(0);
+    Ok(out)
+}
+
+/// eth_call that follows EIP-3668 OffchainLookup reverts through the
+/// gateway URLs the contract names (https only), up to 4 hops.
+async fn ccip_call<P: Provider>(
+    provider: &P,
+    to: Address,
+    data: Vec<u8>,
+) -> anyhow::Result<alloy::primitives::Bytes> {
+    use alloy::sol_types::{SolError, SolValue};
+
+    let mut data = data;
+    for _ in 0..4 {
+        let tx = alloy::rpc::types::TransactionRequest::default()
+            .to(to)
+            .input(data.clone().into());
+        let err = match provider.call(tx).await {
+            Ok(out) => return Ok(out),
+            Err(e) => e,
+        };
+        let revert = err.as_error_resp().and_then(|p| p.as_revert_data());
+        let lookup = revert
+            .as_deref()
+            .filter(|r| r.starts_with(&ens_abi::OffchainLookup::SELECTOR))
+            .and_then(|r| ens_abi::OffchainLookup::abi_decode(r).ok());
+        let Some(lookup) = lookup else {
+            return Err(anyhow::anyhow!("ENS call failed: {}", err));
+        };
+        if lookup.sender != to {
+            anyhow::bail!("CCIP-read: OffchainLookup sender does not match the resolver");
+        }
+        let response = ccip_fetch(&lookup.urls, lookup.sender, &lookup.callData).await?;
+        let mut next = lookup.callbackFunction.to_vec();
+        next.extend((response, lookup.extraData).abi_encode_params());
+        data = next;
+    }
+    anyhow::bail!("CCIP-read: too many offchain lookups")
+}
+
+/// Largest CCIP-read gateway response accepted
+const MAX_CCIP_RESPONSE: usize = 256 * 1024;
+
+/// Query CCIP-read gateways in order until one answers.
+///
+/// Gateway URLs come from on-chain data, so each request is https-only, does
+/// not follow redirects, must resolve to a public IP (pinned for the request,
+/// so DNS can't be swapped after the check), and has a size cap.
+async fn ccip_fetch(
+    urls: &[String],
+    sender: Address,
+    call_data: &[u8],
+) -> anyhow::Result<alloy::primitives::Bytes> {
+    let sender_hex = format!("{:#x}", sender);
+    let data_hex = format!("0x{}", hex::encode(call_data));
+    let mut last_err = anyhow::anyhow!("CCIP-read: no gateway URLs");
+    for template in urls {
+        let url = template.replace("{sender}", &sender_hex);
+        let (url, get) = if url.contains("{data}") {
+            (url.replace("{data}", &data_hex), true)
+        } else {
+            (url, false)
+        };
+        let result = async {
+            let client = ccip_client(&url).await?;
+            let request = if get {
+                client.get(&url)
+            } else {
+                client
+                    .post(&url)
+                    .json(&serde_json::json!({"data": data_hex, "sender": sender_hex}))
+            };
+            let mut response = request.send().await?.error_for_status()?;
+            if response
+                .content_length()
+                .is_some_and(|len| len > MAX_CCIP_RESPONSE as u64)
+            {
+                anyhow::bail!("response too large");
+            }
+            let mut body = Vec::new();
+            while let Some(chunk) = response.chunk().await? {
+                body.extend_from_slice(&chunk);
+                if body.len() > MAX_CCIP_RESPONSE {
+                    anyhow::bail!("response too large");
+                }
+            }
+            let body: serde_json::Value = serde_json::from_slice(&body)?;
+            let hex_data = body["data"]
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("gateway response has no data"))?;
+            Ok::<_, anyhow::Error>(hex::decode(hex_data.trim_start_matches("0x"))?.into())
+        }
+        .await;
+        match result {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => {
+                last_err = anyhow::anyhow!(
+                    "CCIP-read gateway failed: {}",
+                    crate::utils::url::redact_urls_in_text(&e.to_string())
+                )
+            }
+        }
+    }
+    Err(last_err)
+}
+
+/// HTTP client for one CCIP gateway request: https only, no redirects, and
+/// the host pinned to a public address resolved here
+async fn ccip_client(url: &str) -> anyhow::Result<reqwest::Client> {
+    let parsed: reqwest::Url = url.parse()?;
+    if parsed.scheme() != "https" {
+        anyhow::bail!("refusing non-https gateway");
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| anyhow::anyhow!("gateway URL has no host"))?
+        .to_string();
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let addr = tokio::net::lookup_host((host.as_str(), port))
+        .await?
+        .find(|a| is_public_ip(a.ip()))
+        .ok_or_else(|| anyhow::anyhow!("gateway host does not resolve to a public address"))?;
+    Ok(reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .resolve(&host, addr)
+        .timeout(std::time::Duration::from_secs(15))
+        .build()?)
+}
+
+/// Not loopback, private, link-local, CGNAT, unspecified, multicast or
+/// documentation space (cloud metadata endpoints are link-local)
+fn is_public_ip(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            !(v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || v4.is_multicast()
+                || v4.is_documentation()
+                || o[0] == 0
+                || (o[0] == 100 && (64..128).contains(&o[1])))
+        }
+        IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_public_ip(IpAddr::V4(v4));
+            }
+            let seg = v6.segments();
+            // Global unicast (2000::/3) only: excludes loopback, link-local,
+            // unique-local, site-local, NAT64 and IPv4-compatible space
+            if seg[0] & 0xe000 != 0x2000 {
+                return false;
+            }
+            match (seg[0], seg[1]) {
+                // 6to4 embeds an IPv4 address
+                (0x2002, _) => {
+                    let [a, b] = seg[1].to_be_bytes();
+                    let [c, d] = seg[2].to_be_bytes();
+                    is_public_ip(IpAddr::V4(std::net::Ipv4Addr::new(a, b, c, d)))
+                }
+                // Teredo and documentation
+                (0x2001, 0x0000) | (0x2001, 0x0db8) => false,
+                _ => true,
+            }
+        }
+    }
+}
+
+/// Outcome of a reverse lookup
+#[derive(Debug, PartialEq, Eq)]
+enum ReverseName {
+    /// The reverse record's name resolves back to the address
+    Verified(String),
+    /// No reverse record
+    NotSet,
+    /// The reverse record names something that doesn't resolve back to the
+    /// address. Anyone can set any reverse name, so it must not be shown as
+    /// the address's name.
+    Unverified {
+        claimed: String,
+        resolves_to: Option<Address>,
+    },
+}
+
+/// Reverse lookup - find the ENS name for an address, verified by forward resolution
+async fn reverse_lookup<P: Provider>(
+    provider: &P,
+    address: Address,
+) -> anyhow::Result<ReverseName> {
+    let Some(claimed) = reverse_record(provider, address).await? else {
+        return Ok(ReverseName::NotSet);
+    };
+    let resolves_to = resolve_name(provider, &claimed).await.ok();
+    // A name that isn't already in normal form (mixed case, decomposed or
+    // control/bidi characters) can display differently from what it hashes to.
+    if resolves_to == Some(address)
+        && claimed == normalize_name(&claimed)
+        && is_displayable(&claimed)
+    {
+        Ok(ReverseName::Verified(claimed))
+    } else {
+        Ok(ReverseName::Unverified {
+            claimed,
+            resolves_to,
+        })
+    }
+}
+
+/// Read the (unverified) reverse record for an address
+async fn reverse_record<P: Provider>(
+    provider: &P,
+    address: Address,
+) -> anyhow::Result<Option<String>> {
     // Construct the reverse name: <address>.addr.reverse
     let addr_hex = format!("{:x}", address).to_lowercase();
     let reverse_name = format!("{}.addr.reverse", addr_hex);
 
-    let resolver = get_resolver(provider, &reverse_name)
-        .await
-        .map_err(|e| anyhow::anyhow!("No reverse record set ({})", e))?;
+    let Some(resolver) = get_resolver(provider, &reverse_name).await? else {
+        return Ok(None);
+    };
 
     let node = namehash(&reverse_name);
 
@@ -246,10 +571,12 @@ async fn reverse_lookup<P: Provider>(provider: &P, address: Address) -> anyhow::
         .to(resolver)
         .input(calldata.into());
 
-    let result = provider
-        .call(tx.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to lookup name: {}", e))?;
+    let result = match provider.call(tx.clone()).await {
+        Ok(r) => r,
+        // A resolver without name() support reverts: there is no name
+        Err(e) if e.to_string().to_lowercase().contains("revert") => return Ok(None),
+        Err(e) => return Err(anyhow::anyhow!("Failed to lookup name: {}", e)),
+    };
 
     // Decode string from ABI-encoded response
     // Format: offset (32 bytes) + length (32 bytes) + string data
@@ -259,7 +586,7 @@ async fn reverse_lookup<P: Provider>(provider: &P, address: Address) -> anyhow::
 
     let length = u64::from_be_bytes(result[56..64].try_into()?);
     if length == 0 {
-        return Err(anyhow::anyhow!("No name set for address"));
+        return Ok(None);
     }
 
     // Bounds check: ensure length doesn't overflow and fits in result buffer
@@ -280,11 +607,47 @@ async fn reverse_lookup<P: Provider>(provider: &P, address: Address) -> anyhow::
     let name = String::from_utf8(name_bytes.to_vec())
         .map_err(|e| anyhow::anyhow!("Invalid name encoding: {}", e))?;
 
-    Ok(name)
+    Ok(Some(name))
 }
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn ccip_gateways_must_be_public() {
+        for ip in [
+            "127.0.0.1",
+            "10.1.2.3",
+            "169.254.169.254",
+            "192.168.0.1",
+            "100.64.0.1",
+            "::1",
+            "fd00::1",
+            "fe80::1",
+            "::ffff:127.0.0.1",
+            "64:ff9b::7f00:1",
+            "2002:7f00:1::1",
+            "2001:0:4136:e378::1",
+            "2001:db8::1",
+            "fec0::1",
+            "::127.0.0.1",
+        ] {
+            assert!(!is_public_ip(ip.parse().unwrap()), "{ip}");
+        }
+        for ip in ["1.1.1.1", "2606:4700::1111"] {
+            assert!(is_public_ip(ip.parse().unwrap()), "{ip}");
+        }
+    }
+
+    #[test]
+    fn dns_encoding() {
+        assert_eq!(
+            dns_encode("Jesse.Base.eth").unwrap(),
+            b"\x05jesse\x04base\x03eth\x00".to_vec()
+        );
+        assert!(dns_encode(&format!("{}.eth", "a".repeat(300))).is_err());
+    }
+
     use super::*;
 
     // ENS namehash test vectors from ENS documentation
@@ -337,12 +700,83 @@ mod tests {
     }
 
     #[test]
-    fn test_namehash_case_sensitive() {
-        // ENS namehash is case-sensitive (though normalization happens before)
-        let hash1 = namehash("FOO.eth");
-        let hash2 = namehash("foo.eth");
-        // These should be different because namehash doesn't normalize
-        assert_ne!(hash1, hash2);
+    fn test_namehash_normalizes_case_and_composition() {
+        assert_eq!(namehash("Vitalik.ETH"), namehash("vitalik.eth"));
+        assert_eq!(namehash(" vitalik.eth "), namehash("vitalik.eth"));
+        // "é" as e + combining acute (NFD) and as one code point (NFC)
+        assert_eq!(namehash("cafe\u{301}.eth"), namehash("caf\u{e9}.eth"));
+    }
+
+    /// Minimal ENS over JSON-RPC: one resolver for every node, whose reverse
+    /// record says `claimed` and whose addr() answers `forward`.
+    struct FakeEns {
+        claimed: &'static str,
+        forward: Address,
+    }
+
+    impl wiremock::Respond for FakeEns {
+        fn respond(&self, req: &wiremock::Request) -> wiremock::ResponseTemplate {
+            use alloy::sol_types::SolValue;
+            let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+            let tx = &body["params"][0];
+            let input = tx["input"].as_str().or(tx["data"].as_str()).unwrap();
+            let input = hex::decode(input.trim_start_matches("0x")).unwrap();
+            let resolver = Address::repeat_byte(0x11);
+            let out = match &input[..4] {
+                s if s == RESOLVER_SELECTOR => resolver.abi_encode(),
+                s if s == NAME_SELECTOR => self.claimed.to_string().abi_encode(),
+                s if s == ADDR_SELECTOR => self.forward.abi_encode(),
+                _ => panic!("unexpected call"),
+            };
+            wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": body["id"],
+                "result": format!("0x{}", hex::encode(out)),
+            }))
+        }
+    }
+
+    async fn lookup_with(claimed: &'static str, forward: Address, address: Address) -> ReverseName {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(FakeEns { claimed, forward })
+            .mount(&server)
+            .await;
+        let endpoint = Endpoint::new(EndpointConfig::new(server.uri()), 5, None).unwrap();
+        reverse_lookup(endpoint.provider(), address).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn reverse_lookup_rejects_a_spoofed_reverse_record() {
+        let attacker = Address::repeat_byte(0xaa);
+        let vitalik = Address::repeat_byte(0xbb);
+        assert_eq!(
+            lookup_with("vitalik.eth", vitalik, attacker).await,
+            ReverseName::Unverified {
+                claimed: "vitalik.eth".to_string(),
+                resolves_to: Some(vitalik),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn reverse_lookup_rejects_unnormalised_or_bidi_names() {
+        let owner = Address::repeat_byte(0xbb);
+        for claimed in ["Vitalik.eth", "vitalik\u{202e}hte.eth"] {
+            assert!(matches!(
+                lookup_with(claimed, owner, owner).await,
+                ReverseName::Unverified { .. }
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn reverse_lookup_accepts_a_name_that_resolves_back() {
+        let owner = Address::repeat_byte(0xbb);
+        assert_eq!(
+            lookup_with("vitalik.eth", owner, owner).await,
+            ReverseName::Verified("vitalik.eth".to_string())
+        );
     }
 
     // Test selector constants

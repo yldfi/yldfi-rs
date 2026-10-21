@@ -50,6 +50,7 @@ ethcli config     # Manage configuration
 ethcli update     # Check for updates
 ethcli upgrade    # Download and install the latest release (ethcli + ethcli-mcp; symlink/wrapper-safe with rollback since 0.23.5)
 ethcli doctor     # Diagnose configuration and connectivity
+ethcli chainlist  # Browse chains and discover RPC endpoints from chainlist.org
 ethcli completions # Generate shell completions (bash, zsh, fish, powershell)
 ```
 
@@ -66,7 +67,7 @@ ethcli quote      # Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, L
 ```
 ethcli tenderly   # Tenderly API (vnets, wallets, contracts, alerts, actions)
 ethcli alchemy    # Alchemy API (NFTs, prices, portfolio, transfers, debug)
-ethcli gecko      # CoinGecko API (coins, prices, NFTs, exchanges)
+ethcli gecko      # CoinGecko API (coins, prices, NFTs, onchain DEX data)
 ethcli llama      # DefiLlama API (TVL, prices, yields, stablecoins)
 ethcli moralis    # Moralis API (wallet, token, NFT, DeFi, transactions)
 ethcli dune       # Dune Analytics API (queries, executions, tables)
@@ -82,10 +83,10 @@ ethcli solodit    # Solodit vulnerability database (smart contract security find
 ### Direct DEX Aggregator Commands
 ```
 ethcli 1inch      # 1inch API (quote, swap, tokens, sources, approvals) - requires API key
-ethcli openocean  # OpenOcean API (quote, swap, reverse-quote, tokens, dexes)
-ethcli kyberswap  # KyberSwap API (routes, route-data, build)
+ethcli open-ocean # De¹/OpenOcean API (quote, swap, reverse-quote, tokens, dexes)
+ethcli kyber-swap # KyberSwap API (routes, route-data, build)
 ethcli 0x         # 0x Protocol API (quote, price, sources)
-ethcli cowswap    # CowSwap API (quote, orders, trades, auctions) - MEV protected
+ethcli cow-swap   # CowSwap API (quote, orders, trades, auctions) - MEV protected
 ethcli lifi       # LI.FI API (quote, routes, status, chains, tokens, bridges)
 ethcli velora     # Velora/ParaSwap API (price, transaction, tokens)
 ethcli enso       # Enso Finance API (route, price, balances) - requires API key
@@ -224,15 +225,15 @@ ethcli blacklist remove 0x...
 # Check if token is blacklisted
 ethcli blacklist check 0x...
 
-# Clear all blacklisted tokens
-ethcli blacklist clear
+# Show the blacklist file path
+ethcli blacklist path
 ```
 
 ### Notes
 
 - **Storage**: Blacklist stored in `~/.config/ethcli/blacklist.toml`
 - **Security checks**: Uses GoPlus API + Etherscan verification status
-- **Known protocols**: Yearn, Curve, Aave, Compound, etc. are auto-whitelisted
+- **Known protocols**: a fixed list of major token addresses (stETH, DAI, CRV, ...) skips the proxy warnings; names and symbols are never trusted, and verification status is never overridden
 - **Alias**: `ethcli bl` works as an alias for `ethcli blacklist`
 
 ## Solodit Commands
@@ -344,81 +345,81 @@ work without Foundry. Foundry is still needed for `--via cast` (the default) and
 
 ## Tenderly Commands
 
-Requires `TENDERLY_ACCESS_KEY`, `TENDERLY_ACCOUNT` and `TENDERLY_PROJECT` (environment variables, matching `--tenderly-*` flags, or `ethcli config set-tenderly`).
+Requires `TENDERLY_ACCESS_KEY`, `TENDERLY_ACCOUNT` and `TENDERLY_PROJECT` (environment variables, matching `--tenderly-*` flags, or `ethcli config set-tenderly`). The `--tenderly-key`/`--tenderly-account`/`--tenderly-project` flags belong to the group command and go before the subcommand, e.g. `ethcli tenderly vnets --tenderly-project <slug> list`.
 
 ```bash
 # Virtual TestNets (VNets)
-ethcli tenderly vnets list --project <slug> --account <slug>
-ethcli tenderly vnets create --slug <slug> --name "My VNet" --network-id 1 --project <slug> --account <slug>
-ethcli tenderly vnets get <vnet-id> --project <slug> --account <slug>
-ethcli tenderly vnets delete <vnet-id> --project <slug> --account <slug>
-ethcli tenderly vnets delete <id1> <id2> <id3> --project <slug> --account <slug>
-ethcli tenderly vnets delete --all --project <slug> --account <slug>
-ethcli tenderly vnets rpc <vnet-id> --project <slug> --account <slug>
+ethcli tenderly vnets list
+ethcli tenderly vnets create --slug <slug> --name "My VNet" --network-id 1
+ethcli tenderly vnets get <vnet-id>
+ethcli tenderly vnets delete <vnet-id>
+ethcli tenderly vnets delete <id1> <id2> <id3>
+ethcli tenderly vnets delete --all
+ethcli tenderly vnets rpc <vnet-id>
 
 # VNet Admin RPC - Balance Management
-ethcli tenderly vnets admin --vnet <id> set-balance <address> 10eth --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> add-balance <address> 1eth --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> set-erc20-balance --token <token> --wallet <wallet> <amount> --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> set-max-erc20-balance --token <token> --wallet <wallet> --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> set-balance <address> 10eth
+ethcli tenderly vnets admin --vnet <id> add-balance <address> 1eth
+ethcli tenderly vnets admin --vnet <id> set-erc20-balance --token <token> --wallet <wallet> <amount>
+ethcli tenderly vnets admin --vnet <id> set-max-erc20-balance --token <token> --wallet <wallet>
 
 # VNet Admin RPC - Time Manipulation
-ethcli tenderly vnets admin --vnet <id> increase-time 3600 --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> set-timestamp <epoch> --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> increase-blocks 10 --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> increase-time 3600
+ethcli tenderly vnets admin --vnet <id> set-timestamp <epoch>
+ethcli tenderly vnets admin --vnet <id> increase-blocks 10
 
 # VNet Admin RPC - State Management
-ethcli tenderly vnets admin --vnet <id> snapshot --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> revert <snapshot-id> --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> snapshot
+ethcli tenderly vnets admin --vnet <id> revert <snapshot-id>
 
 # VNet Admin RPC - Storage/Code (slot/value accept decimal or hex, auto-padded to 32 bytes)
-ethcli tenderly vnets admin --vnet <id> set-storage --address <addr> --slot 0 --value 1 --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> set-code --address <addr> --code <bytecode> --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> set-storage --address <addr> --slot 0 --value 1
+ethcli tenderly vnets admin --vnet <id> set-code --address <addr> --code <bytecode>
 
 # VNet Admin RPC - Transactions
-ethcli tenderly vnets admin --vnet <id> send-tx --from <addr> --to <addr> --value 0x1 --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> get-latest --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> send-tx --from <addr> --to <addr> --value 0x1
+ethcli tenderly vnets admin --vnet <id> get-latest
 
 # VNet Admin RPC - Simulation (tenderly_simulateTransaction / tenderly_simulateBundle)
-ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --data 0x... --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --value 0x1 --block latest --state-overrides '{"0x...":{"balance":"0x..."}}' --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> simulate-bundle '[{"from":"0x...","to":"0x...","data":"0x..."}]' --project <slug> --account <slug>
-ethcli tenderly vnets admin --vnet <id> simulate-bundle '[...]' --state-overrides '{"0x...":{"balance":"0x..."}}' --block-overrides '{"number":"0x..."}' --project <slug> --account <slug>
+ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --data 0x...
+ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --value 0x1 --block latest --state-overrides '{"0x...":{"balance":"0x..."}}'
+ethcli tenderly vnets admin --vnet <id> simulate-bundle '[{"from":"0x...","to":"0x...","data":"0x..."}]'
+ethcli tenderly vnets admin --vnet <id> simulate-bundle '[...]' --state-overrides '{"0x...":{"balance":"0x..."}}' --block-overrides '{"number":"0x..."}'
 
 # Virtual Wallets
-ethcli tenderly wallets list --project <slug> --account <slug>
-ethcli tenderly wallets add <address> --project <slug> --account <slug>
-ethcli tenderly wallets get <address> --network 1 --project <slug> --account <slug>
+ethcli tenderly wallets list
+ethcli tenderly wallets add <address>
+ethcli tenderly wallets get <address> --network 1
 
 # Contracts
-ethcli tenderly contracts list --project <slug> --account <slug>
-ethcli tenderly contracts get <address> --network 1 --project <slug> --account <slug>
-ethcli tenderly contracts add <address> --network 1 --project <slug> --account <slug>
-ethcli tenderly contracts rename <address> --network 1 --name <name> --project <slug> --account <slug>
-ethcli tenderly contracts encode-state --network 1 '{"0xToken": {"value": {"balances[0xHolder]": "1000"}}}' --project <slug> --account <slug>
+ethcli tenderly contracts list
+ethcli tenderly contracts get <address> --network 1
+ethcli tenderly contracts add <address> --network 1
+ethcli tenderly contracts rename <address> --network 1 --name <name>
+ethcli tenderly contracts encode-state --network 1 '{"0xToken": {"value": {"balances[0xHolder]": "1000"}}}'
 
 # Alerts
-ethcli tenderly alerts list --project <slug> --account <slug>
-ethcli tenderly alerts create --name "Alert" --alert-type successful_transaction --network 1 --project <slug> --account <slug>
-ethcli tenderly alerts delete <alert-id> --project <slug> --account <slug>
-ethcli tenderly alerts webhooks list --project <slug> --account <slug>
-ethcli tenderly alerts webhooks create --name "Hook" --url https://... --project <slug> --account <slug>
+ethcli tenderly alerts list
+ethcli tenderly alerts create --name "Alert" --alert-type successful_transaction --network 1
+ethcli tenderly alerts delete <alert-id>
+ethcli tenderly alerts webhooks list
+ethcli tenderly alerts webhooks create --name "Hook" --url https://...
 
 # Web3 Actions
-ethcli tenderly actions list --project <slug> --account <slug>
-ethcli tenderly actions get <action-id> --project <slug> --account <slug>
-ethcli tenderly actions stop <action-id> --project <slug> --account <slug>
-ethcli tenderly actions resume <action-id> --project <slug> --account <slug>
-ethcli tenderly actions get-call <action-id> <execution-id> --project <slug> --account <slug>
+ethcli tenderly actions list
+ethcli tenderly actions get <action-id>
+ethcli tenderly actions stop <action-id>
+ethcli tenderly actions resume <action-id>
+ethcli tenderly actions get-call <action-id> <execution-id>
 
 # Networks
 ethcli tenderly networks list
 ethcli tenderly networks get <network-id>
 
 # Delivery Channels (Slack, Discord, Email, etc.)
-ethcli tenderly channels list --project <slug> --account <slug>
-ethcli tenderly channels account --project <slug> --account <slug>
-ethcli tenderly channels project --project <slug> --account <slug>
+ethcli tenderly channels list
+ethcli tenderly channels account
+ethcli tenderly channels project
 
 # Simulation (alias to ethcli simulate --via tenderly; always uses Tenderly)
 ethcli tenderly simulate call <contract> --sig "balanceOf(address)" <args>
@@ -599,14 +600,14 @@ ethcli alchemy nft contract-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d
 ethcli alchemy nft is-holder 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d
 
 # Token data
-ethcli alchemy balances 0x...
-ethcli alchemy token-metadata 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli alchemy token balances 0x...
+ethcli alchemy token metadata 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 
-# Transfers
-ethcli alchemy transfers 0x... --category erc20
+# Transfers (from / to / all)
+ethcli alchemy transfers all 0x...
 
 # Debug traces
-ethcli alchemy trace-tx 0x...
+ethcli alchemy debug trace-tx 0x...
 
 # Notify (dashboard: Webhooks) - needs the Webhooks auth token
 ethcli alchemy notify list-webhooks            # alias: ethcli alchemy webhooks ...
@@ -649,23 +650,18 @@ Direct access to CoinGecko API. Optional `COINGECKO_API_KEY` for Pro API (higher
 
 ```bash
 # Coin data
-ethcli gecko coin bitcoin
-ethcli gecko coin ethereum --format json
+ethcli gecko coins get bitcoin
 
 # Price queries
-ethcli gecko price bitcoin,ethereum --vs usd,eur
-ethcli gecko price-history bitcoin --days 30
+ethcli gecko simple price bitcoin,ethereum --vs usd,eur
+ethcli gecko coins chart bitcoin --days 30
 
 # Market data
-ethcli gecko markets --vs usd --per-page 100
-ethcli gecko trending
+ethcli gecko coins markets usd
+ethcli gecko global trending
 
 # NFT data
-ethcli gecko nft-collection boredapeyachtclub
-
-# Exchanges
-ethcli gecko exchanges
-ethcli gecko exchange binance
+ethcli gecko nfts get bored-ape-yacht-club
 ```
 
 ## Llama (DefiLlama) Commands
@@ -674,22 +670,20 @@ Direct access to DefiLlama API. Optional `DEFILLAMA_API_KEY` for Pro endpoints.
 
 ```bash
 # TVL data
-ethcli llama tvl aave
-ethcli llama protocols
-ethcli llama chains
+ethcli llama tvl protocol aave
+ethcli llama tvl protocols
+ethcli llama tvl chains
 
 # Prices
-ethcli llama price ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
-ethcli llama prices ethereum:0x...,ethereum:0x...
-ethcli llama price-history ethereum:0x... --period 1d
+ethcli llama coins current ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli llama coins current ethereum:0x...,ethereum:0x...
+ethcli llama coins chart ethereum:0x... --period 1d
 
 # Yields
-ethcli llama yields
-ethcli llama yields --chain ethereum --project aave
+ethcli llama yields pools
 
 # Stablecoins
-ethcli llama stablecoins
-ethcli llama stablecoin-history tether
+ethcli llama stablecoins list
 ```
 
 ## Moralis Commands
@@ -698,21 +692,21 @@ Direct access to Moralis API. Requires `MORALIS_API_KEY` environment variable.
 
 ```bash
 # Wallet data
-ethcli moralis balance 0x...
-ethcli moralis tokens 0x...
-ethcli moralis transactions 0x...
-ethcli moralis transfers 0x...
+ethcli moralis wallet balance 0x...
+ethcli moralis wallet tokens 0x...
+ethcli moralis wallet transactions 0x...
+ethcli moralis token transfers 0x...
 
 # NFT data
-ethcli moralis nfts 0x...
-ethcli moralis nft-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+ethcli moralis nft list 0x...
+ethcli moralis nft metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
 
 # Token data
-ethcli moralis token-price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
-ethcli moralis token-metadata 0x...
+ethcli moralis token price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli moralis token metadata 0x...
 
 # DeFi positions
-ethcli moralis defi-positions 0x...
+ethcli moralis defi wallet-positions 0x...
 ```
 
 ## Dune Sim (removed)
@@ -728,20 +722,23 @@ Analytics (`ethcli dune`, `DUNE_API_KEY`) is unaffected.
 Direct access to Dune Analytics API. Requires `DUNE_API_KEY` environment variable.
 
 ```bash
-# Run queries
-ethcli dune query 1234567
-ethcli dune query 1234567 --params '{"address": "0x..."}'
+# Run a saved query (waits for completion)
+ethcli dune query execute 1234567
+ethcli dune query execute 1234567 --params '{"address": "0x..."}'
 
-# Get results
-ethcli dune results 1234567
-ethcli dune results 1234567 --format csv
+# Get cached results
+ethcli dune query results 1234567
+ethcli dune query csv 1234567
 
 # Executions
-ethcli dune execute 1234567
-ethcli dune status <execution-id>
+ethcli dune execution status <execution-id>
+ethcli dune execution results <execution-id>
+
+# Raw SQL
+ethcli dune sql execute "SELECT 1"
 
 # Tables
-ethcli dune tables --namespace dune
+ethcli dune tables list
 ```
 
 ## Curve Commands
@@ -762,21 +759,20 @@ ethcli curve ohlc lp-token ethereum <pool>          # start/end default to last 
 ethcli curve crvusd crv-circulating-supply
 
 # Pool data
-ethcli curve pools
-ethcli curve pools --chain ethereum
-ethcli curve pool 0x...
+ethcli curve pools all
+ethcli curve pools list ethereum
 
 # Volume and TVL
-ethcli curve volumes
-ethcli curve tvl
+ethcli curve volumes total ethereum
+ethcli curve volumes pools ethereum
 
 # Lending
-ethcli curve lending-pools
-ethcli curve lending-pool 0x...
+ethcli curve lending all
+ethcli curve lending chain ethereum
 
 # Token data
-ethcli curve tokens
-ethcli curve token 0x...
+ethcli curve tokens list ethereum
+ethcli curve prices token ethereum 0x...
 ```
 
 ## CCXT Commands
@@ -784,27 +780,26 @@ ethcli curve token 0x...
 Query cryptocurrency exchanges via CCXT. No API key required for public data.
 
 ```bash
-# Ticker data
-ethcli ccxt ticker binance BTC/USDT
-ethcli ccxt ticker okx ETH/USDT
+# Ticker data (--exchange / -e defaults to binance)
+ethcli ccxt ticker BTC/USDT
+ethcli ccxt ticker ETH/USDT --exchange okx
 
 # Order book
-ethcli ccxt orderbook binance BTC/USDT --limit 10
+ethcli ccxt order-book BTC/USDT --limit 10
 
 # OHLCV candles
-ethcli ccxt ohlcv binance BTC/USDT --timeframe 1h --limit 100
+ethcli ccxt ohlcv BTC/USDT --timeframe 1h --limit 100
 
 # Exchange info
-ethcli ccxt exchanges
-ethcli ccxt markets binance
+ethcli ccxt markets --exchange binance --quote USDT
 
-# Multiple exchanges
-ethcli ccxt ticker bitget,hyperliquid BTC/USDT
+# Compare a pair across exchanges
+ethcli ccxt compare BTC/USDT
 ```
 
 ### Supported Exchanges
 
-Binance, Bitget, OKX, Hyperliquid, and many more via CCXT library.
+Binance, Bitget, OKX and Hyperliquid (select with `--exchange`).
 
 ## Direct DEX Aggregator Commands
 
@@ -833,24 +828,24 @@ ethcli 1inch approve <token> --chain-id 1
 
 ### OpenOcean Commands
 
-Direct access to OpenOcean DEX Aggregator API. No API key required.
+Direct access to the De¹ (formerly OpenOcean) DEX Aggregator API. No API key required.
 
 ```bash
 # Get swap quote
-ethcli openocean quote <in_token> <out_token> <amount> --chain ethereum --slippage 1
+ethcli open-ocean quote <in_token> <out_token> <amount> --chain ethereum --slippage 1
 
 # Get swap transaction
-ethcli openocean swap <in_token> <out_token> <amount> <account> --chain ethereum
+ethcli open-ocean swap <in_token> <out_token> <amount> <account> --chain ethereum
 
 # Get reverse quote: how much in_token to sell to receive out_amount (human units) of out_token
-ethcli openocean reverse-quote <in_token> <out_token> <out_amount> --chain ethereum
+ethcli open-ocean reverse-quote <in_token> <out_token> <out_amount> --chain ethereum
 
 # List tokens and DEXes
-ethcli openocean tokens --chain ethereum
-ethcli openocean dexes --chain ethereum
+ethcli open-ocean tokens --chain ethereum
+ethcli open-ocean dexes --chain ethereum
 ```
 
-**Alias**: `ethcli oo`
+**Aliases**: `ethcli oo`, `ethcli de1`
 
 ### KyberSwap Commands
 
@@ -858,14 +853,14 @@ Direct access to KyberSwap Aggregator API. No API key required; set `KYBERSWAP_A
 
 ```bash
 # Get optimal routes
-ethcli kyberswap routes <token_in> <token_out> <amount_in> --chain ethereum
+ethcli kyber-swap routes <token_in> <token_out> <amount_in> --chain ethereum
 
 # Get route with full data
-ethcli kyberswap route-data <token_in> <token_out> <amount_in> --chain ethereum
+ethcli kyber-swap route-data <token_in> <token_out> <amount_in> --chain ethereum
 
 # Build swap transaction
 # --route-summary takes the `routes` output or the full `route-data` output, sent unmodified
-ethcli kyberswap build <token_in> <token_out> <amount_in> <sender> <recipient> \
+ethcli kyber-swap build <token_in> <token_out> <amount_in> <sender> <recipient> \
   --chain ethereum --slippage-bps 50 --route-summary '<json>'
 ```
 
@@ -894,25 +889,25 @@ Direct access to CoW Protocol API for MEV-protected trading. No API key required
 
 ```bash
 # Get MEV-protected quote
-ethcli cowswap quote <sell_token> <buy_token> <amount> <from> --chain ethereum --kind sell
+ethcli cow-swap quote <sell_token> <buy_token> <amount> <from> --chain ethereum --kind sell
 
 # Order and trade queries
-ethcli cowswap order <uid> --chain ethereum
-ethcli cowswap orders <owner> --chain ethereum
-ethcli cowswap trades <owner> --chain ethereum --limit 100   # paginated, API default 10
-ethcli cowswap order-trades <uid> --chain ethereum
+ethcli cow-swap order <uid> --chain ethereum
+ethcli cow-swap orders <owner> --chain ethereum
+ethcli cow-swap trades <owner> --chain ethereum --limit 100   # paginated, API default 10
+ethcli cow-swap order-trades <uid> --chain ethereum
 
 # Auction data
-ethcli cowswap auction --chain ethereum
-ethcli cowswap competition <auction_id> --chain ethereum
-ethcli cowswap competition --tx-hash <tx> --chain ethereum
-ethcli cowswap competition --chain ethereum                  # latest
+ethcli cow-swap auction --chain ethereum
+ethcli cow-swap competition <auction_id> --chain ethereum
+ethcli cow-swap competition --tx-hash <tx> --chain ethereum
+ethcli cow-swap competition --chain ethereum                  # latest
 
 # Cancel orders (signature over OrderCancellations(bytes[] orderUids))
-ethcli cowswap cancel-orders --uid <uid1>,<uid2> <signature> --chain ethereum
+ethcli cow-swap cancel-orders --uid <uid1>,<uid2> <signature> --chain ethereum
 
 # Get native token price
-ethcli cowswap native-price <token> --chain ethereum
+ethcli cow-swap native-price <token> --chain ethereum
 ```
 
 **Alias**: `ethcli cow`
@@ -1238,7 +1233,7 @@ ethcli portfolio 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ethcli nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 
 # DeFi yields
-ethcli yields --protocol aave
+ethcli yields --project aave
 
 # Chainlink price feeds (RPC-based, no API key)
 ethcli chainlink price ETH
@@ -1255,7 +1250,7 @@ ethcli chainlink oracles --chain arbitrum
 |----------|-------------|-------------|
 | `ETHERSCAN_API_KEY` | Optional | Increases Etherscan rate limit |
 | `TENDERLY_ACCESS_KEY` | `ethcli tenderly` | Tenderly API access |
-| `ALCHEMY_API_KEY` | `ethcli alchemy`, `--via alcmy` | Alchemy API access |
+| `ALCHEMY_API_KEY` | `ethcli alchemy`, `--via alchemy` | Alchemy API access |
 | `ALCHEMY_NOTIFY_TOKEN` | `alchemy notify` (`webhooks`) | Webhooks auth token (dashboard Data -> Webhooks, AUTH TOKEN button); or `ethcli config set-alchemy-notify-token --stdin` |
 | `ALCHEMY_ACCESS_KEY` | `alchemy gas-manager` (`gas-sponsorship`) | Access key with Gas Manager permissions (dashboard -> Security); or `ethcli config set-alchemy-access-key --stdin` |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (increases rate limit) |

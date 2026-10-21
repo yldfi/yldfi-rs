@@ -232,7 +232,7 @@ pub async fn account_txs(
     start_block: Option<u64>,
     end_block: Option<u64>,
 ) -> Result<String, ToolError> {
-    if start_block.unwrap_or(0) > end_block.unwrap_or(99_999_999) {
+    if start_block.unwrap_or(0) > end_block.unwrap_or(u64::MAX) {
         return Err(ToolError::InvalidInput(
             "start_block must not exceed end_block".to_string(),
         ));
@@ -2582,7 +2582,10 @@ pub async fn alchemy_portfolio_nfts(
         .network(network)
         .subcommand("nfts")
         .arg(address)
-        .opt_flag("--with-metadata", with_metadata)
+        .opt(
+            "--with-metadata",
+            Some(if with_metadata { "true" } else { "false" }),
+        )
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5344,12 +5347,13 @@ pub async fn moralis_entities_category_entities(
 /// How long ethcli waits for a Dune execution (the MCP timeout is a little longer)
 const DUNE_EXECUTE_TIMEOUT_SECS: &str = "300";
 
-pub async fn dune_query(query_id: &str) -> Result<String, ToolError> {
+pub async fn dune_query(query_id: &str, params: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("dune")
         .subcommand("query")
         .subcommand("execute")
         .opt("--timeout", Some(DUNE_EXECUTE_TIMEOUT_SECS))
         .arg(query_id)
+        .opt("--params", params)
         .execute()
         .await
         .map_err(ToolError::from)

@@ -5509,7 +5509,9 @@ impl EthcliMcpServer {
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn dune_query(&self, Parameters(input): Parameters<DuneQueryInput>) -> CallToolResult {
-        tools::dune_query(&input.query_id).await.to_response()
+        tools::dune_query(&input.query_id, input.params.as_deref())
+            .await
+            .to_response()
     }
 
     #[tool(
@@ -6375,7 +6377,7 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get quote from a specific aggregator (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)",
+        description = "Get quote from a specific aggregator (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, enso)",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn quote_from(&self, Parameters(input): Parameters<QuoteFromInput>) -> CallToolResult {

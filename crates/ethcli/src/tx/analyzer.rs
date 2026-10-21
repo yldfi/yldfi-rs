@@ -596,8 +596,12 @@ impl TxAnalyzer {
             .iter()
             .map(|log| {
                 let topic0 = log.topics().first().copied().unwrap_or_default();
-                let event_name = events::get_event_name(&topic0);
                 let is_transfer = topic0 == events::TRANSFER;
+                let event_name = if is_transfer && log.topics().len() == 4 {
+                    Some("Transfer (ERC-721)")
+                } else {
+                    events::get_event_name(&topic0)
+                };
 
                 // Decode parameters based on known event signatures
                 let params = self.decode_event_params(log, &topic0);
@@ -607,19 +611,8 @@ impl TxAnalyzer {
                     address: log.address(),
                     address_label: get_label(&log.address()).map(String::from),
                     name: event_name.map(String::from),
-                    signature: event_name.map(|n| {
-                        if n == "Transfer" {
-                            "Transfer(address,address,uint256)".to_string()
-                        } else if n == "Approval" {
-                            "Approval(address,address,uint256)".to_string()
-                        } else if n == "Deposit" {
-                            "Deposit(address,uint256)".to_string()
-                        } else if n == "Withdrawal" {
-                            "Withdrawal(address,uint256)".to_string()
-                        } else {
-                            n.to_string()
-                        }
-                    }),
+                    // The canonical signature, not the display name
+                    signature: events::get_event_signature(&topic0).map(String::from),
                     params,
                     topic0,
                     is_transfer,
@@ -650,7 +643,11 @@ impl TxAnalyzer {
             params.insert("to".to_string(), EventParam::Address(format!("{:#x}", to)));
 
             let data = &log.data().data;
-            if data.len() >= 32 {
+            if let Some(token_id) = topics.get(3) {
+                // ERC-721: tokenId is the third indexed param
+                let id = alloy::primitives::U256::from_be_bytes(token_id.0);
+                params.insert("tokenId".to_string(), EventParam::Uint(id.to_string()));
+            } else if data.len() >= 32 {
                 let value = alloy::primitives::U256::from_be_slice(&data[..32]);
                 params.insert("value".to_string(), EventParam::Uint(value.to_string()));
             } else {
@@ -1041,6 +1038,7 @@ mod tests {
                 to_label: None,
                 amount: "1000000".to_string(),
                 decimals: None,
+                token_id: None,
                 log_index: i as u64,
             });
         }

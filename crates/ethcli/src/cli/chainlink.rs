@@ -279,7 +279,7 @@ async fn handle_price(
     quiet: bool,
 ) -> anyhow::Result<()> {
     // Get provider
-    let provider = get_provider(chain, rpc_url)?;
+    let provider = get_provider(chain, rpc_url, block)?;
 
     if !quiet {
         if let Some(blk) = block {
@@ -326,13 +326,26 @@ async fn handle_price(
             output.chain = chain.to_string();
             output.block = block.map(|s| s.to_string());
 
+            // For a current price, an answer older than any heartbeat means the
+            // feed stopped updating (deprecated)
+            let now = crate::utils::unix_timestamp_secs();
+            if block.is_none() && !data_is_fresh(output.updated_at, now) && !quiet {
+                eprintln!(
+                    "Warning: this answer is {}h old, older than any feed heartbeat; \
+                     the feed may be deprecated",
+                    now.saturating_sub(output.updated_at) / 3600
+                );
+            }
+
             print_price_output(&output, args.format)?;
         }
         Err(ChainlinkError::NoFeed) => {
-            if !quiet {
-                eprintln!("No Chainlink feed found for {} on {}", token, chain);
-            }
-            println!("No feed available");
+            anyhow::bail!(
+                "No Chainlink {}/{} feed found on {}",
+                token,
+                quote.to_uppercase(),
+                chain
+            );
         }
         Err(ChainlinkError::ArchiveNodeRequired) => {
             anyhow::bail!("Archive node required for historical queries. Your RPC endpoint doesn't support state queries for past blocks.");
@@ -345,6 +358,10 @@ async fn handle_price(
     Ok(())
 }
 
+fn data_is_fresh(updated_at: u64, now: u64) -> bool {
+    now.saturating_sub(updated_at) <= chainlink::MAX_PRICE_AGE_SECS
+}
+
 /// Handle feed command
 async fn handle_feed(
     token: &str,
@@ -355,14 +372,14 @@ async fn handle_feed(
     quiet: bool,
 ) -> anyhow::Result<()> {
     // Feed Registry is only available on Ethereum mainnet
-    if chain != "ethereum" && chain != "eth" && chain != "mainnet" && chain != "1" {
+    if chainlink::normalize_chain(chain) != "ethereum" {
         anyhow::bail!(
             "Feed Registry is only available on Ethereum mainnet. \
             For other chains, use `ethcli chainlink price {} --chain {}` with a direct oracle lookup.",
             token, chain
         );
     }
-    let provider = get_provider(chain, rpc_url)?;
+    let provider = get_provider(chain, rpc_url, None)?;
 
     if !quiet {
         eprintln!("Looking up feed address for {}/{}...", token, quote);
@@ -403,7 +420,7 @@ async fn handle_feed(
             }
         }
         Err(ChainlinkError::NoFeed) => {
-            println!("No feed found for {}/{}", token, quote);
+            anyhow::bail!("No feed found for {}/{}", token, quote);
         }
         Err(e) => {
             anyhow::bail!("Feed lookup failed: {}", e);
@@ -419,7 +436,8 @@ async fn handle_oracles(
     args: &ChainlinkArgs,
     _quiet: bool,
 ) -> anyhow::Result<()> {
-    let chains: Vec<&str> = if let Some(c) = chain {
+    let normalized = chain.map(chainlink::normalize_chain);
+    let chains: Vec<&str> = if let Some(c) = normalized.as_deref() {
         vec![c]
     } else {
         vec!["ethereum", "arbitrum", "polygon", "optimism", "base"]
@@ -620,29 +638,20 @@ struct StreamsReportOutput {
 }
 
 /// Get RPC provider for a chain
-fn get_provider(chain: &str, rpc_url: Option<&str>) -> anyhow::Result<impl Provider + Clone> {
+///
+/// A historical `block` selects an archive-capable endpoint.
+fn get_provider(
+    chain: &str,
+    rpc_url: Option<&str>,
+    block: Option<&str>,
+) -> anyhow::Result<impl Provider + Clone> {
     let chain_enum = Chain::from_str(chain).unwrap_or(Chain::Ethereum);
 
     let endpoint = if let Some(url) = rpc_url {
         Endpoint::new(EndpointConfig::new(url.to_string()), 30, None)?
     } else {
-        let config = ConfigFile::load_default()
-            .map_err(|e| anyhow::anyhow!("Failed to load config: {}", e))?
-            .unwrap_or_default();
-
-        let chain_endpoints: Vec<_> = config
-            .endpoints
-            .into_iter()
-            .filter(|e| e.enabled && e.chain == chain_enum)
-            .collect();
-
-        if chain_endpoints.is_empty() {
-            anyhow::bail!(
-                "No RPC endpoints configured for {}. Add one with: ethcli endpoints add <url>",
-                chain_enum.display_name()
-            );
-        }
-        Endpoint::new(chain_endpoints[0].clone(), 30, None)?
+        let target_block = block.and_then(|b| crate::utils::parse_block_number(b).ok());
+        crate::rpc::selector::get_rpc_endpoint_at(chain_enum, target_block)?
     };
 
     Ok(endpoint.provider().clone())

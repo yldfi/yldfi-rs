@@ -3,7 +3,8 @@
 //! Provides single-pass bytecode analysis to avoid redundant disassembly.
 
 use super::disassemble::{
-    disassemble_raw, opcode_stats_from_operations, operations_to_disassembled_ops, DisassemblyError,
+    disassemble_for_security, opcode_stats_from_operations, operations_to_disassembled_ops,
+    DisassemblyError,
 };
 use super::security::detect_security_issues_from_operations;
 use super::selectors::extract_selectors;
@@ -92,8 +93,9 @@ fn analyze_with_single_pass(
         );
     }
 
-    // Try to disassemble once - all analysis uses this result
-    match disassemble_raw(bytecode) {
+    // Try to disassemble once - all analysis uses this result. The security
+    // path never strips a metadata trailer, which could be forged to hide code.
+    match disassemble_for_security(bytecode) {
         Ok(operations) => {
             // Security analysis from operations
             let security = detect_security_issues_from_operations(&operations);

@@ -2,7 +2,7 @@
 //!
 //! Similar to Foundry's cast utility
 
-use alloy::primitives::{keccak256, utils::parse_units, Address, B256, U256};
+use alloy::primitives::{keccak256, Address, B256, U256};
 use clap::Subcommand;
 use std::str::FromStr;
 
@@ -147,14 +147,11 @@ pub fn handle(action: &CastCommands) -> anyhow::Result<()> {
         }
 
         CastCommands::Sig { signature } => {
-            let hash = keccak256(signature.as_bytes());
-            let selector = &hash[..4];
-            println!("0x{}", hex::encode(selector));
+            println!("{:#x}", function_selector(signature)?);
         }
 
         CastCommands::Topic { signature } => {
-            let hash = keccak256(signature.as_bytes());
-            println!("{:#x}", hash);
+            println!("{:#x}", event_topic(signature)?);
         }
 
         CastCommands::Checksum { address } => {
@@ -219,6 +216,22 @@ pub fn handle(action: &CastCommands) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Selector of a function signature, canonicalised first: param names,
+/// `function`/`returns`, spaces and `uint` aliases don't change the hash
+fn function_selector(signature: &str) -> anyhow::Result<alloy::primitives::FixedBytes<4>> {
+    let function = alloy::json_abi::Function::parse(signature.trim())
+        .map_err(|e| anyhow::anyhow!("Invalid function signature '{}': {}", signature, e))?;
+    Ok(function.selector())
+}
+
+/// Topic0 of an event signature, canonicalised first (names, `indexed`,
+/// spaces and `uint` aliases are dropped)
+fn event_topic(signature: &str) -> anyhow::Result<B256> {
+    let event = alloy::json_abi::Event::parse(signature.trim())
+        .map_err(|e| anyhow::anyhow!("Invalid event signature '{}': {}", signature, e))?;
+    Ok(event.selector())
+}
+
 fn to_wei(value: &str, unit: &str) -> anyhow::Result<String> {
     // Use alloy's parse_units for robust decimal handling
     let unit_str = match unit.to_lowercase().as_str() {
@@ -233,11 +246,8 @@ fn to_wei(value: &str, unit: &str) -> anyhow::Result<String> {
         }
     };
 
-    let parsed = parse_units(value, unit_str)
-        .map_err(|e| anyhow::anyhow!("Failed to parse '{}' as {}: {}", value, unit, e))?;
-
-    // Get the absolute value as U256
-    let wei: U256 = parsed.get_absolute();
+    // Rejects negative input (get_absolute() used to turn -1 into 1)
+    let wei = crate::utils::format::parse_wei_amount(value, unit_str)?;
     Ok(wei.to_string())
 }
 
@@ -451,6 +461,31 @@ pub(crate) fn split_types(types_str: &str) -> Vec<&str> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn sig_and_topic_are_canonicalised() {
+        let transfer = "0xa9059cbb";
+        for sig in [
+            "transfer(address,uint256)",
+            "transfer(address to, uint256 amount)",
+            "function transfer(address,uint) returns (bool)",
+        ] {
+            assert_eq!(
+                format!("{:#x}", function_selector(sig).unwrap()),
+                transfer,
+                "{sig}"
+            );
+        }
+        let topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+        for sig in [
+            "Transfer(address,address,uint256)",
+            "Transfer(address indexed from, address indexed to, uint value)",
+            "event Transfer(address indexed, address indexed, uint256)",
+        ] {
+            assert_eq!(format!("{:#x}", event_topic(sig).unwrap()), topic, "{sig}");
+        }
+    }
+
     use super::*;
 
     #[test]

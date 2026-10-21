@@ -1109,17 +1109,35 @@ async fn handle_vnets(
                 if !quiet {
                     eprintln!("Fetching all Virtual TestNets...");
                 }
-                let vnets = client.vnets().list(None).await?;
-                if vnets.is_empty() {
+                // The list endpoint is paginated: collect every page first,
+                // otherwise only the first page would be deleted.
+                let vnets_api = client.vnets();
+                let vnet_ids = collect_all_pages(VNETS_PAGE_SIZE, |page| {
+                    let query = tndrly::vnets::ListVNetsQuery::new()
+                        .page(page)
+                        .per_page(VNETS_PAGE_SIZE);
+                    let api = &vnets_api;
+                    async move {
+                        Ok(api
+                            .list(Some(query))
+                            .await?
+                            .into_iter()
+                            .map(|v| v.id)
+                            .collect())
+                    }
+                })
+                .await?;
+                if vnet_ids.is_empty() {
                     println!("No Virtual TestNets to delete.");
                     return Ok(());
                 }
-                let vnet_ids: Vec<String> = vnets.into_iter().map(|v| v.id).collect();
                 let count = vnet_ids.len();
                 if !quiet {
                     eprintln!("Deleting {} Virtual TestNets...", count);
                 }
-                client.vnets().delete_many(vnet_ids).await?;
+                for batch in vnet_ids.chunks(VNETS_PAGE_SIZE as usize) {
+                    client.vnets().delete_many(batch.to_vec()).await?;
+                }
                 println!("{} Virtual TestNets deleted.", count);
             } else if ids.len() == 1 {
                 let id = &ids[0];
@@ -1621,17 +1639,13 @@ fn parse_eth_amount(amount: &str) -> anyhow::Result<String> {
         let num_str = amount_lower
             .trim_end_matches("ether")
             .trim_end_matches("eth");
-        let num: f64 = num_str
-            .parse()
+        let wei = crate::utils::format::parse_wei_amount(num_str, "ether")
             .map_err(|_| anyhow::anyhow!("Invalid ETH amount: {}", amount))?;
-        let wei = (num * 1e18) as u128;
         Ok(wei.to_string())
     } else if amount_lower.ends_with("gwei") {
         let num_str = amount_lower.trim_end_matches("gwei");
-        let num: f64 = num_str
-            .parse()
+        let wei = crate::utils::format::parse_wei_amount(num_str, "gwei")
             .map_err(|_| anyhow::anyhow!("Invalid gwei amount: {}", amount))?;
-        let wei = (num * 1e9) as u128;
         Ok(wei.to_string())
     } else if amount_lower.ends_with("wei") {
         let num_str = amount_lower.trim_end_matches("wei");
@@ -2470,5 +2484,77 @@ mod tests {
             json["delivery_channels"],
             serde_json::json!([{ "id": "00000000-0000-0000-0000-000000000003", "enabled": true }])
         );
+    }
+}
+
+/// Page size used when listing every Virtual TestNet
+const VNETS_PAGE_SIZE: u32 = 100;
+
+/// Fetch pages 1, 2, ... until a short or empty page, returning every id once.
+///
+/// Stops if a page brings no new ids, so an API that ignores `page` can't loop.
+async fn collect_all_pages<F, Fut>(page_size: u32, mut fetch: F) -> anyhow::Result<Vec<String>>
+where
+    F: FnMut(u32) -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<Vec<String>>>,
+{
+    let mut ids: Vec<String> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for page in 1.. {
+        let batch = fetch(page).await?;
+        let len = batch.len();
+        let before = ids.len();
+        for id in batch {
+            if seen.insert(id.clone()) {
+                ids.push(id);
+            }
+        }
+        if len < page_size as usize || ids.len() == before {
+            break;
+        }
+    }
+    Ok(ids)
+}
+
+#[cfg(test)]
+mod pagination_tests {
+    use super::collect_all_pages;
+
+    fn pages(
+        total: usize,
+        size: usize,
+    ) -> impl FnMut(u32) -> std::future::Ready<anyhow::Result<Vec<String>>> {
+        move |page| {
+            let start = (page as usize - 1) * size;
+            std::future::ready(Ok((start..total.min(start + size))
+                .map(|i| i.to_string())
+                .collect()))
+        }
+    }
+
+    #[tokio::test]
+    async fn collects_every_page() {
+        assert_eq!(
+            collect_all_pages(10, pages(25, 10)).await.unwrap().len(),
+            25
+        );
+        assert_eq!(
+            collect_all_pages(10, pages(20, 10)).await.unwrap().len(),
+            20
+        );
+        assert!(collect_all_pages(10, pages(0, 10))
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn stops_when_the_api_ignores_page() {
+        let ids = collect_all_pages(2, |_| {
+            std::future::ready(Ok(vec!["a".to_string(), "b".to_string()]))
+        })
+        .await
+        .unwrap();
+        assert_eq!(ids, vec!["a", "b"]);
     }
 }

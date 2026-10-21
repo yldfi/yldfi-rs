@@ -27,12 +27,26 @@ pub struct BlacklistEntry {
     pub chain: Option<String>,
 }
 
+/// Blacklist key for an address: trimmed, lowercase, 0x-prefixed
+fn normalize_key(address: &str) -> String {
+    let lower = address.trim().to_lowercase();
+    if lower.starts_with("0x") {
+        lower
+    } else {
+        format!("0x{lower}")
+    }
+}
+
 /// Token blacklist storage
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TokenBlacklist {
     /// Map of lowercase address -> entry
     #[serde(default)]
     pub entries: HashMap<String, BlacklistEntry>,
+    /// Set when the file exists but couldn't be read or parsed. Saving is then
+    /// refused, so an empty in-memory copy never overwrites the user's file.
+    #[serde(skip)]
+    load_error: Option<String>,
 }
 
 impl TokenBlacklist {
@@ -52,7 +66,16 @@ impl TokenBlacklist {
     pub fn load_default() -> Self {
         let path = Self::default_path();
         if path.exists() {
-            Self::load(&path).unwrap_or_default()
+            match Self::load(&path) {
+                Ok(loaded) => loaded,
+                Err(e) => {
+                    eprintln!("Warning: {e} ({}); it will not be modified", path.display());
+                    Self {
+                        load_error: Some(e),
+                        ..Self::default()
+                    }
+                }
+            }
         } else {
             Self::default()
         }
@@ -63,7 +86,15 @@ impl TokenBlacklist {
         let content = std::fs::read_to_string(path)
             .map_err(|e| format!("Failed to read blacklist: {}", e))?;
 
-        toml::from_str(&content).map_err(|e| format!("Failed to parse blacklist: {}", e))
+        let mut list: Self =
+            toml::from_str(&content).map_err(|e| format!("Failed to parse blacklist: {}", e))?;
+        // Hand-edited files may use checksummed or unprefixed addresses
+        list.entries = list
+            .entries
+            .into_iter()
+            .map(|(k, v)| (normalize_key(&k), v))
+            .collect();
+        Ok(list)
     }
 
     /// Save to default path
@@ -73,6 +104,13 @@ impl TokenBlacklist {
 
     /// Save to a specific path
     pub fn save(&self, path: &Path) -> Result<(), String> {
+        if let Some(e) = &self.load_error {
+            return Err(format!(
+                "Refusing to overwrite {}: {}. Fix or move the file first",
+                path.display(),
+                e
+            ));
+        }
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
@@ -108,7 +146,7 @@ impl TokenBlacklist {
             .map_err(|_| format!("Invalid Ethereum address: {}", address))?;
 
         // Store with checksummed address, keyed by lowercase
-        let key = address.to_lowercase();
+        let key = normalize_key(address);
         let checksummed = format!("{:?}", parsed);
 
         self.entries.insert(
@@ -126,7 +164,7 @@ impl TokenBlacklist {
 
     /// Remove a token from the blacklist
     pub fn remove(&mut self, address: &str) -> Result<bool, String> {
-        let key = address.to_lowercase();
+        let key = normalize_key(address);
         let removed = self.entries.remove(&key).is_some();
         if removed {
             self.save_default()?;
@@ -136,12 +174,12 @@ impl TokenBlacklist {
 
     /// Check if a token is blacklisted
     pub fn is_blacklisted(&self, address: &str) -> bool {
-        self.entries.contains_key(&address.to_lowercase())
+        self.entries.contains_key(&normalize_key(address))
     }
 
     /// Get a blacklist entry
     pub fn get(&self, address: &str) -> Option<&BlacklistEntry> {
-        self.entries.get(&address.to_lowercase())
+        self.entries.get(&normalize_key(address))
     }
 
     /// List all blacklisted tokens
@@ -172,6 +210,19 @@ impl TokenBlacklist {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn keys_are_normalised() {
+        assert_eq!(normalize_key(" 0xAbC "), "0xabc");
+        assert_eq!(normalize_key("ABC"), "0xabc");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bl.toml");
+        std::fs::write(&path, "[entries.\"0xABC\"]\naddress = \"0xABC\"\n").unwrap();
+        let list = TokenBlacklist::load(&path).unwrap();
+        assert!(list.is_blacklisted("0xabc"));
+        assert!(list.is_blacklisted("ABC"));
+    }
+
     use super::*;
 
     #[test]
@@ -211,5 +262,24 @@ mod tests {
             .entries
             .remove("0x3fc29836e84e471a053d2d9e80494a867d670ead");
         assert!(!blacklist.is_blacklisted("0x3fC29836E84E471a053D2D9E80494A867D670EAD"));
+    }
+}
+
+#[cfg(test)]
+mod load_error_tests {
+    use super::*;
+
+    #[test]
+    fn unparsable_file_is_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("broken.toml");
+        std::fs::write(&path, "not = [valid").unwrap();
+        let err = TokenBlacklist::load(&path).unwrap_err();
+        let book = TokenBlacklist {
+            load_error: Some(err),
+            ..TokenBlacklist::default()
+        };
+        assert!(book.save(&path).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "not = [valid");
     }
 }

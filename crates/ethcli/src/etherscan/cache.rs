@@ -84,9 +84,27 @@ pub struct SignatureCache {
     write_count: AtomicU64,
     /// Dirty flag - true if cache has unsaved changes
     dirty: AtomicBool,
+    /// Set by `clear()`: the next save replaces the file instead of merging
+    /// with it (which would bring the cleared entries back)
+    cleared: AtomicBool,
 }
 
 impl SignatureCache {
+    /// The process-wide cache at the default path. Every caller that is alive
+    /// at the same time shares one instance, so instances don't overwrite each
+    /// other's entries on save; it is written when the last one is dropped.
+    pub fn shared() -> std::sync::Arc<Self> {
+        static SHARED: parking_lot::Mutex<std::sync::Weak<SignatureCache>> =
+            parking_lot::Mutex::new(std::sync::Weak::new());
+        let mut slot = SHARED.lock();
+        if let Some(cache) = slot.upgrade() {
+            return cache;
+        }
+        let cache = std::sync::Arc::new(Self::new());
+        *slot = std::sync::Arc::downgrade(&cache);
+        cache
+    }
+
     /// Create a new cache with default path (~/.cache/ethcli/signatures.json)
     pub fn new() -> Self {
         let path = Self::default_cache_path();
@@ -102,6 +120,7 @@ impl SignatureCache {
             ttl: Duration::from_secs(30 * 24 * 60 * 60), // 30 days default
             write_count: AtomicU64::new(0),
             dirty: AtomicBool::new(false),
+            cleared: AtomicBool::new(false),
         }
     }
 
@@ -150,6 +169,7 @@ impl SignatureCache {
     /// Force save cache to file immediately
     pub fn save(&self) {
         if self.dirty.swap(false, Ordering::AcqRel) {
+            self.cleanup_internal();
             let _ = self.save_to_file();
         }
     }
@@ -161,8 +181,30 @@ impl SignatureCache {
             fs::create_dir_all(parent)?;
         }
 
-        let data = self.data.read();
-        let content = serde_json::to_string_pretty(&*data)?;
+        // Keep positive entries another process (or an older instance) saved
+        // since we loaded: ours win on conflict, theirs fill the gaps. After
+        // clear() the file is replaced. "Not found" entries are never merged
+        // in from disk, so clear_not_found() sticks.
+        let replace = self.cleared.swap(false, Ordering::AcqRel);
+        let mut merged = if replace {
+            CacheData::default()
+        } else {
+            Self::load_from_file(&self.path).unwrap_or_default()
+        };
+        {
+            let data = self.data.read();
+            merged.events.extend(data.events.clone());
+            merged.functions.extend(data.functions.clone());
+            merged.abis.extend(data.abis.clone());
+            merged.not_found = data.not_found.clone();
+        }
+        // A positive entry beats an older "not found" for the same key
+        merged
+            .not_found
+            .retain(|k, _| !merged.events.contains_key(k) && !merged.functions.contains_key(k));
+        // Expired entries from disk are dropped too
+        Self::retain_fresh(&mut merged, self.ttl.as_secs());
+        let content = serde_json::to_string_pretty(&merged)?;
         write_with_permissions(&self.path, &content)?;
         self.dirty.store(false, Ordering::Release);
         Ok(())
@@ -171,8 +213,12 @@ impl SignatureCache {
     /// Internal cleanup without saving (to avoid recursion)
     fn cleanup_internal(&self) {
         let mut data = self.data.write();
+        Self::retain_fresh(&mut data, self.ttl.as_secs());
+    }
+
+    /// Drop expired entries
+    fn retain_fresh(data: &mut CacheData, ttl_secs: u64) {
         let now = Self::now();
-        let ttl_secs = self.ttl.as_secs();
         let abi_ttl_secs = ABI_TTL_SECS;
         let negative_ttl_secs = NEGATIVE_CACHE_TTL_SECS;
 
@@ -498,6 +544,7 @@ impl SignatureCache {
             data.abis.clear();
             data.not_found.clear();
         }
+        self.cleared.store(true, Ordering::Release);
         self.maybe_save();
     }
 }
@@ -512,6 +559,7 @@ impl Drop for SignatureCache {
     fn drop(&mut self) {
         // Save any unsaved changes on shutdown
         if self.dirty.load(Ordering::Acquire) {
+            self.cleanup_internal();
             let _ = self.save_to_file();
         }
     }
@@ -547,6 +595,35 @@ impl std::fmt::Display for CacheStats {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn clear_is_not_undone_by_the_merge() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("signatures.json");
+        let cache = SignatureCache::with_path(path.clone());
+        cache.set_function("0xaaaaaaaa", "a()");
+        cache.save();
+        cache.clear();
+        cache.save();
+        let reloaded = SignatureCache::with_path(path);
+        assert_eq!(reloaded.get_function("0xaaaaaaaa"), None);
+    }
+
+    #[test]
+    fn saving_keeps_entries_written_by_another_instance() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("signatures.json");
+        let a = SignatureCache::with_path(path.clone());
+        let b = SignatureCache::with_path(path.clone());
+        a.set_function("0xaaaaaaaa", "a()");
+        a.save();
+        b.set_function("0xbbbbbbbb", "b()");
+        b.save();
+        let reloaded = SignatureCache::with_path(path);
+        assert_eq!(reloaded.get_function("0xaaaaaaaa").as_deref(), Some("a()"));
+        assert_eq!(reloaded.get_function("0xbbbbbbbb").as_deref(), Some("b()"));
+    }
+
     use super::*;
     use tempfile::tempdir;
 
@@ -740,6 +817,9 @@ pub struct TokenCacheData {
     pub tokens: HashMap<String, TokenCacheEntry>,
 }
 
+/// Token metadata cache TTL in seconds (30 days)
+const TOKEN_CACHE_TTL_SECS: u64 = 30 * 24 * 60 * 60;
+
 /// Token metadata cache for immutable token data
 pub struct TokenMetadataCache {
     path: PathBuf,
@@ -781,7 +861,17 @@ impl TokenMetadataCache {
     /// Get token metadata from cache
     pub fn get(&self, chain: &str, address: &str) -> Option<TokenCacheEntry> {
         let key = format!("{}:{}", chain, address.to_lowercase());
-        self.data.read().tokens.get(&key).cloned()
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        // Metadata can change (proxy upgrades, renames): expire after 30 days
+        self.data
+            .read()
+            .tokens
+            .get(&key)
+            .filter(|e| now.saturating_sub(e.timestamp) <= TOKEN_CACHE_TTL_SECS)
+            .cloned()
     }
 
     /// Set token metadata in cache
@@ -793,6 +883,10 @@ impl TokenMetadataCache {
         symbol: Option<String>,
         decimals: Option<u8>,
     ) {
+        // A failed lookup must not be cached as "no name/symbol/decimals"
+        if name.is_none() && symbol.is_none() && decimals.is_none() {
+            return;
+        }
         let key = format!("{}:{}", chain, address.to_lowercase());
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -837,6 +931,17 @@ impl Default for TokenMetadataCache {
 
 #[cfg(test)]
 mod token_cache_tests {
+
+    #[test]
+    fn misses_are_not_cached() {
+        let dir = tempdir().unwrap();
+        let cache = TokenMetadataCache::with_path(dir.path().join("t.json"));
+        cache.set("1", "0xabc", None, None, None);
+        assert!(cache.get("1", "0xabc").is_none());
+        cache.set("1", "0xabc", None, Some("USDC".into()), Some(6));
+        assert_eq!(cache.get("1", "0xABC").unwrap().decimals, Some(6));
+    }
+
     use super::*;
     use tempfile::tempdir;
 
@@ -866,9 +971,15 @@ mod token_cache_tests {
     fn legacy_cache_with_total_supply_still_loads() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("token_cache.json");
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         fs::write(
             &path,
-            r#"{"tokens":{"ethereum:0xabc":{"name":"X","symbol":"X","decimals":18,"total_supply":"123","timestamp":1}}}"#,
+            format!(
+                r#"{{"tokens":{{"ethereum:0xabc":{{"name":"X","symbol":"X","decimals":18,"total_supply":"123","timestamp":{now}}}}}}}"#
+            ),
         )
         .unwrap();
         let entry = TokenMetadataCache::with_path(path)

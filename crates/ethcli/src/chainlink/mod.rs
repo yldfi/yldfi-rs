@@ -34,7 +34,7 @@ pub use streams::{
     DataStreamsClient, DataStreamsError, DataStreamsFeed, DEFAULT_STREAMS_REST_URL,
     DEFAULT_STREAMS_WS_URL,
 };
-pub use types::{ChainlinkError, PriceData};
+pub use types::{ChainlinkError, PriceData, MAX_PRICE_AGE_SECS};
 
 /// Fetch Chainlink price via RPC (registry or direct oracle)
 ///
@@ -45,36 +45,26 @@ pub async fn fetch_price<P: alloy::providers::Provider + Clone>(
     chain: &str,
     denomination: alloy::primitives::Address,
 ) -> Result<PriceData, ChainlinkError> {
-    use alloy::primitives::Address;
-    use std::str::FromStr;
+    let chain = normalize_chain(chain);
 
-    // Resolve token to address
-    let base = if token.starts_with("0x") {
-        Address::from_str(token).map_err(|_| ChainlinkError::InvalidAddress(token.to_string()))?
-    } else {
-        constants::symbol_to_address(token)
-            .ok_or_else(|| ChainlinkError::UnknownSymbol(token.to_string()))?
-    };
-
-    // Try Feed Registry on mainnet
-    if chain == "ethereum" || chain == "mainnet" || chain == "eth" {
-        let registry = FeedRegistry::new(provider.clone());
-        match registry.latest_price(base, denomination).await {
-            Ok(price) => return Ok(price),
-            Err(ChainlinkError::NoFeed) => {
-                // Fall through to try direct oracle
+    // Feed Registry on mainnet, for any base/quote pair it knows
+    if chain == "ethereum" {
+        if let Some(base) = registry_base(token)? {
+            let registry = FeedRegistry::new(provider.clone());
+            match registry.latest_price(base, denomination).await {
+                Ok(price) => return Ok(price),
+                Err(ChainlinkError::NoFeed) => {}
+                Err(e) => return Err(e),
             }
-            Err(e) => return Err(e),
         }
     }
 
-    // Try known oracle mapping
-    if let Some(oracle) = constants::get_oracle_for_token(token, chain) {
-        let aggregator = Aggregator::new(oracle, provider);
-        return aggregator.latest_price().await;
+    // Known direct oracles are all X/USD: never use one for another quote
+    if let Some(oracle) = usd_oracle(token, &chain, denomination) {
+        return Aggregator::new(oracle, provider).latest_price().await;
     }
 
-    Err(ChainlinkError::NoFeed)
+    no_feed(token, &chain)
 }
 
 /// Fetch historical Chainlink price at a specific block
@@ -85,33 +75,106 @@ pub async fn fetch_price_at_block<P: alloy::providers::Provider + Clone>(
     block: alloy::eips::BlockId,
     denomination: alloy::primitives::Address,
 ) -> Result<PriceData, ChainlinkError> {
-    use alloy::primitives::Address;
-    use std::str::FromStr;
-
-    let base = if token.starts_with("0x") {
-        Address::from_str(token).map_err(|_| ChainlinkError::InvalidAddress(token.to_string()))?
-    } else {
-        constants::symbol_to_address(token)
-            .ok_or_else(|| ChainlinkError::UnknownSymbol(token.to_string()))?
-    };
+    let chain = normalize_chain(chain);
 
     // Feed Registry approach (mainnet) - resolve feed at the same block
-    if chain == "ethereum" || chain == "mainnet" || chain == "eth" {
-        let registry = FeedRegistry::new(provider.clone());
-        match registry.price_at_block(base, denomination, block).await {
-            Ok(price) => return Ok(price),
-            Err(ChainlinkError::NoFeed) => {
-                // Fall through
+    if chain == "ethereum" {
+        if let Some(base) = registry_base(token)? {
+            let registry = FeedRegistry::new(provider.clone());
+            match registry.price_at_block(base, denomination, block).await {
+                Ok(price) => return Ok(price),
+                Err(ChainlinkError::NoFeed) => {}
+                Err(e) => return Err(e),
             }
-            Err(e) => return Err(e),
         }
     }
 
-    // Direct oracle approach
-    if let Some(oracle) = constants::get_oracle_for_token(token, chain) {
-        let aggregator = Aggregator::new(oracle, provider);
-        return aggregator.price_at_block(block).await;
+    if let Some(oracle) = usd_oracle(token, &chain, denomination) {
+        return Aggregator::new(oracle, provider)
+            .price_at_block(block)
+            .await;
     }
 
-    Err(ChainlinkError::NoFeed)
+    no_feed(token, &chain)
+}
+
+/// Canonical chain name ("1", "eth", "mainnet" -> "ethereum"; "arb" -> "arbitrum")
+pub fn normalize_chain(chain: &str) -> String {
+    use std::str::FromStr;
+    match crate::config::Chain::from_str(chain.trim()) {
+        Ok(c) if c.name() != "custom" => c.name().to_string(),
+        _ => chain.trim().to_lowercase(),
+    }
+}
+
+/// Base asset address for the Feed Registry: the token address, or a known
+/// symbol's address. `None` for symbols the registry doesn't know (L2-only
+/// tokens such as ARB or GMX), which are left to the direct oracles.
+fn registry_base(token: &str) -> Result<Option<alloy::primitives::Address>, ChainlinkError> {
+    if token.starts_with("0x") {
+        return token
+            .parse()
+            .map(Some)
+            .map_err(|_| ChainlinkError::InvalidAddress(token.to_string()));
+    }
+    Ok(constants::symbol_to_address(token))
+}
+
+/// The known X/USD oracle for `token` on `chain`, only when USD is requested
+fn usd_oracle(
+    token: &str,
+    chain: &str,
+    denomination: alloy::primitives::Address,
+) -> Option<alloy::primitives::Address> {
+    if denomination != constants::denominations::USD {
+        return None;
+    }
+    constants::get_oracle_for_token(token, chain)
+}
+
+/// NoFeed, or UnknownSymbol for a symbol nothing on this chain recognises
+fn no_feed<T>(token: &str, chain: &str) -> Result<T, ChainlinkError> {
+    let known_symbol = token.starts_with("0x")
+        || constants::symbol_to_address(token).is_some()
+        || constants::get_oracle_for_token(token, chain).is_some();
+    if known_symbol {
+        Err(ChainlinkError::NoFeed)
+    } else {
+        Err(ChainlinkError::UnknownSymbol(token.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_chain_maps_aliases() {
+        assert_eq!(normalize_chain("1"), "ethereum");
+        assert_eq!(normalize_chain("Mainnet"), "ethereum");
+        assert_eq!(normalize_chain("arb"), "arbitrum");
+        assert_eq!(normalize_chain("42161"), "arbitrum");
+    }
+
+    #[test]
+    fn direct_oracles_serve_usd_only() {
+        let usd = constants::denominations::USD;
+        assert!(usd_oracle("ETH", "arbitrum", usd).is_some());
+        assert!(usd_oracle("ETH", "arbitrum", constants::denominations::BTC).is_none());
+        assert!(usd_oracle("ETH", "arbitrum", constants::denominations::ETH).is_none());
+    }
+
+    #[test]
+    fn l2_only_symbols_are_not_unknown() {
+        // ARB has no mainnet registry address but an Arbitrum oracle
+        assert!(registry_base("ARB").unwrap().is_none());
+        assert!(matches!(
+            no_feed::<()>("ARB", "arbitrum"),
+            Err(ChainlinkError::NoFeed)
+        ));
+        assert!(matches!(
+            no_feed::<()>("NOTATOKEN", "arbitrum"),
+            Err(ChainlinkError::UnknownSymbol(_))
+        ));
+    }
 }

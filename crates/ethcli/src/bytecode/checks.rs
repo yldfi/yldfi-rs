@@ -218,9 +218,11 @@ fn build_findings(
         StateMutability::NonPayable | StateMutability::Payable
     ) && (storage_writes > 0 || external_calls > 0);
     let payable = state_mutability == StateMutability::Payable;
-    let complex_args = arguments.iter().any(|arg| {
-        arg.contains('(') || arg.contains('[') || arg == "bytes" || arg.starts_with("bytes")
-    });
+    // Dynamic or nested data (arbitrary calldata to forward); fixed-size
+    // bytesN such as bytes32 is a plain word
+    let complex_args = arguments
+        .iter()
+        .any(|arg| arg.contains('(') || arg.contains('[') || arg == "bytes");
 
     if mutating && !caller_gated {
         findings.push(CheckFinding {

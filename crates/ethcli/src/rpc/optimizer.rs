@@ -48,8 +48,43 @@ pub struct OptimizationResult {
     pub debug_tested: bool,
     /// Whether trace namespace was tested
     pub trace_tested: bool,
+    /// Whether the block range limit was detected
+    pub range_tested: bool,
+    /// Whether the max logs limit was detected
+    pub logs_tested: bool,
     /// Error message if optimization failed
     pub error: Option<String>,
+}
+
+impl OptimizationResult {
+    /// True only if the endpoint answered and every required check passed
+    /// (a chain mismatch or a failed block number lookup is a failure)
+    pub fn is_ok(&self) -> bool {
+        self.connectivity_ok && self.error.is_none()
+    }
+
+    /// Copy what was actually detected onto an existing endpoint entry,
+    /// keeping everything the user set (priority, note, proxy, enabled, ...)
+    /// and every field that wasn't tested this run.
+    pub fn merge_into(&self, existing: &mut EndpointConfig) {
+        if self.archive_tested {
+            existing.node_type = self.config.node_type;
+            existing.archive_from_block = self.config.archive_from_block;
+        }
+        if self.debug_tested {
+            existing.has_debug = self.config.has_debug;
+        }
+        if self.trace_tested {
+            existing.has_trace = self.config.has_trace;
+        }
+        if self.range_tested {
+            existing.max_block_range = self.config.max_block_range;
+        }
+        if self.logs_tested {
+            existing.max_logs = self.config.max_logs;
+        }
+        existing.last_tested = self.config.last_tested.clone();
+    }
 }
 
 /// USDC contract address on Ethereum mainnet (high-activity contract for testing)
@@ -93,6 +128,8 @@ pub async fn optimize_endpoint(
         archive_tested: false,
         debug_tested: false,
         trace_tested: false,
+        range_tested: false,
+        logs_tested: false,
         error: None,
     };
 
@@ -161,8 +198,11 @@ pub async fn optimize_endpoint(
                 }
             }
             Err(e) => {
-                // Archive detection failed, mark as unknown
-                eprintln!("  Archive detection error: {}", e);
+                // Archive detection failed: leave the node type as it was
+                eprintln!(
+                    "  Archive detection error: {}",
+                    crate::utils::url::redact_urls_in_text(&e.to_string())
+                );
                 config = config.with_node_type(NodeType::Unknown);
             }
         }
@@ -192,11 +232,15 @@ pub async fn optimize_endpoint(
 
     // Test 6: Block range limit detection
     match detect_block_range_limit(&provider, current_block, timeout).await {
-        Ok(max_range) => {
+        Some(max_range) => {
             config.max_block_range = max_range;
+            result.range_tested = true;
         }
-        Err(e) => {
-            eprintln!("  Block range detection error: {}", e);
+        None => {
+            eprintln!(
+                "  Block range limit not detected (every probe failed); keeping {}",
+                config.max_block_range
+            );
         }
     }
 
@@ -205,6 +249,7 @@ pub async fn optimize_endpoint(
         match detect_max_logs_limit(&provider, current_block, timeout).await {
             Ok(max_logs) => {
                 config.max_logs = max_logs;
+                result.logs_tested = true;
             }
             Err(e) => {
                 eprintln!("  Max logs detection error: {}", e);
@@ -257,11 +302,45 @@ async fn detect_archive_support(
                 )
             }
         }
-        Err(_) => {
-            // Timeout - assume it might be archive but slow
-            Ok((true, None))
-        }
+        // Timeout: unknown, not archive
+        Err(_) => Err(crate::error::RpcError::Timeout(timeout.as_millis() as u64).into()),
     }
+}
+
+/// Whether a JSON-RPC response to a debug_/trace_ probe means the namespace is
+/// available. A result, or an execution error, means yes. Method-not-found
+/// (-32601, "does not exist/is not available"), auth and rate-limit errors
+/// say nothing about support and count as no.
+fn namespace_supported(response: &serde_json::Value) -> bool {
+    if response.get("result").is_some() {
+        return true;
+    }
+    let Some(error) = response.get("error") else {
+        return false;
+    };
+    if error.get("code").and_then(|c| c.as_i64()) == Some(-32601) {
+        return false;
+    }
+    let msg = error.to_string().to_lowercase();
+    const UNSUPPORTED: &[&str] = &[
+        "method not found",
+        "not supported",
+        "unknown method",
+        "does not exist",
+        "not available",
+        "not enabled",
+        "not whitelisted",
+        "not allowed",
+        "unauthorized",
+        "forbidden",
+        "api key",
+        "rate limit",
+        "too many requests",
+        "429",
+        "capacity",
+        "upgrade your plan",
+    ];
+    !UNSUPPORTED.iter().any(|p| msg.contains(p))
 }
 
 /// Detect if endpoint supports debug namespace (debug_traceCall)
@@ -303,19 +382,7 @@ async fn detect_debug_support(url: &str, timeout: Duration) -> Result<bool> {
                 }
             };
 
-            // Check if there's an error indicating method not found
-            if let Some(error) = result.get("error") {
-                let error_str = error.to_string().to_lowercase();
-                if error_str.contains("method not found")
-                    || error_str.contains("not supported")
-                    || error_str.contains("unknown method")
-                {
-                    return Ok(false);
-                }
-            }
-
-            // If we got a result or a different kind of error, debug is likely supported
-            Ok(result.get("result").is_some() || result.get("error").is_some())
+            Ok(namespace_supported(&result))
         }
         Ok(Err(_)) => Ok(false),
         Err(_) => Ok(false), // Timeout - assume no debug
@@ -361,87 +428,83 @@ async fn detect_trace_support(url: &str, timeout: Duration) -> Result<bool> {
                 }
             };
 
-            // Check if there's an error indicating method not found
-            if let Some(error) = result.get("error") {
-                let error_str = error.to_string().to_lowercase();
-                if error_str.contains("method not found")
-                    || error_str.contains("not supported")
-                    || error_str.contains("unknown method")
-                    || error_str.contains("does not exist")
-                {
-                    return Ok(false);
-                }
-            }
-
-            // If we got a result or a different kind of error, trace is likely supported
-            Ok(result.get("result").is_some() || result.get("error").is_some())
+            Ok(namespace_supported(&result))
         }
         Ok(Err(_)) => Ok(false),
         Err(_) => Ok(false), // Timeout - assume no trace
     }
 }
 
-/// Detect maximum block range for eth_getLogs
+/// Outcome of probing one `eth_getLogs` range during limit detection
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RangeProbe {
+    Ok,
+    TooLarge,
+    /// Rate limited: stop probing and keep what was found so far
+    Stop,
+}
+
+/// Binary-search the largest block range (in blocks) for which `probe` succeeds.
+///
+/// Returns `None` when no probed range succeeded, so a failed detection isn't
+/// mistaken for a limit. Stops once the bracket is within 10% of the best range.
+async fn search_block_range_limit<F, Fut>(mut probe: F) -> Option<u64>
+where
+    F: FnMut(u64) -> Fut,
+    Fut: std::future::Future<Output = RangeProbe>,
+{
+    let mut low: u64 = 1;
+    let mut high: u64 = 2_000_000;
+    let mut best: Option<u64> = None;
+
+    while low <= high {
+        let mid = low + (high - low) / 2;
+        match probe(mid).await {
+            RangeProbe::Ok => {
+                best = Some(mid);
+                low = mid + 1;
+            }
+            RangeProbe::TooLarge => high = mid - 1,
+            RangeProbe::Stop => break,
+        }
+        if let Some(b) = best {
+            if high.saturating_sub(low) < (b / 10).max(1) {
+                break;
+            }
+        }
+    }
+
+    best
+}
+
+/// Detect maximum block range for eth_getLogs (`None` if not detected)
 async fn detect_block_range_limit(
     provider: &HttpProvider,
     current_block: u64,
     timeout: Duration,
-) -> Result<u64> {
-    // Binary search for the maximum working block range
-    let mut low: u64 = 100;
-    let mut high: u64 = 2_000_000;
-    let mut best: u64 = DEFAULT_MAX_BLOCK_RANGE; // Default fallback
-
+) -> Option<u64> {
     // Use an address that won't return many logs to test range limits
     let empty_address = address!("0000000000000000000000000000000000000001");
 
-    while low <= high {
-        let mid = low + (high - low) / 2;
-
-        // Calculate block range ending at current block
-        let from_block = current_block.saturating_sub(mid);
-
+    search_block_range_limit(|range| async move {
+        let from_block = current_block.saturating_sub(range - 1);
         let filter = Filter::new()
             .address(empty_address)
             .from_block(from_block)
             .to_block(current_block);
 
         match tokio::time::timeout(timeout, provider.get_logs(&filter)).await {
-            Ok(Ok(_)) => {
-                // This range works
-                best = mid;
-                low = mid + 1;
-            }
-            Ok(Err(e)) => {
-                let error_str = e.to_string().to_lowercase();
-                if error_str.contains("block range")
-                    || error_str.contains("exceed")
-                    || error_str.contains("too large")
-                    || error_str.contains("max")
-                {
-                    // Range too large, try smaller
-                    high = mid - 1;
-                } else if error_str.contains("rate") || error_str.contains("429") {
-                    // Rate limited, return current best
-                    break;
-                } else {
-                    // Some other error, try smaller range
-                    high = mid - 1;
-                }
-            }
-            Err(_) => {
-                // Timeout, try smaller range
-                high = mid - 1;
-            }
+            Ok(Ok(_)) => RangeProbe::Ok,
+            Ok(Err(e)) => match super::endpoint::classify_logs_error(&e.to_string(), range) {
+                Some(crate::error::RpcError::RateLimited(_)) => RangeProbe::Stop,
+                // Range errors and anything else: try a smaller range
+                _ => RangeProbe::TooLarge,
+            },
+            // Timeout: try a smaller range
+            Err(_) => RangeProbe::TooLarge,
         }
-
-        // Stop if ranges are too close
-        if high.saturating_sub(low) < 1000 {
-            break;
-        }
-    }
-
-    Ok(best)
+    })
+    .await
 }
 
 /// Detect maximum logs limit
@@ -536,7 +599,84 @@ pub async fn test_connectivity(url: &str, timeout_secs: u64) -> Result<(u64, u64
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn namespace_probe_classification() {
+        let yes = serde_json::json!({"result": {}});
+        let exec_err =
+            serde_json::json!({"error": {"code": -32000, "message": "execution reverted"}});
+        assert!(namespace_supported(&yes));
+        assert!(namespace_supported(&exec_err));
+        for no in [
+            serde_json::json!({"error": {"code": -32601, "message": "the method debug_traceCall does not exist/is not available"}}),
+            serde_json::json!({"error": {"code": -32000, "message": "Unauthorized: invalid API key"}}),
+            serde_json::json!({"error": {"code": 429, "message": "Too Many Requests"}}),
+            serde_json::json!({}),
+        ] {
+            assert!(!namespace_supported(&no), "{no}");
+        }
+    }
+
+    #[test]
+    fn merge_keeps_user_settings_and_untested_fields() {
+        let mut existing = EndpointConfig::new("https://a.example")
+            .with_node_type(NodeType::Archive)
+            .with_max_block_range(50_000);
+        existing.priority = 9;
+        existing.enabled = false;
+        let mut result = OptimizationResult {
+            config: EndpointConfig::new("https://a.example").with_debug(true),
+            chain_id: 10,
+            current_block: 1,
+            connectivity_ok: true,
+            archive_tested: false,
+            debug_tested: true,
+            trace_tested: false,
+            range_tested: false,
+            logs_tested: false,
+            error: None,
+        };
+        result.merge_into(&mut existing);
+        assert_eq!(existing.priority, 9);
+        assert!(!existing.enabled);
+        assert_eq!(existing.node_type, NodeType::Archive);
+        assert_eq!(existing.max_block_range, 50_000);
+        assert!(existing.has_debug);
+
+        result.error = Some("Chain mismatch".into());
+        assert!(!result.is_ok());
+    }
+
     use super::*;
+
+    fn probe_with_limit(limit: u64) -> impl FnMut(u64) -> std::future::Ready<RangeProbe> {
+        move |range| {
+            std::future::ready(if range <= limit {
+                RangeProbe::Ok
+            } else {
+                RangeProbe::TooLarge
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn detects_small_block_range_limits() {
+        for limit in [5u64, 500, 1_000, 2_000, 10_000, 100_000] {
+            let found = search_block_range_limit(probe_with_limit(limit))
+                .await
+                .unwrap();
+            assert!(found <= limit, "limit {limit}: found {found} exceeds it");
+            assert!(found * 10 >= limit * 9, "limit {limit}: found {found}");
+        }
+    }
+
+    #[tokio::test]
+    async fn reports_not_detected_when_every_probe_fails() {
+        let found = search_block_range_limit(|_| std::future::ready(RangeProbe::TooLarge)).await;
+        assert_eq!(found, None);
+        let found = search_block_range_limit(|_| std::future::ready(RangeProbe::Stop)).await;
+        assert_eq!(found, None);
+    }
 
     #[test]
     fn test_chain_detection() {

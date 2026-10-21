@@ -8,7 +8,7 @@ use clap::{Args, Subcommand};
 use secrecy::ExposeSecret;
 
 /// Uniswap protocol version
-#[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
 pub enum Version {
     /// Uniswap V2
     V2,
@@ -283,9 +283,7 @@ fn resolve_lens_target(
 /// (`pool`, `liquidity`, `balance`).
 pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyhow::Result<()> {
     use alloy::primitives::Address;
-    use unswp::{
-        factories, pools, subgraph_ids, tokens, LensClient, SubgraphClient, SubgraphConfig,
-    };
+    use unswp::{factories, pools, subgraph_ids, tokens, LensClient, SubgraphClient};
 
     match action {
         UniswapCommands::Pool(args) => {
@@ -341,14 +339,13 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                 eprintln!("Fetching ETH price from subgraph ({})...", args.version);
             }
 
-            let config = match args.version {
-                Version::V2 => SubgraphConfig::mainnet_v2(&api_key),
-                Version::V3 => SubgraphConfig::mainnet_v3(&api_key),
-                Version::V4 => SubgraphConfig::mainnet_v4(&api_key),
-            };
+            let config = subgraph_config(args.version, chain, &api_key)?;
 
             let client = SubgraphClient::new(config)?;
-            let price = client.get_eth_price().await?;
+            let price = client
+                .get_eth_price()
+                .await
+                .map_err(|e| anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key)))?;
 
             let output = serde_json::json!({
                 "ethPriceUSD": price,
@@ -368,26 +365,28 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                 );
             }
 
-            let config = match args.version {
-                Version::V2 => SubgraphConfig::mainnet_v2(&api_key),
-                Version::V3 => SubgraphConfig::mainnet_v3(&api_key),
-                Version::V4 => SubgraphConfig::mainnet_v4(&api_key),
-            };
+            let config = subgraph_config(args.version, chain, &api_key)?;
 
             let client = SubgraphClient::new(config)?;
 
             // Use the correct query method for each version
             match args.version {
                 Version::V2 => {
-                    let pairs = client.get_top_pairs(args.limit).await?;
+                    let pairs = client.get_top_pairs(args.limit).await.map_err(|e| {
+                        anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key))
+                    })?;
                     println!("{}", serde_json::to_string_pretty(&pairs)?);
                 }
                 Version::V3 => {
-                    let pools = client.get_top_pools(args.limit).await?;
+                    let pools = client.get_top_pools(args.limit).await.map_err(|e| {
+                        anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key))
+                    })?;
                     println!("{}", serde_json::to_string_pretty(&pools)?);
                 }
                 Version::V4 => {
-                    let pools = client.get_top_pools_v4(args.limit).await?;
+                    let pools = client.get_top_pools_v4(args.limit).await.map_err(|e| {
+                        anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key))
+                    })?;
                     println!("{}", serde_json::to_string_pretty(&pools)?);
                 }
             }
@@ -403,14 +402,13 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                 );
             }
 
-            let config = match args.version {
-                Version::V2 => SubgraphConfig::mainnet_v2(&api_key),
-                Version::V3 => SubgraphConfig::mainnet_v3(&api_key),
-                Version::V4 => SubgraphConfig::mainnet_v4(&api_key),
-            };
+            let config = subgraph_config(args.version, chain, &api_key)?;
 
             let client = SubgraphClient::new(config)?;
-            let swaps = client.get_swaps(&args.pool, args.limit).await?;
+            let swaps = client
+                .get_swaps(&args.pool, args.limit)
+                .await
+                .map_err(|e| anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key)))?;
 
             println!("{}", serde_json::to_string_pretty(&swaps)?);
         }
@@ -425,14 +423,13 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                 );
             }
 
-            let config = match args.version {
-                Version::V2 => SubgraphConfig::mainnet_v2(&api_key),
-                Version::V3 => SubgraphConfig::mainnet_v3(&api_key),
-                Version::V4 => SubgraphConfig::mainnet_v4(&api_key),
-            };
+            let config = subgraph_config(args.version, chain, &api_key)?;
 
             let client = SubgraphClient::new(config)?;
-            let data = client.get_pool_day_data(&args.pool, args.days).await?;
+            let data = client
+                .get_pool_day_data(&args.pool, args.days)
+                .await
+                .map_err(|e| anyhow::anyhow!(redact_subgraph_error(&e.to_string(), &api_key)))?;
 
             println!("{}", serde_json::to_string_pretty(&data)?);
         }
@@ -473,12 +470,29 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
             // Collect all positions
             let mut all_positions: Vec<serde_json::Value> = Vec::new();
 
-            // Query V2 (mainnet only)
-            if (args.version.is_none() || matches!(args.version, Some(Version::V2)))
-                && (chain == "ethereum" || chain == "mainnet" || chain == "eth")
-            {
-                let config = SubgraphConfig::mainnet_v2(&api_key);
-                if let Ok(client) = SubgraphClient::new(config) {
+            // Versions to query: the one asked for, or every version with a
+            // subgraph on this chain. A chain with none of them is an error,
+            // not a silent mainnet query.
+            let versions: Vec<Version> = match args.version {
+                Some(v) => {
+                    subgraph_config(v, &chain, &api_key)?;
+                    vec![v]
+                }
+                None => [Version::V2, Version::V3, Version::V4]
+                    .into_iter()
+                    .filter(|v| subgraph_config(*v, &chain, &api_key).is_ok())
+                    .collect(),
+            };
+            if versions.is_empty() {
+                anyhow::bail!("No Uniswap subgraph for chain '{}'", args.chain);
+            }
+            let mut failures: Vec<String> = Vec::new();
+
+            // Query V2
+            if versions.contains(&Version::V2) {
+                let config = subgraph_config(Version::V2, &chain, &api_key)?;
+                {
+                    let client = SubgraphClient::new(config)?;
                     match client.get_positions_v2(&address).await {
                         Ok(positions) => {
                             for pos in positions {
@@ -525,27 +539,21 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                             }
                         }
                         Err(e) => {
+                            let e = redact_subgraph_error(&e.to_string(), &api_key);
                             if !quiet {
-                                eprintln!("V2 query failed: {}", e);
+                                eprintln!("Warning: V2 positions query failed: {e}");
                             }
+                            failures.push(format!("V2: {e}"));
                         }
                     }
                 }
             }
 
             // Query V3
-            if args.version.is_none() || matches!(args.version, Some(Version::V3)) {
-                let config = match chain.as_str() {
-                    "ethereum" | "mainnet" | "eth" => SubgraphConfig::mainnet_v3(&api_key),
-                    "arbitrum" | "arb" => SubgraphConfig::arbitrum_v3(&api_key),
-                    "optimism" | "op" => SubgraphConfig::optimism_v3(&api_key),
-                    "base" => SubgraphConfig::base_v3(&api_key),
-                    "polygon" | "matic" => SubgraphConfig::mainnet_v3(&api_key)
-                        .with_subgraph_id(subgraph_ids::POLYGON_V3),
-                    _ => SubgraphConfig::mainnet_v3(&api_key),
-                };
-
-                if let Ok(client) = SubgraphClient::new(config) {
+            if versions.contains(&Version::V3) {
+                let config = subgraph_config(Version::V3, &chain, &api_key)?;
+                {
+                    let client = SubgraphClient::new(config)?;
                     match client.get_positions(&address).await {
                         Ok(positions) => {
                             for pos in positions {
@@ -556,8 +564,10 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                                 let current_tick: i32 =
                                     pool.tick.as_ref().and_then(|t| t.parse().ok()).unwrap_or(0);
 
+                                // Active when lower <= current < upper (the upper
+                                // tick itself is out of range)
                                 let in_range =
-                                    current_tick >= tick_lower && current_tick <= tick_upper;
+                                    current_tick >= tick_lower && current_tick < tick_upper;
                                 let fee_tier: f64 = pool.fee_tier.parse().unwrap_or(0.0) / 10000.0;
 
                                 let deposited0: f64 = pos.deposited_token0.parse().unwrap_or(0.0);
@@ -597,23 +607,19 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                             }
                         }
                         Err(e) => {
+                            let e = redact_subgraph_error(&e.to_string(), &api_key);
                             if !quiet {
-                                eprintln!("V3 query failed: {}", e);
+                                eprintln!("Warning: V3 positions query failed: {e}");
                             }
+                            failures.push(format!("V3: {e}"));
                         }
                     }
                 }
             }
 
             // Query V4
-            if args.version.is_none() || matches!(args.version, Some(Version::V4)) {
-                let config = match chain.as_str() {
-                    "ethereum" | "mainnet" | "eth" => Some(SubgraphConfig::mainnet_v4(&api_key)),
-                    "arbitrum" | "arb" => Some(SubgraphConfig::arbitrum_v4(&api_key)),
-                    "base" => Some(SubgraphConfig::base_v4(&api_key)),
-                    "polygon" | "matic" => Some(SubgraphConfig::polygon_v4(&api_key)),
-                    _ => None,
-                };
+            if versions.contains(&Version::V4) {
+                let config = subgraph_config(Version::V4, &chain, &api_key).ok();
 
                 if let Some(config) = config {
                     let client = SubgraphClient::new(config)?;
@@ -633,17 +639,21 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
                             }
                         }
                         Err(e) => {
-                            // Surface V4 errors instead of silently returning [];
-                            // fail if V4 was explicitly requested.
-                            if matches!(args.version, Some(Version::V4)) {
-                                return Err(anyhow::anyhow!("V4 positions query failed: {e}"));
+                            let e = redact_subgraph_error(&e.to_string(), &api_key);
+                            if !quiet {
+                                eprintln!("Warning: V4 positions query failed: {e}");
                             }
-                            eprintln!("Warning: V4 positions query failed: {e}");
+                            failures.push(format!("V4: {e}"));
                         }
                     }
                 } else if matches!(args.version, Some(Version::V4)) {
                     anyhow::bail!("Uniswap V4 subgraph not available for chain '{}'", chain);
                 }
+            }
+
+            // Every queried version failed: an error, not an empty list
+            if failures.len() == versions.len() {
+                anyhow::bail!("Uniswap positions query failed ({})", failures.join("; "));
             }
 
             // Output results
@@ -898,5 +908,70 @@ mod tests {
             resolve_lens_target(Some("https://example.invalid"), "ethereum").unwrap();
         assert_eq!(url, "https://example.invalid");
         assert_eq!(chain.chain_id(), 1);
+    }
+}
+
+/// A subgraph error without the API key (The Graph puts it in the URL path)
+fn redact_subgraph_error(message: &str, api_key: &str) -> String {
+    let redacted = crate::utils::url::redact_urls_in_text(message);
+    if api_key.is_empty() {
+        redacted
+    } else {
+        redacted.replace(api_key, "[REDACTED]")
+    }
+}
+
+/// Subgraph for a Uniswap version on a chain; an error for chains without one
+/// (rather than silently querying mainnet)
+fn subgraph_config(
+    version: Version,
+    chain: &str,
+    api_key: &str,
+) -> anyhow::Result<unswp::SubgraphConfig> {
+    use std::str::FromStr;
+    use unswp::{subgraph_ids, SubgraphConfig};
+
+    let name = crate::config::Chain::from_str(chain.trim())
+        .map(|c| c.name().to_string())
+        .unwrap_or_else(|_| chain.trim().to_lowercase());
+    let config = match (version, name.as_str()) {
+        (Version::V2, "ethereum") => SubgraphConfig::mainnet_v2(api_key),
+        (Version::V3, "ethereum") => SubgraphConfig::mainnet_v3(api_key),
+        (Version::V3, "arbitrum") => SubgraphConfig::arbitrum_v3(api_key),
+        (Version::V3, "optimism") => SubgraphConfig::optimism_v3(api_key),
+        (Version::V3, "base") => SubgraphConfig::base_v3(api_key),
+        (Version::V3, "polygon") => {
+            SubgraphConfig::mainnet_v3(api_key).with_subgraph_id(subgraph_ids::POLYGON_V3)
+        }
+        (Version::V4, "ethereum") => SubgraphConfig::mainnet_v4(api_key),
+        (Version::V4, "arbitrum") => SubgraphConfig::arbitrum_v4(api_key),
+        (Version::V4, "base") => SubgraphConfig::base_v4(api_key),
+        (Version::V4, "polygon") => SubgraphConfig::polygon_v4(api_key),
+        _ => anyhow::bail!("No Uniswap {} subgraph for chain '{}'", version, chain),
+    };
+    Ok(config)
+}
+
+#[cfg(test)]
+mod subgraph_tests {
+    use super::*;
+
+    #[test]
+    fn unsupported_chains_are_refused() {
+        assert!(subgraph_config(Version::V3, "arbitrum", "k").is_ok());
+        assert!(subgraph_config(Version::V3, "42161", "k").is_ok());
+        assert!(subgraph_config(Version::V3, "bsc", "k").is_err());
+        assert!(subgraph_config(Version::V2, "base", "k").is_err());
+        assert!(subgraph_config(Version::V4, "gnosis", "k").is_err());
+    }
+
+    #[test]
+    fn subgraph_errors_drop_the_api_key() {
+        let msg = "error sending request for url (https://gateway.thegraph.com/api/s3cretkey123/subgraphs/id/x)";
+        let redacted = redact_subgraph_error(msg, "s3cretkey123");
+        assert!(!redacted.contains("s3cretkey123"), "{redacted}");
+        assert!(
+            !redact_subgraph_error("bad key s3cretkey123", "s3cretkey123").contains("s3cretkey123")
+        );
     }
 }

@@ -5,6 +5,7 @@
 
 use crate::abi::AbiFetcher;
 use crate::config::{Chain, TokenBlacklist};
+use crate::utils::format::truncate_str;
 use clap::{Args, Subcommand};
 
 #[derive(Args)]
@@ -228,83 +229,45 @@ impl ScanResult {
     }
 }
 
-/// Known legitimate protocol contract name patterns (case-insensitive)
-/// These are whitelisted even if they have unusual ownership patterns
-const SAFE_PROTOCOL_PATTERNS: &[&str] = &[
-    // Yearn ecosystem
-    "yearn",
-    "yvault",
-    "ystrategy",
-    "yvtoken",
-    "v3 vault",
-    // Curve ecosystem
-    "curve",
-    "crv",
-    "vyper_contract",
-    "gauge",
-    "minter",
-    // Convex ecosystem
-    "convex",
-    "cvx",
-    "basepool",
-    "booster",
-    "rewardpool",
-    // Lido ecosystem
-    "lido",
-    "steth",
-    "wsteth",
-    // Compound ecosystem
-    "compound",
-    "ctoken",
-    "cerc20",
-    "comptroller",
-    // Aave ecosystem
-    "aave",
-    "atoken",
-    "debttoken",
-    "pool",
-    // Other major DeFi
-    "uniswap",
-    "sushiswap",
-    "balancer",
-    "makerdao",
-    "dsr",
-    "dai",
-    "origin",
-    "oeth",
-    "ousd",
-    "frax",
-    "sfrax",
-    "frxeth",
-    "sfrxeth",
-    "prisma",
-    "mkusd",
-    "eigen",
-    "eigenlayer",
-    "rocket",
-    "reth",
-    "coinbase",
-    "cbeth",
+/// Known protocol tokens, by (chain id, address). These may use proxy patterns
+/// that would otherwise raise proxy warnings.
+///
+/// Matching is by address only: a token's name and symbol are chosen by
+/// whoever deploys it, so a scam can call itself "Curve Pool" or "DAI".
+const KNOWN_PROTOCOL_TOKENS: &[(u64, &str)] = &[
+    (1, "0xae7ab96520de3a18e5e111b5eaab095312d7fe84"), // stETH
+    (1, "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"), // wstETH
+    (1, "0xae78736cd615f374d3085123a210448e74fc6393"), // rETH
+    (1, "0xbe9895146f7af43049ca1c1ae358b0541ea49704"), // cbETH
+    (1, "0x6b175474e89094c44da98b954eedeac495271d0f"), // DAI
+    (1, "0x83f20f44975d03b1b09e64809b757c47f942beea"), // sDAI
+    (1, "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"), // USDC
+    (1, "0xdac17f958d2ee523a2206206994597c13d831ec7"), // USDT
+    (1, "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"), // WETH
+    (1, "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"), // WBTC
+    (1, "0xd533a949740bb3306d119cc777fa900ba034cd52"), // CRV
+    (1, "0xf939e0a03fb07f59a73314e73794be0e57ac1b4e"), // crvUSD
+    (1, "0x4e3fbd56cd56c3e72c1403e103b45db9da5b9d2b"), // CVX
+    (1, "0x62b9c7356a2dc64a1969e19c23e4f579f9810aa7"), // cvxCRV
+    (1, "0x853d955acef822db058eb8505911ed77f175b99e"), // FRAX
+    (1, "0x5e8422345238f34275888049021821e8e08caa1f"), // frxETH
+    (1, "0xac3e018457b222d93114458476f3e3416abbe38f"), // sfrxETH
+    (1, "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9"), // AAVE
+    (1, "0xc00e94cb662c3520282e6f5717214004a7f26888"), // COMP
+    (1, "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"), // UNI
+    (1, "0x5a98fcbea516cf06857215779fd812ca3bef1b32"), // LDO
+    (1, "0x0bc529c00c6401aef6d220be8c6ea1667f6ad93e"), // YFI
+    (1, "0xba100000625a3754423978a60c9317c58a424e3d"), // BAL
+    (1, "0x856c4efb76c1d1ae02e20ceb03a2a6a08b0b8dc3"), // OETH
+    (1, "0xec53bf9167f50cdeb3ae105f56099aaab9061f83"), // EIGEN
 ];
 
-/// Check if a contract name suggests it's a known safe protocol
-fn is_known_safe_protocol(contract_name: Option<&str>, symbol: Option<&str>) -> bool {
-    let check_text = |text: &str| -> bool {
-        let lower = text.to_lowercase();
-        SAFE_PROTOCOL_PATTERNS.iter().any(|p| lower.contains(p))
-    };
-
-    if let Some(name) = contract_name {
-        if check_text(name) {
-            return true;
-        }
-    }
-    if let Some(sym) = symbol {
-        if check_text(sym) {
-            return true;
-        }
-    }
-    false
+/// Check whether a token is a known protocol token (by address only)
+fn is_known_safe_protocol(chain_id: u64, address: &str) -> bool {
+    let address = address.trim().to_lowercase();
+    KNOWN_PROTOCOL_TOKENS
+        .iter()
+        .any(|(id, known)| *id == chain_id && *known == address)
 }
 
 /// Check security using GoPlus API via the gplus crate
@@ -359,8 +322,9 @@ pub async fn scan_token(
 
     let mut warnings = Vec::new();
 
-    // Check if this is a known safe protocol (whitelist)
-    let is_known_safe = is_known_safe_protocol(metadata.name.as_deref(), Some(&symbol));
+    // Check if this is a known protocol token (address whitelist)
+    let chain_id = chain.chain_id();
+    let is_known_safe = is_known_safe_protocol(chain_id, address);
 
     // Check for proxy without visible implementation (only warn if not known safe)
     if !is_known_safe && metadata.is_proxy && metadata.implementation.is_none() {
@@ -378,17 +342,7 @@ pub async fn scan_token(
     }
 
     // Check security status using GoPlus API
-    let chain_id = chain.chain_id();
     let security = check_security(chain_id, address).await;
-
-    // For known safe protocols, override is_verified if they're recognized DeFi
-    let effective_verified = if is_known_safe && !metadata.is_verified {
-        // Known protocols might use proxy patterns that appear unverified
-        // but the symbol/name indicates legitimacy
-        true
-    } else {
-        metadata.is_verified
-    };
 
     Ok(ScanResult {
         address: address.to_string(),
@@ -398,7 +352,7 @@ pub async fn scan_token(
             Some(symbol)
         },
         name: if name.is_empty() { None } else { Some(name) },
-        is_verified: effective_verified,
+        is_verified: metadata.is_verified,
         is_proxy: metadata.is_proxy,
         contract_name: metadata.name,
         implementation: metadata.implementation,
@@ -518,11 +472,7 @@ pub async fn execute(args: &BlacklistArgs, etherscan_key: Option<String>) -> any
                 let chain_suffix = format!(" ({})", chain);
 
                 // Truncate reason for display
-                let reason_display = if reason.len() > 30 {
-                    format!("{}...", &reason[..27])
-                } else {
-                    reason.to_string()
-                };
+                let reason_display = truncate_str(reason, 30);
 
                 if *links {
                     let url = etherscan_url(chain, &entry.address);
@@ -667,12 +617,7 @@ fn print_security_analysis(security: &SecurityResult) {
             } else {
                 ""
             };
-            let display = if owner.len() >= 10 {
-                &owner[..10]
-            } else {
-                owner
-            };
-            println!("  Owner:       {}{}", display, status);
+            println!("  Owner:       {}{}", truncate_str(owner, 13), status);
         }
     }
     if security.is_mintable {
@@ -743,7 +688,10 @@ async fn execute_scan(
     auto_blacklist: bool,
     api_key: Option<String>,
 ) -> anyhow::Result<()> {
-    let chain = chain_str.parse::<Chain>().unwrap_or(Chain::Ethereum);
+    // An unknown chain must not silently scan Ethereum
+    let chain = chain_str
+        .parse::<Chain>()
+        .map_err(|_| anyhow::anyhow!("Unknown chain: {}", chain_str))?;
 
     eprintln!("Scanning {}...", address);
 
@@ -846,7 +794,10 @@ async fn execute_scan_portfolio(
 ) -> anyhow::Result<()> {
     use crate::aggregator::portfolio::fetch_portfolio_all;
 
-    let chain = chain_str.parse::<Chain>().unwrap_or(Chain::Ethereum);
+    // An unknown chain must not silently scan Ethereum
+    let chain = chain_str
+        .parse::<Chain>()
+        .map_err(|_| anyhow::anyhow!("Unknown chain: {}", chain_str))?;
 
     // Progress goes to stderr so stdout only carries scan results.
     eprintln!("Fetching portfolio for {}...", wallet_address);
@@ -925,4 +876,36 @@ async fn execute_scan_portfolio(
     print_scan_summary(verified_count, scam_count, auto_blacklist);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn known_protocols_match_by_address_and_chain_only() {
+        assert!(is_known_safe_protocol(
+            1,
+            "0xD533a949740bb3306d119CC777fa900bA034cd52"
+        ));
+        // Same address on another chain is not whitelisted
+        assert!(!is_known_safe_protocol(
+            137,
+            "0xd533a949740bb3306d119cc777fa900ba034cd52"
+        ));
+        // A lookalike token with a protocol-sounding name gets no pass
+        assert!(!is_known_safe_protocol(
+            1,
+            "0x000000000000000000000000000000000000dead"
+        ));
+    }
+
+    #[test]
+    fn known_protocol_addresses_are_well_formed() {
+        for (_, addr) in KNOWN_PROTOCOL_TOKENS {
+            assert_eq!(addr.len(), 42, "{addr}");
+            assert_eq!(*addr, addr.to_lowercase(), "{addr}");
+            assert!(addr.parse::<alloy::primitives::Address>().is_ok(), "{addr}");
+        }
+    }
 }

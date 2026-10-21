@@ -374,7 +374,12 @@ impl HealthTracker {
         let health = self.health.read();
         if let Some(h) = health.get(url) {
             if let Some(learned) = h.learned_max_block_range {
-                return learned.min(configured);
+                // configured == 0 means "unlimited", not a limit of 0
+                return if configured == 0 {
+                    learned
+                } else {
+                    learned.min(configured)
+                };
             }
         }
         configured

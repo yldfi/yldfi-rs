@@ -101,7 +101,7 @@ pub struct AccountTxsInput {
     pub sort: Option<String>,
     /// First block to include (inclusive; default: 0)
     pub start_block: Option<u64>,
-    /// Last block to include (inclusive; default: 99999999)
+    /// Last block to include (inclusive; default: latest)
     pub end_block: Option<u64>,
 }
 
@@ -575,7 +575,7 @@ pub struct QuoteCompareInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct QuoteFromInput {
-    /// The aggregator to use (open-ocean, kyber-swap, 0x, 1inch, cow-swap, li-fi, velora, enso)
+    /// The aggregator to use (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, enso)
     pub source: String,
     /// Source token address (or symbol like ETH, USDC)
     pub from_token: String,
@@ -2465,6 +2465,9 @@ pub struct MoralisCategoryIdInput {
 pub struct DuneQueryInput {
     /// Query ID
     pub query_id: String,
+    /// Query parameters as a JSON object, e.g. {"address": "0x..."}
+    #[serde(default)]
+    pub params: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

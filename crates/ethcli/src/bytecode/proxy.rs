@@ -127,6 +127,22 @@ pub fn detect_eip1167(bytecode: &[u8]) -> Option<Address> {
     Some(Address::from(addr_bytes))
 }
 
+/// Storage slots that hold a proxy's implementation or beacon:
+/// EIP-1967 implementation, EIP-1967 beacon, and the pre-1967 OpenZeppelin
+/// `org.zeppelinos.proxy.implementation` slot
+const PROXY_SLOTS: [[u8; 32]; 3] = [
+    alloy::primitives::hex!("360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"),
+    alloy::primitives::hex!("a3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50"),
+    alloy::primitives::hex!("7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3"),
+];
+
+/// Whether `bytecode` pushes `word` with PUSH32
+fn contains_push32(bytecode: &[u8], word: &[u8; 32]) -> bool {
+    bytecode
+        .windows(33)
+        .any(|w| w[0] == 0x7f && w[1..] == word[..])
+}
+
 /// Detect proxy patterns from bytecode alone
 ///
 /// This only detects patterns that are visible in bytecode (like EIP-1167).
@@ -153,7 +169,14 @@ pub fn detect_proxy(bytecode: &[u8]) -> ProxyInfo {
     // - Contains SLOAD opcode (0x54) for reading implementation slot
     let has_sload = bytecode.contains(&0x54);
 
-    if has_delegatecall && has_sload && bytecode.len() < 2000 {
+    // A known implementation/beacon slot pushed as a constant marks a storage
+    // proxy whatever its size (USDC's FiatTokenProxy is well over 2000 bytes)
+    let has_known_slot = has_delegatecall
+        && PROXY_SLOTS
+            .iter()
+            .any(|slot| contains_push32(bytecode, slot));
+
+    if has_known_slot || (has_delegatecall && has_sload && bytecode.len() < 2000) {
         // Likely a storage-based proxy, but we need storage access to confirm
         return ProxyInfo {
             is_proxy: true,
@@ -192,6 +215,21 @@ pub fn u256_to_b256(value: U256) -> B256 {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn detects_large_storage_proxies_by_slot_constant() {
+        // 3000 bytes of filler, then PUSH32 <EIP-1967 slot> SLOAD ... DELEGATECALL
+        let mut code = vec![0x5b; 3000];
+        code.push(0x7f);
+        code.extend_from_slice(&PROXY_SLOTS[0]);
+        code.extend_from_slice(&[0x54, 0xf4]);
+        let info = detect_proxy(&code);
+        assert!(info.is_proxy);
+        // Large code with DELEGATECALL and SLOAD but no slot: not flagged
+        let plain = [vec![0x5b; 3000], vec![0x54, 0xf4]].concat();
+        assert!(!detect_proxy(&plain).is_proxy);
+    }
+
     use super::*;
 
     #[test]

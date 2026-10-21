@@ -152,7 +152,8 @@ impl EventSignature {
             .into());
         };
 
-        // Validate type
+        // Canonical form: what topic0 hashes and the decoder parses
+        let ty = canonical_type(&ty);
         Self::validate_type(&ty)?;
 
         Ok(ParsedParam { name, ty, indexed })
@@ -175,7 +176,10 @@ impl EventSignature {
         // Check base type
         let is_valid = valid_base_types.iter().any(|t| base_ty.starts_with(t))
             || base_ty.starts_with("bytes")
-            || base_ty.starts_with("tuple");
+            || base_ty.starts_with("fixed")
+            || base_ty.starts_with("ufixed")
+            || base_ty.starts_with('(')
+            || ty_lower.starts_with('(');
 
         if !is_valid {
             return Err(AbiError::InvalidEventSignature(format!("Invalid type: {}", ty)).into());
@@ -184,7 +188,7 @@ impl EventSignature {
         Ok(())
     }
 
-    /// Build canonical signature for hashing
+    /// Build canonical signature for hashing (params are already canonical)
     fn build_canonical(name: &str, params: &[ParsedParam]) -> String {
         let param_types: Vec<&str> = params.iter().map(|p| p.ty.as_str()).collect();
         format!("{}({})", name, param_types.join(","))
@@ -211,8 +215,108 @@ impl EventSignature {
     }
 }
 
+/// Canonical ABI type for signature hashing: `uint`/`int` become
+/// `uint256`/`int256`, `byte` is `bytes1`, `fixed`/`ufixed` get their default
+/// sizes, and `tuple(..)` is written `(..)` with canonical components.
+pub fn canonical_type(ty: &str) -> String {
+    let ty: String = ty.chars().filter(|c| !c.is_whitespace()).collect();
+    let ty = ty
+        .strip_prefix("tuple")
+        .filter(|r| r.starts_with('('))
+        .unwrap_or(&ty);
+
+    // Split off array suffixes ("[]", "[3][]")
+    let (base, arrays) = if ty.starts_with('(') {
+        // Matching close paren of the tuple
+        let mut depth = 0usize;
+        let mut close = ty.len();
+        for (i, c) in ty.char_indices() {
+            match c {
+                '(' => depth += 1,
+                ')' => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        close = i + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        ty.split_at(close)
+    } else {
+        match ty.find('[') {
+            Some(i) => ty.split_at(i),
+            None => (ty, ""),
+        }
+    };
+
+    let base = if let Some(inner) = base.strip_prefix('(').and_then(|b| b.strip_suffix(')')) {
+        // Split components at depth 0
+        let mut parts = Vec::new();
+        let mut depth = 0usize;
+        let mut current = String::new();
+        for c in inner.chars() {
+            match c {
+                '(' => {
+                    depth += 1;
+                    current.push(c);
+                }
+                ')' => {
+                    depth = depth.saturating_sub(1);
+                    current.push(c);
+                }
+                ',' if depth == 0 => {
+                    parts.push(canonical_type(&current));
+                    current.clear();
+                }
+                _ => current.push(c),
+            }
+        }
+        if !current.is_empty() {
+            parts.push(canonical_type(&current));
+        }
+        format!("({})", parts.join(","))
+    } else {
+        match base {
+            "uint" => "uint256".to_string(),
+            "int" => "int256".to_string(),
+            "byte" => "bytes1".to_string(),
+            "fixed" => "fixed128x18".to_string(),
+            "ufixed" => "ufixed128x18".to_string(),
+            other => other.to_string(),
+        }
+    };
+    format!("{base}{arrays}")
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn canonical_types_for_topic0() {
+        assert_eq!(canonical_type("uint"), "uint256");
+        assert_eq!(canonical_type("int[]"), "int256[]");
+        assert_eq!(canonical_type("tuple(address,uint)"), "(address,uint256)");
+        assert_eq!(
+            canonical_type("(address,(uint,bool)[])[2]"),
+            "(address,(uint256,bool)[])[2]"
+        );
+        assert_eq!(canonical_type("bytes32"), "bytes32");
+    }
+
+    #[test]
+    fn uint_alias_and_tuple_give_the_real_topic0() {
+        let alias =
+            EventSignature::parse("Transfer(address indexed from, address indexed to, uint value)")
+                .unwrap();
+        let full = EventSignature::parse("Transfer(address,address,uint256)").unwrap();
+        assert_eq!(alias.topic, full.topic);
+        assert_eq!(alias.canonical, "Transfer(address,address,uint256)");
+        let tuple = EventSignature::parse("Set(tuple(address,uint256) indexed cfg)").unwrap();
+        assert_eq!(tuple.canonical, "Set((address,uint256))");
+    }
+
     use super::*;
 
     #[test]
