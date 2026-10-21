@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.2.0...mrls-v0.3.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **mrls:** unwrap Moralis response envelopes and send required params ([59749f5](https://github.com/yldfi/yldfi-rs/commit/59749f5800378ab25f49a240e5b400b887c156fd))
+* **mrls:** use Moralis error mapping and fix remaining response shapes ([60cfa9a](https://github.com/yldfi/yldfi-rs/commit/60cfa9af66f663f4230452e7f019bb17566dd3f0))
+* route API errors through yldfi-common and redact API keys ([f5595c5](https://github.com/yldfi/yldfi-rs/commit/f5595c5dc4a6a2d496e6a3565c4d6eb20d6a5232))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.1.10...mrls-v0.2.0) (2026-09-25)
 
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/ykong-v0.1.5...ykong-v0.1.6) (2026-10-21)
+
+
+### Bug Fixes
+
+* handle dated upstream API changes (Etherscan, DefiLlama, Chainlink, Kong, CoW) ([b713e16](https://github.com/yldfi/yldfi-rs/commit/b713e1618c9a9ca3cd0d5d79cec0149c08498006))
+* **ykong:** pass GraphQL arguments as variables ([6240247](https://github.com/yldfi/yldfi-rs/commit/6240247a8c467e6f35598ce5106299150bc8fd5f))
+* **ykong:** require a chain for vault strategies, keep 5xx retryable ([8e23c79](https://github.com/yldfi/yldfi-rs/commit/8e23c799e87d607eaada928895a4b63141870bdb))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/ykong-v0.1.4...ykong-v0.1.5) (2026-09-25)
 
 

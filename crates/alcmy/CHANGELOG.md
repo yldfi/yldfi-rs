@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.2.0...alcmy-v0.3.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **alcmy:** match Gas Manager, Solana DAS, Signer, portfolio and trace shapes ([756bb2c](https://github.com/yldfi/yldfi-rs/commit/756bb2cbb6dad59a16b74e7e869ed67c08842ae8))
+* **alcmy:** match Notify, NFT and debug shapes; strip URLs from errors ([6714db9](https://github.com/yldfi/yldfi-rs/commit/6714db97ae98c2e9a274f75edf80c5d60da332fc))
+* route API errors through yldfi-common and redact API keys ([f5595c5](https://github.com/yldfi/yldfi-rs/commit/f5595c5dc4a6a2d496e6a3565c4d6eb20d6a5232))
+* smaller upstream API changes (0x, 1inch, Moralis, CoinGecko, Alchemy, LI.FI, KyberSwap) ([964be4c](https://github.com/yldfi/yldfi-rs/commit/964be4c1ba63778f9aac630b509886e0349123e7))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.1.6...alcmy-v0.2.0) (2026-09-25)
 
 

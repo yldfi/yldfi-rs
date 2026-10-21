@@ -1,5 +1,149 @@
 # Changelog
 
+## [0.24.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.6...ethcli-v0.24.0) (2026-10-21)
+
+
+### Features
+
+* **ethcli:** dune query execute --params ([29dbef4](https://github.com/yldfi/yldfi-rs/commit/29dbef47acc42ee45b8cf957511b4791c6ab4868))
+* **ethcli:** ENS wildcard resolution and CCIP-read ([22131b9](https://github.com/yldfi/yldfi-rs/commit/22131b90feeeeec801c43d4deda84ac6eb0a2173))
+
+
+### Bug Fixes
+
+* **alcmy:** match Gas Manager, Solana DAS, Signer, portfolio and trace shapes ([756bb2c](https://github.com/yldfi/yldfi-rs/commit/756bb2cbb6dad59a16b74e7e869ed67c08842ae8))
+* **alcmy:** match Notify, NFT and debug shapes; strip URLs from errors ([6714db9](https://github.com/yldfi/yldfi-rs/commit/6714db97ae98c2e9a274f75edf80c5d60da332fc))
+* **cowp:** accept bare-string order UID and page owner orders ([01159f4](https://github.com/yldfi/yldfi-rs/commit/01159f40fde07768c81bfcff6a876768142e36d0))
+* **cowp:** onchainOrder, optional quote from, ethsign ([8aace42](https://github.com/yldfi/yldfi-rs/commit/8aace425eaac6848d31df35cf5facbc81ce8e3d9))
+* **dnapi:** pipeline and query-list types, results options, cancel on timeout ([ef2d682](https://github.com/yldfi/yldfi-rs/commit/ef2d6821f9c15450f5c10486c94f929d80ddd71e))
+* **dnapi:** send sql, insert CSV/NDJSON, handle partial results ([38720cb](https://github.com/yldfi/yldfi-rs/commit/38720cb32d236205327abea489dcfbe24f117934))
+* **ethcli-mcp:** annotate tools, redact errors, fix tool argv gaps ([89afed5](https://github.com/yldfi/yldfi-rs/commit/89afed500a4e0ebe2541a25dd911aaeb4425dc1e))
+* **ethcli-mcp:** close subprocess stdin, block flag injection, gate side effects ([84a3c34](https://github.com/yldfi/yldfi-rs/commit/84a3c344cdb61ad5091f89a9aa867e33886f1e27))
+* **ethcli:** 1inch --fee is a percent (0-3), not basis points ([4d5a894](https://github.com/yldfi/yldfi-rs/commit/4d5a89485ce69d879772f40791137ee1a6bc1bef))
+* **ethcli:** abort self-update when the listed checksum can't be fetched ([3033883](https://github.com/yldfi/yldfi-rs/commit/30338830d69ab14cfad481f8fd3839daf12f4cf9))
+* **ethcli:** accept decimal block numbers in alchemy debug commands ([c0c478d](https://github.com/yldfi/yldfi-rs/commit/c0c478dce9dab877b21a76a35700fea4ec48c6e6))
+* **ethcli:** accept ENS names and labels in all account commands ([5a5b5f2](https://github.com/yldfi/yldfi-rs/commit/5a5b5f2c0d3fe0d943a9c138b0bf17fae6612bc6))
+* **ethcli:** accept only global-unicast IPv6 for CCIP gateways ([52f1a81](https://github.com/yldfi/yldfi-rs/commit/52f1a81bedfd6eb9b20b0a6e6a280bd93dda8e3a))
+* **ethcli:** accept the documented quote source names ([c27a464](https://github.com/yldfi/yldfi-rs/commit/c27a4642091e1a0ca3e2c150508c4fd27ea4c201))
+* **ethcli:** alchemy commands use [alchemy] default_network ([67e73de](https://github.com/yldfi/yldfi-rs/commit/67e73de5396a936a7ade747aee46adac859fc383))
+* **ethcli:** Alchemy portfolio rows get real metadata and chain names ([04a79f0](https://github.com/yldfi/yldfi-rs/commit/04a79f0f0748406000a01954dc33cd7bc09f8fc6))
+* **ethcli:** alerts update keeps the target; --with-metadata can be false ([661676f](https://github.com/yldfi/yldfi-rs/commit/661676f1f58827c65ccde98d5744a8f4d9d04d8f))
+* **ethcli:** blacklist scan rejects an unknown chain instead of using mainnet ([e028e1a](https://github.com/yldfi/yldfi-rs/commit/e028e1a4ccbcacc8574b152430b885675bbba323))
+* **ethcli:** bound string lengths decoded from multicall results ([38b9272](https://github.com/yldfi/yldfi-rs/commit/38b927218b325421ddba3b6138fd36c74c79adca))
+* **ethcli:** bytecode security scan resumes after INVALID at the next JUMPDEST ([8df0d2a](https://github.com/yldfi/yldfi-rs/commit/8df0d2a67d26780af4297e48d154d7eb9cd49612))
+* **ethcli:** bytes32 isn't a complex arg; say --skip-validation does nothing ([2983d1a](https://github.com/yldfi/yldfi-rs/commit/2983d1a7f5b7079f20bee2d9afdcbbee1ebc37c3))
+* **ethcli:** canonicalise signatures in cast sig and cast topic ([5adea58](https://github.com/yldfi/yldfi-rs/commit/5adea58815d4933e314e7ffdbcfaea79357db5fe))
+* **ethcli:** ccxt compare queries exchanges in parallel and reports failures ([28e59a7](https://github.com/yldfi/yldfi-rs/commit/28e59a72a8c5bd714f3a33a14adcd8036ae55ea3))
+* **ethcli:** ccxt tickers reports failures; account erc20 shows token units ([86287fb](https://github.com/yldfi/yldfi-rs/commit/86287fb602b1b97ad5e3cd2b0e5a423b1b72db48))
+* **ethcli:** Chainlink quote handling, L2-only symbols and NoFeed exit ([42e50c2](https://github.com/yldfi/yldfi-rs/commit/42e50c257a4665d932e781f218a1b694a645af7d))
+* **ethcli:** CoinGecko and DefiLlama platform ids for more chains ([06c3e49](https://github.com/yldfi/yldfi-rs/commit/06c3e49d3f135c26f9aa9a4594861ed5f562bd65))
+* **ethcli:** compute best_source; read the Curve LP OHLC close by name ([a3f7c0a](https://github.com/yldfi/yldfi-rs/commit/a3f7c0a082601a8aa06d3cce5af90930a78caa95))
+* **ethcli:** coordinate config writes on a stable lock file ([f509e65](https://github.com/yldfi/yldfi-rs/commit/f509e652a42c33c952513680f95919b20750a4af))
+* **ethcli:** correct topic0 and indexed params for ABI-resolved events ([90e6a9f](https://github.com/yldfi/yldfi-rs/commit/90e6a9fe170adc0197c60dd63dfcbaca6f44f7e4))
+* **ethcli:** correct tx topic0 constants and a malformed Convex address ([cc71cb5](https://github.com/yldfi/yldfi-rs/commit/cc71cb517811565b36b6780da3d15301bef219f7))
+* **ethcli:** CSV escapes only text; SQLite adds columns to reused tables ([69a4e4c](https://github.com/yldfi/yldfi-rs/commit/69a4e4c08e6144e0fee1ade5f823e63beed81b76))
+* **ethcli:** decode logs matched by topic-hash -e filters ([612172e](https://github.com/yldfi/yldfi-rs/commit/612172ed768cef278dfe4976faac3927daebe773))
+* **ethcli:** delete every page of VNets with tenderly vnets delete --all ([d1cbb57](https://github.com/yldfi/yldfi-rs/commit/d1cbb5700077c4e26c514b21d82a838e13f5fad4))
+* **ethcli:** don't overwrite an unparsable config in chainlist add ([786e117](https://github.com/yldfi/yldfi-rs/commit/786e117c85c413a05428a4782ee0518a910a770f))
+* **ethcli:** don't panic on malformed trace calldata; drop dead cache.rs ([35e8791](https://github.com/yldfi/yldfi-rs/commit/35e87917ad01dc570f967c38fb98fee49d9ad17f))
+* **ethcli:** don't report a 10,000-block range limit that was never found ([e3ad364](https://github.com/yldfi/yldfi-rs/commit/e3ad364b538a46108332bf436cc399a383d30311))
+* **ethcli:** don't require Etherscan for RPC-only gas and contract work ([c46627f](https://github.com/yldfi/yldfi-rs/commit/c46627fa25765e7498fbc238f6c6cb57eb564299))
+* **ethcli:** endpoints health probes concurrently and never substitutes localhost ([545d323](https://github.com/yldfi/yldfi-rs/commit/545d3237c05e33f991dd7d02444e84d31385dc84))
+* **ethcli:** endpoints optimize keeps user settings and reports mismatches ([82f7dbf](https://github.com/yldfi/yldfi-rs/commit/82f7dbfd688e70ba2fc20c233fb4ab476a9f89ad))
+* **ethcli:** ERC-721 transfers and canonical event signatures in tx analysis ([9c3ab9f](https://github.com/yldfi/yldfi-rs/commit/9c3ab9f9b7ab4fc22d90366d35506415e32085b7))
+* **ethcli:** fail over between endpoints for ENS commands ([a5f0dde](https://github.com/yldfi/yldfi-rs/commit/a5f0ddef50b6d24acf562e4198ba8d470c3635b3))
+* **ethcli:** give the KongVault price source a nested budget that fits ([d158953](https://github.com/yldfi/yldfi-rs/commit/d15895332d16631245d48b4bee90a10946622eea))
+* **ethcli:** honour [proxy] enabled for RPC and refuse unsupported proxy modes ([3c2d0b4](https://github.com/yldfi/yldfi-rs/commit/3c2d0b49b27b42d732b49ce22ecaa810349f288c))
+* **ethcli:** keep earlier results when resuming logs into a file ([1b4bdac](https://github.com/yldfi/yldfi-rs/commit/1b4bdac2871e01fba2fa05b576753b0b54269210))
+* **ethcli:** keep logs checkpoints in step with the output ([c472329](https://github.com/yldfi/yldfi-rs/commit/c472329a3712bde5659f4418137a925082a3e971))
+* **ethcli:** keep signature cache clears when saves merge with disk ([75e1959](https://github.com/yldfi/yldfi-rs/commit/75e1959621f45686831d479be9a35bc096c2c182))
+* **ethcli:** kyberswap build checks its args; velora --side; owner ellipsis ([3e54827](https://github.com/yldfi/yldfi-rs/commit/3e54827e307999c4e07ff01bfaba48aa99c18aa5))
+* **ethcli:** let log fetching react to typed RPC errors ([ffe79f7](https://github.com/yldfi/yldfi-rs/commit/ffe79f75dd7cca9e20a64261a3d7c1ec8db540a7))
+* **ethcli:** mask SOCKS proxy credentials in config show ([1adc472](https://github.com/yldfi/yldfi-rs/commit/1adc4722e4a1f75191b1453d5c9c0e3d7ebe6afa))
+* **ethcli:** match Yearn multicall results to the vaults queried ([2573e40](https://github.com/yldfi/yldfi-rs/commit/2573e40aa5058565cc0fdf2be6728a7a3fed2539))
+* **ethcli:** name Cancun opcodes and keep disassembler output off stdout ([8c1dccf](https://github.com/yldfi/yldfi-rs/commit/8c1dccfac3c59ad48430e5e1ab52ef29ecd8983f))
+* **ethcli:** never overwrite an unparsable address book or blacklist ([ec79be1](https://github.com/yldfi/yldfi-rs/commit/ec79be133a3e3ac997a1cbdf86a8e7a3fcc2172b))
+* **ethcli:** normalise blacklist keys ([c6903bf](https://github.com/yldfi/yldfi-rs/commit/c6903bf8b4fe8a27b86697edc3693799aba88522))
+* **ethcli:** one value/block parser for simulate; keep RPC URLs off argv ([8492f22](https://github.com/yldfi/yldfi-rs/commit/8492f22a58b8fb53d98e9fc9dcca2ff480a6f9f3))
+* **ethcli:** only show normalised, displayable ENS reverse names ([10cdf92](https://github.com/yldfi/yldfi-rs/commit/10cdf9269587511fb2375c4772e7311aac0ac698))
+* **ethcli:** page through Alchemy/Moralis NFTs and fetch chains concurrently ([377ee46](https://github.com/yldfi/yldfi-rs/commit/377ee460501b4a4d2662e6d0d5a5a6c56e1b9276))
+* **ethcli:** parallel Chainlink registry reads; keep Data Streams error bodies ([6c23a41](https://github.com/yldfi/yldfi-rs/commit/6c23a412e4acffc68de02d8361c8948813c5dc3a))
+* **ethcli:** parse eth/gwei amounts exactly and reject negative to-wei ([711a88d](https://github.com/yldfi/yldfi-rs/commit/711a88d5a24be54515af9f2f14e2d4e71a609270))
+* **ethcli:** proxy handling in contract call and analyze --follow-proxy ([57e206d](https://github.com/yldfi/yldfi-rs/commit/57e206d85762f4e11cd2bce19de7bc7ce00af238))
+* **ethcli:** quote exits non-zero on failure and parses amounts strictly ([469a3a8](https://github.com/yldfi/yldfi-rs/commit/469a3a833bb9ab7cceea18dc0b348f09ad42f803))
+* **ethcli:** redact The Graph API key from all uniswap subgraph errors ([12893e0](https://github.com/yldfi/yldfi-rs/commit/12893e00986248255b408a2b9aa89a93dffa3c82))
+* **ethcli:** redact The Graph API key from uniswap subgraph errors ([6f3e8bb](https://github.com/yldfi/yldfi-rs/commit/6f3e8bb1047ec80626f9831d930b5d9df86bce7f))
+* **ethcli:** redact the token after an Authorization scheme ([68a2755](https://github.com/yldfi/yldfi-rs/commit/68a2755187bdbcda3dd15c89aa879ea854524d5e))
+* **ethcli:** redact the whole Authorization/x-api-key header value ([f33bc1f](https://github.com/yldfi/yldfi-rs/commit/f33bc1f22c3967b1e85db88057890fb477557633))
+* **ethcli:** redact URLs and bare secrets in sanitized error messages ([6f760a8](https://github.com/yldfi/yldfi-rs/commit/6f760a85ab693bd9b480c92f9d5670c41bc78828))
+* **ethcli:** report price spread over all sources; fix Pyth confidence ([390fe63](https://github.com/yldfi/yldfi-rs/commit/390fe63f485894fa5c2d14d1ff55856c56056634))
+* **ethcli:** report RPC errors instead of 'not found' during outages ([210ab77](https://github.com/yldfi/yldfi-rs/commit/210ab779f5c02fed5b20ec4a0f32cab6f3062fd3))
+* **ethcli:** report Yearn portfolio failures per chain ([35a58a8](https://github.com/yldfi/yldfi-rs/commit/35a58a809e5cf9c830e923a33eeeef1868be87ff))
+* **ethcli:** resolve price symbols on the requested chain ([e4d319b](https://github.com/yldfi/yldfi-rs/commit/e4d319b2c9104f2ee9580a0172ced23a9df4b373))
+* **ethcli:** restrict CCIP-read gateway requests ([14cda09](https://github.com/yldfi/yldfi-rs/commit/14cda09115ad32825cd0dd923f80097361611207))
+* **ethcli:** rpc prefers archive endpoints for old blocks; not found fails ([9ad9fed](https://github.com/yldfi/yldfi-rs/commit/9ad9fed5f6cf657f9adb56817874ecee45608359))
+* **ethcli:** sanitise on-chain token symbols in the Alchemy portfolio ([0e70b56](https://github.com/yldfi/yldfi-rs/commit/0e70b5666031791e5c93e5eef47188c70a277505))
+* **ethcli:** scale contract call --human output only for amount getters ([537368d](https://github.com/yldfi/yldfi-rs/commit/537368d714aa2e906c63fee82fd4a6fc5395c074))
+* **ethcli:** scan the whole bytecode in security analysis ([9f653d6](https://github.com/yldfi/yldfi-rs/commit/9f653d6e7f1bdc2c353a2f2d2d9faa452a7f74c4))
+* **ethcli:** send simulate overrides the way each backend expects ([2e6dca1](https://github.com/yldfi/yldfi-rs/commit/2e6dca15ddf1ab28595639bba81ff42cd7d54c35))
+* **ethcli:** send the Etherscan key only to Etherscan API hosts ([cde9ffa](https://github.com/yldfi/yldfi-rs/commit/cde9ffacfcf81b72a2ec437ae779ef0b60b80e70))
+* **ethcli:** signature cache reads hits, negative-caches only real misses ([1326738](https://github.com/yldfi/yldfi-rs/commit/132673801dfb595c99cada9a869cb81da63fb9c3))
+* **ethcli:** simulate honours --chain and forwards gas settings ([57c38f6](https://github.com/yldfi/yldfi-rs/commit/57c38f67fc4a45bde64082f3df197e86de7e391b))
+* **ethcli:** smart endpoint selection and stale Chainlink answers ([c507dc8](https://github.com/yldfi/yldfi-rs/commit/c507dc80f6d4e47dd18c9068aa512b4af90040f3))
+* **ethcli:** stop capping account history at block 99,999,999 ([a6f5c17](https://github.com/yldfi/yldfi-rs/commit/a6f5c1762709218d046d7a2b4f57af4f533fafef))
+* **ethcli:** token metadata cache expires, skips misses, keys by chain id ([658d0ff](https://github.com/yldfi/yldfi-rs/commit/658d0ffc42410c278b4062837a135dbacd3db887))
+* **ethcli:** truncate yields/blacklist text by characters, not bytes ([7043400](https://github.com/yldfi/yldfi-rs/commit/704340071555f0b37e0df1f43f83b1677aade19b))
+* **ethcli:** tx fails when nothing was analyzed; reject --batch-size 0 ([1908fd4](https://github.com/yldfi/yldfi-rs/commit/1908fd4a4d914d3a5fa07b6da3899a806791b1e4))
+* **ethcli:** uniswap subgraph commands honour the chain and report failures ([e828f39](https://github.com/yldfi/yldfi-rs/commit/e828f39927fd83f3bc4cc36b2f5e41362b4443cf))
+* **ethcli:** validate address imports; point key hints at real config ([53e4e5a](https://github.com/yldfi/yldfi-rs/commit/53e4e5af9eca9b78596cb7df5768e28e812c5bb4))
+* **ethcli:** verify ENS reverse records and normalise names ([2a14159](https://github.com/yldfi/yldfi-rs/commit/2a1415977f94ffdd606c42a678f5e3d2b89dfd17))
+* **ethcli:** whitelist blacklist-scan protocols by address, not name ([d7da2e8](https://github.com/yldfi/yldfi-rs/commit/d7da2e847b9abb5af7ba6fe8f91a4df7900f1a7e))
+* **ethcli:** wrap native xDAI as WXDAI for CoW quotes on Gnosis ([41242d4](https://github.com/yldfi/yldfi-rs/commit/41242d499ad00ffa7d120999a91a5175b96f4ac8))
+* **ethcli:** yields project prefilter, Yearn chains and partial Uniswap ([cc18cfd](https://github.com/yldfi/yldfi-rs/commit/cc18cfdfe2294d19703ffb6373085589dee8108b))
+* handle dated upstream API changes (Etherscan, DefiLlama, Chainlink, Kong, CoW) ([b713e16](https://github.com/yldfi/yldfi-rs/commit/b713e1618c9a9ca3cd0d5d79cec0149c08498006))
+* **kybr:** drop route fields v1 doesn't return ([b2d40b8](https://github.com/yldfi/yldfi-rs/commit/b2d40b8a33cba4734b2fc561055f52def63be272))
+* **lfi:** fee is a fraction; status, connections and error fixes ([d967bb0](https://github.com/yldfi/yldfi-rs/commit/d967bb06363dd874b7b2501090fb8e1bbf891c59))
+* **lfi:** use /v1/gas/prices/{chainId} ([23a2dec](https://github.com/yldfi/yldfi-rs/commit/23a2decc686a6304ddb9d3b5359dfed1ab2b2f8d))
+* **mrls:** unwrap Moralis response envelopes and send required params ([59749f5](https://github.com/yldfi/yldfi-rs/commit/59749f5800378ab25f49a240e5b400b887c156fd))
+* **mrls:** use Moralis error mapping and fix remaining response shapes ([60cfa9a](https://github.com/yldfi/yldfi-rs/commit/60cfa9af66f663f4230452e7f019bb17566dd3f0))
+* smaller upstream API changes (0x, 1inch, Moralis, CoinGecko, Alchemy, LI.FI, KyberSwap) ([964be4c](https://github.com/yldfi/yldfi-rs/commit/964be4c1ba63778f9aac630b509886e0349123e7))
+* **tndrly:** remodel actions, alerts, contracts and channels from the spec ([4929be9](https://github.com/yldfi/yldfi-rs/commit/4929be9cb52495937c3f5d05e2cc8ac88698ecba))
+* **tndrly:** vnet callArgs, alert update merge, nested transaction_info ([c07bb48](https://github.com/yldfi/yldfi-rs/commit/c07bb484bde6314b47a0a23ca5180e870f90b414))
+* **ykong:** require a chain for vault strategies, keep 5xx retryable ([8e23c79](https://github.com/yldfi/yldfi-rs/commit/8e23c799e87d607eaada928895a4b63141870bdb))
+* **yldfi-common:** case-insensitive redaction, keep tx hashes, POL ([eace5ed](https://github.com/yldfi/yldfi-rs/commit/eace5ed073a90425b2be0f7ab3d9d5f63cccffdf))
+
+
+### Performance Improvements
+
+* **ethcli:** answer single signature lookups from the cache ([888feca](https://github.com/yldfi/yldfi-rs/commit/888feca2a1b0d6d10c652dfc5e7915b91dabab39))
+* **ethcli:** look up 4byte signatures concurrently for --lookup ([a98161c](https://github.com/yldfi/yldfi-rs/commit/a98161c5afac5a7a66f5380523c5b758913c6e48))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * alcmy bumped from 0.2 to 0.3.0
+    * cgko bumped from 0.1 to 0.2.0
+    * dllma bumped from 0.1 to 0.2.0
+    * mrls bumped from 0.2 to 0.3.0
+    * dnapi bumped from 0.2 to 0.3.0
+    * crv bumped from 0.1 to 0.2.0
+    * pythc bumped from 0.2 to 0.2.1
+    * tndrly bumped from 0.4 to 0.5.0
+    * yldfi-common bumped from 0.1 to 0.1.6
+    * openoc bumped from 0.1 to 0.2.0
+    * cowp bumped from 0.1 to 0.2.0
+    * kybr bumped from 0.1 to 0.2.0
+    * zrxswap bumped from 0.1 to 0.2.0
+    * oinch bumped from 0.1 to 0.2.0
+    * lfi bumped from 0.1 to 0.2.0
+    * vlra bumped from 0.1 to 0.2.0
+    * ensof bumped from 0.1 to 0.2.0
+    * unswp bumped from 0.1 to 0.1.7
+    * ykong bumped from 0.1 to 0.1.6
+    * gplus bumped from 0.1 to 0.2.0
+
 ## [0.23.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.5...ethcli-v0.23.6) (2026-10-20)
 
 

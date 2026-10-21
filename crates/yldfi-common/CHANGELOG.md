@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/yldfi-common-v0.1.5...yldfi-common-v0.1.6) (2026-10-21)
+
+
+### Features
+
+* **yldfi-common:** add Sonic, Berachain, Unichain, Ronin, HyperEVM and other mainnets ([7faad82](https://github.com/yldfi/yldfi-rs/commit/7faad82752a9a8e04794cb9c1c41dbc60eef2126))
+
+
+### Bug Fixes
+
+* **yldfi-common:** case-insensitive redaction, keep tx hashes, POL ([eace5ed](https://github.com/yldfi/yldfi-rs/commit/eace5ed073a90425b2be0f7ab3d9d5f63cccffdf))
+* **yldfi-common:** stop sanitize_error_body panicking on multi-byte UTF-8 ([bffb281](https://github.com/yldfi/yldfi-rs/commit/bffb28184cb4ac77c98d984723ec364bf64cbbe5))
+
 ## [0.1.5](https://github.com/yldfi/yldfi-rs/compare/yldfi-common-v0.1.4...yldfi-common-v0.1.5) (2026-02-02)
 
 

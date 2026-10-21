@@ -1,6 +1,6 @@
 [package]
 name = "tndrly"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 description = "Unofficial Rust client for the Tenderly API - simulations, virtual testnets, alerts, and more"
 license = "MIT"
@@ -31,7 +31,7 @@ thiserror = "2"
 url = "2"
 secrecy = "0.10"
 percent-encoding = "2"
-yldfi-common = { version = "0.1", path = "../yldfi-common" }
+yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/dnapi-v0.2.0...dnapi-v0.3.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **dnapi:** pipeline and query-list types, results options, cancel on timeout ([ef2d682](https://github.com/yldfi/yldfi-rs/commit/ef2d6821f9c15450f5c10486c94f929d80ddd71e))
+* **dnapi:** send sql, insert CSV/NDJSON, handle partial results ([38720cb](https://github.com/yldfi/yldfi-rs/commit/38720cb32d236205327abea489dcfbe24f117934))
+* route API errors through yldfi-common and redact API keys ([f5595c5](https://github.com/yldfi/yldfi-rs/commit/f5595c5dc4a6a2d496e6a3565c4d6eb20d6a5232))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1 to 0.1.6
+
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/dnapi-v0.1.3...dnapi-v0.2.0) (2026-09-25)
 
 

@@ -1,6 +1,6 @@
 [package]
 name = "dnapi"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Unofficial Rust client for the Dune Analytics API (dnapi)"
 license = "MIT"
@@ -16,7 +16,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["time"] }
-yldfi-common = { version = "0.1", path = "../yldfi-common" }
+yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
 
 [dev-dependencies]
 http = "1"

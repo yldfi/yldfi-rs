@@ -1,6 +1,6 @@
 [package]
 name = "gplus"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 description = "Unofficial Rust client for the GoPlus Security API"
 license = "MIT"
@@ -19,7 +19,7 @@ sha1 = "0.11"
 hex = "0.4"
 secrecy = { workspace = true }
 tokio = { version = "1", features = ["sync"] }
-yldfi-common = { version = "0.1", path = "../yldfi-common" }
+yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
