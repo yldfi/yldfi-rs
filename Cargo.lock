@@ -2418,6 +2418,7 @@ dependencies = [
  "rand 0.10.3",
  "regex",
  "reqwest 0.12.28",
+ "reqwest 0.13.3",
  "rusqlite",
  "secrecy",
  "semver 1.0.28",

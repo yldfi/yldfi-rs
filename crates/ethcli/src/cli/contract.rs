@@ -8,7 +8,7 @@ use crate::bytecode::{
     infer_dispatcher, opcode_stats, BytecodeAnalysis, RiskLevel, MAX_BYTECODE_SIZE,
 };
 use crate::config::{Chain, ConfigFile, EndpointConfig};
-use crate::etherscan::{Client, SignatureCache};
+use crate::etherscan::Client;
 use crate::rpc::Endpoint;
 use crate::utils::format::with_thousands_sep;
 use alloy::dyn_abi::{DynSolType, DynSolValue, FunctionExt, JsonAbiExt};
@@ -17,7 +17,6 @@ use alloy::providers::Provider;
 use clap::Subcommand;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::OnceLock;
 
 /// Get EIP-1967 implementation slot (parsed once)
@@ -614,35 +613,25 @@ pub async fn handle(
 
     match action {
         ContractCommands::Abi { address, output } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
-
-            let cache = Arc::new(SignatureCache::new());
-            let chain_id = chain.chain_id();
+            Address::from_str(address).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
             // Check cache first
-            let json = if let Some((cached_abi, _)) = cache.get_abi(chain_id, address) {
+            let abi = if let Some(abi) = client.cached_abi(address) {
                 if !quiet {
                     eprintln!("Using cached ABI for {}...", address);
                 }
-                cached_abi
+                abi
             } else {
                 if !quiet {
                     eprintln!("Fetching ABI for {}...", address);
                 }
 
-                let abi = client
-                    .contract_abi(addr)
+                client
+                    .fetch_abi(address)
                     .await
-                    .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?;
-
-                let json = serde_json::to_string_pretty(&abi)?;
-
-                // Cache the ABI
-                cache.set_abi(chain_id, address, &json, None);
-
-                json
+                    .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?
             };
+            let json = serde_json::to_string_pretty(&abi)?;
 
             if let Some(path) = output {
                 std::fs::write(path, &json)?;
@@ -655,15 +644,14 @@ pub async fn handle(
         }
 
         ContractCommands::Source { address, output } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            Address::from_str(address).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
             if !quiet {
                 eprintln!("Fetching source code for {}...", address);
             }
 
             let metadata = client
-                .contract_source_code(addr)
+                .source_code(address)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to fetch source: {}", e))?;
 
@@ -769,15 +757,14 @@ pub async fn handle(
         }
 
         ContractCommands::Creation { address, format } => {
-            let addr = Address::from_str(address)
-                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            Address::from_str(address).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
             if !quiet {
                 eprintln!("Fetching creation info for {}...", address);
             }
 
             let creation = client
-                .contract_creation_data(addr)
+                .creation_data(address)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to fetch creation data: {}", e))?;
 
@@ -854,13 +841,14 @@ pub async fn handle(
                 };
 
             // Fetch ABI (from implementation address if proxy)
-            let abi = client
-                .contract_abi(abi_address)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?;
-
-            // contract_abi returns JsonAbi directly
-            let json_abi = abi;
+            let abi_address = format!("{:#x}", abi_address);
+            let json_abi = match client.cached_abi(&abi_address) {
+                Some(abi) => abi,
+                None => client
+                    .fetch_abi(&abi_address)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?,
+            };
 
             let query = parse_function_query(function)?;
 
