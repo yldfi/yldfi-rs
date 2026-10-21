@@ -10,6 +10,7 @@ use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::time::Duration;
+use yldfi_common::api::SecretApiKey;
 use yldfi_common::http::HttpClientConfig;
 
 const DEFAULT_BASE_URL: &str = "https://li.quest/v1";
@@ -28,6 +29,9 @@ pub struct Config {
     /// Default integrator fee as a decimal fraction (`0.003` = 0.3%; LI.FI
     /// requires a value below 1)
     pub fee: Option<f64>,
+    /// Optional API key, sent as `x-lifi-api-key`. Without one, LI.FI rate
+    /// limits by IP. Keep it server-side.
+    pub api_key: Option<SecretApiKey>,
 }
 
 impl Default for Config {
@@ -38,6 +42,7 @@ impl Default for Config {
             integrator: None,
             referrer: None,
             fee: None,
+            api_key: None,
         }
     }
 }
@@ -53,6 +58,20 @@ impl Config {
     #[must_use]
     pub fn with_integrator(mut self, integrator: impl Into<String>) -> Self {
         self.integrator = Some(integrator.into());
+        self
+    }
+
+    /// Set the API key (sent as the `x-lifi-api-key` header)
+    #[must_use]
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.api_key = Some(SecretApiKey::new(api_key));
+        self
+    }
+
+    /// Set the API key if one is given
+    #[must_use]
+    pub fn with_optional_api_key(mut self, api_key: Option<String>) -> Self {
+        self.api_key = api_key.map(SecretApiKey::new);
         self
     }
 
@@ -118,6 +137,7 @@ pub struct Client {
     integrator: Option<String>,
     referrer: Option<String>,
     fee: Option<f64>,
+    api_key: Option<SecretApiKey>,
 }
 
 impl Client {
@@ -144,7 +164,16 @@ impl Client {
             integrator: config.integrator,
             referrer: config.referrer,
             fee: config.fee,
+            api_key: config.api_key,
         })
+    }
+
+    /// Attach the API key header, if configured
+    fn authed(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        match &self.api_key {
+            Some(key) => req.header("x-lifi-api-key", key.expose()),
+            None => req,
+        }
     }
 
     /// Get the integrator identifier
@@ -156,7 +185,7 @@ impl Client {
     /// Make a GET request to the API
     async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
-        let response = self.http.get(&url).send().await?;
+        let response = self.authed(self.http.get(&url)).send().await?;
 
         self.handle_response(response).await
     }
@@ -168,7 +197,7 @@ impl Client {
         query: &Q,
     ) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
-        let response = self.http.get(&url).query(query).send().await?;
+        let response = self.authed(self.http.get(&url).query(query)).send().await?;
 
         self.handle_response(response).await
     }
@@ -176,7 +205,7 @@ impl Client {
     /// Make a POST request to the API
     async fn post<T: DeserializeOwned, B: Serialize>(&self, path: &str, body: &B) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self.authed(self.http.post(&url).json(body)).send().await?;
 
         self.handle_response(response).await
     }

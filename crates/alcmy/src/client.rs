@@ -13,7 +13,11 @@ pub enum Network {
     // Ethereum
     EthMainnet,
     EthSepolia,
+    /// Holesky testnet, retired by Ethereum in 2025; use [`Network::EthHoodi`]
+    #[deprecated(since = "0.1.5", note = "Holesky is retired; use Network::EthHoodi")]
     EthHolesky,
+    /// Hoodi testnet (Holesky's replacement)
+    EthHoodi,
     // Polygon
     PolygonMainnet,
     PolygonAmoy,
@@ -55,7 +59,9 @@ impl Network {
             // Ethereum
             Network::EthMainnet => "eth-mainnet",
             Network::EthSepolia => "eth-sepolia",
+            #[allow(deprecated)]
             Network::EthHolesky => "eth-holesky",
+            Network::EthHoodi => "eth-hoodi",
             // Polygon
             Network::PolygonMainnet => "polygon-mainnet",
             Network::PolygonAmoy => "polygon-amoy",
@@ -115,7 +121,9 @@ impl Network {
             Network::Gnosis => "gnosis-mainnet",
             // Testnets
             Network::EthSepolia => "eth-sepolia",
+            #[allow(deprecated)]
             Network::EthHolesky => "eth-holesky",
+            Network::EthHoodi => "eth-hoodi",
             Network::PolygonAmoy => "polygon-amoy",
             Network::ArbitrumSepolia => "arb-sepolia",
             Network::OptSepolia => "opt-sepolia",

@@ -564,6 +564,10 @@ async fn fetch_nfts_moralis(address: &str, chains: &[&str]) -> anyhow::Result<Ve
     let mut outcome = ChainOutcome::default();
 
     for chain in chains {
+        if let Some(reason) = super::chain_map::moralis_dropped_chain(chain) {
+            outcome.fail(format!("{chain}: {reason}"));
+            continue;
+        }
         let network = normalize_chain_for_source("moralis", chain);
         let query = mrls::nft::NftQuery::new().chain(&network);
 

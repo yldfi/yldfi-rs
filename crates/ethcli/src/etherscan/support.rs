@@ -7,6 +7,8 @@
 //!
 //! Source: <https://docs.etherscan.io/changelog>
 
+use chrono::{NaiveDate, Utc};
+
 use crate::error::AbiError;
 
 /// A chain whose Etherscan API support has ended.
@@ -57,14 +59,59 @@ pub const ETHERSCAN_SUNSET_CHAINS: &[EtherscanSunset] = &[
         name: "Moonbase Alpha",
         effective: "2026-07-31",
     },
+    EtherscanSunset {
+        chain_id: 204,
+        name: "opBNB",
+        effective: "2026-10-12",
+    },
+    EtherscanSunset {
+        chain_id: 5611,
+        name: "opBNB Testnet",
+        effective: "2026-10-12",
+    },
+    EtherscanSunset {
+        chain_id: 33_139,
+        name: "ApeChain",
+        effective: "2026-10-31",
+    },
+    EtherscanSunset {
+        chain_id: 33_111,
+        name: "ApeChain Curtis",
+        effective: "2026-10-31",
+    },
+    EtherscanSunset {
+        chain_id: 81_457,
+        name: "Blast",
+        effective: "2026-10-31",
+    },
+    EtherscanSunset {
+        chain_id: 168_587_773,
+        name: "Blast Sepolia",
+        effective: "2026-10-31",
+    },
 ];
+
+impl EtherscanSunset {
+    /// Whether the sunset has taken effect on `today`.
+    pub fn is_effective(&self, today: NaiveDate) -> bool {
+        // Entries are compile-time constants covered by a test, so a parse
+        // failure can only mean a typo; treat it as already effective.
+        NaiveDate::parse_from_str(self.effective, "%Y-%m-%d").map_or(true, |d| today >= d)
+    }
+}
 
 /// Return the sunset entry for `chain_id` if the Etherscan API no longer
 /// supports it.
 pub fn etherscan_sunset(chain_id: u64) -> Option<&'static EtherscanSunset> {
+    etherscan_sunset_on(chain_id, Utc::now().date_naive())
+}
+
+/// Like [`etherscan_sunset`], evaluated for a given (UTC) date. Announced
+/// sunsets with a future date are ignored until that date.
+pub fn etherscan_sunset_on(chain_id: u64, today: NaiveDate) -> Option<&'static EtherscanSunset> {
     ETHERSCAN_SUNSET_CHAINS
         .iter()
-        .find(|c| c.chain_id == chain_id)
+        .find(|c| c.chain_id == chain_id && c.is_effective(today))
 }
 
 /// Fail fast if the Etherscan API does not support `chain_id`.
@@ -94,8 +141,15 @@ pub fn describe_etherscan_error(message: &str, result: &str) -> String {
         || lower.contains("requires a lite plan")
         || lower.contains("not available on the free tier")
         || (lower.contains("free tier") && lower.contains("unavailable"));
+    let shared_pool_exhausted = lower.contains("community free api limit");
 
-    if plan_restricted {
+    if shared_pool_exhausted {
+        format!(
+            "Etherscan free-tier pool exhausted: {result} \
+             (free calls on some chains, including Arbitrum from 2026-11-01, share one pool \
+             across all free users; wait for the reset or use a paid key, see https://etherscan.io/apis)"
+        )
+    } else if plan_restricted {
         format!(
             "Etherscan plan restriction: {result} \
              (your API key's plan does not cover this chain/endpoint; see https://etherscan.io/apis)"
@@ -111,11 +165,30 @@ mod tests {
 
     #[test]
     fn sunset_chains_fail_fast() {
-        for id in [534_352u64, 1284, 1285] {
+        for id in [534_352u64, 1284, 1285, 204] {
             let err = ensure_etherscan_supported(id).unwrap_err().to_string();
             assert!(err.contains("Etherscan"), "{err}");
             assert!(err.contains(&id.to_string()), "{err}");
         }
+    }
+
+    #[test]
+    fn sunset_dates_parse_and_gate() {
+        for c in ETHERSCAN_SUNSET_CHAINS {
+            assert!(
+                NaiveDate::parse_from_str(c.effective, "%Y-%m-%d").is_ok(),
+                "bad date for {}: {}",
+                c.name,
+                c.effective
+            );
+        }
+        let before = NaiveDate::from_ymd_opt(2026, 10, 30).unwrap();
+        let on = NaiveDate::from_ymd_opt(2026, 10, 31).unwrap();
+        assert!(etherscan_sunset_on(81_457, before).is_none());
+        assert!(etherscan_sunset_on(81_457, on).is_some());
+        assert!(etherscan_sunset_on(33_139, on).is_some());
+        assert!(etherscan_sunset_on(204, before).is_some());
+        assert!(etherscan_sunset_on(1, on).is_none());
     }
 
     #[test]
@@ -132,6 +205,13 @@ mod tests {
             "Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis",
         );
         assert!(msg.starts_with("Etherscan plan restriction"), "{msg}");
+
+        let msg = describe_etherscan_error(
+            "NOTOK",
+            "Community Free API limit reached. Resets 2026-11-02 12:00:00 UTC.",
+        );
+        assert!(msg.contains("pool exhausted"), "{msg}");
+        assert!(msg.contains("Arbitrum"), "{msg}");
 
         let msg = describe_etherscan_error("NOTOK", "Invalid address format");
         assert_eq!(msg, "NOTOK: Invalid address format");

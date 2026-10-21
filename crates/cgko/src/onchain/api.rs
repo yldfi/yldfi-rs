@@ -103,8 +103,26 @@ impl<'a> OnchainApi<'a> {
     }
 
     /// Get pool trades
+    ///
+    /// Since 2026-10-20 `CoinGecko` leaves out trades it flags as anomalous;
+    /// use [`Self::pool_trades_with_anomalous`] to include them.
     pub async fn pool_trades(&self, network: &str, pool_address: &str) -> Result<TradesResponse> {
         let path = format!("/onchain/networks/{network}/pools/{pool_address}/trades");
+        self.client.get(&path).await
+    }
+
+    /// Get pool trades, choosing whether to include trades `CoinGecko`
+    /// flags as anomalous (`include_anomalous`; each trade then carries
+    /// `is_anomalous`)
+    pub async fn pool_trades_with_anomalous(
+        &self,
+        network: &str,
+        pool_address: &str,
+        include_anomalous: bool,
+    ) -> Result<TradesResponse> {
+        let path = format!(
+            "/onchain/networks/{network}/pools/{pool_address}/trades?include_anomalous={include_anomalous}"
+        );
         self.client.get(&path).await
     }
 
@@ -225,12 +243,29 @@ impl<'a> OnchainApi<'a> {
     }
 
     /// Get token trades across all pools (Pro API only)
+    ///
+    /// Since 2026-10-20 `CoinGecko` leaves out trades it flags as anomalous;
+    /// use [`Self::token_trades_with_anomalous`] to include them.
     pub async fn token_trades(
         &self,
         network: &str,
         token_address: &str,
     ) -> Result<TokenTradesResponse> {
         let path = format!("/onchain/networks/{network}/tokens/{token_address}/trades");
+        self.client.get(&path).await
+    }
+
+    /// Get token trades across all pools, choosing whether to include
+    /// trades `CoinGecko` flags as anomalous (Pro API only)
+    pub async fn token_trades_with_anomalous(
+        &self,
+        network: &str,
+        token_address: &str,
+        include_anomalous: bool,
+    ) -> Result<TokenTradesResponse> {
+        let path = format!(
+            "/onchain/networks/{network}/tokens/{token_address}/trades?include_anomalous={include_anomalous}"
+        );
         self.client.get(&path).await
     }
 

@@ -145,16 +145,17 @@ pub async fn fetch_kyber_quote(
         .as_ref()
         .and_then(|c| c.proxy_for_source("kyberswap"));
 
-    let client = match kybr::Client::with_config(kybr::default_config().optional_proxy(proxy)) {
-        Ok(c) => c,
-        Err(e) => {
-            return SourceResult::error(
-                "kyberswap",
-                format!("Client error: {}", e),
-                measure.elapsed_ms(),
-            )
-        }
-    };
+    let client =
+        match kybr::Client::with_config(crate::cli::kyber::kyber_config().optional_proxy(proxy)) {
+            Ok(c) => c,
+            Err(e) => {
+                return SourceResult::error(
+                    "kyberswap",
+                    format!("Client error: {}", e),
+                    measure.elapsed_ms(),
+                )
+            }
+        };
 
     let request = kybr::RouteRequest::new(token_in, token_out, amount_in);
 
@@ -601,7 +602,10 @@ pub async fn fetch_lifi_quote(
     let config = get_cached_config();
     let proxy = config.as_ref().and_then(|c| c.proxy_for_source("lifi"));
 
-    let client = match lfi::Client::with_config(lfi::Config::new().with_optional_proxy(proxy)) {
+    let lifi_config = lfi::Config::new()
+        .with_optional_proxy(proxy)
+        .with_optional_api_key(crate::cli::lifi::lifi_api_key());
+    let client = match lfi::Client::with_config(lifi_config) {
         Ok(c) => c,
         Err(e) => {
             return SourceResult::error(

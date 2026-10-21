@@ -40,7 +40,14 @@ pub use yldfi_common::api::{ApiConfig, BaseClient};
 pub use yldfi_common::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
 
 /// Default base URL for the `KyberSwap` API
+///
+/// `KyberSwap` now calls this the "previous" base URL (keyless, 3 requests
+/// per second). The new gateway is [`GATEWAY_BASE_URL`].
 pub const DEFAULT_BASE_URL: &str = "https://aggregator-api.kyberswap.com";
+
+/// Base URL of `KyberSwap`'s API gateway, which requires an `X-Api-Key`
+/// (see [`gateway_config`])
+pub const GATEWAY_BASE_URL: &str = "https://api.kyberswap.com/swap";
 
 /// Configuration for the `KyberSwap` API client
 pub type Config = ApiConfig;
@@ -49,4 +56,10 @@ pub type Config = ApiConfig;
 #[must_use]
 pub fn default_config() -> Config {
     ApiConfig::new(DEFAULT_BASE_URL)
+}
+
+/// Create a config for the API gateway with an API key, sent as `X-Api-Key`
+#[must_use]
+pub fn gateway_config(api_key: impl Into<String>) -> Config {
+    ApiConfig::with_api_key(GATEWAY_BASE_URL, api_key)
 }

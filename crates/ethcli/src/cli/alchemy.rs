@@ -2071,6 +2071,7 @@ async fn handle_beacon(
             if !quiet {
                 eprintln!("Fetching blob sidecars for block {}...", block_id);
             }
+            #[allow(deprecated)] // still served; `get_blobs` drops the KZG proofs
             let response = client.beacon().get_blob_sidecars(block_id).await?;
             print_output(&response, args.format)?;
         }

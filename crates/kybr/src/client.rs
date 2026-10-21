@@ -45,9 +45,15 @@ impl Client {
         self.client_id.as_deref()
     }
 
-    /// Default headers plus `X-Client-Id` when configured
+    /// Request headers: `X-Api-Key` (not `Authorization`) when an API key is
+    /// configured, plus `X-Client-Id` when set
     fn build_headers(&self) -> reqwest::header::HeaderMap {
-        let mut headers = self.base.default_headers();
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Some(key) = self.config().get_api_key() {
+            if let Ok(value) = reqwest::header::HeaderValue::from_str(key) {
+                headers.insert("X-Api-Key", value);
+            }
+        }
         if let Some(ref id) = self.client_id {
             if let Ok(value) = reqwest::header::HeaderValue::from_str(id) {
                 headers.insert(
@@ -265,5 +271,10 @@ mod tests {
     fn test_default_config() {
         let config = crate::default_config();
         assert_eq!(config.base_url, crate::DEFAULT_BASE_URL);
+
+        let client = Client::with_config(crate::gateway_config("k")).unwrap();
+        assert_eq!(client.config().base_url, crate::GATEWAY_BASE_URL);
+        assert_eq!(client.build_headers().get("X-Api-Key").unwrap(), "k");
+        assert!(client.build_headers().get("authorization").is_none());
     }
 }

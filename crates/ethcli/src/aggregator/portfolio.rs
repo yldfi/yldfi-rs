@@ -352,6 +352,9 @@ async fn fetch_moralis_portfolio(
             let chain = chain.clone();
             let address = address.to_string();
             async move {
+                if let Some(reason) = super::chain_map::moralis_dropped_chain(&chain) {
+                    return Err(format!("{chain}: {reason}"));
+                }
                 let chain_name = normalize_chain_for_source("moralis", &chain);
                 let query = mrls::wallet::WalletQuery::new().chain(chain_name);
 

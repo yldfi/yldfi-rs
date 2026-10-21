@@ -18,7 +18,8 @@ use crate::error::{DomainError, Error, Result};
 /// Only Ethereum mainnet and its testnets have beacon hosts.
 fn beacon_host(network: Network) -> Result<String> {
     match network {
-        Network::EthMainnet | Network::EthSepolia | Network::EthHolesky => {
+        #[allow(deprecated)]
+        Network::EthMainnet | Network::EthSepolia | Network::EthHoodi | Network::EthHolesky => {
             Ok(format!("{}beacon.g.alchemy.com", network.slug()))
         }
         other => Err(Error::domain(DomainError::UnsupportedBeaconNetwork(
@@ -172,11 +173,26 @@ impl<'a> BeaconApi<'a> {
     }
 
     /// Get blob sidecars
+    ///
+    /// Beacon API v4.0.0 deprecated `blob_sidecars` in favour of
+    /// [`Self::get_blobs`].
+    #[deprecated(
+        since = "0.1.5",
+        note = "Beacon API v4 deprecated /beacon/blob_sidecars; use get_blobs()"
+    )]
     pub async fn get_blob_sidecars(
         &self,
         block_id: &str,
     ) -> Result<BeaconListResponse<BlobSidecar>> {
         self.get(&format!("/beacon/blob_sidecars/{block_id}")).await
+    }
+
+    /// Get the blobs in a block (`GET /eth/v1/beacon/blobs/{block_id}`)
+    ///
+    /// Each entry is a hex-encoded blob. Replaces the deprecated
+    /// `blob_sidecars` endpoint (Beacon API v4.0.0).
+    pub async fn get_blobs(&self, block_id: &str) -> Result<BeaconListResponse<String>> {
+        self.get(&format!("/beacon/blobs/{block_id}")).await
     }
 
     // ========== State ==========
@@ -439,8 +455,8 @@ mod tests {
             "https://eth-sepoliabeacon.g.alchemy.com/v2/KEY/eth/v2/beacon/blocks/head"
         );
         assert_eq!(
-            beacon_url(Network::EthHolesky, "KEY", "v1", "/node/version").unwrap(),
-            "https://eth-holeskybeacon.g.alchemy.com/v2/KEY/eth/v1/node/version"
+            beacon_url(Network::EthHoodi, "KEY", "v1", "/node/version").unwrap(),
+            "https://eth-hoodibeacon.g.alchemy.com/v2/KEY/eth/v1/node/version"
         );
     }
 

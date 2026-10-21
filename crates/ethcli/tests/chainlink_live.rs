@@ -779,3 +779,59 @@ async fn test_denomination_addresses() {
         Address::from_str("0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB").unwrap()
     );
 }
+
+// ==================== Every Known Oracle (strict) ====================
+
+/// Feeds whose answer is older than this are treated as dead. The longest
+/// heartbeat among the listed feeds is 24 hours.
+const MAX_FEED_AGE_SECS: u64 = 2 * 24 * 60 * 60;
+
+fn rpc_for_chain(chain: &str) -> &'static str {
+    match chain {
+        "ethereum" => "https://ethereum-rpc.publicnode.com",
+        "arbitrum" => "https://arbitrum-one-rpc.publicnode.com",
+        "polygon" => "https://polygon-bor-rpc.publicnode.com",
+        "optimism" => "https://optimism-rpc.publicnode.com",
+        "base" => "https://base-rpc.publicnode.com",
+        other => panic!("no RPC configured for {other}; add one to rpc_for_chain"),
+    }
+}
+
+/// Every address in `oracles::ALL` must have code, answer `latestRoundData`
+/// and have updated within `MAX_FEED_AGE_SECS`. Unlike the tests above this
+/// allows no failures except rate limits, so a feed Chainlink has moved or
+/// retired fails the run. The weekly API check workflow runs it.
+#[tokio::test]
+#[ignore = "requires live RPC endpoint"]
+async fn every_oracle_is_live() {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let mut failures = Vec::new();
+
+    for (chain, name, oracle) in oracles::ALL {
+        let provider = ProviderBuilder::new().connect_http(rpc_for_chain(chain).parse().unwrap());
+        let aggregator = Aggregator::new(*oracle, provider);
+        match aggregator.latest_price().await {
+            Ok(price) if price.is_older_than(now, MAX_FEED_AGE_SECS) => failures.push(format!(
+                "{chain} {name} {oracle}: last update {}s ago",
+                price.age_seconds(now)
+            )),
+            Ok(price) if !price.is_valid() => {
+                failures.push(format!("{chain} {name} {oracle}: invalid answer"))
+            }
+            Ok(_) => println!("{chain} {name}: ok"),
+            Err(e) if is_transient_rpc_error(&e) => {
+                println!("{chain} {name}: skipped, transient RPC error: {e}")
+            }
+            Err(e) => failures.push(format!("{chain} {name} {oracle}: {e}")),
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "dead or stale Chainlink feeds (check https://data.chain.link):\n{}",
+        failures.join("\n")
+    );
+}

@@ -32,6 +32,16 @@ pub enum DomainError {
     /// Missing API key
     #[error("API key is required for 1inch API")]
     MissingApiKey,
+
+    /// HTTP 402: 1inch answers requests without a valid API key with an x402
+    /// pay-per-call challenge (since 2026-08-14) instead of 401
+    #[error(
+        "1inch returned 402 Payment Required: the request has no valid API key, so 1inch \
+         asked for an x402 pay-per-call payment. Set an API key from \
+         https://business.1inch.com (ONEINCH_API_KEY){}",
+        if .0.is_empty() { String::new() } else { format!(" ({})", .0) }
+    )]
+    PaymentRequired(String),
 }
 
 /// Error type for 1inch API operations
@@ -90,6 +100,28 @@ pub fn from_response(status: u16, body: &str, retry_after: Option<u64>) -> Error
         }
     }
 
+    if status == 402 {
+        return ApiError::domain(DomainError::PaymentRequired(
+            yldfi_common::api::sanitize_error_body(body.trim()),
+        ));
+    }
+
     // Fall back to generic ApiError handling
     ApiError::from_response(status, body, retry_after)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn payment_required_is_explained() {
+        let err = from_response(402, "null", None);
+        assert!(matches!(
+            err,
+            ApiError::Domain(DomainError::PaymentRequired(_))
+        ));
+        let msg = err.to_string();
+        assert!(msg.contains("402") && msg.contains("API key"), "{msg}");
+    }
 }

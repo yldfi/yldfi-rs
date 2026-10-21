@@ -19,6 +19,7 @@ on:
     paths:
       - 'scripts/api-check/**'
       - '.github/workflows/api-check.yml'
+      - 'crates/ethcli/src/chainlink/constants.rs'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -80,6 +81,12 @@ jobs:
             --ethcli target/release/ethcli \
             --json api-check.json \
             --summary "$GITHUB_STEP_SUMMARY"
+
+      # Every hard-coded Chainlink feed must still have code and fresh answers;
+      # Chainlink moves feeds without notice (see oracles::ALL).
+      - name: Chainlink feed liveness
+        if: always()
+        run: cargo test --release --locked -p ethcli --test chainlink_live every_oracle_is_live -- --ignored --exact
 
       - name: Upload results
         if: always()

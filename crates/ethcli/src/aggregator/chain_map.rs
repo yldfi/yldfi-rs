@@ -33,7 +33,6 @@ pub fn normalize_chain_for_source(source: &str, chain: &str) -> String {
             "base" | "base-mainnet" => "base".to_string(),
             "bnb" | "bsc" | "bnb-mainnet" => "bsc".to_string(),
             "avalanche" | "avax" | "avax-mainnet" => "avalanche".to_string(),
-            "fantom" | "ftm" | "fantom-mainnet" => "fantom".to_string(),
             "gnosis" | "xdai" | "gnosis-mainnet" => "gnosis".to_string(),
             _ => chain_lower,
         },
@@ -81,6 +80,27 @@ pub fn chain_id_from_name(chain: &str) -> Option<u64> {
     yldfi_common::Chain::from_name(chain).map(|c| c.id())
 }
 
+/// Chains Moralis has stopped serving, with the date support ended.
+const MORALIS_DROPPED_CHAINS: &[(&[&str], &str, &str)] = &[
+    (
+        &["fantom", "ftm", "fantom-mainnet", "250"],
+        "Fantom",
+        "2026-05-29",
+    ),
+    (&["moonbeam", "1284"], "Moonbeam", "2026-09-25"),
+    (&["moonriver", "1285"], "Moonriver", "2026-09-25"),
+    (&["lisk", "1135"], "Lisk", "2026-09-25"),
+];
+
+/// Explain why Moralis can't be queried for `chain`, if it has dropped it.
+pub fn moralis_dropped_chain(chain: &str) -> Option<String> {
+    let chain = chain.to_lowercase();
+    MORALIS_DROPPED_CHAINS
+        .iter()
+        .find(|(aliases, _, _)| aliases.contains(&chain.as_str()))
+        .map(|(_, name, date)| format!("Moralis dropped {name} support on {date}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,6 +126,9 @@ mod tests {
         assert_eq!(normalize_chain_for_source("moralis", "ethereum"), "eth");
         assert_eq!(normalize_chain_for_source("moralis", "polygon"), "polygon");
         assert_eq!(normalize_chain_for_source("moralis", "eth-mainnet"), "eth");
+        assert!(moralis_dropped_chain("Fantom").is_some());
+        assert!(moralis_dropped_chain("moonbeam").is_some());
+        assert!(moralis_dropped_chain("ethereum").is_none());
     }
 
     #[test]

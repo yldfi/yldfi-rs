@@ -178,13 +178,18 @@ pub enum LiFiCommands {
     },
 }
 
+/// Optional LI.FI API key (`LIFI_API_KEY`); without it LI.FI rate limits by IP
+pub(crate) fn lifi_api_key() -> Option<String> {
+    std::env::var("LIFI_API_KEY").ok().filter(|k| !k.is_empty())
+}
+
 pub async fn run(args: LiFiArgs, _chain: &str) -> anyhow::Result<()> {
     let integrator = std::env::var("LIFI_INTEGRATOR").ok();
-    let client = if let Some(int) = &integrator {
-        Client::with_integrator(int)?
-    } else {
-        Client::new()?
-    };
+    let mut config = lfi::Config::new().with_optional_api_key(lifi_api_key());
+    if let Some(int) = &integrator {
+        config = config.with_integrator(int);
+    }
+    let client = Client::with_config(config)?;
 
     match args.action {
         LiFiCommands::Quote {

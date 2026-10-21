@@ -32,6 +32,32 @@ mod string_or_int {
 }
 
 /// Helper to deserialize flexible numeric fields
+/// Kong returns `asset` with every field null for some vaults; treat an
+/// asset without an address as missing rather than failing the whole list.
+fn deserialize_optional_erc20<'de, D>(deserializer: D) -> Result<Option<Erc20>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct RawErc20 {
+        address: Option<String>,
+        name: Option<String>,
+        symbol: Option<String>,
+        #[serde(default, deserialize_with = "deserialize_flexible_string")]
+        decimals: Option<String>,
+    }
+
+    let raw: Option<RawErc20> = Option::deserialize(deserializer)?;
+    Ok(raw.and_then(|r| {
+        r.address.map(|address| Erc20 {
+            address,
+            name: r.name,
+            symbol: r.symbol,
+            decimals: r.decimals,
+        })
+    }))
+}
+
 fn deserialize_flexible_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
@@ -177,7 +203,8 @@ pub struct Vault {
     pub risk: Option<RiskScore>,
     /// Vault metadata
     pub meta: Option<VaultMeta>,
-    /// Underlying asset info
+    /// Underlying asset info (`None` when Kong has no asset address)
+    #[serde(default, deserialize_with = "deserialize_optional_erc20")]
     pub asset: Option<Erc20>,
 }
 
@@ -622,5 +649,31 @@ mod report_tests {
         }
         let t: T = serde_json::from_value(v).unwrap();
         assert_eq!((t.block_number, t.block_time), (23_000_000, 1_790_313_695));
+    }
+}
+
+#[cfg(test)]
+mod vault_tests {
+    use super::*;
+
+    #[test]
+    fn vault_asset_with_null_address_is_none() {
+        let v: Vault = serde_json::from_value(serde_json::json!({
+            "address": "0x1", "chainId": 1,
+            "asset": {"address": null, "name": null, "symbol": null, "decimals": null}
+        }))
+        .unwrap();
+        assert!(v.asset.is_none());
+
+        let v: Vault = serde_json::from_value(serde_json::json!({
+            "address": "0x1", "chainId": 1,
+            "asset": {"address": "0xa", "name": "A", "symbol": "A", "decimals": "18"}
+        }))
+        .unwrap();
+        assert_eq!(v.asset.unwrap().decimals.as_deref(), Some("18"));
+
+        let v: Vault =
+            serde_json::from_value(serde_json::json!({"address": "0x1", "chainId": 1})).unwrap();
+        assert!(v.asset.is_none());
     }
 }

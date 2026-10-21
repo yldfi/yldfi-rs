@@ -29,6 +29,7 @@ pub enum WebhookNetwork {
     EthMainnet,
     EthSepolia,
     EthHolesky,
+    EthHoodi,
     /// Polygon PoS mainnet (`MATIC_MAINNET`)
     #[serde(rename = "MATIC_MAINNET", alias = "POLYGON_MAINNET")]
     PolygonMainnet,
