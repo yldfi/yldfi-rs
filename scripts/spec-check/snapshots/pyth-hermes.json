@@ -1,0 +1,225 @@
+{
+ "provider": "pyth-hermes",
+ "url": "https://raw.githubusercontent.com/pyth-network/pyth-crosschain/main/apps/hermes/client/js/schema.json",
+ "version": "0.12.0",
+ "operations": {
+  "GET /api/get_price_feed": {
+   "deprecated": true,
+   "params": [
+    "query:binary",
+    "query:id*",
+    "query:publish_time*",
+    "query:verbose"
+   ],
+   "request": [],
+   "response": [
+    "ema_price*",
+    "ema_price.conf*",
+    "ema_price.expo*",
+    "ema_price.price*",
+    "ema_price.publish_time*",
+    "id*",
+    "metadata",
+    "metadata.emitter_chain*",
+    "metadata.prev_publish_time",
+    "metadata.price_service_receive_time",
+    "metadata.slot",
+    "price*",
+    "price.conf*",
+    "price.expo*",
+    "price.price*",
+    "price.publish_time*",
+    "vaa"
+   ]
+  },
+  "GET /api/get_vaa": {
+   "deprecated": true,
+   "params": [
+    "query:id*",
+    "query:publish_time*"
+   ],
+   "request": [],
+   "response": [
+    "publishTime*",
+    "vaa*"
+   ]
+  },
+  "GET /api/get_vaa_ccip": {
+   "deprecated": true,
+   "params": [
+    "query:data*"
+   ],
+   "request": [],
+   "response": [
+    "data*"
+   ]
+  },
+  "GET /api/latest_price_feeds": {
+   "deprecated": true,
+   "params": [
+    "query:binary",
+    "query:ids[]*",
+    "query:verbose"
+   ],
+   "request": [],
+   "response": [
+    "[].ema_price*",
+    "[].ema_price.conf*",
+    "[].ema_price.expo*",
+    "[].ema_price.price*",
+    "[].ema_price.publish_time*",
+    "[].id*",
+    "[].metadata",
+    "[].metadata.emitter_chain*",
+    "[].metadata.prev_publish_time",
+    "[].metadata.price_service_receive_time",
+    "[].metadata.slot",
+    "[].price*",
+    "[].price.conf*",
+    "[].price.expo*",
+    "[].price.price*",
+    "[].price.publish_time*",
+    "[].vaa"
+   ]
+  },
+  "GET /api/latest_vaas": {
+   "deprecated": true,
+   "params": [
+    "query:ids[]*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /api/price_feed_ids": {
+   "deprecated": true,
+   "params": [],
+   "request": [],
+   "response": []
+  },
+  "GET /v2/price_feeds": {
+   "deprecated": false,
+   "params": [
+    "query:asset_type",
+    "query:query"
+   ],
+   "request": [],
+   "response": [
+    "[].attributes*",
+    "[].id*"
+   ]
+  },
+  "GET /v2/updates/price/latest": {
+   "deprecated": false,
+   "params": [
+    "query:encoding",
+    "query:ids[]*",
+    "query:ignore_invalid_price_ids",
+    "query:parsed"
+   ],
+   "request": [],
+   "response": [
+    "binary*",
+    "binary.data*",
+    "binary.encoding*",
+    "parsed",
+    "parsed[].ema_price*",
+    "parsed[].ema_price.conf*",
+    "parsed[].ema_price.expo*",
+    "parsed[].ema_price.price*",
+    "parsed[].ema_price.publish_time*",
+    "parsed[].id*",
+    "parsed[].metadata*",
+    "parsed[].metadata.prev_publish_time",
+    "parsed[].metadata.proof_available_time",
+    "parsed[].metadata.slot",
+    "parsed[].price*",
+    "parsed[].price.conf*",
+    "parsed[].price.expo*",
+    "parsed[].price.price*",
+    "parsed[].price.publish_time*"
+   ]
+  },
+  "GET /v2/updates/price/stream": {
+   "deprecated": false,
+   "params": [
+    "query:allow_unordered",
+    "query:benchmarks_only",
+    "query:encoding",
+    "query:ids[]*",
+    "query:ignore_invalid_price_ids",
+    "query:parsed"
+   ],
+   "request": [],
+   "response": [
+    "binary*",
+    "binary.data*",
+    "binary.encoding*",
+    "parsed",
+    "parsed[].ema_price*",
+    "parsed[].ema_price.conf*",
+    "parsed[].ema_price.expo*",
+    "parsed[].ema_price.price*",
+    "parsed[].ema_price.publish_time*",
+    "parsed[].id*",
+    "parsed[].metadata*",
+    "parsed[].metadata.prev_publish_time",
+    "parsed[].metadata.proof_available_time",
+    "parsed[].metadata.slot",
+    "parsed[].price*",
+    "parsed[].price.conf*",
+    "parsed[].price.expo*",
+    "parsed[].price.price*",
+    "parsed[].price.publish_time*"
+   ]
+  },
+  "GET /v2/updates/price/{publish_time}": {
+   "deprecated": false,
+   "params": [
+    "path:publish_time*",
+    "query:encoding",
+    "query:ids[]*",
+    "query:ignore_invalid_price_ids",
+    "query:parsed"
+   ],
+   "request": [],
+   "response": [
+    "binary*",
+    "binary.data*",
+    "binary.encoding*",
+    "parsed",
+    "parsed[].ema_price*",
+    "parsed[].ema_price.conf*",
+    "parsed[].ema_price.expo*",
+    "parsed[].ema_price.price*",
+    "parsed[].ema_price.publish_time*",
+    "parsed[].id*",
+    "parsed[].metadata*",
+    "parsed[].metadata.prev_publish_time",
+    "parsed[].metadata.proof_available_time",
+    "parsed[].metadata.slot",
+    "parsed[].price*",
+    "parsed[].price.conf*",
+    "parsed[].price.expo*",
+    "parsed[].price.price*",
+    "parsed[].price.publish_time*"
+   ]
+  },
+  "GET /v2/updates/publisher_stake_caps/latest": {
+   "deprecated": false,
+   "params": [
+    "query:encoding",
+    "query:parsed"
+   ],
+   "request": [],
+   "response": [
+    "binary*",
+    "binary.data*",
+    "binary.encoding*",
+    "parsed",
+    "parsed[].publisher_stake_caps*",
+    "parsed[].publisher_stake_caps[].cap*",
+    "parsed[].publisher_stake_caps[].publisher*"
+   ]
+  }
+ }
+}

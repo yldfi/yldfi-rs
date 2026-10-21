@@ -1,0 +1,24 @@
+# Etherscan actions a crate calls through a library, so they don't appear as
+# "module=…&action=…" in its own sources. Used to mark spec changes
+# "used by crate"; actions written into the crate's own URLs are found
+# automatically.
+#
+# Format:  crate | module=<module>&action=<action> | library method
+#
+# ethcli calls these foundry-block-explorers 0.24 methods. To refresh after
+# adding calls or bumping the library, list the library's `pub async fn`s, grep
+# crates/ethcli/src for `.<fn>(`, and read each fn's module/action strings in
+# ~/.cargo/registry/src/*/foundry-block-explorers-<version>/src/.
+
+ethcli | module=account&action=balance            | get_ether_balance_single
+ethcli | module=account&action=txlist             | get_transactions
+ethcli | module=account&action=txlistinternal     | get_internal_transactions
+ethcli | module=account&action=tokentx            | get_erc20_token_transfer_events
+ethcli | module=account&action=tokennfttx         | get_erc721_token_transfer_events
+ethcli | module=account&action=token1155tx        | get_erc1155_token_transfer_events
+ethcli | module=account&action=getminedblocks     | get_mined_blocks
+ethcli | module=contract&action=getabi            | contract_abi
+ethcli | module=contract&action=getsourcecode     | contract_source_code
+ethcli | module=contract&action=getcontractcreation | contract_creation_data
+ethcli | module=gastracker&action=gasoracle       | gas_oracle
+ethcli | module=gastracker&action=gasestimate     | gas_estimate

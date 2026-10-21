@@ -1,0 +1,683 @@
+{
+ "provider": "alchemy-beacon",
+ "url": "https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/eth-beacon/eth-beacon.yaml",
+ "version": "1.0",
+ "operations": {
+  "GET /eth/v1/beacon/blinded_blocks/{block_id}": {
+   "deprecated": false,
+   "params": [
+    "path:block_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.message",
+    "data.message.body",
+    "data.message.body.attestations",
+    "data.message.body.attester_slashings",
+    "data.message.body.blob_kzg_commitments",
+    "data.message.body.bls_to_execution_changes",
+    "data.message.body.deposits",
+    "data.message.body.eth1_data",
+    "data.message.body.execution_payload_header",
+    "data.message.body.execution_requests",
+    "data.message.body.graffiti",
+    "data.message.body.proposer_slashings",
+    "data.message.body.randao_reveal",
+    "data.message.body.sync_aggregate",
+    "data.message.body.voluntary_exits",
+    "data.message.parent_root",
+    "data.message.proposer_index",
+    "data.message.slot",
+    "data.message.state_root",
+    "data.signature",
+    "execution_optimistic",
+    "finalized",
+    "version"
+   ]
+  },
+  "GET /eth/v1/beacon/blob_sidecars/{block_id}": {
+   "deprecated": false,
+   "params": [
+    "path:block_id*",
+    "query:indices"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].blob",
+    "data[].index",
+    "data[].kzg_commitment",
+    "data[].kzg_commitment_inclusion_proof",
+    "data[].kzg_proof",
+    "data[].signed_block_header",
+    "data[].signed_block_header.message",
+    "data[].signed_block_header.message.body_root",
+    "data[].signed_block_header.message.parent_root",
+    "data[].signed_block_header.message.proposer_index",
+    "data[].signed_block_header.message.slot",
+    "data[].signed_block_header.message.state_root",
+    "data[].signed_block_header.signature",
+    "execution_optimistic",
+    "finalized",
+    "version"
+   ]
+  },
+  "GET /eth/v1/beacon/blocks/{block_id}/root": {
+   "deprecated": false,
+   "params": [
+    "path:block_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.root",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/genesis": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data.genesis_fork_version",
+    "data.genesis_time",
+    "data.genesis_validators_root"
+   ]
+  },
+  "GET /eth/v1/beacon/headers": {
+   "deprecated": false,
+   "params": [
+    "query:parent_root",
+    "query:slot"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].canonical",
+    "data[].header",
+    "data[].header.message",
+    "data[].header.message.body_root",
+    "data[].header.message.parent_root",
+    "data[].header.message.proposer_index",
+    "data[].header.message.slot",
+    "data[].header.message.state_root",
+    "data[].header.signature",
+    "data[].root",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/headers/{block_id}": {
+   "deprecated": false,
+   "params": [
+    "path:block_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.canonical",
+    "data.header",
+    "data.header.message",
+    "data.header.message.body_root",
+    "data.header.message.parent_root",
+    "data.header.message.proposer_index",
+    "data.header.message.slot",
+    "data.header.message.state_root",
+    "data.header.signature",
+    "data.root",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/pool/voluntary_exits": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].message",
+    "data[].message.epoch",
+    "data[].message.validator_index",
+    "data[].signature"
+   ]
+  },
+  "GET /eth/v1/beacon/rewards/blocks/{block_id}": {
+   "deprecated": false,
+   "params": [
+    "path:block_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.attestations",
+    "data.attester_slashings",
+    "data.proposer_index",
+    "data.proposer_slashings",
+    "data.sync_aggregate",
+    "data.total",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/committees": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*",
+    "query:epoch",
+    "query:index",
+    "query:slot"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].index",
+    "data[].slot",
+    "data[].validators",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/finality_checkpoints": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.current_justified",
+    "data.current_justified.epoch",
+    "data.current_justified.root",
+    "data.finalized",
+    "data.finalized.epoch",
+    "data.finalized.root",
+    "data.previous_justified",
+    "data.previous_justified.epoch",
+    "data.previous_justified.root",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/fork": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.current_version",
+    "data.epoch",
+    "data.previous_version",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/pending_consolidations": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].source_index",
+    "data[].target_index",
+    "execution_optimistic",
+    "finalized",
+    "version"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/randao": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*",
+    "query:epoch*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.randao",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/root": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.root",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/sync_committees": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*",
+    "query:epoch"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.validator_aggregates",
+    "data.validators",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/validator_balances": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*",
+    "query:id"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].balance",
+    "data[].index",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/validators": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*",
+    "query:id",
+    "query:status"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].balance",
+    "data[].index",
+    "data[].status",
+    "data[].validator",
+    "data[].validator.activation_eligibility_epoch",
+    "data[].validator.activation_epoch",
+    "data[].validator.effective_balance",
+    "data[].validator.exit_epoch",
+    "data[].validator.pubkey",
+    "data[].validator.slashed",
+    "data[].validator.withdrawable_epoch",
+    "data[].validator.withdrawal_credentials",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/beacon/states/{state_id}/validators/{validator_id}": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*",
+    "path:validator_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.balance",
+    "data.index",
+    "data.status",
+    "data.validator",
+    "data.validator.activation_eligibility_epoch",
+    "data.validator.activation_epoch",
+    "data.validator.effective_balance",
+    "data.validator.exit_epoch",
+    "data.validator.pubkey",
+    "data.validator.slashed",
+    "data.validator.withdrawable_epoch",
+    "data.validator.withdrawal_credentials",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "GET /eth/v1/config/deposit_contract": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data.address",
+    "data.chain_id"
+   ]
+  },
+  "GET /eth/v1/config/fork_schedule": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].current_version",
+    "data[].epoch",
+    "data[].previous_version"
+   ]
+  },
+  "GET /eth/v1/config/spec": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data"
+   ]
+  },
+  "GET /eth/v1/debug/fork_choice": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data"
+   ]
+  },
+  "GET /eth/v1/events": {
+   "deprecated": false,
+   "params": [
+    "query:topics*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /eth/v1/node/peer_count": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data.connected",
+    "data.connecting",
+    "data.disconnected",
+    "data.disconnecting"
+   ]
+  },
+  "GET /eth/v1/node/peers": {
+   "deprecated": false,
+   "params": [
+    "query:direction",
+    "query:state"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].direction",
+    "data[].enr",
+    "data[].last_seen_p2p_address",
+    "data[].peer_id",
+    "data[].state",
+    "meta",
+    "meta.count"
+   ]
+  },
+  "GET /eth/v1/node/syncing": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data.el_offline",
+    "data.head_slot",
+    "data.is_optimistic",
+    "data.is_syncing",
+    "data.sync_distance"
+   ]
+  },
+  "GET /eth/v1/node/version": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data.version"
+   ]
+  },
+  "GET /eth/v1/validator/duties/proposer/{epoch}": {
+   "deprecated": false,
+   "params": [
+    "path:epoch*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].pubkey",
+    "data[].slot",
+    "data[].validator_index",
+    "dependent_root",
+    "execution_optimistic"
+   ]
+  },
+  "GET /eth/v1/validator/sync_committee_contribution": {
+   "deprecated": false,
+   "params": [
+    "query:beacon_block_root*",
+    "query:slot*",
+    "query:subcommittee_index*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.aggregation_bits",
+    "data.beacon_block_root",
+    "data.signature",
+    "data.slot",
+    "data.subcommittee_index"
+   ]
+  },
+  "GET /eth/v2/beacon/blocks/{block_id}": {
+   "deprecated": false,
+   "params": [
+    "path:block_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.message",
+    "data.message.body",
+    "data.message.body.attestations",
+    "data.message.body.attester_slashings",
+    "data.message.body.blob_kzg_commitments",
+    "data.message.body.bls_to_execution_changes",
+    "data.message.body.deposits",
+    "data.message.body.eth1_data",
+    "data.message.body.execution_payload",
+    "data.message.body.execution_requests",
+    "data.message.body.graffiti",
+    "data.message.body.proposer_slashings",
+    "data.message.body.randao_reveal",
+    "data.message.body.sync_aggregate",
+    "data.message.body.voluntary_exits",
+    "data.message.parent_root",
+    "data.message.proposer_index",
+    "data.message.slot",
+    "data.message.state_root",
+    "data.signature",
+    "execution_optimistic",
+    "finalized",
+    "version"
+   ]
+  },
+  "GET /eth/v2/beacon/blocks/{block_id}/attestations": {
+   "deprecated": false,
+   "params": [
+    "path:block_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].aggregation_bits",
+    "data[].committee_bits",
+    "data[].data",
+    "data[].data.beacon_block_root",
+    "data[].data.index",
+    "data[].data.slot",
+    "data[].data.source",
+    "data[].data.source.epoch",
+    "data[].data.source.root",
+    "data[].data.target",
+    "data[].data.target.epoch",
+    "data[].data.target.root",
+    "data[].signature",
+    "execution_optimistic",
+    "finalized",
+    "version"
+   ]
+  },
+  "GET /eth/v2/beacon/pool/attestations": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "data",
+    "data[].aggregation_bits",
+    "data[].data",
+    "data[].data.beacon_block_root",
+    "data[].data.index",
+    "data[].data.slot",
+    "data[].data.source",
+    "data[].data.source.epoch",
+    "data[].data.source.root",
+    "data[].data.target",
+    "data[].data.target.epoch",
+    "data[].data.target.root",
+    "data[].signature",
+    "execution_optimistic",
+    "finalized",
+    "version"
+   ]
+  },
+  "GET /eth/v2/debug/beacon/states/{state_id}": {
+   "deprecated": false,
+   "params": [
+    "path:state_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "execution_optimistic",
+    "finalized",
+    "version"
+   ]
+  },
+  "GET /eth/v2/validator/aggregate_attestation": {
+   "deprecated": false,
+   "params": [
+    "query:attestation_data_root*",
+    "query:committee_index*",
+    "query:slot*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.aggregation_bits",
+    "data.committee_bits",
+    "data.data",
+    "data.data.beacon_block_root",
+    "data.data.index",
+    "data.data.slot",
+    "data.data.source",
+    "data.data.source.epoch",
+    "data.data.source.root",
+    "data.data.target",
+    "data.data.target.epoch",
+    "data.data.target.root",
+    "data.signature",
+    "version"
+   ]
+  },
+  "POST /eth/v1/beacon/rewards/attestations/{epoch}": {
+   "deprecated": false,
+   "params": [
+    "path:epoch*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data.ideal_rewards",
+    "data.ideal_rewards[].effective_balance",
+    "data.ideal_rewards[].head",
+    "data.ideal_rewards[].inactivity",
+    "data.ideal_rewards[].inclusion_delay",
+    "data.ideal_rewards[].source",
+    "data.ideal_rewards[].target",
+    "data.total_rewards",
+    "data.total_rewards[].head",
+    "data.total_rewards[].inactivity",
+    "data.total_rewards[].inclusion_delay",
+    "data.total_rewards[].source",
+    "data.total_rewards[].target",
+    "data.total_rewards[].validator_index",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "POST /eth/v1/beacon/rewards/sync_committee/{block_id}": {
+   "deprecated": false,
+   "params": [
+    "path:block_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].reward",
+    "data[].validator_index",
+    "execution_optimistic",
+    "finalized"
+   ]
+  },
+  "POST /eth/v1/validator/contribution_and_proofs": {
+   "deprecated": false,
+   "params": [],
+   "request": [
+    "[].message*",
+    "[].message.aggregator_index*",
+    "[].message.contribution*",
+    "[].message.contribution.aggregation_bits*",
+    "[].message.contribution.beacon_block_root*",
+    "[].message.contribution.signature*",
+    "[].message.contribution.slot*",
+    "[].message.contribution.subcommittee_index*",
+    "[].message.selection_proof*",
+    "[].signature*"
+   ],
+   "response": []
+  },
+  "POST /eth/v1/validator/duties/attester/{epoch}": {
+   "deprecated": false,
+   "params": [
+    "path:epoch*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].committee_index",
+    "data[].committee_length",
+    "data[].committees_at_slot",
+    "data[].pubkey",
+    "data[].slot",
+    "data[].validator_committee_index",
+    "data[].validator_index",
+    "dependent_root",
+    "execution_optimistic"
+   ]
+  },
+  "POST /eth/v1/validator/duties/sync/{epoch}": {
+   "deprecated": false,
+   "params": [
+    "path:epoch*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].pubkey",
+    "data[].validator_index",
+    "data[].validator_sync_committee_indices",
+    "execution_optimistic"
+   ]
+  }
+ }
+}

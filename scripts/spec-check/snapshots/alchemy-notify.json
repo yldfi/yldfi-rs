@@ -1,0 +1,213 @@
+{
+ "provider": "alchemy-notify",
+ "url": "https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/notify/notify.yaml",
+ "version": "1.0",
+ "operations": {
+  "DELETE /delete-webhook": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*",
+    "query:webhook_id*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "DELETE /graphql/variables/{variable}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*",
+    "path:variable*"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /graphql/variables/{variable}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*",
+    "path:variable*",
+    "query:after",
+    "query:limit",
+    "query:pageKey"
+   ],
+   "request": [],
+   "response": [
+    "[].data",
+    "[].pagination",
+    "[].pagination.cursors",
+    "[].pagination.cursors.after",
+    "[].pagination.total_count"
+   ]
+  },
+  "GET /team-webhooks": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*"
+   ],
+   "request": [],
+   "response": [
+    "[].data",
+    "[].data[].id",
+    "[].data[].is_active",
+    "[].data[].network",
+    "[].data[].signing_key",
+    "[].data[].time_created",
+    "[].data[].version",
+    "[].data[].webhook_type",
+    "[].data[].webhook_url"
+   ]
+  },
+  "GET /webhook-addresses": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*",
+    "query:after",
+    "query:limit",
+    "query:pageKey",
+    "query:webhook_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "pagination",
+    "pagination.cursors",
+    "pagination.cursors.after",
+    "pagination.total_count"
+   ]
+  },
+  "GET /webhook-nft-filters": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*",
+    "query:after",
+    "query:limit",
+    "query:pageKey",
+    "query:webhook_id*"
+   ],
+   "request": [],
+   "response": [
+    "data",
+    "data[].contract_address",
+    "data[].token_id",
+    "pagination",
+    "pagination.cursors",
+    "pagination.cursors.after",
+    "pagination.total_count"
+   ]
+  },
+  "PATCH /graphql/variables/{variable}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*",
+    "path:variable*"
+   ],
+   "request": [
+    "add",
+    "delete"
+   ],
+   "response": []
+  },
+  "PATCH /update-webhook-addresses": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*"
+   ],
+   "request": [
+    "addresses_to_add*",
+    "addresses_to_remove*",
+    "webhook_id*"
+   ],
+   "response": []
+  },
+  "PATCH /update-webhook-nft-filters": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*"
+   ],
+   "request": [
+    "nft_filters_to_add",
+    "nft_filters_to_add[].contract_address",
+    "nft_filters_to_add[].token_id",
+    "nft_filters_to_remove",
+    "nft_filters_to_remove[].contract_address",
+    "nft_filters_to_remove[].token_id",
+    "webhook_id*"
+   ],
+   "response": []
+  },
+  "POST /create-webhook": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*"
+   ],
+   "request": [
+    "addresses",
+    "graphql_query",
+    "graphql_query.query*",
+    "graphql_query.skip_empty_messages",
+    "name",
+    "network*",
+    "nft_filters",
+    "nft_filters[].contract_address",
+    "nft_filters[].token_id",
+    "webhook_type*",
+    "webhook_url*"
+   ],
+   "response": [
+    "data",
+    "data.id",
+    "data.is_active",
+    "data.network",
+    "data.signing_key",
+    "data.time_created",
+    "data.version",
+    "data.webhook_type",
+    "data.webhook_url"
+   ]
+  },
+  "POST /graphql/variables/{variable}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*",
+    "path:variable*"
+   ],
+   "request": [
+    "items*"
+   ],
+   "response": []
+  },
+  "PUT /update-webhook": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*"
+   ],
+   "request": [
+    "is_active",
+    "name",
+    "webhook_id*"
+   ],
+   "response": [
+    "data",
+    "data.id",
+    "data.is_active",
+    "data.network",
+    "data.signing_key",
+    "data.time_created",
+    "data.version",
+    "data.webhook_type",
+    "data.webhook_url"
+   ]
+  },
+  "PUT /update-webhook-addresses": {
+   "deprecated": false,
+   "params": [
+    "header:X-Alchemy-Token*"
+   ],
+   "request": [
+    "addresses*",
+    "webhook_id*"
+   ],
+   "response": []
+  }
+ }
+}

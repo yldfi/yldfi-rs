@@ -1,0 +1,1286 @@
+{
+ "provider": "kong",
+ "url": "https://kong.yearn.fi/api/gql",
+ "version": "",
+ "operations": {
+  "enum CacheControlScope": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "PRIVATE",
+    "PUBLIC"
+   ]
+  },
+  "object AccountRole": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "account: String!",
+    "address: String!",
+    "chainId: Int!",
+    "roleMask: BigInt!"
+   ]
+  },
+  "object Accountant": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "chainId: Int!",
+    "feeManager: String!",
+    "feeRecipient: String!",
+    "futureFeeManager: String",
+    "managementFeeThreshold: BigInt",
+    "maxLoss: BigInt",
+    "performanceFeeThreshold: BigInt",
+    "vaultManager: String",
+    "vaults: [String]"
+   ]
+  },
+  "object Allocator": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "chainId: Int!",
+    "vault: String!"
+   ]
+  },
+  "object ApetaxStat": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "active: Int!",
+    "new: Int!",
+    "stealth: Int!",
+    "withdraw: Int!"
+   ]
+  },
+  "object Apr": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "gross: Float",
+    "net: Float"
+   ]
+  },
+  "object Apy": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "blockNumber: String!",
+    "blockTime: String!",
+    "grossApr: Float",
+    "inceptionNet: Float",
+    "monthlyNet: Float",
+    "monthlyPricePerShare: BigInt",
+    "net: Float",
+    "pricePerShare: BigInt",
+    "weeklyNet: Float",
+    "weeklyPricePerShare: BigInt"
+   ]
+  },
+  "object DbInfo": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "cacheHitRate: Float!",
+    "clients: Int!",
+    "databaseSize: BigInt!",
+    "indexHitRate: Float!"
+   ]
+  },
+  "object Debt": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "activation: BigInt",
+    "currentDebt: BigInt",
+    "currentDebtUsd: Float",
+    "debtRatio: BigInt",
+    "lastReport: BigInt",
+    "maxDebt: BigInt",
+    "maxDebtPerHarvest: BigInt",
+    "maxDebtRatio: Float",
+    "maxDebtUsd: Float",
+    "minDebtPerHarvest: BigInt",
+    "performanceFee: BigInt",
+    "strategy: String",
+    "targetDebtRatio: Float",
+    "totalDebt: BigInt",
+    "totalDebtUsd: Float",
+    "totalGain: BigInt",
+    "totalGainUsd: Float",
+    "totalLoss: BigInt",
+    "totalLossUsd: Float"
+   ]
+  },
+  "object Deposit": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "amount: String!",
+    "chainId: Int!",
+    "recipient: String!",
+    "shares: String!",
+    "vaultAddress: String!"
+   ]
+  },
+  "object Erc20": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String",
+    "chainId: Int",
+    "decimals: Int",
+    "name: String",
+    "symbol: String"
+   ]
+  },
+  "object EstimatedApr": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "apr: Float",
+    "apy: Float",
+    "components: EstimatedAprComponents!",
+    "grossAPR: Float",
+    "grossAPY: Float",
+    "type: String!"
+   ]
+  },
+  "object EstimatedAprComponents": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "baseAPR: Float",
+    "baseNetAPR: Float",
+    "baseNetAPY: Float",
+    "boost: Float",
+    "boostedAPR: Float",
+    "compoundingPeriodsPerYear: Float",
+    "cvxAPR: Float",
+    "debtRatio: Float",
+    "estimatedDebtCoverage: Float",
+    "isStrategy: Float",
+    "katRewardsAPR: Float",
+    "keepCRV: Float",
+    "keepVelo: Float",
+    "lockerBonusAPR: Float",
+    "lockerBonusAPY: Float",
+    "morphoBaseAPY: Float",
+    "morphoRewardsAPR: Float",
+    "poolAPY: Float",
+    "rewardsAPR: Float",
+    "rewardsAPY: Float"
+   ]
+  },
+  "object Fees": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "managementFee: Float",
+    "performanceFee: Float"
+   ]
+  },
+  "object Historical": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "inceptionNet: Float",
+    "monthlyNet: Float",
+    "net: Float",
+    "weeklyNet: Float"
+   ]
+  },
+  "object IngestCpu": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "usage: Float!"
+   ]
+  },
+  "object IngestInfo": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "cpu: IngestCpu!",
+    "memory: IngestMemory!"
+   ]
+  },
+  "object IngestMemory": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "total: BigInt!",
+    "used: BigInt!"
+   ]
+  },
+  "object LatestBlock": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "blockNumber: BigInt!",
+    "blockTime: BigInt!",
+    "chainId: Int!"
+   ]
+  },
+  "object LenderStatus": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String",
+    "assets: BigInt",
+    "name: String",
+    "rate: BigInt"
+   ]
+  },
+  "object Locker": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "cooldownDuration: Float",
+    "lockerBonus: Float",
+    "withdrawalWindow: Float"
+   ]
+  },
+  "object Monitor": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "db: DbInfo!",
+    "indexStatsJson: String!",
+    "ingest: IngestInfo!",
+    "queues: [QueueStatus]",
+    "redis: RedisInfo!"
+   ]
+  },
+  "object NetworkStat": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "chainId: Int!",
+    "count: Int!"
+   ]
+  },
+  "object NewSplitterLog": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "chainId: Int!",
+    "manager: String!",
+    "managerRecipient: String!",
+    "splitee: String!",
+    "splitter: String!"
+   ]
+  },
+  "object NewYieldSplitterLog": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "chainId: Int!",
+    "splitter: String!",
+    "vault: String!",
+    "want: String!"
+   ]
+  },
+  "object Oracle": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "apr: Float",
+    "apy: Float",
+    "netAPR: Float"
+   ]
+  },
+  "object Output": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "chainId: Int!",
+    "component: String",
+    "label: String!",
+    "period: String!",
+    "time: BigInt",
+    "value: Float!"
+   ]
+  },
+  "object Performance": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "estimated: EstimatedApr",
+    "historical: Historical",
+    "oracle: Oracle"
+   ]
+  },
+  "object Price": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "blockNumber: BigInt!",
+    "chainId: Int!",
+    "priceSource: String!",
+    "priceUsd: Float!",
+    "timestamp: BigInt!"
+   ]
+  },
+  "object Project": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "accountant: String!",
+    "chainId: Int!",
+    "debtAllocator: String!",
+    "governance: String!",
+    "id: String!",
+    "name: String!",
+    "registry: String!",
+    "roleManager: String!",
+    "roleManagerFactory: String!"
+   ]
+  },
+  "object QueueStatus": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "active: Int!",
+    "failed: Int!",
+    "name: String!",
+    "waiting: Int!"
+   ]
+  },
+  "object RedisInfo": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "clients: Int!",
+    "memory: RedisMemory!",
+    "mode: String",
+    "os: String!",
+    "uptime: Int!",
+    "version: String!"
+   ]
+  },
+  "object RedisMemory": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "fragmentation: Float!",
+    "peak: BigInt!",
+    "total: BigInt!",
+    "used: BigInt!"
+   ]
+  },
+  "object ReportApr": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "gross: Float",
+    "net: Float"
+   ]
+  },
+  "object ReportDetail": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String",
+    "apr: Apr",
+    "blockNumber: BigInt",
+    "blockTime: BigInt",
+    "chainId: Int",
+    "loss: BigInt",
+    "lossUsd: Float",
+    "profit: BigInt",
+    "profitUsd: Float",
+    "transactionHash: String"
+   ]
+  },
+  "object Reward": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String",
+    "balance: BigInt",
+    "balanceUsd: Float",
+    "chainId: Int",
+    "decimals: Int",
+    "name: String",
+    "symbol: String"
+   ]
+  },
+  "object RiskScore": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "riskLevel: Int",
+    "riskScore: RiskScoreDetails"
+   ]
+  },
+  "object RiskScoreDetails": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "centralizationRisk: Int",
+    "comment: String",
+    "complexity: Int",
+    "externalProtocolAudit: Int",
+    "externalProtocolCentralisation: Int",
+    "externalProtocolLongevity: Int",
+    "externalProtocolTvl: Int",
+    "externalProtocolType: Int",
+    "protocolIntegration: Int",
+    "review: Int",
+    "riskExposure: Int",
+    "testing: Int"
+   ]
+  },
+  "object RiskScoreLegacy": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "auditScore: Float",
+    "codeReviewScore: Float",
+    "complexityScore: Float",
+    "label: String",
+    "protocolSafetyScore: Float",
+    "teamKnowledgeScore: Float",
+    "testingScore: Float"
+   ]
+  },
+  "object Role": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "account: String!",
+    "roleMask: BigInt!"
+   ]
+  },
+  "object RoleManager": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "accountant: String!",
+    "address: String!",
+    "allocatorFactory: String!",
+    "brain: String!",
+    "brainRoles: BigInt!",
+    "chad: String!",
+    "chainId: Int!",
+    "daddy: String!",
+    "daddyRoles: BigInt!",
+    "debtAllocator: String!",
+    "debtAllocatorRoles: BigInt!",
+    "defaultProfitMaxUnlock: BigInt!",
+    "governance: String!",
+    "keeper: String!",
+    "keeperRoles: BigInt!",
+    "pendingGovernance: String!",
+    "project: Project!",
+    "registry: String!",
+    "roleManagerFactory: String!",
+    "security: String!",
+    "securityRoles: BigInt!",
+    "strategyManager: String!",
+    "strategyManagerRoles: BigInt!"
+   ]
+  },
+  "object SparklinePoint": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "blockTime: BigInt!",
+    "chainId: Int!",
+    "close: Float!",
+    "component: String",
+    "label: String!"
+   ]
+  },
+  "object Sparklines": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "apy: [SparklinePoint]",
+    "tvl: [SparklinePoint]"
+   ]
+  },
+  "object Staking": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String",
+    "available: Boolean",
+    "rewards: [StakingReward!]",
+    "source: String"
+   ]
+  },
+  "object StakingReward": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "apr: Float!",
+    "decimals: Int!",
+    "finishedAt: BigInt!",
+    "isFinished: Boolean!",
+    "name: String!",
+    "perWeek: Float!",
+    "price: Float!",
+    "symbol: String!"
+   ]
+  },
+  "object Strategy": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "DOMAIN_SEPARATOR: String",
+    "FACTORY: String",
+    "MAX_FEE: Int",
+    "MIN_FEE: Int",
+    "address: String",
+    "apiVersion: String",
+    "apy: Apy",
+    "balanceOfWant: BigInt",
+    "baseFeeOracle: String",
+    "chainId: Int",
+    "claims: [Reward]",
+    "creditThreshold: BigInt",
+    "crv: String",
+    "curveVoter: String",
+    "decimals: Int",
+    "delegatedAssets: BigInt",
+    "doHealthCheck: Boolean",
+    "emergencyExit: Boolean",
+    "erc4626: Boolean",
+    "estimatedTotalAssets: BigInt",
+    "forceHarvestTriggerOnce: Boolean",
+    "fullProfitUnlockDate: BigInt",
+    "gauge: String",
+    "healthCheck: String",
+    "inceptBlock: BigInt",
+    "inceptTime: BigInt",
+    "isActive: Boolean",
+    "isBaseFeeAcceptable: Boolean",
+    "isOriginal: Boolean",
+    "isShutdown: Boolean",
+    "keeper: String",
+    "lastReport: BigInt",
+    "lastReportDetail: ReportDetail",
+    "lenderStatuses: [LenderStatus]",
+    "localKeepCRV: BigInt",
+    "management: String",
+    "maxReportDelay: BigInt",
+    "meta: StrategyMeta",
+    "metadataURI: String",
+    "minReportDelay: BigInt",
+    "name: String",
+    "origin: String",
+    "pendingManagement: String",
+    "performanceFee: Int",
+    "performanceFeeRecipient: String",
+    "pricePerShare: BigInt",
+    "profitMaxUnlockTime: BigInt",
+    "profitUnlockingRate: BigInt",
+    "proxy: String",
+    "rewards: String",
+    "risk: RiskScoreLegacy",
+    "sparklines: Sparklines",
+    "stakedBalance: BigInt",
+    "strategist: String",
+    "symbol: String",
+    "totalAssets: BigInt",
+    "totalDebt: BigInt",
+    "totalDebtUsd: Float",
+    "totalIdle: BigInt",
+    "totalSupply: BigInt",
+    "tradeFactory: String",
+    "tvl: SparklinePoint",
+    "v3: Boolean",
+    "vault: String",
+    "want: String",
+    "yearn: Boolean"
+   ]
+  },
+  "object StrategyMeta": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "description: String",
+    "displayName: String",
+    "isRetired: Boolean",
+    "protocols: [String]"
+   ]
+  },
+  "object StrategyReport": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "apr: ReportApr",
+    "blockNumber: Int!",
+    "blockTime: BigInt!",
+    "chainId: Int!",
+    "debtOutstanding: BigInt",
+    "debtOutstandingUsd: Float",
+    "debtPayment: BigInt",
+    "debtPaymentUsd: Float",
+    "eventName: String!",
+    "logIndex: Int!",
+    "loss: BigInt!",
+    "lossUsd: Float",
+    "performanceFees: BigInt",
+    "performanceFeesUsd: Float",
+    "priceSource: String",
+    "priceUsd: Float",
+    "profit: BigInt!",
+    "profitUsd: Float",
+    "protocolFees: BigInt",
+    "protocolFeesUsd: Float",
+    "transactionHash: String!"
+   ]
+  },
+  "object Thing": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "chainId: Int!",
+    "label: String!"
+   ]
+  },
+  "object TokenMeta": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "category: String",
+    "decimals: Int",
+    "description: String",
+    "displayName: String",
+    "displaySymbol: String",
+    "icon: String",
+    "symbol: String",
+    "type: String"
+   ]
+  },
+  "object Transfer": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "blockNumber: BigInt!",
+    "blockTime: BigInt!",
+    "chainId: Int!",
+    "logIndex: Int!",
+    "receiver: String!",
+    "sender: String!",
+    "transactionHash: String!",
+    "value: Float!",
+    "valueUsd: Float"
+   ]
+  },
+  "object Tvl": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "blockNumber: Int!",
+    "chainId: Int!",
+    "period: String!",
+    "priceSource: String!",
+    "priceUsd: Float",
+    "time: BigInt",
+    "value: Float!"
+   ]
+  },
+  "object Vault": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "DOMAIN_SEPARATOR: String",
+    "FACTORY: String",
+    "accountant: String",
+    "activation: BigInt",
+    "address: String",
+    "allocator: String",
+    "apiVersion: String",
+    "apy: Apy",
+    "asset: Erc20",
+    "availableDepositLimit: BigInt",
+    "category: Int",
+    "chainId: Int",
+    "creditAvailable: BigInt",
+    "debtOutstanding: BigInt",
+    "debtRatio: BigInt",
+    "debts: [Debt]",
+    "decimals: BigInt",
+    "depositLimit: BigInt",
+    "deposit_limit: BigInt",
+    "deposit_limit_module: String",
+    "emergencyShutdown: Boolean",
+    "erc4626: Boolean",
+    "expectedReturn: BigInt",
+    "fees: Fees",
+    "fullProfitUnlockDate: BigInt",
+    "future_role_manager: String",
+    "get_default_queue: [String]",
+    "governance: String",
+    "guardian: String",
+    "inceptBlock: BigInt",
+    "inceptTime: BigInt",
+    "isShutdown: Boolean",
+    "lastProfitUpdate: BigInt",
+    "lastReport: BigInt",
+    "lastReportDetail: ReportDetail",
+    "lockedProfit: BigInt",
+    "lockedProfitDegradation: BigInt",
+    "locker: Locker",
+    "management: String",
+    "managementFee: BigInt",
+    "maxAvailableShares: BigInt",
+    "meta: VaultMeta",
+    "minimum_total_idle: BigInt",
+    "name: String",
+    "origin: String",
+    "performance: Performance",
+    "performanceFee: BigInt",
+    "pricePerShare: BigInt",
+    "profitMaxUnlockTime: BigInt",
+    "profitUnlockingRate: BigInt",
+    "projectId: String",
+    "projectName: String",
+    "registry: String",
+    "rewards: String",
+    "risk: RiskScore",
+    "role_manager: String",
+    "roles: [Role]",
+    "sparklines: Sparklines",
+    "staking: Staking",
+    "strategies: [String]",
+    "symbol: String",
+    "token: String",
+    "totalAssets: BigInt",
+    "totalDebt: BigInt",
+    "totalIdle: BigInt",
+    "totalSupply: BigInt",
+    "total_supply: BigInt",
+    "tvl: SparklinePoint",
+    "unlockedShares: BigInt",
+    "use_default_queue: Boolean",
+    "v3: Boolean",
+    "vaultType: Int",
+    "withdraw_limit_module: String",
+    "withdrawalQueue: [String]",
+    "yearn: Boolean"
+   ]
+  },
+  "object VaultMeta": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "category: String",
+    "description: String",
+    "displayName: String",
+    "displaySymbol: String",
+    "inclusion: VaultMetaInclusion",
+    "isAggregator: Boolean",
+    "isAutomated: Boolean",
+    "isBoosted: Boolean",
+    "isHidden: Boolean",
+    "isHighlighted: Boolean",
+    "isPool: Boolean",
+    "isRetired: Boolean",
+    "kind: String",
+    "migration: VaultMetaMigration",
+    "protocols: [String]",
+    "shouldUseV2APR: Boolean",
+    "sourceURI: String",
+    "stability: VaultMetaStability",
+    "token: TokenMeta",
+    "type: String",
+    "uiNotice: String"
+   ]
+  },
+  "object VaultMetaInclusion": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "isCove: Boolean",
+    "isGimme: Boolean",
+    "isKatana: Boolean",
+    "isMorpho: Boolean",
+    "isPoolTogether: Boolean",
+    "isPublicERC4626: Boolean",
+    "isYearn: Boolean"
+   ]
+  },
+  "object VaultMetaMigration": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "available: Boolean!",
+    "contract: String",
+    "target: String"
+   ]
+  },
+  "object VaultMetaStability": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "stability: String!",
+    "stableBaseAsset: String"
+   ]
+  },
+  "object VaultReport": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "address: String!",
+    "apr: ReportApr",
+    "blockNumber: Int!",
+    "blockTime: BigInt!",
+    "chainId: Int!",
+    "currentDebt: BigInt",
+    "currentDebtUsd: Float",
+    "debtAdded: BigInt",
+    "debtAddedUsd: Float",
+    "debtPaid: BigInt",
+    "debtPaidUsd: Float",
+    "debtRatio: BigInt",
+    "eventName: String!",
+    "gain: BigInt!",
+    "gainUsd: Float",
+    "logIndex: Int!",
+    "loss: BigInt!",
+    "lossUsd: Float",
+    "priceSource: String",
+    "priceUsd: Float",
+    "protocolFees: BigInt",
+    "protocolFeesUsd: Float",
+    "strategy: String!",
+    "totalDebt: BigInt",
+    "totalDebtUsd: Float",
+    "totalFees: BigInt",
+    "totalFeesUsd: Float",
+    "totalGain: BigInt",
+    "totalGainUsd: Float",
+    "totalLoss: BigInt",
+    "totalLossUsd: Float",
+    "totalRefunds: BigInt",
+    "totalRefundsUsd: Float",
+    "transactionHash: String!"
+   ]
+  },
+  "object VestingEscrowCreatedLog": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "amount: BigInt!",
+    "chainId: Int!",
+    "cliffLength: BigInt!",
+    "escrow: String!",
+    "funder: String!",
+    "openClaim: Boolean!",
+    "recipient: String!",
+    "token: Erc20!",
+    "vestingDuration: BigInt!",
+    "vestingStart: BigInt!"
+   ]
+  },
+  "query accountRoles": {
+   "deprecated": false,
+   "params": [
+    "account: String!",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[AccountRole]"
+   ]
+  },
+  "query accountStrategies": {
+   "deprecated": false,
+   "params": [
+    "account: String!",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[Strategy]"
+   ]
+  },
+  "query accountVaults": {
+   "deprecated": false,
+   "params": [
+    "account: String!",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[Vault]"
+   ]
+  },
+  "query accountant": {
+   "deprecated": false,
+   "params": [
+    "address: String!",
+    "chainId: Int!"
+   ],
+   "request": [],
+   "response": [
+    "Accountant"
+   ]
+  },
+  "query accountants": {
+   "deprecated": false,
+   "params": [
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[Accountant]"
+   ]
+  },
+  "query allocator": {
+   "deprecated": false,
+   "params": [
+    "chainId: Int!",
+    "vault: String!"
+   ],
+   "request": [],
+   "response": [
+    "Allocator"
+   ]
+  },
+  "query bananas": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "String"
+   ]
+  },
+  "query deposits": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[Deposit]"
+   ]
+  },
+  "query latestBlocks": {
+   "deprecated": false,
+   "params": [
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[LatestBlock]"
+   ]
+  },
+  "query monitor": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "Monitor"
+   ]
+  },
+  "query newSplitterLogs": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int",
+    "manager: String",
+    "managerRecipient: String",
+    "splitter: String"
+   ],
+   "request": [],
+   "response": [
+    "[NewSplitterLog]"
+   ]
+  },
+  "query newYieldSplitterLogs": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int",
+    "splitter: String",
+    "vault: String",
+    "want: String"
+   ],
+   "request": [],
+   "response": [
+    "[NewYieldSplitterLog]"
+   ]
+  },
+  "query prices": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int",
+    "timestamp: BigInt"
+   ],
+   "request": [],
+   "response": [
+    "[Price]"
+   ]
+  },
+  "query projects": {
+   "deprecated": false,
+   "params": [
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[Project]"
+   ]
+  },
+  "query riskScores": {
+   "deprecated": false,
+   "params": [],
+   "request": [],
+   "response": [
+    "[RiskScoreLegacy]"
+   ]
+  },
+  "query strategies": {
+   "deprecated": false,
+   "params": [
+    "apiVersion: String",
+    "chainId: Int",
+    "erc4626: Boolean"
+   ],
+   "request": [],
+   "response": [
+    "[Strategy]"
+   ]
+  },
+  "query strategy": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "Strategy"
+   ]
+  },
+  "query strategyReports": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[StrategyReport]"
+   ]
+  },
+  "query things": {
+   "deprecated": false,
+   "params": [
+    "chainId: Int",
+    "labels: [String]!"
+   ],
+   "request": [],
+   "response": [
+    "[Thing]"
+   ]
+  },
+  "query timeseries": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int",
+    "component: String",
+    "label: String!",
+    "limit: Int",
+    "period: String",
+    "timestamp: BigInt",
+    "yearn: Boolean"
+   ],
+   "request": [],
+   "response": [
+    "[Output]"
+   ]
+  },
+  "query tokens": {
+   "deprecated": false,
+   "params": [
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[Erc20]"
+   ]
+  },
+  "query transfers": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[Transfer]"
+   ]
+  },
+  "query tvls": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int!",
+    "limit: Int",
+    "period: String",
+    "timestamp: BigInt"
+   ],
+   "request": [],
+   "response": [
+    "[Tvl]"
+   ]
+  },
+  "query vault": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "Vault"
+   ]
+  },
+  "query vaultAccounts": {
+   "deprecated": false,
+   "params": [
+    "chainId: Int",
+    "vault: String"
+   ],
+   "request": [],
+   "response": [
+    "[AccountRole]"
+   ]
+  },
+  "query vaultReports": {
+   "deprecated": false,
+   "params": [
+    "address: String",
+    "chainId: Int"
+   ],
+   "request": [],
+   "response": [
+    "[VaultReport]"
+   ]
+  },
+  "query vaultStrategies": {
+   "deprecated": false,
+   "params": [
+    "chainId: Int",
+    "vault: String"
+   ],
+   "request": [],
+   "response": [
+    "[Strategy]"
+   ]
+  },
+  "query vaults": {
+   "deprecated": false,
+   "params": [
+    "addresses: [String]",
+    "apiVersion: String",
+    "chainId: Int",
+    "erc4626: Boolean",
+    "limit: Int",
+    "offset: Int",
+    "origin: String",
+    "riskLevel: Int",
+    "unratedOnly: Boolean",
+    "v3: Boolean",
+    "vaultType: Int",
+    "yearn: Boolean"
+   ],
+   "request": [],
+   "response": [
+    "[Vault]"
+   ]
+  },
+  "query vestingEscrowCreatedLogs": {
+   "deprecated": false,
+   "params": [
+    "recipient: String"
+   ],
+   "request": [],
+   "response": [
+    "[VestingEscrowCreatedLog]"
+   ]
+  }
+ }
+}

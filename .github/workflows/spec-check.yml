@@ -1,0 +1,93 @@
+name: Weekly API spec check
+
+# Downloads each upstream provider's published OpenAPI spec (or GraphQL
+# schema) and compares its operations, parameters and fields with the
+# snapshots in scripts/spec-check/snapshots/. A change fails the run and is
+# reported in one tracking issue, split into breaking changes and additions and
+# marked where a crate calls the endpoint. Accept a reviewed change with
+# `python3 scripts/spec-check/run.py --update` and commit the snapshots.
+# See scripts/spec-check/.
+
+on:
+  schedule:
+    - cron: '30 7 * * 1'  # Monday 07:30 UTC, after the weekly API check
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/spec-check/**'
+      - '.github/workflows/spec-check.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  spec-check:
+    name: API spec check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install PyYAML
+        run: python3 -c 'import yaml' || sudo apt-get install -y --no-install-recommends python3-yaml
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s scripts/spec-check -p 'test_*.py' -v
+
+      - name: Run spec checks
+        id: check
+        run: |
+          status=0
+          python3 scripts/spec-check/run.py \
+            --json spec-check.json \
+            --summary spec-check.md || status=$?
+          cat spec-check.md >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spec-check-results
+          path: |
+            spec-check.json
+            spec-check.md
+          if-no-files-found: ignore
+
+      # Scheduled/manual runs keep one tracking issue in sync: open or update it
+      # when a spec changed or can't be fetched, close it once all match again.
+      - name: Update tracking issue
+        if: always() && github.event_name != 'pull_request' && hashFiles('spec-check.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.check.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Weekly API spec check: upstream changes"
+          existing=$(gh issue list --state open --search "\"$title\" in:title" --json number -q '.[0].number')
+          if [ "$OUTCOME" = "failure" ]; then
+            {
+              echo "An upstream API spec changed or could not be fetched: $RUN_URL"
+              echo
+              echo "Review each change and update the crate if needed (**breaking** · **used by crate** first)."
+              echo "Then accept it with \`python3 scripts/spec-check/run.py --update\` and commit the snapshots,"
+              echo "or fix the spec URL in \`scripts/spec-check/specs.txt\`."
+              echo
+              # Issue bodies are capped at 65536 characters; the run summary has the rest.
+              head -c 60000 spec-check.md
+            } > body.md
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body-file body.md
+            else
+              gh issue create --title "$title" --body-file body.md
+            fi
+          elif [ "$OUTCOME" = "success" ] && [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "All API specs match their snapshots again: $RUN_URL"
+          fi

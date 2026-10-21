@@ -1,0 +1,46 @@
+# Weekly API spec check: the published spec of each upstream API a crate wraps.
+#
+# Format:  provider | crate | openapi|mintlify|readme|graphql | spec URL
+#   - openapi: an OpenAPI 3 or Swagger 2 document (JSON or YAML), fetched with GET
+#   - mintlify: Mintlify docs with one spec per endpoint page; the URL is the
+#     docs base, pages are listed from its llms.txt
+#   - readme: ReadMe docs that embed a spec in each /reference/<page>.md;
+#     the URL is the docs base, pages are listed from its llms.txt
+#   - graphql: a GraphQL endpoint, queried with an introspection POST
+#   - ${VAR} in a URL is read from the environment; the spec is skipped when
+#     it is unset and the value is redacted from output.
+#   - Prefer the provider's own endpoint or its repo's main branch over a
+#     versioned docs URL. The crate column is the directory under crates/ whose
+#     path literals mark which operations are "used by crate". The report's
+#     "paths not in the spec" list is a heuristic: a crate that also calls a host
+#     without a spec (alcmy's gas manager) always shows those paths.
+#
+# No public spec (covered only by the live check in scripts/api-check/):
+# Solodit, Chainlink Data Streams REST, OpenOcean. The live Hermes server
+# doesn't serve its spec, so Pyth uses the copy committed for its JS client.
+
+cowswap          | cowp   | openapi | https://raw.githubusercontent.com/cowprotocol/services/main/crates/orderbook/openapi.yml
+curve            | crv    | openapi | https://api.curve.finance/v1/openapi.json
+curve-prices     | crv    | openapi | https://prices.curve.finance/feeds-docs/openapi.json
+etherscan        | ethcli | mintlify | https://docs.etherscan.io
+moralis          | mrls   | openapi | https://deep-index.moralis.io/api-docs-2.2/v2.2/swagger.json
+enso             | ensof  | openapi | https://api.enso.finance/api-json
+defillama        | dllma  | openapi | https://raw.githubusercontent.com/DefiLlama/api-docs/main/defillama-openapi-free.json
+defillama-pro    | dllma  | openapi | https://raw.githubusercontent.com/DefiLlama/api-docs/main/defillama-openapi-pro.json
+coingecko        | cgko   | openapi | https://raw.githubusercontent.com/coingecko/coingecko-api-oas/main/demo-api.json
+coingecko-pro    | cgko   | openapi | https://raw.githubusercontent.com/coingecko/coingecko-api-oas/main/pro-api.json
+lifi             | lfi    | openapi | https://docs.li.fi/openapi.yaml
+dune             | dnapi  | openapi | https://docs.dune.com/analytics-openapi.json
+kyberswap        | kybr   | openapi | https://openapi.gitbook.com/o/2RCW3YGZHRsvcw6VtGeF/spec/aggregator-api.yaml
+0x               | zrxswap | openapi | https://docs.0x.org/openapi/evm-apis.json
+tenderly         | tndrly | openapi | https://docs.tenderly.co/api-reference/openapi.json
+velora           | vlra   | openapi | https://raw.githubusercontent.com/VeloraDEX/docs/main/api-reference/specs/market.json
+alchemy-prices   | alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/prices/prices.yaml
+alchemy-nft      | alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/nft/nft.yaml
+alchemy-portfolio| alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/portfolio/portfolio.yaml
+alchemy-notify   | alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/notify/notify.yaml
+alchemy-beacon   | alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/eth-beacon/eth-beacon.yaml
+oneinch-swap     | oinch  | openapi | https://api.business.1inch.com/swagger-docs/swap/swagger/ethereum-json
+goplus           | gplus  | readme  | https://docs.gopluslabs.io
+pyth-hermes      | pythc  | openapi | https://raw.githubusercontent.com/pyth-network/pyth-crosschain/main/apps/hermes/client/js/schema.json
+kong             | ykong  | graphql | https://kong.yearn.fi/api/gql

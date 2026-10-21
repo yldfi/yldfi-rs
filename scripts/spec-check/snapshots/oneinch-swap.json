@@ -1,0 +1,215 @@
+{
+ "provider": "oneinch-swap",
+ "url": "https://api.business.1inch.com/swagger-docs/swap/swagger/ethereum-json",
+ "version": "6.1",
+ "operations": {
+  "GET /v6.1/{chainId}/approve/allowance": {
+   "deprecated": false,
+   "params": [
+    "path:chainId*",
+    "query:tokenAddress*",
+    "query:walletAddress*"
+   ],
+   "request": [],
+   "response": [
+    "allowance*"
+   ]
+  },
+  "GET /v6.1/{chainId}/approve/spender": {
+   "deprecated": false,
+   "params": [
+    "path:chainId*"
+   ],
+   "request": [],
+   "response": [
+    "address*"
+   ]
+  },
+  "GET /v6.1/{chainId}/approve/transaction": {
+   "deprecated": false,
+   "params": [
+    "path:chainId*",
+    "query:amount",
+    "query:tokenAddress*"
+   ],
+   "request": [],
+   "response": [
+    "data*",
+    "gasPrice*",
+    "to*",
+    "value*"
+   ]
+  },
+  "GET /v6.1/{chainId}/liquidity-sources": {
+   "deprecated": false,
+   "params": [
+    "path:chainId*"
+   ],
+   "request": [],
+   "response": [
+    "protocols*",
+    "protocols[].id*",
+    "protocols[].img*",
+    "protocols[].img_color*",
+    "protocols[].title*"
+   ]
+  },
+  "GET /v6.1/{chainId}/quote": {
+   "deprecated": false,
+   "params": [
+    "path:chainId*",
+    "query:amount*",
+    "query:complexityLevel",
+    "query:connectorTokens",
+    "query:dst*",
+    "query:excludedProtocols",
+    "query:fee",
+    "query:gasLimit",
+    "query:gasPrice",
+    "query:includeGas",
+    "query:includeProtocols",
+    "query:includeTokensInfo",
+    "query:mainRouteParts",
+    "query:parts",
+    "query:protocols",
+    "query:src*"
+   ],
+   "request": [],
+   "response": [
+    "dstAmount*",
+    "dstToken",
+    "dstToken.address*",
+    "dstToken.decimals*",
+    "dstToken.domainVersion",
+    "dstToken.eip2612",
+    "dstToken.isFoT",
+    "dstToken.logoURI*",
+    "dstToken.name*",
+    "dstToken.symbol*",
+    "dstToken.tags",
+    "gas",
+    "protocols",
+    "protocols[].hops*",
+    "protocols[].hops[].dst*",
+    "protocols[].hops[].fromTokenId*",
+    "protocols[].hops[].part*",
+    "protocols[].hops[].protocols*",
+    "protocols[].hops[].protocols[].name*",
+    "protocols[].hops[].protocols[].part*",
+    "protocols[].hops[].toTokenId*",
+    "protocols[].token*",
+    "srcToken",
+    "srcToken.address*",
+    "srcToken.decimals*",
+    "srcToken.domainVersion",
+    "srcToken.eip2612",
+    "srcToken.isFoT",
+    "srcToken.logoURI*",
+    "srcToken.name*",
+    "srcToken.symbol*",
+    "srcToken.tags"
+   ]
+  },
+  "GET /v6.1/{chainId}/swap": {
+   "deprecated": false,
+   "params": [
+    "path:chainId*",
+    "query:allowPartialFill",
+    "query:amount*",
+    "query:compatibility",
+    "query:complexityLevel",
+    "query:connectorTokens",
+    "query:createAccessList",
+    "query:disableEstimate",
+    "query:dst*",
+    "query:excludedProtocols",
+    "query:fee",
+    "query:forceApprove",
+    "query:from*",
+    "query:gasLimit",
+    "query:gasPrice",
+    "query:includeGas",
+    "query:includeProtocols",
+    "query:includeTokensInfo",
+    "query:mainRouteParts",
+    "query:minReturn",
+    "query:origin*",
+    "query:parts",
+    "query:permit",
+    "query:protocols",
+    "query:receiver",
+    "query:referrer",
+    "query:slippage",
+    "query:src*",
+    "query:usePatching",
+    "query:usePermit2"
+   ],
+   "request": [],
+   "response": [
+    "dstAmount*",
+    "dstToken",
+    "dstToken.address*",
+    "dstToken.decimals*",
+    "dstToken.domainVersion",
+    "dstToken.eip2612",
+    "dstToken.isFoT",
+    "dstToken.logoURI*",
+    "dstToken.name*",
+    "dstToken.symbol*",
+    "dstToken.tags",
+    "protocols",
+    "protocols[].hops*",
+    "protocols[].hops[].dst*",
+    "protocols[].hops[].fromTokenId*",
+    "protocols[].hops[].part*",
+    "protocols[].hops[].protocols*",
+    "protocols[].hops[].protocols[].name*",
+    "protocols[].hops[].protocols[].part*",
+    "protocols[].hops[].toTokenId*",
+    "protocols[].token*",
+    "srcToken",
+    "srcToken.address*",
+    "srcToken.decimals*",
+    "srcToken.domainVersion",
+    "srcToken.eip2612",
+    "srcToken.isFoT",
+    "srcToken.logoURI*",
+    "srcToken.name*",
+    "srcToken.symbol*",
+    "srcToken.tags",
+    "stateOverrides*",
+    "tx*",
+    "tx.accessList",
+    "tx.accessList[].address*",
+    "tx.accessList[].storageKeys*",
+    "tx.data*",
+    "tx.from*",
+    "tx.gas*",
+    "tx.gasPrice*",
+    "tx.gasUsed",
+    "tx.to*",
+    "tx.value*"
+   ]
+  },
+  "GET /v6.1/{chainId}/tokens": {
+   "deprecated": false,
+   "params": [
+    "path:chainId*"
+   ],
+   "request": [],
+   "response": [
+    "tokens",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.address*",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.decimals*",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.domainVersion",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.eip2612",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.isFoT",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.logoURI*",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.name*",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.symbol*",
+    "tokens.0x111111111117dc0aa78b770fa6a738034120c302.tags"
+   ]
+  }
+ }
+}

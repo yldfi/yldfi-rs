@@ -1,0 +1,1243 @@
+{
+ "provider": "dune",
+ "url": "https://docs.dune.com/analytics-openapi.json",
+ "version": "1.0",
+ "operations": {
+  "DELETE /v1/materialized-views/{name}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:name*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "message"
+   ]
+  },
+  "DELETE /v1/uploads/{namespace}/{table_name}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:namespace*",
+    "path:table_name*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "message"
+   ]
+  },
+  "DELETE /v1/visualizations/{visualization_id}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:visualization_id*"
+   ],
+   "request": [],
+   "response": [
+    "ok"
+   ]
+  },
+  "GET /v1/contracts/submissions": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:address",
+    "query:api_key",
+    "query:blockchain_name",
+    "query:contract_name",
+    "query:cursor",
+    "query:limit",
+    "query:project_name",
+    "query:status"
+   ],
+   "request": [],
+   "response": [
+    "next_cursor",
+    "submissions",
+    "submissions[].address",
+    "submissions[].blockchain_name",
+    "submissions[].comment",
+    "submissions[].contract_name",
+    "submissions[].created_at",
+    "submissions[].id",
+    "submissions[].idempotency_key",
+    "submissions[].project_name",
+    "submissions[].status",
+    "submissions[].submission_type",
+    "submissions[].updated_at",
+    "total"
+   ]
+  },
+  "GET /v1/dashboards/by-slug/{owner_handle}/{slug}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:owner_handle*",
+    "path:slug*"
+   ],
+   "request": [],
+   "response": [
+    "dashboard_id",
+    "dashboard_url",
+    "is_private",
+    "name",
+    "param_widgets",
+    "param_widgets[].key",
+    "param_widgets[].position",
+    "param_widgets[].position.col",
+    "param_widgets[].position.row",
+    "param_widgets[].position.size_x",
+    "param_widgets[].position.size_y",
+    "param_widgets[].query_id",
+    "param_widgets[].visualization_widget_id",
+    "param_widgets[].widget_id",
+    "slug",
+    "tags",
+    "text_widgets",
+    "text_widgets[].position",
+    "text_widgets[].position.col",
+    "text_widgets[].position.row",
+    "text_widgets[].position.size_x",
+    "text_widgets[].position.size_y",
+    "text_widgets[].text",
+    "text_widgets[].widget_id",
+    "visualization_widgets",
+    "visualization_widgets[].position",
+    "visualization_widgets[].position.col",
+    "visualization_widgets[].position.row",
+    "visualization_widgets[].position.size_x",
+    "visualization_widgets[].position.size_y",
+    "visualization_widgets[].visualization_id",
+    "visualization_widgets[].widget_id"
+   ]
+  },
+  "GET /v1/dashboards/{dashboard_id}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:dashboard_id*"
+   ],
+   "request": [],
+   "response": [
+    "dashboard_id",
+    "dashboard_url",
+    "is_private",
+    "name",
+    "param_widgets",
+    "param_widgets[].key",
+    "param_widgets[].position",
+    "param_widgets[].position.col",
+    "param_widgets[].position.row",
+    "param_widgets[].position.size_x",
+    "param_widgets[].position.size_y",
+    "param_widgets[].query_id",
+    "param_widgets[].visualization_widget_id",
+    "param_widgets[].widget_id",
+    "slug",
+    "tags",
+    "text_widgets",
+    "text_widgets[].position",
+    "text_widgets[].position.col",
+    "text_widgets[].position.row",
+    "text_widgets[].position.size_x",
+    "text_widgets[].position.size_y",
+    "text_widgets[].text",
+    "text_widgets[].widget_id",
+    "visualization_widgets",
+    "visualization_widgets[].position",
+    "visualization_widgets[].position.col",
+    "visualization_widgets[].position.row",
+    "visualization_widgets[].position.size_x",
+    "visualization_widgets[].position.size_y",
+    "visualization_widgets[].visualization_id",
+    "visualization_widgets[].widget_id"
+   ]
+  },
+  "GET /v1/datasets": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key",
+    "query:limit",
+    "query:offset",
+    "query:owner_handle",
+    "query:type"
+   ],
+   "request": [],
+   "response": [
+    "datasets",
+    "datasets[].columns",
+    "datasets[].columns[].metadata",
+    "datasets[].columns[].metadata.description",
+    "datasets[].columns[].metadata.filtering_column",
+    "datasets[].columns[].name",
+    "datasets[].columns[].nullable",
+    "datasets[].columns[].type",
+    "datasets[].created_at",
+    "datasets[].full_name",
+    "datasets[].is_private",
+    "datasets[].metadata",
+    "datasets[].owner",
+    "datasets[].owner.handle",
+    "datasets[].owner.type",
+    "datasets[].type",
+    "datasets[].updated_at",
+    "total"
+   ]
+  },
+  "GET /v1/datasets/{slug}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:slug*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "columns",
+    "columns[].metadata",
+    "columns[].metadata.description",
+    "columns[].metadata.filtering_column",
+    "columns[].name",
+    "columns[].nullable",
+    "columns[].type",
+    "created_at",
+    "full_name",
+    "is_private",
+    "metadata",
+    "owner",
+    "owner.handle",
+    "owner.type",
+    "type",
+    "updated_at"
+   ]
+  },
+  "GET /v1/endpoints/{handle}/{endpoint_slug}/results": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:endpoint_slug*",
+    "path:handle*",
+    "query:allow_partial_results",
+    "query:api_key",
+    "query:columns",
+    "query:filters",
+    "query:ignore_max_credits_per_request",
+    "query:limit",
+    "query:offset",
+    "query:queryID*",
+    "query:sample_count",
+    "query:sort_by"
+   ],
+   "request": [],
+   "response": [
+    "cancelled_at",
+    "error",
+    "error.message",
+    "error.metadata",
+    "error.metadata.column",
+    "error.metadata.line",
+    "error.type",
+    "execution_ended_at",
+    "execution_id",
+    "execution_started_at",
+    "expires_at",
+    "is_execution_finished",
+    "next_offset",
+    "next_uri",
+    "query_id",
+    "result",
+    "result.metadata",
+    "result.metadata.column_names",
+    "result.metadata.column_types",
+    "result.metadata.datapoint_count",
+    "result.metadata.execution_time_millis",
+    "result.metadata.pending_time_millis",
+    "result.metadata.result_set_bytes",
+    "result.metadata.row_count",
+    "result.metadata.total_result_set_bytes",
+    "result.metadata.total_row_count",
+    "result.rows",
+    "result.update_type",
+    "state",
+    "submitted_at"
+   ]
+  },
+  "GET /v1/execution/{execution_id}/results": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:execution_id*",
+    "query:allow_partial_results",
+    "query:api_key",
+    "query:columns",
+    "query:filters",
+    "query:ignore_max_credits_per_request",
+    "query:limit",
+    "query:offset",
+    "query:sample_count",
+    "query:sort_by"
+   ],
+   "request": [],
+   "response": [
+    "cancelled_at",
+    "error",
+    "error.message",
+    "error.metadata",
+    "error.metadata.column",
+    "error.metadata.line",
+    "error.type",
+    "execution_ended_at",
+    "execution_id",
+    "execution_started_at",
+    "expires_at",
+    "is_execution_finished",
+    "next_offset",
+    "next_uri",
+    "query_id",
+    "result",
+    "result.metadata",
+    "result.metadata.column_names",
+    "result.metadata.column_types",
+    "result.metadata.datapoint_count",
+    "result.metadata.execution_time_millis",
+    "result.metadata.pending_time_millis",
+    "result.metadata.result_set_bytes",
+    "result.metadata.row_count",
+    "result.metadata.total_result_set_bytes",
+    "result.metadata.total_row_count",
+    "result.rows",
+    "result.update_type",
+    "state",
+    "submitted_at"
+   ]
+  },
+  "GET /v1/execution/{execution_id}/results/csv": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:execution_id*",
+    "query:allow_partial_results",
+    "query:api_key",
+    "query:columns",
+    "query:filters",
+    "query:ignore_max_credits_per_request",
+    "query:limit",
+    "query:offset",
+    "query:sample_count",
+    "query:sort_by"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /v1/execution/{execution_id}/status": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:execution_id*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "cancelled_at",
+    "error",
+    "error.message",
+    "error.metadata",
+    "error.metadata.column",
+    "error.metadata.line",
+    "error.type",
+    "execution_cost_credits",
+    "execution_ended_at",
+    "execution_id",
+    "execution_started_at",
+    "expires_at",
+    "is_execution_finished",
+    "max_inflight_interactive_executions",
+    "max_inflight_interactive_reached",
+    "query_id",
+    "queue_position",
+    "result_metadata",
+    "result_metadata.column_names",
+    "result_metadata.column_types",
+    "result_metadata.datapoint_count",
+    "result_metadata.execution_time_millis",
+    "result_metadata.pending_time_millis",
+    "result_metadata.result_set_bytes",
+    "result_metadata.row_count",
+    "result_metadata.total_result_set_bytes",
+    "result_metadata.total_row_count",
+    "state",
+    "submitted_at"
+   ]
+  },
+  "GET /v1/materialized-views": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key",
+    "query:limit",
+    "query:offset"
+   ],
+   "request": [],
+   "response": [
+    "materialized_views",
+    "materialized_views[].id",
+    "materialized_views[].is_private",
+    "materialized_views[].query_id",
+    "materialized_views[].sql_id",
+    "materialized_views[].table_size_bytes",
+    "next_offset"
+   ]
+  },
+  "GET /v1/materialized-views/{name}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:name*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "id",
+    "is_private",
+    "last_execution_ids",
+    "owner_team_id",
+    "owner_user_id",
+    "query_id",
+    "schedule",
+    "schedule.cron_expression",
+    "schedule.expires_at",
+    "schedule.next_execution_time",
+    "schedule.performance",
+    "sql_id",
+    "table_size_bytes"
+   ]
+  },
+  "GET /v1/pipelines/executions/{pipeline_execution_id}/status": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:pipeline_execution_id*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "error",
+    "node_executions",
+    "node_executions[].id",
+    "node_executions[].materialized_view_refresh_status",
+    "node_executions[].materialized_view_refresh_status.error",
+    "node_executions[].materialized_view_refresh_status.execution_id",
+    "node_executions[].materialized_view_refresh_status.name",
+    "node_executions[].materialized_view_refresh_status.status",
+    "node_executions[].query_execution_status",
+    "node_executions[].query_execution_status.error",
+    "node_executions[].query_execution_status.execution_id",
+    "node_executions[].query_execution_status.query_id",
+    "node_executions[].query_execution_status.status",
+    "status"
+   ]
+  },
+  "GET /v1/queries": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key",
+    "query:limit",
+    "query:offset"
+   ],
+   "request": [],
+   "response": [
+    "queries",
+    "queries[].created_at",
+    "queries[].description",
+    "queries[].id",
+    "queries[].name",
+    "queries[].owner",
+    "queries[].tags",
+    "queries[].updated_at",
+    "total"
+   ]
+  },
+  "GET /v1/queries/{query_id}/visualizations": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*",
+    "query:limit",
+    "query:offset"
+   ],
+   "request": [],
+   "response": [
+    "results",
+    "results[].created_at",
+    "results[].id",
+    "results[].name",
+    "results[].type",
+    "results[].updated_at",
+    "total_count"
+   ]
+  },
+  "GET /v1/query/{queryId}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:queryId*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "contributors",
+    "contributors[].contribution_count",
+    "contributors[].handle",
+    "description",
+    "is_archived",
+    "is_private",
+    "is_temp",
+    "is_unsaved",
+    "name",
+    "owner",
+    "parameters",
+    "parameters[].description",
+    "parameters[].enumFromResults",
+    "parameters[].enumFromResults.columnName",
+    "parameters[].enumFromResults.queryId",
+    "parameters[].enumOptions",
+    "parameters[].isFreeformAllowed",
+    "parameters[].isMultiselect",
+    "parameters[].key",
+    "parameters[].type",
+    "parameters[].value",
+    "parameters[].values",
+    "query_engine",
+    "query_id",
+    "query_sql",
+    "tags",
+    "version"
+   ]
+  },
+  "GET /v1/query/{query_id}/pipeline": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*",
+    "query:api_key",
+    "query:performance",
+    "query:query_parameters"
+   ],
+   "request": [],
+   "response": [
+    "pipeline",
+    "pipeline.nodes",
+    "pipeline.nodes[].dependencies",
+    "pipeline.nodes[].id",
+    "pipeline.nodes[].materialized_view_refresh",
+    "pipeline.nodes[].materialized_view_refresh.name",
+    "pipeline.nodes[].materialized_view_refresh.performance",
+    "pipeline.nodes[].query_execution",
+    "pipeline.nodes[].query_execution.performance",
+    "pipeline.nodes[].query_execution.query_id",
+    "pipeline.nodes[].query_execution.query_parameters"
+   ]
+  },
+  "GET /v1/query/{query_id}/results": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*",
+    "query:allow_partial_results",
+    "query:api_key",
+    "query:columns",
+    "query:filters",
+    "query:ignore_max_credits_per_request",
+    "query:limit",
+    "query:offset",
+    "query:queryID*",
+    "query:sample_count",
+    "query:sort_by"
+   ],
+   "request": [],
+   "response": [
+    "cancelled_at",
+    "error",
+    "error.message",
+    "error.metadata",
+    "error.metadata.column",
+    "error.metadata.line",
+    "error.type",
+    "execution_ended_at",
+    "execution_id",
+    "execution_started_at",
+    "expires_at",
+    "is_execution_finished",
+    "next_offset",
+    "next_uri",
+    "query_id",
+    "result",
+    "result.metadata",
+    "result.metadata.column_names",
+    "result.metadata.column_types",
+    "result.metadata.datapoint_count",
+    "result.metadata.execution_time_millis",
+    "result.metadata.pending_time_millis",
+    "result.metadata.result_set_bytes",
+    "result.metadata.row_count",
+    "result.metadata.total_result_set_bytes",
+    "result.metadata.total_row_count",
+    "result.rows",
+    "result.update_type",
+    "state",
+    "submitted_at"
+   ]
+  },
+  "GET /v1/query/{query_id}/results/csv": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*",
+    "query:allow_partial_results",
+    "query:api_key",
+    "query:columns",
+    "query:filters",
+    "query:ignore_max_credits_per_request",
+    "query:limit",
+    "query:offset",
+    "query:queryID*",
+    "query:sample_count",
+    "query:sort_by"
+   ],
+   "request": [],
+   "response": []
+  },
+  "GET /v1/uploads": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key",
+    "query:limit",
+    "query:offset"
+   ],
+   "request": [],
+   "response": [
+    "next_offset",
+    "tables",
+    "tables[].columns",
+    "tables[].columns[].metadata",
+    "tables[].columns[].name",
+    "tables[].columns[].nullable",
+    "tables[].columns[].type",
+    "tables[].created_at",
+    "tables[].full_name",
+    "tables[].is_private",
+    "tables[].owner",
+    "tables[].owner.handle",
+    "tables[].owner.type",
+    "tables[].purged_at",
+    "tables[].table_size_bytes",
+    "tables[].updated_at"
+   ]
+  },
+  "GET /v1/visualizations/{visualization_id}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:visualization_id*"
+   ],
+   "request": [],
+   "response": [
+    "created_at",
+    "description",
+    "id",
+    "name",
+    "options",
+    "query_id",
+    "type",
+    "updated_at"
+   ]
+  },
+  "PATCH /v1/dashboards/{dashboard_id}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:dashboard_id*"
+   ],
+   "request": [
+    "columns_per_row",
+    "is_private",
+    "name",
+    "param_widgets",
+    "param_widgets[].key",
+    "param_widgets[].position",
+    "param_widgets[].position.col",
+    "param_widgets[].position.row",
+    "param_widgets[].position.size_x",
+    "param_widgets[].position.size_y",
+    "param_widgets[].query_id",
+    "param_widgets[].visualization_widget_id",
+    "slug",
+    "tags",
+    "text_widgets",
+    "text_widgets[].position",
+    "text_widgets[].position.col",
+    "text_widgets[].position.row",
+    "text_widgets[].position.size_x",
+    "text_widgets[].position.size_y",
+    "text_widgets[].text",
+    "visualization_widgets",
+    "visualization_widgets[].position",
+    "visualization_widgets[].position.col",
+    "visualization_widgets[].position.row",
+    "visualization_widgets[].position.size_x",
+    "visualization_widgets[].position.size_y",
+    "visualization_widgets[].visualization_id"
+   ],
+   "response": [
+    "dashboard_id",
+    "dashboard_url",
+    "is_private",
+    "name",
+    "param_widgets",
+    "param_widgets[].key",
+    "param_widgets[].position",
+    "param_widgets[].position.col",
+    "param_widgets[].position.row",
+    "param_widgets[].position.size_x",
+    "param_widgets[].position.size_y",
+    "param_widgets[].query_id",
+    "param_widgets[].visualization_widget_id",
+    "param_widgets[].widget_id",
+    "slug",
+    "tags",
+    "text_widgets",
+    "text_widgets[].position",
+    "text_widgets[].position.col",
+    "text_widgets[].position.row",
+    "text_widgets[].position.size_x",
+    "text_widgets[].position.size_y",
+    "text_widgets[].text",
+    "text_widgets[].widget_id",
+    "visualization_widgets",
+    "visualization_widgets[].position",
+    "visualization_widgets[].position.col",
+    "visualization_widgets[].position.row",
+    "visualization_widgets[].position.size_x",
+    "visualization_widgets[].position.size_y",
+    "visualization_widgets[].visualization_id",
+    "visualization_widgets[].widget_id"
+   ]
+  },
+  "PATCH /v1/query/{queryId}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:queryId*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "query_id"
+   ]
+  },
+  "POST /v1/contracts/decode": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "submissions*",
+    "submissions[].abi*",
+    "submissions[].address*",
+    "submissions[].blockchain_name*",
+    "submissions[].contract_name*",
+    "submissions[].has_multiple_instances",
+    "submissions[].idempotency_key",
+    "submissions[].is_created_by_factory",
+    "submissions[].is_manual_abi",
+    "submissions[].is_proxy",
+    "submissions[].old_contract_name",
+    "submissions[].old_project_name",
+    "submissions[].project_name*",
+    "submissions[].resubmission_reason",
+    "submissions[].submission_type"
+   ],
+   "response": [
+    "results",
+    "results[].error",
+    "results[].index",
+    "results[].replayed",
+    "results[].status",
+    "results[].submission_id"
+   ]
+  },
+  "POST /v1/dashboards": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*"
+   ],
+   "request": [
+    "columns_per_row",
+    "is_private",
+    "name*",
+    "text_widgets",
+    "text_widgets[].position",
+    "text_widgets[].position.col",
+    "text_widgets[].position.row",
+    "text_widgets[].position.size_x",
+    "text_widgets[].position.size_y",
+    "text_widgets[].text",
+    "visualization_ids"
+   ],
+   "response": [
+    "dashboard_id",
+    "dashboard_url",
+    "is_private",
+    "name",
+    "param_widgets",
+    "param_widgets[].key",
+    "param_widgets[].position",
+    "param_widgets[].position.col",
+    "param_widgets[].position.row",
+    "param_widgets[].position.size_x",
+    "param_widgets[].position.size_y",
+    "param_widgets[].query_id",
+    "param_widgets[].visualization_widget_id",
+    "param_widgets[].widget_id",
+    "slug",
+    "tags",
+    "text_widgets",
+    "text_widgets[].position",
+    "text_widgets[].position.col",
+    "text_widgets[].position.row",
+    "text_widgets[].position.size_x",
+    "text_widgets[].position.size_y",
+    "text_widgets[].text",
+    "text_widgets[].widget_id",
+    "visualization_widgets",
+    "visualization_widgets[].position",
+    "visualization_widgets[].position.col",
+    "visualization_widgets[].position.row",
+    "visualization_widgets[].position.size_x",
+    "visualization_widgets[].position.size_y",
+    "visualization_widgets[].visualization_id",
+    "visualization_widgets[].widget_id"
+   ]
+  },
+  "POST /v1/dashboards/{dashboard_id}/archive": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:dashboard_id*"
+   ],
+   "request": [],
+   "response": [
+    "dashboard_id",
+    "ok"
+   ]
+  },
+  "POST /v1/datasets/search": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "blockchains",
+    "categories",
+    "dataset_types",
+    "include_metadata",
+    "include_private",
+    "include_schema",
+    "limit",
+    "offset",
+    "owner_scope",
+    "query",
+    "schemas"
+   ],
+   "response": [
+    "pagination",
+    "pagination.has_more",
+    "pagination.limit",
+    "pagination.next_offset",
+    "pagination.offset",
+    "results",
+    "results[].blockchains",
+    "results[].category",
+    "results[].dataset_type",
+    "results[].description",
+    "results[].full_name",
+    "results[].metadata",
+    "results[].metadata.abi_type",
+    "results[].metadata.contract_name",
+    "results[].metadata.description",
+    "results[].metadata.page_rank_score",
+    "results[].metadata.project_name",
+    "results[].metadata.spell_metadata",
+    "results[].metadata.spell_type",
+    "results[].owner_scope",
+    "results[].schema",
+    "results[].visibility",
+    "total"
+   ]
+  },
+  "POST /v1/datasets/search-by-contract": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "blockchains",
+    "contract_address*",
+    "include_schema",
+    "limit",
+    "offset"
+   ],
+   "response": [
+    "pagination",
+    "pagination.has_more",
+    "pagination.limit",
+    "pagination.next_offset",
+    "pagination.offset",
+    "results",
+    "results[].blockchains",
+    "results[].category",
+    "results[].dataset_type",
+    "results[].description",
+    "results[].full_name",
+    "results[].metadata",
+    "results[].metadata.abi_type",
+    "results[].metadata.contract_name",
+    "results[].metadata.description",
+    "results[].metadata.page_rank_score",
+    "results[].metadata.project_name",
+    "results[].metadata.spell_metadata",
+    "results[].metadata.spell_type",
+    "results[].owner_scope",
+    "results[].schema",
+    "results[].visibility",
+    "total"
+   ]
+  },
+  "POST /v1/execution/{execution_id}/cancel": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:execution_id*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "success"
+   ]
+  },
+  "POST /v1/materialized-views": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "cron_expression",
+    "expires_at",
+    "is_private",
+    "name",
+    "performance",
+    "query_id"
+   ],
+   "response": [
+    "execution_id",
+    "name"
+   ]
+  },
+  "POST /v1/materialized-views/{name}/refresh": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:name*",
+    "query:api_key"
+   ],
+   "request": [
+    "performance"
+   ],
+   "response": [
+    "execution_id",
+    "sql_id"
+   ]
+  },
+  "POST /v1/pipelines/execute": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "pipeline",
+    "pipeline.nodes",
+    "pipeline.nodes[].dependencies",
+    "pipeline.nodes[].id",
+    "pipeline.nodes[].materialized_view_refresh",
+    "pipeline.nodes[].materialized_view_refresh.name",
+    "pipeline.nodes[].materialized_view_refresh.performance",
+    "pipeline.nodes[].query_execution",
+    "pipeline.nodes[].query_execution.performance",
+    "pipeline.nodes[].query_execution.query_id",
+    "pipeline.nodes[].query_execution.query_parameters"
+   ],
+   "response": [
+    "pipeline_execution_id"
+   ]
+  },
+  "POST /v1/queries/{query_id}/visualizations": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*"
+   ],
+   "request": [
+    "description",
+    "name*",
+    "options",
+    "type*"
+   ],
+   "response": [
+    "id"
+   ]
+  },
+  "POST /v1/query": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "description",
+    "is_private",
+    "is_temp",
+    "name*",
+    "parameters",
+    "parameters[].description",
+    "parameters[].enumFromResults",
+    "parameters[].enumFromResults.columnName",
+    "parameters[].enumFromResults.queryId",
+    "parameters[].enumOptions",
+    "parameters[].isFreeformAllowed",
+    "parameters[].isMultiselect",
+    "parameters[].key",
+    "parameters[].type",
+    "parameters[].value",
+    "parameters[].values",
+    "query_sql*",
+    "tags"
+   ],
+   "response": [
+    "query_id"
+   ]
+  },
+  "POST /v1/query/{queryId}/archive": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:queryId*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "query_id"
+   ]
+  },
+  "POST /v1/query/{queryId}/private": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:queryId*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "query_id"
+   ]
+  },
+  "POST /v1/query/{queryId}/unarchive": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:queryId*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "query_id"
+   ]
+  },
+  "POST /v1/query/{queryId}/unprivate": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:queryId*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "query_id"
+   ]
+  },
+  "POST /v1/query/{query_id}/execute": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*",
+    "query:api_key",
+    "query:performance",
+    "query:query_parameters"
+   ],
+   "request": [],
+   "response": [
+    "execution_id*",
+    "state*"
+   ]
+  },
+  "POST /v1/query/{query_id}/pipeline/execute": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*",
+    "query:api_key"
+   ],
+   "request": [
+    "performance*",
+    "query_parameters"
+   ],
+   "response": [
+    "pipeline_execution_id"
+   ]
+  },
+  "POST /v1/sql/execute": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "performance",
+    "sql*"
+   ],
+   "response": [
+    "execution_id*",
+    "state*"
+   ]
+  },
+  "POST /v1/uploads": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "description",
+    "is_private",
+    "namespace",
+    "schema",
+    "schema[].name",
+    "schema[].nullable",
+    "schema[].type",
+    "table_name"
+   ],
+   "response": [
+    "already_existed",
+    "example_query",
+    "full_name",
+    "message",
+    "namespace",
+    "table_name"
+   ]
+  },
+  "POST /v1/uploads/csv": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "data",
+    "description",
+    "is_private",
+    "table_name"
+   ],
+   "response": [
+    "full_name",
+    "success",
+    "table_name"
+   ]
+  },
+  "POST /v1/uploads/{namespace}/{table_name}/clear": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:namespace*",
+    "path:table_name*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "message"
+   ]
+  },
+  "POST /v1/uploads/{namespace}/{table_name}/insert": {
+   "deprecated": false,
+   "params": [
+    "header:Content-Type*",
+    "header:X-Dune-Api-Key*",
+    "path:namespace*",
+    "path:table_name*",
+    "query:api_key"
+   ],
+   "request": [],
+   "response": [
+    "bytes_written",
+    "name",
+    "rows_written"
+   ]
+  },
+  "POST /v1/usage": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "end_date",
+    "start_date"
+   ],
+   "response": [
+    "billing_periods",
+    "billing_periods[].credits_included",
+    "billing_periods[].credits_used",
+    "billing_periods[].end_date",
+    "billing_periods[].start_date",
+    "bytes_allowed",
+    "bytes_used",
+    "private_dashboards",
+    "private_queries"
+   ]
+  },
+  "PUT /v1/visualizations/{visualization_id}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:visualization_id*"
+   ],
+   "request": [
+    "description",
+    "name*",
+    "options",
+    "type*"
+   ],
+   "response": [
+    "id"
+   ]
+  }
+ }
+}
