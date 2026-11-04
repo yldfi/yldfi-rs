@@ -12,12 +12,19 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # Only error on unmaintained crates that are direct dependencies
 # Transitive dependencies from external crates are allowed
 unmaintained = "workspace"
+# Fail when an ignored advisory no longer matches anything, so an ignore is
+# removed as soon as the upgrade it waits for lands instead of lingering.
+unused-ignored-advisory = "deny"
 # Ignore specific advisories (add as needed)
 ignore = [
-    # rand 0.8.5 unsoundness with custom logger + ThreadRng reseeding.
-    # Not exploitable in this project. Waiting for upstream (alloy-signer-local,
-    # tungstenite) to migrate to rand >=0.9.3.
-    "RUSTSEC-2026-0097",
+    # crypto-bigint 0.5.5 timing side channels in constant-time operations.
+    # Pulled in only by k256/elliptic-curve 0.13 via alloy, which every alloy
+    # release still requires (k256 ^0.13); the fix is crypto-bigint >=0.7.6,
+    # used by k256/elliptic-curve 0.14. Exposure is limited to local-key
+    # signing in ethcli. Tracked upstream in alloy-rs/alloy#4445. Once a
+    # Dependabot alloy bump moves to k256 0.14, this ignore stops matching and
+    # cargo deny fails: delete it in that PR.
+    "RUSTSEC-2026-0387",
 ]
 
 [licenses]
