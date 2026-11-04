@@ -2745,15 +2745,15 @@ pub struct CurveDaoLockersInput {
 // --- CCXT Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CcxtExchangeInput {
-    /// Exchange name
+    /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CcxtOhlcvInput {
-    /// Exchange name
+    /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
-    /// Trading symbol
+    /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
     pub symbol: String,
     /// Timeframe (e.g., "1m", "1h", "1d")
     pub timeframe: Option<String>,
@@ -2761,15 +2761,15 @@ pub struct CcxtOhlcvInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CcxtTradesInput {
-    /// Exchange name
+    /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
-    /// Trading symbol
+    /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
     pub symbol: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CcxtCompareInput {
-    /// Trading symbol (e.g., BTC/USDT)
+    /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
     pub symbol: String,
 }
 
@@ -3250,17 +3250,17 @@ fn default_chain_id() -> String {
 // --- CCXT ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CcxtTickerInput {
-    /// Exchange name (binance, coinbase, etc.)
+    /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
-    /// Trading symbol (BTC/USDT, ETH/USD, etc.)
+    /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
     pub symbol: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CcxtOrderbookInput {
-    /// Exchange name
+    /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
-    /// Trading symbol
+    /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
     pub symbol: String,
     /// Depth limit
     pub limit: Option<u32>,

@@ -1267,6 +1267,21 @@
     "total7d"
    ]
   },
+  "GET /api/v2/metrics/{metric}/categories": {
+   "deprecated": false,
+   "params": [
+    "path:metric*",
+    "query:dataType"
+   ],
+   "request": [],
+   "response": [
+    "[].category",
+    "[].chains",
+    "[].total24h",
+    "[].total30d",
+    "[].total7d"
+   ]
+  },
   "GET /api/v2/metrics/{metric}/category/{category}": {
    "deprecated": false,
    "params": [
@@ -2324,8 +2339,8 @@
    "response": [
     "data",
     "data[].accessModel",
-    "data[].activeMcap",
-    "data[].activeMcapData",
+    "data[].activeAum",
+    "data[].activeAumData",
     "data[].assetClass",
     "data[].assetGroup",
     "data[].assetName",
@@ -2367,7 +2382,7 @@
    ],
    "request": [],
    "response": [
-    "[].activeMcap",
+    "[].activeAum",
     "[].defiActiveTvl",
     "[].onChainMcap",
     "[].timestamp"
@@ -2379,8 +2394,8 @@
    "request": [],
    "response": [
     "[].accessModel",
-    "[].activeMcap",
-    "[].activeMcapData",
+    "[].activeAum",
+    "[].activeAumData",
     "[].assetClass",
     "[].assetGroup",
     "[].assetName",
@@ -3015,6 +3030,7 @@
     "data[].exit.as_of",
     "data[].exit.eta_seconds",
     "data[].exit.fee_bps",
+    "data[].exit.fee_flat",
     "data[].exit.status",
     "data[].exit_liquidity",
     "data[].exit_liquidity.amount",
@@ -3051,6 +3067,7 @@
     "data.exit.as_of",
     "data.exit.eta_seconds",
     "data.exit.fee_bps",
+    "data.exit.fee_flat",
     "data.exit.status",
     "data.exit_liquidity",
     "data.exit_liquidity.amount",

@@ -11,24 +11,67 @@ use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-/// Open (creating if needed) the stable lock file next to a config file,
-/// e.g. `config.toml.lock`. It is never renamed or deleted, so every process
-/// locks the same inode.
-fn open_lock_file(path: &Path) -> Result<std::fs::File> {
+/// Path of the stable lock file next to a config file, e.g. `config.toml.lock`.
+/// It is never renamed or deleted, so every process locks the same inode.
+fn lock_path(path: &Path) -> PathBuf {
     let mut name = path.as_os_str().to_owned();
     name.push(".lock");
-    let lock_path = PathBuf::from(name);
+    PathBuf::from(name)
+}
+
+/// Open (creating if needed) the stable lock file next to a config file.
+fn open_lock_file(path: &Path) -> Result<std::fs::File> {
+    let lock_path = lock_path(path);
     if let Some(parent) = lock_path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to create directory: {}", e)))?;
     }
+    open_lock_file_rw(&lock_path)
+        .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", lock_path.display(), e)).into())
+}
+
+fn open_lock_file_rw(lock_path: &Path) -> std::io::Result<std::fs::File> {
     OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
-        .open(&lock_path)
-        .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", lock_path.display(), e)).into())
+        .open(lock_path)
+}
+
+/// Open the lock file for a read (shared lock). Returns `None` when the
+/// directory is not writable (read-only mount, no write permission) and no
+/// lock file exists there: nothing can write that config, so there is no
+/// writer to wait for and the config is read without a lock.
+///
+/// If the lock file already exists but can't be opened for writing, it is
+/// opened read-only instead; a shared lock works on a read-only handle, so
+/// a writer elsewhere (e.g. the host behind a `:ro` bind mount) is still
+/// waited for.
+fn open_lock_file_for_read(path: &Path) -> Result<Option<std::fs::File>> {
+    let lock_path = lock_path(path);
+    let err = match open_lock_file_rw(&lock_path) {
+        Ok(file) => return Ok(Some(file)),
+        Err(e) => e,
+    };
+    if !matches!(
+        err.kind(),
+        std::io::ErrorKind::ReadOnlyFilesystem | std::io::ErrorKind::PermissionDenied
+    ) {
+        return Err(ConfigError::InvalidFile(format!("{}: {}", lock_path.display(), err)).into());
+    }
+    match OpenOptions::new().read(true).open(&lock_path) {
+        Ok(file) => Ok(Some(file)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::debug!(
+                "{} can't be created ({}); reading the config without a lock",
+                lock_path.display(),
+                err
+            );
+            Ok(None)
+        }
+        Err(e) => Err(ConfigError::InvalidFile(format!("{}: {}", lock_path.display(), e)).into()),
+    }
 }
 
 // Re-export SecretString for use by other modules
@@ -476,10 +519,14 @@ impl ConfigFile {
             .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
 
         // Shared lock on the stable lock file (allows other readers, waits
-        // for a writer's read-modify-write to finish)
-        let lock = open_lock_file(path)?;
-        lock.lock_shared()
-            .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
+        // for a writer's read-modify-write to finish). None for a config in
+        // a directory that can't be written, which has no writer to wait for.
+        let lock = open_lock_file_for_read(path)?;
+        if let Some(lock) = &lock {
+            lock.lock_shared().map_err(|e| {
+                ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e))
+            })?;
+        }
 
         let mut content = String::new();
         file.read_to_string(&mut content)
@@ -800,6 +847,59 @@ mod tests {
         assert_eq!(now.endpoints.len(), 2, "the other edit must survive");
         assert_eq!(now.endpoints[0].max_block_range, 500);
         assert!(dir.path().join("config.toml.lock").exists());
+    }
+
+    /// A config in a directory that can't be written (e.g. a `:ro` bind
+    /// mount) must still load (issue #146), while writes keep failing.
+    #[cfg(unix)]
+    #[test]
+    fn load_from_read_only_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let mut config = ConfigFile::default();
+        config
+            .endpoints
+            .push(EndpointConfig::new("https://a.example"));
+        config.save(&path).unwrap();
+        let lock = dir.path().join("config.toml.lock");
+        let set_mode = |p: &Path, mode| {
+            std::fs::set_permissions(p, std::fs::Permissions::from_mode(mode)).unwrap()
+        };
+
+        // Root ignores permission bits, so the read-only case can't be
+        // produced this way; skip rather than pass vacuously.
+        set_mode(dir.path(), 0o500);
+        let enforced = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(dir.path().join("probe"))
+            .is_err();
+        set_mode(dir.path(), 0o700);
+        if !enforced {
+            eprintln!("skipping: permission bits are not enforced for this user");
+            return;
+        }
+
+        // No lock file yet: read without a lock, and don't create one
+        std::fs::remove_file(&lock).unwrap();
+        set_mode(dir.path(), 0o500);
+        let loaded = ConfigFile::load(&path);
+        let exists = lock.exists();
+        set_mode(dir.path(), 0o700);
+        assert_eq!(loaded.unwrap().endpoints.len(), 1);
+        assert!(!exists, "a read must not create the lock file");
+
+        // Existing lock file that can't be opened for writing: lock it read-only
+        std::fs::write(&lock, b"").unwrap();
+        set_mode(&lock, 0o400);
+        set_mode(dir.path(), 0o500);
+        let loaded = ConfigFile::load(&path);
+        let saved = config.save(&path);
+        set_mode(dir.path(), 0o700);
+        set_mode(&lock, 0o600);
+        assert_eq!(loaded.unwrap().endpoints.len(), 1);
+        assert!(saved.is_err(), "a write must still need the exclusive lock");
     }
 
     use super::*;

@@ -78,7 +78,6 @@
     "[].quote.feeAmount*",
     "[].quote.gasAmount*",
     "[].quote.gasPrice*",
-    "[].quote.metadata",
     "[].quote.sellAmount*",
     "[].quote.sellTokenPrice*",
     "[].quote.solver*",
@@ -104,7 +103,7 @@
    ],
    "request": [],
    "response": [
-    "fullAppData"
+    "fullAppData*"
    ]
   },
   "GET /api/v1/auction": {
@@ -211,7 +210,6 @@
     "quote.feeAmount*",
     "quote.gasAmount*",
     "quote.gasPrice*",
-    "quote.metadata",
     "quote.sellAmount*",
     "quote.sellTokenPrice*",
     "quote.solver*",
@@ -307,7 +305,6 @@
     "[].quote.feeAmount*",
     "[].quote.gasAmount*",
     "[].quote.gasPrice*",
-    "[].quote.metadata",
     "[].quote.sellAmount*",
     "[].quote.sellTokenPrice*",
     "[].quote.solver*",
@@ -564,7 +561,6 @@
     "order.quote.feeAmount*",
     "order.quote.gasAmount*",
     "order.quote.gasPrice*",
-    "order.quote.metadata",
     "order.quote.sellAmount*",
     "order.quote.sellTokenPrice*",
     "order.quote.solver*",
@@ -700,7 +696,6 @@
     "order.quote.feeAmount*",
     "order.quote.gasAmount*",
     "order.quote.gasPrice*",
-    "order.quote.metadata",
     "order.quote.sellAmount*",
     "order.quote.sellTokenPrice*",
     "order.quote.solver*",
@@ -864,7 +859,7 @@
    "deprecated": false,
    "params": [],
    "request": [
-    "fullAppData"
+    "fullAppData*"
    ],
    "response": []
   },
@@ -874,7 +869,7 @@
     "path:app_data_hash*"
    ],
    "request": [
-    "fullAppData"
+    "fullAppData*"
    ],
    "response": []
   }

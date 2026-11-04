@@ -126,8 +126,8 @@ evm-disassembler = "0.6"
 # Chainlink Data Streams
 chainlink-data-streams-report = "1.2"
 
-# Cryptocurrency exchanges
-ccxt-rust = { version = "0.1", features = ["rest", "websocket"] }
+# Centralised exchange market data
+cexm = { version = "0.1.0", path = "../cexm" }
 
 [dev-dependencies]
 tokio-test = "0.4"

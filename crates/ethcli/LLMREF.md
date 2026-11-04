@@ -266,12 +266,15 @@ ethcli curve prices volume <chain> [--start ts] [--end ts] [--interval day]  # U
 ethcli curve router route <from> <to> # Find swap route
 ```
 
-### CCXT (Exchange Data)
+### Exchange Data (`ccxt`, alias `cex`)
 ```bash
-ethcli ccxt ticker binance BTC/USDT # Get ticker
-ethcli ccxt orderbook binance BTC/USDT # Order book
-ethcli ccxt ohlcv binance BTC/USDT --timeframe 1h # Candles
-ethcli ccxt exchanges               # List exchanges
+ethcli ccxt ticker BTC/USDT -e binance            # -e: binance bitget okx bybit coinbase kraken hyperliquid lighter
+ethcli ccxt ticker ETH/USDC:USDC -e hyperliquid   # perps: BASE/USDC:USDC
+ethcli ccxt order-book BTC/USDT --limit 10
+ethcli ccxt ohlcv BTC/USDT --timeframe 1h --limit 100
+ethcli ccxt trades ETH/USDT -e okx
+ethcli ccxt markets -e kraken --quote USD
+ethcli ccxt compare BTC/USDT                      # same pair on every exchange
 ```
 
 ### Blacklist (Spam Token Filtering)
