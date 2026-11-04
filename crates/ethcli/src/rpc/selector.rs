@@ -46,13 +46,14 @@ impl SelectionOptions {
 /// Ranking strategy:
 /// 1. Filter endpoints by chain and enabled status
 /// 2. If target_block or require_archive is set, filter by archive capability
-/// 3. Prefer tested full/archive endpoints over unknown endpoints when available
-/// 4. Treat restricted relay RPCs as fallback-only
-/// 5. Sort by priority (higher first). Full and archive nodes are treated
+/// 3. Treat restricted relay RPCs as fallback-only
+/// 4. Sort by priority (higher first). Full and archive nodes are treated
 ///    equally for latest-state reads, so a single FULL node cannot outrank
 ///    healthy ARCHIVE nodes of equal or higher priority.
-/// 6. Shuffle within each priority tier (distributes load across equivalent
+/// 5. Shuffle within each priority tier (distributes load across equivalent
 ///    endpoints, and means a rate-limited node is not always tried first)
+/// 6. Put tested full/archive endpoints ahead of unknown endpoints, which stay
+///    in the list as failover candidates
 pub fn ranked_endpoint_configs(
     config: &ConfigFile,
     chain: Chain,
@@ -106,17 +107,6 @@ pub fn ranked_endpoint_configs(
         }
     }
 
-    // Unknown endpoints have not been classified by endpoint health/optimization.
-    // Do not let an untested high-priority URL beat known-good full/archive nodes.
-    let known_endpoints: Vec<_> = chain_endpoints
-        .iter()
-        .filter(|e| e.node_type != NodeType::Unknown)
-        .cloned()
-        .collect();
-    if !known_endpoints.is_empty() {
-        chain_endpoints = known_endpoints;
-    }
-
     // Relay-oriented RPCs may handle basic methods but reject eth_call or other
     // general-purpose reads. Keep them only if there is no better option.
     let unrestricted_endpoints: Vec<_> = chain_endpoints
@@ -132,6 +122,11 @@ pub fn ranked_endpoint_configs(
     // end up in random order within their tier.
     chain_endpoints.shuffle(&mut rand::rng());
     chain_endpoints.sort_by_key(|endpoint| std::cmp::Reverse(endpoint.priority));
+
+    // Unknown endpoints have not been classified by endpoint health/optimization.
+    // Do not let an untested high-priority URL beat known-good full/archive nodes,
+    // but keep them as failover candidates for when the known ones are down.
+    chain_endpoints.sort_by_key(|endpoint| endpoint.node_type == NodeType::Unknown);
 
     Ok(chain_endpoints)
 }
@@ -152,14 +147,20 @@ fn select_endpoint_config_with_options(
 pub const MAX_FAILOVER_ATTEMPTS: usize = 5;
 
 /// Whether an RPC error is worth retrying on a different endpoint
-/// (rate limits, capacity errors, transport/timeouts, gateway errors).
+/// (rate limits, exhausted quotas, retired providers, capacity errors,
+/// transport/timeouts, gateway errors).
 pub fn is_failover_error(msg: &str) -> bool {
     let m = msg.to_ascii_lowercase();
     [
         "429",
         "-32005", // limit exceeded (Infura/Alchemy style)
         "-32029", // too many requests (OnFinality)
+        "-32030", // insufficient compute units
         "-32090", // rate limited (some providers)
+        "compute units",
+        // A shut-down provider answers with a generic -32000 and this message.
+        // Match the text: execution reverts use -32000 too.
+        "no longer available",
         "rate limit",
         "rate-limit",
         "too many requests",
@@ -399,6 +400,43 @@ mod tests {
     }
 
     #[test]
+    fn test_unknown_endpoints_stay_as_failover_candidates() {
+        let mut config = ConfigFile::default();
+
+        let mut unknown_high = EndpointConfig::new("https://unknown-high.example.com");
+        unknown_high.priority = 10;
+        unknown_high.chain = Chain::Ethereum;
+        unknown_high.node_type = NodeType::Unknown;
+
+        let mut unknown_low = EndpointConfig::new("https://unknown-low.example.com");
+        unknown_low.priority = 1;
+        unknown_low.chain = Chain::Ethereum;
+        unknown_low.node_type = NodeType::Unknown;
+
+        let mut archive = EndpointConfig::new("https://archive.example.com");
+        archive.priority = 3;
+        archive.chain = Chain::Ethereum;
+        archive.node_type = NodeType::Archive;
+
+        config.endpoints = vec![unknown_low, unknown_high, archive];
+
+        let ranked: Vec<_> =
+            ranked_endpoint_configs(&config, Chain::Ethereum, &SelectionOptions::default())
+                .unwrap()
+                .into_iter()
+                .map(|e| e.url)
+                .collect();
+        assert_eq!(
+            ranked,
+            vec![
+                "https://archive.example.com",
+                "https://unknown-high.example.com",
+                "https://unknown-low.example.com",
+            ]
+        );
+    }
+
+    #[test]
     fn test_lower_priority_full_does_not_outrank_archive() {
         let mut config = ConfigFile::default();
 
@@ -475,7 +513,16 @@ mod tests {
         ));
         assert!(is_failover_error("{\"code\":-32005,\"message\":\"limit\"}"));
         assert!(is_failover_error("error sending request for url"));
+        assert!(is_failover_error(
+            "server returned an error response: error code -32030: insufficient compute units"
+        ));
+        assert!(is_failover_error(
+            "server returned an error response: error code -32000: Blast API is no longer available"
+        ));
         assert!(!is_failover_error("execution reverted"));
+        assert!(!is_failover_error(
+            "server returned an error response: error code -32000: execution reverted"
+        ));
         assert!(!is_failover_error("Invalid address"));
     }
 

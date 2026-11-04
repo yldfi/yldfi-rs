@@ -21,12 +21,5 @@ priority = 8
 max_block_range = 44864
 max_logs = 20000
 
-[[endpoints]]
-url = "https://eth-mainnet.public.blastapi.io"
-chain = "ethereum"
-priority = 4
-max_block_range = 18303
-max_logs = 20000
-
 [disabled_endpoints]
 urls = []
