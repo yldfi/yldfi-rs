@@ -794,11 +794,12 @@ fn redact_secret_line(line: &str) -> Option<String> {
 /// These messages are how a user learns what to fix, so they must not be
 /// redacted.
 ///
-/// This is an exact match on the end of the text, not a heuristic: the message
-/// must close the text, with only closing punctuation after it, so nothing can
-/// follow it. Anything before it must have no `=`, no long token and no
-/// secret-looking name. Everything else stays redacted. Never use this on JSON
-/// keys: a field named `api_key` holds a secret.
+/// This is an exact match, not a heuristic. The message must close the text,
+/// with only closing punctuation after it, and anything before it must be
+/// wrapping that ethcli itself adds (see [`is_known_message_prefix`]).
+/// Everything else stays redacted. Every line of text output reaches this
+/// check, so it must not panic on any input. Never use this on JSON keys: a
+/// field named `api_key` holds a secret.
 fn only_names_api_key(text: &str) -> bool {
     const WHOLE_MESSAGES: [&str; 4] = [
         "invalid api key",
@@ -807,47 +808,112 @@ fn only_names_api_key(text: &str) -> bool {
         "api key is invalid",
     ];
     const AFTER_NAME: [&str; 2] = [" not configured", " is not set"];
-    const SET_WITH: &str = "set with ";
-    const CLI_HINT: &str = "). or run: ethcli config set-defillama --stdin";
+    const DEFILLAMA_KEY: &str = "DEFILLAMA_API_KEY";
+    // Written by dllma's `free_yields_error`, and by `llama_key_hint` in ethcli
+    const DEFILLAMA_SHUTDOWN: &str =
+        " (defillama shuts down the free yields endpoints on 2026-11-13; \
+         after that, yields data needs an api plan key, set with ";
+    const DEFILLAMA_HINT: &str = "). or run: ethcli config set-defillama --stdin";
 
     // to_ascii_lowercase keeps byte offsets, so `lower` indexes `text` too
     let lower = text.to_ascii_lowercase();
-    let closed = lower.trim_end_matches([')', '.', '"', '\\', '}', ' ']);
+    let closed = lower.trim_end_matches([')', '.', '"', '}', ' ']);
 
-    let prefix_end = if let Some(message) = WHOLE_MESSAGES.iter().find(|m| closed.ends_with(*m)) {
-        Some(closed.len() - message.len())
-    } else if let Some(after) = AFTER_NAME.iter().find(|a| closed.ends_with(*a)) {
-        api_key_name_start(text, closed.len() - after.len())
-    } else {
-        // The DefiLlama key message, with or without the CLI's hint
-        let name_end = closed.strip_suffix(CLI_HINT).unwrap_or(closed).len();
-        api_key_name_start(text, name_end).and_then(|start| {
-            lower[..start]
-                .ends_with(SET_WITH)
-                .then(|| start - SET_WITH.len())
-        })
-    };
-    let Some(prefix_end) = prefix_end else {
+    if let Some(message) = WHOLE_MESSAGES.iter().find(|m| closed.ends_with(*m)) {
+        return is_known_message_prefix(&lower[..closed.len() - message.len()]);
+    }
+    if let Some(after) = AFTER_NAME.iter().find(|a| closed.ends_with(*a)) {
+        return api_key_name_start(text, closed.len() - after.len())
+            .is_some_and(|start| is_known_message_prefix(&lower[..start]));
+    }
+
+    // The DefiLlama shutdown message follows the free endpoint's own error,
+    // which needs no key to fetch, so that part can't be a fixed prefix.
+    let name_end = closed.strip_suffix(DEFILLAMA_HINT).unwrap_or(closed).len();
+    let Some(start) = api_key_name_start(text, name_end) else {
         return false;
     };
-
-    let prefix = &lower[..prefix_end];
-    let starts_cleanly = prefix.is_empty()
-        || prefix.ends_with(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-'));
-    let holds_long_token = prefix
+    if text.get(start..name_end) != Some(DEFILLAMA_KEY) {
+        return false;
+    }
+    let Some(upstream) = lower[..start].strip_suffix(DEFILLAMA_SHUTDOWN) else {
+        return false;
+    };
+    let holds_long_token = upstream
         .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-'))
         .any(|word| word.len() >= 28);
-    starts_cleanly && !holds_long_token && !prefix.contains('=') && !mentions_secret(prefix)
+    !holds_long_token && !upstream.contains('=') && !mentions_secret(upstream)
+}
+
+/// Whether text before a known message is only wrapping that ethcli adds, such
+/// as `Warning: llama source failed: Server error (500): {"error":"`.
+/// Free-form text isn't allowed, because it could hold a value:
+/// `key abc123: Invalid API key`.
+fn is_known_message_prefix(lower: &str) -> bool {
+    const FIXED: [&str; 5] = [
+        "error: ",
+        "warning: ",
+        "no yields returned, and these sources failed: ",
+        "all yield sources failed: ",
+        "{\"error\":\"",
+    ];
+    const SOURCES: [&str; 15] = [
+        "alchemy",
+        "ccxt",
+        "chainlink",
+        "curve",
+        "curve-lending",
+        "curve-lp",
+        "enso",
+        "gecko",
+        "kong",
+        "kong_vault",
+        "llama",
+        "moralis",
+        "pyth",
+        "uniswap",
+        "yearn",
+    ];
+
+    let mut rest = lower;
+    while !rest.is_empty() {
+        if let Some(after) = FIXED.iter().find_map(|fixed| rest.strip_prefix(fixed)) {
+            rest = after;
+        } else if let Some(after) = strip_server_error(rest) {
+            rest = after;
+        } else if let Some(after) = SOURCES.iter().find_map(|source| {
+            let after = rest.strip_prefix(source)?;
+            after
+                .strip_prefix(" source failed: ")
+                .or_else(|| after.strip_prefix(": "))
+        }) {
+            rest = after;
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
+/// Strip a leading `server error (500): `
+fn strip_server_error(lower: &str) -> Option<&str> {
+    let rest = lower.strip_prefix("server error (")?;
+    let (status, rest) = rest.split_once("): ")?;
+    (status.len() == 3 && status.bytes().all(|b| b.is_ascii_digit())).then_some(rest)
 }
 
 /// Where the upper-case `*_API_KEY` name ending at byte `end` starts, if any
 fn api_key_name_start(text: &str, end: usize) -> Option<usize> {
-    let name = text.get(..end)?;
-    let start = name
-        .rfind(|c: char| !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'))
-        .map_or(0, |i| i + 1);
-    let name = &name[start..];
-    (name.ends_with("_API_KEY") && name.len() > "_API_KEY".len()).then_some(start)
+    const MAX_NAME_LEN: usize = 40;
+    let head = text.get(..end)?;
+    let start = head
+        .char_indices()
+        .rev()
+        .find(|(_, c)| !(c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_'))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    let name = &head[start..];
+    (name.ends_with("_API_KEY") && name.len() > "_API_KEY".len() && name.len() <= MAX_NAME_LEN)
+        .then_some(start)
 }
 
 /// Whether text mentions any kind of credential, in any spelling
@@ -1709,14 +1775,36 @@ mod tests {
             "Missing API key.",
             "API Key is wrong",
             "Server error (500): {\"error\":\"API Key is wrong\"}",
-            "API error 410: Gone (the free yields endpoints shut down on 2026-11-13; after \
-             that, yields data needs an API plan key, set with DEFILLAMA_API_KEY)",
-            "API error 410: Gone (the free yields endpoints shut down on 2026-11-13; after \
-             that, yields data needs an API plan key, set with DEFILLAMA_API_KEY). Or run: \
-             ethcli config set-defillama --stdin",
+            "Warning: llama source failed: Server error (500): {\"error\":\"API Key is wrong\"}",
+            "Error: No yields returned, and these sources failed: llama: Server error (500): \
+             {\"error\":\"API Key is wrong\"}",
+            "Error: All yield sources failed: moralis: MORALIS_API_KEY not configured",
+            "API error 410: Gone (DefiLlama shuts down the free yields endpoints on 2026-11-13; \
+             after that, yields data needs an API plan key, set with DEFILLAMA_API_KEY)",
+            "llama: API error 410: Gone (DefiLlama shuts down the free yields endpoints on \
+             2026-11-13; after that, yields data needs an API plan key, set with \
+             DEFILLAMA_API_KEY). Or run: ethcli config set-defillama --stdin",
         ] {
             assert!(only_names_api_key(text), "should be kept: {text}");
         }
+    }
+
+    /// Every line of text output reaches this check, so it must never panic.
+    #[test]
+    fn test_only_names_api_key_handles_non_ascii_text() {
+        for text in [
+            "✓ All checks passed",
+            "All checks passed ✓",
+            "────────",
+            "Prix: 12 €",
+            "éX_API_KEY not configured",
+            "✓_API_KEY not configured",
+            "set with é_API_KEY",
+            "✓ Invalid API key",
+        ] {
+            assert!(!only_names_api_key(text), "should be redacted: {text}");
+        }
+        assert_eq!(sanitize_success_output("✓ done\n── ─"), "✓ done\n── ─");
     }
 
     #[test]
@@ -1752,6 +1840,22 @@ mod tests {
             "API_KEY: secret123 Invalid API key",
             "note=secret123 Invalid API key",
             "0123456789abcdef0123456789abcdef Invalid API key",
+            // Free-form text before a known message
+            "abc123 Invalid API key",
+            "abc123: Invalid API key",
+            "abc123, Invalid API key",
+            "key abc123: Invalid API key",
+            "abc123 MORALIS_API_KEY not configured",
+            "Server error (abc): Invalid API key",
+            "llama abc123: Invalid API key",
+            // The DefiLlama message needs its exact wording and key name
+            "abc123 set with DEFILLAMA_API_KEY",
+            "needs an API plan key, set with DEFILLAMA_API_KEY",
+            "after that, yields data needs an API plan key, set with OTHER_API_KEY",
+            "password=abc (DefiLlama shuts down the free yields endpoints on 2026-11-13; after \
+             that, yields data needs an API plan key, set with DEFILLAMA_API_KEY)",
+            // Implausibly long name, which could be a value
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCD_API_KEY not configured",
             // Not a known message, or not an upper-case *_API_KEY name
             "api_key",
             "api_key not configured",

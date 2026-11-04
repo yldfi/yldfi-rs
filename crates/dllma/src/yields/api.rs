@@ -20,6 +20,9 @@ pub const FREE_YIELDS_SHUTDOWN: &str = "2026-11-13";
 
 /// Add the free-endpoint shutdown to an error from `yields.llama.fi`.
 ///
+/// ethcli-mcp keeps this wording unredacted by matching it exactly, in
+/// `only_names_api_key`. Update that if this message changes.
+///
 /// Rate limits and transport failures are passed through unchanged; any
 /// other failure (404, 402, 410, 5xx, an HTML page instead of JSON) is what
 /// the shutdown is expected to look like.
