@@ -1247,9 +1247,13 @@
     "query:action*",
     "query:chainid*",
     "query:data",
+    "query:from",
+    "query:gas",
+    "query:gasPrice",
     "query:module*",
     "query:tag",
-    "query:to*"
+    "query:to*",
+    "query:value"
    ],
    "request": [],
    "response": [
