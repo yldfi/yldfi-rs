@@ -18,5 +18,4 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
 
 [dev-dependencies]
-wiremock = "0.6"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

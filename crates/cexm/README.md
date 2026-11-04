@@ -70,7 +70,7 @@ let client = cexm::Client::with_config(
 ## Tests
 
 ```bash
-cargo test -p cexm                                   # unit + mock tests
+cargo test -p cexm                                   # unit tests
 cargo test -p cexm --test live_api -- --ignored      # every method on every exchange
 CEXM_LIVE=okx,kraken cargo test -p cexm --test live_api -- --ignored
 ```
