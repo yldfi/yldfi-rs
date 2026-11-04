@@ -789,82 +789,81 @@ fn redact_secret_line(line: &str) -> Option<String> {
     Some("<redacted>".to_string())
 }
 
-/// Whether text only talks about an API key rather than holding one, such as
-/// `MORALIS_API_KEY not configured` or `API Key is wrong`. These messages are
-/// how a user learns what to fix, so they must not be redacted.
+/// Whether text is one of the known messages that name an API key without
+/// holding one, such as `MORALIS_API_KEY not configured` or `API Key is wrong`.
+/// These messages are how a user learns what to fix, so they must not be
+/// redacted.
 ///
-/// Deliberately narrow, so anything uncertain stays redacted: every mention
-/// must be an upper-case `*API_KEY` name or the words "API key", followed by
-/// the end of the text, closing punctuation or a known phrase. That excludes
-/// `API key: abc`, `API_KEY=abc`, `API_KEY abc` and `API key is abc`, and a
-/// lower-case `api_key` is treated as a config field. Never use this on JSON
+/// This is an exact match on the end of the text, not a heuristic: the message
+/// must close the text, with only closing punctuation after it, so nothing can
+/// follow it. Anything before it must have no `=`, no long token and no
+/// secret-looking name. Everything else stays redacted. Never use this on JSON
 /// keys: a field named `api_key` holds a secret.
 fn only_names_api_key(text: &str) -> bool {
-    const OTHER_SECRET_NAMES: [&str; 10] = [
-        "access_key",
-        "access key",
-        "user_secret",
-        "client_secret",
-        "x-access-key",
-        "notify_token",
-        "auth_token",
-        "x-alchemy-token",
-        "authorization",
-        "bearer",
+    const WHOLE_MESSAGES: [&str; 4] = [
+        "invalid api key",
+        "missing api key",
+        "api key is wrong",
+        "api key is invalid",
     ];
-    const HARMLESS_NEXT: [&str; 15] = [
-        "not ",
-        "is not",
-        "is wrong",
-        "is invalid",
-        "is required",
-        "is missing",
-        "is expired",
-        "or ",
-        "and ",
-        "required",
-        "missing",
-        "invalid",
-        "expired",
-        "needed",
-        "must ",
-    ];
-    const NAME_LEN: usize = "api_key".len();
+    const AFTER_NAME: [&str; 2] = [" not configured", " is not set"];
+    const SET_WITH: &str = "set with ";
+    const CLI_HINT: &str = "). or run: ethcli config set-defillama --stdin";
 
     // to_ascii_lowercase keeps byte offsets, so `lower` indexes `text` too
     let lower = text.to_ascii_lowercase();
-    if OTHER_SECRET_NAMES.iter().any(|name| lower.contains(name)) {
+    let closed = lower.trim_end_matches([')', '.', '"', '\\', '}', ' ']);
+
+    let prefix_end = if let Some(message) = WHOLE_MESSAGES.iter().find(|m| closed.ends_with(*m)) {
+        Some(closed.len() - message.len())
+    } else if let Some(after) = AFTER_NAME.iter().find(|a| closed.ends_with(*a)) {
+        api_key_name_start(text, closed.len() - after.len())
+    } else {
+        // The DefiLlama key message, with or without the CLI's hint
+        let name_end = closed.strip_suffix(CLI_HINT).unwrap_or(closed).len();
+        api_key_name_start(text, name_end).and_then(|start| {
+            lower[..start]
+                .ends_with(SET_WITH)
+                .then(|| start - SET_WITH.len())
+        })
+    };
+    let Some(prefix_end) = prefix_end else {
         return false;
-    }
-    let looks_like_a_value = text
+    };
+
+    let prefix = &lower[..prefix_end];
+    let starts_cleanly = prefix.is_empty()
+        || prefix.ends_with(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-'));
+    let holds_long_token = prefix
         .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-'))
         .any(|word| word.len() >= 28);
-    if looks_like_a_value {
-        return false;
-    }
+    starts_cleanly && !holds_long_token && !prefix.contains('=') && !mentions_secret(prefix)
+}
 
-    let mut mentions = 0;
-    for (start, _) in lower
-        .match_indices("api_key")
-        .chain(lower.match_indices("api key"))
-    {
-        let end = start + NAME_LEN;
-        if lower[start..end].contains('_') && &text[start..end] != "API_KEY" {
-            return false;
-        }
-        mentions += 1;
-        let rest = lower[end..].trim_start();
-        let after_punctuation = rest.trim_start_matches([')', '.', ',', ';']);
-        let harmless = if after_punctuation.len() < rest.len() {
-            after_punctuation.is_empty() || after_punctuation.starts_with(char::is_whitespace)
-        } else {
-            rest.is_empty() || HARMLESS_NEXT.iter().any(|next| rest.starts_with(next))
-        };
-        if !harmless {
-            return false;
-        }
-    }
-    mentions > 0
+/// Where the upper-case `*_API_KEY` name ending at byte `end` starts, if any
+fn api_key_name_start(text: &str, end: usize) -> Option<usize> {
+    let name = text.get(..end)?;
+    let start = name
+        .rfind(|c: char| !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'))
+        .map_or(0, |i| i + 1);
+    let name = &name[start..];
+    (name.ends_with("_API_KEY") && name.len() > "_API_KEY".len()).then_some(start)
+}
+
+/// Whether text mentions any kind of credential, in any spelling
+fn mentions_secret(lower: &str) -> bool {
+    contains_secret_key_name(lower)
+        || redact_secret_line(lower).is_some()
+        || [
+            "api-key",
+            "secret",
+            "password",
+            "passwd",
+            "token",
+            "credential",
+        ]
+        .iter()
+        .any(|word| lower.contains(word))
 }
 
 fn sanitize_success_output(stdout: &str) -> String {
@@ -1701,36 +1700,66 @@ mod tests {
     }
 
     #[test]
-    fn test_only_names_api_key_allows_messages_without_a_value() {
+    fn test_only_names_api_key_allows_only_known_messages() {
         for text in [
             "MORALIS_API_KEY not configured",
+            "Error: MORALIS_API_KEY not configured",
             "PYTH_API_KEY is not set",
             "Invalid API key",
+            "Missing API key.",
             "API Key is wrong",
             "Server error (500): {\"error\":\"API Key is wrong\"}",
-            "Pro API key required. Set DEFILLAMA_API_KEY or use the config file",
-            "HTTP 410: Gone (the free endpoints shut down; after that, yields data needs an \
-             API plan key, set with DEFILLAMA_API_KEY). Or run: ethcli config set-defillama --stdin",
+            "API error 410: Gone (the free yields endpoints shut down on 2026-11-13; after \
+             that, yields data needs an API plan key, set with DEFILLAMA_API_KEY)",
+            "API error 410: Gone (the free yields endpoints shut down on 2026-11-13; after \
+             that, yields data needs an API plan key, set with DEFILLAMA_API_KEY). Or run: \
+             ethcli config set-defillama --stdin",
         ] {
             assert!(only_names_api_key(text), "should be kept: {text}");
         }
     }
 
     #[test]
-    fn test_only_names_api_key_rejects_anything_that_could_hold_a_value() {
+    fn test_only_names_api_key_rejects_anything_else() {
         for text in [
+            // A value after the name, or after a known message
             "API_KEY=secret123",
             "API_KEY: secret123",
             "API_KEY secret123",
-            "ALCHEMY_API_KEY secret123",
+            "API_KEY, secret123",
+            "API_KEY. secret123",
+            "API_KEY) secret123",
+            "ALCHEMY_API_KEY required secret123",
+            "ALCHEMY_API_KEY not secret123",
+            "ALCHEMY_API_KEY or secret123",
+            "ALCHEMY_API_KEY and secret123",
+            "ALCHEMY_API_KEY must secret123",
+            "ALCHEMY_API_KEY not configured secret123",
+            "ALCHEMY_API_KEY not configured. secret123",
+            "Invalid API key secret123",
+            "Invalid API key. secret123",
             "Etherscan API key: secret123",
             "API key is secret123",
             "API key secret123",
-            "api_key not configured",
+            // Another credential before a known message
+            "apikey=secret123 Invalid API key",
+            "apikey secret123 Invalid API key",
+            "x-api-key secret123 Invalid API key",
+            "password secret123 Invalid API key",
+            "token secret123 ALCHEMY_API_KEY not configured",
+            "client_secret secret123 ALCHEMY_API_KEY not configured",
+            "Authorization: Bearer xyz Invalid API key",
+            "API_KEY: secret123 Invalid API key",
+            "note=secret123 Invalid API key",
+            "0123456789abcdef0123456789abcdef Invalid API key",
+            // Not a known message, or not an upper-case *_API_KEY name
             "api_key",
+            "api_key not configured",
+            "alchemy_api_key not configured",
+            "API_KEY not configured",
             "access_key not configured",
-            "Authorization: Bearer xyz not configured API key",
-            "API_KEY not configured 0123456789abcdef0123456789abcdef",
+            "Pro API key required. Set DEFILLAMA_API_KEY or use Client::with_api_key()",
+            "set with API_KEY",
             "no key named here",
         ] {
             assert!(!only_names_api_key(text), "should be redacted: {text}");
