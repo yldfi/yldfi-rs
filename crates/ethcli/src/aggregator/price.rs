@@ -19,13 +19,13 @@ use std::sync::OnceLock;
 //
 // ## Safety Rationale
 //
-// These static clients use `OnceLock` and `AsyncOnceCell` for thread-safe lazy
+// These static clients use `OnceLock` for thread-safe lazy
 // initialization. This pattern is safe because:
 //
 // 1. **Immutability**: Once initialized, the clients are never mutated. All client
 //    methods take `&self` and are internally thread-safe (using connection pools).
 //
-// 2. **Thread Safety**: `OnceLock<T>` and `AsyncOnceCell<T>` guarantee that
+// 2. **Thread Safety**: `OnceLock<T>` guarantees that
 //    initialization happens exactly once, even under concurrent access.
 //
 // 3. **HTTP Client Safety**: The underlying `reqwest::Client` is designed to be
@@ -65,72 +65,14 @@ static UNISWAP_MAINNET_CLIENT: OnceLock<Result<unswp::SubgraphClient, String>> =
 /// Cached Uniswap SubgraphClient for Arbitrum
 static UNISWAP_ARBITRUM_CLIENT: OnceLock<Result<unswp::SubgraphClient, String>> = OnceLock::new();
 
-// =============================================================================
-// PERF-017 fix: Cached CCXT Exchange Clients
-// =============================================================================
-//
-// CCXT clients require async initialization (load_markets), so we use
-// tokio::sync::OnceCell for async-safe lazy initialization.
+/// Cached exchange market data client (PERF-017: one client, reused)
+static CEX_CLIENT: OnceLock<Result<cexm::Client, String>> = OnceLock::new();
 
-use tokio::sync::OnceCell as AsyncOnceCell;
-
-/// Cached Binance client (PERF-017 fix)
-static BINANCE_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Binance>> =
-    AsyncOnceCell::const_new();
-
-/// Cached Bitget client (PERF-017 fix)
-static BITGET_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Bitget>> =
-    AsyncOnceCell::const_new();
-
-/// Cached OKX client (PERF-017 fix)
-static OKX_CLIENT: AsyncOnceCell<Option<ccxt_rust::prelude::Okx>> = AsyncOnceCell::const_new();
-
-/// Get or initialize Binance client
-async fn get_binance_client() -> Option<&'static ccxt_rust::prelude::Binance> {
-    use ccxt_rust::prelude::{Binance, Exchange};
-    BINANCE_CLIENT
-        .get_or_init(|| async {
-            let exchange = Binance::builder().build().ok()?;
-            if Exchange::load_markets(&exchange, false).await.is_ok() {
-                Some(exchange)
-            } else {
-                None
-            }
-        })
-        .await
+fn cex_client() -> Result<&'static cexm::Client, String> {
+    CEX_CLIENT
+        .get_or_init(|| cexm::Client::new().map_err(|e| e.to_string()))
         .as_ref()
-}
-
-/// Get or initialize Bitget client
-async fn get_bitget_client() -> Option<&'static ccxt_rust::prelude::Bitget> {
-    use ccxt_rust::prelude::{Bitget, Exchange};
-    BITGET_CLIENT
-        .get_or_init(|| async {
-            let exchange = Bitget::builder().build().ok()?;
-            if Exchange::load_markets(&exchange, false).await.is_ok() {
-                Some(exchange)
-            } else {
-                None
-            }
-        })
-        .await
-        .as_ref()
-}
-
-/// Get or initialize OKX client
-async fn get_okx_client() -> Option<&'static ccxt_rust::prelude::Okx> {
-    use ccxt_rust::prelude::{Exchange, Okx};
-    OKX_CLIENT
-        .get_or_init(|| async {
-            let exchange = Okx::builder().build().ok()?;
-            if Exchange::load_markets(&exchange, false).await.is_ok() {
-                Some(exchange)
-            } else {
-                None
-            }
-        })
-        .await
-        .as_ref()
+        .map_err(Clone::clone)
 }
 
 /// Cached Uniswap SubgraphClient for Base
@@ -1209,19 +1151,16 @@ pub fn symbol_to_coingecko_id(symbol: &str) -> String {
     }
 }
 
-/// Fetch price from CCXT exchanges (aggregates from Binance, Bitget, OKX)
+/// Fetch price from centralised exchanges (Binance, Bitget, OKX)
 ///
-/// CCXT uses trading pair format like "BTC/USDT", so we need to convert
-/// token symbols to trading pairs against USDT.
-///
-/// Uses tokio::select! to race exchanges in parallel, returning the first successful result.
+/// Exchanges quote trading pairs, so the token is mapped to a symbol and
+/// priced against USDT. All three are queried in parallel and the first
+/// successful ticker wins.
 async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<NormalizedPrice> {
-    use ccxt_rust::prelude::Exchange as ExchangeTrait;
-    use num_traits::ToPrimitive;
-    use tokio::select;
+    use cexm::Exchange;
+    use futures::stream::{FuturesUnordered, StreamExt};
 
-    // CCXT requires trading pairs, not contract addresses
-    // If we receive an address, try to reverse-map it to a symbol
+    // Exchanges need trading pairs, not contract addresses
     let symbol = if token.starts_with("0x") {
         match eth_address_to_symbol(token) {
             Some(sym) => sym.to_string(),
@@ -1236,89 +1175,32 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
     } else {
         token.to_uppercase()
     };
-
-    // Convert symbol to trading pair (assume USDT quote)
     let trading_pair = format!("{}/USDT", symbol);
-    let pair_clone1 = trading_pair.clone();
-    let pair_clone2 = trading_pair.clone();
-    let pair_clone3 = trading_pair.clone();
 
-    // PERF-017 fix: Use cached exchange clients instead of creating new ones
-    // Helper to fetch from a specific exchange using cached client
-    async fn fetch_from_binance(trading_pair: String) -> Option<(f64, f64, &'static str)> {
-        let exchange = get_binance_client().await?;
-        let ticker = ExchangeTrait::fetch_ticker(exchange, &trading_pair)
-            .await
-            .ok()?;
-        let price = ticker.last?.0.to_f64()?;
-        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
-        Some((price, change, "ccxt-binance"))
-    }
+    let client = match cex_client() {
+        Ok(client) => client,
+        Err(e) => return SourceResult::error("ccxt", e, measure.elapsed_ms()),
+    };
 
-    async fn fetch_from_bitget(trading_pair: String) -> Option<(f64, f64, &'static str)> {
-        let exchange = get_bitget_client().await?;
-        let ticker = ExchangeTrait::fetch_ticker(exchange, &trading_pair)
-            .await
-            .ok()?;
-        let price = ticker.last?.0.to_f64()?;
-        // ccxt-rust reports Bitget's 24h change as a ratio; convert to percent.
-        let change = ticker
-            .percentage
-            .and_then(|p| p.to_f64())
-            .map(|p| crate::cli::ccxt::change_pct_value(crate::cli::ccxt::ExchangeId::Bitget, p))
-            .unwrap_or(0.0);
-        Some((price, change, "ccxt-bitget"))
-    }
+    let mut pending: FuturesUnordered<_> = [
+        (Exchange::Binance, "ccxt-binance"),
+        (Exchange::Bitget, "ccxt-bitget"),
+        (Exchange::Okx, "ccxt-okx"),
+    ]
+    .into_iter()
+    .map(|(exchange, source)| {
+        let pair = trading_pair.as_str();
+        async move { (source, client.ticker(exchange, pair).await) }
+    })
+    .collect();
 
-    async fn fetch_from_okx(trading_pair: String) -> Option<(f64, f64, &'static str)> {
-        let exchange = get_okx_client().await?;
-        let ticker = ExchangeTrait::fetch_ticker(exchange, &trading_pair)
-            .await
-            .ok()?;
-        let price = ticker.last?.0.to_f64()?;
-        let change = ticker.percentage.and_then(|p| p.to_f64()).unwrap_or(0.0);
-        Some((price, change, "ccxt-okx"))
-    }
-
-    // Race all exchanges in parallel, return first successful result
-    let binance_fut = fetch_from_binance(pair_clone1);
-    let bitget_fut = fetch_from_bitget(pair_clone2);
-    let okx_fut = fetch_from_okx(pair_clone3);
-
-    tokio::pin!(binance_fut);
-    tokio::pin!(bitget_fut);
-    tokio::pin!(okx_fut);
-
-    // Track which futures have completed
-    let mut binance_done = false;
-    let mut bitget_done = false;
-    let mut okx_done = false;
-
-    loop {
-        select! {
-            result = &mut binance_fut, if !binance_done => {
-                binance_done = true;
-                if let Some((price_f64, change, source)) = result {
-                    let price = NormalizedPrice::new(price_f64).with_change_24h(change);
-                    return SourceResult::success(source, price, measure.elapsed_ms());
-                }
-            }
-            result = &mut bitget_fut, if !bitget_done => {
-                bitget_done = true;
-                if let Some((price_f64, change, source)) = result {
-                    let price = NormalizedPrice::new(price_f64).with_change_24h(change);
-                    return SourceResult::success(source, price, measure.elapsed_ms());
-                }
-            }
-            result = &mut okx_fut, if !okx_done => {
-                okx_done = true;
-                if let Some((price_f64, change, source)) = result {
-                    let price = NormalizedPrice::new(price_f64).with_change_24h(change);
-                    return SourceResult::success(source, price, measure.elapsed_ms());
-                }
-            }
-            else => break,
-        }
+    while let Some((source, result)) = pending.next().await {
+        let Ok(ticker) = result else { continue };
+        let Some(price) = ticker.last.as_deref().and_then(cexm::as_f64) else {
+            continue;
+        };
+        let price = NormalizedPrice::new(price).with_change_24h(ticker.change_pct.unwrap_or(0.0));
+        return SourceResult::success(source, price, measure.elapsed_ms());
     }
 
     SourceResult::error(

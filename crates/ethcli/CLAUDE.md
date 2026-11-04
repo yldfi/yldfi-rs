@@ -56,7 +56,7 @@ ethcli completions # Generate shell completions (bash, zsh, fish, powershell)
 
 ### Aggregation Commands (parallel queries to multiple APIs)
 ```
-ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, CCXT
+ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, exchanges
 ethcli portfolio  # Portfolio balances from Alchemy, Moralis
 ethcli nfts       # NFT holdings from Alchemy, CoinGecko, Moralis
 ethcli yields     # DeFi yields from DefiLlama and Curve
@@ -73,7 +73,7 @@ ethcli moralis    # Moralis API (wallet, token, NFT, DeFi, transactions)
 ethcli dune       # Dune Analytics API (queries, executions, tables)
 ethcli curve      # Curve Finance API (pools, volumes, lending, tokens, router)
 ethcli chainlink  # Chainlink price feeds (RPC-based, no API key needed)
-ethcli ccxt       # Exchange data (Binance, Bitget, OKX, Hyperliquid)
+ethcli ccxt       # Exchange data (Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter)
 ethcli kong       # Yearn Kong API (vaults, strategies, prices, TVL, reports)
 ethcli uniswap    # Uniswap V2/V3/V4 (on-chain lens + subgraph)
 ethcli goplus     # GoPlus Security API (token/address/NFT/approval security)
@@ -81,6 +81,732 @@ ethcli solodit    # Solodit vulnerability database (smart contract security find
 ```
 
 ### Direct DEX Aggregator Commands
+```
+ethcli 1inch      # 1inch API (quote, swap, tokens, sources, approvals) - requires API key
+ethcli open-ocean # De¹/OpenOcean API (quote, swap, reverse-quote, tokens, dexes)
+ethcli kyber-swap # KyberSwap API (routes, route-data, build)
+ethcli 0x         # 0x Protocol API (quote, price, sources)
+ethcli cow-swap   # CowSwap API (quote, orders, trades, auctions) - MEV protected
+ethcli lifi       # LI.FI API (quote, routes, status, chains, tokens, bridges)
+ethcli velora     # Velora/ParaSwap API (price, transaction, tokens)
+ethcli enso       # Enso Finance API (route, price, balances) - requires API key
+ethcli pyth       # Pyth Network API (price feeds, search, known-feeds)
+```
+
+### Security & Token Analysis
+```
+ethcli blacklist  # Token blacklist management (spam/scam filtering)
+```
+
+## Bytecode Analysis Commands
+
+Analyze contract bytecode without requiring source code or ABI. Uses evmole for function extraction and evm-disassembler for opcode analysis. This does not reconstruct Solidity source.
+
+```bash
+# Extract function selectors, arguments, and state mutability
+ethcli contract selectors 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory
+ethcli contract sel 0x... --follow-proxy --lookup  # Follow proxy to implementation
+
+# Disassemble bytecode into opcodes
+ethcli contract disassemble 0x... --limit 50
+ethcli contract dis 0x...
+
+# Get opcode frequency statistics
+ethcli contract opcodes 0x...
+ethcli contract ops 0x...
+
+# Full security analysis (combines all above)
+ethcli contract analyze 0x...
+ethcli contract az 0x... --include-disassembly --lookup
+
+# Analyze proxy's implementation contract instead of proxy bytecode
+ethcli contract analyze 0x... --follow-proxy
+
+# Unverified/proxy review with selector handler mapping and guard heuristics
+ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
+
+# JSON output
+ethcli contract analyze 0x... --format json
+```
+
+### Proxy Detection
+
+The analyze command automatically detects proxy contracts:
+- **EIP-1167**: Minimal proxy clones (implementation embedded in bytecode)
+- **EIP-1967**: Transparent proxies (implementation in storage slot)
+- **EIP-1822**: UUPS proxies
+- **OpenZeppelin Legacy**: Pre-EIP-1967 patterns
+
+Use `--follow-proxy` to analyze the implementation contract instead of the proxy bytecode.
+
+### Security Patterns Detected
+
+| Opcode | Risk | Description |
+|--------|------|-------------|
+| SELFDESTRUCT | Critical | Contract can be destroyed, potentially locking user funds |
+| DELEGATECALL | High | Arbitrary code execution - can modify contract state via external code |
+| CALLCODE | High | Deprecated opcode with similar risks to DELEGATECALL |
+| ORIGIN | Medium | Uses tx.origin for authorization - honeypot indicator |
+| CREATE | Medium | Dynamically creates contracts |
+| CREATE2 | Medium | Deterministic contract creation |
+
+### Output Includes
+
+- **Functions**: Selectors, arguments, state mutability (pure/view/nonpayable/payable)
+- **Risk Level**: LOW, MEDIUM, HIGH, or CRITICAL based on detected patterns
+- **Dangerous Opcodes**: Count of SELFDESTRUCT, DELEGATECALL, CALLCODE
+- **Hardcoded Addresses**: Count of PUSH20 operations (embedded addresses)
+- **Opcode Statistics**: Frequency of each opcode type
+- **Proxy Info**: Detected proxy type and implementation address (if applicable)
+
+### Notes
+
+- No API key required - works directly with RPC bytecode
+- Aliases: `sel`, `dis`, `ops`, `az`, `an`
+- Works on unverified contracts (no source/ABI needed)
+
+## GoPlus Security Commands
+
+Query the GoPlus Security API for token, address, NFT, and approval security analysis.
+
+```bash
+# Check token security (honeypot detection, taxes, ownership)
+ethcli goplus token 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain-id 1
+
+# Check if address is malicious
+ethcli goplus address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --chain-id 1
+
+# Check NFT collection security
+ethcli goplus nft 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d --chain-id 1
+
+# Check ERC20/721/1155 approval security
+ethcli goplus approval 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --chain-id 1
+
+# List supported chains
+ethcli goplus chains
+
+# JSON output (use --format or -o)
+ethcli goplus token 0x... --chain-id 1 --format json
+ethcli goplus token 0x... --chain-id 1 -o ndjson
+```
+
+### Notes
+
+- **Free API**: No API key required for basic usage
+- **Authenticated mode**: Set `GOPLUS_APP_KEY` and `GOPLUS_APP_SECRET` for batch queries and higher rate limits (without them `token-batch` queries each address individually and warns about addresses with no data)
+- **Alias**: `ethcli gp` works as an alias for `ethcli goplus`
+- **Chain IDs**: 1=Ethereum, 56=BSC, 137=Polygon, 42161=Arbitrum, 8453=Base, etc.
+
+## Blacklist Commands
+
+Manage a local token blacklist for filtering spam/scam tokens from portfolio views.
+
+```bash
+# Scan a token for security issues
+ethcli blacklist scan 0x... --chain ethereum
+
+# Scan entire portfolio for suspicious tokens
+ethcli blacklist scan-portfolio 0xYourAddress --chain ethereum --auto-blacklist
+
+# Only show suspicious tokens (skip safe ones)
+ethcli blacklist scan-portfolio 0xYourAddress --suspicious-only --auto-blacklist
+
+# List blacklisted tokens
+ethcli blacklist list
+ethcli blacklist list --links  # With Etherscan links
+
+# Add token to blacklist
+ethcli blacklist add 0x... --chain ethereum --reason "Honeypot token"
+
+# Remove token from blacklist
+ethcli blacklist remove 0x...
+
+# Check if token is blacklisted
+ethcli blacklist check 0x...
+
+# Show the blacklist file path
+ethcli blacklist path
+```
+
+### Notes
+
+- **Storage**: Blacklist stored in `~/.config/ethcli/blacklist.toml`
+- **Security checks**: Uses GoPlus API + Etherscan verification status
+- **Known protocols**: a fixed list of major token addresses (stETH, DAI, CRV, ...) skips the proxy warnings; names and symbols are never trusted, and verification status is never overridden
+- **Alias**: `ethcli bl` works as an alias for `ethcli blacklist`
+
+## Solodit Commands
+
+Search and explore smart contract security vulnerability findings from the Solodit database (by Cyfrin).
+
+```bash
+# Search for vulnerability findings
+ethcli solodit search "reentrancy"
+ethcli sld search "oracle manipulation" --impact HIGH,MEDIUM
+ethcli sld search "flash loan" --firm "Trail of Bits" --tag Reentrancy
+
+# Filter by various criteria
+ethcli sld search "access control" --protocol "Aave" --language Solidity
+ethcli sld search "price" --min-quality 3 --sort quality
+
+# Advanced filtering
+ethcli sld search "oracle" --protocol-category DeFi,Bridge
+ethcli sld search "reentrancy" --finder "username" --min-finders 1 --max-finders 3
+ethcli sld search "flash loan" --reported 30                    # Last 30 days
+ethcli sld search "access control" --reported-after 2024-01-01  # After specific date
+ethcli sld search "price" --min-quality 3 --min-rarity 2
+ethcli sld search "oracle" --sort quality --sort-dir asc
+
+# Get a specific finding by slug
+ethcli sld get <finding-slug>
+ethcli sld get <finding-slug> --format json
+
+# Check API rate limit status
+ethcli sld rate-limit
+
+# List common vulnerability tags
+ethcli sld tags
+
+# List common audit firms
+ethcli sld firms
+
+# Pagination
+ethcli sld search "reentrancy" --page 2 --limit 50
+```
+
+### Search Filters
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--impact`, `-i` | Impact level(s) | `--impact HIGH,MEDIUM` |
+| `--firm`, `-f` | Audit firm(s) | `--firm "Cyfrin,Sherlock"` |
+| `--tag`, `-t` | Vulnerability tag(s) | `--tag Reentrancy,Oracle` |
+| `--protocol` | Protocol name (partial) | `--protocol Aave` |
+| `--protocol-category` | Protocol category(ies) | `--protocol-category DeFi` |
+| `--forked` | Forked protocol(s) | `--forked Compound` |
+| `--language` | Programming language(s) | `--language Solidity,Vyper` |
+| `--finder` | Auditor handle (partial) | `--finder username` |
+| `--min-finders` | Min number of finders | `--min-finders 1` |
+| `--max-finders` | Max number of finders | `--max-finders 5` |
+| `--reported` | Report period (30/60/90/alltime/after) | `--reported 30` |
+| `--reported-after` | Reports after date (ISO) | `--reported-after 2024-01-01` |
+| `--min-quality` | Min quality score (0-5) | `--min-quality 3` |
+| `--min-rarity` | Min rarity score (0-5) | `--min-rarity 2` |
+| `--sort` | Sort field | `--sort quality` |
+| `--sort-dir` | Sort direction (asc/desc) | `--sort-dir asc` |
+| `--page` | Page number (>= 1) | `--page 2` |
+| `--limit` | Results per page (1-100) | `--limit 50` |
+| `--format`, `-o` | Output format (table, json, ndjson) | `--format json` |
+
+### Notes
+
+- **API key required**: Set `SOLODIT_API_KEY` or use `ethcli config set-solodit <key>`
+- **Get API key**: https://solodit.cyfrin.io (Profile > API Keys)
+- **Rate limit**: 20 requests per 60 seconds
+- **Alias**: `ethcli sld` works as an alias for `ethcli solodit`
+- **Impact levels**: HIGH, MEDIUM, LOW, GAS (invalid values are rejected)
+- **Keywords optional**: `ethcli sld search --impact HIGH` works without keywords
+- **`get` is best-effort**: the API has only `POST /findings`; `get` searches by slug text and matches slug/ID exactly
+- **401 errors** show the server message ("Missing API key" vs "Invalid API key"); regenerating a key at solodit.cyfrin.io invalidates the old one
+- **Upstream quirks**: `report_date` may be `{}`; `protocols_protocolcategoryscore` is always `[]` (solodit/solodit_content#153)
+- **Sort options**: recency (default), quality, rarity
+
+## Simulation Commands
+
+```bash
+# Simulate a contract call (uses cast by default)
+ethcli simulate call <contract> --sig "balanceOf(address)" <address> --rpc-url https://eth.llamarpc.com
+
+# Simulate with trace (requires debug-capable node)
+ethcli simulate call <contract> --sig "transfer(address,uint256)" <to> <amount> --trace
+
+# Trace an existing transaction
+ethcli simulate tx <tx_hash> --rpc-url https://eth.llamarpc.com
+
+# Decoded call tree from debug_traceTransaction (contract names, function
+# args, events — no Foundry/cast binary required); --raw for callTracer JSON
+ethcli simulate tx <tx_hash> --via debug
+
+# Use different backends
+ethcli simulate call ... --via cast      # Default: uses cast call
+ethcli simulate call ... --via anvil     # Forks mainnet with Anvil
+ethcli simulate call ... --via tenderly  # Uses Tenderly API (rich output)
+ethcli simulate call ... --via debug     # Uses debug_traceCall RPC
+ethcli simulate call ... --via trace     # Uses trace_call RPC (Erigon/OpenEthereum)
+ethcli simulate call ... --via alchemy   # Uses Alchemy debug_traceCall (Simulation API retired 2026-09-30)
+```
+
+`--sig` calldata is ABI-encoded natively, so `--via tenderly|debug|trace|alchemy`
+work without Foundry. Foundry is still needed for `--via cast` (the default) and
+`--via anvil`, and for signatures ethcli can't encode itself (parameter names,
+`returns` clauses such as `balanceOf(address)(uint256)`); those fall back to
+`cast calldata`. Pass raw calldata with `--data` to skip encoding entirely.
+
+## Tenderly Commands
+
+Requires `TENDERLY_ACCESS_KEY`, `TENDERLY_ACCOUNT` and `TENDERLY_PROJECT` (environment variables, matching `--tenderly-*` flags, or `ethcli config set-tenderly`). The `--tenderly-key`/`--tenderly-account`/`--tenderly-project` flags belong to the group command and go before the subcommand, e.g. `ethcli tenderly vnets --tenderly-project <slug> list`.
+
+```bash
+# Virtual TestNets (VNets)
+ethcli tenderly vnets list
+ethcli tenderly vnets create --slug <slug> --name "My VNet" --network-id 1
+ethcli tenderly vnets get <vnet-id>
+ethcli tenderly vnets delete <vnet-id>
+ethcli tenderly vnets delete <id1> <id2> <id3>
+ethcli tenderly vnets delete --all
+ethcli tenderly vnets rpc <vnet-id>
+
+# VNet Admin RPC - Balance Management
+ethcli tenderly vnets admin --vnet <id> set-balance <address> 10eth
+ethcli tenderly vnets admin --vnet <id> add-balance <address> 1eth
+ethcli tenderly vnets admin --vnet <id> set-erc20-balance --token <token> --wallet <wallet> <amount>
+ethcli tenderly vnets admin --vnet <id> set-max-erc20-balance --token <token> --wallet <wallet>
+
+# VNet Admin RPC - Time Manipulation
+ethcli tenderly vnets admin --vnet <id> increase-time 3600
+ethcli tenderly vnets admin --vnet <id> set-timestamp <epoch>
+ethcli tenderly vnets admin --vnet <id> increase-blocks 10
+
+# VNet Admin RPC - State Management
+ethcli tenderly vnets admin --vnet <id> snapshot
+ethcli tenderly vnets admin --vnet <id> revert <snapshot-id>
+
+# VNet Admin RPC - Storage/Code (slot/value accept decimal or hex, auto-padded to 32 bytes)
+ethcli tenderly vnets admin --vnet <id> set-storage --address <addr> --slot 0 --value 1
+ethcli tenderly vnets admin --vnet <id> set-code --address <addr> --code <bytecode>
+
+# VNet Admin RPC - Transactions
+ethcli tenderly vnets admin --vnet <id> send-tx --from <addr> --to <addr> --value 0x1
+ethcli tenderly vnets admin --vnet <id> get-latest
+
+# VNet Admin RPC - Simulation (tenderly_simulateTransaction / tenderly_simulateBundle)
+ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --data 0x...
+ethcli tenderly vnets admin --vnet <id> simulate-tx --from <addr> --to <addr> --value 0x1 --block latest --state-overrides '{"0x...":{"balance":"0x..."}}'
+ethcli tenderly vnets admin --vnet <id> simulate-bundle '[{"from":"0x...","to":"0x...","data":"0x..."}]'
+ethcli tenderly vnets admin --vnet <id> simulate-bundle '[...]' --state-overrides '{"0x...":{"balance":"0x..."}}' --block-overrides '{"number":"0x..."}'
+
+# Virtual Wallets
+ethcli tenderly wallets list
+ethcli tenderly wallets add <address>
+ethcli tenderly wallets get <address> --network 1
+
+# Contracts
+ethcli tenderly contracts list
+ethcli tenderly contracts get <address> --network 1
+ethcli tenderly contracts add <address> --network 1
+ethcli tenderly contracts rename <address> --network 1 --name <name>
+ethcli tenderly contracts encode-state --network 1 '{"0xToken": {"value": {"balances[0xHolder]": "1000"}}}'
+
+# Alerts
+ethcli tenderly alerts list
+ethcli tenderly alerts create --name "Alert" --alert-type successful_transaction --network 1
+ethcli tenderly alerts delete <alert-id>
+ethcli tenderly alerts webhooks list
+ethcli tenderly alerts webhooks create --name "Hook" --url https://...
+
+# Web3 Actions
+ethcli tenderly actions list
+ethcli tenderly actions get <action-id>
+ethcli tenderly actions stop <action-id>
+ethcli tenderly actions resume <action-id>
+ethcli tenderly actions get-call <action-id> <execution-id>
+
+# Networks
+ethcli tenderly networks list
+ethcli tenderly networks get <network-id>
+
+# Delivery Channels (Slack, Discord, Email, etc.)
+ethcli tenderly channels list
+ethcli tenderly channels account
+ethcli tenderly channels project
+
+# Simulation (alias to ethcli simulate --via tenderly; always uses Tenderly)
+ethcli tenderly simulate call <contract> --sig "balanceOf(address)" <args>
+```
+
+## Curve Router Commands
+
+The Curve router finds optimal swap routes across Curve pools (local implementation, not REST API).
+
+```bash
+# Find swap routes between two tokens
+ethcli curve router route <from_token> <to_token> --chain ethereum --limit 5
+
+# Example: DAI to USDC
+ethcli curve router route 0x6B175474E89094C44Da98b954EedeAC495271d0F 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+
+# Get calldata for a swap (to send to router contract)
+ethcli curve router encode <from> <to> <amount> <min_out> --chain ethereum
+
+# Show router graph statistics
+ethcli curve router stats --chain ethereum
+
+# Get router contract address
+ethcli curve router address ethereum
+ethcli curve router address polygon
+ethcli curve router address arbitrum
+```
+
+## Quote Commands
+
+Get swap quotes from multiple DEX aggregators in parallel. Finds the best swap route across OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora, and Enso.
+
+```bash
+# Get the best quote from all aggregators
+ethcli quote best ETH USDC 1000000000000000000 --chain ethereum
+
+# Get quote from a specific aggregator
+ethcli quote from openocean ETH USDC 1000000000000000000
+ethcli quote from 1inch WETH DAI 1000000000000000000 --chain polygon
+
+# Compare quotes from all aggregators side-by-side
+ethcli quote compare ETH USDC 1000000000000000000 --chain ethereum
+
+# Use human-readable amounts with --decimals
+ethcli quote best ETH USDC 1.5 --decimals 18 --chain ethereum
+
+# Include transaction data in output
+ethcli quote best ETH USDC 1000000000000000000 --show-tx
+
+# Set slippage tolerance (basis points, default 50 = 0.5%; applied to 0x, LI.FI and Enso tx data)
+ethcli quote best ETH USDC 1000000000000000000 --slippage 100
+
+# `quote from all` behaves like `quote compare`
+
+# Provide sender address for more accurate quotes
+ethcli quote best ETH USDC 1000000000000000000 --sender 0xYourAddress
+
+# JSON output
+ethcli quote compare ETH USDC 1000000000000000000 --format json
+```
+
+### Available Sources
+
+| Alias | Aggregator | Notes |
+|-------|------------|-------|
+| `openocean`, `oo` | OpenOcean | Multi-chain DEX aggregator |
+| `kyberswap`, `kyber` | KyberSwap | Dynamic routing |
+| `0x`, `zerox` | 0x Protocol | Professional-grade liquidity |
+| `1inch`, `oneinch` | 1inch | Pathfinder algorithm |
+| `cowswap`, `cow` | CowSwap | MEV-protected trades |
+| `li.fi`, `lifi` | LI.FI | Cross-chain aggregator |
+| `velora`, `paraswap` | Velora/ParaSwap | Multi-protocol routing |
+| `enso`, `ensofi` | Enso Finance | DeFi shortcuts |
+
+### Notes
+
+- **No API keys required** for basic usage (some sources may have higher rate limits with keys)
+- **MEV protection**: CowSwap uses batch auctions to protect against MEV
+- **Amount format**: Pass raw amounts (wei) or use `--decimals` for human-readable input
+- **Symbols**: ETH (native), WETH, USDC, USDT, DAI, WBTC, ... resolve per chain (ethereum, optimism, bsc, polygon, base, arbitrum, avalanche); otherwise pass addresses
+- **Chains**: Supports Ethereum, Polygon, Arbitrum, Optimism, Base, and more
+
+## Chainlink Commands
+
+Query Chainlink price feeds via RPC (no API key required). Supports Feed Registry (mainnet) and direct oracle queries (all chains).
+
+```bash
+# Get current price (uses Feed Registry on mainnet, direct oracles on L2s)
+ethcli chainlink price ETH
+ethcli chainlink price CVX
+ethcli chainlink price BTC --chain arbitrum
+
+# Historical price at a specific block (requires archive node)
+ethcli chainlink price ETH --block 18000000
+ethcli chainlink price CVX --block 19500000
+
+# Query a specific oracle address directly
+ethcli chainlink price ETH --oracle 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419
+
+# Get feed/oracle address for a token
+ethcli chainlink feed CVX
+ethcli chainlink feed ETH --quote usd
+
+# List known oracle addresses
+ethcli chainlink oracles
+ethcli chainlink oracles --chain ethereum
+ethcli chainlink oracles --chain arbitrum
+
+# Data Streams (requires API credentials). Defaults to mainnet
+# (api.dataengine.chain.link / ws.dataengine.chain.link); override with
+# CHAINLINK_REST_URL / CHAINLINK_WS_URL or [chainlink] rest_url / ws_url for testnet.
+ethcli chainlink streams feeds
+ethcli chainlink streams latest <feed_id>
+ethcli chainlink streams report <feed_id> <timestamp>
+ethcli chainlink streams bulk <feed_id1>,<feed_id2> <timestamp>
+ethcli chainlink streams history <feed_id> <timestamp> --limit 10
+```
+
+### Notes
+
+- **Ethereum mainnet**: Uses Feed Registry - supports any token Chainlink has a feed for. Pass token address or symbol.
+- **L2 chains**: Uses hardcoded oracle mappings. Run `ethcli chainlink oracles --chain <chain>` to see available feeds.
+- **Historical queries**: Require an archive node. Feed address is resolved at the target block for accuracy.
+- **Stale detection**: Warns if `answeredInRound < roundId` (oracle hasn't updated recently).
+
+## Kong (Yearn) Commands
+
+Query Yearn Finance vault and strategy data via the Kong GraphQL API. No API key required.
+
+```bash
+# List vaults (optionally filtered)
+ethcli kong vaults list                        # All vaults
+ethcli kong vaults list --chain-id 1           # Ethereum mainnet vaults
+ethcli kong vaults list --chain-id 1 --yearn   # Official Yearn vaults only
+ethcli kong vaults list --v3                   # V3 vaults only
+ethcli kong vaults list --erc4626              # ERC4626 compliant vaults
+
+# Get specific vault details
+ethcli kong vaults get --chain-id 1 0x7B5A0182E400b241b317e781a4e9dEdFc1429822
+
+# User vault positions are not available from Kong; use `ethcli portfolio`.
+
+# List strategies
+ethcli kong strategies list --chain-id 1
+ethcli kong strategies list --vault 0x... -c 1 # Strategies for a vault (vaultStrategies)
+ethcli kong strategies get --chain-id 1 0x...  # Get strategy details
+
+# Token prices (contract addresses only; Kong currently returns no price data
+# for most tokens - the command errors instead of printing null)
+ethcli kong prices current --chain-id 1 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli kong prices historical --chain-id 1 0x... 1700000000  # At timestamp
+
+# TVL data
+ethcli kong tvl current --chain-id 1 0x...
+ethcli kong tvl history --chain-id 1 0x... --period day --limit 30   # most recent 30 points
+
+# Vault/strategy reports (harvests)
+ethcli kong reports vault --chain-id 1 0x...
+ethcli kong reports strategy --chain-id 1 0x...
+```
+
+### Notes
+
+- **Chain IDs**: 1=Ethereum, 137=Polygon, 42161=Arbitrum, 10=Optimism, 8453=Base
+- **Alias**: `ethcli yearn` works as an alias for `ethcli kong`
+- **No API key**: Kong API is free and public
+
+## Alchemy Commands
+
+Direct access to Alchemy API. Requires `ALCHEMY_API_KEY` environment variable.
+
+```bash
+# NFT queries
+ethcli alchemy nft get-nfts 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli alchemy nft metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+ethcli alchemy nft contracts-for-owner 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+ethcli alchemy nft contract-metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d
+ethcli alchemy nft is-holder 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d
+
+# Token data
+ethcli alchemy token balances 0x...
+ethcli alchemy token metadata 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+
+# Transfers (from / to / all)
+ethcli alchemy transfers all 0x...
+
+# Debug traces
+ethcli alchemy debug trace-tx 0x...
+
+# Notify (dashboard: Webhooks) - needs the Webhooks auth token
+ethcli alchemy notify list-webhooks            # alias: ethcli alchemy webhooks ...
+# Gas Manager (dashboard: Gas Sponsorship) - needs an access key
+ethcli alchemy gas-manager list-policies       # alias: ethcli alchemy gas-sponsorship ...
+```
+
+`alchemy notify` and `alchemy gas-manager` do not accept the app API key:
+
+- **Notify / Webhooks**: copy the Auth Token from the AUTH TOKEN button at the top
+  right of the dashboard Webhooks page (sidebar Data -> Webhooks,
+  https://dashboard.alchemy.com/webhooks). Set it with
+  `ethcli config set-alchemy-notify-token --stdin` or `ALCHEMY_NOTIFY_TOKEN`.
+- **Gas Manager / Gas Sponsorship**: create an Access Key under dashboard ->
+  Security with Gas Manager permissions (billing/team admins only). Set it with
+  `ethcli config set-alchemy-access-key --stdin` or `ALCHEMY_ACCESS_KEY`.
+Alchemy retired several NFT API endpoints on 2026-09-30, and the matching
+`ethcli alchemy nft` subcommands were removed:
+
+| Removed | Use instead |
+|---------|-------------|
+| `collections-for-owner` | `contracts-for-owner` |
+| `collection-metadata`, `search-contract-metadata` | `contract-metadata` (OpenSea data is in `openSeaMetadata`) |
+| `spam-contracts` | `is-spam <contract>` |
+| `summarize-attributes`, `compute-rarity` | no direct replacement; aggregate `nfts-for-contract` output |
+| `invalidate-contract` | no replacement; `refresh-metadata` still refreshes single tokens |
+| `is-airdrop`, `sales` | no replacement |
+
+`is-holder` is kept and now uses `getNFTsForOwner` filtered to the contract.
+
+The Alchemy Transaction Simulation API was retired on the same date, so
+`ethcli alchemy simulation asset-changes|execution` were removed. Use
+`ethcli simulate call ... --via tenderly` (rich decoded output),
+`--via debug` (`debug_traceCall` on any RPC), `--via alchemy` (Alchemy's
+`debug_traceCall`), or `ethcli alchemy debug trace-call`.
+
+## Gecko (CoinGecko) Commands
+
+Direct access to CoinGecko API. Optional `COINGECKO_API_KEY` for Pro API (higher rate limits).
+
+```bash
+# Coin data
+ethcli gecko coins get bitcoin
+
+# Price queries
+ethcli gecko simple price bitcoin,ethereum --vs usd,eur
+ethcli gecko coins chart bitcoin --days 30
+
+# Market data
+ethcli gecko coins markets usd
+ethcli gecko global trending
+
+# NFT data
+ethcli gecko nfts get bored-ape-yacht-club
+```
+
+## Llama (DefiLlama) Commands
+
+Direct access to DefiLlama API. Optional `DEFILLAMA_API_KEY` for Pro endpoints.
+
+```bash
+# TVL data
+ethcli llama tvl protocol aave
+ethcli llama tvl protocols
+ethcli llama tvl chains
+
+# Prices
+ethcli llama coins current ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli llama coins current ethereum:0x...,ethereum:0x...
+ethcli llama coins chart ethereum:0x... --period 1d
+
+# Yields
+ethcli llama yields pools
+
+# Stablecoins
+ethcli llama stablecoins list
+```
+
+## Moralis Commands
+
+Direct access to Moralis API. Requires `MORALIS_API_KEY` environment variable.
+
+```bash
+# Wallet data
+ethcli moralis wallet balance 0x...
+ethcli moralis wallet tokens 0x...
+ethcli moralis wallet transactions 0x...
+ethcli moralis token transfers 0x...
+
+# NFT data
+ethcli moralis nft list 0x...
+ethcli moralis nft metadata 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d 1
+
+# Token data
+ethcli moralis token price 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+ethcli moralis token metadata 0x...
+
+# DeFi positions
+ethcli moralis defi wallet-positions 0x...
+```
+
+## Dune Sim (removed)
+
+Dune Sim (sim.dune.com) was shut down on 2026-08-01, so `ethcli dsim`,
+`--source dsim`, `ethcli config set-dune-sim` and the `DUNE_SIM_API_KEY`
+variable were removed (see <https://github.com/yldfi/yldfi-rs/issues/64>).
+Use `ethcli portfolio` / `ethcli nfts` (Alchemy, Moralis) instead. Dune
+Analytics (`ethcli dune`, `DUNE_API_KEY`) is unaffected.
+
+## Dune Commands
+
+Direct access to Dune Analytics API. Requires `DUNE_API_KEY` environment variable.
+
+```bash
+# Run a saved query (waits for completion)
+ethcli dune query execute 1234567
+ethcli dune query execute 1234567 --params '{"address": "0x..."}'
+
+# Get cached results
+ethcli dune query results 1234567
+ethcli dune query csv 1234567
+
+# Executions
+ethcli dune execution status <execution-id>
+ethcli dune execution results <execution-id>
+
+# Raw SQL
+ethcli dune sql execute "SELECT 1"
+
+# Tables
+ethcli dune tables list
+```
+
+## Curve Commands
+
+Direct access to Curve Finance API. No API key required.
+
+```bash
+# Optional positional chain: omit for all chains
+ethcli curve pools big [CHAIN]
+ethcli curve crvusd markets [CHAIN]
+
+# OHLC / trades need two pool coins
+ethcli curve ohlc pool ethereum <pool> --main-token <addr> --reference-token <addr>
+ethcli curve trades get ethereum <pool> --main-token <addr> --reference-token <addr>
+ethcli curve ohlc lp-token ethereum <pool>          # start/end default to last 7 days
+
+# CRV (not crvUSD) circulating supply
+ethcli curve crvusd crv-circulating-supply
+
+# Pool data
+ethcli curve pools all
+ethcli curve pools list ethereum
+
+# Volume and TVL
+ethcli curve volumes total ethereum
+ethcli curve volumes pools ethereum
+
+# Lending
+ethcli curve lending all
+ethcli curve lending chain ethereum
+
+# Token data
+ethcli curve tokens list ethereum
+ethcli curve prices token ethereum 0x...
+```
+
+## Exchange Commands (`ccxt`, alias `cex`)
+
+Public market data from centralised exchanges and perp venues via the `cexm`
+crate (`crates/cexm`). No API keys.
+
+```bash
+# Ticker (--exchange / -e defaults to binance)
+ethcli ccxt ticker BTC/USDT
+ethcli ccxt ticker ETH/USDT --exchange okx
+ethcli ccxt ticker ETH/USD -e coinbase
+ethcli ccxt ticker ETH/USDC:USDC -e hyperliquid   # perpetuals: BASE/USDC:USDC
+
+# Order book, candles, recent trades
+ethcli ccxt order-book BTC/USDT --limit 10
+ethcli ccxt ohlcv BTC/USDT --timeframe 1h --limit 100
+ethcli ccxt trades ETH/USDT -e bybit --limit 20
+
+# Markets, and one pair across every exchange
+ethcli ccxt markets --exchange kraken --quote USD
+ethcli ccxt compare BTC/USDT
+```
+
+### Supported Exchanges
+
+Binance, Bitget, OKX, Bybit, Coinbase and Kraken (spot), Hyperliquid and Lighter
+(perpetuals). Public data only, no API keys. Binance is queried via its market-data
+host `data-api.binance.vision`, which isn't region-locked. `ethcli cex` is an alias.
+
+Not every venue has every timeframe (e.g. OKX and Bitget have no 8h candles);
+unsupported ones fail with a clear error. Bars of 6h and longer are UTC-aligned.
+
+## Direct DEX Aggregator Commands
 ```
 ethcli 1inch      # 1inch API (quote, swap, tokens, sources, approvals) - requires API key
 ethcli open-ocean # De¹/OpenOcean API (quote, swap, reverse-quote, tokens, dexes)
@@ -1141,7 +1867,7 @@ src/
     ├── dune_cli.rs   # Direct Dune Analytics API
     ├── curve.rs      # Direct Curve Finance API
     ├── chainlink.rs  # Chainlink price feeds (RPC + Data Streams)
-    ├── ccxt.rs       # Exchange data via CCXT
+    ├── ccxt.rs       # Exchange data via cexm
     ├── kong.rs       # Direct Yearn Kong API
     ├── uniswap.rs    # Uniswap V2/V3/V4 queries
     ├── goplus.rs     # GoPlus Security API (token/address/NFT/approval)
@@ -1177,7 +1903,7 @@ src/
 - **unswp**: Uniswap V2/V3/V4 client (on-chain lens + subgraph)
 - **gplus**: GoPlus Security API client
 - **sldt**: Solodit vulnerability database client
-- **ccxt-rust**: Cryptocurrency exchange data via CCXT
+- **cexm**: Centralised exchange market data (Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter)
 - **tokio**: Async runtime
 - **clap**: CLI parsing
 - **serde/serde_json**: Serialization
