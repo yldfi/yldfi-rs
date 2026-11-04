@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.4.0...ethcli-mcp-v0.4.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* declare the real minimum Rust versions for ethcli and ethcli-mcp ([#155](https://github.com/yldfi/yldfi-rs/issues/155)) ([efb58fa](https://github.com/yldfi/yldfi-rs/commit/efb58fa5ca68fdd181659eb915f041226d2f5eeb))
+* **ethcli-mcp:** keep JSON tool output valid when redacting secrets ([#156](https://github.com/yldfi/yldfi-rs/issues/156)) ([061191f](https://github.com/yldfi/yldfi-rs/commit/061191fd783c87b2e7a5e49af8f9ce8b7906fb70))
+
 ## [0.4.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.3.3...ethcli-mcp-v0.4.0) (2026-11-04)
 
 
