@@ -178,6 +178,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `MORALIS_API_KEY` | `moralis_*` tools |
 | `SOLODIT_API_KEY` | `solodit_*` tools |
 | `PYTH_API_KEY` | `pyth_price` (required since the Pyth Core upgrade; or `config_set_pyth`), sent with `pyth_search`/`pyth_feeds` when set |
+| `DEFILLAMA_API_KEY` | DefiLlama data in `yields` from 2026-11-13, and Pro endpoints (or `config_set_defillama`) |
 | `THEGRAPH_API_KEY` | `uniswap_top_pools`, etc. |
 
 Moralis removed Fantom support on 2026-05-29 (the `moralis_*` tools inherit

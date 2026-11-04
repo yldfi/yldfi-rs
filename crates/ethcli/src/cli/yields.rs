@@ -108,9 +108,14 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
             if args.show_sources {
                 println!("{}", serde_json::to_string_pretty(&result)?);
             } else {
+                let failed_sources: Vec<_> = failed
+                    .iter()
+                    .map(|(source, error)| serde_json::json!({ "source": source, "error": error }))
+                    .collect();
                 let output = serde_json::json!({
                     "aggregated": result.aggregated,
                     "yields": filtered_yields,
+                    "failed_sources": failed_sources,
                 });
                 println!("{}", serde_json::to_string_pretty(&output)?);
             }
@@ -166,7 +171,9 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
 
             // Print yields table
             if filtered_yields.is_empty() {
-                println!("No yields found matching criteria.");
+                if failed.is_empty() {
+                    println!("No yields found matching criteria.");
+                }
             } else {
                 println!(
                     "{:<40} {:<12} {:<10} {:<10} {:<12} {:<12}",
@@ -204,7 +211,24 @@ pub async fn handle(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
         }
     }
 
+    if let Some(message) = empty_result_error(filtered_yields.is_empty(), &failed) {
+        anyhow::bail!(message);
+    }
+
     Ok(())
+}
+
+/// An empty result with a failed source may be a failure rather than "no
+/// pools match", so it must not look like success to a script.
+fn empty_result_error(no_rows: bool, failed: &[(&str, &String)]) -> Option<String> {
+    if !no_rows || failed.is_empty() {
+        return None;
+    }
+    let detail: Vec<String> = failed.iter().map(|(s, e)| format!("{s}: {e}")).collect();
+    Some(format!(
+        "No yields returned, and these sources failed: {}",
+        detail.join("; ")
+    ))
 }
 
 /// Merge rows from all sources, sort by total APY (descending) and limit
@@ -351,6 +375,20 @@ async fn handle_compare(args: &YieldsArgs, quiet: bool) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn empty_result_is_an_error_only_when_a_source_failed() {
+        let err = "boom".to_string();
+        let failed = [("llama", &err)];
+        assert_eq!(
+            empty_result_error(true, &failed).as_deref(),
+            Some("No yields returned, and these sources failed: llama: boom")
+        );
+        // Rows from the other sources: warn, but it isn't a failure
+        assert_eq!(empty_result_error(false, &failed), None);
+        // Nothing failed: the filters just matched nothing
+        assert_eq!(empty_result_error(true, &[]), None);
+    }
+
     use super::*;
 
     fn row(source: &str, apy: Option<f64>) -> NormalizedYield {

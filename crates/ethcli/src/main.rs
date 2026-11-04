@@ -2190,6 +2190,29 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
             println!("See: https://pyth.network/terms-of-use");
         }
 
+        ConfigCommands::SetDefillama { key, stdin } => {
+            use ethcli::cli::config::read_from_stdin;
+            use ethcli::config::LlamaConfig;
+            use secrecy::SecretString;
+            let api_key = if *stdin {
+                read_from_stdin().map_err(|e| anyhow::anyhow!("Failed to read from stdin: {e}"))?
+            } else {
+                key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key required (provide key or use --stdin)")
+                })?
+            };
+            let api_key = api_key.trim().to_string();
+            if api_key.is_empty() {
+                anyhow::bail!("API key must not be empty");
+            }
+            let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            cfg.defillama = Some(LlamaConfig {
+                api_key: Some(SecretString::new(api_key.into())),
+            });
+            cfg.save_default()?;
+            println!("DefiLlama API key saved to config file.");
+        }
+
         ConfigCommands::AddDebugRpc { url } => {
             let mut config = ConfigFile::load_default()?.unwrap_or_default();
             config.add_debug_rpc(url.clone())?;
@@ -2327,6 +2350,13 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                     if config.solodit.is_some() {
                         api_keys_present += 1;
                         println!("Solodit API key: configured");
+                    }
+                    if config
+                        .defillama
+                        .as_ref()
+                        .is_some_and(|l| l.api_key.is_some())
+                    {
+                        println!("DefiLlama API key: configured");
                     }
                     if config.pyth.is_some() {
                         api_keys_present += 1;

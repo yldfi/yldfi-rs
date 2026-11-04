@@ -7709,6 +7709,18 @@ pub async fn config_set_pyth(key: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
+pub async fn config_set_defillama(key: &str) -> Result<String, ToolError> {
+    require_write_tools_enabled("config_set_defillama")?;
+
+    ArgsBuilder::new("config")
+        .subcommand("set-defillama")
+        .opt_flag("--stdin", true)
+        .stdin(single_line_secret("key", key)?)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn config_add_debug_rpc(url: &str) -> Result<String, ToolError> {
     require_write_tools_enabled("config_add_debug_rpc")?;
 

@@ -497,6 +497,9 @@ ethcli config set-tenderly --key KEY --account ACCOUNT --project PROJECT
 
 # Set Pyth API key (required for Pyth prices)
 echo $PYTH_API_KEY | ethcli config set-pyth --stdin
+
+# Set DefiLlama API key (needed for its yields from 2026-11-13)
+echo $DEFILLAMA_API_KEY | ethcli config set-defillama --stdin
 ```
 
 ### Update & Doctor
@@ -590,12 +593,21 @@ ethcli nfts 0x... -o json
 
 ```bash
 # Get DeFi yields
-ethcli yields --protocol aave
-ethcli yields --protocol curve
+ethcli yields --project aave
+ethcli yields --project curve
 ethcli yields --chain ethereum
 ```
 
-**Sources**: DefiLlama, Curve Finance
+**Sources**: DefiLlama, Curve Finance, Uniswap, Yearn
+
+DefiLlama shuts down its free yields endpoints on 2026-11-13. From then on, its
+yields need an API plan key: set `DEFILLAMA_API_KEY` or run
+`echo $KEY | ethcli config set-defillama --stdin`. The other sources keep working
+without it.
+
+If a source fails, `ethcli yields` warns on stderr and lists it under
+`failed_sources` in JSON output. If no yields come back and a source failed, it
+exits non-zero, because the pools you asked for may be in the source that failed.
 
 ### Quote - DEX Aggregator Quotes
 
@@ -729,7 +741,8 @@ ethcli gecko exchange binance
 
 ### Llama - DefiLlama API
 
-Optional `DEFILLAMA_API_KEY` for Pro endpoints.
+Optional `DEFILLAMA_API_KEY` (or `ethcli config set-defillama`) for Pro endpoints.
+`llama yields` needs it from 2026-11-13, when the free yields endpoints shut down.
 
 ```bash
 # TVL data
@@ -1172,7 +1185,7 @@ ethcli config set-etherscan-key YOUR_KEY
 | `ALCHEMY_NOTIFY_TOKEN` | `ethcli alchemy notify` | Webhooks auth token (dashboard Data -> Webhooks, AUTH TOKEN button) |
 | `ALCHEMY_ACCESS_KEY` | `ethcli alchemy gas-manager` | Access key with Gas Manager (Gas Sponsorship) permissions (dashboard -> Security) |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (higher rate limits) |
-| `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
+| `DEFILLAMA_API_KEY` | Pro endpoints; DefiLlama yields from 2026-11-13 | DefiLlama API plan key; or `ethcli config set-defillama --stdin` |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
 | `DUNE_API_KEY` | `ethcli dune` | Dune Analytics queries |
 | `THEGRAPH_API_KEY` | Uniswap subgraph | The Graph API access |

@@ -195,6 +195,19 @@ pub enum ConfigCommands {
         stdin: bool,
     },
 
+    /// Set DefiLlama API key (needed for yields data from 2026-11-13, and for Pro endpoints)
+    #[command(
+        after_help = "To avoid exposing the key in shell history:\n  echo $KEY | ethcli config set-defillama --stdin"
+    )]
+    SetDefillama {
+        /// DefiLlama API key (omit if using --stdin)
+        key: Option<String>,
+
+        /// Read API key from stdin
+        #[arg(long)]
+        stdin: bool,
+    },
+
     /// Add a debug-capable RPC URL (for debug_traceCall, etc.)
     AddDebugRpc {
         /// RPC URL with debug namespace enabled

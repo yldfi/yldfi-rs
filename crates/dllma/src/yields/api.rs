@@ -34,8 +34,7 @@ fn free_yields_error(err: Error) -> Error {
         status,
         format!(
             "{err} (DefiLlama shuts down the free yields endpoints on {FREE_YIELDS_SHUTDOWN}; \
-             after that, yields data needs an API plan key: set DEFILLAMA_API_KEY or use \
-             Client::with_api_key())"
+             after that, yields data needs an API plan key, set with DEFILLAMA_API_KEY)"
         ),
     )
 }

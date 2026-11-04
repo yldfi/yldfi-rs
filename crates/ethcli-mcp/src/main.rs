@@ -7510,6 +7510,22 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Set DefiLlama API key in config (needed for yields data from 2026-11-13, and for Pro endpoints). Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn config_set_defillama(
+        &self,
+        Parameters(input): Parameters<ConfigKeyInput>,
+    ) -> CallToolResult {
+        tools::config_set_defillama(&input.key).await.to_response()
+    }
+
+    #[tool(
         description = "Set Chainlink Data Streams credentials. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
         annotations(
             read_only_hint = false,
