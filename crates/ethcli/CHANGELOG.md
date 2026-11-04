@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.1...ethcli-v0.25.2) (2026-11-04)
+
+
+### Bug Fixes
+
+* **ethcli:** keep unknown RPC endpoints as failover candidates ([#158](https://github.com/yldfi/yldfi-rs/issues/158)) ([7edc868](https://github.com/yldfi/yldfi-rs/commit/7edc868b81ad491df9773cad03dc5842baac09d7))
+
 ## [0.25.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.0...ethcli-v0.25.1) (2026-11-04)
 
 
