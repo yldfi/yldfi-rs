@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.25.2"
+version = "0.25.3"
 edition = "2021"
 rust-version = "1.95"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
@@ -90,7 +90,7 @@ chrono = "0.4"  # Timestamp formatting for CCXT commands
 # API clients
 alcmy = { version = "0.3.0", path = "../alcmy" }
 cgko = { version = "0.2.0", path = "../cgko" }
-dllma = { version = "0.2.0", path = "../dllma" }
+dllma = { version = "0.2.1", path = "../dllma" }
 mrls = { version = "0.3.0", path = "../mrls" }
 dnapi = { version = "0.3.0", path = "../dnapi" }
 crv = { version = "0.2.0", path = "../crv" }

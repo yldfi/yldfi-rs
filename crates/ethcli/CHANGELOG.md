@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.25.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.2...ethcli-v0.25.3) (2026-11-04)
+
+
+### Bug Fixes
+
+* **ethcli:** make the DefiLlama yields shutdown clear to users ([#160](https://github.com/yldfi/yldfi-rs/issues/160)) ([188d5af](https://github.com/yldfi/yldfi-rs/commit/188d5af9add06a924a76ae1da47f9567b6f1c993))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * dllma bumped from 0.2.0 to 0.2.1
+
 ## [0.25.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.1...ethcli-v0.25.2) (2026-11-04)
 
 
