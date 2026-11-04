@@ -109,7 +109,7 @@ pub async fn handle(quiet: bool) -> anyhow::Result<()> {
         println!("Found {} error(s) and {} warning(s)", errors, warnings);
         std::process::exit(1);
     } else if warnings > 0 {
-        println!("All checks passed ({} warning(s))", warnings);
+        println!("Finished with {} warning(s); see above", warnings);
     } else {
         println!("✓ All checks passed!");
     }
