@@ -7,7 +7,7 @@
 </p>
 <p align="center">
   <a href="https://crates.io/crates/tndrly"><img src="https://img.shields.io/crates/v/tndrly.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/tndrly/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Features
@@ -23,7 +23,7 @@
 
 ```toml
 [dependencies]
-tndrly = "0.3"
+tndrly = "0.5"
 tokio = { version = "1", features = ["full"] }
 ```
 

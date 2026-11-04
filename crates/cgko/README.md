@@ -2,15 +2,15 @@
   <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
 </p>
 
-<h1 align="center">gecko</h1>
+<h1 align="center">cgko</h1>
 
 <p align="center">
   Unofficial Rust client for the <a href="https://www.coingecko.com/api/documentation">CoinGecko</a> API
 </p>
 
 <p align="center">
-  <a href="https://crates.io/crates/cgko"><img src="https://img.shields.io/crates/v/gecko.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/gecko/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://crates.io/crates/cgko"><img src="https://img.shields.io/crates/v/cgko.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Features
@@ -29,7 +29,7 @@
 
 ```toml
 [dependencies]
-cgko = "0.1"
+cgko = "0.2"
 tokio = { version = "1", features = ["full"] }
 ```
 

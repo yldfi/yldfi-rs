@@ -2,15 +2,15 @@
   <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
 </p>
 
-<h1 align="center">dune-api</h1>
+<h1 align="center">dnapi</h1>
 
 <p align="center">
   Unofficial Rust client for the <a href="https://docs.dune.com/api-reference">Dune Analytics</a> API
 </p>
 
 <p align="center">
-  <a href="https://crates.io/crates/dnapi"><img src="https://img.shields.io/crates/v/dune-api.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/dune-api/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://crates.io/crates/dnapi"><img src="https://img.shields.io/crates/v/dnapi.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Features
@@ -26,7 +26,7 @@
 
 ```toml
 [dependencies]
-dnapi = "0.1"
+dnapi = "0.3"
 tokio = { version = "1", features = ["full"] }
 ```
 

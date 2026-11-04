@@ -1,6 +1,17 @@
-# sldt
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+</p>
 
-Unofficial Rust client for the [Solodit](https://solodit.cyfrin.io) smart contract vulnerability database.
+<h1 align="center">sldt</h1>
+
+<p align="center">
+  Unofficial Rust client for the <a href="https://solodit.cyfrin.io">Solodit</a> smart contract vulnerability database
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/sldt"><img src="https://img.shields.io/crates/v/sldt.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
 
 ## Features
 
@@ -16,7 +27,7 @@ Unofficial Rust client for the [Solodit](https://solodit.cyfrin.io) smart contra
 
 ```toml
 [dependencies]
-sldt = "0.1"
+sldt = "0.2"
 ```
 
 ## Getting an API Key
