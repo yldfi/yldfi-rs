@@ -25,6 +25,7 @@ members = [
     "crates/ykong",
     "crates/gplus",
     "crates/sldt",
+    "crates/cexm",
 ]
 
 [workspace.package]

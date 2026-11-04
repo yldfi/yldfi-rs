@@ -1,0 +1,22 @@
+[package]
+name = "cexm"
+version = "0.1.0"
+edition = "2021"
+description = "Rust client for public market data on centralised exchanges (Binance, Bitget, OKX, Hyperliquid)"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/cexm"
+keywords = ["crypto", "exchange", "market-data", "binance", "okx"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+readme = "README.md"
+
+[dependencies]
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
