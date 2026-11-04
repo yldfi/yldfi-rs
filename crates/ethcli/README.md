@@ -34,7 +34,7 @@
 - **Multi-chain**: Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Avalanche
 
 ### Aggregation Commands
-- **Price Aggregation**: Multi-source prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, CCXT
+- **Price Aggregation**: Multi-source prices from CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth, exchanges (Binance, Bitget, OKX)
 - **Portfolio Aggregation**: Balance data from Alchemy, Moralis
 - **NFT Aggregation**: Holdings from Alchemy, CoinGecko, Moralis
 - **Yield Aggregation**: DeFi yields from DefiLlama and Curve
@@ -48,7 +48,7 @@
 - **Dune Analytics**: Queries, executions, tables
 - **Curve Finance**: Pools, volumes, lending, tokens, router
 - **Chainlink**: Price feeds (RPC-based, no API key needed)
-- **CCXT**: Exchange data (Binance, Bitget, OKX, Hyperliquid)
+- **Exchanges** (`ccxt`): Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter
 - **Uniswap**: V2/V3/V4 pool queries (on-chain + subgraph)
 - **Yearn Kong**: Vaults, strategies, prices, TVL, reports
 
@@ -558,7 +558,7 @@ ethcli price ETH -o json
 ethcli price ETH -o table
 ```
 
-**Sources**: CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth (requires `PYTH_API_KEY`), CCXT
+**Sources**: CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth (requires `PYTH_API_KEY`), exchanges (`ccxt`: Binance, Bitget, OKX)
 
 ### Portfolio - Multi-Source Balance Aggregation
 
@@ -852,30 +852,30 @@ ethcli curve router stats --chain ethereum
 ethcli curve router address ethereum
 ```
 
-### CCXT - Exchange Data
+### Exchange Data (`ccxt` / `cex`)
 
-Query cryptocurrency exchanges via CCXT.
+Market data from centralised exchanges and perp venues, via the `cexm` crate.
 
 ```bash
-# Ticker data
-ethcli ccxt ticker binance BTC/USDT
-ethcli ccxt ticker okx ETH/USDT
+# Ticker (--exchange / -e defaults to binance)
+ethcli ccxt ticker BTC/USDT
+ethcli ccxt ticker ETH/USDT --exchange okx
+ethcli ccxt ticker ETH/USD -e coinbase
+ethcli ccxt ticker ETH/USDC:USDC -e hyperliquid   # perpetuals: BASE/USDC:USDC
 
-# Order book
-ethcli ccxt orderbook binance BTC/USDT --limit 10
+# Order book, candles, recent trades
+ethcli ccxt order-book BTC/USDT --limit 10
+ethcli ccxt ohlcv BTC/USDT --timeframe 1h --limit 100
+ethcli ccxt trades ETH/USDT -e bybit --limit 20
 
-# OHLCV candles
-ethcli ccxt ohlcv binance BTC/USDT --timeframe 1h --limit 100
-
-# Exchange info
-ethcli ccxt exchanges
-ethcli ccxt markets binance
-
-# Multiple exchanges
-ethcli ccxt ticker bitget,hyperliquid BTC/USDT
+# Markets, and one pair across every exchange
+ethcli ccxt markets --exchange kraken --quote USD
+ethcli ccxt compare BTC/USDT
 ```
 
-**Supported Exchanges**: Binance, Bitget, OKX, Hyperliquid, and many more
+**Supported exchanges**: Binance, Bitget, OKX, Bybit, Coinbase and Kraken (spot), Hyperliquid and Lighter
+(perpetuals). Public data only, no API keys. Binance is queried via its market-data
+host `data-api.binance.vision`, which isn't region-locked. `ethcli cex` is an alias.
 
 ### Chainlink - Price Feeds
 

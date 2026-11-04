@@ -11,9 +11,6 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 10
-    ignore:
-      # Pinned to =0.1.5 in crates/ethcli/Cargo.toml (see the comment there)
-      - dependency-name: "ccxt-rust"
     groups:
       # Minor and patch updates together; majors get individual PRs
       dependencies:

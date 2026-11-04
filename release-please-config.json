@@ -15,6 +15,18 @@
       "draft": false,
       "prerelease": false
     },
+    "crates/cexm": {
+      "release-type": "rust",
+      "component": "cexm",
+      "tag-separator": "-",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "draft": false,
+      "prerelease": false,
+      "release-as": "0.1.0"
+    },
     "crates/cgko": {
       "release-type": "rust",
       "component": "cgko",
