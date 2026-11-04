@@ -2,6 +2,7 @@
 //!
 //! Provides 1:1 access to DefiLlama API endpoints.
 
+use crate::aggregator::yields::llama_key_hint;
 use crate::cli::OutputFormat;
 use crate::config::ConfigFile;
 use clap::{Args, Subcommand};
@@ -378,14 +379,22 @@ async fn handle_yields(
             if !quiet {
                 eprintln!("Fetching yield pools...");
             }
-            let response = client.yields().pools().await?;
+            let response = client
+                .yields()
+                .pools()
+                .await
+                .map_err(|e| anyhow::anyhow!(llama_key_hint(e.to_string())))?;
             print_output(&response, args.format)?;
         }
         YieldsCommands::Chart { pool } => {
             if !quiet {
                 eprintln!("Fetching yield chart for {}...", pool);
             }
-            let response = client.yields().chart(pool).await?;
+            let response = client
+                .yields()
+                .chart(pool)
+                .await
+                .map_err(|e| anyhow::anyhow!(llama_key_hint(e.to_string())))?;
             print_output(&response, args.format)?;
         }
     }

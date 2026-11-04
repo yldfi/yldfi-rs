@@ -666,7 +666,7 @@ ethcli gecko nfts get bored-ape-yacht-club
 
 ## Llama (DefiLlama) Commands
 
-Direct access to DefiLlama API. Optional `DEFILLAMA_API_KEY` for Pro endpoints.
+Direct access to DefiLlama API. Optional `DEFILLAMA_API_KEY` (or `ethcli config set-defillama`) for Pro endpoints. `llama yields` and the DefiLlama source in `ethcli yields` need it from 2026-11-13, when the free yields endpoints shut down.
 
 ```bash
 # TVL data
@@ -1259,7 +1259,7 @@ ethcli chainlink oracles --chain arbitrum
 | `ALCHEMY_NOTIFY_TOKEN` | `alchemy notify` (`webhooks`) | Webhooks auth token (dashboard Data -> Webhooks, AUTH TOKEN button); or `ethcli config set-alchemy-notify-token --stdin` |
 | `ALCHEMY_ACCESS_KEY` | `alchemy gas-manager` (`gas-sponsorship`) | Access key with Gas Manager permissions (dashboard -> Security); or `ethcli config set-alchemy-access-key --stdin` |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (increases rate limit) |
-| `DEFILLAMA_API_KEY` | Optional | DefiLlama Pro endpoints |
+| `DEFILLAMA_API_KEY` | Pro endpoints; DefiLlama yields from 2026-11-13 | DefiLlama API plan key; or `ethcli config set-defillama --stdin` |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
 | `DUNE_API_KEY` | `ethcli dune` | Dune Analytics queries |
 | `CHAINLINK_API_KEY` | `chainlink streams` only | Data Streams API key |

@@ -146,7 +146,7 @@ ethcli quote from openocean ETH USDC <amt> # Specific source
 ### Yields
 ```bash
 ethcli yields                       # All DeFi yields
-ethcli yields --protocol aave       # Filter by protocol
+ethcli yields --project aave        # Filter by project
 ethcli yields --chain ethereum      # Filter by chain
 ```
 
@@ -386,6 +386,7 @@ ethcli config validate              # Validate config
 ethcli config set-etherscan-key <k> # Set API key
 ethcli config set-tenderly --key <k> --account <a> --project <p>
 ethcli config set-pyth <k>          # Pyth Hermes API key (or --stdin)
+ethcli config set-defillama <k>     # DefiLlama key; its yields need one from 2026-11-13 (or --stdin)
 ethcli endpoints add <url>          # Add RPC endpoint (auto-detects)
 ethcli endpoints add <url> --node-type archive  # Mark as archive node
 ethcli endpoints add <url> --node-type full --has-debug --priority 10

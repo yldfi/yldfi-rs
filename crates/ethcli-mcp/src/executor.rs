@@ -448,6 +448,7 @@ pub(crate) fn is_mutating_command(args: &[&str]) -> bool {
                 | "set-dune"
                 | "set-solodit"
                 | "set-pyth"
+                | "set-defillama"
                 | "add-debug-rpc"
                 | "remove-debug-rpc"
         ),
@@ -525,7 +526,12 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
     let mut message = String::new();
 
     // Extract useful error info without exposing sensitive details
-    for line in stderr.lines().chain(stdout.lines()) {
+    // The command's own error comes first, so warnings can't push it past the
+    // length limit.
+    let (errors, others): (Vec<&str>, Vec<&str>) = stderr
+        .lines()
+        .partition(|line| line.trim_start().starts_with("Error"));
+    for line in errors.into_iter().chain(others).chain(stdout.lines()) {
         // Transport errors quote request URLs, which can carry API keys
         let redacted = redact_sensitive_urls(line.trim());
         // Only assignments (`access_key = …`): "Invalid API key" stays readable
@@ -542,7 +548,7 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
         }
 
         // Skip lines that might contain sensitive info
-        if line.contains("API_KEY")
+        if (line.contains("API_KEY") && !only_names_api_key(line))
             || line.contains("api_key")
             || line.contains("Bearer ")
             || line.contains("Authorization:")
@@ -783,6 +789,84 @@ fn redact_secret_line(line: &str) -> Option<String> {
     Some("<redacted>".to_string())
 }
 
+/// Whether text only talks about an API key rather than holding one, such as
+/// `MORALIS_API_KEY not configured` or `API Key is wrong`. These messages are
+/// how a user learns what to fix, so they must not be redacted.
+///
+/// Deliberately narrow, so anything uncertain stays redacted: every mention
+/// must be an upper-case `*API_KEY` name or the words "API key", followed by
+/// the end of the text, closing punctuation or a known phrase. That excludes
+/// `API key: abc`, `API_KEY=abc`, `API_KEY abc` and `API key is abc`, and a
+/// lower-case `api_key` is treated as a config field. Never use this on JSON
+/// keys: a field named `api_key` holds a secret.
+fn only_names_api_key(text: &str) -> bool {
+    const OTHER_SECRET_NAMES: [&str; 10] = [
+        "access_key",
+        "access key",
+        "user_secret",
+        "client_secret",
+        "x-access-key",
+        "notify_token",
+        "auth_token",
+        "x-alchemy-token",
+        "authorization",
+        "bearer",
+    ];
+    const HARMLESS_NEXT: [&str; 15] = [
+        "not ",
+        "is not",
+        "is wrong",
+        "is invalid",
+        "is required",
+        "is missing",
+        "is expired",
+        "or ",
+        "and ",
+        "required",
+        "missing",
+        "invalid",
+        "expired",
+        "needed",
+        "must ",
+    ];
+    const NAME_LEN: usize = "api_key".len();
+
+    // to_ascii_lowercase keeps byte offsets, so `lower` indexes `text` too
+    let lower = text.to_ascii_lowercase();
+    if OTHER_SECRET_NAMES.iter().any(|name| lower.contains(name)) {
+        return false;
+    }
+    let looks_like_a_value = text
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+        .any(|word| word.len() >= 28);
+    if looks_like_a_value {
+        return false;
+    }
+
+    let mut mentions = 0;
+    for (start, _) in lower
+        .match_indices("api_key")
+        .chain(lower.match_indices("api key"))
+    {
+        let end = start + NAME_LEN;
+        if lower[start..end].contains('_') && &text[start..end] != "API_KEY" {
+            return false;
+        }
+        mentions += 1;
+        let rest = lower[end..].trim_start();
+        let after_punctuation = rest.trim_start_matches([')', '.', ',', ';']);
+        let harmless = if after_punctuation.len() < rest.len() {
+            after_punctuation.is_empty() || after_punctuation.starts_with(char::is_whitespace)
+        } else {
+            rest.is_empty() || HARMLESS_NEXT.iter().any(|next| rest.starts_with(next))
+        };
+        if !harmless {
+            return false;
+        }
+    }
+    mentions > 0
+}
+
 fn sanitize_success_output(stdout: &str) -> String {
     let redacted = redact_sensitive_urls(stdout);
 
@@ -803,7 +887,13 @@ fn sanitize_success_output(stdout: &str) -> String {
 
     redacted
         .lines()
-        .map(|line| redact_secret_line(line).unwrap_or_else(|| line.to_string()))
+        .map(|line| {
+            if only_names_api_key(line) {
+                line.to_string()
+            } else {
+                redact_secret_line(line).unwrap_or_else(|| line.to_string())
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -848,7 +938,9 @@ fn redact_json_strings(text: &str) -> String {
             // A key: remember whether its value should be hidden
             last_key_secret = redact_secret_line(&content).is_some();
             out.push_str(literal);
-        } else if last_key_secret || redact_secret_line(&content).is_some() {
+        } else if last_key_secret
+            || (redact_secret_line(&content).is_some() && !only_names_api_key(&content))
+        {
             out.push_str("\"<redacted>\"");
         } else {
             out.push_str(literal);
@@ -1592,14 +1684,87 @@ mod tests {
 }"#;
         let output = sanitize_success_output(input);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("still valid JSON");
-        assert_eq!(parsed["sources"][1]["error"], "<redacted>");
+        assert_eq!(
+            parsed["sources"][1]["error"],
+            "ALCHEMY_API_KEY not configured"
+        );
         assert_eq!(parsed["sources"][0]["price_usd"], 2438.03);
         assert_eq!(parsed["sources"][1]["source"], "alchemy");
-        // Only the secret-looking value changed: formatting and order kept
-        assert_eq!(
-            output,
-            input.replace("\"ALCHEMY_API_KEY not configured\"", "\"<redacted>\"")
+        // Formatting and order kept
+        assert_eq!(output, input);
+
+        // A value that looks secret is still redacted, and the JSON stays valid
+        let input = input.replace("ALCHEMY_API_KEY not configured", "ALCHEMY_API_KEY: abc123");
+        let output = sanitize_success_output(&input);
+        let parsed: serde_json::Value = serde_json::from_str(&output).expect("still valid JSON");
+        assert_eq!(parsed["sources"][1]["error"], "<redacted>");
+    }
+
+    #[test]
+    fn test_only_names_api_key_allows_messages_without_a_value() {
+        for text in [
+            "MORALIS_API_KEY not configured",
+            "PYTH_API_KEY is not set",
+            "Invalid API key",
+            "API Key is wrong",
+            "Server error (500): {\"error\":\"API Key is wrong\"}",
+            "Pro API key required. Set DEFILLAMA_API_KEY or use the config file",
+            "HTTP 410: Gone (the free endpoints shut down; after that, yields data needs an \
+             API plan key, set with DEFILLAMA_API_KEY). Or run: ethcli config set-defillama --stdin",
+        ] {
+            assert!(only_names_api_key(text), "should be kept: {text}");
+        }
+    }
+
+    #[test]
+    fn test_only_names_api_key_rejects_anything_that_could_hold_a_value() {
+        for text in [
+            "API_KEY=secret123",
+            "API_KEY: secret123",
+            "API_KEY secret123",
+            "ALCHEMY_API_KEY secret123",
+            "Etherscan API key: secret123",
+            "API key is secret123",
+            "API key secret123",
+            "api_key not configured",
+            "api_key",
+            "access_key not configured",
+            "Authorization: Bearer xyz not configured API key",
+            "API_KEY not configured 0123456789abcdef0123456789abcdef",
+            "no key named here",
+        ] {
+            assert!(!only_names_api_key(text), "should be redacted: {text}");
+        }
+    }
+
+    #[test]
+    fn test_sanitize_error_keeps_the_error_when_a_warning_is_long() {
+        let warning = format!("Warning: uniswap: {}", "x".repeat(2000));
+        let stderr = format!("Fetching...\n{warning}\nError: all sources failed: llama: gone");
+        let result = sanitize_error(&stderr, "");
+        assert!(
+            result.starts_with("Error: all sources failed: llama: gone"),
+            "{result}"
         );
+        assert!(result.len() < 520, "{}", result.len());
+    }
+
+    #[test]
+    fn test_sanitize_error_keeps_messages_naming_a_key() {
+        let result = sanitize_error("Error: MORALIS_API_KEY not configured", "");
+        assert!(
+            result.contains("MORALIS_API_KEY not configured"),
+            "{result}"
+        );
+
+        let result = sanitize_error("Error: DEFILLAMA_API_KEY secret123", "");
+        assert!(!result.contains("secret123"), "{result}");
+    }
+
+    #[test]
+    fn test_sanitize_success_output_keeps_secret_json_fields_redacted() {
+        let output = sanitize_success_output(r#"{"api_key":"not configured","note":"ok"}"#);
+        assert_eq!(output, r#"{"api_key":"<redacted>","note":"ok"}"#);
     }
 
     #[test]

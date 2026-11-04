@@ -406,7 +406,17 @@ async fn fetch_llama_yields(
 
             SourceResult::success("llama", yields, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error("llama", e.to_string(), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("llama", llama_key_hint(e.to_string()), measure.elapsed_ms()),
+    }
+}
+
+/// Add how to set the key in ethcli to a DefiLlama error that asks for one.
+#[must_use]
+pub fn llama_key_hint(message: String) -> String {
+    if message.contains("DEFILLAMA_API_KEY") {
+        format!("{message}. Or run: ethcli config set-defillama --stdin")
+    } else {
+        message
     }
 }
 
