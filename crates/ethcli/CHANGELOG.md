@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.0...ethcli-v0.25.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* declare the real minimum Rust versions for ethcli and ethcli-mcp ([#155](https://github.com/yldfi/yldfi-rs/issues/155)) ([efb58fa](https://github.com/yldfi/yldfi-rs/commit/efb58fa5ca68fdd181659eb915f041226d2f5eeb))
+
 ## [0.25.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.24.0...ethcli-v0.25.0) (2026-11-04)
 
 
