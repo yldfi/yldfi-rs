@@ -11,7 +11,7 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Exchange {
-    /// Binance spot (`api.binance.com`)
+    /// Binance spot (`data-api.binance.vision`, its market-data host)
     Binance,
     /// Bitget spot, v2 API (`api.bitget.com`)
     Bitget,
