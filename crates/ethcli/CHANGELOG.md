@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.25.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.24.0...ethcli-v0.25.0) (2026-11-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* `ethcli ccxt` drops the `--testnet` flag, and ticker and order book JSON `timestamp` is null when the venue doesn't report one (Binance order books, Kraken).
+
+### Features
+
+* add cexm exchange market data crate; replace ccxt-rust in ethcli ([#148](https://github.com/yldfi/yldfi-rs/issues/148)) ([d994d3e](https://github.com/yldfi/yldfi-rs/commit/d994d3eb6c4dc9bf03379e9ee315de3ba6c1c1d0))
+
+
+### Bug Fixes
+
+* **ethcli:** load config from a read-only directory; clear cargo-deny advisories; spec-check review ([#147](https://github.com/yldfi/yldfi-rs/issues/147)) ([7ec896e](https://github.com/yldfi/yldfi-rs/commit/7ec896e92cbe5f6b14817a3c448f4f652a0795a3))
+
 ## [0.24.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.23.6...ethcli-v0.24.0) (2026-10-21)
 
 
