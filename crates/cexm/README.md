@@ -46,8 +46,10 @@ let markets = client.markets(Exchange::Coinbase).await?;
   `cost` is computed exactly (`cexm::mul_decimal`) when the venue doesn't give it.
 - **Candles** come back oldest first, trades newest first, both trimmed to the
   requested limit. Bars of 6h and longer are UTC-aligned on every venue.
-- **24h change** is in percent. Kraken only publishes today's open (00:00
-  UTC), so its change is since midnight UTC.
+- **24h change** is in percent, against the price 24 hours ago. Coinbase,
+  Kraken and Lighter publish no trustworthy 24h open (Kraken's is since
+  00:00 UTC; Coinbase's and Lighter's match neither), so for them it comes
+  from the venue's own 5-minute candle covering 24 hours ago.
 - **Unsupported timeframes** (e.g. 8h on OKX) fail with
   `Error::UnsupportedTimeframe` rather than silently using another one.
 

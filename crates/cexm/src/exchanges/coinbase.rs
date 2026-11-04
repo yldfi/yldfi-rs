@@ -3,13 +3,11 @@
 //! Product ids are `BASE-QUOTE` (e.g. `BTC-USD`). Errors come back as
 //! `{"message": "..."}` with a non-2xx status.
 
-use super::{require_spot, unsupported_timeframe, with_cost};
+use super::{change_24h, require_spot, unsupported_timeframe, with_cost};
 use crate::client::Ctx;
 use crate::error::Result;
 use crate::http::{array, cell, field, get_json, levels, parse_error, require};
-use crate::types::{
-    pct_change, Candle, Market, MarketType, OrderBook, Side, Symbol, Ticker, Timeframe, Trade,
-};
+use crate::types::{Candle, Market, MarketType, OrderBook, Side, Symbol, Ticker, Timeframe, Trade};
 use serde_json::Value;
 
 const MAX_TRADES: u32 = 1000;
@@ -32,17 +30,18 @@ fn millis(v: Option<String>) -> Option<i64> {
 
 pub(super) async fn ticker(ctx: &Ctx<'_>, symbol: &Symbol) -> Result<Ticker> {
     let id = product_id(ctx, symbol)?;
-    // `ticker` has the top of book; `stats` has the 24h open/high/low
+    // `ticker` has the top of book; `stats` the rolling 24h high/low/volume.
+    // `stats.open` matches neither the price 24h ago nor the 00:00 UTC open
+    // (checked against Coinbase's own candles), so the change comes from the
+    // 5-minute candle covering 24 hours ago.
     let t = get(ctx, &format!("/products/{id}/ticker"), &[]).await?;
     let s = get(ctx, &format!("/products/{id}/stats"), &[]).await?;
+    let recent = candles(ctx, symbol, Timeframe::M5, 0).await?;
     let last = field(&t, "price");
     Ok(Ticker {
         exchange: ctx.exchange,
         symbol: symbol.to_string(),
-        change_pct: match (field(&s, "open"), &last) {
-            (Some(open), Some(last)) => pct_change(&open, last),
-            _ => None,
-        },
+        change_pct: change_24h(&recent, last.as_deref()),
         last,
         bid: field(&t, "bid"),
         ask: field(&t, "ask"),

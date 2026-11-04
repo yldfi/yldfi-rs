@@ -4,13 +4,12 @@
 //! even on error. Results are keyed by Kraken's own pair name (e.g.
 //! `XXBTZUSD`), and Kraken uses `XBT` for bitcoin and `XDG` for dogecoin.
 
-use super::{require_spot, unsupported_timeframe, with_cost};
+use super::{change_24h, require_spot, unsupported_timeframe, with_cost};
 use crate::client::Ctx;
 use crate::error::{Error, Result};
 use crate::http::{array, cell, field, get_json, parse_error, require, scalar};
 use crate::types::{
-    as_f64, pct_change, Candle, Level, Market, MarketType, OrderBook, Side, Symbol, Ticker,
-    Timeframe, Trade,
+    as_f64, Candle, Level, Market, MarketType, OrderBook, Side, Symbol, Ticker, Timeframe, Trade,
 };
 use serde_json::Value;
 
@@ -95,14 +94,13 @@ pub(super) async fn ticker(ctx: &Ctx<'_>, symbol: &Symbol) -> Result<Ticker> {
     let res = result(ctx, "/0/public/Ticker", &[("pair", pair)]).await?;
     let t = only_pair(ctx, &res)?;
     let last = nth(t, "c", 0);
+    // The ticker's `o` is today's 00:00 UTC open, not the price 24h ago, so
+    // the change comes from the 5-minute candle covering 24 hours ago
+    let recent = candles(ctx, symbol, Timeframe::M5, 0).await?;
     Ok(Ticker {
         exchange: ctx.exchange,
         symbol: symbol.to_string(),
-        // Kraken gives today's open (00:00 UTC), not the open 24h ago
-        change_pct: match (field(t, "o"), &last) {
-            (Some(open), Some(last)) => pct_change(&open, last),
-            _ => None,
-        },
+        change_pct: change_24h(&recent, last.as_deref()),
         last,
         bid: nth(t, "b", 0),
         ask: nth(t, "a", 0),

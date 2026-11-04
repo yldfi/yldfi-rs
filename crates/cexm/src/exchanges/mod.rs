@@ -85,6 +85,25 @@ pub(crate) fn with_cost(mut trade: Trade) -> Trade {
     trade
 }
 
+/// Milliseconds in a day
+pub(crate) const DAY_MILLIS: i64 = 86_400_000;
+
+/// The open of the candle covering the moment 24 hours ago, for venues whose
+/// ticker has no trustworthy 24h open. Candle order doesn't matter.
+pub(crate) fn open_24h_ago(candles: &[crate::types::Candle]) -> Option<String> {
+    let at = now_millis() - DAY_MILLIS;
+    candles
+        .iter()
+        .filter(|c| c.timestamp <= at)
+        .max_by_key(|c| c.timestamp)
+        .map(|c| c.open.clone())
+}
+
+/// Percent change since 24 hours ago, from the venue's own 5-minute candles
+pub(crate) fn change_24h(candles: &[crate::types::Candle], last: Option<&str>) -> Option<f64> {
+    crate::types::pct_change(&open_24h_ago(candles)?, last?)
+}
+
 /// Current time in milliseconds since the Unix epoch
 pub(crate) fn now_millis() -> i64 {
     std::time::SystemTime::now()

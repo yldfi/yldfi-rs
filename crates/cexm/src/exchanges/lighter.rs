@@ -3,10 +3,12 @@
 //! Markets are addressed by a numeric `market_id`, resolved from
 //! `/api/v1/orderBooks`. Perpetuals are listed by coin (`ETH`) and are
 //! quoted and settled in USDC, so their unified symbol is `ETH/USDC:USDC`;
-//! spot markets are listed as `BASE/QUOTE`. Responses carry `"code": 200` on
-//! success. Lighter refuses some regions with HTTP 403.
+//! spot markets are listed as `BASE/QUOTE` (so `ETH/USDC` is spot and
+//! `ETH/USDC:USDC` the perpetual). Responses carry `"code": 200` on success,
+//! and numbers in details and candles are JSON floats. Lighter refuses some
+//! regions with HTTP 403, and rate-limits bursts with HTTP 429.
 
-use super::{now_millis, unsupported_timeframe, with_cost};
+use super::{change_24h, now_millis, unsupported_timeframe, with_cost, DAY_MILLIS};
 use crate::client::Ctx;
 use crate::error::{Error, Result};
 use crate::http::{array, field, get_json, int_field, parse_error, require};
@@ -42,13 +44,25 @@ struct LighterMarket {
 
 fn parse_market(ctx: &Ctx<'_>, m: &Value) -> Result<LighterMarket> {
     let name = require(ctx.exchange, m, "symbol")?;
-    let (symbol, market_type) = match Symbol::parse(&name) {
-        // Spot markets are listed as "BASE/QUOTE"
-        Some(symbol) => (symbol, MarketType::Spot),
-        None => (
+    let spot = match field(m, "market_type").as_deref() {
+        Some("spot") => true,
+        Some("perp") => false,
+        // Older responses have no market_type: spot names contain a '/'
+        _ => name.contains('/'),
+    };
+    let (symbol, market_type) = if spot {
+        let symbol = Symbol::parse(&name).ok_or_else(|| {
+            parse_error(
+                ctx.exchange,
+                format!("spot market with an odd name {name:?}"),
+            )
+        })?;
+        (symbol, MarketType::Spot)
+    } else {
+        (
             Symbol::swap(name.to_ascii_uppercase(), PERP_QUOTE, PERP_QUOTE),
             MarketType::Swap,
-        ),
+        )
     };
     Ok(LighterMarket {
         id: int_field(m, "market_id")
@@ -100,17 +114,25 @@ pub(super) async fn ticker(ctx: &Ctx<'_>, symbol: &Symbol) -> Result<Ticker> {
         .iter()
         .find_map(|k| body.get(*k)?.as_array()?.first())
         .ok_or_else(|| parse_error(ctx.exchange, "no order book details"))?;
+    let last = field(d, "last_trade_price");
+    // `daily_price_change` matches neither the 24h change nor the change
+    // since 00:00 UTC (checked against Lighter's own candles), so the change
+    // comes from the 5-minute candle covering 24 hours ago
+    let end = now_millis();
+    let recent = candles_by_id(ctx, id, "5m", end - DAY_MILLIS - 10 * 60_000, end).await?;
+    let book = book_by_id(ctx, id, 1).await?;
+    let best = |levels: &[Level]| levels.first().map(|l| l.price.clone());
     Ok(Ticker {
         exchange: ctx.exchange,
         symbol: symbol.to_string(),
-        last: field(d, "last_trade_price"),
-        bid: None,
-        ask: None,
+        change_pct: change_24h(&recent, last.as_deref()),
+        last,
+        bid: best(&book.0),
+        ask: best(&book.1),
+        // Rolling 24h, matching the candles
         high: field(d, "daily_price_high"),
         low: field(d, "daily_price_low"),
         base_volume: field(d, "daily_base_token_volume"),
-        // `daily_price_change` is already a percentage
-        change_pct: field(d, "daily_price_change").as_deref().and_then(as_f64),
         timestamp: None,
     })
 }
@@ -160,8 +182,8 @@ fn add_decimal(a: &str, b: &str) -> Option<String> {
     })
 }
 
-pub(super) async fn order_book(ctx: &Ctx<'_>, symbol: &Symbol, limit: u32) -> Result<OrderBook> {
-    let id = market_id(ctx, symbol).await?;
+/// Bids and asks for a market, summed into at most `limit` levels each
+async fn book_by_id(ctx: &Ctx<'_>, id: i64, limit: usize) -> Result<(Vec<Level>, Vec<Level>)> {
     let body = get(
         ctx,
         "/api/v1/orderBookOrders",
@@ -171,12 +193,20 @@ pub(super) async fn order_book(ctx: &Ctx<'_>, symbol: &Symbol, limit: u32) -> Re
         ],
     )
     .await?;
-    let limit = limit as usize;
+    Ok((
+        aggregate(ctx, array(ctx.exchange, &body, "bids")?, limit)?,
+        aggregate(ctx, array(ctx.exchange, &body, "asks")?, limit)?,
+    ))
+}
+
+pub(super) async fn order_book(ctx: &Ctx<'_>, symbol: &Symbol, limit: u32) -> Result<OrderBook> {
+    let id = market_id(ctx, symbol).await?;
+    let (bids, asks) = book_by_id(ctx, id, limit as usize).await?;
     Ok(OrderBook {
         exchange: ctx.exchange,
         symbol: symbol.to_string(),
-        bids: aggregate(ctx, array(ctx.exchange, &body, "bids")?, limit)?,
-        asks: aggregate(ctx, array(ctx.exchange, &body, "asks")?, limit)?,
+        bids,
+        asks,
         timestamp: None,
     })
 }
@@ -191,7 +221,7 @@ fn resolution(timeframe: Timeframe) -> Option<&'static str> {
         Timeframe::H4 => "4h",
         Timeframe::H12 => "12h",
         Timeframe::D1 => "1d",
-        Timeframe::W1 => "1w",
+        // Checked live: 3m, 2h, 6h, 8h, 3d, 1w and 1M are rejected
         _ => return None,
     })
 }
@@ -205,33 +235,45 @@ pub(super) async fn candles(
     let resolution =
         resolution(timeframe).ok_or_else(|| unsupported_timeframe(ctx.exchange, timeframe))?;
     let id = market_id(ctx, symbol).await?;
-    let limit = limit.min(MAX_CANDLES);
     let end = now_millis();
-    let start = end - timeframe.millis() * (i64::from(limit) + 1);
+    // One extra period so the current, still-open candle doesn't cost a slot
+    let start = end - timeframe.millis() * (i64::from(limit.min(MAX_CANDLES)) + 1);
+    candles_by_id(ctx, id, resolution, start, end).await
+}
+
+/// `/api/v1/candles` returns `{"r": "1h", "c": [{"t", "o", "h", "l", "c", "v", ...}]}`
+/// for the window, up to 500 candles (`count_back` is ignored)
+async fn candles_by_id(
+    ctx: &Ctx<'_>,
+    id: i64,
+    resolution: &str,
+    start: i64,
+    end: i64,
+) -> Result<Vec<Candle>> {
     let body = get(
         ctx,
-        "/api/v1/candlesticks",
+        "/api/v1/candles",
         &[
             ("market_id", id.to_string()),
             ("resolution", resolution.into()),
             ("start_timestamp", start.to_string()),
             ("end_timestamp", end.to_string()),
-            ("count_back", limit.to_string()),
+            ("count_back", MAX_CANDLES.to_string()),
         ],
     )
     .await?;
-    array(ctx.exchange, &body, "candlesticks")?
+    array(ctx.exchange, &body, "c")?
         .iter()
         .map(|c| {
             Ok(Candle {
-                timestamp: int_field(c, "timestamp")
-                    .ok_or_else(|| parse_error(ctx.exchange, "candle without a timestamp"))?,
-                open: require(ctx.exchange, c, "open")?,
-                high: require(ctx.exchange, c, "high")?,
-                low: require(ctx.exchange, c, "low")?,
-                close: require(ctx.exchange, c, "close")?,
-                // volume0 is the base token volume
-                volume: require(ctx.exchange, c, "volume0")?,
+                timestamp: int_field(c, "t")
+                    .ok_or_else(|| parse_error(ctx.exchange, "candle without a time"))?,
+                open: require(ctx.exchange, c, "o")?,
+                high: require(ctx.exchange, c, "h")?,
+                low: require(ctx.exchange, c, "l")?,
+                close: require(ctx.exchange, c, "c")?,
+                // `v` is base volume, `V` quote volume
+                volume: require(ctx.exchange, c, "v")?,
             })
         })
         .collect()
@@ -252,7 +294,7 @@ pub(super) async fn trades(ctx: &Ctx<'_>, symbol: &Symbol, limit: u32) -> Result
         .iter()
         .map(|t| {
             Ok(with_cost(Trade {
-                id: field(t, "trade_id"),
+                id: field(t, "trade_id_str").or_else(|| field(t, "trade_id")),
                 timestamp: int_field(t, "timestamp")
                     .ok_or_else(|| parse_error(ctx.exchange, "trade without a timestamp"))?,
                 // The ask was the maker, so the taker bought
@@ -325,14 +367,14 @@ mod tests {
         let http = reqwest::Client::new();
         let perp = parse_market(
             &ctx(&http),
-            &json!({"symbol": "ETH", "market_id": 0, "status": "active"}),
+            &json!({"symbol": "ETH", "market_id": 0, "market_type": "perp", "status": "active"}),
         )
         .unwrap();
         assert_eq!(perp.symbol.to_string(), "ETH/USDC:USDC");
         assert_eq!(perp.market_type, MarketType::Swap);
         let spot = parse_market(
             &ctx(&http),
-            &json!({"symbol": "ETH/USDC", "market_id": 2048, "status": "inactive"}),
+            &json!({"symbol": "ETH/USDC", "market_id": 2048, "market_type": "spot", "status": "inactive"}),
         )
         .unwrap();
         assert_eq!(spot.symbol.to_string(), "ETH/USDC");
