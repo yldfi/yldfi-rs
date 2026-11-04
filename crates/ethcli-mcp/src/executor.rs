@@ -785,11 +785,78 @@ fn redact_secret_line(line: &str) -> Option<String> {
 
 fn sanitize_success_output(stdout: &str) -> String {
     let redacted = redact_sensitive_urls(stdout);
+
+    // JSON output (a document, or NDJSON lines) is redacted inside its string
+    // values, so it stays valid JSON. Line-based redaction would turn
+    // `"error": "… api key …",` into `"error": <redacted>`.
+    if is_json(&redacted) {
+        return redact_json_strings(&redacted);
+    }
+    let mut lines = redacted.lines().filter(|l| !l.trim().is_empty()).peekable();
+    if lines.peek().is_some() && lines.all(is_json) {
+        return redacted
+            .lines()
+            .map(redact_json_strings)
+            .collect::<Vec<_>>()
+            .join("\n");
+    }
+
     redacted
         .lines()
         .map(|line| redact_secret_line(line).unwrap_or_else(|| line.to_string()))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn is_json(text: &str) -> bool {
+    let text = text.trim();
+    (text.starts_with('{') || text.starts_with('['))
+        && serde_json::from_str::<serde::de::IgnoredAny>(text).is_ok()
+}
+
+/// Redact secret-looking string values in JSON text without re-serializing
+/// it, so formatting and key order are kept. A string value is replaced by
+/// `"<redacted>"` when its content looks secret by the same rules as
+/// [`redact_secret_line`], or when it belongs to a key that does
+/// (`api_key`, `access_key`, `notify_token`, ...). Keys and all other values
+/// are copied as they are.
+fn redact_json_strings(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut last_key_secret = false;
+    let mut copied = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'"' {
+            i += 1;
+            continue;
+        }
+        // Find the closing quote, skipping escaped characters
+        let start = i;
+        i += 1;
+        while i < bytes.len() && bytes[i] != b'"' {
+            i += if bytes[i] == b'\\' { 2 } else { 1 };
+        }
+        let end = (i + 1).min(bytes.len());
+        i = end;
+        let literal = &text[start..end];
+        let content = serde_json::from_str::<String>(literal).unwrap_or_default();
+
+        let next = bytes[end..].iter().find(|b| !b.is_ascii_whitespace());
+        out.push_str(&text[copied..start]);
+        if next == Some(&b':') {
+            // A key: remember whether its value should be hidden
+            last_key_secret = redact_secret_line(&content).is_some();
+            out.push_str(literal);
+        } else if last_key_secret || redact_secret_line(&content).is_some() {
+            out.push_str("\"<redacted>\"");
+        } else {
+            out.push_str(literal);
+        }
+        copied = end;
+    }
+    out.push_str(&text[copied..]);
+    out
 }
 
 /// Verify the ethcli binary is valid and executable
@@ -1502,6 +1569,66 @@ mod tests {
     fn test_sanitize_error_empty_returns_default() {
         let result = sanitize_error("", "");
         assert_eq!(result, "Command failed");
+    }
+
+    /// The `price` aggregation output that line-based redaction broke:
+    /// `"error": "… API key …",` became `"error": <redacted>`.
+    #[test]
+    fn test_sanitize_success_output_keeps_json_valid() {
+        let input = r#"{
+  "token": "ETH",
+  "sources": [
+    {
+      "source": "gecko",
+      "price_usd": 2438.03,
+      "error": null
+    },
+    {
+      "source": "alchemy",
+      "price_usd": null,
+      "error": "ALCHEMY_API_KEY not configured"
+    }
+  ]
+}"#;
+        let output = sanitize_success_output(input);
+        let parsed: serde_json::Value = serde_json::from_str(&output).expect("still valid JSON");
+        assert_eq!(parsed["sources"][1]["error"], "<redacted>");
+        assert_eq!(parsed["sources"][0]["price_usd"], 2438.03);
+        assert_eq!(parsed["sources"][1]["source"], "alchemy");
+        // Only the secret-looking value changed: formatting and order kept
+        assert_eq!(
+            output,
+            input.replace("\"ALCHEMY_API_KEY not configured\"", "\"<redacted>\"")
+        );
+    }
+
+    #[test]
+    fn test_sanitize_success_output_redacts_json_secret_keys_and_ndjson() {
+        // A value under a secret-named key is hidden even if it looks harmless
+        let output = sanitize_success_output(r#"{"name":"main","api_key":"abc123","note":"ok"}"#);
+        assert_eq!(
+            output,
+            r#"{"name":"main","api_key":"<redacted>","note":"ok"}"#
+        );
+
+        // NDJSON: every line is redacted and stays valid
+        let output = sanitize_success_output(
+            "{\"access_key\":\"s3cret\"}\n{\"msg\":\"Etherscan API key: s3cret\",\"n\":1}",
+        );
+        assert!(!output.contains("s3cret"), "{output}");
+        for line in output.lines() {
+            serde_json::from_str::<serde_json::Value>(line).expect("valid NDJSON line");
+        }
+
+        // Escaped quotes inside strings don't confuse the scanner
+        let input = r#"{"a":"say \"hi\"","b":"x"}"#;
+        assert_eq!(sanitize_success_output(input), input);
+    }
+
+    #[test]
+    fn test_sanitize_success_output_text_keeps_line_redaction() {
+        let output = sanitize_success_output("Etherscan API key: abc123\nall good");
+        assert_eq!(output, "Etherscan API key: <redacted>\nall good");
     }
 
     #[test]
