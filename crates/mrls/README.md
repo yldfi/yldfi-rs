@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
 </p>
 
 <h1 align="center">mrls</h1>
@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://crates.io/crates/mrls"><img src="https://img.shields.io/crates/v/mrls.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/mrls/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Features
@@ -61,7 +61,7 @@ OpenAPI spec, so they are marked `#[deprecated]`:
 
 ```toml
 [dependencies]
-mrls = "0.1"
+mrls = "0.3"
 tokio = { version = "1", features = ["full"] }
 ```
 

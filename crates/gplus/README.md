@@ -1,6 +1,17 @@
-# gplus
+<p align="center">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
+</p>
 
-Unofficial Rust client for the [GoPlus Security API](https://docs.gopluslabs.io/).
+<h1 align="center">gplus</h1>
+
+<p align="center">
+  Unofficial Rust client for the <a href="https://docs.gopluslabs.io/">GoPlus Security API</a>
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/gplus"><img src="https://img.shields.io/crates/v/gplus.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
 
 GoPlus provides real-time token security analysis including honeypot detection, tax analysis, ownership checks, and more.
 
@@ -15,7 +26,7 @@ GoPlus provides real-time token security analysis including honeypot detection, 
 
 ```toml
 [dependencies]
-gplus = "0.1"
+gplus = "0.2"
 ```
 
 ## Quick Start

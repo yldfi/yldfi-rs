@@ -5,6 +5,7 @@ edition = "2021"
 description = "Shared utilities for yldfi-rs API clients"
 license = "MIT"
 repository = "https://github.com/yldfi/yldfi-rs"
+homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/yldfi-common"
 keywords = ["yldfi", "web3", "utilities"]
 categories = ["api-bindings", "web-programming"]
 readme = "README.md"

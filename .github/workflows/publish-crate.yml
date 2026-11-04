@@ -16,6 +16,7 @@ on:
     tags:
       # Note: ethcli-v* handled by release.yml (includes binary builds)
       - 'alcmy-v*'
+      - 'cexm-v*'
       - 'cgko-v*'
       - 'cowp-v*'
       - 'crv-v*'

@@ -1,14 +1,15 @@
 {
   "crates/alcmy": "0.3.0",
+  "crates/cexm": "0.1.0",
   "crates/cgko": "0.2.0",
   "crates/cowp": "0.2.0",
   "crates/crv": "0.2.0",
   "crates/dllma": "0.2.0",
   "crates/dnapi": "0.3.0",
   "crates/ensof": "0.2.0",
+  "crates/ethcli": "0.25.0",
+  "crates/ethcli-mcp": "0.4.0",
   "crates/gplus": "0.2.0",
-  "crates/ethcli": "0.24.0",
-  "crates/ethcli-mcp": "0.3.3",
   "crates/kybr": "0.2.0",
   "crates/lfi": "0.2.0",
   "crates/mrls": "0.3.0",
@@ -19,7 +20,7 @@
   "crates/tndrly": "0.5.0",
   "crates/unswp": "0.1.7",
   "crates/vlra": "0.2.0",
-  "crates/yldfi-common": "0.1.6",
   "crates/ykong": "0.1.6",
+  "crates/yldfi-common": "0.1.6",
   "crates/zrxswap": "0.2.0"
 }

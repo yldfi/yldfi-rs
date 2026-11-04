@@ -1,10 +1,11 @@
 [package]
 name = "ethcli"
-version = "0.24.0"
+version = "0.25.0"
 edition = "2021"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
 license = "MIT"
-repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/ethcli"
+repository = "https://github.com/yldfi/yldfi-rs"
+homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/ethcli"
 keywords = ["ethereum", "cli", "etherscan", "blockchain", "web3"]
 categories = ["command-line-utilities", "web-programming"]
 readme = "README.md"
@@ -125,8 +126,8 @@ evm-disassembler = "0.6"
 # Chainlink Data Streams
 chainlink-data-streams-report = "1.2"
 
-# Cryptocurrency exchanges
-ccxt-rust = { version = "0.1", features = ["rest", "websocket"] }
+# Centralised exchange market data
+cexm = { version = "0.1.0", path = "../cexm" }
 
 [dev-dependencies]
 tokio-test = "0.4"

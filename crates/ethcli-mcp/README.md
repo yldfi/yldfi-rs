@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
 </p>
 
 <h1 align="center">ethcli-mcp</h1>
 
 <p align="center">
-  MCP server exposing <a href="../ethcli">ethcli</a> functionality as tools for AI assistants
+  MCP server exposing <a href="https://github.com/yldfi/yldfi-rs/tree/main/crates/ethcli">ethcli</a> functionality as tools for AI assistants
 </p>
 
 <p align="center">
   <a href="https://crates.io/crates/ethcli-mcp"><img src="https://img.shields.io/crates/v/ethcli-mcp.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/ethcli-mcp/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Overview
