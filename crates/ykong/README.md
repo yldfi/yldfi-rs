@@ -1,6 +1,17 @@
-# ykong
+<p align="center">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
+</p>
 
-Rust client for Yearn's Kong GraphQL API.
+<h1 align="center">ykong</h1>
+
+<p align="center">
+  Unofficial Rust client for Yearn's Kong GraphQL API
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/ykong"><img src="https://img.shields.io/crates/v/ykong.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
 
 ## Features
 

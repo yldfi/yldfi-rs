@@ -144,6 +144,25 @@ class DiffTest(unittest.TestCase):
             ("POST /q", "addition", "response fields added", False),
         ])
 
+    def test_required_inside_new_optional_object_is_an_addition(self):
+        # LI.FI added an optional `routeSlippage` whose own fields are required
+        old = surface(**{"POST /q": {"request": ["a"]}})
+        new = surface(**{"POST /q": {"request": [
+            "a", "rs", "rs.slippage*", "rs.cp*", "rs.cp[].chainId*",
+        ]}})
+        self.assertEqual(self.kinds(old, new), [("POST /q", "addition", "request fields added", False)])
+
+    def test_required_inside_new_required_object_is_breaking(self):
+        old = surface(**{"POST /q": {"request": ["a"]}})
+        new = surface(**{"POST /q": {"request": ["a", "rs*", "rs.slippage*"]}})
+        self.assertEqual(self.kinds(old, new), [("POST /q", "breaking", "new required request fields", False)])
+
+    def test_required_inside_existing_optional_object_is_breaking(self):
+        # Callers may already send `a`, so a new required field inside it breaks them
+        old = surface(**{"POST /q": {"request": ["a", "a.x"]}})
+        new = surface(**{"POST /q": {"request": ["a", "a.x", "a.y*"]}})
+        self.assertEqual(self.kinds(old, new), [("POST /q", "breaking", "new required request fields", False)])
+
     def test_deprecation_is_breaking(self):
         old, new = surface(**{"GET /a": {}}), surface(**{"GET /a": {"deprecated": True}})
         self.assertEqual(self.kinds(old, new), [("GET /a", "breaking", "now deprecated", False)])

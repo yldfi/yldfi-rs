@@ -375,7 +375,7 @@ pub enum Commands {
         action: chainlink::ChainlinkCommands,
     },
 
-    /// Cryptocurrency exchange data via CCXT (Binance, Bitget, OKX, Hyperliquid)
+    /// Exchange market data (Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter)
     #[command(visible_alias = "cex")]
     Ccxt {
         #[command(subcommand)]

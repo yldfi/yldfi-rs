@@ -1,6 +1,17 @@
-# unswp
+<p align="center">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
+</p>
 
-Unofficial Rust client for Uniswap V2, V3, and V4.
+<h1 align="center">unswp</h1>
+
+<p align="center">
+  Unofficial Rust client for Uniswap V2, V3, and V4
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/unswp"><img src="https://img.shields.io/crates/v/unswp.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
 
 ## Features
 

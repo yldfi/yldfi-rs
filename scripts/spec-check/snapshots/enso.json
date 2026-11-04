@@ -490,6 +490,56 @@
     "[].token*"
    ]
   },
+  "GET /api/v1/mayan/bridge/check": {
+   "deprecated": false,
+   "params": [
+    "query:chainId*",
+    "query:txHash*"
+   ],
+   "request": [],
+   "response": [
+    "destinationChainId",
+    "destinationExecutionTxHash",
+    "destinationTxHash",
+    "ensoDestinationEvent",
+    "ensoDestinationEvent.accountId",
+    "ensoDestinationEvent.blockNumber*",
+    "ensoDestinationEvent.chainId*",
+    "ensoDestinationEvent.error",
+    "ensoDestinationEvent.refundDetails",
+    "ensoDestinationEvent.refundDetails.amount*",
+    "ensoDestinationEvent.refundDetails.isNative*",
+    "ensoDestinationEvent.refundDetails.recipient*",
+    "ensoDestinationEvent.refundDetails.token*",
+    "ensoDestinationEvent.requestId",
+    "ensoDestinationEvent.success*",
+    "ensoDestinationEvent.transactionHash*",
+    "error",
+    "intent",
+    "intent.deadline",
+    "intent.error",
+    "intent.executedAt",
+    "intent.executionChainId",
+    "intent.executionExplorerUrl",
+    "intent.executionTxHash",
+    "intent.executor*",
+    "intent.phase*",
+    "intent.refundExplorerUrl",
+    "intent.refundTxHash",
+    "intent.refundedAt",
+    "intent.requestId*",
+    "intent.source*",
+    "intent.status*",
+    "intent.statusDescription",
+    "mayanStatus",
+    "orderHash",
+    "refundChainId",
+    "refundTxHash",
+    "sourceChainId*",
+    "sourceTxHash*",
+    "status*"
+   ]
+  },
   "GET /api/v1/networks": {
    "deprecated": false,
    "params": [
@@ -729,6 +779,7 @@
    "params": [
     "query:amountIn*",
     "query:chainId*",
+    "query:effort",
     "query:fromAddress",
     "query:ignoreAggregators",
     "query:ignoreStandards",
@@ -768,6 +819,7 @@
     "query:chainId*",
     "query:crosschainRouteMode",
     "query:destinationChainId",
+    "query:effort",
     "query:executionMode",
     "query:fromAddress*",
     "query:ignoreAggregators",
@@ -783,7 +835,8 @@
     "query:spender",
     "query:toEoa",
     "query:tokenIn*",
-    "query:tokenOut*"
+    "query:tokenOut*",
+    "query:useIntentAddress"
    ],
    "request": [],
    "response": [
@@ -1612,6 +1665,7 @@
     "chainId*",
     "crosschainRouteMode",
     "destinationChainId",
+    "effort",
     "executionMode",
     "fromAddress*",
     "ignoreAggregators",
@@ -1627,7 +1681,8 @@
     "spender",
     "toEoa",
     "tokenIn*",
-    "tokenOut*"
+    "tokenOut*",
+    "useIntentAddress"
    ],
    "response": [
     "amountOut*",
@@ -1764,35 +1819,6 @@
     "userOp.signature*",
     "userOp.verificationGasLimit*",
     "validUntil"
-   ]
-  },
-  "POST /api/v1/shortcuts/static/ipor": {
-   "deprecated": false,
-   "params": [
-    "query:chainId*",
-    "query:fromAddress*"
-   ],
-   "request": [
-    "amountIn*",
-    "isRouter",
-    "percentageForTokenB*",
-    "simulate",
-    "slippage",
-    "tokenBToBuy*",
-    "tokenIn*"
-   ],
-   "response": [
-    "createdAt*",
-    "logs*",
-    "logs[].address*",
-    "logs[].data*",
-    "logs[].topics*",
-    "simulationURL*",
-    "tx*",
-    "tx.data*",
-    "tx.from*",
-    "tx.to*",
-    "tx.value*"
    ]
   }
  }

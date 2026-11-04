@@ -1159,7 +1159,7 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get ticker from centralized exchange via CCXT",
+        description = "Get a 24h ticker from a centralized exchange or perp venue",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn ccxt_ticker(&self, Parameters(input): Parameters<CcxtTickerInput>) -> CallToolResult {
@@ -1169,7 +1169,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Get order book from centralized exchange via CCXT",
+        description = "Get the order book from a centralized exchange or perp venue",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn ccxt_orderbook(
