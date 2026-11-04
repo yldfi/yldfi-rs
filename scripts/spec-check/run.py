@@ -437,14 +437,43 @@ def diff_surfaces(old, new, used=()):
             if now_required and section != "response":
                 add(op, "breaking", f"{label}s now required: " + ", ".join(f"`{x}`" for x in now_required))
             if added:
-                # A new required input breaks existing callers; a new output field doesn't.
-                req = [x for x in added if after[x] and section != "response"]
+                # A new required input breaks existing callers, unless it sits
+                # inside a new optional object they don't send; a new output
+                # field doesn't.
+                new = set(added)
+                req = [
+                    x
+                    for x in added
+                    if after[x] and section != "response" and not under_new_optional_parent(x, new, after)
+                ]
                 if req:
                     add(op, "breaking", f"new required {label}s: " + ", ".join(f"`{x}`" for x in req))
                 rest = [x for x in added if x not in req]
                 if rest:
                     add(op, "addition", f"{label}s added: " + ", ".join(f"`{x}`" for x in rest))
     return changes
+
+
+def field_parent(path):
+    """Parent field path of 'a.b[].c' ('a.b'), or None at the top level."""
+    if "." not in path:
+        return None
+    parent = path.rsplit(".", 1)[0]
+    while parent.endswith("[]"):
+        parent = parent[:-2]
+    return parent or None
+
+
+def under_new_optional_parent(path, added, required):
+    """True if an ancestor of `path` is itself new and optional: existing
+    callers never send that object, so fields required inside it can't break
+    them."""
+    parent = field_parent(path)
+    while parent is not None:
+        if parent in added and not required.get(parent, True):
+            return True
+        parent = field_parent(parent)
+    return False
 
 
 def snapshot_path(provider):
