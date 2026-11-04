@@ -126,7 +126,10 @@ evm-disassembler = "0.6"
 chainlink-data-streams-report = "1.2"
 
 # Cryptocurrency exchanges
-ccxt-rust = { version = "0.1", features = ["rest", "websocket"] }
+# Held at 0.1.5: 0.1.6 makes ratatui/crossterm (used only by its own benchmark
+# binary) required dependencies, adding ~70 crates to every ethcli build. Lift
+# the pin (and the Dependabot ignore) once upstream gates them behind a feature.
+ccxt-rust = { version = "=0.1.5", features = ["rest", "websocket"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
