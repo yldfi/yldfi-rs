@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
 </p>
 
-<h1 align="center">defillama</h1>
+<h1 align="center">dllma</h1>
 
 <p align="center">
   Unofficial Rust client for the <a href="https://defillama.com/">DefiLlama</a> API
 </p>
 
 <p align="center">
-  <a href="https://crates.io/crates/dllma"><img src="https://img.shields.io/crates/v/defillama.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/defillama/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://crates.io/crates/dllma"><img src="https://img.shields.io/crates/v/dllma.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Features
@@ -29,7 +29,7 @@
 
 ```toml
 [dependencies]
-dllma = "0.1"
+dllma = "0.2"
 tokio = { version = "1", features = ["full"] }
 ```
 

@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
 </p>
 
-<h1 align="center">kyberswap</h1>
+<h1 align="center">kybr</h1>
 
 <p align="center">
   Unofficial Rust client for the <a href="https://kyberswap.com/">KyberSwap</a> Aggregator API
 </p>
 
 <p align="center">
-  <a href="https://crates.io/crates/kybr"><img src="https://img.shields.io/crates/v/kyberswap.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/kyberswap/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://crates.io/crates/kybr"><img src="https://img.shields.io/crates/v/kybr.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Features
@@ -23,7 +23,7 @@
 
 ```toml
 [dependencies]
-kybr = "0.1"
+kybr = "0.2"
 tokio = { version = "1", features = ["full"] }
 ```
 

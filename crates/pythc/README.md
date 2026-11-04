@@ -1,6 +1,17 @@
-# pythc
+<p align="center">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
+</p>
 
-Rust client for the [Pyth Network](https://pyth.network/) Hermes API.
+<h1 align="center">pythc</h1>
+
+<p align="center">
+  Unofficial Rust client for the <a href="https://pyth.network/">Pyth Network</a> Hermes API
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/pythc"><img src="https://img.shields.io/crates/v/pythc.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
 
 Pyth Network provides real-time price feeds for crypto, equities, FX, and commodities. This crate interfaces with the Hermes REST API to fetch price data.
 
@@ -27,7 +38,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-pythc = "0.1"
+pythc = "0.2"
 ```
 
 ## Quick Start

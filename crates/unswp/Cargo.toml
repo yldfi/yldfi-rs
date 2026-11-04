@@ -4,7 +4,8 @@ version = "0.1.7"
 edition = "2021"
 description = "Unofficial Rust client for Uniswap - combining on-chain lens queries and subgraph historical data"
 license = "MIT"
-repository = "https://github.com/yldfi/yldfi-rs/tree/main/crates/unswp"
+repository = "https://github.com/yldfi/yldfi-rs"
+homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/unswp"
 keywords = ["uniswap", "defi", "ethereum", "amm", "dex"]
 categories = ["api-bindings", "cryptography::cryptocurrencies"]
 

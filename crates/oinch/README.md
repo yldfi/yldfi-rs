@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yldfi/yldfi-rs/main/logo-128.png" alt="yld_fi" width="128" height="128">
+  <img src="../../logo-128.png" alt="yld_fi" width="128" height="128">
 </p>
 
-<h1 align="center">oneinch</h1>
+<h1 align="center">oinch</h1>
 
 <p align="center">
   Unofficial Rust client for the <a href="https://1inch.io/">1inch</a> DEX Aggregator Swap API v6.0
 </p>
 
 <p align="center">
-  <a href="https://crates.io/crates/oinch"><img src="https://img.shields.io/crates/v/oneinch.svg" alt="crates.io"></a>
-  <a href="https://github.com/yldfi/yldfi-rs/blob/main/crates/oneinch/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://crates.io/crates/oinch"><img src="https://img.shields.io/crates/v/oinch.svg" alt="crates.io"></a>
+  <a href="https://opensource.org/license/mit"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
 ## Overview
@@ -62,7 +62,7 @@ async fn main() -> Result<(), oinch::Error> {
 
 ```toml
 [dependencies]
-oinch = "0.1"
+oinch = "0.2"
 tokio = { version = "1", features = ["full"] }
 ```
 
