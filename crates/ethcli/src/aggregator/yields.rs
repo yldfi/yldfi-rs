@@ -99,6 +99,22 @@ pub fn plausible_apy(apy: Option<f64>) -> Option<f64> {
     apy.filter(|a| a.is_finite() && a.abs() <= MAX_PLAUSIBLE_APY_PCT)
 }
 
+/// Maximum and mean of the plausible APYs, so one data error can't distort them.
+fn apy_stats(yields: &[NormalizedYield]) -> (Option<f64>, Option<f64>) {
+    let apys: Vec<f64> = yields
+        .iter()
+        .filter_map(|y| plausible_apy(y.apy_total))
+        .collect();
+    if apys.is_empty() {
+        return (None, None);
+    }
+    let max = apys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    (
+        Some(max),
+        Some(apys.iter().sum::<f64>() / apys.len() as f64),
+    )
+}
+
 /// Minimum TVL for Curve pools to be listed when TVL is known
 const CURVE_MIN_TVL_USD: f64 = 1_000.0;
 
@@ -797,6 +813,9 @@ async fn fetch_yearn_yields(chain_id: Option<u64>) -> SourceResult<Vec<Normalize
                     "yearn-v2".to_string()
                 };
 
+                // Near-empty vaults can report impossible APYs (about 3e24%)
+                let apy_total = plausible_apy(apy_total);
+
                 yields.push(NormalizedYield {
                     pool_id: vault.address.clone(),
                     symbol,
@@ -979,21 +998,7 @@ pub async fn fetch_yields_aggregated(
 
     // Calculate aggregation stats
     let total_pools = all_yields.len();
-    let max_apy = all_yields
-        .iter()
-        .filter_map(|y| y.apy_total)
-        .fold(None, |acc, v| Some(acc.map_or(v, |a: f64| a.max(v))));
-    let avg_apy = if total_pools > 0 {
-        let sum: f64 = all_yields.iter().filter_map(|y| y.apy_total).sum();
-        let count = all_yields.iter().filter(|y| y.apy_total.is_some()).count();
-        if count > 0 {
-            Some(sum / count as f64)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    let (max_apy, avg_apy) = apy_stats(&all_yields);
     let total_tvl: Option<f64> = {
         let sum: f64 = all_yields
             .iter()
@@ -1318,6 +1323,14 @@ mod tests {
             url: None,
             source: "llama".into(),
         }
+    }
+
+    #[test]
+    fn apy_stats_ignore_implausible_values() {
+        let rows = [row("a", 4.0), row("b", 6.0), row("c", 3.03e24)];
+        assert_eq!(apy_stats(&rows), (Some(6.0), Some(5.0)));
+        assert_eq!(apy_stats(&[row("c", 3.03e24)]), (None, None));
+        assert_eq!(apy_stats(&[]), (None, None));
     }
 
     #[test]
