@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.27.0...ethcli-v0.27.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **ethcli:** accept return types in contract call signatures ([#180](https://github.com/yldfi/yldfi-rs/issues/180)) ([1a339a6](https://github.com/yldfi/yldfi-rs/commit/1a339a6662124593f783b73ba4562ac4999e11ab))
+
 ## [0.27.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.26.0...ethcli-v0.27.0) (2026-11-05)
 
 
