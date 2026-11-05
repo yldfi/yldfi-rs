@@ -367,19 +367,35 @@ fn current_timestamp() -> u64 {
     crate::utils::unix_timestamp_secs()
 }
 
-/// Why a `--resume` run can't safely append to its output, if it can't.
+/// Why a `--resume` run can't safely use its output file, if it can't.
 ///
-/// Without a checkpoint, a resumed run fetches the whole range. Appending that
-/// to a file that already has data would duplicate every row it holds.
+/// - Data but no checkpoint: the whole range would be fetched and appended,
+///   duplicating every row the file holds.
+/// - A checkpoint with logs but no data: the file isn't the one the checkpoint
+///   was written with, and ranges marked complete wouldn't be fetched again, so
+///   it would end up missing those rows.
 #[must_use]
 pub fn resume_conflict(output: Option<&Path>, checkpoint: &Path) -> Option<String> {
     let output = output?;
     let has_data = fs::metadata(output).is_ok_and(|m| m.len() > 0);
-    (has_data && !checkpoint.exists()).then(|| {
+    if !checkpoint.exists() {
+        return has_data.then(|| {
+            format!(
+                "{} already has data but there is no checkpoint at {}, so --resume would add \
+                 every row again. Use a new output file, delete this one, or pass --checkpoint \
+                 if the checkpoint is elsewhere",
+                output.display(),
+                checkpoint.display()
+            )
+        });
+    }
+    // An unreadable checkpoint is reported when the fetch loads it
+    let logs = Checkpoint::load(checkpoint).map_or(0, |c| c.total_logs);
+    (!has_data && logs > 0).then(|| {
         format!(
-            "{} already has data but there is no checkpoint at {}, so --resume would add \
-             every row again. Use a new output file, delete this one, or pass --checkpoint \
-             if the checkpoint is elsewhere",
+            "{} is empty or missing but the checkpoint at {} already covers {logs} logs, so \
+             --resume would skip them. Use the original output file, or delete the checkpoint \
+             to fetch everything again",
             output.display(),
             checkpoint.display()
         )
@@ -414,8 +430,26 @@ mod tests {
         );
 
         // Data and a checkpoint: a normal resume
-        fs::write(&checkpoint, "{}").unwrap();
+        let mut saved = Checkpoint::new("0xabc".to_string(), 1, None, 1, Some(2));
+        saved.save(&checkpoint).unwrap();
         assert_eq!(resume_conflict(Some(&output), &checkpoint), None);
+
+        // A checkpoint that found nothing has nothing to miss
+        let other = dir.path().join("other.ndjson");
+        assert_eq!(resume_conflict(Some(&other), &checkpoint), None);
+
+        // A checkpoint with logs, and a new or empty output file
+        saved.total_logs = 5;
+        saved.save(&checkpoint).unwrap();
+        let message = resume_conflict(Some(&other), &checkpoint).unwrap();
+        assert!(
+            message.contains("other.ndjson") && message.contains("5 logs"),
+            "{message}"
+        );
+        fs::write(&other, "").unwrap();
+        assert!(resume_conflict(Some(&other), &checkpoint).is_some());
+        assert_eq!(resume_conflict(Some(&output), &checkpoint), None);
+        assert_eq!(resume_conflict(None, &checkpoint), None);
     }
 
     #[test]
