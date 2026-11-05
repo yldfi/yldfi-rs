@@ -13,7 +13,7 @@ use crate::pools::Pool;
 pub fn build_graph(chain: &str, pools: &[Pool]) -> RouteGraph {
     let mut graph = RouteGraph::new(chain);
 
-    // Add wrapper pairs for special swap type 8 (ETH <-> WETH, etc.)
+    // Add wrapper pairs (swap type 8, or 9 for ERC4626 vaults)
     if chain.to_lowercase() == "ethereum" || chain.to_lowercase() == "eth" {
         add_wrapper_edges(&mut graph);
     }
@@ -38,7 +38,7 @@ fn add_wrapper_edges(graph: &mut RouteGraph) {
             &wrapper_address,
             &pair.token_a,
             &pair.token_b,
-            SwapParams::new(0, 0, SwapType::Wrap, PoolType::Stable, 2),
+            pair.swap_params(true),
             f64::MAX, // Infinite liquidity for wrapping
         );
         graph.add_edge(&pair.token_a, &pair.token_b, step_wrap);
@@ -49,7 +49,7 @@ fn add_wrapper_edges(graph: &mut RouteGraph) {
             &wrapper_address,
             &pair.token_b,
             &pair.token_a,
-            SwapParams::new(0, 0, SwapType::Wrap, PoolType::Stable, 2),
+            pair.swap_params(false),
             f64::MAX, // Infinite liquidity for unwrapping
         );
         graph.add_edge(&pair.token_b, &pair.token_a, step_unwrap);
@@ -384,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sfrxeth_uses_wrap_swap_type() {
+    fn test_sfrxeth_uses_erc4626_swap_type() {
         // Router v1.1 handles frxETH <-> sfrxETH under swap_type 8, with the
         // sfrxETH vault as the pool slot
         let graph = build_graph("ethereum", &[]);
@@ -392,7 +392,7 @@ mod tests {
         let sfrxeth = "0xac3e018457b222d93114458476f3e3416abbe38f";
         for (from, to) in [(frxeth, sfrxeth), (sfrxeth, frxeth)] {
             let step = edge(&graph, from, to);
-            assert_eq!(step.swap_params.swap_type, SwapType::Wrap);
+            assert_eq!(step.swap_params.swap_type, SwapType::Erc4626);
             assert_eq!(step.pool_address, sfrxeth);
         }
     }
