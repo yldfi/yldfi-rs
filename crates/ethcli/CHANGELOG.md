@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.26.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.4...ethcli-v0.26.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ethcli:** the MCP tools `ccxt_*` are now `cex_*`, and `price` source labels such as `ccxt-okx` are now `cex-okx`.
+* **ethcli:** `ethcli chainlink price` JSON output and the `chainlink_price` MCP tool now return `round_id` as a string instead of a number.
+
+### Features
+
+* **ethcli:** rename ccxt to cex now that it uses cexm ([#173](https://github.com/yldfi/yldfi-rs/issues/173)) ([00cd166](https://github.com/yldfi/yldfi-rs/commit/00cd166d9fc6d5948fad7f1e29d4284c429607d3))
+
+
+### Bug Fixes
+
+* **ethcli:** decode events and calldata with dynamic types ([#174](https://github.com/yldfi/yldfi-rs/issues/174)) ([209177c](https://github.com/yldfi/yldfi-rs/commit/209177cb2c84681fadb01cffbc1a76af6d1923d0))
+* **ethcli:** refuse logs --resume with a checkpoint but no data ([#169](https://github.com/yldfi/yldfi-rs/issues/169)) ([e8c6d2e](https://github.com/yldfi/yldfi-rs/commit/e8c6d2e6faf0aa2ee208563d4c153afaef493b1e))
+* **ethcli:** reject bad input and report failures instead of hiding them ([#175](https://github.com/yldfi/yldfi-rs/issues/175)) ([d537640](https://github.com/yldfi/yldfi-rs/commit/d53764061f7d46d87cc837039d7c546f017c4d0d))
+* **ethcli:** return Chainlink round_id as a JSON string ([#171](https://github.com/yldfi/yldfi-rs/issues/171)) ([7d6541b](https://github.com/yldfi/yldfi-rs/commit/7d6541bf9a2fa6a828df22dcd85092b1feaf0844))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * crv bumped from 0.2.0 to 0.2.1
+
 ## [0.25.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.3...ethcli-v0.25.4) (2026-11-05)
 
 

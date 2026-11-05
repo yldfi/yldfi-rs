@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.4.3...ethcli-mcp-v0.5.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ethcli:** the MCP tools `ccxt_*` are now `cex_*`, and `price` source labels such as `ccxt-okx` are now `cex-okx`.
+
+### Features
+
+* **ethcli:** rename ccxt to cex now that it uses cexm ([#173](https://github.com/yldfi/yldfi-rs/issues/173)) ([00cd166](https://github.com/yldfi/yldfi-rs/commit/00cd166d9fc6d5948fad7f1e29d4284c429607d3))
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** print and exit for --version and --help ([#170](https://github.com/yldfi/yldfi-rs/issues/170)) ([d6adf8e](https://github.com/yldfi/yldfi-rs/commit/d6adf8e3d11c82a87dfa0002cdd065aca3cbfe30))
+
 ## [0.4.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.4.2...ethcli-mcp-v0.4.3) (2026-11-05)
 
 

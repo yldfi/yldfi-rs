@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/crv-v0.2.0...crv-v0.2.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **crv:** use Curve Router v1.2 on Ethereum and Fraxtal ([#172](https://github.com/yldfi/yldfi-rs/issues/172)) ([e97718d](https://github.com/yldfi/yldfi-rs/commit/e97718d0f26f52c1cfd09050e3bac05567eccf61))
+* **ethcli:** reject bad input and report failures instead of hiding them ([#175](https://github.com/yldfi/yldfi-rs/issues/175)) ([d537640](https://github.com/yldfi/yldfi-rs/commit/d53764061f7d46d87cc837039d7c546f017c4d0d))
+
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/crv-v0.1.7...crv-v0.2.0) (2026-10-21)
 
 
