@@ -510,37 +510,20 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
 
     // Report failures
     if !stats.is_complete() {
-        if args.strict {
-            eprintln!(
-                "Error: {} of {} chunks failed (--strict mode)",
-                stats.chunks_failed, stats.chunks_total
-            );
-            for (from, to, err) in &stats.failed_ranges {
-                eprintln!("  - Blocks {from}-{to}: {err}");
-            }
-            return Err(anyhow::anyhow!(
-                "Fetch incomplete: {} chunks failed",
-                stats.chunks_failed
-            ));
-        }
         eprintln!(
             "Warning: {} of {} chunks failed ({:.1}% success rate)",
             stats.chunks_failed,
             stats.chunks_total,
             stats.success_rate()
         );
-        if cli.verbose > 0 {
+        if cli.verbose > 0 || !args.allow_partial {
             for (from, to, err) in &stats.failed_ranges {
+                let err = ethcli::utils::url::redact_urls_in_text(err);
                 eprintln!("  - Blocks {from}-{to}: {err}");
             }
         }
-        // Nothing was fetched, which must not read as "no logs in this range"
-        if stats.all_failed() {
-            anyhow::bail!(
-                "Fetch failed: all {} chunks failed, so these results say nothing about the \
-                 range. Run with -v for the errors",
-                stats.chunks_total
-            );
+        if let Some(message) = stats.incomplete_error(args.allow_partial) {
+            anyhow::bail!(message);
         }
     }
 
