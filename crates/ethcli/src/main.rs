@@ -534,6 +534,14 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
                 eprintln!("  - Blocks {from}-{to}: {err}");
             }
         }
+        // Nothing was fetched, which must not read as "no logs in this range"
+        if stats.all_failed() {
+            anyhow::bail!(
+                "Fetch failed: all {} chunks failed, so these results say nothing about the \
+                 range. Run with -v for the errors",
+                stats.chunks_total
+            );
+        }
     }
 
     if !cli.quiet {

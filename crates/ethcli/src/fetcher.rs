@@ -56,6 +56,11 @@ impl FetchStats {
         self.chunks_failed == 0
     }
 
+    /// Whether nothing was fetched because every chunk failed
+    pub fn all_failed(&self) -> bool {
+        self.chunks_total > 0 && self.chunks_failed >= self.chunks_total
+    }
+
     /// Get success rate as percentage
     pub fn success_rate(&self) -> f64 {
         if self.chunks_total == 0 {
@@ -878,6 +883,19 @@ impl StreamingFetcher {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn all_failed_needs_every_chunk_to_fail() {
+        let stats = |total, failed| FetchStats {
+            chunks_total: total,
+            chunks_failed: failed,
+            ..Default::default()
+        };
+        assert!(stats(2, 2).all_failed());
+        assert!(!stats(2, 1).all_failed());
+        assert!(!stats(2, 0).all_failed());
+        assert!(!stats(0, 0).all_failed());
+    }
+
     use super::*;
 
     /// JSON-RPC server that rejects `eth_getLogs` spanning more than `limit`
