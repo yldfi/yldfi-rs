@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.27.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.26.0...ethcli-v0.27.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ethcli:** `ethcli logs` exits 1 when any chunk fails. Pass --allow-partial for the previous behaviour.
+
+### Bug Fixes
+
+* **ethcli:** stop logs reporting failures as empty or complete results ([#178](https://github.com/yldfi/yldfi-rs/issues/178)) ([f3f7db3](https://github.com/yldfi/yldfi-rs/commit/f3f7db3467820d66d3529d1904a7d843e37e97a6))
+
 ## [0.26.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.4...ethcli-v0.26.0) (2026-11-05)
 
 
