@@ -129,7 +129,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | cowswap_* | 11 |
 | account_* | 8 |
 | oneinch_* | 7 |
-| ccxt_* | 7 |
+| cex_* | 7 |
 | blacklist_* | 7 |
 | address_* | 7 |
 | llama_* | 6 |

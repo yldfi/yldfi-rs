@@ -266,15 +266,15 @@ ethcli curve prices volume <chain> [--start ts] [--end ts] [--interval day]  # U
 ethcli curve router route <from> <to> # Find swap route
 ```
 
-### Exchange Data (`ccxt`, alias `cex`)
+### Exchange Data (`cex`, alias `ccxt`)
 ```bash
-ethcli ccxt ticker BTC/USDT -e binance            # -e: binance bitget okx bybit coinbase kraken hyperliquid lighter
-ethcli ccxt ticker ETH/USDC:USDC -e hyperliquid   # perps: BASE/USDC:USDC
-ethcli ccxt order-book BTC/USDT --limit 10
-ethcli ccxt ohlcv BTC/USDT --timeframe 1h --limit 100
-ethcli ccxt trades ETH/USDT -e okx
-ethcli ccxt markets -e kraken --quote USD
-ethcli ccxt compare BTC/USDT                      # same pair on every exchange
+ethcli cex ticker BTC/USDT -e binance            # -e: binance bitget okx bybit coinbase kraken hyperliquid lighter
+ethcli cex ticker ETH/USDC:USDC -e hyperliquid   # perps: BASE/USDC:USDC
+ethcli cex order-book BTC/USDT --limit 10
+ethcli cex ohlcv BTC/USDT --timeframe 1h --limit 100
+ethcli cex trades ETH/USDT -e okx
+ethcli cex markets -e kraken --quote USD
+ethcli cex compare BTC/USDT                      # same pair on every exchange
 ```
 
 ### Blacklist (Spam Token Filtering)
@@ -444,7 +444,7 @@ Most commands support: `--output json|table|ndjson` or `-o json|table|ndjson`
 | q | quote |
 | y | yields |
 | uni | uniswap |
-| cex | ccxt |
+| ccxt | cex |
 | yearn | kong |
 | gp | goplus |
 | sld | solodit |

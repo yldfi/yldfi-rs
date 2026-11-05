@@ -7,7 +7,7 @@ pub mod address;
 pub mod alchemy;
 pub mod blacklist;
 pub mod cast;
-pub mod ccxt;
+pub mod cex;
 pub mod chainlink;
 pub mod chainlist;
 pub mod config;
@@ -376,10 +376,10 @@ pub enum Commands {
     },
 
     /// Exchange market data (Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter)
-    #[command(visible_alias = "cex")]
-    Ccxt {
+    #[command(visible_alias = "ccxt")]
+    Cex {
         #[command(subcommand)]
-        action: ccxt::CcxtCommands,
+        action: cex::CexCommands,
     },
 
     /// Uniswap V2/V3/V4 pool queries (on-chain and subgraph)

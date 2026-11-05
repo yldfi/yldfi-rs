@@ -240,9 +240,10 @@ pub enum PriceSource {
     Moralis,
     /// Curve
     Curve,
-    /// CCXT exchange data (Binance, Bitget, OKX, Hyperliquid)
+    /// CEX exchange data (Binance, Bitget, OKX, Hyperliquid)
     #[value(alias = "cex", alias = "exchange")]
-    Ccxt,
+    #[value(alias = "ccxt")]
+    Cex,
     /// Chainlink Data Streams
     #[value(alias = "cl")]
     Chainlink,
@@ -273,7 +274,7 @@ impl std::str::FromStr for PriceSource {
             "alchemy" | "alcmy" => Ok(PriceSource::Alchemy),
             "moralis" | "mrls" => Ok(PriceSource::Moralis),
             "curve" | "crv" => Ok(PriceSource::Curve),
-            "ccxt" | "cex" | "exchange" => Ok(PriceSource::Ccxt),
+            "cex" | "ccxt" | "exchange" => Ok(PriceSource::Cex),
             "chainlink" | "cl" => Ok(PriceSource::Chainlink),
             "pyth" => Ok(PriceSource::Pyth),
             "uniswap" | "uni" => Ok(PriceSource::Uniswap),
@@ -294,7 +295,7 @@ impl std::fmt::Display for PriceSource {
             PriceSource::Alchemy => write!(f, "alchemy"),
             PriceSource::Moralis => write!(f, "moralis"),
             PriceSource::Curve => write!(f, "curve"),
-            PriceSource::Ccxt => write!(f, "ccxt"),
+            PriceSource::Cex => write!(f, "cex"),
             PriceSource::Chainlink => write!(f, "chainlink"),
             PriceSource::Pyth => write!(f, "pyth"),
             PriceSource::Uniswap => write!(f, "uniswap"),
@@ -453,7 +454,8 @@ mod tests {
             "alchemy".parse::<PriceSource>().unwrap(),
             PriceSource::Alchemy
         );
-        assert_eq!("ccxt".parse::<PriceSource>().unwrap(), PriceSource::Ccxt);
+        assert_eq!("cex".parse::<PriceSource>().unwrap(), PriceSource::Cex);
+        assert_eq!("ccxt".parse::<PriceSource>().unwrap(), PriceSource::Cex);
         assert_eq!(
             "chainlink".parse::<PriceSource>().unwrap(),
             PriceSource::Chainlink

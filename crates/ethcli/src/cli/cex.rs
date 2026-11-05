@@ -1,4 +1,4 @@
-//! Centralised exchange market data commands (`ethcli ccxt`, alias `cex`)
+//! Centralised exchange market data commands (`ethcli cex`, alias `cex`)
 //!
 //! Backed by the `cexm` crate: Binance, Bitget, OKX, Bybit, Coinbase and
 //! Kraken spot, plus Hyperliquid and Lighter perpetuals.
@@ -18,7 +18,7 @@ fn exchange_parser() -> impl TypedValueParser<Value = Exchange> {
 }
 
 #[derive(Args)]
-pub struct CcxtArgs {
+pub struct CexArgs {
     /// Exchange to query
     #[arg(long, short, default_value = "binance", value_parser = exchange_parser())]
     pub exchange: Exchange,
@@ -29,14 +29,14 @@ pub struct CcxtArgs {
 }
 
 #[derive(Subcommand)]
-pub enum CcxtCommands {
+pub enum CexCommands {
     /// Get ticker for a trading pair
     Ticker {
         /// Trading pair symbol (e.g., BTC/USDT; perpetuals: BTC/USDC:USDC)
         symbol: String,
 
         #[command(flatten)]
-        args: CcxtArgs,
+        args: CexArgs,
     },
 
     /// Get tickers for multiple pairs
@@ -46,7 +46,7 @@ pub enum CcxtCommands {
         symbols: Vec<String>,
 
         #[command(flatten)]
-        args: CcxtArgs,
+        args: CexArgs,
     },
 
     /// Get order book for a trading pair
@@ -59,7 +59,7 @@ pub enum CcxtCommands {
         limit: u32,
 
         #[command(flatten)]
-        args: CcxtArgs,
+        args: CexArgs,
     },
 
     /// Get OHLCV candlestick data
@@ -76,7 +76,7 @@ pub enum CcxtCommands {
         limit: u32,
 
         #[command(flatten)]
-        args: CcxtArgs,
+        args: CexArgs,
     },
 
     /// Get recent trades for a trading pair
@@ -89,7 +89,7 @@ pub enum CcxtCommands {
         limit: u32,
 
         #[command(flatten)]
-        args: CcxtArgs,
+        args: CexArgs,
     },
 
     /// List available markets/trading pairs
@@ -103,7 +103,7 @@ pub enum CcxtCommands {
         base: Option<String>,
 
         #[command(flatten)]
-        args: CcxtArgs,
+        args: CexArgs,
     },
 
     /// Compare prices across exchanges
@@ -184,11 +184,11 @@ struct MarketOutput {
 }
 
 /// Handle exchange commands
-pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
+pub async fn handle(command: &CexCommands, quiet: bool) -> anyhow::Result<()> {
     let client = Client::new()?;
 
     match command {
-        CcxtCommands::Ticker { symbol, args } => {
+        CexCommands::Ticker { symbol, args } => {
             if !quiet {
                 eprintln!("Fetching ticker for {} from {}...", symbol, args.exchange);
             }
@@ -196,7 +196,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
             print_output(&TickerOutput::from(ticker), args.format)?;
         }
 
-        CcxtCommands::Tickers { symbols, args } => {
+        CexCommands::Tickers { symbols, args } => {
             if !quiet {
                 eprintln!(
                     "Fetching {} tickers from {}...",
@@ -221,7 +221,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
             print_output(&outputs, args.format)?;
         }
 
-        CcxtCommands::OrderBook {
+        CexCommands::OrderBook {
             symbol,
             limit,
             args,
@@ -266,7 +266,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
             }
         }
 
-        CcxtCommands::Ohlcv {
+        CexCommands::Ohlcv {
             symbol,
             timeframe,
             limit,
@@ -317,7 +317,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
             }
         }
 
-        CcxtCommands::Trades {
+        CexCommands::Trades {
             symbol,
             limit,
             args,
@@ -363,7 +363,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
             }
         }
 
-        CcxtCommands::Markets { quote, base, args } => {
+        CexCommands::Markets { quote, base, args } => {
             if !quiet {
                 eprintln!("Fetching markets from {}...", args.exchange);
             }
@@ -430,7 +430,7 @@ pub async fn handle(command: &CcxtCommands, quiet: bool) -> anyhow::Result<()> {
             }
         }
 
-        CcxtCommands::Compare { symbol, format } => {
+        CexCommands::Compare { symbol, format } => {
             if !quiet {
                 eprintln!("Comparing {} prices across exchanges...", symbol);
             }
@@ -518,7 +518,7 @@ mod tests {
     #[derive(Parser)]
     struct Cli {
         #[command(subcommand)]
-        command: CcxtCommands,
+        command: CexCommands,
     }
 
     #[test]
@@ -526,7 +526,7 @@ mod tests {
         for ex in Exchange::ALL {
             let cli = Cli::try_parse_from(["t", "ticker", "BTC/USDT", "-e", ex.as_str()]).unwrap();
             match cli.command {
-                CcxtCommands::Ticker { args, .. } => assert_eq!(args.exchange, ex),
+                CexCommands::Ticker { args, .. } => assert_eq!(args.exchange, ex),
                 _ => unreachable!(),
             }
         }
@@ -539,7 +539,7 @@ mod tests {
             .unwrap()
             .command
         {
-            CcxtCommands::Ohlcv { timeframe, .. } => timeframe,
+            CexCommands::Ohlcv { timeframe, .. } => timeframe,
             _ => unreachable!(),
         };
         assert_eq!(tf("1M"), Timeframe::Mon1);

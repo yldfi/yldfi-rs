@@ -73,7 +73,7 @@ ethcli moralis    # Moralis API (wallet, token, NFT, DeFi, transactions)
 ethcli dune       # Dune Analytics API (queries, executions, tables)
 ethcli curve      # Curve Finance API (pools, volumes, lending, tokens, router)
 ethcli chainlink  # Chainlink price feeds (RPC-based, no API key needed)
-ethcli ccxt       # Exchange data (Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter)
+ethcli cex       # Exchange data (Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter)
 ethcli kong       # Yearn Kong API (vaults, strategies, prices, TVL, reports)
 ethcli uniswap    # Uniswap V2/V3/V4 (on-chain lens + subgraph)
 ethcli goplus     # GoPlus Security API (token/address/NFT/approval security)
@@ -775,33 +775,33 @@ ethcli curve tokens list ethereum
 ethcli curve prices token ethereum 0x...
 ```
 
-## Exchange Commands (`ccxt`, alias `cex`)
+## Exchange Commands (`cex`, alias `ccxt`)
 
 Public market data from centralised exchanges and perp venues via the `cexm`
 crate (`crates/cexm`). No API keys.
 
 ```bash
 # Ticker (--exchange / -e defaults to binance)
-ethcli ccxt ticker BTC/USDT
-ethcli ccxt ticker ETH/USDT --exchange okx
-ethcli ccxt ticker ETH/USD -e coinbase
-ethcli ccxt ticker ETH/USDC:USDC -e hyperliquid   # perpetuals: BASE/USDC:USDC
+ethcli cex ticker BTC/USDT
+ethcli cex ticker ETH/USDT --exchange okx
+ethcli cex ticker ETH/USD -e coinbase
+ethcli cex ticker ETH/USDC:USDC -e hyperliquid   # perpetuals: BASE/USDC:USDC
 
 # Order book, candles, recent trades
-ethcli ccxt order-book BTC/USDT --limit 10
-ethcli ccxt ohlcv BTC/USDT --timeframe 1h --limit 100
-ethcli ccxt trades ETH/USDT -e bybit --limit 20
+ethcli cex order-book BTC/USDT --limit 10
+ethcli cex ohlcv BTC/USDT --timeframe 1h --limit 100
+ethcli cex trades ETH/USDT -e bybit --limit 20
 
 # Markets, and one pair across every exchange
-ethcli ccxt markets --exchange kraken --quote USD
-ethcli ccxt compare BTC/USDT
+ethcli cex markets --exchange kraken --quote USD
+ethcli cex compare BTC/USDT
 ```
 
 ### Supported Exchanges
 
 Binance, Bitget, OKX, Bybit, Coinbase and Kraken (spot), Hyperliquid and Lighter
 (perpetuals). Public data only, no API keys. Binance is queried via its market-data
-host `data-api.binance.vision`, which isn't region-locked. `ethcli cex` is an alias.
+host `data-api.binance.vision`, which isn't region-locked. `ethcli ccxt` is an alias.
 
 Not every venue has every timeframe (e.g. OKX and Bitget have no 8h candles);
 unsupported ones fail with a clear error. Bars of 6h and longer are UTC-aligned.
@@ -1146,7 +1146,7 @@ src/
     ├── dune_cli.rs   # Direct Dune Analytics API
     ├── curve.rs      # Direct Curve Finance API
     ├── chainlink.rs  # Chainlink price feeds (RPC + Data Streams)
-    ├── ccxt.rs       # Exchange data via cexm
+    ├── cex.rs       # Exchange data via cexm
     ├── kong.rs       # Direct Yearn Kong API
     ├── uniswap.rs    # Uniswap V2/V3/V4 queries
     ├── goplus.rs     # GoPlus Security API (token/address/NFT/approval)

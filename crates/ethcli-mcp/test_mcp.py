@@ -189,9 +189,9 @@ TESTS: List[Tuple[str, dict, bool]] = [
     ("curve_dao", {}, False),
     ("curve_volumes", {}, False),
 
-    # CCXT
-    ("ccxt_ticker", {"exchange": "binance", "symbol": "BTC/USDT"}, False),
-    ("ccxt_markets", {"exchange": "binance"}, False),
+    # CEX
+    ("cex_ticker", {"exchange": "binance", "symbol": "BTC/USDT"}, False),
+    ("cex_markets", {"exchange": "binance"}, False),
 
     # PYTH
     ("pyth_price", {"symbols": "BTC/USD"}, False),
