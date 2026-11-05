@@ -16,7 +16,8 @@ jobs:
     # P1-1: Environment protection (optional - remove if approval not desired for PRs)
     # environment: production
     steps:
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           # P3-3: Using GH_PAT is required to trigger other workflows on tag push
           # Ensure this PAT has minimal scopes: contents:write, pull-requests:write
@@ -24,5 +25,17 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      - name: Keep an ethcli release marked as latest
+        if: ${{ steps.release.outputs.releases_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Install links use releases/latest, so "Latest" must be an ethcli
+          # release with binaries, not another crate's release that has none.
+          tag=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq \
+            '[.[] | select((.tag_name | startswith("ethcli-v")) and (.assets | length > 0) and (.draft | not))][0].tag_name')
+          if [ -n "$tag" ] && [ "$tag" != "null" ]; then
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --latest
+          fi
       # Note: When a release is created, release-please pushes a tag
       # which triggers release.yml (for ethcli) or publish-crate.yml (for other crates)
