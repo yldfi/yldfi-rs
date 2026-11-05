@@ -1051,12 +1051,13 @@ fn verify_binary(path: &std::path::Path) -> Result<(), ExecutionError> {
 fn ethcli_next_to(exe: &std::path::Path) -> Option<std::path::PathBuf> {
     let name = format!("ethcli{}", std::env::consts::EXE_SUFFIX);
     let resolved = std::fs::canonicalize(exe).ok();
-    [Some(exe), resolved.as_deref()]
+    let found = [Some(exe), resolved.as_deref()]
         .into_iter()
         .flatten()
         .filter_map(std::path::Path::parent)
         .map(|dir| dir.join(&name))
-        .find(|candidate| candidate.exists())
+        .find(|candidate| candidate.exists());
+    found
 }
 
 /// Find the ethcli binary path
