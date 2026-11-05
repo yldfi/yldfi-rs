@@ -187,8 +187,9 @@ pub struct PriceOutput {
     pub price: Option<f64>,
     pub raw_answer: String,
     pub decimals: u8,
-    /// Round ID (uint80 composite: phaseId << 64 | aggregatorRoundId)
-    pub round_id: u128,
+    /// Round ID (uint80 composite: phaseId << 64 | aggregatorRoundId). A string,
+    /// because it's too large for a JSON number in JavaScript.
+    pub round_id: String,
     pub updated_at: u64,
     pub feed_address: Option<String>,
     pub is_stale: bool,
@@ -206,7 +207,7 @@ impl From<PriceData> for PriceOutput {
             price: data.to_f64(),
             raw_answer: data.answer.to_string(),
             decimals: data.decimals,
-            round_id: data.round_id,
+            round_id: data.round_id.to_string(),
             updated_at: data.updated_at,
             feed_address: data.feed_address.map(|a| format!("{:#x}", a)),
             is_stale: data.is_stale(),
