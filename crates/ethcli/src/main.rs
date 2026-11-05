@@ -2864,12 +2864,13 @@ mod logs_rpc_tests {
     const EXPLICIT: &str = "https://explicit.example.com";
 
     fn config_file() -> Option<ConfigFile> {
-        let mut file = ConfigFile::default();
-        file.endpoints = vec![
-            EndpointConfig::new(CONFIG_A).with_chain(Chain::Arbitrum),
-            EndpointConfig::new(CONFIG_B).with_chain(Chain::Arbitrum),
-        ];
-        Some(file)
+        Some(ConfigFile {
+            endpoints: vec![
+                EndpointConfig::new(CONFIG_A).with_chain(Chain::Arbitrum),
+                EndpointConfig::new(CONFIG_B).with_chain(Chain::Arbitrum),
+            ],
+            ..Default::default()
+        })
     }
 
     fn config(args: &[&str]) -> anyhow::Result<RpcConfig> {
