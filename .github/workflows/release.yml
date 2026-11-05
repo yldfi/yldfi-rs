@@ -214,7 +214,7 @@ jobs:
 
             **Or via cargo:**
             ```bash
-            cargo install ethcli
+            cargo install --locked ethcli
             ```
 
       - name: Keep an ethcli release marked as latest

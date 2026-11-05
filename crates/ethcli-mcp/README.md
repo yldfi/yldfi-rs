@@ -45,7 +45,7 @@ This tool does not automatically split ranges or bypass provider limits.
 **ethcli must be installed separately.** The MCP server spawns ethcli as a subprocess.
 
 ```bash
-cargo install ethcli
+cargo install --locked ethcli
 ethcli --version
 ```
 
@@ -56,7 +56,7 @@ Built on [rmcp](https://crates.io/crates/rmcp) 3.x over stdio. It negotiates the
 ### Install ethcli-mcp
 
 ```bash
-cargo install ethcli-mcp
+cargo install --locked ethcli-mcp
 ```
 
 ## Quick Start

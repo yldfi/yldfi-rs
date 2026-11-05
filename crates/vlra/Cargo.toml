@@ -11,7 +11,6 @@ categories = ["api-bindings", "web-programming"]
 readme = "README.md"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -20,4 +19,5 @@ url = { workspace = true }
 yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
 
 [dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 tokio-test = "0.4"

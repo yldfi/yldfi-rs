@@ -55,7 +55,9 @@ private = { ignore = true }
 # Lint level for multiple versions of the same crate
 multiple-versions = "warn"
 # Lint level for crates that have been marked as wildcards
-wildcards = "allow"
+wildcards = "deny"
+# Path dependencies between workspace crates are fine
+allow-wildcard-paths = true
 # The graph highlighting used when creating dot graphs
 highlight = "all"
 # Crates to deny
@@ -65,8 +67,8 @@ skip = []
 
 [sources]
 # Lint level for crates from unknown registries
-unknown-registry = "warn"
+unknown-registry = "deny"
 # Lint level for crates from git repositories
-unknown-git = "allow"
+unknown-git = "deny"
 # List of allowed registries
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
