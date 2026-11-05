@@ -56,6 +56,33 @@ impl FetchStats {
         self.chunks_failed == 0
     }
 
+    /// Whether nothing was fetched because every chunk failed
+    pub fn all_failed(&self) -> bool {
+        self.chunks_total > 0 && self.chunks_failed >= self.chunks_total
+    }
+
+    /// Why an incomplete fetch should fail, if it should. Missing rows look just
+    /// like a range with fewer events, so gaps are an error unless allowed. A fetch
+    /// that got nothing is always an error.
+    pub fn incomplete_error(&self, allow_partial: bool) -> Option<String> {
+        if self.is_complete() {
+            None
+        } else if self.all_failed() {
+            Some(format!(
+                "Fetch failed: all {} chunks failed, so these results say nothing about the range",
+                self.chunks_total
+            ))
+        } else if allow_partial {
+            None
+        } else {
+            Some(format!(
+                "Fetch incomplete: {} of {} chunks failed, so the results have gaps. Retry, or \
+                 pass --allow-partial to accept them",
+                self.chunks_failed, self.chunks_total
+            ))
+        }
+    }
+
     /// Get success rate as percentage
     pub fn success_rate(&self) -> f64 {
         if self.chunks_total == 0 {
@@ -878,6 +905,43 @@ impl StreamingFetcher {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn incomplete_fetches_fail_unless_gaps_are_allowed() {
+        let stats = |total, failed| FetchStats {
+            chunks_total: total,
+            chunks_failed: failed,
+            ..Default::default()
+        };
+        assert_eq!(stats(2, 0).incomplete_error(false), None);
+        assert_eq!(stats(2, 0).incomplete_error(true), None);
+        assert!(stats(2, 1)
+            .incomplete_error(false)
+            .unwrap()
+            .contains("1 of 2"));
+        assert_eq!(stats(2, 1).incomplete_error(true), None);
+        assert!(stats(2, 2)
+            .incomplete_error(false)
+            .unwrap()
+            .contains("all 2"));
+        assert!(stats(2, 2)
+            .incomplete_error(true)
+            .unwrap()
+            .contains("all 2"));
+    }
+
+    #[test]
+    fn all_failed_needs_every_chunk_to_fail() {
+        let stats = |total, failed| FetchStats {
+            chunks_total: total,
+            chunks_failed: failed,
+            ..Default::default()
+        };
+        assert!(stats(2, 2).all_failed());
+        assert!(!stats(2, 1).all_failed());
+        assert!(!stats(2, 0).all_failed());
+        assert!(!stats(0, 0).all_failed());
+    }
+
     use super::*;
 
     /// JSON-RPC server that rejects `eth_getLogs` spanning more than `limit`

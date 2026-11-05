@@ -118,6 +118,7 @@ ethcli rpc nonce <addr>             # Account nonce
 ethcli logs -c <contract> -e "Transfer(address,address,uint256)" -f <from> -t <to>
 ethcli logs -c <contract> --since 7d    # Last 7 days
 ethcli logs -c <contract> --resume      # Resumable fetch
+ethcli logs -c <contract> --allow-partial  # Exit 0 with a warning if only some chunks fail (default: error)
 ethcli logs ... --format json|ndjson    # Output format
 ```
 

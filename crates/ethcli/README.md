@@ -175,6 +175,9 @@ ethcli logs -c 0x... -f 18000000 -t 18100000 -o sqlite -O events.db
 
 # High concurrency with resume
 ethcli logs -c 0x... -f 0 -t latest -n 20 --resume
+
+# Accept gaps: exit 0 with a warning if only some chunks fail (the default is an error)
+ethcli logs -c 0x... -f 0 -t latest --allow-partial
 ```
 
 ### Transaction - Analyze Transactions

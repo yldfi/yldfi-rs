@@ -238,7 +238,7 @@ fn select_endpoint_config(config: &ConfigFile, chain: Chain) -> anyhow::Result<E
     select_endpoint_config_with_options(config, chain, &SelectionOptions::default())
 }
 
-fn is_restricted_rpc_url(url: &str) -> bool {
+pub(crate) fn is_restricted_rpc_url(url: &str) -> bool {
     let url = url.to_ascii_lowercase();
     url.contains("flashbots.net")
 }

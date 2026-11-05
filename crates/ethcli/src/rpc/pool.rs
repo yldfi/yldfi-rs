@@ -226,6 +226,15 @@ impl RpcPool {
             .cloned()
             .collect();
 
+        // A relay RPC can answer eth_getLogs with success and no logs, which looks
+        // like a real empty result. Keep relays only if there is nothing else.
+        if endpoint_configs
+            .iter()
+            .any(|e| !super::selector::is_restricted_rpc_url(&e.url))
+        {
+            endpoint_configs.retain(|e| !super::selector::is_restricted_rpc_url(&e.url));
+        }
+
         // Add additional endpoints (these bypass chain filter as they're explicitly added)
         for url in &config.add_endpoints {
             if !endpoint_configs.iter().any(|e| &e.url == url) {
@@ -733,6 +742,24 @@ impl RpcPool {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn relays_are_left_out_unless_there_is_nothing_else() {
+        use crate::config::{Chain, EndpointConfig};
+        let relay = EndpointConfig::new("https://rpc.flashbots.net/fast");
+        let normal = EndpointConfig::new("https://rpc.example.com");
+
+        let mut config = super::RpcConfig {
+            endpoints: vec![relay.clone(), normal],
+            ..Default::default()
+        };
+        let pool = super::RpcPool::new(Chain::Ethereum, &config).unwrap();
+        assert_eq!(pool.endpoint_count(), 1);
+
+        config.endpoints = vec![relay];
+        let pool = super::RpcPool::new(Chain::Ethereum, &config).unwrap();
+        assert_eq!(pool.endpoint_count(), 1);
+    }
 
     #[test]
     fn disabled_proxy_is_ignored_and_rotation_is_refused() {

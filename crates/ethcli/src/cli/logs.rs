@@ -76,9 +76,14 @@ pub struct LogsArgs {
     #[arg(long, value_name = "FILE")]
     pub checkpoint: Option<PathBuf>,
 
-    /// Fail if any chunk fails (default: warn and continue)
-    #[arg(long)]
+    /// Fail if any chunk fails. This is the default; kept for existing scripts
+    #[arg(long, conflicts_with = "allow_partial")]
     pub strict: bool,
+
+    /// Exit 0 with a warning when only some chunks fail, leaving gaps in the
+    /// results. A fetch where every chunk fails is still an error
+    #[arg(long)]
+    pub allow_partial: bool,
 
     /// Override block range per request (chunk size)
     #[arg(long, value_name = "SIZE")]
