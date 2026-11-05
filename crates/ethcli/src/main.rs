@@ -789,33 +789,23 @@ fn build_rpc_config_from_logs_args(
 ) -> anyhow::Result<RpcConfig> {
     let mut rpc_config = RpcConfig::default();
 
-    // Custom endpoints from CLI
-    if !rpc.rpc_urls.is_empty() {
-        rpc_config.endpoints = rpc.rpc_urls.iter().map(EndpointConfig::new).collect();
-    }
-
-    // Load from file
-    if let Some(path) = &rpc.rpc_file {
-        let content = std::fs::read_to_string(path)?;
-        for line in content.lines() {
-            let url = line.trim();
-            if !url.is_empty() && !url.starts_with('#') {
-                rpc_config.endpoints.push(EndpointConfig::new(url));
+    if rpc.rpc_urls.is_empty() && rpc.rpc_file.is_none() {
+        // Add custom endpoints from config file
+        if let Some(cf) = config_file {
+            for endpoint in &cf.endpoints {
+                if !rpc_config.endpoints.iter().any(|e| e.url == endpoint.url) {
+                    rpc_config.endpoints.push(endpoint.clone());
+                }
             }
         }
-    }
-
-    // Add custom endpoints from config file
-    if let Some(cf) = config_file {
-        for endpoint in &cf.endpoints {
-            if !rpc_config.endpoints.iter().any(|e| e.url == endpoint.url) {
-                rpc_config.endpoints.push(endpoint.clone());
-            }
-        }
+    } else {
+        // --rpc / --rpc-file replace the pool. They go in `add_endpoints` because the
+        // pool gives those the requested chain and doesn't apply its config filters.
+        rpc_config.add_endpoints = explicit_rpc_urls(rpc)?;
     }
 
     // Additional endpoints
-    rpc_config.add_endpoints = rpc.add_rpc.clone();
+    rpc_config.add_endpoints.extend(rpc.add_rpc.iter().cloned());
 
     // Excluded endpoints from CLI
     rpc_config.exclude_endpoints = rpc.exclude_rpc.clone();
@@ -871,6 +861,26 @@ fn build_rpc_config_from_logs_args(
     }
 
     Ok(rpc_config)
+}
+
+/// The URLs from `--rpc` and `--rpc-file`, without any in `--exclude-rpc`.
+fn explicit_rpc_urls(rpc: &RpcArgs) -> anyhow::Result<Vec<String>> {
+    let mut urls = rpc.rpc_urls.clone();
+    if let Some(path) = &rpc.rpc_file {
+        let content = std::fs::read_to_string(path)?;
+        urls.extend(
+            content
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                .map(String::from),
+        );
+    }
+    urls.retain(|url| !rpc.exclude_rpc.contains(url));
+    if urls.is_empty() && rpc.add_rpc.is_empty() {
+        anyhow::bail!("--rpc and --rpc-file left no RPC URLs to use");
+    }
+    Ok(urls)
 }
 
 /// Build RPC config from `LogsArgs` with `chunk_size` support
@@ -2834,6 +2844,81 @@ fn handle_help_json(args: &[String]) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod logs_rpc_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct TestArgs {
+        #[command(flatten)]
+        rpc: RpcArgs,
+        #[command(flatten)]
+        proxy: ProxyArgs,
+    }
+
+    const CONFIG_A: &str = "https://config-a.example.com";
+    const CONFIG_B: &str = "https://config-b.example.com";
+    const EXPLICIT: &str = "https://explicit.example.com";
+
+    fn config_file() -> Option<ConfigFile> {
+        let mut file = ConfigFile::default();
+        file.endpoints = vec![
+            EndpointConfig::new(CONFIG_A).with_chain(Chain::Arbitrum),
+            EndpointConfig::new(CONFIG_B).with_chain(Chain::Arbitrum),
+        ];
+        Some(file)
+    }
+
+    fn config(args: &[&str]) -> anyhow::Result<RpcConfig> {
+        let parsed = TestArgs::parse_from(std::iter::once("test").chain(args.iter().copied()));
+        build_rpc_config_from_logs_args(&parsed.rpc, &parsed.proxy, &config_file(), 1)
+    }
+
+    #[test]
+    fn rpc_replaces_the_config_endpoints_on_any_chain() {
+        let cfg = config(&["--rpc", EXPLICIT]).unwrap();
+        assert!(cfg.endpoints.is_empty());
+        assert_eq!(cfg.add_endpoints, [EXPLICIT]);
+        let pool = RpcPool::new(Chain::Arbitrum, &cfg).unwrap();
+        assert_eq!(pool.endpoint_count(), 1);
+    }
+
+    #[test]
+    fn rpc_file_replaces_the_config_endpoints() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rpcs.txt");
+        std::fs::write(&path, format!("# comment\n\n{EXPLICIT}\n")).unwrap();
+        let cfg = config(&["--rpc-file", path.to_str().unwrap()]).unwrap();
+        assert!(cfg.endpoints.is_empty());
+        assert_eq!(cfg.add_endpoints, [EXPLICIT]);
+    }
+
+    #[test]
+    fn an_empty_rpc_file_is_an_error_not_the_config_pool() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rpcs.txt");
+        std::fs::write(&path, "# nothing here\n").unwrap();
+        assert!(config(&["--rpc-file", path.to_str().unwrap()]).is_err());
+    }
+
+    #[test]
+    fn add_rpc_joins_the_rpc_list_and_keeps_the_config_without_it() {
+        let cfg = config(&["--rpc", EXPLICIT, "--add-rpc", CONFIG_A]).unwrap();
+        assert!(cfg.endpoints.is_empty());
+        assert_eq!(cfg.add_endpoints, [EXPLICIT, CONFIG_A]);
+
+        let cfg = config(&["--add-rpc", EXPLICIT]).unwrap();
+        assert_eq!(cfg.endpoints.len(), 2);
+        assert_eq!(cfg.add_endpoints, [EXPLICIT]);
+    }
+
+    #[test]
+    fn exclude_rpc_applies_to_the_rpc_list() {
+        assert!(config(&["--rpc", EXPLICIT, "--exclude-rpc", EXPLICIT]).is_err());
+    }
 }
 
 #[cfg(test)]

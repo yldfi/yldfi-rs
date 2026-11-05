@@ -98,7 +98,7 @@ pub struct LogsArgs {
 
 #[derive(Args)]
 pub struct RpcArgs {
-    /// Use only this RPC endpoint (can be repeated)
+    /// Use only this RPC endpoint, not the config's (can be repeated)
     #[arg(long = "rpc", action = clap::ArgAction::Append, value_name = "URL")]
     pub rpc_urls: Vec<String>,
 
@@ -110,7 +110,7 @@ pub struct RpcArgs {
     #[arg(long = "exclude-rpc", action = clap::ArgAction::Append, value_name = "URL")]
     pub exclude_rpc: Vec<String>,
 
-    /// Load RPC URLs from file
+    /// Use only the RPC URLs in this file, not the config's
     #[arg(long, value_name = "FILE")]
     pub rpc_file: Option<PathBuf>,
 
