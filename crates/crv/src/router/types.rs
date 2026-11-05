@@ -442,7 +442,7 @@ impl RouteGraph {
     }
 }
 
-/// Known wrapper token pairs for special swap type 8
+/// Known wrapper token pairs, which the router handles without a pool
 #[derive(Debug, Clone)]
 pub struct WrapperPair {
     /// Token A address
@@ -454,6 +454,27 @@ pub struct WrapperPair {
     /// Symbol for token B
     pub symbol_b: String,
 }
+
+impl WrapperPair {
+    /// Swap parameters for wrapping (A -> B) or unwrapping (B -> A).
+    ///
+    /// Router v1.2 handles frxETH <-> sfrxETH as an ERC4626 vault: swap type 9,
+    /// with `i` choosing deposit or redeem. It rejects them under swap type 8,
+    /// which it keeps for the other pairs.
+    #[must_use]
+    pub fn swap_params(&self, wrap: bool) -> SwapParams {
+        let is_vault = self.token_b.eq_ignore_ascii_case(SFRXETH);
+        let (i, swap_type) = match (is_vault, wrap) {
+            (true, true) => (0, SwapType::Erc4626),
+            (true, false) => (1, SwapType::Erc4626),
+            (false, _) => (0, SwapType::Wrap),
+        };
+        SwapParams::new(i, 0, swap_type, PoolType::Stable, 2)
+    }
+}
+
+/// sfrxETH, the one ERC4626 vault in [`eth_wrapper_pairs`]
+const SFRXETH: &str = "0xac3E018457B222d93114458476f3E3416Abbe38F";
 
 /// Ethereum mainnet wrapper pairs
 #[must_use]
@@ -484,7 +505,7 @@ pub fn eth_wrapper_pairs() -> Vec<WrapperPair> {
 #[must_use]
 pub fn router_address(chain: &str) -> Option<&'static str> {
     match chain.to_lowercase().as_str() {
-        "ethereum" | "eth" | "mainnet" => Some("0x16C6521Dff6baB339122a0FE25a9116693265353"),
+        "ethereum" | "eth" | "mainnet" => Some("0x45312ea0eFf7E09C83CBE249fa1d7598c4C8cd4e"),
         "optimism" | "op" => Some("0x0DCDED3545D565bA3B19E683431381007245d983"),
         "polygon" | "matic" => Some("0x0DCDED3545D565bA3B19E683431381007245d983"),
         "arbitrum" | "arb" => Some("0x2191718CD32d02B8E60BAdFFeA33E4B5DD9A0A0D"),
@@ -494,7 +515,7 @@ pub fn router_address(chain: &str) -> Option<&'static str> {
         "bsc" | "bnb" => Some("0xA72C85C258A81761433B4e8da60505Fe3Dd551CC"),
         "gnosis" | "xdai" => Some("0x0DCDED3545D565bA3B19E683431381007245d983"),
         "kava" => Some("0x0DCDED3545D565bA3B19E683431381007245d983"),
-        "fraxtal" => Some("0x9f2Fa7709B30c75047980a0d70A106728f0Ef2db"),
+        "fraxtal" => Some("0xC5898606BdB494a994578453B92e7910a90aA873"),
         "mantle" => Some("0x4f37A9d177470499A2dD084621020b023fcffc1F"),
         "zksync" => Some("0x7C915390e109CA66934f1eB285854375D1B127FA"),
         "xlayer" | "x-layer" => Some("0xBFab8ebc836E1c4D81837798FC076D219C9a1855"),
@@ -616,6 +637,32 @@ mod tests {
             assert_eq!(PoolType::from_u8(value), Some(pool_type));
         }
         assert_eq!(PoolType::from_u8(5), None);
+    }
+
+    #[test]
+    fn test_wrapper_swap_types_match_router_v1_2() {
+        for pair in eth_wrapper_pairs() {
+            let (wrap, unwrap) = (pair.swap_params(true), pair.swap_params(false));
+            if pair.symbol_b == "sfrxETH" {
+                assert_eq!((wrap.i, wrap.swap_type), (0, SwapType::Erc4626));
+                assert_eq!((unwrap.i, unwrap.swap_type), (1, SwapType::Erc4626));
+            } else {
+                assert_eq!((wrap.i, wrap.swap_type), (0, SwapType::Wrap));
+                assert_eq!((unwrap.i, unwrap.swap_type), (0, SwapType::Wrap));
+            }
+        }
+    }
+
+    #[test]
+    fn test_router_v1_2_addresses() {
+        assert_eq!(
+            router_address("ethereum"),
+            Some("0x45312ea0eFf7E09C83CBE249fa1d7598c4C8cd4e")
+        );
+        assert_eq!(
+            router_address("fraxtal"),
+            Some("0xC5898606BdB494a994578453B92e7910a90aA873")
+        );
     }
 
     #[test]
