@@ -531,7 +531,14 @@ async fn reverse_lookup<P: Provider>(
     let Some(claimed) = reverse_record(provider, address).await? else {
         return Ok(ReverseName::NotSet);
     };
-    let resolves_to = resolve_name(provider, &claimed).await.ok();
+    // An RPC failure says nothing about the name, so it must not read as "no
+    // verified name". Anything else, such as a reverting resolver, means the
+    // claimed name doesn't resolve.
+    let resolves_to = match resolve_name(provider, &claimed).await {
+        Ok(address) => Some(address),
+        Err(e) if crate::rpc::is_failover_error(&format!("{e:#}")) => return Err(e),
+        Err(_) => None,
+    };
     // A name that isn't already in normal form (mixed case, decomposed or
     // control/bidi characters) can display differently from what it hashes to.
     if resolves_to == Some(address)

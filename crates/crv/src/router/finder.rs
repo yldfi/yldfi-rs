@@ -27,6 +27,11 @@ pub fn find_routes(graph: &RouteGraph, from: &str, to: &str) -> Vec<Route> {
     let from_lower = from.to_lowercase();
     let to_lower = to.to_lowercase();
 
+    // A token to itself isn't a swap: searching would return A -> B -> A round trips
+    if from_lower == to_lower {
+        return Vec::new();
+    }
+
     // Early exit if tokens don't exist in graph
     if !graph.has_token(&from_lower) || !graph.has_token(&to_lower) {
         return Vec::new();
@@ -257,6 +262,12 @@ pub fn find_best_route(graph: &RouteGraph, from: &str, to: &str) -> Option<Route
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn same_token_has_no_routes() {
+        let graph = make_test_graph();
+        assert!(find_routes(&graph, "0xa", "0xA").is_empty());
+    }
+
     use super::*;
     use crate::router::types::{PoolType, SwapParams, SwapType};
 
