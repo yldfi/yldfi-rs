@@ -488,12 +488,8 @@ async fn fetch_llama_price(
     let llama_token = if is_address {
         dllma::coins::Token::new(normalize_chain_for_source("llama", chain), token)
     } else {
-        // For symbols, try common mappings via coingecko
-        match token.to_lowercase().as_str() {
-            "eth" | "ethereum" => dllma::coins::Token::coingecko("ethereum"),
-            "btc" | "bitcoin" => dllma::coins::Token::coingecko("bitcoin"),
-            _ => dllma::coins::Token::coingecko(token.to_lowercase()),
-        }
+        // DefiLlama looks symbols up by CoinGecko id, which often isn't the ticker
+        dllma::coins::Token::coingecko(symbol_to_coingecko_id(token))
     };
 
     // Use cached client (PERF-001 fix)
@@ -1992,6 +1988,12 @@ async fn fetch_kong_vault_price(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn coingecko_ids_differ_from_tickers_where_needed() {
+        assert_eq!(symbol_to_coingecko_id("eth"), "ethereum");
+        assert_eq!(symbol_to_coingecko_id("BNB"), "binancecoin");
+        assert_eq!(symbol_to_coingecko_id("crv"), "curve-dao-token");
+    }
 
     #[test]
     fn best_source_is_the_fastest_agreeing_one() {

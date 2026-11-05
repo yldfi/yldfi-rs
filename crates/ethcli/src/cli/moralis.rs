@@ -1256,21 +1256,7 @@ async fn handle_nft(
         }
         NftCommands::MultipleNfts { tokens } => {
             // Format: "addr1:id1,addr2:id2"
-            let token_inputs: Vec<mrls::nft::NftTokenInput> = tokens
-                .split(',')
-                .map(str::trim)
-                .filter_map(|t| {
-                    let parts: Vec<&str> = t.splitn(2, ':').collect();
-                    if parts.len() == 2 {
-                        Some(mrls::nft::NftTokenInput {
-                            token_address: parts[0].to_string(),
-                            token_id: parts[1].to_string(),
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+            let token_inputs = parse_nft_tokens(tokens)?;
             if !quiet {
                 eprintln!("Fetching {} NFTs...", token_inputs.len());
             }
@@ -1756,8 +1742,40 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
     Ok(())
 }
 
+/// Parse `addr1:id1,addr2:id2`. A bad entry is an error: dropping it would
+/// silently return fewer NFTs than asked for.
+fn parse_nft_tokens(tokens: &str) -> anyhow::Result<Vec<mrls::nft::NftTokenInput>> {
+    tokens
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(|t| {
+            let (token_address, token_id) = t
+                .split_once(':')
+                .ok_or_else(|| anyhow::anyhow!("Invalid NFT {t:?}: expected address:token_id"))?;
+            Ok(mrls::nft::NftTokenInput {
+                token_address: token_address.to_string(),
+                token_id: token_id.to_string(),
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn nft_tokens_reject_bad_entries() {
+        let parsed = super::parse_nft_tokens("0xa:1, 0xb:2").unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[1].token_address, "0xb");
+        assert_eq!(parsed[1].token_id, "2");
+        let err = super::parse_nft_tokens("0xa:1,0xb")
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(err.contains("0xb"), "{err}");
+    }
+
     use super::ensure_moralis_chain_supported;
 
     #[test]

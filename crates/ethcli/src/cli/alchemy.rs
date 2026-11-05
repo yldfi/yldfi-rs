@@ -1776,10 +1776,7 @@ async fn handle_trace(
             if !quiet {
                 eprintln!("Fetching trace at {}...", hash);
             }
-            let idx: Vec<u32> = indices
-                .split(',')
-                .filter_map(|s| s.trim().parse().ok())
-                .collect();
+            let idx = parse_trace_indices(indices)?;
             let response = client.trace().get(hash, &idx).await?;
             print_output(&response, args.format)?;
         }
@@ -2433,8 +2430,30 @@ fn rpc_block_param(block: &str) -> String {
     }
 }
 
+/// Parse trace indices such as `0,1,3`. A bad entry is an error: dropping it
+/// would silently fetch a different trace.
+fn parse_trace_indices(indices: &str) -> anyhow::Result<Vec<u32>> {
+    indices
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            s.parse()
+                .map_err(|_| anyhow::anyhow!("Invalid trace index {s:?} in {indices:?}"))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn trace_indices_reject_bad_entries() {
+        assert_eq!(parse_trace_indices("0, 1,3").unwrap(), [0, 1, 3]);
+        assert_eq!(parse_trace_indices("").unwrap(), Vec::<u32>::new());
+        let err = parse_trace_indices("1,x,3").unwrap_err().to_string();
+        assert!(err.contains("\"x\""), "{err}");
+    }
+
     use super::*;
     use secrecy::SecretString;
 

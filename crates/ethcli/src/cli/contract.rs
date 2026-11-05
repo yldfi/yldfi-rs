@@ -1464,11 +1464,7 @@ fn print_analysis_table(analysis: &BytecodeAnalysis) {
                 }
             });
             // Truncate signature if too long
-            let sig_display = if sig.len() > 33 {
-                format!("{}...", &sig[..30])
-            } else {
-                sig
-            };
+            let sig_display = crate::utils::format::truncate_str(&sig, 33);
             println!(
                 "  {:<12} {:<35} {:<12}",
                 func.selector, sig_display, func.state_mutability
@@ -1486,11 +1482,7 @@ fn print_analysis_table(analysis: &BytecodeAnalysis) {
         println!("  {:<12} {:<12} {:<35}", "Selector", "Handler", "Signature");
         for entry in dispatcher.iter().take(10) {
             let sig = entry.signature.as_deref().unwrap_or("");
-            let sig_display = if sig.len() > 33 {
-                format!("{}...", &sig[..30])
-            } else {
-                sig.to_string()
-            };
+            let sig_display = crate::utils::format::truncate_str(sig, 33);
             println!(
                 "  {:<12} 0x{:<10x} {:<35}",
                 entry.selector, entry.handler_offset, sig_display

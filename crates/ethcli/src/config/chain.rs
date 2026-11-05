@@ -9,7 +9,7 @@ pub type ChainId = u64;
 
 /// Supported blockchain networks
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", from = "ChainRepr")]
 #[non_exhaustive]
 pub enum Chain {
     #[default]
@@ -23,6 +23,39 @@ pub enum Chain {
     /// Custom chain with ID
     #[serde(untagged)]
     Custom(ChainId),
+}
+
+/// How a chain is read from config: a name, or any chain ID. Going through
+/// [`Chain::from_chain_id`] means `chain = 1` is the same as `chain = "ethereum"`.
+/// As `Custom(1)` it would be a different value, and endpoint filters would never
+/// match it.
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ChainRepr {
+    Ethereum,
+    Polygon,
+    Arbitrum,
+    Optimism,
+    Base,
+    Bsc,
+    Avalanche,
+    #[serde(untagged)]
+    Id(ChainId),
+}
+
+impl From<ChainRepr> for Chain {
+    fn from(repr: ChainRepr) -> Self {
+        match repr {
+            ChainRepr::Ethereum => Chain::Ethereum,
+            ChainRepr::Polygon => Chain::Polygon,
+            ChainRepr::Arbitrum => Chain::Arbitrum,
+            ChainRepr::Optimism => Chain::Optimism,
+            ChainRepr::Base => Chain::Base,
+            ChainRepr::Bsc => Chain::Bsc,
+            ChainRepr::Avalanche => Chain::Avalanche,
+            ChainRepr::Id(id) => Chain::from_chain_id(id),
+        }
+    }
 }
 
 impl Chain {
@@ -283,6 +316,24 @@ impl From<Chain> for yldfi_common::Chain {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn chain_ids_in_config_match_named_chains() {
+        let parse = |json: &str| serde_json::from_str::<Chain>(json).unwrap();
+        assert_eq!(parse("1"), Chain::Ethereum);
+        assert_eq!(parse("137"), Chain::Polygon);
+        assert_eq!(parse("\"ethereum\""), Chain::Ethereum);
+        assert_eq!(parse("99999"), Chain::Custom(99999));
+        // Round trips keep their form
+        assert_eq!(
+            serde_json::to_string(&Chain::Polygon).unwrap(),
+            "\"polygon\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Chain::Custom(99999)).unwrap(),
+            "99999"
+        );
+    }
+
     use super::*;
 
     #[test]
