@@ -310,8 +310,8 @@ async fn run() -> anyhow::Result<()> {
             return ethcli::cli::chainlink::handle(action, cli.quiet).await;
         }
 
-        Commands::Ccxt { action } => {
-            return ethcli::cli::ccxt::handle(action, cli.quiet).await;
+        Commands::Cex { action } => {
+            return ethcli::cli::cex::handle(action, cli.quiet).await;
         }
 
         Commands::Uniswap { action } => {

@@ -1155,15 +1155,15 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
-    // CCXT (Exchange Data)
+    // CEX (Exchange Data)
     // =========================================================================
 
     #[tool(
         description = "Get a 24h ticker from a centralized exchange or perp venue",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
-    async fn ccxt_ticker(&self, Parameters(input): Parameters<CcxtTickerInput>) -> CallToolResult {
-        tools::ccxt_ticker(&input.exchange, &input.symbol)
+    async fn cex_ticker(&self, Parameters(input): Parameters<CexTickerInput>) -> CallToolResult {
+        tools::cex_ticker(&input.exchange, &input.symbol)
             .await
             .to_response()
     }
@@ -1172,11 +1172,11 @@ impl EthcliMcpServer {
         description = "Get the order book from a centralized exchange or perp venue",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
-    async fn ccxt_orderbook(
+    async fn cex_orderbook(
         &self,
-        Parameters(input): Parameters<CcxtOrderbookInput>,
+        Parameters(input): Parameters<CexOrderbookInput>,
     ) -> CallToolResult {
-        tools::ccxt_orderbook(&input.exchange, &input.symbol, input.limit)
+        tools::cex_orderbook(&input.exchange, &input.symbol, input.limit)
             .await
             .to_response()
     }
@@ -6461,18 +6461,15 @@ impl EthcliMcpServer {
     }
 
     // =========================================================================
-    // CCXT (additional)
+    // CEX (additional)
     // =========================================================================
 
     #[tool(
         description = "Get all tickers from an exchange",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
-    async fn ccxt_tickers(
-        &self,
-        Parameters(input): Parameters<CcxtExchangeInput>,
-    ) -> CallToolResult {
-        tools::ccxt_tickers(&input.exchange, None)
+    async fn cex_tickers(&self, Parameters(input): Parameters<CexExchangeInput>) -> CallToolResult {
+        tools::cex_tickers(&input.exchange, None)
             .await
             .to_response()
     }
@@ -6481,8 +6478,8 @@ impl EthcliMcpServer {
         description = "Get OHLCV candlestick data from an exchange",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
-    async fn ccxt_ohlcv(&self, Parameters(input): Parameters<CcxtOhlcvInput>) -> CallToolResult {
-        tools::ccxt_ohlcv(&input.exchange, &input.symbol, input.timeframe.as_deref())
+    async fn cex_ohlcv(&self, Parameters(input): Parameters<CexOhlcvInput>) -> CallToolResult {
+        tools::cex_ohlcv(&input.exchange, &input.symbol, input.timeframe.as_deref())
             .await
             .to_response()
     }
@@ -6491,8 +6488,8 @@ impl EthcliMcpServer {
         description = "Get recent trades from an exchange",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
-    async fn ccxt_trades(&self, Parameters(input): Parameters<CcxtTradesInput>) -> CallToolResult {
-        tools::ccxt_trades(&input.exchange, &input.symbol)
+    async fn cex_trades(&self, Parameters(input): Parameters<CexTradesInput>) -> CallToolResult {
+        tools::cex_trades(&input.exchange, &input.symbol)
             .await
             .to_response()
     }
@@ -6501,22 +6498,16 @@ impl EthcliMcpServer {
         description = "Get market info from an exchange",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
-    async fn ccxt_markets(
-        &self,
-        Parameters(input): Parameters<CcxtExchangeInput>,
-    ) -> CallToolResult {
-        tools::ccxt_markets(&input.exchange).await.to_response()
+    async fn cex_markets(&self, Parameters(input): Parameters<CexExchangeInput>) -> CallToolResult {
+        tools::cex_markets(&input.exchange).await.to_response()
     }
 
     #[tool(
         description = "Compare prices across exchanges",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
-    async fn ccxt_compare(
-        &self,
-        Parameters(input): Parameters<CcxtCompareInput>,
-    ) -> CallToolResult {
-        tools::ccxt_compare(&input.symbol).await.to_response()
+    async fn cex_compare(&self, Parameters(input): Parameters<CexCompareInput>) -> CallToolResult {
+        tools::cex_compare(&input.symbol).await.to_response()
     }
 
     // =========================================================================

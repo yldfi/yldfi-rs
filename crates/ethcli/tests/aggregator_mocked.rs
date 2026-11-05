@@ -319,7 +319,7 @@ fn test_price_source_from_str() {
         "alchemy".parse::<PriceSource>().unwrap(),
         PriceSource::Alchemy
     );
-    assert_eq!("ccxt".parse::<PriceSource>().unwrap(), PriceSource::Ccxt);
+    assert_eq!("cex".parse::<PriceSource>().unwrap(), PriceSource::Cex);
     assert_eq!(
         "chainlink".parse::<PriceSource>().unwrap(),
         PriceSource::Chainlink

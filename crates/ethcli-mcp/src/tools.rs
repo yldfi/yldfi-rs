@@ -6389,11 +6389,11 @@ pub async fn chainlink_streams_history(
 }
 
 // =============================================================================
-// CCXT (7 subcommands) - Exchange data
+// CEX (7 subcommands) - Exchange data
 // =============================================================================
 
-pub async fn ccxt_ticker(exchange: &str, symbol: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("ccxt")
+pub async fn cex_ticker(exchange: &str, symbol: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("cex")
         .subcommand("ticker")
         .arg(symbol)
         .opt("--exchange", Some(exchange))
@@ -6403,8 +6403,8 @@ pub async fn ccxt_ticker(exchange: &str, symbol: &str) -> Result<String, ToolErr
         .map_err(ToolError::from)
 }
 
-pub async fn ccxt_tickers(exchange: &str, symbols: Option<&str>) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("ccxt")
+pub async fn cex_tickers(exchange: &str, symbols: Option<&str>) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("cex")
         .subcommand("tickers")
         .opt("--exchange", Some(exchange));
 
@@ -6419,12 +6419,12 @@ pub async fn ccxt_tickers(exchange: &str, symbols: Option<&str>) -> Result<Strin
         .map_err(ToolError::from)
 }
 
-pub async fn ccxt_orderbook(
+pub async fn cex_orderbook(
     exchange: &str,
     symbol: &str,
     limit: Option<u32>,
 ) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("ccxt")
+    let mut builder = ArgsBuilder::new("cex")
         .subcommand("order-book")
         .arg(symbol)
         .opt("--exchange", Some(exchange));
@@ -6440,12 +6440,12 @@ pub async fn ccxt_orderbook(
         .map_err(ToolError::from)
 }
 
-pub async fn ccxt_ohlcv(
+pub async fn cex_ohlcv(
     exchange: &str,
     symbol: &str,
     timeframe: Option<&str>,
 ) -> Result<String, ToolError> {
-    ArgsBuilder::new("ccxt")
+    ArgsBuilder::new("cex")
         .subcommand("ohlcv")
         .arg(symbol)
         .opt("--exchange", Some(exchange))
@@ -6456,8 +6456,8 @@ pub async fn ccxt_ohlcv(
         .map_err(ToolError::from)
 }
 
-pub async fn ccxt_trades(exchange: &str, symbol: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("ccxt")
+pub async fn cex_trades(exchange: &str, symbol: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("cex")
         .subcommand("trades")
         .arg(symbol)
         .opt("--exchange", Some(exchange))
@@ -6467,8 +6467,8 @@ pub async fn ccxt_trades(exchange: &str, symbol: &str) -> Result<String, ToolErr
         .map_err(ToolError::from)
 }
 
-pub async fn ccxt_markets(exchange: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("ccxt")
+pub async fn cex_markets(exchange: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("cex")
         .subcommand("markets")
         .opt("--exchange", Some(exchange))
         .format_json()
@@ -6477,8 +6477,8 @@ pub async fn ccxt_markets(exchange: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
-pub async fn ccxt_compare(symbol: &str) -> Result<String, ToolError> {
-    ArgsBuilder::new("ccxt")
+pub async fn cex_compare(symbol: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("cex")
         .subcommand("compare")
         .arg(symbol)
         .format_json()

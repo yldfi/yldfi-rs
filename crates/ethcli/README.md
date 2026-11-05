@@ -48,7 +48,7 @@
 - **Dune Analytics**: Queries, executions, tables
 - **Curve Finance**: Pools, volumes, lending, tokens, router
 - **Chainlink**: Price feeds (RPC-based, no API key needed)
-- **Exchanges** (`ccxt`): Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter
+- **Exchanges** (`cex`): Binance, Bitget, OKX, Bybit, Coinbase, Kraken, Hyperliquid, Lighter
 - **Uniswap**: V2/V3/V4 pool queries (on-chain + subgraph)
 - **Yearn Kong**: Vaults, strategies, prices, TVL, reports
 
@@ -561,7 +561,7 @@ ethcli price ETH -o json
 ethcli price ETH -o table
 ```
 
-**Sources**: CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth (requires `PYTH_API_KEY`), exchanges (`ccxt`: Binance, Bitget, OKX)
+**Sources**: CoinGecko, DefiLlama, Alchemy, Moralis, Chainlink, Pyth (requires `PYTH_API_KEY`), exchanges (`cex`: Binance, Bitget, OKX)
 
 ### Portfolio - Multi-Source Balance Aggregation
 
@@ -865,30 +865,30 @@ ethcli curve router stats --chain ethereum
 ethcli curve router address ethereum
 ```
 
-### Exchange Data (`ccxt` / `cex`)
+### Exchange Data (`cex`, alias `ccxt`)
 
 Market data from centralised exchanges and perp venues, via the `cexm` crate.
 
 ```bash
 # Ticker (--exchange / -e defaults to binance)
-ethcli ccxt ticker BTC/USDT
-ethcli ccxt ticker ETH/USDT --exchange okx
-ethcli ccxt ticker ETH/USD -e coinbase
-ethcli ccxt ticker ETH/USDC:USDC -e hyperliquid   # perpetuals: BASE/USDC:USDC
+ethcli cex ticker BTC/USDT
+ethcli cex ticker ETH/USDT --exchange okx
+ethcli cex ticker ETH/USD -e coinbase
+ethcli cex ticker ETH/USDC:USDC -e hyperliquid   # perpetuals: BASE/USDC:USDC
 
 # Order book, candles, recent trades
-ethcli ccxt order-book BTC/USDT --limit 10
-ethcli ccxt ohlcv BTC/USDT --timeframe 1h --limit 100
-ethcli ccxt trades ETH/USDT -e bybit --limit 20
+ethcli cex order-book BTC/USDT --limit 10
+ethcli cex ohlcv BTC/USDT --timeframe 1h --limit 100
+ethcli cex trades ETH/USDT -e bybit --limit 20
 
 # Markets, and one pair across every exchange
-ethcli ccxt markets --exchange kraken --quote USD
-ethcli ccxt compare BTC/USDT
+ethcli cex markets --exchange kraken --quote USD
+ethcli cex compare BTC/USDT
 ```
 
 **Supported exchanges**: Binance, Bitget, OKX, Bybit, Coinbase and Kraken (spot), Hyperliquid and Lighter
 (perpetuals). Public data only, no API keys. Binance is queried via its market-data
-host `data-api.binance.vision`, which isn't region-locked. `ethcli cex` is an alias.
+host `data-api.binance.vision`, which isn't region-locked. `ethcli ccxt` is an alias.
 
 ### Chainlink - Price Feeds
 

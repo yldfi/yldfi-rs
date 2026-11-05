@@ -85,7 +85,7 @@ serde_urlencoded = "0.7"
 secrecy = { workspace = true }
 semver = "1"
 fs2 = "0.4"  # MED-003 fix: File locking for config persistence
-chrono = "0.4"  # Timestamp formatting for CCXT commands
+chrono = "0.4"  # Timestamp formatting for CEX commands
 
 # API clients
 alcmy = { version = "0.3.0", path = "../alcmy" }

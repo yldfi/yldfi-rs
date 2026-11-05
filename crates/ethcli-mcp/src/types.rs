@@ -2742,15 +2742,15 @@ pub struct CurveDaoLockersInput {
     pub top: Option<u32>,
 }
 
-// --- CCXT Extra ---
+// --- CEX Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CcxtExchangeInput {
+pub struct CexExchangeInput {
     /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CcxtOhlcvInput {
+pub struct CexOhlcvInput {
     /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
     /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
@@ -2760,7 +2760,7 @@ pub struct CcxtOhlcvInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CcxtTradesInput {
+pub struct CexTradesInput {
     /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
     /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
@@ -2768,7 +2768,7 @@ pub struct CcxtTradesInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CcxtCompareInput {
+pub struct CexCompareInput {
     /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
     pub symbol: String,
 }
@@ -3247,9 +3247,9 @@ fn default_chain_id() -> String {
     "1".to_string()
 }
 
-// --- CCXT ---
+// --- CEX ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CcxtTickerInput {
+pub struct CexTickerInput {
     /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
     /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps
@@ -3257,7 +3257,7 @@ pub struct CcxtTickerInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct CcxtOrderbookInput {
+pub struct CexOrderbookInput {
     /// Exchange: binance, bitget, okx, bybit, coinbase, kraken, hyperliquid, lighter
     pub exchange: String,
     /// Trading symbol: BASE/QUOTE for spot (BTC/USDT, ETH/USD), BASE/USDC:USDC for hyperliquid and lighter perps

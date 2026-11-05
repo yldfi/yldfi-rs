@@ -265,7 +265,7 @@ pub async fn fetch_prices_all(
         PriceSource::Alchemy,
         PriceSource::Moralis,
         PriceSource::Curve,
-        PriceSource::Ccxt,
+        PriceSource::Cex,
         PriceSource::Chainlink,
         PriceSource::Pyth,
         PriceSource::Uniswap,
@@ -375,7 +375,7 @@ pub async fn fetch_price_from_source(
         PriceSource::Alchemy => fetch_alchemy_price(token, chain, measure).await,
         PriceSource::Moralis => fetch_moralis_price(token, chain, measure).await,
         PriceSource::Curve => fetch_curve_price(token, chain, measure).await,
-        PriceSource::Ccxt => fetch_ccxt_price(token, measure).await,
+        PriceSource::Cex => fetch_cex_price(token, measure).await,
         PriceSource::Chainlink => fetch_chainlink_price(token, chain, measure).await,
         PriceSource::Pyth => fetch_pyth_price(token, measure).await,
         PriceSource::Uniswap => fetch_uniswap_price(token, chain, measure).await,
@@ -1041,7 +1041,7 @@ pub fn symbol_to_eth_address(symbol: &str) -> Option<&'static str> {
     }
 }
 
-/// Reverse map: Ethereum address to token symbol (for CCXT compatibility)
+/// Reverse map: Ethereum address to token symbol (for CEX compatibility)
 pub fn eth_address_to_symbol(address: &str) -> Option<&'static str> {
     match address.to_lowercase().as_str() {
         "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" => Some("USDC"),
@@ -1156,7 +1156,7 @@ pub fn symbol_to_coingecko_id(symbol: &str) -> String {
 /// Exchanges quote trading pairs, so the token is mapped to a symbol and
 /// priced against USDT. All three are queried in parallel and the first
 /// successful ticker wins.
-async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<NormalizedPrice> {
+async fn fetch_cex_price(token: &str, measure: LatencyMeasure) -> SourceResult<NormalizedPrice> {
     use cexm::Exchange;
     use futures::stream::{FuturesUnordered, StreamExt};
 
@@ -1166,7 +1166,7 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
             Some(sym) => sym.to_string(),
             None => {
                 return SourceResult::error(
-                    "ccxt",
+                    "cex",
                     format!("Cannot map address {} to trading symbol", token),
                     measure.elapsed_ms(),
                 );
@@ -1179,13 +1179,13 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
 
     let client = match cex_client() {
         Ok(client) => client,
-        Err(e) => return SourceResult::error("ccxt", e, measure.elapsed_ms()),
+        Err(e) => return SourceResult::error("cex", e, measure.elapsed_ms()),
     };
 
     let mut pending: FuturesUnordered<_> = [
-        (Exchange::Binance, "ccxt-binance"),
-        (Exchange::Bitget, "ccxt-bitget"),
-        (Exchange::Okx, "ccxt-okx"),
+        (Exchange::Binance, "cex-binance"),
+        (Exchange::Bitget, "cex-bitget"),
+        (Exchange::Okx, "cex-okx"),
     ]
     .into_iter()
     .map(|(exchange, source)| {
@@ -1204,7 +1204,7 @@ async fn fetch_ccxt_price(token: &str, measure: LatencyMeasure) -> SourceResult<
     }
 
     SourceResult::error(
-        "ccxt",
+        "cex",
         format!("Trading pair {} not found on any exchange", trading_pair),
         measure.elapsed_ms(),
     )
@@ -1955,7 +1955,7 @@ async fn fetch_kong_vault_price(
         PriceSource::Llama,
         PriceSource::Alchemy,
         PriceSource::Moralis,
-        PriceSource::Ccxt,
+        PriceSource::Cex,
         PriceSource::Chainlink,
         PriceSource::Pyth,
         PriceSource::Uniswap,

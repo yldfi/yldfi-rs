@@ -26,7 +26,7 @@ curve            | -                  | curve pools big ethereum
 curve-prices     | -                  | curve prices chains
 kong             | -                  | kong vaults list --chain-id 1 --yearn
 goplus           | -                  | goplus token 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
-ccxt-okx         | -                  | ccxt ticker BTC/USDT --exchange okx
+cex-okx         | -                  | cex ticker BTC/USDT --exchange okx
 velora           | -                  | velora price 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1000000000000000000
 openocean        | -                  | open-ocean quote 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1
 kyberswap        | -                  | kyber-swap routes 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 1000000000000000000

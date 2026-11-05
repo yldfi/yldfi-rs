@@ -859,7 +859,7 @@ fn is_known_message_prefix(lower: &str) -> bool {
     ];
     const SOURCES: [&str; 15] = [
         "alchemy",
-        "ccxt",
+        "cex",
         "chainlink",
         "curve",
         "curve-lending",

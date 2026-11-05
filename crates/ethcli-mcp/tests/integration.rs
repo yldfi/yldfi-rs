@@ -990,30 +990,30 @@ fn test_curve_crvusd() {
 }
 
 // =============================================================================
-// CCXT Tests (requires network)
+// CEX Tests (requires network)
 // =============================================================================
 
 #[test]
 #[ignore] // Requires network
-fn test_ccxt_ticker() {
+fn test_cex_ticker() {
     let mut client = McpClient::new();
     assert!(client.initialize());
 
     let response = client.call_tool(
-        "ccxt_ticker",
+        "cex_ticker",
         json!({"exchange": "binance", "symbol": "BTC/USDT"}),
     );
-    assert!(is_tool_success(&response), "ccxt_ticker should succeed");
+    assert!(is_tool_success(&response), "cex_ticker should succeed");
 }
 
 #[test]
 #[ignore] // Requires network
-fn test_ccxt_markets() {
+fn test_cex_markets() {
     let mut client = McpClient::new();
     assert!(client.initialize());
 
-    let response = client.call_tool("ccxt_markets", json!({"exchange": "binance"}));
-    assert!(is_tool_success(&response), "ccxt_markets should succeed");
+    let response = client.call_tool("cex_markets", json!({"exchange": "binance"}));
+    assert!(is_tool_success(&response), "cex_markets should succeed");
 }
 
 // =============================================================================
