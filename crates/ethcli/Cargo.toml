@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.25.4"
+version = "0.26.0"
 edition = "2021"
 rust-version = "1.95"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
@@ -21,7 +21,7 @@ path = "src/lib.rs"
 
 [dependencies]
 # Async runtime
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1", features = ["full"] }
 
 # Ethereum
 alloy = { version = "2", features = [
@@ -84,6 +84,7 @@ sha2 = "0.11"
 serde_urlencoded = "0.7"
 secrecy = { workspace = true }
 semver = "1"
+fs2 = "0.4"  # MED-003 fix: File locking for config persistence
 chrono = "0.4"  # Timestamp formatting for CEX commands
 
 # API clients
@@ -92,7 +93,7 @@ cgko = { version = "0.2.0", path = "../cgko" }
 dllma = { version = "0.2.1", path = "../dllma" }
 mrls = { version = "0.3.0", path = "../mrls" }
 dnapi = { version = "0.3.0", path = "../dnapi" }
-crv = { version = "0.2.0", path = "../crv" }
+crv = { version = "0.2.1", path = "../crv" }
 pythc = { version = "0.2.1", path = "../pythc" }
 tndrly = { version = "0.5.0", path = "../tndrly" }
 yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
