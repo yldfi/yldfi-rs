@@ -472,6 +472,18 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
 
     let config = builder.build()?;
 
+    if args.resume {
+        let checkpoint = args
+            .checkpoint
+            .clone()
+            .unwrap_or_else(|| default_checkpoint_path(&args.contract, config.chain.chain_id()));
+        if let Some(conflict) =
+            ethcli::checkpoint::resume_conflict(args.output.as_deref(), &checkpoint)
+        {
+            anyhow::bail!(conflict);
+        }
+    }
+
     // Create output writer early for streaming mode. A resumed run appends:
     // truncating would drop the results of the checkpointed ranges.
     let mut writer = if args.resume {

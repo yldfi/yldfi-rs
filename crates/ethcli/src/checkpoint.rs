@@ -367,10 +367,56 @@ fn current_timestamp() -> u64 {
     crate::utils::unix_timestamp_secs()
 }
 
+/// Why a `--resume` run can't safely append to its output, if it can't.
+///
+/// Without a checkpoint, a resumed run fetches the whole range. Appending that
+/// to a file that already has data would duplicate every row it holds.
+#[must_use]
+pub fn resume_conflict(output: Option<&Path>, checkpoint: &Path) -> Option<String> {
+    let output = output?;
+    let has_data = fs::metadata(output).is_ok_and(|m| m.len() > 0);
+    (has_data && !checkpoint.exists()).then(|| {
+        format!(
+            "{} already has data but there is no checkpoint at {}, so --resume would add \
+             every row again. Use a new output file, delete this one, or pass --checkpoint \
+             if the checkpoint is elsewhere",
+            output.display(),
+            checkpoint.display()
+        )
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::NamedTempFile;
+
+    #[test]
+    fn resume_conflict_only_when_data_has_no_checkpoint() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("out.ndjson");
+        let checkpoint = dir.path().join("fetch.checkpoint");
+
+        // stdout, or no output file yet
+        assert_eq!(resume_conflict(None, &checkpoint), None);
+        assert_eq!(resume_conflict(Some(&output), &checkpoint), None);
+
+        // An empty file has nothing to duplicate
+        fs::write(&output, "").unwrap();
+        assert_eq!(resume_conflict(Some(&output), &checkpoint), None);
+
+        // Data and no checkpoint
+        fs::write(&output, "{}\n").unwrap();
+        let message = resume_conflict(Some(&output), &checkpoint).unwrap();
+        assert!(
+            message.contains("out.ndjson") && message.contains("--resume"),
+            "{message}"
+        );
+
+        // Data and a checkpoint: a normal resume
+        fs::write(&checkpoint, "{}").unwrap();
+        assert_eq!(resume_conflict(Some(&output), &checkpoint), None);
+    }
 
     #[test]
     fn test_checkpoint_creation() {
