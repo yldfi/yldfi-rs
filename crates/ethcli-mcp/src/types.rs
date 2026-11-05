@@ -1021,7 +1021,7 @@ pub struct BlacklistPathInput {}
 pub struct ContractCallInput {
     /// Contract address
     pub address: String,
-    /// Function name or full signature (e.g. "balanceOf" or "balanceOf(address)")
+    /// Function name or full signature (e.g. "balanceOf", "balanceOf(address)" or "balanceOf(address)(uint256)"). A full signature with return types also works on unverified contracts
     pub sig: String,
     /// Arguments
     #[serde(default)]
