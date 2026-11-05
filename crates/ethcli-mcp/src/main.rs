@@ -7820,8 +7820,33 @@ async fn verify_ethcli() -> anyhow::Result<String> {
     Ok(version.trim().to_string())
 }
 
+/// The text to print instead of starting the server, for `--version` or `--help`
+fn info_for_args(args: impl IntoIterator<Item = String>) -> Option<String> {
+    let version = format!("ethcli-mcp {}", env!("CARGO_PKG_VERSION"));
+    args.into_iter().find_map(|arg| match arg.as_str() {
+        "--version" | "-V" => Some(version.clone()),
+        "--help" | "-h" => Some(format!(
+            "{version}\nMCP server exposing ethcli as tools, over stdio.\n\n\
+             Usage: ethcli-mcp [--version] [--help]\n\n\
+             Environment:\n  \
+             ETHCLI_PATH                       Absolute path to the ethcli binary\n  \
+             ETHCLI_MCP_ENABLE_WRITE_TOOLS=1   Enable tools that change config or remote state"
+        )),
+        _ => None,
+    })
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    if let Some(text) = info_for_args(std::env::args().skip(1)) {
+        // The server never starts here, so stdout isn't carrying the protocol
+        #[allow(clippy::print_stdout)]
+        {
+            println!("{text}");
+        }
+        return Ok(());
+    }
+
     // Initialize logging to stderr (NEVER stdout!)
     tracing_subscriber::registry()
         .with(
@@ -7878,6 +7903,26 @@ mod server_info_tests {
             .instructions
             .unwrap_or_default()
             .contains("ETHCLI_MCP_ENABLE_WRITE_TOOLS=1"));
+    }
+}
+
+#[cfg(test)]
+mod info_tests {
+    use super::info_for_args;
+
+    fn info(args: &[&str]) -> Option<String> {
+        info_for_args(args.iter().map(ToString::to_string))
+    }
+
+    #[test]
+    fn version_and_help_print_instead_of_starting_the_server() {
+        let version = format!("ethcli-mcp {}", env!("CARGO_PKG_VERSION"));
+        assert_eq!(info(&["--version"]), Some(version.clone()));
+        assert_eq!(info(&["-V"]), Some(version.clone()));
+        assert!(info(&["--help"]).unwrap().starts_with(&version));
+        assert!(info(&["-h"]).unwrap().contains("Usage:"));
+        assert_eq!(info(&[]), None);
+        assert_eq!(info(&["--other"]), None);
     }
 }
 
