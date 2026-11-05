@@ -466,8 +466,9 @@ fn decode_output(data: &[u8], type_sig: &str) -> anyhow::Result<String> {
 
     let ty = DynSolType::parse(type_sig).map_err(|e| anyhow::anyhow!("Invalid type: {}", e))?;
 
+    // A tuple is the return values themselves, not one value wrapped in an offset
     let decoded = ty
-        .abi_decode(data)
+        .abi_decode_params(data)
         .map_err(|e| anyhow::anyhow!("Failed to decode: {}", e))?;
 
     Ok(super::contract::format_value(&decoded))
@@ -490,6 +491,23 @@ fn format_gwei(wei: u128) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn decode_output_handles_dynamic_values() {
+        use alloy::dyn_abi::DynSolValue;
+        use alloy::primitives::U256;
+
+        let tuple = DynSolValue::Tuple(vec![
+            DynSolValue::Uint(U256::from(7), 256),
+            DynSolValue::String("hello".to_string()),
+        ])
+        .abi_encode_params();
+        let out = decode_output(&tuple, "(uint256,string)").unwrap();
+        assert!(out.contains("hello"), "{out}");
+
+        let single = DynSolValue::String("hello".to_string()).abi_encode();
+        assert!(decode_output(&single, "string").unwrap().contains("hello"));
+    }
+
     use super::*;
     use alloy::eips::{BlockId, BlockNumberOrTag};
 

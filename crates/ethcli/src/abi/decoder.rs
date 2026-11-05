@@ -185,16 +185,22 @@ impl LogDecoder {
         let mut all_types = Vec::new();
         let mut all_names = Vec::new();
 
-        for input in &event.inputs {
+        for (i, input) in event.inputs.iter().enumerate() {
             let ty = Self::resolve_event_param_type(input)?;
+            // Unnamed params would otherwise overwrite each other in the output
+            let name = if input.name.is_empty() {
+                format!("param{i}")
+            } else {
+                input.name.clone()
+            };
             all_types.push(ty.clone());
-            all_names.push(input.name.clone());
+            all_names.push(name.clone());
 
             if input.indexed {
-                indexed_names.push(input.name.clone());
+                indexed_names.push(name);
                 indexed_types.push(ty);
             } else {
-                data_names.push(input.name.clone());
+                data_names.push(name);
                 data_types.push(ty);
             }
         }
@@ -483,9 +489,13 @@ impl LogDecoder {
 
     /// Decode an indexed parameter from a topic
     fn decode_indexed(ty: &DynSolType, topic: &B256) -> Result<DecodedValue> {
-        // For dynamic types (string, bytes, arrays), the topic contains a hash
+        // For dynamic and composite types, the topic contains a hash
         match ty {
-            DynSolType::String | DynSolType::Bytes | DynSolType::Array(_) => {
+            DynSolType::String
+            | DynSolType::Bytes
+            | DynSolType::Array(_)
+            | DynSolType::FixedArray(..)
+            | DynSolType::Tuple(_) => {
                 // Cannot decode - return the hash
                 Ok(DecodedValue::Bytes(format!("{:#x}", topic)))
             }
@@ -502,8 +512,9 @@ impl LogDecoder {
     /// Decode non-indexed parameters from data
     fn decode_data(types: &[DynSolType], data: &[u8]) -> Result<Vec<DecodedValue>> {
         let tuple_type = DynSolType::Tuple(types.to_vec());
+        // Log data is a parameter sequence, with no leading offset for dynamic types
         let decoded = tuple_type
-            .abi_decode(data)
+            .abi_decode_params(data)
             .map_err(|e| AbiError::DecodeError(format!("Failed to decode data: {}", e)))?;
 
         match decoded {
@@ -543,6 +554,51 @@ impl LogDecoder {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unnamed_event_params_get_distinct_names() {
+        let event: alloy::json_abi::Event = serde_json::from_str(
+            r#"{"type":"event","name":"E","anonymous":false,"inputs":[
+                {"name":"","type":"address","indexed":true},
+                {"name":"","type":"uint256","indexed":false},
+                {"name":"amount","type":"uint256","indexed":false}]}"#,
+        )
+        .unwrap();
+        let info = LogDecoder::event_to_info(&event).unwrap();
+        assert_eq!(info.all_names, ["param0", "param1", "amount"]);
+        assert_eq!(info.indexed_names, ["param0"]);
+        assert_eq!(info.data_names, ["param1", "amount"]);
+    }
+
+    #[test]
+    fn indexed_composite_types_return_the_topic_hash() {
+        let topic = B256::repeat_byte(0xab);
+        let hash = format!("{topic:#x}");
+        for ty in [
+            DynSolType::Tuple(vec![DynSolType::Uint(256)]),
+            DynSolType::FixedArray(Box::new(DynSolType::Uint(256)), 2),
+            DynSolType::Array(Box::new(DynSolType::Uint(256))),
+            DynSolType::String,
+        ] {
+            match LogDecoder::decode_indexed(&ty, &topic).unwrap() {
+                DecodedValue::Bytes(value) => assert_eq!(value, hash, "{ty:?}"),
+                other => panic!("{ty:?} decoded as {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn event_data_with_dynamic_types_decodes() {
+        let encoded = DynSolValue::Tuple(vec![
+            DynSolValue::Uint(alloy::primitives::U256::from(7), 256),
+            DynSolValue::String("hello".to_string()),
+        ])
+        .abi_encode_params();
+        let decoded =
+            LogDecoder::decode_data(&[DynSolType::Uint(256), DynSolType::String], &encoded)
+                .unwrap();
+        assert_eq!(decoded.len(), 2);
+    }
+
     use super::*;
 
     #[test]

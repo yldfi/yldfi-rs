@@ -591,7 +591,7 @@ fn decode_event_args(
     let mut data_values = if data_types.is_empty() {
         Vec::new()
     } else {
-        match DynSolType::Tuple(data_types).abi_decode(data) {
+        match DynSolType::Tuple(data_types).abi_decode_params(data) {
             Ok(DynSolValue::Tuple(values)) => values,
             _ => return None,
         }
