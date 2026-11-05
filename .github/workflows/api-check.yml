@@ -10,6 +10,9 @@ name: Weekly API check
 # DUNE_API_KEY, PYTH_API_KEY, SOLODIT_API_KEY, THEGRAPH_API_KEY,
 # TENDERLY_ACCESS_KEY, TENDERLY_ACCOUNT, TENDERLY_PROJECT, ZEROX_API_KEY,
 # ONEINCH_API_KEY, ENSO_API_KEY, CHAINLINK_API_KEY, CHAINLINK_USER_SECRET.
+#
+# ALCHEMY_API_KEY falls back to Alchemy's shared public `demo` key, which serves
+# the prices route this check calls. Its rate limits surface as warnings.
 
 on:
   schedule:
@@ -62,7 +65,7 @@ jobs:
         id: check
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-          ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+          ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY || 'demo' }}
           MORALIS_API_KEY: ${{ secrets.MORALIS_API_KEY }}
           DUNE_API_KEY: ${{ secrets.DUNE_API_KEY }}
           PYTH_API_KEY: ${{ secrets.PYTH_API_KEY }}
