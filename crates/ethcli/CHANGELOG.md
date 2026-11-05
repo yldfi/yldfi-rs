@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.28.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.27.1...ethcli-v0.28.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ethcli:** `logs --rpc` and `--rpc-file` no longer fall back to endpoints from the config file. Use `--add-rpc` to add to the pool.
+
+### Bug Fixes
+
+* **ethcli:** make logs --rpc and --rpc-file use only those endpoints ([#183](https://github.com/yldfi/yldfi-rs/issues/183)) ([b0ed4c4](https://github.com/yldfi/yldfi-rs/commit/b0ed4c43bc3b052d800f782d9cb2328d78c70cfc))
+
 ## [0.27.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.27.0...ethcli-v0.27.1) (2026-11-05)
 
 
