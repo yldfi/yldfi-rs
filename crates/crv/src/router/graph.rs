@@ -385,8 +385,8 @@ mod tests {
 
     #[test]
     fn test_sfrxeth_uses_erc4626_swap_type() {
-        // Router v1.1 handles frxETH <-> sfrxETH under swap_type 8, with the
-        // sfrxETH vault as the pool slot
+        // Router v1.2 handles frxETH <-> sfrxETH as an ERC4626 vault under
+        // swap_type 9, with the sfrxETH vault as the pool slot
         let graph = build_graph("ethereum", &[]);
         let frxeth = "0x5e8422345238f34275888049021821e8e08caa1f";
         let sfrxeth = "0xac3e018457b222d93114458476f3e3416abbe38f";
