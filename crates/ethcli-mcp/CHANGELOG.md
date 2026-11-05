@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.5.0...ethcli-mcp-v0.5.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **ethcli:** accept return types in contract call signatures ([#180](https://github.com/yldfi/yldfi-rs/issues/180)) ([1a339a6](https://github.com/yldfi/yldfi-rs/commit/1a339a6662124593f783b73ba4562ac4999e11ab))
+
 ## [0.5.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.4.3...ethcli-mcp-v0.5.0) (2026-11-05)
 
 
