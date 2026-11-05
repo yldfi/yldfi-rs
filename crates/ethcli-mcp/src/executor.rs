@@ -1046,6 +1046,20 @@ fn verify_binary(path: &std::path::Path) -> Result<(), ExecutionError> {
     Ok(())
 }
 
+/// Find `ethcli` beside this executable: first in the directory it was run
+/// from, then, when it was launched through a symlink, beside the real file.
+fn ethcli_next_to(exe: &std::path::Path) -> Option<std::path::PathBuf> {
+    let name = format!("ethcli{}", std::env::consts::EXE_SUFFIX);
+    let resolved = std::fs::canonicalize(exe).ok();
+    let found = [Some(exe), resolved.as_deref()]
+        .into_iter()
+        .flatten()
+        .filter_map(std::path::Path::parent)
+        .map(|dir| dir.join(&name))
+        .find(|candidate| candidate.exists());
+    found
+}
+
 /// Find the ethcli binary path
 pub(crate) fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError> {
     // First check environment variable override
@@ -1060,15 +1074,13 @@ pub(crate) fn find_ethcli_binary() -> Result<std::path::PathBuf, ExecutionError>
         return Ok(path);
     }
 
-    // Check same directory as this binary
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let ethcli = dir.join(format!("ethcli{}", std::env::consts::EXE_SUFFIX));
-            if ethcli.exists() {
-                verify_binary(&ethcli)?;
-                return Ok(ethcli);
-            }
-        }
+    // Check next to this binary
+    if let Some(ethcli) = std::env::current_exe()
+        .ok()
+        .and_then(|exe| ethcli_next_to(&exe))
+    {
+        verify_binary(&ethcli)?;
+        return Ok(ethcli);
     }
 
     Err(ExecutionError::BinaryNotFound(
@@ -1522,6 +1534,39 @@ impl ArgsBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn test_ethcli_next_to_follows_a_symlink() {
+        use std::os::unix::fs::symlink;
+        let root = std::env::temp_dir().join(format!("ethcli-next-to-{}", std::process::id()));
+        let (real, link) = (root.join("real"), root.join("link"));
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::create_dir_all(&link).unwrap();
+        let mcp = real.join("ethcli-mcp");
+        std::fs::write(&mcp, "").unwrap();
+        let linked_mcp = link.join("ethcli-mcp");
+        symlink(&mcp, &linked_mcp).unwrap();
+
+        // Nothing beside either path
+        assert_eq!(ethcli_next_to(&linked_mcp), None);
+
+        // Only beside the real file
+        let real_ethcli = real.join("ethcli");
+        std::fs::write(&real_ethcli, "").unwrap();
+        let found = ethcli_next_to(&linked_mcp).unwrap();
+        assert_eq!(
+            std::fs::canonicalize(found).unwrap(),
+            std::fs::canonicalize(&real_ethcli).unwrap()
+        );
+
+        // Beside the link as well: the directory it was run from wins
+        let linked_ethcli = link.join("ethcli");
+        std::fs::write(&linked_ethcli, "").unwrap();
+        assert_eq!(ethcli_next_to(&linked_mcp), Some(linked_ethcli));
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     // -------------------------------------------------------------------------
     // validate_eth_address tests
