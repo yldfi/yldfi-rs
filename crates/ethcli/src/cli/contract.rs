@@ -53,7 +53,34 @@ fn oz_impl_slot() -> B256 {
 struct FunctionQuery {
     name: String,
     explicit_types: Option<Vec<String>>,
+    /// Return types from `name(args)(returns)`, used when there is no ABI
+    explicit_returns: Option<Vec<String>>,
     original: String,
+}
+
+/// Byte offset of the `)` that closes the `(` at `open`
+fn matching_paren(text: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (i, c) in text[open..].char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(open + i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn parse_type_list(types: &str) -> anyhow::Result<Vec<String>> {
+    split_type_list(types)
+        .into_iter()
+        .map(canonicalize_type)
+        .collect()
 }
 
 fn split_type_list(types_str: &str) -> Vec<&str> {
@@ -100,19 +127,31 @@ fn parse_function_query(function: &str) -> anyhow::Result<FunctionQuery> {
         return Ok(FunctionQuery {
             name: original.clone(),
             explicit_types: None,
+            explicit_returns: None,
             original,
         });
     };
 
-    let types_end = original
-        .rfind(')')
+    let types_end = matching_paren(&original, types_start)
         .ok_or_else(|| anyhow::anyhow!("Invalid function signature '{}': missing ')'", original))?;
-    if types_end != original.len() - 1 {
-        return Err(anyhow::anyhow!(
-            "Invalid function signature '{}': unexpected trailing characters",
-            original
-        ));
-    }
+
+    // An optional return spec, as Foundry writes it: `f(uint256)(address)`, or
+    // `f(uint256) returns (address)`
+    let rest = original[types_end + 1..].trim();
+    let rest = rest.strip_prefix("returns").map_or(rest, str::trim_start);
+    let explicit_returns = if rest.is_empty() {
+        None
+    } else {
+        let closes_at_end =
+            rest.starts_with('(') && matching_paren(rest, 0) == Some(rest.len() - 1);
+        if !closes_at_end {
+            return Err(anyhow::anyhow!(
+                "Invalid function signature '{}': unexpected trailing characters",
+                original
+            ));
+        }
+        Some(parse_type_list(&rest[1..rest.len() - 1])?)
+    };
 
     let name = original[..types_start].trim();
     if name.is_empty() {
@@ -123,18 +162,12 @@ fn parse_function_query(function: &str) -> anyhow::Result<FunctionQuery> {
     }
 
     let raw_types = &original[types_start + 1..types_end];
-    let explicit_types = if raw_types.trim().is_empty() {
-        Vec::new()
-    } else {
-        split_type_list(raw_types)
-            .into_iter()
-            .map(canonicalize_type)
-            .collect::<anyhow::Result<Vec<_>>>()?
-    };
+    let explicit_types = parse_type_list(raw_types)?;
 
     Ok(FunctionQuery {
         name: name.to_string(),
         explicit_types: Some(explicit_types),
+        explicit_returns,
         original,
     })
 }
@@ -178,6 +211,24 @@ fn coerce_call_args(
             })
         })
         .collect()
+}
+
+/// A function built from a full signature, for a contract with no usable ABI.
+/// `None` for a bare name, which can't be called without one.
+fn function_from_query(query: &FunctionQuery) -> anyhow::Result<Option<alloy::json_abi::Function>> {
+    let Some(inputs) = &query.explicit_types else {
+        return Ok(None);
+    };
+    let returns = query.explicit_returns.as_deref().unwrap_or_default();
+    let signature = format!(
+        "{}({})({})",
+        query.name,
+        inputs.join(","),
+        returns.join(",")
+    );
+    alloy::json_abi::Function::parse(&signature)
+        .map(Some)
+        .map_err(|e| anyhow::anyhow!("Invalid function signature '{}': {}", query.original, e))
 }
 
 fn select_contract_function<'a>(
@@ -416,7 +467,8 @@ pub enum ContractCommands {
         #[arg(value_name = "ADDRESS")]
         address: String,
 
-        /// Function name (e.g., "totalSupply", "balanceOf")
+        /// Function name or signature (e.g., "totalSupply", "balanceOf(address)",
+        /// "balanceOf(address)(uint256)"). A full signature also works with no ABI
         #[arg(value_name = "FUNCTION")]
         function: String,
 
@@ -828,7 +880,8 @@ pub async fn handle(
             };
             let has_function =
                 |abi: &alloy::json_abi::JsonAbi| abi.functions.contains_key(query.name.as_str());
-            let json_abi = match own_abi {
+            let abi_result: anyhow::Result<alloy::json_abi::JsonAbi> = async {
+                Ok(match own_abi {
                 Ok(abi) if has_function(&abi) => abi,
                 own => match detect_proxy_implementation(provider, addr).await {
                     Some(impl_addr) => {
@@ -849,13 +902,32 @@ pub async fn handle(
                     }
                     None => own.map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?,
                 },
-            };
+            })
+            }
+            .await;
 
-            // Find the function - handle overloaded functions by matching arg count and types
-            let funcs = json_abi
-                .functions
-                .get(query.name.as_str())
-                .ok_or_else(|| anyhow::anyhow!("Function '{}' not found in ABI", query.original))?;
+            // Find the function - handle overloaded functions by matching arg count and types.
+            // A full signature can be called without an ABI, for an unverified contract.
+            let signature_function = function_from_query(&query)?;
+            let abi_functions = abi_result
+                .as_ref()
+                .ok()
+                .and_then(|abi| abi.functions.get(query.name.as_str()));
+            let funcs: &[alloy::json_abi::Function] = match (abi_functions, &signature_function) {
+                (Some(funcs), _) => funcs,
+                (None, Some(function)) => {
+                    if !quiet {
+                        eprintln!("No ABI for this function; using the signature given");
+                    }
+                    std::slice::from_ref(function)
+                }
+                (None, None) => {
+                    return Err(match abi_result {
+                        Err(e) => e,
+                        Ok(_) => anyhow::anyhow!("Function '{}' not found in ABI", query.original),
+                    })
+                }
+            };
 
             let (func, values) = select_contract_function(&query, funcs, args)?;
 
@@ -884,7 +956,12 @@ pub async fn handle(
 
             // Decode the result
             if func.outputs.is_empty() {
-                println!("(no return value)");
+                // With no ABI and no return spec, the types are unknown: show the data
+                if result.is_empty() {
+                    println!("(no return value)");
+                } else {
+                    println!("{result}");
+                }
             } else {
                 let decoded = func
                     .abi_decode_output(&result)
@@ -1749,6 +1826,69 @@ fn format_with_decimals(value: &alloy::primitives::U256, decimals: u8) -> String
 mod tests {
     use super::*;
     use alloy::json_abi::JsonAbi;
+
+    #[test]
+    fn function_query_accepts_a_return_spec() {
+        for text in [
+            "decimals()(uint8)",
+            "decimals() returns (uint8)",
+            " decimals() ( uint8 ) ",
+        ] {
+            let query = parse_function_query(text).unwrap();
+            assert_eq!(query.name, "decimals", "{text}");
+            assert_eq!(query.explicit_types, Some(vec![]), "{text}");
+            assert_eq!(
+                query.explicit_returns,
+                Some(vec!["uint8".to_string()]),
+                "{text}"
+            );
+        }
+        let query =
+            parse_function_query("f((address,uint256),uint256)((uint8,bool),address)").unwrap();
+        assert_eq!(
+            query.explicit_types,
+            Some(vec!["(address,uint256)".to_string(), "uint256".to_string()])
+        );
+        assert_eq!(
+            query.explicit_returns,
+            Some(vec!["(uint8,bool)".to_string(), "address".to_string()])
+        );
+        assert_eq!(
+            parse_function_query("f(uint256)").unwrap().explicit_returns,
+            None
+        );
+        assert_eq!(parse_function_query("f").unwrap().explicit_returns, None);
+    }
+
+    #[test]
+    fn function_query_rejects_malformed_signatures() {
+        for text in [
+            "f()x",
+            "f()(uint8)x",
+            "f()(uint8",
+            "f(uint8",
+            "f()(notatype)",
+            "f() returns uint8",
+        ] {
+            assert!(parse_function_query(text).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn full_signatures_build_a_function_without_an_abi() {
+        let query = parse_function_query("balanceOf(address)(uint256)").unwrap();
+        let function = function_from_query(&query).unwrap().unwrap();
+        assert_eq!(function.selector().to_string(), "0x70a08231");
+        assert_eq!(function.outputs.len(), 1);
+
+        let query = parse_function_query("f((uint8,bool),string)((address,uint256))").unwrap();
+        let function = function_from_query(&query).unwrap().unwrap();
+        assert_eq!(function.inputs.len(), 2);
+        assert_eq!(function.outputs.len(), 1);
+
+        let query = parse_function_query("totalSupply").unwrap();
+        assert!(function_from_query(&query).unwrap().is_none());
+    }
 
     fn parse_call(argv: &[&str]) -> (Vec<String>, bool, String) {
         use clap::Parser;
