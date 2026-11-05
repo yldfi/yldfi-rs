@@ -90,12 +90,12 @@ sudo mv ethcli /usr/local/bin/
 ### Install with Cargo
 
 ```bash
-cargo install ethcli
+cargo install --locked ethcli
 ```
 
 Or from source:
 ```bash
-cargo install --git https://github.com/yldfi/yldfi-rs.git ethcli
+cargo install --locked --git https://github.com/yldfi/yldfi-rs.git ethcli
 ```
 
 ## MCP Server (AI Integration)
@@ -104,7 +104,7 @@ For AI assistants and LLMs, use **ethcli-mcp** - a companion MCP (Model Context 
 
 ```bash
 # Install
-cargo install ethcli-mcp
+cargo install --locked ethcli-mcp
 
 # Run (communicates via STDIO)
 ethcli-mcp

@@ -2,7 +2,6 @@
 
 use super::{EndpointConfig, ProxyConfig};
 use crate::error::{ConfigError, Result};
-use fs2::FileExt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -547,7 +546,7 @@ impl ConfigFile {
             return Ok(false);
         }
         let lock = open_lock_file(path)?;
-        lock.lock_exclusive()
+        lock.lock()
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
 
         let content = std::fs::read_to_string(path)
@@ -588,7 +587,7 @@ impl ConfigFile {
         // replaced by rename, so a lock on it (or on the temp file) would not
         // coordinate with other processes.
         let lock = open_lock_file(path)?;
-        lock.lock_exclusive()
+        lock.lock()
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
         self.write_atomic(path)
     }
