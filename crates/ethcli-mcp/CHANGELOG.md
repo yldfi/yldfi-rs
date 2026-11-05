@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.4.2...ethcli-mcp-v0.4.3) (2026-11-05)
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** find ethcli when launched through a symlink ([#165](https://github.com/yldfi/yldfi-rs/issues/165)) ([30a3f24](https://github.com/yldfi/yldfi-rs/commit/30a3f247228d6de556a7c56efe1487d284c6f5dd))
+
 ## [0.4.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.4.1...ethcli-mcp-v0.4.2) (2026-11-04)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.3...ethcli-v0.25.4) (2026-11-05)
+
+
+### Bug Fixes
+
+* **ethcli:** ignore implausible APYs in yields totals ([#167](https://github.com/yldfi/yldfi-rs/issues/167)) ([e3f4761](https://github.com/yldfi/yldfi-rs/commit/e3f4761216fe64291dd937f55d72f2fe5276bca1))
+* **ethcli:** refuse logs --resume when it would duplicate rows ([#166](https://github.com/yldfi/yldfi-rs/issues/166)) ([765d0ca](https://github.com/yldfi/yldfi-rs/commit/765d0ca66f203014389d120c4c57ef59a3b12008))
+
 ## [0.25.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.25.2...ethcli-v0.25.3) (2026-11-04)
 
 
