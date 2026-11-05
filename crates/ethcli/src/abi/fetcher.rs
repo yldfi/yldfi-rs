@@ -553,7 +553,7 @@ fn decode_function_params(
     func: &alloy::json_abi::Function,
     data: &[u8],
 ) -> Vec<(String, String, String)> {
-    use alloy::dyn_abi::{DynSolType, DynSolValue};
+    use alloy::dyn_abi::{DynSolType, DynSolValue, Specifier};
 
     let mut params = Vec::new();
 
@@ -561,7 +561,8 @@ fn decode_function_params(
     let types: Vec<DynSolType> = func
         .inputs
         .iter()
-        .filter_map(|p| p.ty.parse::<DynSolType>().ok())
+        // resolve() uses `components`, so struct params decode too
+        .filter_map(|p| p.resolve().ok())
         .collect();
 
     if types.len() != func.inputs.len() {
@@ -571,7 +572,8 @@ fn decode_function_params(
 
     // Create tuple type and decode
     let tuple_type = DynSolType::Tuple(types);
-    let decoded = match tuple_type.abi_decode(data) {
+    // Calldata is a parameter sequence, with no leading offset for dynamic types
+    let decoded = match tuple_type.abi_decode_params(data) {
         Ok(DynSolValue::Tuple(values)) => values,
         _ => return params,
     };
@@ -629,6 +631,33 @@ fn format_sol_value(value: &alloy::dyn_abi::DynSolValue) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn function_params_decode_structs_and_dynamic_types() {
+        use alloy::dyn_abi::DynSolValue;
+        use alloy::primitives::U256;
+
+        let func: alloy::json_abi::Function = serde_json::from_str(
+            r#"{"type":"function","name":"f","stateMutability":"nonpayable","outputs":[],
+                "inputs":[
+                  {"name":"order","type":"tuple","components":[
+                    {"name":"amount","type":"uint256"},{"name":"note","type":"string"}]},
+                  {"name":"","type":"string"}]}"#,
+        )
+        .unwrap();
+        let data = DynSolValue::Tuple(vec![
+            DynSolValue::Tuple(vec![
+                DynSolValue::Uint(U256::from(7), 256),
+                DynSolValue::String("inner".to_string()),
+            ]),
+            DynSolValue::String("outer".to_string()),
+        ])
+        .abi_encode_params();
+
+        let params = super::decode_function_params(&func, &data);
+        assert_eq!(params.len(), 2, "{params:?}");
+        assert_eq!(params[0].0, "order");
+        assert_eq!(params[1].0, "param1");
+    }
 
     #[test]
     fn event_signature_keeps_indexed_and_canonical_struct_types() {
