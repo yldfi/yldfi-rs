@@ -1096,6 +1096,7 @@ pub struct TransactionInfo {
 /// Transaction status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[non_exhaustive]
 pub enum TransactionStatus {
     /// Transaction not started
     NotStarted,
@@ -1109,6 +1110,10 @@ pub enum TransactionStatus {
     Invalid,
     /// Not found
     NotFound,
+    /// A status this version doesn't know, so a new API value doesn't fail
+    /// the whole response
+    #[serde(other)]
+    Unknown,
 }
 
 /// Status metadata
@@ -1481,6 +1486,18 @@ pub struct ApiError {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn transaction_status_tolerates_new_values() {
+        use super::TransactionStatus;
+        for (s, v) in [
+            ("\"NOT_FOUND\"", TransactionStatus::NotFound),
+            ("\"DONE\"", TransactionStatus::Done),
+            ("\"SOME_FUTURE_STATUS\"", TransactionStatus::Unknown),
+        ] {
+            assert_eq!(serde_json::from_str::<TransactionStatus>(s).unwrap(), v);
+        }
+    }
+
     use super::*;
 
     fn query_string<Q: Serialize>(q: &Q) -> String {

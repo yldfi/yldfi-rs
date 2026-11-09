@@ -98,7 +98,9 @@
 //!         .with_from_chain(lfi::chains::ETHEREUM)
 //!         .with_to_chain(lfi::chains::ARBITRUM);
 //!
-//!     loop {
+//!     // Poll for up to an hour. A just-sent transaction is often NOT_FOUND
+//!     // until LI.FI indexes it, so keep polling through that too.
+//!     for _ in 0..360 {
 //!         let status = client.get_status(&request).await?;
 //!
 //!         match status.status {
@@ -109,15 +111,14 @@
 //!                 }
 //!                 break;
 //!             }
-//!             TransactionStatus::Pending => {
-//!                 println!("Still processing...");
-//!                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-//!             }
-//!             TransactionStatus::Failed => {
+//!             TransactionStatus::Failed | TransactionStatus::Invalid => {
 //!                 println!("Transaction failed: {:?}", status.substatus_message);
 //!                 break;
 //!             }
-//!             _ => break,
+//!             _ => {
+//!                 println!("Still processing...");
+//!                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+//!             }
 //!         }
 //!     }
 //!
