@@ -15,6 +15,9 @@ pub mod base_urls {
     pub const PRO: &str = "https://pro-api.coingecko.com/api/v3";
     /// Demo/Public API
     pub const DEMO: &str = "https://api.coingecko.com/api/v3";
+    /// `GeckoTerminal`'s free API: the onchain endpoints without a key, under
+    /// the same paths minus the `/onchain` prefix
+    pub const GECKOTERMINAL: &str = "https://api.geckoterminal.com/api/v2";
 }
 
 /// Configuration for the `CoinGecko` API client
@@ -153,8 +156,20 @@ impl Client {
         url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
     }
 
+    /// The URL for `path`. Without a key, `CoinGecko` rejects its onchain
+    /// endpoints, so those go to `GeckoTerminal`'s free API, which serves the
+    /// same responses (with its own, lower, rate limit).
+    pub(crate) fn url_for(&self, path: &str) -> String {
+        match path.strip_prefix("/onchain") {
+            Some(rest) if self.api_key.is_none() && rest.starts_with('/') => {
+                format!("{}{}", base_urls::GECKOTERMINAL, rest)
+            }
+            _ => format!("{}{}", self.base_url, path),
+        }
+    }
+
     pub(crate) async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
-        let url = format!("{}{}", self.base_url, path);
+        let url = self.url_for(path);
         let mut req = self.http.get(&url);
 
         if let Some(ref key) = self.api_key {
@@ -178,5 +193,37 @@ impl Client {
 
         let body = response.text().await?;
         serde_json::from_str(&body).map_err(|e| Error::api(status, format!("Parse error: {e}")))
+    }
+}
+
+#[cfg(test)]
+mod url_tests {
+    use super::*;
+
+    #[test]
+    fn keyless_onchain_goes_to_geckoterminal() {
+        let client = Client::new().unwrap();
+        assert_eq!(
+            client.url_for("/onchain/networks/eth/tokens/0xabc"),
+            "https://api.geckoterminal.com/api/v2/networks/eth/tokens/0xabc"
+        );
+        assert_eq!(
+            client.url_for("/simple/price?ids=bitcoin"),
+            "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin"
+        );
+    }
+
+    #[test]
+    fn keyed_onchain_stays_on_coingecko() {
+        let demo = Client::demo(Some("key".to_string())).unwrap();
+        assert_eq!(
+            demo.url_for("/onchain/networks"),
+            "https://api.coingecko.com/api/v3/onchain/networks"
+        );
+        let pro = Client::pro("key").unwrap();
+        assert_eq!(
+            pro.url_for("/onchain/networks"),
+            "https://pro-api.coingecko.com/api/v3/onchain/networks"
+        );
     }
 }
