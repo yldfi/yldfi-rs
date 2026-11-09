@@ -29,6 +29,15 @@ const FAST_TIMEOUT: Duration = Duration::from_secs(10);
 /// this leaves it room to time out cleanly first.
 const DUNE_EXECUTE_TIMEOUT: Duration = Duration::from_secs(330);
 
+/// Timeout for `endpoints optimize`: each endpoint takes up to ~7 probes of
+/// 10 s, and without a URL it optimizes all of them. Killing it part way
+/// lost every result, since the CLI saved only at the end.
+const ENDPOINTS_OPTIMIZE_TIMEOUT: Duration = Duration::from_secs(600);
+
+/// How long a call waits for one of the MAX_CONCURRENT_SUBPROCESSES slots
+/// before it is refused as rate limited
+const SLOT_WAIT: Duration = Duration::from_secs(30);
+
 /// Commands that use fast timeout (pure computation or local files, no network).
 /// Matched exactly against the top-level command.
 const FAST_COMMANDS: &[&str] = &["cast", "config", "address", "blacklist", "endpoints"];
@@ -1100,6 +1109,9 @@ fn get_timeout(args: &[&str]) -> Duration {
     if command == "dune" && matches!(path.get(1..3), Some(["sql" | "query", "execute"])) {
         return DUNE_EXECUTE_TIMEOUT;
     }
+    if command == "endpoints" && sub == "optimize" {
+        return ENDPOINTS_OPTIMIZE_TIMEOUT;
+    }
 
     if FAST_COMMANDS.contains(&command) && !NETWORK_SUBCOMMANDS.contains(&(command, sub)) {
         FAST_TIMEOUT
@@ -1344,10 +1356,11 @@ pub async fn execute_validated(
     }
     validate_command_policy(args, stdin_payload.is_some())?;
 
-    // Acquire semaphore permit (rate limiting)
-    let _permit = match get_semaphore().try_acquire() {
-        Ok(permit) => permit,
-        Err(_) => {
+    // Acquire a subprocess slot, waiting a while for one to free up rather
+    // than refusing the call at once
+    let _permit = match timeout(SLOT_WAIT, get_semaphore().acquire()).await {
+        Ok(Ok(permit)) => permit,
+        _ => {
             METRICS.rate_limited.fetch_add(1, Ordering::Relaxed);
             warn!(command = %command, "Rate limited");
             return Err(ExecutionError::RateLimited);
@@ -2084,6 +2097,18 @@ mod tests {
     }
 
     #[test]
+    fn test_get_timeout_endpoints_optimize_gets_the_long_tier() {
+        assert_eq!(
+            get_timeout(&["endpoints", "optimize", "--all"]),
+            ENDPOINTS_OPTIMIZE_TIMEOUT
+        );
+        assert_eq!(
+            get_timeout(&["endpoints", "optimize", "https://x"]),
+            ENDPOINTS_OPTIMIZE_TIMEOUT
+        );
+    }
+
+    #[test]
     fn test_get_timeout_matches_commands_exactly() {
         // `enso` used to match the `ens` prefix and get the 10s timeout
         assert_eq!(get_timeout(&["enso", "route"]), DEFAULT_TIMEOUT);
@@ -2098,7 +2123,6 @@ mod tests {
             DEFAULT_TIMEOUT
         );
         assert_eq!(get_timeout(&["endpoints", "test", "x"]), DEFAULT_TIMEOUT);
-        assert_eq!(get_timeout(&["endpoints", "optimize"]), DEFAULT_TIMEOUT);
     }
 
     #[test]

@@ -1614,6 +1614,10 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                             // Only the detected fields: keep priority, note,
                             // proxy, enabled and anything not tested
                             result.merge_into(&mut config.endpoints[idx]);
+                            // Save as we go: an interrupted run (Ctrl-C, an
+                            // MCP timeout) keeps what it measured. Each save
+                            // writes only our changes onto the file as it is.
+                            config.save_default()?;
                         } else {
                             println!(
                                 "FAILED: {}",
