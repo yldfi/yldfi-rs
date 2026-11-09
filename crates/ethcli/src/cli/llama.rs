@@ -116,6 +116,10 @@ pub enum CoinsCommands {
         timestamp: u64,
         /// Tokens in chain:address format (comma-separated)
         tokens: String,
+        /// How far from the timestamp to look for a price, e.g. "10m" or "4h"
+        /// (DefiLlama `searchWidth`; its default is 6h)
+        #[arg(long)]
+        search_width: Option<String>,
     },
 
     /// Get price chart
@@ -318,12 +322,24 @@ async fn handle_coins(
             let response = client.coins().current(&token_list).await?;
             print_output(&response, args.format)?;
         }
-        CoinsCommands::Historical { timestamp, tokens } => {
+        CoinsCommands::Historical {
+            timestamp,
+            tokens,
+            search_width,
+        } => {
             if !quiet {
                 eprintln!("Fetching historical prices at {}...", timestamp);
             }
             let token_list = parse_tokens(tokens)?;
-            let response = client.coins().historical(*timestamp, &token_list).await?;
+            let response = match search_width {
+                Some(width) => {
+                    client
+                        .coins()
+                        .historical_with_search_width(*timestamp, &token_list, width)
+                        .await?
+                }
+                None => client.coins().historical(*timestamp, &token_list).await?,
+            };
             print_output(&response, args.format)?;
         }
         CoinsCommands::Chart {
