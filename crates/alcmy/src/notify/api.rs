@@ -273,6 +273,7 @@ mod tests {
     #[test]
     fn list_addresses_sends_pagination_params() {
         let client = client();
+        #[allow(deprecated)]
         let page = NotifyPageOptions {
             limit: Some(50),
             after: Some("cur 1".into()),
