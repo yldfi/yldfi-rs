@@ -850,9 +850,11 @@ fn only_names_api_key(text: &str) -> bool {
 /// Free-form text isn't allowed, because it could hold a value:
 /// `key abc123: Invalid API key`.
 fn is_known_message_prefix(lower: &str) -> bool {
-    const FIXED: [&str; 5] = [
+    const FIXED: [&str; 6] = [
         "error: ",
         "warning: ",
+        // ethcli's price and portfolio aggregators wrap a source's client error
+        "client error: ",
         "no yields returned, and these sources failed: ",
         "all yield sources failed: ",
         "{\"error\":\"",
@@ -1824,6 +1826,8 @@ mod tests {
             "Error: No yields returned, and these sources failed: llama: Server error (500): \
              {\"error\":\"API Key is wrong\"}",
             "Error: All yield sources failed: moralis: MORALIS_API_KEY not configured",
+            "Client error: THEGRAPH_API_KEY not configured",
+            "uniswap: Client error: THEGRAPH_API_KEY not configured",
             "API error 410: Gone (DefiLlama shuts down the free yields endpoints on 2026-11-13; \
              after that, yields data needs an API plan key, set with DEFILLAMA_API_KEY)",
             "llama: API error 410: Gone (DefiLlama shuts down the free yields endpoints on \
@@ -1868,6 +1872,8 @@ mod tests {
             "ALCHEMY_API_KEY and secret123",
             "ALCHEMY_API_KEY must secret123",
             "ALCHEMY_API_KEY not configured secret123",
+            "Client error: THEGRAPH_API_KEY=secret123",
+            "Client error: secret123 THEGRAPH_API_KEY not configured",
             "ALCHEMY_API_KEY not configured. secret123",
             "Invalid API key secret123",
             "Invalid API key. secret123",
