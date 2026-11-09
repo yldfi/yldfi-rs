@@ -78,6 +78,53 @@ jobs:
       - name: Cargo deny
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
 
+  # Release PRs only: check each library crate whose version the PR bumps
+  # (except ethcli, see below) against its last release on crates.io. A public API break needs a bigger bump than
+  # release-please chose (a commit that wasn't marked `!`) and fails here; fix
+  # it with a `release-as` or a `fix(crate)!:` commit.
+  semver:
+    name: Semver
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Crates this release bumps
+        id: bumped
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os, re, subprocess
+          base = os.environ["BASE"]
+          meta = json.loads(subprocess.check_output(
+              ["cargo", "metadata", "--no-deps", "--format-version", "1"]))
+          # ethcli's library is the CLI's own plumbing (its clap command enums
+          # are public, so every new flag reads as a break) and has no library
+          # users; check it again if that changes
+          skip = {"ethcli"}
+          bumped = []
+          for pkg in meta["packages"]:
+              # Only library crates have a public API to check (not ethcli-mcp)
+              if pkg["name"] in skip or not any("lib" in t["kind"] for t in pkg["targets"]):
+                  continue
+              manifest = os.path.relpath(pkg["manifest_path"])
+              diff = subprocess.run(["git", "diff", f"{base}...HEAD", "--", manifest],
+                                    capture_output=True, text=True).stdout
+              if re.search(r'^\+version\s*=', diff, re.M):
+                  bumped.append(pkg["name"])
+          print("packages=" + ",".join(sorted(bumped)))
+          EOF
+          cat "$GITHUB_OUTPUT"
+
+      - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
+        if: steps.bumped.outputs.packages != ''
+        with:
+          package: ${{ steps.bumped.outputs.packages }}
+
   # Main build and test - runs in parallel with lint (P2-4)
   test:
     name: Test
