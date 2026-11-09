@@ -65,6 +65,9 @@ pub mod base_urls {
     pub const PRO: &str = "https://pro-api.coingecko.com/api/v3";
     /// Demo/Public API
     pub const DEMO: &str = "https://api.coingecko.com/api/v3";
+    /// `GeckoTerminal`'s free API: the onchain endpoints without a key, under
+    /// the same paths minus the `/onchain` prefix
+    pub const GECKOTERMINAL: &str = "https://api.geckoterminal.com/api/v2";
 }
 
 /// Create a default `CoinGecko` config (demo mode)

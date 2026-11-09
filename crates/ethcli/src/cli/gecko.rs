@@ -639,13 +639,17 @@ fn explain_gecko_error(
         _ => return None,
     };
 
-    // Keyless onchain (GeckoTerminal) requests are rejected by CoinGecko,
-    // often first as a 429 "retry after 60s", which wrongly suggests waiting
-    // will help.
+    // Keyless onchain requests go to GeckoTerminal's free API (see cgko's
+    // `Client::url_for`): a 429 is its rate limit, a 401/403 an endpoint
+    // only CoinGecko's paid onchain API serves.
     if is_onchain && tier == GeckoTier::Public && matches!(status, 401 | 403 | 429) {
+        let what = if status == 429 {
+            "GeckoTerminal's free API is rate-limited (a few calls a minute); wait a minute and retry"
+        } else {
+            "this onchain endpoint isn't on GeckoTerminal's free API and needs a CoinGecko key"
+        };
         return Some(format!(
-            "CoinGecko onchain endpoints require an API key; keyless requests are rejected \
-             (upstream returned {status}{}). {GECKO_KEY_HINT}",
+            "{what} (upstream returned {status}{}). {GECKO_KEY_HINT}",
             if upstream.is_empty() {
                 String::new()
             } else {
@@ -821,10 +825,13 @@ mod error_tests {
     use cgko::error::Error;
 
     #[test]
-    fn keyless_onchain_rate_limit_explains_key_requirement() {
+    fn keyless_onchain_rate_limit_is_geckoterminals() {
         let msg =
             explain_gecko_error(&Error::rate_limited(Some(60)), GeckoTier::Public, true).unwrap();
-        assert!(msg.contains("require an API key"), "{msg}");
+        assert!(
+            msg.contains("GeckoTerminal's free API is rate-limited"),
+            "{msg}"
+        );
         assert!(msg.contains("[coingecko]"), "{msg}");
     }
 
@@ -850,6 +857,6 @@ mod error_tests {
     fn enhance_downcasts_anyhow() {
         let err = anyhow::Error::from(Error::api(401, "Requests without API key are not allowed"));
         let out = enhance_gecko_error(err, GeckoTier::Public, true).to_string();
-        assert!(out.contains("require an API key"), "{out}");
+        assert!(out.contains("needs a CoinGecko key"), "{out}");
     }
 }
