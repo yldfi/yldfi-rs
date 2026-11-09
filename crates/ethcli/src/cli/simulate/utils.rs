@@ -569,8 +569,10 @@ pub async fn post_jsonrpc_with_failover(
             Ok(v) => return Ok(v),
             Err(e) => {
                 let msg = e.to_string();
-                let retryable =
-                    is_failover_error(&msg) || msg.starts_with("HTTP ") || msg.contains("-32601"); // method not found on this node
+                let retryable = is_failover_error(&msg)
+                    || msg.starts_with("HTTP ")
+                    || lacks_history(&msg)
+                    || msg.contains("-32601"); // method not found on this node
                 if has_next && retryable {
                     if !quiet {
                         eprintln!("  {host} failed ({msg}); trying next endpoint");
@@ -584,6 +586,25 @@ pub async fn post_jsonrpc_with_failover(
     }
 
     Err(last_err.unwrap_or_else(|| anyhow::anyhow!("No RPC endpoints available")))
+}
+
+/// Whether an error means this node doesn't keep the history the request
+/// needs, so another endpoint may still answer it: a pruned node doesn't have
+/// an old transaction or its state. Only for tracing and simulation here; for
+/// a plain lookup, "transaction not found" can be the real answer.
+fn lacks_history(msg: &str) -> bool {
+    let m = msg.to_ascii_lowercase();
+    [
+        "transaction not found",
+        "missing trie node",
+        "historical state",
+        "header not found",
+        "block not found",
+        "required historical state unavailable",
+        "pruned",
+    ]
+    .iter()
+    .any(|needle| m.contains(needle))
 }
 
 pub fn get_tenderly_credentials(args: &TenderlyArgs) -> anyhow::Result<(String, String, String)> {
@@ -805,5 +826,32 @@ mod value_tests {
         assert_eq!(value_to_hex("1gwei").unwrap(), "0x3b9aca00");
         assert_eq!(value_to_hex("0.1eth").unwrap(), "0x16345785d8a0000");
         assert!(value_to_hex("-1").is_err());
+    }
+}
+
+#[cfg(test)]
+mod history_tests {
+    use super::lacks_history;
+
+    #[test]
+    fn missing_history_moves_on_to_the_next_endpoint() {
+        for msg in [
+            r#"RPC error: {"code":-32000,"message":"transaction not found"}"#,
+            r#"RPC error: {"code":-32000,"message":"missing trie node 1a2b (path )"}"#,
+            r#"RPC error: {"code":-32000,"message":"historical state abc is not available"}"#,
+            r#"RPC error: {"code":-32000,"message":"header not found"}"#,
+        ] {
+            assert!(lacks_history(msg), "{msg}");
+        }
+    }
+
+    #[test]
+    fn execution_errors_do_not() {
+        for msg in [
+            r#"RPC error: {"code":-32000,"message":"execution reverted"}"#,
+            r#"RPC error: {"code":-32602,"message":"invalid argument 0: hex string has odd length"}"#,
+        ] {
+            assert!(!lacks_history(msg), "{msg}");
+        }
     }
 }
