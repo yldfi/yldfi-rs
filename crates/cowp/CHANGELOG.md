@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/cowp-v0.2.1...cowp-v0.2.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **cowp:** accept order statuses this version doesn't know ([#204](https://github.com/yldfi/yldfi-rs/issues/204)) ([9496686](https://github.com/yldfi/yldfi-rs/commit/94966866f8fab21080e8c0f4e5741ebfabf41edd))
+
 ## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/cowp-v0.2.0...cowp-v0.2.1) (2026-11-09)
 
 

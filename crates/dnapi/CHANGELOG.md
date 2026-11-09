@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/dnapi-v0.3.1...dnapi-v0.3.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **dnapi:** keep waiting through transient status errors and cancel on others ([#203](https://github.com/yldfi/yldfi-rs/issues/203)) ([da4afba](https://github.com/yldfi/yldfi-rs/commit/da4afbae366a22168debd43467754c51f6bcb773))
+
 ## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/dnapi-v0.3.0...dnapi-v0.3.1) (2026-11-09)
 
 
