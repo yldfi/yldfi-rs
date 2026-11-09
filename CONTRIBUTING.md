@@ -47,7 +47,7 @@ cargo test -p ethcli
 1. Create the crate directory under `crates/`
 2. Add to workspace members in root `Cargo.toml`
 3. Add to `release-please-config.json` if publishing to crates.io
-4. Add to `.github/workflows/publish-crate.yml` if auto-publishing
+4. Nothing to add for publishing: `publish-crate.yml` publishes every workspace crate except `ethcli` (set `publish = false` to opt out)
 
 ## Adding Features to ethcli
 
@@ -107,9 +107,9 @@ This repository uses [release-please](https://github.com/googleapis/release-plea
 
 1. Commits to `main` are analyzed for conventional commit messages
 2. Release PRs are automatically created
-3. Merging a release PR tags the crate, which triggers publishing (`release.yml` for `ethcli`, `publish-crate.yml` for every other crate)
+3. Merging a release PR tags the released crates. Release Please then starts one `publish-crate.yml` run, which publishes every library crate whose version isn't on crates.io yet, dependencies first. The `ethcli` tag triggers `release.yml`, which builds the binaries and publishes `ethcli` once its dependencies are on crates.io. To publish one crate by hand, run `publish-crate.yml` with its name
 
-Publishing to crates.io uses [Trusted Publishing](https://crates.io/docs/trusted-publishing): the publish job exchanges its GitHub OIDC token for a short-lived crates.io token via `rust-lang/crates-io-auth-action`. There is no registry token secret, and every crate requires trusted publishing. A **new crate** needs a trusted publisher configured on crates.io (repository `yldfi/yldfi-rs`, workflow `publish-crate.yml`) after its first release, which has to be published once by an owner with a token. Renaming either publish workflow breaks publishing until the crates.io configuration is updated.
+Publishing to crates.io uses [Trusted Publishing](https://crates.io/docs/trusted-publishing): the publish jobs exchange their GitHub OIDC token for a short-lived crates.io token (`publish-crate.yml` takes a fresh one per crate; `release.yml` uses `rust-lang/crates-io-auth-action`). There is no registry token secret, and every crate requires trusted publishing. A **new crate** needs a trusted publisher configured on crates.io (repository `yldfi/yldfi-rs`, workflow `publish-crate.yml`) after its first release, which has to be published once by an owner with a token. Renaming either publish workflow breaks publishing until the crates.io configuration is updated.
 
 ## Dependency Policy
 

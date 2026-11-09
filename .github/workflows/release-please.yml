@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   release-please:
@@ -37,5 +38,11 @@ jobs:
           if [ -n "$tag" ] && [ "$tag" != "null" ]; then
             gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --latest
           fi
-      # Note: When a release is created, release-please pushes a tag
-      # which triggers release.yml (for ethcli) or publish-crate.yml (for other crates)
+      # One publish run for all the library crates released here, in
+      # dependency order. ethcli's tag triggers release.yml, which builds the
+      # binaries and publishes ethcli once its dependencies are on crates.io.
+      - name: Publish released crates
+        if: ${{ steps.release.outputs.releases_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publish-crate.yml --repo "$GITHUB_REPOSITORY" --ref main -f ref="$GITHUB_SHA"

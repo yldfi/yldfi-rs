@@ -1,47 +1,28 @@
 name: Publish Crate
 
+# Publishes every workspace crate whose version isn't on crates.io yet, in
+# dependency order, in ONE job. Release Please dispatches this once per release
+# (see release-please.yml). It used to run once per release tag; then the
+# dependents of a crate released alongside them could hold every runner slot
+# waiting for it while its own job sat queued.
+# ethcli itself is published by release.yml, which also builds its binaries.
 on:
   workflow_dispatch:
     inputs:
       crate:
-        description: 'Crate to publish (e.g., pyth, yldfi-common)'
-        required: true
+        description: 'Only this crate (e.g. pythc, yldfi-common). Empty = every unpublished crate.'
+        required: false
         type: string
+        default: ''
       ref:
         description: 'Git ref to publish from (tag, branch, or SHA). Defaults to main.'
         required: false
         type: string
         default: 'main'
-  push:
-    tags:
-      # Note: ethcli-v* handled by release.yml (includes binary builds)
-      - 'alcmy-v*'
-      - 'cexm-v*'
-      - 'cgko-v*'
-      - 'cowp-v*'
-      - 'crv-v*'
-      - 'dllma-v*'
-      - 'dnapi-v*'
-      - 'ensof-v*'
-      - 'ethcli-mcp-v*'
-      - 'gplus-v*'
-      - 'kybr-v*'
-      - 'lfi-v*'
-      - 'mrls-v*'
-      - 'oinch-v*'
-      - 'openoc-v*'
-      - 'pythc-v*'
-      - 'sldt-v*'
-      - 'tndrly-v*'
-      - 'unswp-v*'
-      - 'vlra-v*'
-      - 'ykong-v*'
-      - 'yldfi-common-v*'
-      - 'zrxswap-v*'
 
 # Prevent concurrent publishes of the same crate
 concurrency:
-  group: publish-${{ inputs.crate || github.ref }}
+  group: publish-crates
   cancel-in-progress: false
 
 permissions:
@@ -59,7 +40,7 @@ jobs:
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # covers the up-to-20-minute wait for dependencies to reach crates.io
+    timeout-minutes: 90  # every crate in turn, e.g. after a yldfi-common release
     permissions:
       contents: read
       id-token: write
@@ -67,11 +48,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ inputs.ref }}
 
-      # P1-3: Validate ref exists (for workflow_dispatch)
       - name: Validate ref
-        if: github.event_name == 'workflow_dispatch'
         env:
           REF: ${{ inputs.ref }}
         run: |
@@ -92,104 +71,104 @@ jobs:
           # so caching target/ only makes the post-step trip over it (ENOENT).
           cache-targets: "false"
 
-      # P0-2: Validate crate name and use safe output
-      - name: Determine and validate crate name
-        id: crate
+      - name: Publish unpublished crates in dependency order
         env:
-          TAG_NAME: ${{ github.ref_name }}
-          INPUT_CRATE: ${{ inputs.crate }}
-          EVENT_NAME: ${{ github.event_name }}
+          ONLY: ${{ inputs.crate }}
+          UA: yldfi-rs release workflow (https://github.com/yldfi/yldfi-rs)
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            CRATE_NAME="$INPUT_CRATE"
-          else
-            # Extract crate name (everything before -v)
-            CRATE_NAME="${TAG_NAME%-v*}"
-          fi
-
-          # P0-2: Validate crate name (alphanumeric, hyphens, underscores only)
-          if ! [[ "$CRATE_NAME" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]]; then
-            echo "::error::Invalid crate name: $CRATE_NAME (must be alphanumeric with hyphens/underscores)"
+          if [ -n "$ONLY" ] && ! [[ "$ONLY" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]]; then
+            echo "::error::Invalid crate name: $ONLY"
             exit 1
           fi
 
-          # P0-1: Safe output using heredoc (prevents newline injection)
-          {
-            echo "name<<GITHUB_OUTPUT_EOF"
-            printf '%s' "$CRATE_NAME"
-            echo ""
-            echo "GITHUB_OUTPUT_EOF"
-          } >> $GITHUB_OUTPUT
-          echo "Publishing crate: $CRATE_NAME"
-
-      # P0-1: Safe output using heredoc
-      - name: Check if version already published
-        id: check
-        env:
-          CRATE_NAME: ${{ steps.crate.outputs.name }}
-        run: |
-          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r --arg name "$CRATE_NAME" '.packages[] | select(.name == $name) | .version')
-          if [ -z "$VERSION" ]; then
-            echo "::error::Could not extract version for $CRATE_NAME"
+          # "name version" for each publishable crate, dependencies first.
+          # ethcli is left to release.yml.
+          cargo metadata --no-deps --format-version 1 > /tmp/metadata.json
+          python3 -I - /tmp/metadata.json > /tmp/order.txt <<'PY'
+          import json, sys
+          packages = {p["name"]: p for p in json.load(open(sys.argv[1]))["packages"]}
+          order, seen = [], set()
+          def visit(name):
+              if name in seen:
+                  return
+              seen.add(name)
+              for dep in packages[name]["dependencies"]:
+                  if dep["name"] in packages and dep["kind"] in (None, "build"):
+                      visit(dep["name"])
+              order.append(name)
+          for name in sorted(packages):
+              visit(name)
+          for name in order:
+              if name != "ethcli" and packages[name]["publish"] != []:
+                  print(name, packages[name]["version"])
+          PY
+          if [ -n "$ONLY" ] && ! grep -q "^$ONLY " /tmp/order.txt; then
+            echo "::error::$ONLY is not a publishable workspace crate"
             exit 1
           fi
-          # Safe output using heredoc
-          {
-            echo "version<<GITHUB_OUTPUT_EOF"
-            printf '%s' "$VERSION"
-            echo ""
-            echo "GITHUB_OUTPUT_EOF"
-          } >> $GITHUB_OUTPUT
-          # crates.io answers 403 to requests without a descriptive User-Agent
-          # (curl's default included), which made this check never match.
-          if curl -sf -A "yldfi-rs release workflow (https://github.com/yldfi/yldfi-rs)" "https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION" > /dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "::warning::$CRATE_NAME@$VERSION already exists on crates.io, skipping publish"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
 
-      # Trusted Publishing: exchange the job's GitHub OIDC token for a
-      # short-lived crates.io token (revoked automatically when the job ends).
-      - name: Authenticate with crates.io
-        id: auth
-        if: steps.check.outputs.exists != 'true'
-        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+          # Trusted Publishing, one short-lived token per crate so a long run
+          # never outlives its token; each is revoked once used.
+          crates_io_token() {
+            local jwt token
+            jwt=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=crates.io" | jq -r .value)
+            echo "::add-mask::$jwt" >&2
+            token=$(jq -n --arg jwt "$jwt" '{jwt: $jwt}' | curl -sSf -A "$UA" \
+              -H "Content-Type: application/json" --data @- \
+              https://crates.io/api/v1/trusted_publishing/tokens | jq -r .token)
+            echo "::add-mask::$token" >&2
+            if [ -z "$token" ] || [ "$token" = "null" ]; then
+              echo "::error::crates.io did not issue a trusted publishing token" >&2
+              return 1
+            fi
+            printf '%s' "$token"
+          }
+          revoke() {
+            curl -sS -o /dev/null -A "$UA" -X DELETE -H "Authorization: Bearer $1" \
+              https://crates.io/api/v1/trusted_publishing/tokens || true
+          }
 
-      - name: Publish
-        if: steps.check.outputs.exists != 'true'
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-          CRATE_NAME: ${{ steps.crate.outputs.name }}
-          CRATE_VERSION: ${{ steps.check.outputs.version }}
-        run: |
-          # Release Please bumps dependents to the exact new version of a crate
-          # released alongside them, and every tag publishes in its own run, so a
-          # dependent can get here before the version it needs is on crates.io.
-          # Retry for up to 20 minutes while cargo says a dependency is missing.
-          # (Inline rather than a script: manual runs may check out an older ref.)
           missing_dep="failed to select a version for the requirement|no matching package named|candidate versions found which didn't match"
-          start=$SECONDS
-          attempt=1
-          while true; do
-            if cargo publish --locked --package "$CRATE_NAME" > /tmp/publish.log 2>&1; then
-              cat /tmp/publish.log
-              break
-            fi
-            cat /tmp/publish.log
-            if grep -q "already exists" /tmp/publish.log; then
-              echo "::warning::$CRATE_NAME@$CRATE_VERSION already exists on crates.io, skipping"
-              break
-            fi
-            waited=$((SECONDS - start))
-            if grep -Eq "$missing_dep" /tmp/publish.log && [ "$waited" -lt 1200 ]; then
-              echo "::notice::$CRATE_NAME: a workspace dependency is not on crates.io yet (attempt $attempt, ${waited}s elapsed); retrying in 60s"
-              sleep 60
-              attempt=$((attempt + 1))
+          published=0
+          while read -r name version; do
+            if [ -n "$ONLY" ] && [ "$name" != "$ONLY" ]; then
               continue
             fi
-            if grep -Eq "$missing_dep" /tmp/publish.log; then
-              echo "::error::$CRATE_NAME: a workspace dependency was still missing from crates.io after ${waited}s; publish it first, then re-run this workflow"
+            # crates.io answers 403 to requests without a descriptive User-Agent
+            if curl -sf -A "$UA" "https://crates.io/api/v1/crates/$name/$version" > /dev/null; then
+              echo "$name@$version is already on crates.io"
+              continue
             fi
-            exit 1
-          done
+            echo "::group::Publish $name@$version"
+            start=$SECONDS
+            while true; do
+              token=$(crates_io_token)
+              if CARGO_REGISTRY_TOKEN="$token" cargo publish --locked --package "$name" > /tmp/publish.log 2>&1; then
+                revoke "$token"
+                cat /tmp/publish.log
+                published=$((published + 1))
+                break
+              fi
+              revoke "$token"
+              cat /tmp/publish.log
+              if grep -q "already exists" /tmp/publish.log; then
+                echo "::warning::$name@$version already exists on crates.io, skipping"
+                break
+              fi
+              # Dependencies are published first and cargo waits for each to
+              # be indexed, so this only covers a slow index, or a single-crate
+              # run whose dependency hasn't been published yet.
+              waited=$((SECONDS - start))
+              if grep -Eq "$missing_dep" /tmp/publish.log && [ "$waited" -lt 600 ]; then
+                echo "::notice::$name: a dependency is not on crates.io yet (${waited}s); retrying in 30s"
+                sleep 30
+                continue
+              fi
+              echo "::endgroup::"
+              echo "::error::Publishing $name@$version failed"
+              exit 1
+            done
+            echo "::endgroup::"
+          done < /tmp/order.txt
+          echo "Published $published crate(s)"
