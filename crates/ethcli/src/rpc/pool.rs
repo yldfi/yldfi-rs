@@ -165,6 +165,17 @@ fn learn_from_logs_error(health: &HealthTracker, url: &str, e: &Error) {
     }
 }
 
+/// Whether an `eth_call` error is the contract reverting (JSON-RPC code 3 or
+/// "execution reverted") rather than an endpoint problem. "Out of gas" isn't
+/// included: it can be one node's gas cap, where another endpoint may succeed.
+fn is_execution_revert(msg: &str) -> bool {
+    let m = msg.to_ascii_lowercase();
+    m.contains("execution reverted")
+        || m.contains("error code 3:")
+        || m.contains("vm execution error")
+        || m.contains("invalid opcode")
+}
+
 /// Pool of RPC endpoints with load balancing and health tracking.
 ///
 /// # Memory Considerations
@@ -383,11 +394,20 @@ impl RpcPool {
         let mut last_err: Option<Error> = None;
 
         for endpoint in endpoints {
+            let started = std::time::Instant::now();
             match endpoint.call(to, data.clone()).await {
                 Ok(out) => {
                     self.health
-                        .record_success(endpoint.url(), Duration::from_millis(100));
+                        .record_success(endpoint.url(), started.elapsed());
                     return Ok(out);
+                }
+                // A revert is the contract's answer (e.g. `decimals()` on an
+                // NFT), not an endpoint fault: every endpoint would revert the
+                // same way, so don't count it against this one or fail over
+                Err(e) if is_execution_revert(&e.to_string()) => {
+                    self.health
+                        .record_success(endpoint.url(), started.elapsed());
+                    return Err(e);
                 }
                 Err(e) => {
                     let is_rate_limit = e.to_string().contains("429");
@@ -741,6 +761,36 @@ impl RpcPool {
 }
 
 #[cfg(test)]
+mod revert_tests {
+    use super::is_execution_revert;
+
+    #[test]
+    fn reverts_are_recognised() {
+        for msg in [
+            "Provider error: server returned an error response: error code 3: execution reverted, data: \"0x\"",
+            "server returned an error response: error code -32000: execution reverted",
+            "VM execution error.",
+            "invalid opcode: INVALID",
+        ] {
+            assert!(is_execution_revert(msg), "{msg}");
+        }
+    }
+
+    #[test]
+    fn endpoint_problems_are_not_reverts() {
+        for msg in [
+            "HTTP error 429 Too Many Requests",
+            "Request timed out after 30000ms",
+            "error sending request",
+            "server returned an error response: error code -32000: out of gas",
+            "header not found",
+        ] {
+            assert!(!is_execution_revert(msg), "{msg}");
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
 
     #[test]
@@ -872,6 +922,46 @@ mod tests {
         assert!(pool.get_transaction(B256::ZERO).await.is_err());
         assert!(pool.get_transaction_receipt(B256::ZERO).await.is_err());
         assert!(pool.get_block_with_txs(1).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_revert_is_returned_without_failing_over() {
+        let mut servers = Vec::new();
+        for _ in 0..2 {
+            let server = wiremock::MockServer::start().await;
+            wiremock::Mock::given(wiremock::matchers::method("POST"))
+                .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": 0,
+                        "error": {"code": 3, "message": "execution reverted", "data": "0x"}
+                    }),
+                ))
+                .mount(&server)
+                .await;
+            servers.push(server);
+        }
+        let urls: Vec<(String, u64)> = servers.iter().map(|s| (s.uri(), 10)).collect();
+        let refs: Vec<(&str, u64)> = urls.iter().map(|(u, n)| (u.as_str(), *n)).collect();
+        let pool = pool_with_limits(&refs);
+
+        let err = pool
+            .call(
+                alloy::primitives::Address::ZERO,
+                alloy::primitives::Bytes::from_static(&[0x31, 0x3c, 0xe5, 0x67]),
+            )
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("reverted"), "{err}");
+
+        let mut requests = 0;
+        for server in &servers {
+            requests += server.received_requests().await.unwrap_or_default().len();
+        }
+        assert_eq!(
+            requests, 1,
+            "a revert must not be retried on other endpoints"
+        );
     }
 
     #[tokio::test]
