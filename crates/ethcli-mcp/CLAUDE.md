@@ -102,8 +102,8 @@ When adding a tool, decide whether it is safe in default read-only mode:
 
 ### Security Controls
 
-- **Rate limiting**: Max 10 concurrent subprocesses (semaphore)
-- **Timeouts**: 10s for local commands (cast, config, address, most blacklist/endpoints), 30s for network commands, 330s for Dune executions
+- **Rate limiting**: Max 10 concurrent subprocesses (semaphore). A call waits up to 30s (`SLOT_WAIT`) for a free slot, then fails with "Too many concurrent requests"
+- **Timeouts**: 10s for local commands (cast, config, address, most blacklist/endpoints), 30s for network commands, 330s for Dune executions, 600s for `endpoints optimize` (it saves after each endpoint, so a kill keeps finished results)
 - **Input validation**: Argument length limits, null byte detection; `ArgsBuilder` rejects positional/subcommand values starting with `-` and passes dash-led option values as `--flag=value`. Use `.end_of_options()` before positionals that may legitimately start with `-`
 - **Stdin**: closed for every subprocess (stdin is the MCP transport); `ArgsBuilder::stdin()` pipes a secret instead of argv (`config_set_*`)
 - **Read-only default**: mutating tools require `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1`. Every `#[tool]` sets `annotations(...)`: `read_only_hint = true` for read tools; write tools set `read_only_hint = false`, `destructive_hint`, `idempotent_hint` and say "Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1." in the description (`annotation_tests` in main.rs enforces this)

@@ -388,7 +388,8 @@ ethcli config set-etherscan-key <k> # Set API key
 ethcli config set-tenderly --key <k> --account <a> --project <p>
 ethcli config set-pyth <k>          # Pyth Hermes API key (or --stdin)
 ethcli config set-defillama <k>     # DefiLlama key; its yields need one from 2026-11-13 (or --stdin)
-ethcli endpoints add <url>          # Add RPC endpoint (auto-detects)
+ethcli endpoints add <url>          # Add RPC endpoint (auto-detects; exits non-zero if unreachable)
+ethcli endpoints add <url> --no-optimize  # Add without testing it
 ethcli endpoints add <url> --node-type archive  # Mark as archive node
 ethcli endpoints add <url> --node-type full --has-debug --priority 10
 ethcli endpoints list               # List endpoints
