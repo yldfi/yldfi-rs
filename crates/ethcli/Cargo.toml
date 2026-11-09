@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.28.1"
+version = "0.28.2"
 edition = "2021"
 rust-version = "1.95"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
@@ -88,34 +88,34 @@ fs2 = "0.4"  # MED-003 fix: File locking for config persistence
 chrono = "0.4"  # Timestamp formatting for CEX commands
 
 # API clients
-alcmy = { version = "0.3.0", path = "../alcmy" }
-cgko = { version = "0.2.1", path = "../cgko" }
-dllma = { version = "0.2.1", path = "../dllma" }
-mrls = { version = "0.3.1", path = "../mrls" }
-dnapi = { version = "0.3.0", path = "../dnapi" }
-crv = { version = "0.2.1", path = "../crv" }
-pythc = { version = "0.2.1", path = "../pythc" }
-tndrly = { version = "0.5.0", path = "../tndrly" }
-yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
+alcmy = { version = "0.3.1", path = "../alcmy" }
+cgko = { version = "0.2.2", path = "../cgko" }
+dllma = { version = "0.2.2", path = "../dllma" }
+mrls = { version = "0.3.2", path = "../mrls" }
+dnapi = { version = "0.3.1", path = "../dnapi" }
+crv = { version = "0.2.2", path = "../crv" }
+pythc = { version = "0.2.2", path = "../pythc" }
+tndrly = { version = "0.5.1", path = "../tndrly" }
+yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 
 # DEX aggregator clients
-openoc = { version = "0.2.0", path = "../openoc" }
-cowp = { version = "0.2.0", path = "../cowp" }
-kybr = { version = "0.2.0", path = "../kybr" }
-zrxswap = { version = "0.2.0", path = "../zrxswap" }
-oinch = { version = "0.2.0", path = "../oinch" }
-lfi = { version = "0.2.0", path = "../lfi" }
-vlra = { version = "0.2.0", path = "../vlra" }
-ensof = { version = "0.2.0", path = "../ensof" }
+openoc = { version = "0.2.1", path = "../openoc" }
+cowp = { version = "0.2.1", path = "../cowp" }
+kybr = { version = "0.2.1", path = "../kybr" }
+zrxswap = { version = "0.2.1", path = "../zrxswap" }
+oinch = { version = "0.2.1", path = "../oinch" }
+lfi = { version = "0.2.1", path = "../lfi" }
+vlra = { version = "0.2.1", path = "../vlra" }
+ensof = { version = "0.2.1", path = "../ensof" }
 
 # Uniswap client (V2, V3, V4)
-unswp = { version = "0.1.7", path = "../unswp" }
+unswp = { version = "0.1.8", path = "../unswp" }
 
 # Yearn Kong API client
-ykong = { version = "0.1.6", path = "../ykong" }
+ykong = { version = "0.1.7", path = "../ykong" }
 
 # GoPlus Security API client
-gplus = { version = "0.2.0", path = "../gplus" }
+gplus = { version = "0.2.1", path = "../gplus" }
 
 # Solodit vulnerability database client
 sldt = { version = "0.2.1", path = "../sldt" }
@@ -128,7 +128,7 @@ evm-disassembler = "0.6"
 chainlink-data-streams-report = "1.2"
 
 # Centralised exchange market data
-cexm = { version = "0.1.0", path = "../cexm" }
+cexm = { version = "0.1.1", path = "../cexm" }
 
 [dev-dependencies]
 tokio-test = "0.4"

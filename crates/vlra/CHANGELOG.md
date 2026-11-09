@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.2.0...vlra-v0.2.1) (2026-11-09)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1.6 to 0.1.7
+
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.1.4...vlra-v0.2.0) (2026-10-21)
 
 

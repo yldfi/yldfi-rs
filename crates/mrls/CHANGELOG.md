@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.1...mrls-v0.3.2) (2026-11-09)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1.6 to 0.1.7
+
 ## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.0...mrls-v0.3.1) (2026-11-09)
 
 

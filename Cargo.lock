@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "alcmy"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "http",
  "reqwest 0.12.28",
@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "cexm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "reqwest 0.12.28",
@@ -1339,7 +1339,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "cgko"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",
@@ -1554,7 +1554,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cowp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -1619,7 +1619,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
 name = "crv"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -1921,7 +1921,7 @@ dependencies = [
 
 [[package]]
 name = "dllma"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",
@@ -1935,7 +1935,7 @@ dependencies = [
 
 [[package]]
 name = "dnapi"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "http",
  "reqwest 0.12.28",
@@ -2024,7 +2024,7 @@ checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
 name = "ensof"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -2073,7 +2073,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.28.1"
+version = "0.28.2"
 dependencies = [
  "alcmy",
  "alloy",
@@ -2522,7 +2522,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gplus"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "hex",
  "reqwest 0.12.28",
@@ -3145,7 +3145,7 @@ checksum = "a4933f3f57a8e9d9da04db23fb153356ecaf00cbd14aee46279c33dc80925c37"
 
 [[package]]
 name = "kybr"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -3170,7 +3170,7 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "lfi"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -3309,7 +3309,7 @@ dependencies = [
 
 [[package]]
 name = "mrls"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",
@@ -3420,7 +3420,7 @@ dependencies = [
 
 [[package]]
 name = "oinch"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -3450,7 +3450,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "openoc"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -3778,7 +3778,7 @@ dependencies = [
 
 [[package]]
 name = "pythc"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -5111,7 +5111,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tndrly"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "percent-encoding",
  "reqwest 0.12.28",
@@ -5526,7 +5526,7 @@ checksum = "81e544489bf3d8ef66c953931f56617f423cd4b5494be343d9b9d3dda037b9a3"
 
 [[package]]
 name = "unswp"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "alloy",
  "reqwest 0.12.28",
@@ -5612,7 +5612,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vlra"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -6206,7 +6206,7 @@ dependencies = [
 
 [[package]]
 name = "ykong"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -6219,7 +6219,7 @@ dependencies = [
 
 [[package]]
 name = "yldfi-common"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "fastrand",
  "reqwest 0.12.28",
@@ -6355,7 +6355,7 @@ checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
 
 [[package]]
 name = "zrxswap"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.2.1...cgko-v0.2.2) (2026-11-09)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1.6 to 0.1.7
+
 ## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.2.0...cgko-v0.2.1) (2026-11-09)
 
 

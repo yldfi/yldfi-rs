@@ -1,6 +1,6 @@
 [package]
 name = "alcmy"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "Unofficial Rust client for the Alchemy API"
 license = "MIT"
@@ -17,7 +17,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 secrecy = { workspace = true }
-yldfi-common = { version = "0.1.6", path = "../yldfi-common" }
+yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 
 [dev-dependencies]
 http = "1"
