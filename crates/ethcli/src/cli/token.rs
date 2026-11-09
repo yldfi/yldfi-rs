@@ -113,7 +113,11 @@ pub async fn handle(
 
             // name/symbol/decimals are effectively immutable and cached;
             // totalSupply changes every mint/burn and is always fetched live.
-            let cached = cache.get(chain_name, &addr_str);
+            // An entry with neither name nor symbol is refetched: older releases
+            // cached bytes32 symbols (MKR, SAI) as empty
+            let cached = cache
+                .get(chain_name, &addr_str)
+                .filter(|c| c.name.is_some() || c.symbol.is_some());
 
             if !quiet {
                 eprintln!("Fetching token info for {}...", display);
