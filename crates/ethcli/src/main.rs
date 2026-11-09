@@ -472,15 +472,25 @@ async fn run_logs(args: &LogsArgs, cli: &Cli) -> anyhow::Result<()> {
 
     let config = builder.build()?;
 
+    // Held for the whole run: a second resume of the same run is refused
+    let mut _checkpoint_lock = None;
     if args.resume {
         let checkpoint = args
             .checkpoint
             .clone()
             .unwrap_or_else(|| default_checkpoint_path(&args.contract, config.chain.chain_id()));
+        _checkpoint_lock = Some(ethcli::checkpoint::lock_checkpoint(&checkpoint)?);
         if let Some(conflict) =
             ethcli::checkpoint::resume_conflict(args.output.as_deref(), &checkpoint)
         {
             anyhow::bail!(conflict);
+        }
+        if let (OutputFormat::NdJson, Some(output)) = (format, args.output.as_deref()) {
+            if let Some(msg) = ethcli::checkpoint::prepare_resume_output(output, &checkpoint)? {
+                if !cli.quiet {
+                    eprintln!("{msg}");
+                }
+            }
         }
     }
 
@@ -713,6 +723,11 @@ async fn run_streaming_fetch(
     };
 
     let mut fetcher = fetcher.with_checkpoint(&checkpoint_path)?;
+    if let (Ok(OutputFormat::NdJson), Some(output)) =
+        (args.format.parse::<OutputFormat>(), args.output.as_deref())
+    {
+        fetcher = fetcher.track_output(output);
+    }
 
     if !cli.quiet {
         eprintln!(

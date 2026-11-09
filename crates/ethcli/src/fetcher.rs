@@ -8,7 +8,7 @@ use crate::rpc::RpcPool;
 use alloy::primitives::{Address, B256};
 use alloy::rpc::types::{Filter, Log};
 use futures::stream::{self, StreamExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -633,6 +633,8 @@ impl LogFetcher {
 pub struct StreamingFetcher {
     fetcher: LogFetcher,
     checkpoint_manager: Option<std::sync::Arc<parking_lot::Mutex<CheckpointManager>>>,
+    /// NDJSON output whose size is saved with each checkpoint
+    tracked_output: Option<PathBuf>,
 }
 
 impl StreamingFetcher {
@@ -642,6 +644,7 @@ impl StreamingFetcher {
         Ok(Self {
             fetcher,
             checkpoint_manager: None,
+            tracked_output: None,
         })
     }
 
@@ -668,6 +671,13 @@ impl StreamingFetcher {
 
         self.checkpoint_manager = Some(std::sync::Arc::new(parking_lot::Mutex::new(manager)));
         Ok(self)
+    }
+
+    /// Save `path`'s size with each checkpoint, so a resume can cut off rows
+    /// written after it (see [`crate::checkpoint::prepare_resume_output`])
+    pub fn track_output(mut self, path: &Path) -> Self {
+        self.tracked_output = Some(path.to_path_buf());
+        self
     }
 
     /// Get the RPC pool
@@ -834,14 +844,23 @@ impl StreamingFetcher {
                         return Err(e);
                     }
 
-                    // Update checkpoint
+                    // Update checkpoint, with the output's size, which the
+                    // handler has just flushed. A checkpoint that can't be
+                    // saved stops the run: later chunks would be written but
+                    // not recorded, and a resume would write them again.
                     if let Some(ref manager) = self.checkpoint_manager {
-                        if let Err(e) = manager
-                            .lock()
-                            .mark_completed(chunk_from, chunk_to, logs_count)
-                        {
-                            tracing::warn!("Failed to update checkpoint: {}", e);
+                        let mut manager = manager.lock();
+                        if let Some(ref output) = self.tracked_output {
+                            let len = std::fs::metadata(output).map(|m| m.len()).map_err(|e| {
+                                crate::error::CheckpointError::WriteError(format!(
+                                    "{}: {}",
+                                    output.display(),
+                                    e
+                                ))
+                            })?;
+                            manager.set_output_len(len);
                         }
+                        manager.mark_completed(chunk_from, chunk_to, logs_count)?;
                     }
 
                     stats.chunks_succeeded += 1;
@@ -863,9 +882,7 @@ impl StreamingFetcher {
 
         // Final checkpoint save
         if let Some(ref manager) = self.checkpoint_manager {
-            if let Err(e) = manager.lock().save_now() {
-                tracing::warn!("Failed to save final checkpoint: {}", e);
-            }
+            manager.lock().save_now()?;
         }
 
         Ok(stats)
