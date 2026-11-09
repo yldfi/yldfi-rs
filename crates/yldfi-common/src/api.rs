@@ -513,12 +513,20 @@ impl<E: std::error::Error> ApiError<E> {
     /// Returns true for:
     /// - Rate limited errors
     /// - Server errors (5xx)
-    /// - HTTP transport errors
+    /// - HTTP transport errors (connection, timeout, ...)
+    ///
+    /// Not for a response that arrived but couldn't be decoded, or a request
+    /// that couldn't be built: those fail the same way every time.
+    ///
+    /// A transport error after the request was sent (e.g. a timeout) may still
+    /// have taken effect upstream, so only retry calls that are safe to
+    /// repeat (see [`crate::with_retry`]).
     pub fn is_retryable(&self) -> bool {
-        matches!(
-            self,
-            Self::RateLimited { .. } | Self::ServerError { .. } | Self::Http(_)
-        )
+        match self {
+            Self::RateLimited { .. } | Self::ServerError { .. } => true,
+            Self::Http(e) => !e.is_decode() && !e.is_builder(),
+            _ => false,
+        }
     }
 
     /// Get retry-after duration if available
@@ -1506,5 +1514,50 @@ mod tests {
         let sanitized = super::sanitize_error_body(body);
         assert!(!sanitized.contains("my_secret_value"));
         assert!(!sanitized.contains("my_client_id"));
+    }
+}
+
+#[cfg(test)]
+mod retryable_tests {
+    use super::*;
+
+    /// A one-shot HTTP server on localhost that answers 200 with `body`
+    fn serve_once(body: &'static str) -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 1024];
+                let _ = stream.read(&mut buf);
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+            }
+        });
+        format!("http://{addr}/")
+    }
+
+    #[tokio::test]
+    async fn a_response_that_does_not_parse_is_not_retried() {
+        let url = serve_once("not json");
+        let err = reqwest::get(&url)
+            .await
+            .unwrap()
+            .json::<serde_json::Value>()
+            .await
+            .unwrap_err();
+        assert!(err.is_decode());
+        assert!(!ApiError::<NoDomainError>::from(err).is_retryable());
+    }
+
+    #[tokio::test]
+    async fn a_refused_connection_is_retried() {
+        // Nothing listens on port 1
+        let err = reqwest::get("http://127.0.0.1:1/").await.unwrap_err();
+        assert!(ApiError::<NoDomainError>::from(err).is_retryable());
     }
 }
