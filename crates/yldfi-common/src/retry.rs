@@ -194,13 +194,19 @@ impl<E> RetryError<E> {
     }
 }
 
+/// The longest server-requested wait (`Retry-After`) [`with_retry`] honours.
+/// Common rate limits ask for up to a minute; a longer request returns the
+/// error instead of blocking the caller.
+pub const MAX_RETRY_AFTER_WAIT: Duration = Duration::from_secs(120);
+
 /// Execute an async operation with retries
 ///
 /// Uses exponential backoff with optional jitter. If the error provides a
-/// retry-after duration, that is used instead of the calculated delay; a
-/// retry-after longer than `config.max_delay` returns the error at once
-/// (its `retry_after()` says how long the server asked to wait) instead of
-/// sleeping that long.
+/// retry-after duration, that is used instead of the calculated delay (even
+/// when longer than `config.max_delay`), up to [`MAX_RETRY_AFTER_WAIT`]. A
+/// server asking for a longer wait gets the error back at once (its
+/// `retry_after()` says how long it asked for) instead of a sleep of up to an
+/// hour.
 ///
 /// # Only wrap calls that are safe to repeat
 ///
@@ -261,9 +267,9 @@ where
                 }
 
                 // Use retry-after from error if available, otherwise calculate.
-                // A wait longer than max_delay is the caller's decision.
+                // A wait longer than MAX_RETRY_AFTER_WAIT is the caller's call.
                 let delay = match e.retry_after() {
-                    Some(wait) if wait > config.max_delay => {
+                    Some(wait) if wait > MAX_RETRY_AFTER_WAIT => {
                         return Err(RetryError { error: e, attempts });
                     }
                     Some(wait) => wait,
@@ -376,7 +382,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_retry_after_beyond_max_delay_returns_the_error() {
+    async fn a_retry_after_beyond_the_ceiling_returns_the_error() {
         let mut calls = 0;
         let started = std::time::Instant::now();
         let err = with_retry(&config(Duration::from_secs(10)), || {
@@ -389,6 +395,26 @@ mod tests {
         assert_eq!(err.attempts, 1);
         assert_eq!(err.error.0, Some(Duration::from_secs(3600)));
         assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn a_retry_after_longer_than_max_delay_is_still_honoured() {
+        // max_delay only caps the calculated backoff, not the server's request
+        let mut calls = 0;
+        let result = with_retry(&config(Duration::from_millis(1)), || {
+            calls += 1;
+            let fail = calls < 2;
+            async move {
+                if fail {
+                    Err(Wait(Some(Duration::from_millis(20))))
+                } else {
+                    Ok(())
+                }
+            }
+        })
+        .await;
+        assert!(result.is_ok());
+        assert_eq!(calls, 2);
     }
 
     #[tokio::test]

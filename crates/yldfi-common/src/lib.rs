@@ -73,7 +73,9 @@ pub mod rate_limit;
 pub mod retry;
 pub mod units;
 
-pub use retry::{with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError};
+pub use retry::{
+    with_retry, with_simple_retry, RetryConfig, RetryError, RetryableError, MAX_RETRY_AFTER_WAIT,
+};
 
 // Re-export HTTP utilities
 pub use http::{
