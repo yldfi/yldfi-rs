@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.0...mrls-v0.3.1) (2026-11-09)
+
+
+### Features
+
+* **ethcli:** moralis token price --block and llama coins historical --search-width ([#191](https://github.com/yldfi/yldfi-rs/issues/191)) ([93de870](https://github.com/yldfi/yldfi-rs/commit/93de8708cb0cb6f23996b3ae1560a2201537d6c3))
+
 ## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.2.0...mrls-v0.3.0) (2026-10-21)
 
 

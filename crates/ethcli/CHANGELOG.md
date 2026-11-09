@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.28.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.28.0...ethcli-v0.28.1) (2026-11-09)
+
+
+### Features
+
+* **ethcli:** moralis token price --block and llama coins historical --search-width ([#191](https://github.com/yldfi/yldfi-rs/issues/191)) ([93de870](https://github.com/yldfi/yldfi-rs/commit/93de8708cb0cb6f23996b3ae1560a2201537d6c3))
+
+
+### Bug Fixes
+
+* **cgko:** send keyless onchain requests to GeckoTerminal's free API ([#190](https://github.com/yldfi/yldfi-rs/issues/190)) ([ba861c4](https://github.com/yldfi/yldfi-rs/commit/ba861c4f339095fa65a2216e23df25b3a3b42d71))
+* **ethcli:** price --lp values Curve LPs on-chain, with the indexer as a check ([#189](https://github.com/yldfi/yldfi-rs/issues/189)) ([dac31ff](https://github.com/yldfi/yldfi-rs/commit/dac31ff2413a9d910eb639833bcd845e23898448))
+* **ethcli:** simulate fails over when a node lacks the history ([#187](https://github.com/yldfi/yldfi-rs/issues/187)) ([91f4106](https://github.com/yldfi/yldfi-rs/commit/91f41061f7e7d1c6283367a5c2fac02434b5de15))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * cgko bumped from 0.2.0 to 0.2.1
+    * mrls bumped from 0.3.0 to 0.3.1
+
 ## [0.28.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.27.1...ethcli-v0.28.0) (2026-11-05)
 
 
