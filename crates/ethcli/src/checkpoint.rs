@@ -33,6 +33,11 @@ pub struct Checkpoint {
     pub last_updated: u64,
     /// Output file path (if any)
     pub output_path: Option<PathBuf>,
+    /// Size of the NDJSON output, in bytes, when the completed ranges were
+    /// last saved. On resume, anything past it was written after the last
+    /// checkpoint (or is a torn line) and is cut off, so it isn't duplicated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_len: Option<u64>,
 }
 
 impl Checkpoint {
@@ -56,6 +61,7 @@ impl Checkpoint {
             total_logs: 0,
             last_updated: current_timestamp(),
             output_path: None,
+            output_len: None,
         }
     }
 
@@ -259,7 +265,9 @@ pub struct CheckpointManager {
     path: PathBuf,
     /// Save interval (number of ranges). 1: the caller writes and flushes each
     /// range before marking it completed, so saving every time keeps the
-    /// checkpoint in step with the output and a crash can't duplicate rows.
+    /// checkpoint in step with the output. A crash between the two leaves
+    /// rows the checkpoint doesn't record; for NDJSON the saved `output_len`
+    /// lets the next resume cut them off (SQLite output dedups instead).
     save_interval: usize,
     /// Ranges since last save
     ranges_since_save: usize,
@@ -313,6 +321,11 @@ impl CheckpointManager {
         }
 
         Ok(())
+    }
+
+    /// Record the output's size to save with the next completed range
+    pub fn set_output_len(&mut self, len: u64) {
+        self.checkpoint.output_len = Some(len);
     }
 
     /// Force save
@@ -400,6 +413,177 @@ pub fn resume_conflict(output: Option<&Path>, checkpoint: &Path) -> Option<Strin
             checkpoint.display()
         )
     })
+}
+
+/// Take the lock for a checkpoint for the rest of the run (held while the
+/// returned file is open). A second `--resume` of the same run would write the
+/// same output and checkpoint, so it is refused instead.
+pub fn lock_checkpoint(checkpoint: &Path) -> Result<fs::File> {
+    let mut name = checkpoint.as_os_str().to_owned();
+    name.push(".lock");
+    let lock_path = PathBuf::from(name);
+    if let Some(parent) = lock_path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        let _ = fs::create_dir_all(parent);
+    }
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|e| CheckpointError::WriteError(format!("{}: {}", lock_path.display(), e)))?;
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(fs::TryLockError::WouldBlock) => Err(CheckpointError::WriteError(format!(
+            "another `ethcli logs --resume` is using {}; wait for it to finish",
+            checkpoint.display()
+        ))
+        .into()),
+        Err(fs::TryLockError::Error(e)) => {
+            Err(CheckpointError::WriteError(format!("{}: {}", lock_path.display(), e)).into())
+        }
+    }
+}
+
+/// Before a resumed NDJSON run appends to `output`, cut off what was written
+/// after the last checkpoint: rows from ranges the checkpoint doesn't record
+/// (they will be fetched again) and any torn last line. Returns a message
+/// when something was cut.
+///
+/// With a recorded size, the file is cut back to it. A checkpoint from an
+/// older release has none, so only a torn last line is removed.
+pub fn prepare_resume_output(output: &Path, checkpoint: &Path) -> Result<Option<String>> {
+    let Ok(meta) = fs::metadata(output) else {
+        return Ok(None);
+    };
+    let len = meta.len();
+    let recorded = Checkpoint::load(checkpoint).ok().and_then(|c| c.output_len);
+    let target = match recorded {
+        Some(n) if n > len => {
+            return Err(CheckpointError::Corrupted(format!(
+                "{} is {} bytes but the checkpoint at {} recorded {} bytes, so rows from ranges \
+                 marked complete are missing. Use the original output file, or delete the \
+                 checkpoint to fetch everything again",
+                output.display(),
+                len,
+                checkpoint.display(),
+                n
+            ))
+            .into())
+        }
+        Some(n) => n,
+        None => after_last_newline(output, len)?,
+    };
+    if target >= len {
+        return Ok(None);
+    }
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .open(output)
+        .map_err(|e| CheckpointError::WriteError(format!("{}: {}", output.display(), e)))?;
+    file.set_len(target)
+        .map_err(|e| CheckpointError::WriteError(format!("{}: {}", output.display(), e)))?;
+    Ok(Some(format!(
+        "Removed {} bytes from {} written after the last checkpoint; those blocks will be \
+         fetched again",
+        len - target,
+        output.display()
+    )))
+}
+
+/// The offset just after the file's last newline (0 if there is none)
+fn after_last_newline(path: &Path, len: u64) -> Result<u64> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = fs::File::open(path)
+        .map_err(|e| CheckpointError::ReadError(format!("{}: {}", path.display(), e)))?;
+    let mut end = len;
+    let mut buf = vec![0u8; 64 * 1024];
+    while end > 0 {
+        let start = end.saturating_sub(buf.len() as u64);
+        let n = (end - start) as usize;
+        file.seek(SeekFrom::Start(start))
+            .and_then(|_| file.read_exact(&mut buf[..n]))
+            .map_err(|e| CheckpointError::ReadError(format!("{}: {}", path.display(), e)))?;
+        if let Some(i) = buf[..n].iter().rposition(|&b| b == b'\n') {
+            return Ok(start + i as u64 + 1);
+        }
+        end = start;
+    }
+    Ok(0)
+}
+
+#[cfg(test)]
+mod resume_output_tests {
+    use super::*;
+
+    fn checkpoint_with(dir: &Path, output_len: Option<u64>) -> PathBuf {
+        let path = dir.join("run.checkpoint");
+        let mut c = Checkpoint::new("0xabc".into(), 1, None, 0, Some(100));
+        c.output_len = output_len;
+        c.save(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn cuts_rows_written_after_the_last_checkpoint() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("out.ndjson");
+        fs::write(&out, "{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n").unwrap();
+        let cp = checkpoint_with(dir.path(), Some(16));
+        let msg = prepare_resume_output(&out, &cp).unwrap();
+        assert!(msg.is_some());
+        assert_eq!(fs::read_to_string(&out).unwrap(), "{\"a\":1}\n{\"a\":2}\n");
+    }
+
+    #[test]
+    fn an_old_checkpoint_only_loses_a_torn_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("out.ndjson");
+        fs::write(&out, "{\"a\":1}\n{\"a\":2}\n{\"a\":").unwrap();
+        let cp = checkpoint_with(dir.path(), None);
+        prepare_resume_output(&out, &cp).unwrap();
+        assert_eq!(fs::read_to_string(&out).unwrap(), "{\"a\":1}\n{\"a\":2}\n");
+    }
+
+    #[test]
+    fn a_clean_file_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("out.ndjson");
+        fs::write(&out, "{\"a\":1}\n").unwrap();
+        let cp = checkpoint_with(dir.path(), Some(8));
+        assert!(prepare_resume_output(&out, &cp).unwrap().is_none());
+        assert_eq!(fs::read_to_string(&out).unwrap(), "{\"a\":1}\n");
+    }
+
+    #[test]
+    fn a_shorter_file_than_recorded_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("out.ndjson");
+        fs::write(&out, "{\"a\":1}\n").unwrap();
+        let cp = checkpoint_with(dir.path(), Some(100));
+        assert!(prepare_resume_output(&out, &cp).is_err());
+    }
+
+    #[test]
+    fn a_second_lock_on_the_same_checkpoint_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let cp = dir.path().join("run.checkpoint");
+        let first = lock_checkpoint(&cp).unwrap();
+        assert!(lock_checkpoint(&cp).is_err());
+        drop(first);
+        assert!(lock_checkpoint(&cp).is_ok());
+    }
+
+    #[test]
+    fn checkpoints_without_output_len_still_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("old.checkpoint");
+        let c = Checkpoint::new("0xabc".into(), 1, None, 0, Some(100));
+        let mut v = serde_json::to_value(&c).unwrap();
+        v.as_object_mut().unwrap().remove("output_len");
+        fs::write(&path, v.to_string()).unwrap();
+        assert_eq!(Checkpoint::load(&path).unwrap().output_len, None);
+    }
 }
 
 #[cfg(test)]
