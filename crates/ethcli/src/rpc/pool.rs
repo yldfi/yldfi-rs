@@ -598,15 +598,14 @@ impl RpcPool {
         let Some(range) = range else {
             return self.select_endpoints(count);
         };
-        let mut endpoints = self.select_endpoints(usize::MAX);
+        let mut endpoints = self.ranked_available();
         endpoints.retain(|e| {
             let limit = self
                 .health
                 .effective_max_block_range(e.url(), e.max_block_range());
             limit == 0 || range <= limit
         });
-        endpoints.truncate(count);
-        endpoints
+        self.claim(endpoints, count)
     }
 
     /// The largest effective block range among available endpoints, when it is
@@ -626,8 +625,32 @@ impl RpcPool {
     /// Select endpoints for a request based on health and priority
     ///
     /// Returns Arc<Endpoint> to avoid cloning EndpointConfig strings.
-    /// (PERF-004 fix: avoids intermediate String allocations by looking up scores directly)
     fn select_endpoints(&self, count: usize) -> Vec<Arc<Endpoint>> {
+        let ranked = self.ranked_available();
+        self.claim(ranked, count)
+    }
+
+    /// Keep up to `count` of `ranked`, in order. An endpoint whose circuit
+    /// breaker is half-open is kept only if this call claims its single probe;
+    /// one another request has already claimed is skipped, so concurrent
+    /// requests don't all go to an endpoint that only just stopped failing.
+    fn claim(&self, ranked: Vec<Arc<Endpoint>>, count: usize) -> Vec<Arc<Endpoint>> {
+        let mut selected = Vec::with_capacity(count.min(ranked.len()));
+        for endpoint in ranked {
+            if selected.len() >= count {
+                break;
+            }
+            if self.health.try_probe(endpoint.url()) {
+                selected.push(endpoint);
+            }
+        }
+        selected
+    }
+
+    /// Endpoints not blocked by an open circuit breaker, best first. Doesn't
+    /// claim half-open probes; [`claim`](Self::claim) does that.
+    /// (PERF-004 fix: avoids intermediate String allocations by looking up scores directly)
+    fn ranked_available(&self) -> Vec<Arc<Endpoint>> {
         // Get available endpoints (Arc clone is cheap - just reference count increment)
         let mut available: Vec<_> = self
             .endpoints
@@ -660,7 +683,6 @@ impl RpcPool {
             available[..shuffle_count].shuffle(&mut rng);
         }
 
-        available.truncate(count);
         available
     }
 
@@ -753,9 +775,7 @@ impl RpcPool {
             // Fall back to all available endpoints
             self.select_endpoints(count)
         } else {
-            let mut result = archive_eps;
-            result.truncate(count);
-            result
+            self.claim(archive_eps, count)
         }
     }
 }
@@ -894,6 +914,66 @@ mod tests {
             .collect();
         urls.sort();
         assert_eq!(urls, vec!["http://big.invalid", "http://unlimited.invalid"]);
+    }
+
+    #[test]
+    fn a_half_open_endpoint_gets_one_probe_not_every_request() {
+        let mut pool = pool_with_limits(&[("http://flaky.invalid", 0), ("http://ok.invalid", 0)]);
+        pool.health = Arc::new(HealthTracker::with_breaker_timeout(
+            1,
+            Duration::from_millis(200),
+        ));
+        let urls = |eps: Vec<Arc<Endpoint>>| -> Vec<String> {
+            let mut u: Vec<_> = eps.iter().map(|e| e.url().to_string()).collect();
+            u.sort();
+            u
+        };
+
+        pool.health
+            .record_failure("http://flaky.invalid", false, false);
+        assert_eq!(urls(pool.select_endpoints(5)), vec!["http://ok.invalid"]);
+
+        std::thread::sleep(Duration::from_millis(250));
+        // The first request after the timeout probes the endpoint...
+        assert_eq!(
+            urls(pool.select_endpoints(5)),
+            vec!["http://flaky.invalid", "http://ok.invalid"]
+        );
+        // ...and requests made while that probe is outstanding don't
+        assert_eq!(urls(pool.select_endpoints(5)), vec!["http://ok.invalid"]);
+        assert_eq!(
+            urls(pool.select_endpoints_for_range(5, Some(10))),
+            vec!["http://ok.invalid"]
+        );
+
+        // A successful probe closes the breaker
+        pool.health
+            .record_success("http://flaky.invalid", Duration::from_millis(10));
+        assert_eq!(
+            urls(pool.select_endpoints(5)),
+            vec!["http://flaky.invalid", "http://ok.invalid"]
+        );
+    }
+
+    #[test]
+    fn ranking_for_a_block_range_does_not_use_up_a_probe() {
+        let mut pool = pool_with_limits(&[("http://flaky.invalid", 10), ("http://ok.invalid", 0)]);
+        pool.health = Arc::new(HealthTracker::with_breaker_timeout(
+            1,
+            Duration::from_millis(200),
+        ));
+        pool.health
+            .record_failure("http://flaky.invalid", false, false);
+        std::thread::sleep(Duration::from_millis(250));
+
+        // flaky can't serve 500 blocks, so this request must leave its probe alone
+        let eps = pool.select_endpoints_for_range(5, Some(500));
+        assert_eq!(eps.len(), 1);
+        assert_eq!(eps[0].url(), "http://ok.invalid");
+        assert!(pool
+            .select_endpoints(5)
+            .iter()
+            .any(|e| e.url() == "http://flaky.invalid"));
     }
 
     #[test]
