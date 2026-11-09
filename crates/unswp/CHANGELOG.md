@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.8](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.7...unswp-v0.1.8) (2026-11-09)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * yldfi-common bumped from 0.1.6 to 0.1.7
+
 ## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/unswp-v0.1.6...unswp-v0.1.7) (2026-10-21)
 
 

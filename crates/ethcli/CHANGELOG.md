@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.28.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.28.1...ethcli-v0.28.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **ethcli:** a contract revert in pool.call doesn't count against the endpoint ([#197](https://github.com/yldfi/yldfi-rs/issues/197)) ([b09c378](https://github.com/yldfi/yldfi-rs/commit/b09c37806163db8863638b5247805d6322f771fe))
+* **ethcli:** lock and write the address book, blacklist and caches atomically ([#195](https://github.com/yldfi/yldfi-rs/issues/195)) ([7b52ea8](https://github.com/yldfi/yldfi-rs/commit/7b52ea8ccf56422a8b326fd1d799fe9d355783c1))
+* **ethcli:** logs --resume no longer duplicates rows after a crash ([#196](https://github.com/yldfi/yldfi-rs/issues/196)) ([654b39e](https://github.com/yldfi/yldfi-rs/commit/654b39e5863cdab0a4d52f68bc26c384d801cd0d))
+
+
+### Performance Improvements
+
+* **ethcli:** token metadata in one Multicall3 call instead of three Etherscan calls ([#194](https://github.com/yldfi/yldfi-rs/issues/194)) ([c03dd88](https://github.com/yldfi/yldfi-rs/commit/c03dd880ab0155b49fc538c8f118546cf99400fd))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * alcmy bumped from 0.3.0 to 0.3.1
+    * cgko bumped from 0.2.1 to 0.2.2
+    * dllma bumped from 0.2.1 to 0.2.2
+    * mrls bumped from 0.3.1 to 0.3.2
+    * dnapi bumped from 0.3.0 to 0.3.1
+    * crv bumped from 0.2.1 to 0.2.2
+    * pythc bumped from 0.2.1 to 0.2.2
+    * tndrly bumped from 0.5.0 to 0.5.1
+    * yldfi-common bumped from 0.1.6 to 0.1.7
+    * openoc bumped from 0.2.0 to 0.2.1
+    * cowp bumped from 0.2.0 to 0.2.1
+    * kybr bumped from 0.2.0 to 0.2.1
+    * zrxswap bumped from 0.2.0 to 0.2.1
+    * oinch bumped from 0.2.0 to 0.2.1
+    * lfi bumped from 0.2.0 to 0.2.1
+    * vlra bumped from 0.2.0 to 0.2.1
+    * ensof bumped from 0.2.0 to 0.2.1
+    * unswp bumped from 0.1.7 to 0.1.8
+    * ykong bumped from 0.1.6 to 0.1.7
+    * gplus bumped from 0.2.0 to 0.2.1
+    * cexm bumped from 0.1.0 to 0.1.1
+
 ## [0.28.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.28.0...ethcli-v0.28.1) (2026-11-09)
 
 

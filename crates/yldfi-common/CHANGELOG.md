@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/yldfi/yldfi-rs/compare/yldfi-common-v0.1.6...yldfi-common-v0.1.7) (2026-11-09)
+
+
+### Bug Fixes
+
+* **yldfi-common:** don't retry undecodable responses; cap Retry-After waits at 2 minutes ([#198](https://github.com/yldfi/yldfi-rs/issues/198)) ([0b18dd1](https://github.com/yldfi/yldfi-rs/commit/0b18dd189971666ac670d250b74ffda2c8c05f98))
+
 ## [0.1.6](https://github.com/yldfi/yldfi-rs/compare/yldfi-common-v0.1.5...yldfi-common-v0.1.6) (2026-10-21)
 
 
