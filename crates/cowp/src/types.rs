@@ -563,6 +563,10 @@ pub enum OrderStatus {
     /// (API value `presignaturePending`)
     #[serde(alias = "presignaturepending")]
     PresignaturePending,
+    /// A status this version doesn't know, so a new API value doesn't fail
+    /// the whole response
+    #[serde(other)]
+    Unknown,
 }
 
 /// API error response
