@@ -249,8 +249,8 @@ For endpoint diagnostics, `endpoints_health` returns JSON and defaults to `probe
 - **No secret-bearing subprocess args** - MCP rejects direct credential/header flags such as `--show-secrets`, `--tenderly-key`, `--alchemy-key`, `--etherscan-api-key`/`--etherscan-key`, `--rpc-header(s)`, and `--fork-header(s)`. Configure credentials via environment variables or ethcli config instead. `config_set_*` passes the key to ethcli on stdin, not in argv.
 - **Success-output redaction** - Credential-bearing URLs and secret-looking header/config lines are redacted before returning MCP tool responses.
 - **Process-group cleanup** - Timed-out subprocesses are killed as a process group so child tools such as `anvil` do not remain running.
-- **Rate limiting** - Max 10 concurrent subprocesses
-- **Timeouts** - 10 seconds for fast local commands, 30 seconds for network commands, 330 seconds for `dune_sql`/`dune_query` (ethcli waits up to 300 seconds for the execution)
+- **Rate limiting** - Max 10 concurrent subprocesses; a call waits up to 30 seconds for a free one before failing
+- **Timeouts** - 10 seconds for fast local commands, 30 seconds for network commands, 330 seconds for `dune_sql`/`dune_query` (ethcli waits up to 300 seconds for the execution), 600 seconds for `endpoints_optimize` (results are saved after each endpoint)
 - **Input validation** - Argument length limits, null byte detection. Tool values are never read as flags: positional values starting with `-` are rejected (or passed after `--` where they are legitimate, such as negative ABI arguments and SQL comments), and option values starting with `-` are passed as `--flag=value`
 - **Closed stdin** - The ethcli subprocess gets no stdin (the MCP transport), except the secret piped to `config_set_*`
 - **Bounded output** - At most 1 MB of stdout is kept; the rest is drained and the response notes the truncation

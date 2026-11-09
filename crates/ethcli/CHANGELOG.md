@@ -5,8 +5,8 @@
 
 ### ⚠ BREAKING CHANGES
 
-* **ethcli-mcp:** `ConfigFile` has a new (hidden) field, `loaded`, so struct literals need `..ConfigFile::default()`.
 * **ethcli:** `ConfigFile` has a new (hidden) field, `loaded`, so struct literals need `..ConfigFile::default()`.
+* **ethcli:** `endpoints add` now exits non-zero when it can't reach the endpoint (it used to exit 0 without adding it). Scripts that relied on exit 0 should check the result or pass `--no-optimize`.
 
 ### Bug Fixes
 

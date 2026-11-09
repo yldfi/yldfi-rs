@@ -5,7 +5,7 @@
 
 ### ⚠ BREAKING CHANGES
 
-* **ethcli-mcp:** `ConfigFile` has a new (hidden) field, `loaded`, so struct literals need `..ConfigFile::default()`.
+* None for ethcli-mcp itself. The minor bump came from ethcli's `ConfigFile` change ([#200](https://github.com/yldfi/yldfi-rs/issues/200)) being repeated in this release's commit message.
 
 ### Bug Fixes
 

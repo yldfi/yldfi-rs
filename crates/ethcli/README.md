@@ -453,8 +453,10 @@ ethcli endpoints list
 ethcli endpoints list --archive     # Show only archive nodes
 ethcli endpoints list --detailed    # Show full config details
 
-# Add an endpoint (auto-detects capabilities)
+# Add an endpoint (auto-detects capabilities). If it can't be reached, nothing
+# is added and the command exits non-zero; --no-optimize adds it untested
 ethcli endpoints add https://eth.llamarpc.com
+ethcli endpoints add https://eth.llamarpc.com --no-optimize
 
 # Add with explicit node type (archive nodes preferred for historical queries)
 ethcli endpoints add https://my-archive.com --node-type archive
