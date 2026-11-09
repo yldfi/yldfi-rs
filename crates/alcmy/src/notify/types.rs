@@ -5,8 +5,13 @@
 use serde::{Deserialize, Serialize};
 
 /// Webhook type
+///
+/// Non-exhaustive: Alchemy retires and adds types, and a webhook keeps the
+/// type it was created with. Types this version doesn't know, and webhooks
+/// listed without a type, deserialize as [`WebhookType::Unknown`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[non_exhaustive]
 pub enum WebhookType {
     /// Mined transactions
     MinedTransaction,
@@ -20,6 +25,26 @@ pub enum WebhookType {
     NftMetadataUpdate,
     /// Custom GraphQL webhook
     Graphql,
+    /// A type this version doesn't know, or none given. Not valid in requests.
+    #[serde(other)]
+    Unknown,
+}
+
+fn unknown_webhook_type() -> WebhookType {
+    WebhookType::Unknown
+}
+
+/// Accepts whole or fractional milliseconds: the spec types `time_created`
+/// as a double.
+fn deserialize_millis<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Number>::deserialize(deserializer)?;
+    Ok(value.and_then(|n| {
+        n.as_u64()
+            .or_else(|| n.as_f64().filter(|f| *f >= 0.0).map(|f| f as u64))
+    }))
 }
 
 /// Webhook network
@@ -63,7 +88,8 @@ pub struct Webhook {
     pub id: String,
     /// Webhook network
     pub network: WebhookNetwork,
-    /// Webhook type
+    /// Webhook type ([`WebhookType::Unknown`] when the API gives none)
+    #[serde(default = "unknown_webhook_type")]
     pub webhook_type: WebhookType,
     /// Webhook URL
     pub webhook_url: String,
@@ -76,7 +102,7 @@ pub struct Webhook {
     #[serde(default)]
     pub version: Option<String>,
     /// Creation timestamp (milliseconds since the Unix epoch)
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_millis")]
     pub time_created: Option<u64>,
     /// Webhook name
     #[serde(default)]
@@ -84,6 +110,12 @@ pub struct Webhook {
     /// App ID
     #[serde(default)]
     pub app_id: Option<String>,
+    /// Networks of a webhook that covers more than one (can be empty)
+    #[serde(default)]
+    pub networks: Vec<String>,
+    /// Why the webhook was deactivated (`UNKNOWN` when no reason is set)
+    #[serde(default)]
+    pub deactivation_reason: Option<String>,
 }
 
 /// `{ "data": ... }` envelope used by create/update responses
@@ -150,7 +182,8 @@ pub struct NotifyPageOptions {
     pub limit: Option<u32>,
     /// Cursor from `pagination.cursors.after` of the previous page
     pub after: Option<String>,
-    /// Page key (alternative cursor accepted by the API)
+    /// Old cursor parameter, no longer in Alchemy's spec. Use `after`.
+    #[deprecated(note = "not in Alchemy's Notify API spec any more; use `after`")]
     pub page_key: Option<String>,
 }
 
@@ -165,6 +198,7 @@ impl NotifyPageOptions {
         if let Some(ref after) = self.after {
             params.push(("after", after.clone()));
         }
+        #[allow(deprecated)]
         if let Some(ref key) = self.page_key {
             params.push(("pageKey", key.clone()));
         }
@@ -206,6 +240,9 @@ pub struct UpdateWebhookRequest {
     /// New webhook name
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// New URL to receive webhook events
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_url: Option<String>,
 }
 
 /// NFT filter for webhooks
@@ -401,11 +438,56 @@ mod tests {
             webhook_id: "wh_test".into(),
             is_active: Some(false),
             name: None,
+            webhook_url: None,
         })
         .unwrap();
         assert_eq!(
             status,
             json!({ "webhook_id": "wh_test", "is_active": false })
+        );
+    }
+
+    #[test]
+    fn webhook_tolerates_missing_or_new_type_and_fractional_time() {
+        let hooks: ListWebhooksResponse = serde_json::from_value(json!({
+            "data": [
+                {
+                    "id": "wh_1", "network": "ETH_MAINNET", "webhook_url": "https://example.com/a",
+                    "is_active": true, "time_created": 1_700_000_000_000.0_f64,
+                    "networks": ["ETH_MAINNET", "BASE_MAINNET"], "deactivation_reason": "UNKNOWN"
+                },
+                {
+                    "id": "wh_2", "network": "ETH_MAINNET", "webhook_type": "SOME_NEW_TYPE",
+                    "webhook_url": "https://example.com/b", "is_active": false, "time_created": 1_700_000_000_000_u64
+                },
+                {
+                    "id": "wh_3", "network": "ETH_MAINNET", "webhook_type": "ADDRESS_ACTIVITY",
+                    "webhook_url": "https://example.com/c", "is_active": true
+                }
+            ]
+        }))
+        .unwrap();
+        assert_eq!(hooks.data[0].webhook_type, WebhookType::Unknown);
+        assert_eq!(hooks.data[0].time_created, Some(1_700_000_000_000));
+        assert_eq!(hooks.data[0].networks.len(), 2);
+        assert_eq!(hooks.data[1].webhook_type, WebhookType::Unknown);
+        assert_eq!(hooks.data[1].time_created, Some(1_700_000_000_000));
+        assert_eq!(hooks.data[2].webhook_type, WebhookType::AddressActivity);
+        assert_eq!(hooks.data[2].time_created, None);
+    }
+
+    #[test]
+    fn update_webhook_can_change_the_url() {
+        let body = serde_json::to_value(UpdateWebhookRequest {
+            webhook_id: "wh_test".into(),
+            is_active: None,
+            name: None,
+            webhook_url: Some("https://example.com/new".into()),
+        })
+        .unwrap();
+        assert_eq!(
+            body,
+            json!({ "webhook_id": "wh_test", "webhook_url": "https://example.com/new" })
         );
     }
 
