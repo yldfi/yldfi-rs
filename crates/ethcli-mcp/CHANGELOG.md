@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.5.2...ethcli-mcp-v0.6.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ethcli-mcp:** `ConfigFile` has a new (hidden) field, `loaded`, so struct literals need `..ConfigFile::default()`.
+
+### Bug Fixes
+
+* **ethcli-mcp:** give endpoints optimize room to finish and save as it goes ([#201](https://github.com/yldfi/yldfi-rs/issues/201)) ([debef3d](https://github.com/yldfi/yldfi-rs/commit/debef3de9072d7413f6a4ad35c48ac587b1c21b9))
+
 ## [0.5.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.5.1...ethcli-mcp-v0.5.2) (2026-11-09)
 
 

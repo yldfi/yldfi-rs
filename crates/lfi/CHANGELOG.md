@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.2.1...lfi-v0.3.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **lfi:** TransactionStatus is now #[non_exhaustive] and has an Unknown variant; exhaustive matches need a wildcard arm.
+
+### Bug Fixes
+
+* **lfi:** accept transaction statuses this version doesn't know ([#205](https://github.com/yldfi/yldfi-rs/issues/205)) ([130c824](https://github.com/yldfi/yldfi-rs/commit/130c824d65c42707d495b6026aca6e659cee96ab))
+
 ## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.2.0...lfi-v0.2.1) (2026-11-09)
 
 

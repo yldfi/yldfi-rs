@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.29.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.28.2...ethcli-v0.29.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ethcli-mcp:** `ConfigFile` has a new (hidden) field, `loaded`, so struct literals need `..ConfigFile::default()`.
+* **ethcli:** `ConfigFile` has a new (hidden) field, `loaded`, so struct literals need `..ConfigFile::default()`.
+
+### Bug Fixes
+
+* **ethcli-mcp:** give endpoints optimize room to finish and save as it goes ([#201](https://github.com/yldfi/yldfi-rs/issues/201)) ([debef3d](https://github.com/yldfi/yldfi-rs/commit/debef3de9072d7413f6a4ad35c48ac587b1c21b9))
+* **ethcli:** config saves write only this process's changes ([#200](https://github.com/yldfi/yldfi-rs/issues/200)) ([b4f7ff8](https://github.com/yldfi/yldfi-rs/commit/b4f7ff84546b0ae345177553ca294fe88626d896))
+* **ethcli:** exit non-zero when endpoints add can't reach the endpoint ([#208](https://github.com/yldfi/yldfi-rs/issues/208)) ([26aef73](https://github.com/yldfi/yldfi-rs/commit/26aef73f6c812a953fea76e82358a77715aaa943))
+* **ethcli:** send one probe to a recovering endpoint, not every request ([#202](https://github.com/yldfi/yldfi-rs/issues/202)) ([aa563e5](https://github.com/yldfi/yldfi-rs/commit/aa563e5029722f309322b90a26fe0ed40d5635df))
+
+
+### Performance Improvements
+
+* **ethcli:** run simulate signature lookups and blacklist scan calls concurrently ([#206](https://github.com/yldfi/yldfi-rs/issues/206)) ([cd7bfc7](https://github.com/yldfi/yldfi-rs/commit/cd7bfc786843e429806a91be4d85505e955449a9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * dnapi bumped from 0.3.1 to 0.3.2
+    * cowp bumped from 0.2.1 to 0.2.2
+    * lfi bumped from 0.2.1 to 0.3.0
+
 ## [0.28.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.28.1...ethcli-v0.28.2) (2026-11-09)
 
 

@@ -1554,7 +1554,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cowp"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
@@ -1935,7 +1935,7 @@ dependencies = [
 
 [[package]]
 name = "dnapi"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "http",
  "reqwest 0.12.28",
@@ -2073,7 +2073,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.28.2"
+version = "0.29.0"
 dependencies = [
  "alcmy",
  "alloy",
@@ -2142,7 +2142,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli-mcp"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -3170,7 +3170,7 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "lfi"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
