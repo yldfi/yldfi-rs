@@ -81,10 +81,7 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
     // Handle LP token price query
     if args.lp {
         if !quiet {
-            eprintln!(
-                "Fetching LP token price for {} on {} (Curve priority)...",
-                token, chain
-            );
+            eprintln!("Fetching LP token price for {} on {}...", token, chain);
         }
 
         let result = fetch_lp_price(token, chain).await;
@@ -129,9 +126,21 @@ pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
                 println!("LP Token Price for {}", output.token);
                 println!("{}", "=".repeat(40));
                 if let Some(best) = &output.aggregation.best_source {
-                    println!("  Source:  {} (authoritative)", best);
+                    let basis = if best == crate::aggregator::curve_lp::SOURCE {
+                        "pool balances x coin prices, on-chain"
+                    } else {
+                        "single source, not checked on-chain"
+                    };
+                    println!("  Source:  {} ({})", best, basis);
                 }
                 println!("  Price:   ${:.6}", output.aggregation.median_usd);
+                let agg = &output.aggregation;
+                if agg.max_usd > agg.min_usd && !agg.sources_agreed {
+                    println!(
+                        "  Warning: sources differ by {:.2}% (${:.6} to ${:.6})",
+                        agg.spread_pct, agg.min_usd, agg.max_usd
+                    );
+                }
                 println!();
                 print_table_output(&output, &result.sources);
             }

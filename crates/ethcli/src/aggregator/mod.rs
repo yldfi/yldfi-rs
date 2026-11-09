@@ -7,6 +7,7 @@
 //! - Chain name normalization across services
 
 pub mod chain_map;
+pub mod curve_lp;
 pub mod nft;
 pub mod normalize;
 pub mod portfolio;
