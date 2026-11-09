@@ -193,6 +193,27 @@ impl<'a> TokenApi<'a> {
         }
     }
 
+    /// Get a token's price as of a block (Moralis `to_block`)
+    ///
+    /// With `to_block` set to `None` this is the same as [`Self::get_price`].
+    pub async fn get_price_at_block(
+        &self,
+        address: &str,
+        chain: Option<&str>,
+        to_block: Option<u64>,
+    ) -> Result<TokenPrice> {
+        #[derive(serde::Serialize)]
+        struct PriceQuery<'a> {
+            #[serde(skip_serializing_if = "Option::is_none")]
+            chain: Option<&'a str>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            to_block: Option<u64>,
+        }
+        let path = format!("/erc20/{address}/price");
+        let query = PriceQuery { chain, to_block };
+        self.client.get_with_query(&path, &query).await
+    }
+
     /// Get token transfers for an address
     ///
     /// Moralis API returns transfers wrapped in a paginated response object.

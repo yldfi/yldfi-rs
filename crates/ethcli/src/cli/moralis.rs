@@ -219,6 +219,9 @@ pub enum TokenCommands {
     Price {
         /// Token contract address
         address: String,
+        /// Price as of this block (Moralis `to_block`)
+        #[arg(long)]
+        block: Option<u64>,
     },
 
     /// Get token transfers for a wallet address
@@ -876,11 +879,17 @@ async fn handle_token(
                 .await?;
             print_output(&response, args.format)?;
         }
-        TokenCommands::Price { address } => {
+        TokenCommands::Price { address, block } => {
             if !quiet {
-                eprintln!("Fetching token price for {}...", address);
+                match block {
+                    Some(b) => eprintln!("Fetching token price for {} at block {}...", address, b),
+                    None => eprintln!("Fetching token price for {}...", address),
+                }
             }
-            let response = client.token().get_price(address, Some(&args.chain)).await?;
+            let response = client
+                .token()
+                .get_price_at_block(address, Some(&args.chain), *block)
+                .await?;
             print_output(&response, args.format)?;
         }
         TokenCommands::Transfers { address } => {
