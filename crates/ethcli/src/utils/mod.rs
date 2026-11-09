@@ -4,6 +4,7 @@
 
 pub mod address;
 pub mod format;
+pub mod locked_file;
 pub mod progress;
 pub mod table;
 pub mod token_meta;

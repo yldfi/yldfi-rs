@@ -8,9 +8,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-
 /// Blacklisted token entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlacklistEntry {
@@ -102,8 +99,17 @@ impl TokenBlacklist {
         self.save(&Self::default_path())
     }
 
-    /// Save to a specific path
+    /// Save to a specific path (locked, atomic). This writes the whole
+    /// in-memory copy; to change entries, prefer [`Self::update`], which
+    /// applies the change to the file as it is now.
     pub fn save(&self, path: &Path) -> Result<(), String> {
+        let _lock = crate::utils::locked_file::exclusive_lock(path)
+            .map_err(|e| format!("Failed to lock {}: {}", path.display(), e))?;
+        self.write_locked(path)
+    }
+
+    /// Write the file. The caller holds the exclusive lock.
+    fn write_locked(&self, path: &Path) -> Result<(), String> {
         if let Some(e) = &self.load_error {
             return Err(format!(
                 "Refusing to overwrite {}: {}. Fix or move the file first",
@@ -111,26 +117,40 @@ impl TokenBlacklist {
                 e
             ));
         }
-        // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
-        }
-
         let content =
             toml::to_string_pretty(self).map_err(|e| format!("Failed to serialize: {}", e))?;
+        crate::utils::locked_file::atomic_write(path, content.as_bytes())
+            .map_err(|e| format!("Failed to write: {}", e))
+    }
 
-        std::fs::write(path, content).map_err(|e| format!("Failed to write: {}", e))?;
+    /// Load the file under the exclusive lock, apply `f`, and write it back.
+    /// Concurrent `ethcli` processes changing the blacklist don't undo each
+    /// other's edits. A file that doesn't parse is left alone (error).
+    pub fn update<T>(
+        path: &Path,
+        f: impl FnOnce(&mut Self) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let _lock = crate::utils::locked_file::exclusive_lock(path)
+            .map_err(|e| format!("Failed to lock {}: {}", path.display(), e))?;
+        let mut current = if path.exists() {
+            Self::load(path).map_err(|e| {
+                format!(
+                    "Refusing to overwrite {}: {}. Fix or move the file first",
+                    path.display(),
+                    e
+                )
+            })?
+        } else {
+            Self::default()
+        };
+        let out = f(&mut current)?;
+        current.write_locked(path)?;
+        Ok(out)
+    }
 
-        // Set restrictive permissions (0600) on Unix systems
-        #[cfg(unix)]
-        {
-            let permissions = std::fs::Permissions::from_mode(0o600);
-            std::fs::set_permissions(path, permissions)
-                .map_err(|e| format!("Failed to set permissions: {}", e))?;
-        }
-
-        Ok(())
+    /// [`Self::update`] on the default path
+    pub fn update_default<T>(f: impl FnOnce(&mut Self) -> Result<T, String>) -> Result<T, String> {
+        Self::update(&Self::default_path(), f)
     }
 
     /// Add a token to the blacklist
@@ -149,27 +169,34 @@ impl TokenBlacklist {
         let key = normalize_key(address);
         let checksummed = format!("{:?}", parsed);
 
-        self.entries.insert(
-            key,
-            BlacklistEntry {
-                address: checksummed,
-                symbol,
-                reason,
-                chain,
-            },
-        );
-
-        self.save_default()
+        let entry = BlacklistEntry {
+            address: checksummed,
+            symbol,
+            reason,
+            chain,
+        };
+        if let Some(e) = &self.load_error {
+            return Err(format!("Refusing to change the blacklist: {e}"));
+        }
+        self.entries.insert(key.clone(), entry.clone());
+        Self::update_default(|list| {
+            list.entries.insert(key, entry);
+            Ok(())
+        })
     }
 
     /// Remove a token from the blacklist
     pub fn remove(&mut self, address: &str) -> Result<bool, String> {
         let key = normalize_key(address);
-        let removed = self.entries.remove(&key).is_some();
-        if removed {
-            self.save_default()?;
+        if let Some(e) = &self.load_error {
+            return Err(format!("Refusing to change the blacklist: {e}"));
         }
-        Ok(removed)
+        let removed_here = self.entries.remove(&key).is_some();
+        if !Self::default_path().exists() {
+            return Ok(removed_here);
+        }
+        let removed_on_disk = Self::update_default(|list| Ok(list.entries.remove(&key).is_some()))?;
+        Ok(removed_here || removed_on_disk)
     }
 
     /// Check if a token is blacklisted
@@ -281,5 +308,41 @@ mod load_error_tests {
         };
         assert!(book.save(&path).is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "not = [valid");
+    }
+}
+
+#[cfg(test)]
+mod locked_update_tests {
+    use super::*;
+
+    #[test]
+    fn concurrent_updates_keep_every_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("blacklist.toml");
+        let handles: Vec<_> = (0u8..8)
+            .map(|i| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    TokenBlacklist::update(&path, |list| {
+                        let addr = format!("0x{:040x}", i + 1);
+                        list.entries.insert(
+                            normalize_key(&addr),
+                            BlacklistEntry {
+                                address: addr,
+                                symbol: None,
+                                reason: None,
+                                chain: None,
+                            },
+                        );
+                        Ok(())
+                    })
+                    .unwrap();
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+        assert_eq!(TokenBlacklist::load(&path).unwrap().entries.len(), 8);
     }
 }
