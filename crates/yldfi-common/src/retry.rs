@@ -197,7 +197,17 @@ impl<E> RetryError<E> {
 /// Execute an async operation with retries
 ///
 /// Uses exponential backoff with optional jitter. If the error provides a
-/// retry-after duration, that will be used instead of the calculated delay.
+/// retry-after duration, that is used instead of the calculated delay; a
+/// retry-after longer than `config.max_delay` returns the error at once
+/// (its `retry_after()` says how long the server asked to wait) instead of
+/// sleeping that long.
+///
+/// # Only wrap calls that are safe to repeat
+///
+/// A timeout or dropped connection can happen after the server acted on the
+/// request. Retrying a read is harmless; retrying a write (creating an order,
+/// running a query, sending a transaction, creating a webhook) can do it
+/// twice. Wrap reads and other idempotent calls only.
 ///
 /// # Arguments
 /// * `config` - Retry configuration
@@ -250,10 +260,15 @@ where
                     return Err(RetryError { error: e, attempts });
                 }
 
-                // Use retry-after from error if available, otherwise calculate
-                let delay = e
-                    .retry_after()
-                    .unwrap_or_else(|| config.delay_for_attempt(attempts - 1));
+                // Use retry-after from error if available, otherwise calculate.
+                // A wait longer than max_delay is the caller's decision.
+                let delay = match e.retry_after() {
+                    Some(wait) if wait > config.max_delay => {
+                        return Err(RetryError { error: e, attempts });
+                    }
+                    Some(wait) => wait,
+                    None => config.delay_for_attempt(attempts - 1),
+                };
                 tokio::time::sleep(delay).await;
             }
         }
@@ -337,6 +352,62 @@ mod tests {
         // After a few iterations, should cap at max_delay
         assert_eq!(config.delay_for_attempt(5), Duration::from_secs(5));
         assert_eq!(config.delay_for_attempt(10), Duration::from_secs(5));
+    }
+
+    #[derive(Debug)]
+    struct Wait(Option<Duration>);
+    impl RetryableError for Wait {
+        fn is_retryable(&self) -> bool {
+            true
+        }
+        fn retry_after(&self) -> Option<Duration> {
+            self.0
+        }
+    }
+
+    fn config(max_delay: Duration) -> RetryConfig {
+        RetryConfig {
+            max_retries: 3,
+            initial_delay: Duration::from_millis(1),
+            max_delay,
+            backoff_multiplier: 1.0,
+            jitter: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_retry_after_beyond_max_delay_returns_the_error() {
+        let mut calls = 0;
+        let started = std::time::Instant::now();
+        let err = with_retry(&config(Duration::from_secs(10)), || {
+            calls += 1;
+            async { Err::<(), _>(Wait(Some(Duration::from_secs(3600)))) }
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(calls, 1);
+        assert_eq!(err.attempts, 1);
+        assert_eq!(err.error.0, Some(Duration::from_secs(3600)));
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn a_short_retry_after_is_honoured() {
+        let mut calls = 0;
+        let result = with_retry(&config(Duration::from_secs(10)), || {
+            calls += 1;
+            let fail = calls < 3;
+            async move {
+                if fail {
+                    Err(Wait(Some(Duration::from_millis(5))))
+                } else {
+                    Ok(())
+                }
+            }
+        })
+        .await;
+        assert!(result.is_ok());
+        assert_eq!(calls, 3);
     }
 
     #[test]
