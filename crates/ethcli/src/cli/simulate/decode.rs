@@ -12,6 +12,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use futures::stream::{self, StreamExt};
+
 use alloy::dyn_abi::{DynSolType, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Function, JsonAbi};
 use alloy::primitives::{B256, U256};
@@ -24,6 +26,8 @@ use crate::tx::addresses;
 const MAX_ABI_LOOKUPS: usize = 24;
 const MAX_SELECTOR_LOOKUPS: usize = 48;
 const MAX_EVENT_LOOKUPS: usize = 48;
+/// 4byte lookups in flight at once, per kind (functions, events)
+const SIGNATURE_LOOKUP_CONCURRENCY: usize = 4;
 const MAX_RENDERED_FRAMES: usize = 600;
 
 /// Resolved lookup tables shared by the synchronous renderer.
@@ -134,38 +138,54 @@ impl TraceDecoder {
             }
         }
 
-        // 4byte fallbacks only for selectors the fetched ABIs cannot explain.
-        let mut selector_budget = MAX_SELECTOR_LOOKUPS;
+        // 4byte fallbacks only for selectors and events the fetched ABIs
+        // cannot explain, each looked up once, a few at a time.
+        let mut wanted_selectors = Vec::new();
+        let mut seen = HashSet::new();
         for (addr, selector) in &selectors {
-            if selector_budget == 0 {
+            if wanted_selectors.len() >= MAX_SELECTOR_LOOKUPS {
                 break;
             }
-            if abi_has_selector(tables.abis.get(addr), selector) {
-                continue;
+            if !abi_has_selector(tables.abis.get(addr), selector) && seen.insert(selector) {
+                wanted_selectors.push(selector.clone());
             }
-            if tables.selectors.contains_key(selector) {
-                continue;
+        }
+        let mut wanted_events = Vec::new();
+        let mut seen = HashSet::new();
+        for (addr, topic0) in &topics {
+            if wanted_events.len() >= MAX_EVENT_LOOKUPS {
+                break;
             }
-            selector_budget -= 1;
-            if let Some(sig) = self.fetcher.lookup_selector(selector).await {
-                tables.selectors.insert(selector.clone(), sig);
+            if !abi_has_event(tables.abis.get(addr), topic0) && seen.insert(topic0) {
+                wanted_events.push(topic0.clone());
             }
         }
 
-        let mut event_budget = MAX_EVENT_LOOKUPS;
-        for (addr, topic0) in &topics {
-            if event_budget == 0 {
-                break;
+        let fetcher = &self.fetcher;
+        let (selector_sigs, event_sigs) = tokio::join!(
+            stream::iter(wanted_selectors)
+                .map(|selector| async move {
+                    let sig = fetcher.lookup_selector(&selector).await;
+                    (selector, sig)
+                })
+                .buffer_unordered(SIGNATURE_LOOKUP_CONCURRENCY)
+                .collect::<Vec<_>>(),
+            stream::iter(wanted_events)
+                .map(|topic0| async move {
+                    let sig = fetcher.lookup_event(&topic0).await;
+                    (topic0, sig)
+                })
+                .buffer_unordered(SIGNATURE_LOOKUP_CONCURRENCY)
+                .collect::<Vec<_>>(),
+        );
+        for (selector, sig) in selector_sigs {
+            if let Some(sig) = sig {
+                tables.selectors.insert(selector, sig);
             }
-            if abi_has_event(tables.abis.get(addr), topic0) {
-                continue;
-            }
-            if tables.events.contains_key(topic0) {
-                continue;
-            }
-            event_budget -= 1;
-            if let Some(sig) = self.fetcher.lookup_event(topic0).await {
-                tables.events.insert(topic0.clone(), sig);
+        }
+        for (topic0, sig) in event_sigs {
+            if let Some(sig) = sig {
+                tables.events.insert(topic0, sig);
             }
         }
 

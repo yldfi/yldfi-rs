@@ -305,11 +305,17 @@ pub async fn scan_token(
 ) -> anyhow::Result<ScanResult> {
     let fetcher = AbiFetcher::new(api_key)?;
 
-    // Get contract metadata (verification status)
-    let metadata = fetcher.get_contract_metadata(chain, address).await?;
+    let chain_id = chain.chain_id();
 
-    // Get token metadata (name, symbol) via RPC
-    let token_meta = fetcher.get_token_metadata_rpc(chain, address).await.ok();
+    // Verification status (Etherscan), name and symbol (RPC) and the GoPlus
+    // security check don't depend on each other
+    let (metadata, token_meta, security) = tokio::join!(
+        fetcher.get_contract_metadata(chain, address),
+        fetcher.get_token_metadata_rpc(chain, address),
+        check_security(chain_id, address),
+    );
+    let metadata = metadata?;
+    let token_meta = token_meta.ok();
 
     let name = token_meta
         .as_ref()
@@ -323,7 +329,6 @@ pub async fn scan_token(
     let mut warnings = Vec::new();
 
     // Check if this is a known protocol token (address whitelist)
-    let chain_id = chain.chain_id();
     let is_known_safe = is_known_safe_protocol(chain_id, address);
 
     // Check for proxy without visible implementation (only warn if not known safe)
@@ -340,9 +345,6 @@ pub async fn scan_token(
             }
         }
     }
-
-    // Check security status using GoPlus API
-    let security = check_security(chain_id, address).await;
 
     Ok(ScanResult {
         address: address.to_string(),
