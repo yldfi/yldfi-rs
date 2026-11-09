@@ -831,10 +831,42 @@ async fn fetch_curve_price(
     }
 }
 
-/// Fetch LP token price with Curve priority
+/// Spread above which the LP price sources are reported as disagreeing, in percent
+const LP_AGREEMENT_PCT: f64 = 1.0;
+
+/// Aggregation for an LP price led by one primary value, with cross-checks.
 ///
-/// For LP tokens, Curve is the authoritative source. Falls back to other
-/// sources if Curve doesn't have the data.
+/// The primary value is reported as the price. Agreement needs at least one
+/// cross-check, and every check within [`LP_AGREEMENT_PCT`] of the primary.
+fn lp_aggregation(primary: f64, checks: &[f64], best: &str) -> PriceAggregation {
+    let all: Vec<f64> = std::iter::once(primary)
+        .chain(checks.iter().copied().filter(|p| p.is_finite()))
+        .collect();
+    let min = all.iter().copied().fold(f64::INFINITY, f64::min);
+    let max = all.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let spread_pct = if primary > 0.0 {
+        (max - min) / primary * 100.0
+    } else {
+        0.0
+    };
+    PriceAggregation {
+        median_usd: primary,
+        mean_usd: primary,
+        min_usd: min,
+        max_usd: max,
+        spread_pct,
+        sources_agreed: all.len() > 1 && spread_pct < LP_AGREEMENT_PCT,
+        best_source: Some(best.to_string()),
+    }
+}
+
+/// Fetch an LP token's price
+///
+/// On Ethereum, a Curve LP is valued on-chain (pool balances x coin prices /
+/// LP supply; see [`super::curve_lp`]), with Curve's price indexer as a
+/// cross-check. Elsewhere, or for an LP the MetaRegistry doesn't know, the
+/// indexer is used alone and the result is not reported as agreed. Other
+/// sources are tried when neither has a price.
 pub async fn fetch_lp_price(
     lp_token: &str,
     chain: &str,
@@ -864,22 +896,23 @@ pub async fn fetch_lp_price(
         );
     }
 
-    // Try Curve first (authoritative for Curve LP tokens)
-    let curve_result = fetch_curve_lp_price(lp_token, chain).await;
+    let (onchain, curve_result) = tokio::join!(
+        super::curve_lp::fetch_curve_lp_onchain(lp_token, chain),
+        fetch_curve_lp_price(lp_token, chain)
+    );
+    let indexer = curve_result.data.as_ref().map(|p| p.usd);
 
-    // If Curve succeeded, use it as the primary source
-    if curve_result.is_success() {
-        let price = curve_result.data.as_ref().map(|p| p.usd).unwrap_or(0.0);
-        let aggregation = PriceAggregation {
-            median_usd: price,
-            mean_usd: price,
-            min_usd: price,
-            max_usd: price,
-            spread_pct: 0.0,
-            sources_agreed: true,
-            best_source: Some("curve".to_string()),
-        };
-        return AggregatedResult::new(aggregation, vec![curve_result], start.elapsed_ms());
+    // On-chain value first, the indexer as a cross-check
+    if let Some(nav) = onchain.data.as_ref().map(|p| p.usd) {
+        let checks: Vec<f64> = indexer.into_iter().collect();
+        let aggregation = lp_aggregation(nav, &checks, super::curve_lp::SOURCE);
+        return AggregatedResult::new(aggregation, vec![onchain, curve_result], start.elapsed_ms());
+    }
+
+    // The indexer alone: one unverified source, so never reported as agreed
+    if let Some(price) = indexer {
+        let aggregation = lp_aggregation(price, &[], "curve");
+        return AggregatedResult::new(aggregation, vec![curve_result, onchain], start.elapsed_ms());
     }
 
     // Fall back to other sources (LP might not be a Curve LP)
@@ -902,8 +935,9 @@ pub async fn fetch_lp_price(
 
     let mut results: Vec<SourceResult<NormalizedPrice>> = join_all(futures).await;
 
-    // Add the failed Curve result for transparency
+    // Add the failed Curve results for transparency
     results.insert(0, curve_result);
+    results.insert(0, onchain);
 
     // Calculate aggregation from successful results
     let prices: Vec<f64> = results
@@ -2065,5 +2099,33 @@ mod tests {
         assert_eq!(msg, "Kong server error (502): bad gateway");
         let msg = classify_api_error("Kong", &TestError::api(403, ""));
         assert_eq!(msg, "Kong denied access (403)");
+    }
+}
+
+#[cfg(test)]
+mod lp_aggregation_tests {
+    use super::lp_aggregation;
+
+    #[test]
+    fn primary_is_the_price_and_checks_set_the_spread() {
+        let a = lp_aggregation(1677.5, &[1845.8], "curve-onchain");
+        assert_eq!(a.median_usd, 1677.5);
+        assert_eq!(a.max_usd, 1845.8);
+        assert!(a.spread_pct > 10.0);
+        assert!(!a.sources_agreed);
+        assert_eq!(a.best_source.as_deref(), Some("curve-onchain"));
+    }
+
+    #[test]
+    fn close_check_agrees() {
+        let a = lp_aggregation(100.0, &[100.5], "curve-onchain");
+        assert!(a.sources_agreed);
+    }
+
+    #[test]
+    fn a_single_source_never_agrees() {
+        let a = lp_aggregation(100.0, &[], "curve");
+        assert!(!a.sources_agreed);
+        assert_eq!(a.spread_pct, 0.0);
     }
 }
