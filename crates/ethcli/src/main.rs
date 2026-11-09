@@ -1474,13 +1474,13 @@ async fn handle_endpoints(action: &EndpointCommands, cli: &Cli) -> anyhow::Resul
                 let result = optimize_endpoint(url, expected_chain, 10).await?;
 
                 if !result.is_ok() {
-                    println!(
-                        "Failed to connect: {}",
+                    // Not added, so fail the command rather than exit 0
+                    return Err(anyhow::anyhow!(
+                        "Failed to connect: {}. Not added (use --no-optimize to add it untested)",
                         ethcli::utils::url::redact_urls_in_text(
                             &result.error.unwrap_or_else(|| "Unknown error".to_string())
                         )
-                    );
-                    return Ok(());
+                    ));
                 }
 
                 println!(
