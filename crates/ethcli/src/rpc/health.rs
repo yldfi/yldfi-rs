@@ -217,6 +217,17 @@ impl HealthTracker {
         }
     }
 
+    /// Like [`with_circuit_breaker`](Self::with_circuit_breaker), with a
+    /// sub-second timeout for tests
+    #[cfg(test)]
+    pub(crate) fn with_breaker_timeout(threshold: u32, timeout: Duration) -> Self {
+        Self {
+            health: RwLock::new(HashMap::new()),
+            circuit_breaker_threshold: threshold,
+            circuit_breaker_timeout: timeout,
+        }
+    }
+
     /// Record a successful request
     pub fn record_success(&self, url: &str, latency: Duration) {
         use std::collections::hash_map::Entry;
