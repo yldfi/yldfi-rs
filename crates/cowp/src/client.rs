@@ -678,6 +678,7 @@ mod tests {
             ("\"fulfilled\"", OrderStatus::Fulfilled),
             ("\"cancelled\"", OrderStatus::Cancelled),
             ("\"expired\"", OrderStatus::Expired),
+            ("\"someFutureStatus\"", OrderStatus::Unknown),
         ] {
             assert_eq!(serde_json::from_str::<OrderStatus>(s).unwrap(), v);
         }
