@@ -9,23 +9,9 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-
-/// Write file with restrictive permissions (0600) on Unix
-fn write_with_permissions(path: &Path, content: &str) -> std::io::Result<()> {
-    fs::write(path, content)?;
-    #[cfg(unix)]
-    {
-        let permissions = fs::Permissions::from_mode(0o600);
-        fs::set_permissions(path, permissions)?;
-    }
-    Ok(())
-}
 
 /// Maximum number of entries before triggering cleanup
 const MAX_CACHE_ENTRIES: usize = 10_000;
@@ -181,6 +167,10 @@ impl SignatureCache {
             fs::create_dir_all(parent)?;
         }
 
+        // Lock, so another process's read-merge-write can't interleave with
+        // ours (it would drop the entries one of us added)
+        let _lock = crate::utils::locked_file::exclusive_lock(&self.path)?;
+
         // Keep positive entries another process (or an older instance) saved
         // since we loaded: ours win on conflict, theirs fill the gaps. After
         // clear() the file is replaced. "Not found" entries are never merged
@@ -205,7 +195,7 @@ impl SignatureCache {
         // Expired entries from disk are dropped too
         Self::retain_fresh(&mut merged, self.ttl.as_secs());
         let content = serde_json::to_string_pretty(&merged)?;
-        write_with_permissions(&self.path, &content)?;
+        crate::utils::locked_file::atomic_write(&self.path, content.as_bytes())?;
         self.dirty.store(false, Ordering::Release);
         Ok(())
     }
@@ -525,14 +515,8 @@ impl SignatureCache {
     /// Clear expired entries
     pub fn cleanup(&self) {
         self.cleanup_internal();
-        // Save directly to disk without triggering cleanup again
-        if let Some(parent) = self.path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        let data = self.data.read();
-        let _ = serde_json::to_string_pretty(&*data)
-            .ok()
-            .and_then(|content| write_with_permissions(&self.path, &content).ok());
+        // The locked merge-and-write (it doesn't trigger cleanup again)
+        let _ = self.save_to_file();
     }
 
     /// Clear all cached data
@@ -912,13 +896,18 @@ impl TokenMetadataCache {
 
     /// Save cache to disk
     fn save(&self) {
-        if let Some(parent) = self.path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-
-        let data = self.data.read();
-        if let Ok(json) = serde_json::to_string_pretty(&*data) {
-            let _ = write_with_permissions(&self.path, &json);
+        // Under the lock, merge what other processes saved meanwhile (ours win
+        // on conflict), then write atomically
+        let Ok(_lock) = crate::utils::locked_file::exclusive_lock(&self.path) else {
+            return;
+        };
+        let mut merged: TokenCacheData = fs::read_to_string(&self.path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        merged.tokens.extend(self.data.read().tokens.clone());
+        if let Ok(json) = serde_json::to_string_pretty(&merged) {
+            let _ = crate::utils::locked_file::atomic_write(&self.path, json.as_bytes());
         }
     }
 }

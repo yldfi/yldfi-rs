@@ -273,29 +273,30 @@ pub fn handle(action: &AddressCommands, quiet: bool) -> anyhow::Result<()> {
                     })?;
             }
 
-            let mut book = AddressBook::load_default();
-            let mut added = 0;
-            let mut skipped = 0;
+            // Applied to the file as it is now, under its lock
+            let (added, skipped) = AddressBook::update_default(|book| {
+                let mut added = 0;
+                let mut skipped = 0;
+                for entry in entries {
+                    if book.get(&entry.label).is_some() && !overwrite {
+                        skipped += 1;
+                        continue;
+                    }
 
-            for entry in entries {
-                if book.get(&entry.label).is_some() && !overwrite {
-                    skipped += 1;
-                    continue;
+                    book.entries.insert(
+                        entry.label.to_lowercase(),
+                        AddressEntry {
+                            address: entry.address,
+                            description: entry.description,
+                            tags: entry.tags.unwrap_or_default(),
+                            chain: entry.chain,
+                        },
+                    );
+                    added += 1;
                 }
-
-                book.entries.insert(
-                    entry.label.to_lowercase(),
-                    AddressEntry {
-                        address: entry.address,
-                        description: entry.description,
-                        tags: entry.tags.unwrap_or_default(),
-                        chain: entry.chain,
-                    },
-                );
-                added += 1;
-            }
-
-            book.save_default().map_err(|e| anyhow::anyhow!(e))?;
+                Ok((added, skipped))
+            })
+            .map_err(|e| anyhow::anyhow!(e))?;
 
             if !quiet {
                 println!("Imported {} addresses ({} skipped)", added, skipped);

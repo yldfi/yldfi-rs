@@ -8,9 +8,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-
 /// Address book entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddressEntry {
@@ -84,8 +81,17 @@ impl AddressBook {
         self.save(&Self::default_path())
     }
 
-    /// Save to a specific path
+    /// Save to a specific path (locked, atomic). This writes the whole
+    /// in-memory copy; to change entries, prefer [`Self::update`], which
+    /// applies the change to the file as it is now.
     pub fn save(&self, path: &Path) -> Result<(), String> {
+        let _lock = crate::utils::locked_file::exclusive_lock(path)
+            .map_err(|e| format!("Failed to lock {}: {}", path.display(), e))?;
+        self.write_locked(path)
+    }
+
+    /// Write the file. The caller holds the exclusive lock.
+    fn write_locked(&self, path: &Path) -> Result<(), String> {
         if let Some(e) = &self.load_error {
             return Err(format!(
                 "Refusing to overwrite {}: {}. Fix or move the file first",
@@ -93,26 +99,40 @@ impl AddressBook {
                 e
             ));
         }
-        // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
-        }
-
         let content =
             toml::to_string_pretty(self).map_err(|e| format!("Failed to serialize: {}", e))?;
+        crate::utils::locked_file::atomic_write(path, content.as_bytes())
+            .map_err(|e| format!("Failed to write: {}", e))
+    }
 
-        std::fs::write(path, content).map_err(|e| format!("Failed to write: {}", e))?;
+    /// Load the file under the exclusive lock, apply `f`, and write it back.
+    /// Concurrent `ethcli` processes changing the address book don't undo each
+    /// other's edits. A file that doesn't parse is left alone (error).
+    pub fn update<T>(
+        path: &Path,
+        f: impl FnOnce(&mut Self) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let _lock = crate::utils::locked_file::exclusive_lock(path)
+            .map_err(|e| format!("Failed to lock {}: {}", path.display(), e))?;
+        let mut current = if path.exists() {
+            Self::load(path).map_err(|e| {
+                format!(
+                    "Refusing to overwrite {}: {}. Fix or move the file first",
+                    path.display(),
+                    e
+                )
+            })?
+        } else {
+            Self::default()
+        };
+        let out = f(&mut current)?;
+        current.write_locked(path)?;
+        Ok(out)
+    }
 
-        // Set restrictive permissions (0600) on Unix systems
-        #[cfg(unix)]
-        {
-            let permissions = std::fs::Permissions::from_mode(0o600);
-            std::fs::set_permissions(path, permissions)
-                .map_err(|e| format!("Failed to set permissions: {}", e))?;
-        }
-
-        Ok(())
+    /// [`Self::update`] on the default path
+    pub fn update_default<T>(f: impl FnOnce(&mut Self) -> Result<T, String>) -> Result<T, String> {
+        Self::update(&Self::default_path(), f)
     }
 
     /// Add an address entry
@@ -131,27 +151,35 @@ impl AddressBook {
         // Normalize label to lowercase
         let label = label.to_lowercase();
 
-        self.entries.insert(
-            label,
-            AddressEntry {
-                address: address.to_string(),
-                description,
-                tags,
-                chain,
-            },
-        );
-
-        self.save_default()
+        let entry = AddressEntry {
+            address: address.to_string(),
+            description,
+            tags,
+            chain,
+        };
+        if let Some(e) = &self.load_error {
+            return Err(format!("Refusing to change the address book: {e}"));
+        }
+        self.entries.insert(label.clone(), entry.clone());
+        Self::update_default(|book| {
+            book.entries.insert(label, entry);
+            Ok(())
+        })
     }
 
     /// Remove an address entry
     pub fn remove(&mut self, label: &str) -> Result<bool, String> {
         let label = label.to_lowercase();
-        let removed = self.entries.remove(&label).is_some();
-        if removed {
-            self.save_default()?;
+        if let Some(e) = &self.load_error {
+            return Err(format!("Refusing to change the address book: {e}"));
         }
-        Ok(removed)
+        let removed_here = self.entries.remove(&label).is_some();
+        if !Self::default_path().exists() {
+            return Ok(removed_here);
+        }
+        let removed_on_disk =
+            Self::update_default(|book| Ok(book.entries.remove(&label).is_some()))?;
+        Ok(removed_here || removed_on_disk)
     }
 
     /// Get an address by label
@@ -317,6 +345,58 @@ mod load_error_tests {
             ..AddressBook::default()
         };
         assert!(book.save(&path).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "not = [valid");
+    }
+}
+
+#[cfg(test)]
+mod locked_update_tests {
+    use super::*;
+
+    const A: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+
+    fn entry() -> AddressEntry {
+        AddressEntry {
+            address: A.to_string(),
+            description: None,
+            tags: vec![],
+            chain: None,
+        }
+    }
+
+    #[test]
+    fn concurrent_updates_keep_every_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("addressbook.toml");
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    AddressBook::update(&path, |book| {
+                        book.entries.insert(format!("label{i}"), entry());
+                        Ok(())
+                    })
+                    .unwrap();
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+        let book = AddressBook::load(&path).unwrap();
+        assert_eq!(book.entries.len(), 8);
+    }
+
+    #[test]
+    fn update_leaves_an_unparsable_file_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("addressbook.toml");
+        std::fs::write(&path, "not = [valid").unwrap();
+        let result = AddressBook::update(&path, |book| {
+            book.entries.insert("a".into(), entry());
+            Ok(())
+        });
+        assert!(result.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "not = [valid");
     }
 }
