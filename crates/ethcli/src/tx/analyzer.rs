@@ -452,11 +452,6 @@ impl TxAnalyzer {
 
     /// Enrich token flows with token metadata
     async fn enrich_token_flows(&self, flows: &mut [crate::tx::types::TokenFlow]) {
-        use futures::stream::{self, StreamExt};
-
-        // MED-004 fix: Limit concurrency to prevent resource exhaustion
-        const MAX_CONCURRENT_REQUESTS: usize = 10;
-
         // Collect unique tokens that need lookup
         let mut tokens_to_lookup: HashSet<Address> = HashSet::new();
         for flow in flows.iter() {
@@ -469,34 +464,15 @@ impl TxAnalyzer {
             return;
         }
 
-        // Clone what we need to avoid lifetime issues with async closures
-        let abi_fetcher = Arc::clone(&self.abi_fetcher);
-        let chain = self.chain;
-
-        // Lookup token metadata with bounded concurrency
+        // One Multicall3 call for every token (Etherscan only as a fallback)
         let tokens: Vec<Address> = tokens_to_lookup.into_iter().collect();
-        let results: Vec<_> = stream::iter(tokens.into_iter().map(|token| {
-            let fetcher = Arc::clone(&abi_fetcher);
-            async move {
-                let result = fetcher
-                    .get_token_metadata_rpc(chain, &format!("{:#x}", token))
-                    .await;
-                (token, result)
-            }
-        }))
-        .buffer_unordered(MAX_CONCURRENT_REQUESTS)
-        .collect()
-        .await;
-
-        // Build symbol map from results
-        let mut token_symbols: HashMap<Address, String> = HashMap::new();
-        for (token, result) in results {
-            if let Ok(metadata) = result {
-                if let Some(symbol) = metadata.symbol {
-                    token_symbols.insert(token, symbol);
-                }
-            }
-        }
+        let token_symbols: HashMap<Address, String> = self
+            .abi_fetcher
+            .get_tokens_metadata_rpc(self.chain, &tokens)
+            .await
+            .into_iter()
+            .filter_map(|(token, metadata)| metadata.symbol.map(|symbol| (token, symbol)))
+            .collect();
 
         // Apply to flows
         for flow in flows.iter_mut() {

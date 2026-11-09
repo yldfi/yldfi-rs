@@ -296,13 +296,49 @@ impl AbiFetcher {
         })
     }
 
-    /// Get token metadata via Etherscan's `eth_call` proxy (ERC20 name/symbol/decimals)
+    /// Get a token's ERC20 name/symbol/decimals: one RPC Multicall3 call, or
+    /// Etherscan's `eth_call` proxy (three calls) when no RPC endpoint answers
     pub async fn get_token_metadata_rpc(
         &self,
         chain: Chain,
         address: &str,
     ) -> Result<TokenMetadata> {
+        if let Ok(token) = address.parse::<alloy::primitives::Address>() {
+            if let Ok(mut found) = crate::rpc::multicall::erc20_metadata(chain, &[token]).await {
+                if let Some(meta) = found.remove(&token) {
+                    return Ok(meta);
+                }
+            }
+        }
         self.etherscan(chain)?.get_token_metadata(address).await
+    }
+
+    /// [`Self::get_token_metadata_rpc`] for many tokens: one Multicall3 call per
+    /// 50 tokens, or Etherscan (a few tokens at a time) when no RPC endpoint
+    /// answers. Tokens with no metadata are left out.
+    pub async fn get_tokens_metadata_rpc(
+        &self,
+        chain: Chain,
+        tokens: &[alloy::primitives::Address],
+    ) -> std::collections::HashMap<alloy::primitives::Address, TokenMetadata> {
+        use futures::stream::{self, StreamExt};
+        // Each Etherscan lookup is three calls; Etherscan allows 5 a second
+        const ETHERSCAN_TOKENS_AT_ONCE: usize = 2;
+
+        if let Ok(found) = crate::rpc::multicall::erc20_metadata(chain, tokens).await {
+            return found;
+        }
+        stream::iter(tokens.iter().copied().map(|token| async move {
+            let meta = match self.etherscan(chain) {
+                Ok(client) => client.get_token_metadata(&format!("{token:#x}")).await.ok(),
+                Err(_) => None,
+            };
+            (token, meta)
+        }))
+        .buffer_unordered(ETHERSCAN_TOKENS_AT_ONCE)
+        .filter_map(|(token, meta)| async move { meta.map(|m| (token, m)) })
+        .collect()
+        .await
     }
 
     /// Get transaction block number from Etherscan

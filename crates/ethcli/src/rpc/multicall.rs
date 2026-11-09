@@ -180,7 +180,9 @@ impl MulticallResult {
 
     /// Try to decode as a string (for name/symbol)
     pub fn decode_string(&self) -> Option<String> {
-        if !self.success || self.data.len() < 64 {
+        // 32 bytes: a bytes32 name/symbol (older tokens such as MKR); 64+: a
+        // dynamic string, or a bytes32 padded by the node
+        if !self.success || self.data.len() < 32 {
             return None;
         }
 
@@ -215,6 +217,66 @@ impl MulticallResult {
         }
 
         None
+    }
+}
+
+/// Tokens per Multicall3 call (three calls each), well under public nodes'
+/// eth_call gas caps
+const METADATA_TOKENS_PER_CALL: usize = 50;
+
+/// `name()`, `symbol()` and `decimals()` of every token in `tokens` with one
+/// Multicall3 `eth_call` per 50 tokens, failing over across `chain`'s ranked
+/// RPC endpoints.
+///
+/// A call that reverts or returns nothing leaves that field `None`. The whole
+/// lookup fails only when no endpoint answers (or the chain has no Multicall3);
+/// callers can then fall back to another source.
+pub async fn erc20_metadata(
+    chain: crate::config::Chain,
+    tokens: &[Address],
+) -> anyhow::Result<std::collections::HashMap<Address, crate::utils::TokenMetadata>> {
+    use super::selector::{candidate_endpoints, with_failover, SelectionOptions};
+    use super::MAX_FAILOVER_ATTEMPTS;
+
+    let mut unique: Vec<Address> = tokens.to_vec();
+    unique.sort();
+    unique.dedup();
+
+    let mut out = std::collections::HashMap::with_capacity(unique.len());
+    for chunk in unique.chunks(METADATA_TOKENS_PER_CALL) {
+        let candidates =
+            candidate_endpoints(chain, &SelectionOptions::default(), MAX_FAILOVER_ATTEMPTS)?;
+        let results = with_failover(candidates, |ep| async move {
+            let mut batch = MulticallBuilder::new();
+            for &token in chunk {
+                batch = batch
+                    .add_call_allow_failure(token, selectors::name())
+                    .add_call_allow_failure(token, selectors::symbol())
+                    .add_call_allow_failure(token, selectors::decimals());
+            }
+            batch.execute_with_retry(ep.provider(), 1).await
+        })
+        .await?;
+        if results.len() != chunk.len() * 3 {
+            anyhow::bail!(
+                "Multicall3 returned {} results for {} calls",
+                results.len(),
+                chunk.len() * 3
+            );
+        }
+        for (token, r) in chunk.iter().zip(results.chunks(3)) {
+            out.insert(*token, metadata_from_results(r));
+        }
+    }
+    Ok(out)
+}
+
+/// Token metadata from one token's `[name, symbol, decimals]` results
+fn metadata_from_results(r: &[MulticallResult]) -> crate::utils::TokenMetadata {
+    crate::utils::TokenMetadata {
+        name: r.first().and_then(MulticallResult::decode_string),
+        symbol: r.get(1).and_then(MulticallResult::decode_string),
+        decimals: r.get(2).and_then(MulticallResult::decode_uint8),
     }
 }
 
@@ -262,6 +324,46 @@ pub mod selectors {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn ok(data: Vec<u8>) -> MulticallResult {
+        MulticallResult {
+            success: true,
+            data: data.into(),
+        }
+    }
+
+    #[test]
+    fn decode_string_reads_a_bare_bytes32_symbol() {
+        // MKR's symbol() returns bytes32 "MKR", right-padded with zeros
+        let mut data = vec![0u8; 32];
+        data[..3].copy_from_slice(b"MKR");
+        assert_eq!(ok(data).decode_string().as_deref(), Some("MKR"));
+    }
+
+    #[test]
+    fn decode_string_still_reads_a_dynamic_string() {
+        let mut data = vec![0u8; 96];
+        data[31] = 0x20; // offset 32
+        data[63] = 4; // length 4
+        data[64..68].copy_from_slice(b"USDC");
+        assert_eq!(ok(data).decode_string().as_deref(), Some("USDC"));
+    }
+
+    #[test]
+    fn metadata_from_results_leaves_failed_calls_empty() {
+        let mut symbol = vec![0u8; 32];
+        symbol[..4].copy_from_slice(b"WETH");
+        let mut decimals = vec![0u8; 32];
+        decimals[31] = 18;
+        let reverted = MulticallResult {
+            success: false,
+            data: Bytes::new(),
+        };
+        let meta = metadata_from_results(&[reverted, ok(symbol), ok(decimals)]);
+        assert_eq!(meta.name, None);
+        assert_eq!(meta.symbol.as_deref(), Some("WETH"));
+        assert_eq!(meta.decimals, Some(18));
+    }
 
     #[test]
     fn decode_string_rejects_a_huge_length_without_panicking() {
