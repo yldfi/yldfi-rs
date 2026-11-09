@@ -1044,6 +1044,9 @@
     "data*",
     "data.active_cryptocurrencies*",
     "data.ended_icos*",
+    "data.fear_and_greed_index",
+    "data.fear_and_greed_index.sentiment*",
+    "data.fear_and_greed_index.value*",
     "data.market_cap_change_percentage_24h_usd*",
     "data.market_cap_percentage*",
     "data.markets*",
@@ -1068,6 +1071,16 @@
     "data.top_coin_defi_dominance*",
     "data.top_coin_name*",
     "data.trading_volume_24h*"
+   ]
+  },
+  "GET /global/fear_and_greed_chart": {
+   "deprecated": false,
+   "params": [
+    "query:days*"
+   ],
+   "request": [],
+   "response": [
+    "fear_and_greed*"
    ]
   },
   "GET /global/market_cap_chart": {

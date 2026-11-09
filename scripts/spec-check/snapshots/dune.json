@@ -3,6 +3,34 @@
  "url": "https://docs.dune.com/analytics-openapi.json",
  "version": "1.0",
  "operations": {
+  "DELETE /v1/dashboards/{dashboard_id}/schedule": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:dashboard_id*"
+   ],
+   "request": [],
+   "response": [
+    "deleted"
+   ]
+  },
+  "DELETE /v1/folders/{folder_id}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:folder_id*",
+    "query:api_key",
+    "query:recursive"
+   ],
+   "request": [],
+   "response": [
+    "archived_dashboard_count",
+    "archived_query_count",
+    "deleted_folder_count",
+    "folder_id",
+    "path"
+   ]
+  },
   "DELETE /v1/materialized-views/{name}": {
    "deprecated": false,
    "params": [
@@ -13,6 +41,17 @@
    "request": [],
    "response": [
     "message"
+   ]
+  },
+  "DELETE /v1/queries/{query_id}/schedule": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*"
+   ],
+   "request": [],
+   "response": [
+    "deleted"
    ]
   },
   "DELETE /v1/uploads/{namespace}/{table_name}": {
@@ -372,6 +411,63 @@
     "submitted_at"
    ]
   },
+  "GET /v1/folders": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key",
+    "query:limit",
+    "query:name_contains",
+    "query:offset",
+    "query:parent_folder_id"
+   ],
+   "request": [],
+   "response": [
+    "folders",
+    "folders[].folder_id",
+    "folders[].item_count",
+    "folders[].name",
+    "folders[].path",
+    "next_offset"
+   ]
+  },
+  "GET /v1/folders/{folder_id}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:folder_id*",
+    "query:api_key",
+    "query:limit",
+    "query:offset"
+   ],
+   "request": [],
+   "response": [
+    "folder",
+    "folder.color",
+    "folder.created_at",
+    "folder.description",
+    "folder.folder_id",
+    "folder.icon",
+    "folder.name",
+    "folder.parent_folder_id",
+    "folder.path",
+    "folder.updated_at",
+    "has_more_subfolders",
+    "items",
+    "items[].id",
+    "items[].is_private",
+    "items[].name",
+    "items[].type",
+    "items[].updated_at",
+    "next_offset",
+    "subfolders",
+    "subfolders[].folder_id",
+    "subfolders[].item_count",
+    "subfolders[].name",
+    "subfolders[].path",
+    "total_items"
+   ]
+  },
   "GET /v1/materialized-views": {
    "deprecated": false,
    "params": [
@@ -611,6 +707,26 @@
    "request": [],
    "response": []
   },
+  "GET /v1/schedules": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:limit",
+    "query:offset"
+   ],
+   "request": [],
+   "response": [
+    "schedules",
+    "schedules[].cron_expression",
+    "schedules[].dashboard_id",
+    "schedules[].expires_at",
+    "schedules[].next_execution_time",
+    "schedules[].performance",
+    "schedules[].query_id",
+    "schedules[].type",
+    "total"
+   ]
+  },
   "GET /v1/uploads": {
    "deprecated": false,
    "params": [
@@ -728,6 +844,31 @@
     "visualization_widgets[].widget_id"
    ]
   },
+  "PATCH /v1/folders/{folder_id}": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:folder_id*",
+    "query:api_key"
+   ],
+   "request": [
+    "color",
+    "description",
+    "icon",
+    "name"
+   ],
+   "response": [
+    "color",
+    "created_at",
+    "description",
+    "folder_id",
+    "icon",
+    "name",
+    "parent_folder_id",
+    "path",
+    "updated_at"
+   ]
+  },
   "PATCH /v1/query/{queryId}": {
    "deprecated": false,
    "params": [
@@ -738,6 +879,32 @@
    "request": [],
    "response": [
     "query_id"
+   ]
+  },
+  "POST /v1/content/move": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "dashboard_ids",
+    "query_ids",
+    "target_folder_id*"
+   ],
+   "response": [
+    "moved_dashboard_ids",
+    "moved_query_ids",
+    "target_folder",
+    "target_folder.color",
+    "target_folder.created_at",
+    "target_folder.description",
+    "target_folder.folder_id",
+    "target_folder.icon",
+    "target_folder.name",
+    "target_folder.parent_folder_id",
+    "target_folder.path",
+    "target_folder.updated_at"
    ]
   },
   "POST /v1/contracts/decode": {
@@ -931,6 +1098,53 @@
    "request": [],
    "response": [
     "success"
+   ]
+  },
+  "POST /v1/folders": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "query:api_key"
+   ],
+   "request": [
+    "color",
+    "description",
+    "icon",
+    "name*",
+    "parent_folder_id"
+   ],
+   "response": [
+    "color",
+    "created_at",
+    "description",
+    "folder_id",
+    "icon",
+    "name",
+    "parent_folder_id",
+    "path",
+    "updated_at"
+   ]
+  },
+  "POST /v1/folders/{folder_id}/move": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:folder_id*",
+    "query:api_key"
+   ],
+   "request": [
+    "parent_folder_id*"
+   ],
+   "response": [
+    "color",
+    "created_at",
+    "description",
+    "folder_id",
+    "icon",
+    "name",
+    "parent_folder_id",
+    "path",
+    "updated_at"
    ]
   },
   "POST /v1/materialized-views": {
@@ -1221,6 +1435,50 @@
     "bytes_used",
     "private_dashboards",
     "private_queries"
+   ]
+  },
+  "PUT /v1/dashboards/{dashboard_id}/schedule": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:dashboard_id*"
+   ],
+   "request": [
+    "cron_expression*",
+    "expires_at",
+    "performance*"
+   ],
+   "response": [
+    "created",
+    "cron_expression",
+    "dashboard_id",
+    "expires_at",
+    "next_execution_time",
+    "performance",
+    "query_id",
+    "type"
+   ]
+  },
+  "PUT /v1/queries/{query_id}/schedule": {
+   "deprecated": false,
+   "params": [
+    "header:X-Dune-Api-Key*",
+    "path:query_id*"
+   ],
+   "request": [
+    "cron_expression*",
+    "expires_at",
+    "performance*"
+   ],
+   "response": [
+    "created",
+    "cron_expression",
+    "dashboard_id",
+    "expires_at",
+    "next_execution_time",
+    "performance",
+    "query_id",
+    "type"
    ]
   },
   "PUT /v1/visualizations/{visualization_id}": {

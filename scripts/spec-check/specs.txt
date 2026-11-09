@@ -38,7 +38,7 @@ velora           | vlra   | openapi | https://raw.githubusercontent.com/VeloraDE
 alchemy-prices   | alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/prices/prices.yaml
 alchemy-nft      | alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/nft/nft.yaml
 alchemy-portfolio| alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/portfolio/portfolio.yaml
-alchemy-notify   | alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/notify/notify.yaml
+alchemy-notify   | alcmy  | openapi | https://notify-api.alchemy.com/openapi.yaml
 alchemy-beacon   | alcmy  | openapi | https://raw.githubusercontent.com/alchemyplatform/docs/main/src/openapi/eth-beacon/eth-beacon.yaml
 oneinch-swap     | oinch  | openapi | https://api.business.1inch.com/swagger-docs/swap/swagger/ethereum-json
 goplus           | gplus  | readme  | https://docs.gopluslabs.io
