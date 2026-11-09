@@ -233,7 +233,7 @@ jobs:
     name: Publish to crates.io
     needs: release
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # covers the up-to-20-minute wait for dependencies to reach crates.io
+    timeout-minutes: 120  # waits for publish-crate.yml to publish the crates ethcli needs
     permissions:
       contents: read
       id-token: write
@@ -279,6 +279,40 @@ jobs:
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
+
+      # publish-crate.yml publishes the library crates released alongside
+      # ethcli, in order, in a run of its own. Wait for the versions ethcli
+      # needs before taking a crates.io token, which is short-lived.
+      - name: Wait for workspace dependencies on crates.io
+        if: steps.check.outputs.exists != 'true'
+        env:
+          UA: yldfi-rs release workflow (https://github.com/yldfi/yldfi-rs)
+        run: |
+          cargo metadata --no-deps --format-version 1 | jq -r '
+            (.packages | map({key: .name, value: .version}) | from_entries) as $versions
+            | .packages[] | select(.name == "ethcli") | .dependencies[]
+            | select(.kind == null and $versions[.name] != null)
+            | "\(.name) \($versions[.name])"' | sort -u > /tmp/deps.txt
+          start=$SECONDS
+          while true; do
+            missing=""
+            while read -r name version; do
+              if ! curl -sf -A "$UA" "https://crates.io/api/v1/crates/$name/$version" > /dev/null; then
+                missing="$missing $name@$version"
+              fi
+            done < /tmp/deps.txt
+            if [ -z "$missing" ]; then
+              echo "All $(wc -l < /tmp/deps.txt) workspace dependencies are on crates.io"
+              break
+            fi
+            waited=$((SECONDS - start))
+            if [ "$waited" -ge 5400 ]; then
+              echo "::error::Still not on crates.io after ${waited}s:$missing. Check the Publish Crate run, then re-run this job."
+              exit 1
+            fi
+            echo "Waiting for:$missing (${waited}s)"
+            sleep 60
+          done
 
       # Trusted Publishing: exchange the job's GitHub OIDC token for a
       # short-lived crates.io token (revoked automatically when the job ends).
