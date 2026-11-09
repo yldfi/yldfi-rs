@@ -200,6 +200,107 @@ pub struct ConfigFile {
     /// Debug-capable RPC endpoints (for debug_traceCall, etc.)
     #[serde(default)]
     pub debug_rpc_urls: Vec<String>,
+
+    /// The file as [`ConfigFile::load`] read it, so [`ConfigFile::save`] can
+    /// write only this process's changes. Internal: leave it to
+    /// `..ConfigFile::default()`.
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub loaded: Option<LoadedSnapshot>,
+}
+
+/// The config as loaded (internal to [`ConfigFile::save`]). Holds API keys
+/// in plain text, so `Debug` doesn't print it.
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct LoadedSnapshot(serde_json::Value);
+
+impl std::fmt::Debug for LoadedSnapshot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("LoadedSnapshot(..)")
+    }
+}
+
+/// Three-way merge for [`ConfigFile::save`]: apply the changes from `base`
+/// (as loaded) to `ours` (as this process left it) onto `theirs` (the file
+/// now). Fields this process didn't change keep the file's current value, so
+/// a concurrent writer's changes (a learned limit, another `config set-*`)
+/// survive. Tables merge key by key; `endpoints` merge by `url` (added,
+/// removed or changed here; the rest as on disk); other values are replaced
+/// whole when changed here.
+fn merge_changes(
+    base: &serde_json::Value,
+    ours: &serde_json::Value,
+    theirs: &serde_json::Value,
+) -> serde_json::Value {
+    merge_value(base, ours, theirs, false)
+}
+
+fn merge_value(
+    base: &serde_json::Value,
+    ours: &serde_json::Value,
+    theirs: &serde_json::Value,
+    endpoints: bool,
+) -> serde_json::Value {
+    use serde_json::Value;
+    if ours == base {
+        return theirs.clone();
+    }
+    match (base, ours, theirs) {
+        (Value::Object(b), Value::Object(o), Value::Object(t)) => {
+            let mut out = t.clone();
+            let keys: std::collections::BTreeSet<&String> = b.keys().chain(o.keys()).collect();
+            for key in keys {
+                let null = Value::Null;
+                let bv = b.get(key).unwrap_or(&null);
+                let ov = o.get(key).unwrap_or(&null);
+                if ov == bv {
+                    continue;
+                }
+                if !o.contains_key(key) {
+                    out.remove(key);
+                    continue;
+                }
+                let tv = t.get(key).unwrap_or(&null);
+                out.insert(key.clone(), merge_value(bv, ov, tv, key == "endpoints"));
+            }
+            Value::Object(out)
+        }
+        (Value::Array(b), Value::Array(o), Value::Array(t)) if endpoints => {
+            let url = |v: &Value| v.get("url").and_then(Value::as_str).map(str::to_owned);
+            let base_by: std::collections::HashMap<String, &Value> =
+                b.iter().filter_map(|v| url(v).map(|u| (u, v))).collect();
+            let ours_by: std::collections::HashMap<String, &Value> =
+                o.iter().filter_map(|v| url(v).map(|u| (u, v))).collect();
+            let mut out: Vec<Value> = Vec::new();
+            for tv in t {
+                let Some(u) = url(tv) else {
+                    out.push(tv.clone());
+                    continue;
+                };
+                match (base_by.get(&u), ours_by.get(&u)) {
+                    // Removed here
+                    (Some(_), None) => {}
+                    // Changed here: merge field by field onto the file's entry
+                    (Some(bv), Some(ov)) => out.push(merge_value(bv, ov, tv, false)),
+                    // Untouched here (or added by someone else)
+                    _ => out.push(tv.clone()),
+                }
+            }
+            // Added here and not already in the file
+            for ov in o {
+                if let Some(u) = url(ov) {
+                    if !base_by.contains_key(&u)
+                        && !t.iter().any(|tv| url(tv).as_deref() == Some(u.as_str()))
+                    {
+                        out.push(ov.clone());
+                    }
+                }
+            }
+            Value::Array(out)
+        }
+        _ => ours.clone(),
+    }
 }
 
 /// Tenderly API configuration
@@ -532,7 +633,8 @@ impl ConfigFile {
             .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
 
         // Lock is released when `lock` is dropped
-        let config: Self = toml::from_str(&content).map_err(ConfigError::from)?;
+        let mut config: Self = toml::from_str(&content).map_err(ConfigError::from)?;
+        config.loaded = serde_json::to_value(&config).ok().map(LoadedSnapshot);
         Ok(config)
     }
 
@@ -589,90 +691,45 @@ impl ConfigFile {
         let lock = open_lock_file(path)?;
         lock.lock()
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
+
+        // Loaded from disk: write only our changes onto the file as it is now,
+        // so a concurrent writer's changes since our load aren't undone
+        if let (Some(LoadedSnapshot(base)), true) = (&self.loaded, path.exists()) {
+            let content = std::fs::read_to_string(path)
+                .map_err(|e| ConfigError::InvalidFile(format!("{}: {}", path.display(), e)))?;
+            let current: Self = toml::from_str(&content).map_err(ConfigError::from)?;
+            let ours = serde_json::to_value(self).map_err(|e| {
+                ConfigError::InvalidFile(format!("Failed to serialize config: {}", e))
+            })?;
+            let theirs = serde_json::to_value(&current).map_err(|e| {
+                ConfigError::InvalidFile(format!("Failed to serialize config: {}", e))
+            })?;
+            let merged: Self = serde_json::from_value(merge_changes(base, &ours, &theirs))
+                .map_err(|e| ConfigError::InvalidFile(format!("Failed to merge config: {}", e)))?;
+            return merged.write_atomic(path);
+        }
         self.write_atomic(path)
+    }
+
+    /// Write `content` (e.g. the commented template from `config init`) to
+    /// `path` under the exclusive lock, atomically, with 0600 permissions
+    pub fn write_text(path: &Path, content: &str) -> Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                ConfigError::InvalidFile(format!("Failed to create directory: {}", e))
+            })?;
+        }
+        let lock = open_lock_file(path)?;
+        lock.lock()
+            .map_err(|e| ConfigError::InvalidFile(format!("Failed to acquire file lock: {}", e)))?;
+        write_text_atomic(path, content)
     }
 
     /// Write via temp file + rename. The caller must hold the exclusive lock.
     fn write_atomic(&self, path: &Path) -> Result<()> {
-        use std::io::{Seek, SeekFrom};
-
         let content = toml::to_string_pretty(self)
             .map_err(|e| ConfigError::InvalidFile(format!("Failed to serialize config: {}", e)))?;
-
-        // CFG-001 fix: Use unique temp filename to prevent race conditions
-        // Include PID and timestamp for uniqueness across concurrent processes
-        let unique_suffix = format!(
-            "{}.{}.tmp",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0)
-        );
-        let temp_path = path.with_extension(unique_suffix);
-
-        // CFG-003 fix: RAII guard to clean up temp file on failure
-        struct TempFileGuard<'a> {
-            path: &'a Path,
-            keep: bool,
-        }
-        impl Drop for TempFileGuard<'_> {
-            fn drop(&mut self) {
-                if !self.keep {
-                    let _ = std::fs::remove_file(self.path);
-                }
-            }
-        }
-        let mut guard = TempFileGuard {
-            path: &temp_path,
-            keep: false,
-        };
-
-        // Open temp file WITHOUT truncate - we'll truncate AFTER acquiring lock
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(false) // Intentional: truncate after acquiring lock for atomicity
-            .open(&temp_path)
-            .map_err(|e| {
-                ConfigError::InvalidFile(format!("Failed to create temp config file: {}", e))
-            })?;
-
-        // CFG-002 fix: Set restrictive permissions BEFORE writing content
-        // This prevents a window where the file has default permissions
-        #[cfg(unix)]
-        {
-            let permissions = std::fs::Permissions::from_mode(0o600);
-            std::fs::set_permissions(&temp_path, permissions).map_err(|e| {
-                ConfigError::InvalidFile(format!("Failed to set temp file permissions: {}", e))
-            })?;
-        }
-
-        file.set_len(0).map_err(|e| {
-            ConfigError::InvalidFile(format!("Failed to truncate temp file: {}", e))
-        })?;
-        file.seek(SeekFrom::Start(0))
-            .map_err(|e| ConfigError::InvalidFile(format!("Failed to seek temp file: {}", e)))?;
-
-        // Write content
-        file.write_all(content.as_bytes())
-            .map_err(|e| ConfigError::InvalidFile(format!("Failed to write config: {}", e)))?;
-
-        // Sync to disk before rename for durability
-        file.sync_all()
-            .map_err(|e| ConfigError::InvalidFile(format!("Failed to sync config file: {}", e)))?;
-
-        drop(file);
-
-        // Atomic rename (same filesystem guaranteed since temp is in same dir)
-        std::fs::rename(&temp_path, path).map_err(|e| {
-            ConfigError::InvalidFile(format!("Failed to rename config file: {}", e))
-        })?;
-
-        // Success - don't delete the temp file (it's been renamed)
-        guard.keep = true;
-
-        Ok(())
+        write_text_atomic(path, &content)
     }
 
     /// Save to default path
@@ -1264,5 +1321,204 @@ api_key = "pyth-test-key"
         let result = config.save(&config_path);
         assert!(result.is_ok());
         assert!(config_path.exists());
+    }
+}
+
+/// Write `content` to `path` via a temp file in the same directory (0600) and
+/// a rename. The caller must hold the exclusive lock.
+fn write_text_atomic(path: &Path, content: &str) -> Result<()> {
+    use std::io::{Seek, SeekFrom};
+
+    // CFG-001 fix: Use unique temp filename to prevent race conditions
+    // Include PID and timestamp for uniqueness across concurrent processes
+    let unique_suffix = format!(
+        "{}.{}.tmp",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    );
+    let temp_path = path.with_extension(unique_suffix);
+
+    // CFG-003 fix: RAII guard to clean up temp file on failure
+    struct TempFileGuard<'a> {
+        path: &'a Path,
+        keep: bool,
+    }
+    impl Drop for TempFileGuard<'_> {
+        fn drop(&mut self) {
+            if !self.keep {
+                let _ = std::fs::remove_file(self.path);
+            }
+        }
+    }
+    let mut guard = TempFileGuard {
+        path: &temp_path,
+        keep: false,
+    };
+
+    // Open temp file WITHOUT truncate - we'll truncate AFTER acquiring lock
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false) // Intentional: truncate after acquiring lock for atomicity
+        .open(&temp_path)
+        .map_err(|e| {
+            ConfigError::InvalidFile(format!("Failed to create temp config file: {}", e))
+        })?;
+
+    // CFG-002 fix: Set restrictive permissions BEFORE writing content
+    // This prevents a window where the file has default permissions
+    #[cfg(unix)]
+    {
+        let permissions = std::fs::Permissions::from_mode(0o600);
+        std::fs::set_permissions(&temp_path, permissions).map_err(|e| {
+            ConfigError::InvalidFile(format!("Failed to set temp file permissions: {}", e))
+        })?;
+    }
+
+    file.set_len(0)
+        .map_err(|e| ConfigError::InvalidFile(format!("Failed to truncate temp file: {}", e)))?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|e| ConfigError::InvalidFile(format!("Failed to seek temp file: {}", e)))?;
+
+    // Write content
+    file.write_all(content.as_bytes())
+        .map_err(|e| ConfigError::InvalidFile(format!("Failed to write config: {}", e)))?;
+
+    // Sync to disk before rename for durability
+    file.sync_all()
+        .map_err(|e| ConfigError::InvalidFile(format!("Failed to sync config file: {}", e)))?;
+
+    drop(file);
+
+    // Atomic rename (same filesystem guaranteed since temp is in same dir)
+    std::fs::rename(&temp_path, path)
+        .map_err(|e| ConfigError::InvalidFile(format!("Failed to rename config file: {}", e)))?;
+
+    // Success - don't delete the temp file (it's been renamed)
+    guard.keep = true;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod merge_tests {
+    use super::*;
+
+    const A: &str = "https://a.example.com";
+    const B: &str = "https://b.example.com";
+    const C: &str = "https://c.example.com";
+
+    fn write(path: &Path, cfg: &ConfigFile) {
+        std::fs::write(path, toml::to_string_pretty(cfg).unwrap()).unwrap();
+    }
+
+    fn with_endpoints(urls: &[&str]) -> ConfigFile {
+        ConfigFile {
+            endpoints: urls.iter().map(|u| EndpointConfig::new(*u)).collect(),
+            ..ConfigFile::default()
+        }
+    }
+
+    fn endpoint<'a>(cfg: &'a ConfigFile, url: &str) -> Option<&'a EndpointConfig> {
+        cfg.endpoints.iter().find(|e| e.url == url)
+    }
+
+    #[test]
+    fn a_stale_save_keeps_changes_made_since_the_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        write(&path, &with_endpoints(&[A, B]));
+
+        // This process loads, then (minutes later) changes A and adds C
+        let mut ours = ConfigFile::load(&path).unwrap();
+
+        // Meanwhile another process learns a limit on B and sets a key
+        ConfigFile::update(&path, |c| {
+            c.endpoints
+                .iter_mut()
+                .find(|e| e.url == B)
+                .unwrap()
+                .max_block_range = 777;
+            c.debug_rpc_urls = vec!["https://debug.example.com".into()];
+            true
+        })
+        .unwrap();
+
+        ours.endpoints
+            .iter_mut()
+            .find(|e| e.url == A)
+            .unwrap()
+            .priority = 1;
+        ours.endpoints.push(EndpointConfig::new(C));
+        ours.save(&path).unwrap();
+
+        let saved = ConfigFile::load(&path).unwrap();
+        assert_eq!(endpoint(&saved, A).unwrap().priority, 1);
+        assert_eq!(endpoint(&saved, B).unwrap().max_block_range, 777);
+        assert!(endpoint(&saved, C).is_some());
+        assert_eq!(
+            saved.debug_rpc_urls,
+            vec!["https://debug.example.com".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_removal_here_removes_only_that_endpoint() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        write(&path, &with_endpoints(&[A, B]));
+        let mut ours = ConfigFile::load(&path).unwrap();
+        // Someone else adds C
+        ConfigFile::update(&path, |c| {
+            c.endpoints.push(EndpointConfig::new(C));
+            true
+        })
+        .unwrap();
+        ours.endpoints.retain(|e| e.url != A);
+        ours.save(&path).unwrap();
+
+        let saved = ConfigFile::load(&path).unwrap();
+        assert!(endpoint(&saved, A).is_none());
+        assert!(endpoint(&saved, B).is_some());
+        assert!(endpoint(&saved, C).is_some());
+    }
+
+    #[test]
+    fn our_change_wins_on_the_same_field() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        write(&path, &with_endpoints(&[A]));
+        let mut ours = ConfigFile::load(&path).unwrap();
+        ConfigFile::update(&path, |c| {
+            c.endpoints[0].priority = 2;
+            true
+        })
+        .unwrap();
+        ours.endpoints[0].priority = 9;
+        ours.save(&path).unwrap();
+        assert_eq!(ConfigFile::load(&path).unwrap().endpoints[0].priority, 9);
+    }
+
+    #[test]
+    fn a_config_built_in_memory_saves_as_is() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        write(&path, &with_endpoints(&[A, B]));
+        with_endpoints(&[C]).save(&path).unwrap();
+        let saved = ConfigFile::load(&path).unwrap();
+        assert_eq!(saved.endpoints.len(), 1);
+        assert!(endpoint(&saved, C).is_some());
+    }
+
+    #[test]
+    fn the_snapshot_is_not_in_debug_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "etherscan_api_key = \"SECRET-VALUE-123\"\n").unwrap();
+        let cfg = ConfigFile::load(&path).unwrap();
+        assert!(!format!("{cfg:?}").contains("SECRET-VALUE-123"));
     }
 }
