@@ -7,12 +7,10 @@ on:
       - '**.md'
       - 'LICENSE'
       - '.gitignore'
+  # No paths-ignore here: branch protection requires Test, Lint and Security,
+  # so a PR that skipped CI (e.g. docs only) could never be merged.
   pull_request:
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.gitignore'
   # P3-4: Weekly scheduled security audit to catch new CVEs
   schedule:
     - cron: '0 6 * * 1'  # Monday at 6am UTC
