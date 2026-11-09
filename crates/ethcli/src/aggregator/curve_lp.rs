@@ -31,7 +31,6 @@ sol! {
     interface ILpToken {
         function totalSupply() external view returns (uint256);
         function decimals() external view returns (uint8);
-        function symbol() external view returns (string);
     }
 }
 
@@ -44,14 +43,25 @@ const NATIVE_ETH: Address = address!("EeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
 /// Source name in results
 pub const SOURCE: &str = "curve-onchain";
 
-/// Chainlink feed symbol for a coin whose own address has no feed: wrapped
-/// assets priced at their underlying.
-fn feed_symbol(symbol: &str) -> Option<&'static str> {
-    match symbol.to_ascii_uppercase().as_str() {
-        "WETH" | "ETH" => Some("ETH"),
-        "WBTC" | "BTC" => Some("BTC"),
+/// Canonical WETH and WBTC on Ethereum
+const WETH: Address = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+const WBTC: Address = address!("2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599");
+
+/// Chainlink feed for a coin whose own address has no feed: native ETH and
+/// the canonical wrapped assets, priced at their underlying. Matched by
+/// address only: a token's `symbol()` is whatever its deployer chose, so a
+/// fake "WETH" must not get ETH's price.
+fn underlying_feed(coin: Address) -> Option<&'static str> {
+    match coin {
+        c if c == NATIVE_ETH || c == WETH => Some("ETH"),
+        c if c == WBTC => Some("BTC"),
         _ => None,
     }
+}
+
+/// An error's text with URLs and keys removed (an RPC URL can carry an API key)
+fn clean(e: impl std::fmt::Display) -> String {
+    crate::error::sanitize_error_message(&e.to_string()).into_owned()
 }
 
 /// `amount / 10^decimals` as f64
@@ -75,18 +85,8 @@ async fn coin_usd<P: Provider + Clone>(provider: &P, coin: Address) -> Result<f6
     let now = crate::utils::unix_timestamp_secs();
     let usd = chainlink::denominations::USD;
 
-    let symbol = if coin == NATIVE_ETH {
-        "ETH".to_string()
-    } else {
-        ILpToken::new(coin, provider)
-            .symbol()
-            .call()
-            .await
-            .unwrap_or_default()
-    };
-
     let mut keys = vec![format!("{coin:#x}")];
-    if let Some(feed) = feed_symbol(&symbol) {
+    if let Some(feed) = underlying_feed(coin) {
         keys.push(feed.to_string());
     }
     for key in &keys {
@@ -103,10 +103,10 @@ async fn coin_usd<P: Provider + Clone>(provider: &P, coin: Address) -> Result<f6
         format!("{coin:#x}")
     };
     let llama = fetch_price_from_source(&token, "ethereum", PriceSource::Llama).await;
-    llama.data.map(|p| p.usd).ok_or_else(|| {
-        let name = if symbol.is_empty() { token } else { symbol };
-        format!("no price for pool coin {name}")
-    })
+    llama
+        .data
+        .map(|p| p.usd)
+        .ok_or_else(|| format!("no price for pool coin {token}"))
 }
 
 /// On-chain value of a Curve LP token on Ethereum
@@ -129,7 +129,7 @@ pub async fn fetch_curve_lp_onchain(lp_token: &str, chain: &str) -> SourceResult
         crate::config::Chain::Ethereum,
     ) {
         Ok(e) => e,
-        Err(e) => return fail(format!("no RPC endpoint: {e}")),
+        Err(e) => return fail(format!("no RPC endpoint: {}", clean(e))),
     };
     let provider = endpoint.provider().clone();
 
@@ -137,7 +137,7 @@ pub async fn fetch_curve_lp_onchain(lp_token: &str, chain: &str) -> SourceResult
     let pool = match registry.get_pool_from_lp_token(lp).call().await {
         Ok(p) if p != Address::ZERO => p,
         Ok(_) => return fail("not a Curve LP token known to the MetaRegistry".to_string()),
-        Err(e) => return fail(format!("MetaRegistry lookup failed: {e}")),
+        Err(e) => return fail(format!("MetaRegistry lookup failed: {}", clean(e))),
     };
 
     let token = ILpToken::new(lp, &provider);
@@ -202,9 +202,20 @@ mod tests {
     }
 
     #[test]
-    fn wrapped_coins_use_their_underlying_feed() {
-        assert_eq!(feed_symbol("WETH"), Some("ETH"));
-        assert_eq!(feed_symbol("wbtc"), Some("BTC"));
-        assert_eq!(feed_symbol("USDC"), None);
+    fn only_canonical_wrapped_coins_use_an_underlying_feed() {
+        assert_eq!(underlying_feed(WETH), Some("ETH"));
+        assert_eq!(underlying_feed(NATIVE_ETH), Some("ETH"));
+        assert_eq!(underlying_feed(WBTC), Some("BTC"));
+        // Any other address, whatever its symbol() says
+        let other = address!("1111111111111111111111111111111111111111");
+        assert_eq!(underlying_feed(other), None);
+    }
+
+    #[test]
+    fn errors_lose_urls_and_keys() {
+        let text = clean(
+            "error sending request for url (https://eth.example.com/v2/abcdef1234567890abcdef)",
+        );
+        assert!(!text.contains("abcdef1234567890abcdef"), "{text}");
     }
 }
