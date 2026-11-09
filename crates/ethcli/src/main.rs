@@ -1942,19 +1942,8 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
 
             let template = generate_config_template();
 
-            // Ensure parent directory exists
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-
-            std::fs::write(&path, template)?;
-
-            // Set restrictive permissions on Unix
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
-            }
+            // Locked and atomic (0600), like every other config write
+            ConfigFile::write_text(&path, &template)?;
 
             println!("Config file created at: {}", path.display());
             println!("\nEdit the file to:");
