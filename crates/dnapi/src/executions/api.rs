@@ -294,7 +294,25 @@ impl<'a> ExecutionsApi<'a> {
                 return Err(error::execution_timeout(timeout_secs));
             }
 
-            let status = self.status(execution_id).await?;
+            let status = match self.status(execution_id).await {
+                Ok(status) => status,
+                // A blip (rate limit, 5xx, dropped connection) doesn't end the
+                // wait; the timeout above still bounds it
+                Err(e) if e.is_retryable() => {
+                    let wait = e
+                        .retry_after()
+                        .unwrap_or(poll_interval)
+                        .min(Duration::from_secs(30));
+                    sleep(wait).await;
+                    poll_interval = std::cmp::min(poll_interval * 2, max_interval);
+                    continue;
+                }
+                Err(e) => {
+                    // Stop the execution we can no longer follow; best effort
+                    let _ = self.cancel(execution_id).await;
+                    return Err(e);
+                }
+            };
 
             if status.is_execution_finished {
                 if status.state.is_success() {
@@ -311,7 +329,9 @@ impl<'a> ExecutionsApi<'a> {
                         .unwrap_or_else(|| {
                             format!("Execution failed with state: {:?}", status.state)
                         });
-                    return Err(error::execution_failed(msg));
+                    return Err(error::execution_failed(format!(
+                        "execution {execution_id}: {msg}"
+                    )));
                 }
             }
 
@@ -398,5 +418,83 @@ mod tests {
             ),
             "{err}"
         );
+    }
+    #[tokio::test]
+    async fn polling_survives_a_transient_status_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/sql/execute"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "execution_id": "01TESTEXEC",
+                "state": "QUERY_STATE_PENDING"
+            })))
+            .mount(&server)
+            .await;
+        // The first status poll hits a 503, the next one sees a failed run
+        Mock::given(method("GET"))
+            .and(path("/v1/execution/01TESTEXEC/status"))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/execution/01TESTEXEC/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "execution_id": "01TESTEXEC",
+                "state": "QUERY_STATE_FAILED",
+                "is_execution_finished": true,
+                "error": {"message": "line 1: syntax error"}
+            })))
+            .mount(&server)
+            .await;
+
+        let client = Client::with_base_url("test-key", &server.uri()).unwrap();
+        let err = client
+            .executions()
+            .run_sql("SELEC 1", Some(30))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("01TESTEXEC"), "{err}");
+        assert!(err.contains("syntax error"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn a_permanent_status_error_cancels_the_execution() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/sql/execute"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "execution_id": "01TESTEXEC",
+                "state": "QUERY_STATE_PENDING"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/execution/01TESTEXEC/status"))
+            .respond_with(ResponseTemplate::new(400).set_body_string("bad request"))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/execution/01TESTEXEC/cancel"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"success": true})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = Client::with_base_url("test-key", &server.uri()).unwrap();
+        assert!(client
+            .executions()
+            .run_sql("SELECT 1", Some(30))
+            .await
+            .is_err());
     }
 }
