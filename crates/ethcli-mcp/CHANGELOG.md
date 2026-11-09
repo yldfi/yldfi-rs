@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.5.1...ethcli-mcp-v0.5.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **ethcli-mcp:** keep "Client error: X_API_KEY not configured" unredacted ([#186](https://github.com/yldfi/yldfi-rs/issues/186)) ([6d84c67](https://github.com/yldfi/yldfi-rs/commit/6d84c671a3b0dfaec6e54d530044d7d2e70f502d))
+
 ## [0.5.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.5.0...ethcli-mcp-v0.5.1) (2026-11-05)
 
 

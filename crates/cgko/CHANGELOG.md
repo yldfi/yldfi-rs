@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.2.0...cgko-v0.2.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **cgko:** send keyless onchain requests to GeckoTerminal's free API ([#190](https://github.com/yldfi/yldfi-rs/issues/190)) ([ba861c4](https://github.com/yldfi/yldfi-rs/commit/ba861c4f339095fa65a2216e23df25b3a3b42d71))
+
 ## [0.2.0](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.1.5...cgko-v0.2.0) (2026-10-21)
 
 
