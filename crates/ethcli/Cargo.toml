@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.29.0"
+version = "0.29.1"
 edition = "2021"
 rust-version = "1.95"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
@@ -88,7 +88,7 @@ fs2 = "0.4"  # MED-003 fix: File locking for config persistence
 chrono = "0.4"  # Timestamp formatting for CEX commands
 
 # API clients
-alcmy = { version = "0.3.1", path = "../alcmy" }
+alcmy = { version = "0.4.0", path = "../alcmy" }
 cgko = { version = "0.2.2", path = "../cgko" }
 dllma = { version = "0.2.2", path = "../dllma" }
 mrls = { version = "0.3.2", path = "../mrls" }

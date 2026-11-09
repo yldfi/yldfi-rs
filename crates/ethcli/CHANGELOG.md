@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.29.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.0...ethcli-v0.29.1) (2026-11-09)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * alcmy bumped from 0.3.1 to 0.4.0
+
 ## [0.29.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.28.2...ethcli-v0.29.0) (2026-11-09)
 
 

@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "alcmy"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "http",
  "reqwest 0.12.28",
@@ -2073,7 +2073,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.29.0"
+version = "0.29.1"
 dependencies = [
  "alcmy",
  "alloy",
