@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.3.1...alcmy-v0.4.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **alcmy:** WebhookType is now #[non_exhaustive] with an Unknown variant; Webhook gains networks and deactivation_reason, and UpdateWebhookRequest gains webhook_url, so struct literals need the new fields. NotifyPageOptions::page_key is deprecated (use after).
+
+### Bug Fixes
+
+* **alcmy:** list webhooks that have no type or a type this version doesn't know ([#214](https://github.com/yldfi/yldfi-rs/issues/214)) ([2109c03](https://github.com/yldfi/yldfi-rs/commit/2109c034ffc7af639c22bc9ea072dd75af7a36e5))
+
 ## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.3.0...alcmy-v0.3.1) (2026-11-09)
 
 

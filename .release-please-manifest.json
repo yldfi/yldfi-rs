@@ -1,5 +1,5 @@
 {
-  "crates/alcmy": "0.3.1",
+  "crates/alcmy": "0.4.0",
   "crates/cexm": "0.1.1",
   "crates/cgko": "0.2.2",
   "crates/cowp": "0.2.2",
@@ -7,7 +7,7 @@
   "crates/dllma": "0.2.2",
   "crates/dnapi": "0.3.2",
   "crates/ensof": "0.2.1",
-  "crates/ethcli": "0.29.0",
+  "crates/ethcli": "0.29.1",
   "crates/ethcli-mcp": "0.6.0",
   "crates/gplus": "0.2.1",
   "crates/kybr": "0.2.1",
