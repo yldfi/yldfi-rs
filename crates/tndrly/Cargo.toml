@@ -9,6 +9,7 @@ homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/tndrly"
 keywords = ["tenderly", "ethereum", "simulation", "blockchain", "web3"]
 categories = ["api-bindings", "web-programming"]
 readme = "README.md"
+exclude = [".env*"]
 
 [lib]
 name = "tndrly"

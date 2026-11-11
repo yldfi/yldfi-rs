@@ -3,6 +3,8 @@
 **/*.rs.bk
 *.pdb
 .env
+.env.*
+!.env.example
 .DS_Store
 
 # Ignore nested target directories
