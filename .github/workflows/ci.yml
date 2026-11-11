@@ -54,6 +54,9 @@ jobs:
           # PRs restore the main branch cache but don't save their own
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
+      - name: Package contents
+        run: ./scripts/check-package-contents.sh
+
       # Run fmt first (fastest)
       - name: Check formatting
         run: cargo fmt --all -- --check
