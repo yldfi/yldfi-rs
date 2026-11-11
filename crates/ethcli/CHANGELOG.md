@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.29.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.1...ethcli-v0.29.2) (2026-11-11)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * tndrly bumped from 0.5.1 to 0.5.2
+
 ## [0.29.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.0...ethcli-v0.29.1) (2026-11-09)
 
 
