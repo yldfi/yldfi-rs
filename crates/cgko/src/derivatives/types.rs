@@ -216,10 +216,10 @@ impl DerivativeTickersOptions {
 pub struct UnderlyingAsset {
     /// Underlying asset ID (coin ID or RWA ID)
     pub id: String,
-    pub symbol: String,
-    pub name: String,
+    pub symbol: Option<String>,
+    pub name: Option<String>,
     /// Underlying asset type: `coin` or `rwa`
-    pub underlying_type: String,
+    pub underlying_type: Option<String>,
 }
 
 /// Derivatives underlying asset with market data (`/derivatives/underlyings`)
@@ -227,10 +227,10 @@ pub struct UnderlyingAsset {
 pub struct UnderlyingAssetData {
     /// Underlying asset ID (coin ID or RWA ID)
     pub id: String,
-    pub symbol: String,
-    pub name: String,
+    pub symbol: Option<String>,
+    pub name: Option<String>,
     /// Underlying asset type: `coin` or `rwa`
-    pub underlying_type: String,
+    pub underlying_type: Option<String>,
     /// Underlying asset price in USD
     pub current_price: Option<f64>,
     pub price_change_percentage_24h: Option<f64>,
@@ -424,15 +424,17 @@ mod tests {
             "open_interest_change_percentage_1h":-1.33,"open_interest_change_percentage_24h":3.70,
             "funding_rate":0.0121,"total_volume":null}]"#;
         let v: Vec<UnderlyingAssetData> = serde_json::from_str(json).unwrap();
-        assert_eq!(v[0].underlying_type, "coin");
+        assert_eq!(v[0].underlying_type.as_deref(), Some("coin"));
         assert_eq!(v[0].open_interest, Some(45_451_655_842.73));
         assert!(v[1].open_interest.is_none());
         assert!(v[1].total_volume.is_none());
 
         let list: Vec<UnderlyingAsset> = serde_json::from_str(
-            r#"[{"id":"gold","symbol":"xau","name":"Gold","underlying_type":"rwa"}]"#,
+            r#"[{"id":"gold","symbol":"xau","name":"Gold","underlying_type":"rwa"},
+                {"id":"new-rwa","symbol":null,"name":null,"underlying_type":"rwa"}]"#,
         )
         .unwrap();
         assert_eq!(list[0].id, "gold");
+        assert!(list[1].symbol.is_none());
     }
 }

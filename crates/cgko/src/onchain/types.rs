@@ -234,6 +234,7 @@ pub struct TradeAttributes {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LiquidityEventsResponse {
     pub data: Vec<LiquidityEvent>,
+    #[serde(default)]
     pub meta: Option<LiquidityEventsMeta>,
 }
 
@@ -249,22 +250,22 @@ pub struct LiquidityEvent {
 /// Liquidity event attributes
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LiquidityEventAttributes {
-    pub block_number: u64,
-    pub tx_hash: String,
-    pub tx_from_address: String,
-    pub block_timestamp: String,
+    pub block_number: Option<u64>,
+    pub tx_hash: Option<String>,
+    pub tx_from_address: Option<String>,
+    pub block_timestamp: Option<String>,
     /// `add` or `remove`
-    pub kind: String,
-    pub base_token_address: String,
+    pub kind: Option<String>,
+    pub base_token_address: Option<String>,
     /// Always positive; `kind` carries the direction
-    pub base_token_amount: String,
-    pub quote_token_address: String,
+    pub base_token_amount: Option<String>,
+    pub quote_token_address: Option<String>,
     /// Always positive; `kind` carries the direction
-    pub quote_token_amount: String,
-    pub base_token_price_in_usd: String,
-    pub quote_token_price_in_usd: String,
+    pub quote_token_amount: Option<String>,
+    pub base_token_price_in_usd: Option<String>,
+    pub quote_token_price_in_usd: Option<String>,
     /// Combined USD value of both tokens in the event
-    pub volume_in_usd: String,
+    pub volume_in_usd: Option<String>,
 }
 
 /// Liquidity events pagination metadata
@@ -651,8 +652,8 @@ mod tests {
             "base_token_price_in_usd":"0.0001417","quote_token_price_in_usd":"106.496866",
             "volume_in_usd":"38593.231589"}}],"meta":{"next_cursor":null}}"#;
         let r: LiquidityEventsResponse = serde_json::from_str(json).unwrap();
-        assert_eq!(r.data[0].attributes.kind, "remove");
-        assert_eq!(r.data[0].attributes.block_number, 457_611_113);
+        assert_eq!(r.data[0].attributes.kind.as_deref(), Some("remove"));
+        assert_eq!(r.data[0].attributes.block_number, Some(457_611_113));
         assert!(r.meta.unwrap().next_cursor.is_none());
     }
 

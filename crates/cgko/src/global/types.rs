@@ -48,8 +48,9 @@ pub struct GlobalData {
 /// Crypto Fear & Greed Index value
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FearAndGreedIndex {
-    /// Index value, 0 to 100
-    pub value: u8,
+    /// Index value, 0 to 100 (sent as an integer; `f64` so a fractional
+    /// value cannot break the whole `/global` response)
+    pub value: f64,
     /// Sentiment label: `extreme_fear`, `fear`, `neutral`, `greed` or
     /// `extreme_greed`
     pub sentiment: String,
@@ -59,7 +60,7 @@ pub struct FearAndGreedIndex {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FearAndGreedChart {
     /// Daily data points as `(timestamp_ms, value, sentiment)`
-    pub fear_and_greed: Vec<(u64, u8, String)>,
+    pub fear_and_greed: Vec<(u64, f64, String)>,
 }
 
 /// `DeFi` global data response
@@ -316,8 +317,13 @@ mod tests {
         )
         .unwrap();
         let fg = g.data.fear_and_greed_index.unwrap();
-        assert_eq!(fg.value, 44);
+        assert_eq!(fg.value, 44.0);
         assert_eq!(fg.sentiment, "fear");
+        let g: GlobalResponse = serde_json::from_str(
+            r#"{"data":{"fear_and_greed_index":{"value":44.5,"sentiment":"fear"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(g.data.fear_and_greed_index.unwrap().value, 44.5);
         let g: GlobalResponse = serde_json::from_str(r#"{"data":{}}"#).unwrap();
         assert!(g.data.fear_and_greed_index.is_none());
     }
@@ -331,7 +337,7 @@ mod tests {
         assert_eq!(c.fear_and_greed.len(), 2);
         assert_eq!(
             c.fear_and_greed[1],
-            (1_792_368_000_000, 72, "extreme_greed".to_string())
+            (1_792_368_000_000, 72.0, "extreme_greed".to_string())
         );
     }
 
