@@ -261,6 +261,58 @@ impl MarketsOptions {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SupplyChart {
     /// Vec of [timestamp, supply]
+    #[serde(default, deserialize_with = "supply_points")]
     pub circulating_supply: Option<Vec<(f64, f64)>>,
+    /// Vec of [timestamp, supply]
+    #[serde(default, deserialize_with = "supply_points")]
     pub total_supply: Option<Vec<(f64, f64)>>,
+}
+
+/// `[timestamp, supply]` points, where `CoinGecko` sends the supply as a
+/// number or a decimal string
+fn supply_points<'de, D>(deserializer: D) -> Result<Option<Vec<(f64, f64)>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Num {
+        Number(f64),
+        Text(String),
+    }
+
+    let Some(points) = Option::<Vec<(f64, Num)>>::deserialize(deserializer)? else {
+        return Ok(None);
+    };
+    points
+        .into_iter()
+        .map(|(t, v)| match v {
+            Num::Number(n) => Ok((t, n)),
+            Num::Text(s) => s
+                .parse()
+                .map(|n| (t, n))
+                .map_err(|_| D::Error::custom(format!("invalid supply value {s:?}"))),
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supply_chart_accepts_string_and_number_supply() {
+        let c: SupplyChart = serde_json::from_str(
+            r#"{"circulating_supply":[[1779700198931,"20034078.0"],[1779700499891,20034079.5]]}"#,
+        )
+        .unwrap();
+        let points = c.circulating_supply.unwrap();
+        assert_eq!(points[0], (1_779_700_198_931.0, 20_034_078.0));
+        assert_eq!(points[1].1, 20_034_079.5);
+        assert!(c.total_supply.is_none());
+        assert!(serde_json::from_str::<SupplyChart>(r#"{"total_supply":[[1,"x"]]}"#).is_err());
+    }
 }

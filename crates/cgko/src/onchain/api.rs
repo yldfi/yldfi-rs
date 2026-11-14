@@ -2,10 +2,10 @@
 
 use super::types::{
     DexesResponse, HoldersChartResponse, LiquidityEventsOptions, LiquidityEventsResponse,
-    MegafilterOptions, NetworksResponse, OhlcvResponse, OnchainCategoriesResponse,
+    MegafilterOptions, NetworksResponse, OhlcvOptions, OhlcvResponse, OnchainCategoriesResponse,
     PoolInfoResponse, PoolResponse, PoolsResponse, TokenHoldersResponse, TokenInfoResponse,
     TokenOhlcvResponse, TokenPriceResponse, TokenResponse, TokenTradersResponse,
-    TokenTradesResponse, TokensResponse, TradesResponse,
+    TokenTradesResponse, TokensResponse, TradesOptions, TradesResponse,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -103,6 +103,29 @@ impl<'a> OnchainApi<'a> {
         self.client.get(&path).await
     }
 
+    /// Get pool OHLCV with options (candle size, count up to 1000, end
+    /// time, currency, inverted chart, empty intervals)
+    ///
+    /// # Arguments
+    /// * `timeframe` - `day`, `hour`, `minute` or `second`
+    pub async fn pool_ohlcv_with_options(
+        &self,
+        network: &str,
+        pool_address: &str,
+        timeframe: &str,
+        options: &OhlcvOptions,
+    ) -> Result<OhlcvResponse> {
+        let options = OhlcvOptions {
+            include_inactive_source: None,
+            ..options.clone()
+        };
+        let path = format!(
+            "/onchain/networks/{network}/pools/{pool_address}/ohlcv/{timeframe}{}",
+            options.to_query_string()
+        );
+        self.client.get(&path).await
+    }
+
     /// Get pool trades
     ///
     /// Since 2026-10-20 `CoinGecko` leaves out trades it flags as anomalous;
@@ -123,6 +146,23 @@ impl<'a> OnchainApi<'a> {
     ) -> Result<TradesResponse> {
         let path = format!(
             "/onchain/networks/{network}/pools/{pool_address}/trades?include_anomalous={include_anomalous}"
+        );
+        self.client.get(&path).await
+    }
+
+    /// Get pool trades with options: paging (pass `meta.next_cursor` back
+    /// via [`TradesOptions::cursor`]), lookback period, minimum USD volume,
+    /// token side and anomalous trades. Paging and the lookback period need
+    /// the Analyst plan or above.
+    pub async fn pool_trades_with_options(
+        &self,
+        network: &str,
+        pool_address: &str,
+        options: &TradesOptions,
+    ) -> Result<TradesResponse> {
+        let path = format!(
+            "/onchain/networks/{network}/pools/{pool_address}/trades{}",
+            options.to_query_string()
         );
         self.client.get(&path).await
     }
@@ -262,6 +302,29 @@ impl<'a> OnchainApi<'a> {
         self.client.get(&path).await
     }
 
+    /// Get token OHLCV with options (candle size, count up to 1000, end
+    /// time, currency, empty intervals, inactive pools)
+    ///
+    /// # Arguments
+    /// * `timeframe` - `day`, `hour`, `minute` or `second`
+    pub async fn token_ohlcv_with_options(
+        &self,
+        network: &str,
+        token_address: &str,
+        timeframe: &str,
+        options: &OhlcvOptions,
+    ) -> Result<TokenOhlcvResponse> {
+        let options = OhlcvOptions {
+            token: None,
+            ..options.clone()
+        };
+        let path = format!(
+            "/onchain/networks/{network}/tokens/{token_address}/ohlcv/{timeframe}{}",
+            options.to_query_string()
+        );
+        self.client.get(&path).await
+    }
+
     /// Get token trades across all pools (Pro API only)
     ///
     /// Since 2026-10-20 `CoinGecko` leaves out trades it flags as anomalous;
@@ -285,6 +348,27 @@ impl<'a> OnchainApi<'a> {
     ) -> Result<TokenTradesResponse> {
         let path = format!(
             "/onchain/networks/{network}/tokens/{token_address}/trades?include_anomalous={include_anomalous}"
+        );
+        self.client.get(&path).await
+    }
+
+    /// Get token trades across all pools with options (Pro API only):
+    /// paging (pass `meta.next_cursor` back via [`TradesOptions::cursor`]),
+    /// lookback period, minimum USD volume and anomalous trades.
+    /// [`TradesOptions::token`] does not apply here and is not sent.
+    pub async fn token_trades_with_options(
+        &self,
+        network: &str,
+        token_address: &str,
+        options: &TradesOptions,
+    ) -> Result<TokenTradesResponse> {
+        let options = TradesOptions {
+            token: None,
+            ..options.clone()
+        };
+        let path = format!(
+            "/onchain/networks/{network}/tokens/{token_address}/trades{}",
+            options.to_query_string()
         );
         self.client.get(&path).await
     }
