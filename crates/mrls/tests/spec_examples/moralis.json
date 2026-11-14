@@ -1,0 +1,3630 @@
+{
+ "endpointWeights": {
+  "path": "/info/endpointWeights",
+  "sample": [
+   {
+    "endpoint": "1",
+    "path": "1",
+    "rateLimitCost": "1",
+    "price": "1"
+   }
+  ]
+ },
+ "getBlock": {
+  "path": "/block/{block_number_or_hash}",
+  "sample": {
+   "timestamp": "1",
+   "number": "1",
+   "hash": "1",
+   "parent_hash": "1",
+   "nonce": "1",
+   "sha3_uncles": "1",
+   "logs_bloom": "1",
+   "transactions_root": "1",
+   "state_root": "1",
+   "receipts_root": "1",
+   "miner": "1",
+   "difficulty": "1",
+   "total_difficulty": "1",
+   "size": "1",
+   "extra_data": "1",
+   "gas_limit": "1",
+   "gas_used": "1",
+   "transaction_count": "1",
+   "transactions": [
+    {
+     "hash": "1",
+     "nonce": "1",
+     "transaction_index": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "value": "1",
+     "gas": "1",
+     "gas_price": "1",
+     "input": "1",
+     "receipt_cumulative_gas_used": "1",
+     "receipt_gas_used": "1",
+     "receipt_contract_address": "1",
+     "receipt_root": "1",
+     "receipt_status": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "logs": [
+      {
+       "log_index": "1",
+       "transaction_hash": "1",
+       "transaction_index": "1",
+       "address": "1",
+       "data": "1",
+       "topic0": "1",
+       "topic1": "1",
+       "topic2": "1",
+       "topic3": "1",
+       "block_timestamp": "1",
+       "block_number": "1",
+       "block_hash": "1"
+      }
+     ],
+     "internal_transactions": [
+      {
+       "transaction_hash": "1",
+       "block_number": "1",
+       "block_hash": "1",
+       "type": "1",
+       "from": "1",
+       "to": "1",
+       "value": "1",
+       "gas": "1",
+       "gas_used": "1",
+       "input": "1",
+       "output": "1",
+       "error": "1"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "getContractNFTs": {
+  "path": "/nft/{address}",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "token_id": "1",
+     "owner_of": "1",
+     "token_hash": "1",
+     "block_number": "1",
+     "block_number_minted": "1",
+     "contract_type": "1",
+     "token_uri": "1",
+     "metadata": "1",
+     "normalized_metadata": {
+      "name": "1",
+      "description": "1",
+      "image": "1",
+      "external_link": "1",
+      "external_url": "1",
+      "animation_url": "1",
+      "attributes": [
+       {
+        "trait_type": "1",
+        "value": {},
+        "display_type": "1",
+        "max_value": 1,
+        "trait_count": 1,
+        "order": 1
+       }
+      ]
+     },
+     "media": {
+      "mimetype": "1",
+      "category": "image",
+      "status": "success",
+      "original_media_url": "1",
+      "updatedAt": "1",
+      "parent_hash": "1",
+      "media_collection": {
+       "low": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "medium": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "high": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       }
+      }
+     },
+     "minter_address": "1",
+     "last_token_uri_sync": "1",
+     "last_metadata_sync": "1",
+     "amount": "1",
+     "name": "1",
+     "symbol": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "rarity_rank": 1,
+     "rarity_percentage": 1,
+     "rarity_label": "1",
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     },
+     "list_price": {
+      "listed": true,
+      "price": "1",
+      "price_currency": "1",
+      "price_usd": "1",
+      "marketplace": "1"
+     },
+     "floor_price": "1",
+     "floor_price_usd": "1",
+     "floor_price_currency": "1"
+    }
+   ]
+  }
+ },
+ "getDateToBlock": {
+  "path": "/dateToBlock",
+  "sample": {
+   "date": "1",
+   "block": 1,
+   "timestamp": 1,
+   "block_timestamp": "1",
+   "hash": "1",
+   "parent_hash": "1"
+  }
+ },
+ "getDefiPositionsByProtocol": {
+  "path": "/wallets/{address}/defi/{protocol}/positions",
+  "sample": {
+   "protocol_name": "1",
+   "protocol_id": "1",
+   "protocol_url": "1",
+   "protocol_logo": "1",
+   "total_usd_value": 1,
+   "total_unclaimed_usd_value": 1,
+   "positions": [
+    {
+     "label": "1",
+     "tokens": [
+      {
+       "token_type": "1",
+       "name": "1",
+       "symbol": "1",
+       "contract_address": "1",
+       "decimals": 1,
+       "logo": "1",
+       "thumbnail": "1",
+       "balance": "1",
+       "balance_formatted": "1",
+       "usd_price": 1,
+       "usd_value": 1
+      }
+     ],
+     "address": "1",
+     "balance_usd": 1,
+     "total_unclaimed_usd_value": 1,
+     "position_details": {
+      "fee_tier": 1,
+      "range_tnd": 1,
+      "reserves": [
+       "1"
+      ],
+      "current_price": 1,
+      "is_in_range": true,
+      "price_upper": 1,
+      "price_lower": 1,
+      "price_label": "1",
+      "liquidity": 1,
+      "range_start": 1,
+      "pool_address": "1",
+      "position_key": "1",
+      "nft_metadata": {},
+      "asset_standard": "1",
+      "apy": 1,
+      "is_debt": true,
+      "is_variable_debt": true,
+      "is_stable_debt": true,
+      "shares": "1",
+      "reserve0": "1",
+      "reserve1": "1",
+      "factory": "1",
+      "pair": "1",
+      "share_of_pool": 1,
+      "no_price_available": true,
+      "shares_in_strategy": "1",
+      "strategy_address": "1",
+      "base_type": "1",
+      "health_factor": 1,
+      "is_enabled_collateral": true
+     }
+    }
+   ]
+  }
+ },
+ "getDefiPositionsSummary": {
+  "path": "/wallets/{address}/defi/positions",
+  "sample": [
+   {
+    "protocol_name": "1",
+    "protocol_id": "1",
+    "protocol_url": "1",
+    "protocol_logo": "1",
+    "position": {
+     "label": "1",
+     "tokens": [
+      {
+       "token_type": "1",
+       "name": "1",
+       "symbol": "1",
+       "contract_address": "1",
+       "decimals": 1,
+       "logo": "1",
+       "thumbnail": "1",
+       "balance": "1",
+       "balance_formatted": "1",
+       "usd_price": 1,
+       "usd_value": 1
+      }
+     ],
+     "address": "1",
+     "balance_usd": 1,
+     "total_unclaimed_usd_value": 1,
+     "position_details": {
+      "fee_tier": 1,
+      "range_tnd": 1,
+      "reserves": [
+       "1"
+      ],
+      "current_price": 1,
+      "is_in_range": true,
+      "price_upper": 1,
+      "price_lower": 1,
+      "price_label": "1",
+      "liquidity": 1,
+      "range_start": 1,
+      "pool_address": "1",
+      "position_key": "1",
+      "nft_metadata": {},
+      "asset_standard": "1",
+      "apy": 1,
+      "is_debt": true,
+      "is_variable_debt": true,
+      "is_stable_debt": true,
+      "shares": "1",
+      "reserve0": "1",
+      "reserve1": "1",
+      "factory": "1",
+      "pair": "1",
+      "share_of_pool": 1,
+      "no_price_available": true,
+      "shares_in_strategy": "1",
+      "strategy_address": "1",
+      "base_type": "1",
+      "health_factor": 1,
+      "is_enabled_collateral": true
+     }
+    }
+   }
+  ]
+ },
+ "getDefiSummary": {
+  "path": "/wallets/{address}/defi/summary",
+  "sample": {
+   "active_protocols": 1,
+   "total_positions": 1,
+   "total_usd_value": 1,
+   "total_unclaimed_usd_value": 1,
+   "protocols": [
+    {
+     "total_usd_value": 1,
+     "total_unclaimed_usd_value": 1,
+     "positions": 1
+    }
+   ]
+  }
+ },
+ "getEntitiesByCategory": {
+  "path": "/entities/categories/{categoryId}",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "result": [
+    {
+     "name": "1",
+     "id": "1",
+     "logo": "1",
+     "bio": "1",
+     "description": "1",
+     "website": "1",
+     "twitter": "1",
+     "type": "1"
+    }
+   ]
+  }
+ },
+ "getEntity": {
+  "path": "/entities/{entityId}",
+  "sample": {
+   "name": "1",
+   "id": "1",
+   "logo": "1",
+   "bio": "1",
+   "description": "1",
+   "website": "1",
+   "twitter": "1",
+   "type": "1"
+  }
+ },
+ "getEntityCategories": {
+  "path": "/entities/categories",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "result": [
+    {
+     "name": "1",
+     "id": "1"
+    }
+   ]
+  }
+ },
+ "getHistoricalTokenScore": {
+  "path": "/tokens/{tokenAddress}/score/historical",
+  "sample": {
+   "chainId": "1",
+   "tokenAddress": "1",
+   "timeseries": [
+    {
+     "timestamp": "1",
+     "score": 1
+    }
+   ]
+  }
+ },
+ "getLatestBlockNumber": {
+  "path": "/latestBlockNumber/{chain}",
+  "sample": "1"
+ },
+ "getMultipleNFTs": {
+  "path": "/nft/getMultipleNFTs",
+  "method": "POST",
+  "sample": [
+   {
+    "token_address": "1",
+    "token_id": "1",
+    "contract_type": "1",
+    "owner_of": "1",
+    "block_number": "1",
+    "block_number_minted": "1",
+    "token_uri": "1",
+    "metadata": "1",
+    "normalized_metadata": {
+     "name": "1",
+     "description": "1",
+     "image": "1",
+     "external_link": "1",
+     "external_url": "1",
+     "animation_url": "1",
+     "attributes": [
+      {
+       "trait_type": "1",
+       "value": {},
+       "display_type": "1",
+       "max_value": 1,
+       "trait_count": 1,
+       "order": 1
+      }
+     ]
+    },
+    "media": {
+     "mimetype": "1",
+     "category": "image",
+     "status": "success",
+     "original_media_url": "1",
+     "updatedAt": "1",
+     "parent_hash": "1",
+     "media_collection": {
+      "low": {
+       "width": 1,
+       "height": 1,
+       "url": "1"
+      },
+      "medium": {
+       "width": 1,
+       "height": 1,
+       "url": "1"
+      },
+      "high": {
+       "width": 1,
+       "height": 1,
+       "url": "1"
+      }
+     }
+    },
+    "amount": "1",
+    "name": "1",
+    "symbol": "1",
+    "token_hash": "1",
+    "rarity_rank": 1,
+    "rarity_percentage": 1,
+    "rarity_label": "1",
+    "last_token_uri_sync": "1",
+    "last_metadata_sync": "1",
+    "possible_spam": true,
+    "verified_collection": true,
+    "floor_price": "1",
+    "floor_price_usd": "1",
+    "floor_price_currency": "1",
+    "last_sale": {
+     "transaction_hash": "1",
+     "block_timestamp": "1",
+     "buyer_address": "1",
+     "seller_address": "1",
+     "price": "1",
+     "price_formatted": "1",
+     "usd_price_at_sale": "1",
+     "current_usd_value": "1",
+     "token_address": "1",
+     "token_id": "1",
+     "payment_token": {
+      "token_name": "1",
+      "token_symbol": "1",
+      "token_logo": "1",
+      "token_decimals": "1",
+      "token_address": "1"
+     }
+    }
+   }
+  ]
+ },
+ "getMultipleTokenAnalytics": {
+  "path": "/tokens/analytics",
+  "method": "POST",
+  "sample": {
+   "categories": [
+    {
+     "chainId": "1",
+     "categoryId": "1",
+     "totalBuyVolume": {
+      "5m": 1,
+      "1h": 1,
+      "6h": 1,
+      "24h": 1
+     },
+     "totalSellVolume": {
+      "5m": 1,
+      "1h": 1,
+      "6h": 1,
+      "24h": 1
+     },
+     "totalBuyers": {
+      "5m": 1,
+      "1h": 1,
+      "6h": 1,
+      "24h": 1
+     },
+     "totalSellers": {
+      "5m": 1,
+      "1h": 1,
+      "6h": 1,
+      "24h": 1
+     },
+     "totalBuys": {
+      "5m": 1,
+      "1h": 1,
+      "6h": 1,
+      "24h": 1
+     },
+     "totalSells": {
+      "5m": 1,
+      "1h": 1,
+      "6h": 1,
+      "24h": 1
+     },
+     "uniqueWallets": {
+      "5m": 1,
+      "1h": 1,
+      "6h": 1,
+      "24h": 1
+     },
+     "pricePercentChange": {
+      "5m": 1,
+      "1h": 1,
+      "6h": 1,
+      "24h": 1
+     },
+     "usdPrice": "1",
+     "totalLiquidity": "1",
+     "totalFullyDilutedValuation": "1"
+    }
+   ]
+  }
+ },
+ "getMultipleTokenPrices": {
+  "path": "/erc20/prices",
+  "method": "POST",
+  "sample": [
+   {
+    "tokenName": "1",
+    "tokenSymbol": "1",
+    "tokenLogo": "1",
+    "tokenDecimals": "1",
+    "nativePrice": {
+     "value": "1",
+     "decimals": 1,
+     "name": "1",
+     "symbol": "1",
+     "address": "1"
+    },
+    "usdPrice": 1,
+    "usdPriceFormatted": "1",
+    "24hrPercentChange": "1",
+    "exchangeAddress": "1",
+    "exchangeName": "1",
+    "tokenAddress": "1",
+    "toBlock": "1",
+    "possibleSpam": true,
+    "verifiedContract": true,
+    "pairAddress": "1",
+    "pairTotalLiquidityUsd": "1",
+    "usdPrice24h": 1,
+    "usdPrice24hrUsdChange": 1,
+    "usdPrice24hrPercentChange": 1,
+    "securityScore": 1
+   }
+  ]
+ },
+ "getNFTBulkContractMetadata": {
+  "path": "/nft/metadata",
+  "method": "POST",
+  "sample": [
+   {
+    "token_address": "1",
+    "name": "1",
+    "synced_at": "1",
+    "symbol": "1",
+    "contract_type": "1",
+    "possible_spam": true,
+    "verified_collection": true,
+    "collection_logo": "1",
+    "collection_banner_image": "1",
+    "collection_category": "1",
+    "project_url": "1",
+    "wiki_url": "1",
+    "discord_url": "1",
+    "telegram_url": "1",
+    "twitter_username": "1",
+    "instagram_username": "1",
+    "floor_price": "1",
+    "floor_price_usd": "1",
+    "floor_price_currency": "1",
+    "last_sale": {
+     "transaction_hash": "1",
+     "block_timestamp": "1",
+     "buyer_address": "1",
+     "seller_address": "1",
+     "price": "1",
+     "price_formatted": "1",
+     "usd_price_at_sale": "1",
+     "current_usd_value": "1",
+     "token_address": "1",
+     "token_id": "1",
+     "payment_token": {
+      "token_name": "1",
+      "token_symbol": "1",
+      "token_logo": "1",
+      "token_decimals": "1",
+      "token_address": "1"
+     }
+    }
+   }
+  ]
+ },
+ "getNFTByContractTraits": {
+  "path": "/nft/{address}/nfts-by-traits",
+  "method": "POST",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "token_id": "1",
+     "owner_of": "1",
+     "token_hash": "1",
+     "block_number": "1",
+     "block_number_minted": "1",
+     "contract_type": "1",
+     "token_uri": "1",
+     "metadata": "1",
+     "normalized_metadata": {
+      "name": "1",
+      "description": "1",
+      "image": "1",
+      "external_link": "1",
+      "external_url": "1",
+      "animation_url": "1",
+      "attributes": [
+       {
+        "trait_type": "1",
+        "value": {},
+        "display_type": "1",
+        "max_value": 1,
+        "trait_count": 1,
+        "order": 1
+       }
+      ]
+     },
+     "media": {
+      "mimetype": "1",
+      "category": "image",
+      "status": "success",
+      "original_media_url": "1",
+      "updatedAt": "1",
+      "parent_hash": "1",
+      "media_collection": {
+       "low": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "medium": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "high": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       }
+      }
+     },
+     "minter_address": "1",
+     "last_token_uri_sync": "1",
+     "last_metadata_sync": "1",
+     "amount": "1",
+     "name": "1",
+     "symbol": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "rarity_rank": 1,
+     "rarity_percentage": 1,
+     "rarity_label": "1",
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     },
+     "list_price": {
+      "listed": true,
+      "price": "1",
+      "price_currency": "1",
+      "price_usd": "1",
+      "marketplace": "1"
+     },
+     "floor_price": "1",
+     "floor_price_usd": "1",
+     "floor_price_currency": "1"
+    }
+   ]
+  }
+ },
+ "getNFTCollectionStats": {
+  "path": "/nft/{address}/stats",
+  "sample": {
+   "total_tokens": "1",
+   "owners": {
+    "current": "1"
+   },
+   "transfers": {
+    "total": "1"
+   }
+  }
+ },
+ "getNFTContractMetadata": {
+  "path": "/nft/{address}/metadata",
+  "sample": {
+   "token_address": "1",
+   "name": "1",
+   "synced_at": "1",
+   "symbol": "1",
+   "contract_type": "1",
+   "possible_spam": true,
+   "verified_collection": true,
+   "collection_logo": "1",
+   "collection_banner_image": "1",
+   "collection_category": "1",
+   "project_url": "1",
+   "wiki_url": "1",
+   "discord_url": "1",
+   "telegram_url": "1",
+   "twitter_username": "1",
+   "instagram_username": "1",
+   "floor_price": "1",
+   "floor_price_usd": "1",
+   "floor_price_currency": "1",
+   "last_sale": {
+    "transaction_hash": "1",
+    "block_timestamp": "1",
+    "buyer_address": "1",
+    "seller_address": "1",
+    "price": "1",
+    "price_formatted": "1",
+    "usd_price_at_sale": "1",
+    "current_usd_value": "1",
+    "token_address": "1",
+    "token_id": "1",
+    "payment_token": {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "token_address": "1"
+    }
+   }
+  }
+ },
+ "getNFTContractSalePrices": {
+  "path": "/nft/{address}/price",
+  "sample": {
+   "last_sale": {
+    "transaction_hash": "1",
+    "block_timestamp": "1",
+    "buyer_address": "1",
+    "seller_address": "1",
+    "price": "1",
+    "price_formatted": "1",
+    "usd_price_at_sale": "1",
+    "current_usd_value": "1",
+    "token_id": "1",
+    "payment_token": {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "token_address": "1"
+    }
+   },
+   "lowest_sale": {
+    "transaction_hash": "1",
+    "block_timestamp": "1",
+    "buyer_address": "1",
+    "seller_address": "1",
+    "price": "1",
+    "price_formatted": "1",
+    "usd_price_at_sale": "1",
+    "current_usd_value": "1",
+    "token_id": "1",
+    "payment_token": {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "token_address": "1"
+    }
+   },
+   "highest_sale": {
+    "transaction_hash": "1",
+    "block_timestamp": "1",
+    "buyer_address": "1",
+    "seller_address": "1",
+    "price": "1",
+    "price_formatted": "1",
+    "usd_price_at_sale": "1",
+    "current_usd_value": "1",
+    "token_id": "1",
+    "payment_token": {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "token_address": "1"
+    }
+   },
+   "average_sale": {
+    "price": "1",
+    "price_formatted": "1",
+    "current_usd_value": "1"
+   },
+   "total_trades": 1,
+   "message": "1"
+  }
+ },
+ "getNFTContractTransfers": {
+  "path": "/nft/{address}/transfers",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "token_id": "1",
+     "token_name": "1",
+     "token_symbol": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "value": "1",
+     "amount": "1",
+     "contract_type": "1",
+     "block_number": "1",
+     "block_timestamp": "1",
+     "block_hash": "1",
+     "transaction_hash": "1",
+     "transaction_type": "1",
+     "transaction_index": 1,
+     "log_index": 1,
+     "operator": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     }
+    }
+   ],
+   "block_exists": true,
+   "index_complete": true
+  }
+ },
+ "getNFTFloorPriceByContract": {
+  "path": "/nft/{address}/floor-price",
+  "sample": {
+   "address": "1",
+   "floor_price": "1",
+   "floor_price_usd": "1",
+   "currency": "1",
+   "marketplace": {
+    "name": "1",
+    "logo": "1"
+   },
+   "last_updated": "1"
+  }
+ },
+ "getNFTFloorPriceByToken": {
+  "path": "/nft/{address}/{token_id}/floor-price",
+  "sample": {
+   "address": "1",
+   "token_id": "1",
+   "floor_price": "1",
+   "floor_price_usd": "1",
+   "currency": "1",
+   "marketplace": {
+    "name": "1",
+    "logo": "1"
+   },
+   "last_updated": "1"
+  }
+ },
+ "getNFTHistoricalFloorPriceByContract": {
+  "path": "/nft/{address}/floor-price/historical",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "floor_price": "1",
+     "floor_price_usd": "1",
+     "currency": "1",
+     "marketplace": "1",
+     "timestamp": "1"
+    }
+   ]
+  }
+ },
+ "getNFTMetadata": {
+  "path": "/nft/{address}/{token_id}",
+  "sample": {
+   "token_address": "1",
+   "token_id": "1",
+   "owner_of": "1",
+   "token_hash": "1",
+   "block_number": "1",
+   "block_number_minted": "1",
+   "contract_type": "1",
+   "token_uri": "1",
+   "metadata": "1",
+   "normalized_metadata": {
+    "name": "1",
+    "description": "1",
+    "image": "1",
+    "external_link": "1",
+    "external_url": "1",
+    "animation_url": "1",
+    "attributes": [
+     {
+      "trait_type": "1",
+      "value": {},
+      "display_type": "1",
+      "max_value": 1,
+      "trait_count": 1,
+      "order": 1
+     }
+    ]
+   },
+   "media": {
+    "mimetype": "1",
+    "category": "image",
+    "status": "success",
+    "original_media_url": "1",
+    "updatedAt": "1",
+    "parent_hash": "1",
+    "media_collection": {
+     "low": {
+      "width": 1,
+      "height": 1,
+      "url": "1"
+     },
+     "medium": {
+      "width": 1,
+      "height": 1,
+      "url": "1"
+     },
+     "high": {
+      "width": 1,
+      "height": 1,
+      "url": "1"
+     }
+    }
+   },
+   "minter_address": "1",
+   "last_token_uri_sync": "1",
+   "last_metadata_sync": "1",
+   "amount": "1",
+   "name": "1",
+   "symbol": "1",
+   "possible_spam": true,
+   "verified_collection": true,
+   "rarity_rank": 1,
+   "rarity_percentage": 1,
+   "rarity_label": "1",
+   "last_sale": {
+    "transaction_hash": "1",
+    "block_timestamp": "1",
+    "buyer_address": "1",
+    "seller_address": "1",
+    "price": "1",
+    "price_formatted": "1",
+    "usd_price_at_sale": "1",
+    "current_usd_value": "1",
+    "token_address": "1",
+    "token_id": "1",
+    "payment_token": {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "token_address": "1"
+    }
+   },
+   "list_price": {
+    "listed": true,
+    "price": "1",
+    "price_currency": "1",
+    "price_usd": "1",
+    "marketplace": "1"
+   },
+   "floor_price": "1",
+   "floor_price_usd": "1",
+   "floor_price_currency": "1"
+  }
+ },
+ "getNFTOwners": {
+  "path": "/nft/{address}/owners",
+  "sample": {
+   "status": "1",
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "token_id": "1",
+     "contract_type": "1",
+     "owner_of": "1",
+     "block_number": "1",
+     "block_number_minted": "1",
+     "token_uri": "1",
+     "metadata": "1",
+     "normalized_metadata": {
+      "name": "1",
+      "description": "1",
+      "image": "1",
+      "external_link": "1",
+      "external_url": "1",
+      "animation_url": "1",
+      "attributes": [
+       {
+        "trait_type": "1",
+        "value": {},
+        "display_type": "1",
+        "max_value": 1,
+        "trait_count": 1,
+        "order": 1
+       }
+      ]
+     },
+     "media": {
+      "mimetype": "1",
+      "category": "image",
+      "status": "success",
+      "original_media_url": "1",
+      "updatedAt": "1",
+      "parent_hash": "1",
+      "media_collection": {
+       "low": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "medium": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "high": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       }
+      }
+     },
+     "amount": "1",
+     "name": "1",
+     "symbol": "1",
+     "token_hash": "1",
+     "rarity_rank": 1,
+     "rarity_percentage": 1,
+     "rarity_label": "1",
+     "last_token_uri_sync": "1",
+     "last_metadata_sync": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "floor_price": "1",
+     "floor_price_usd": "1",
+     "floor_price_currency": "1",
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "getNFTSalePrices": {
+  "path": "/nft/{address}/{token_id}/price",
+  "sample": {
+   "last_sale": {
+    "transaction_hash": "1",
+    "block_timestamp": "1",
+    "buyer_address": "1",
+    "seller_address": "1",
+    "price": "1",
+    "price_formatted": "1",
+    "usd_price_at_sale": "1",
+    "current_usd_value": "1",
+    "token_id": "1",
+    "payment_token": {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "token_address": "1"
+    }
+   },
+   "lowest_sale": {
+    "transaction_hash": "1",
+    "block_timestamp": "1",
+    "buyer_address": "1",
+    "seller_address": "1",
+    "price": "1",
+    "price_formatted": "1",
+    "usd_price_at_sale": "1",
+    "current_usd_value": "1",
+    "token_id": "1",
+    "payment_token": {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "token_address": "1"
+    }
+   },
+   "highest_sale": {
+    "transaction_hash": "1",
+    "block_timestamp": "1",
+    "buyer_address": "1",
+    "seller_address": "1",
+    "price": "1",
+    "price_formatted": "1",
+    "usd_price_at_sale": "1",
+    "current_usd_value": "1",
+    "token_id": "1",
+    "payment_token": {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "token_address": "1"
+    }
+   },
+   "average_sale": {
+    "price": "1",
+    "price_formatted": "1",
+    "current_usd_value": "1"
+   },
+   "total_trades": 1,
+   "message": "1"
+  }
+ },
+ "getNFTTokenIdOwners": {
+  "path": "/nft/{address}/{token_id}/owners",
+  "sample": {
+   "status": "1",
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "token_id": "1",
+     "contract_type": "1",
+     "owner_of": "1",
+     "block_number": "1",
+     "block_number_minted": "1",
+     "token_uri": "1",
+     "metadata": "1",
+     "normalized_metadata": {
+      "name": "1",
+      "description": "1",
+      "image": "1",
+      "external_link": "1",
+      "external_url": "1",
+      "animation_url": "1",
+      "attributes": [
+       {
+        "trait_type": "1",
+        "value": {},
+        "display_type": "1",
+        "max_value": 1,
+        "trait_count": 1,
+        "order": 1
+       }
+      ]
+     },
+     "media": {
+      "mimetype": "1",
+      "category": "image",
+      "status": "success",
+      "original_media_url": "1",
+      "updatedAt": "1",
+      "parent_hash": "1",
+      "media_collection": {
+       "low": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "medium": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "high": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       }
+      }
+     },
+     "amount": "1",
+     "name": "1",
+     "symbol": "1",
+     "token_hash": "1",
+     "rarity_rank": 1,
+     "rarity_percentage": 1,
+     "rarity_label": "1",
+     "last_token_uri_sync": "1",
+     "last_metadata_sync": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "floor_price": "1",
+     "floor_price_usd": "1",
+     "floor_price_currency": "1",
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "getNFTTrades": {
+  "path": "/nft/{address}/trades",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "transaction_hash": "1",
+     "transaction_index": "1",
+     "token_ids": [
+      "1",
+      "1"
+     ],
+     "seller_address": "1",
+     "buyer_address": "1",
+     "token_address": "1",
+     "marketplace_address": "1",
+     "price_token_address": "1",
+     "price": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1"
+    }
+   ]
+  }
+ },
+ "getNFTTradesByToken": {
+  "path": "/nft/{address}/{token_id}/trades",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "transaction_hash": "1",
+     "transaction_index": "1",
+     "token_ids": [
+      "1",
+      "1"
+     ],
+     "seller_address": "1",
+     "buyer_address": "1",
+     "token_address": "1",
+     "marketplace_address": "1",
+     "price_token_address": "1",
+     "price": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1"
+    }
+   ]
+  }
+ },
+ "getNFTTradesByWallet": {
+  "path": "/wallets/{address}/nfts/trades",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "transaction_hash": "1",
+     "transaction_index": "1",
+     "token_ids": [
+      "1",
+      "1"
+     ],
+     "seller_address": "1",
+     "buyer_address": "1",
+     "token_address": "1",
+     "marketplace_address": "1",
+     "price_token_address": "1",
+     "price": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1"
+    }
+   ]
+  }
+ },
+ "getNFTTraitsByCollection": {
+  "path": "/nft/{address}/traits",
+  "sample": {
+   "traits": [
+    {
+     "trait_type": "1",
+     "values": [
+      {
+       "trait_value": "1",
+       "count": 1,
+       "percentage": 1,
+       "rarity_label": "1"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "getNFTTraitsByCollectionPaginate": {
+  "path": "/nft/{address}/traits/paginate",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "trait_type": "1",
+     "trait_value": "1",
+     "count": 1,
+     "percentage": 1,
+     "rarity_label": "1"
+    }
+   ]
+  }
+ },
+ "getNFTTransfers": {
+  "path": "/nft/{address}/{token_id}/transfers",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "token_id": "1",
+     "token_name": "1",
+     "token_symbol": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "value": "1",
+     "amount": "1",
+     "contract_type": "1",
+     "block_number": "1",
+     "block_timestamp": "1",
+     "block_hash": "1",
+     "transaction_hash": "1",
+     "transaction_type": "1",
+     "transaction_index": 1,
+     "log_index": 1,
+     "operator": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     }
+    }
+   ],
+   "block_exists": true,
+   "index_complete": true
+  }
+ },
+ "getNativeBalance": {
+  "path": "/{address}/balance",
+  "sample": {
+   "balance": "1"
+  }
+ },
+ "getNativeBalancesForAddresses": {
+  "path": "/wallets/balances",
+  "sample": [
+   {
+    "chain": "1",
+    "chain_id": "1",
+    "total_balance": "1",
+    "block_number": "1",
+    "block_timestamp": "1",
+    "total_balance_formatted": "1",
+    "wallet_balances": [
+     {
+      "address": "1",
+      "balance": "1",
+      "balance_formatted": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "getPairCandlesticks": {
+  "path": "/pairs/{address}/ohlcv",
+  "sample": {
+   "cursor": "1",
+   "page": 1,
+   "pairAddress": "1",
+   "tokenAddress": "1",
+   "timeframe": "1",
+   "currency": "1",
+   "result": [
+    {
+     "timestamp": "1",
+     "open": 1,
+     "high": 1,
+     "low": 1,
+     "close": 1,
+     "volume": 1,
+     "trades": 1
+    }
+   ]
+  }
+ },
+ "getPairStats": {
+  "path": "/pairs/{address}/stats",
+  "sample": {
+   "tokenAddress": "1",
+   "tokenName": "1",
+   "tokenSymbol": "1",
+   "tokenLogo": "1",
+   "pairCreated": "1",
+   "pairLabel": "1",
+   "pairAddress": "1",
+   "exchange": "1",
+   "exchangeAddress": "1",
+   "exchangeLogo": "1",
+   "exchangeUrl": "1",
+   "currentUsdPrice": "1",
+   "currentNativePrice": "1",
+   "totalLiquidityUsd": "1",
+   "pricePercentChange": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   },
+   "liquidityPercentChange": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   },
+   "buys": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   },
+   "sells": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   },
+   "totalVolume": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   },
+   "buyVolume": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   },
+   "sellVolume": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   },
+   "buyers": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   },
+   "sellers": {
+    "5min": 1,
+    "1h": 1,
+    "4h": 1,
+    "24h": 1
+   }
+  }
+ },
+ "getSwapsByPairAddress": {
+  "path": "/pairs/{address}/swaps",
+  "sample": {
+   "page": 1,
+   "pageSize": 1,
+   "cursor": "1",
+   "exchangeAddress": "1",
+   "exchangeName": "1",
+   "exchangeLogo": "1",
+   "pairLabel": "1",
+   "pairAddress": "1",
+   "baseToken": {
+    "address": "1",
+    "name": "1",
+    "symbol": "1",
+    "logo": "1",
+    "amount": "1",
+    "usdPrice": 1,
+    "usdAmount": 1
+   },
+   "quoteToken": {
+    "address": "1",
+    "name": "1",
+    "symbol": "1",
+    "logo": "1",
+    "amount": "1",
+    "usdPrice": 1,
+    "usdAmount": 1
+   },
+   "result": [
+    {
+     "transactionHash": "1",
+     "transactionIndex": 1,
+     "transactionType": "1",
+     "blockTimestamp": "1",
+     "blockNumber": 1,
+     "subCategory": "1",
+     "walletAddress": "1",
+     "baseTokenAmount": "1",
+     "quoteTokenAmount": "1",
+     "baseTokenPriceUsd": 1,
+     "quoteTokenPriceUsd": 1,
+     "baseQuotePrice": "1",
+     "totalValueUsd": 1
+    }
+   ]
+  }
+ },
+ "getSwapsByTokenAddress": {
+  "path": "/erc20/{address}/swaps",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "transactionHash": "1",
+     "transactionIndex": 1,
+     "transactionType": "1",
+     "blockTimestamp": "1",
+     "blockNumber": 1,
+     "subCategory": "1",
+     "walletAddress": "1",
+     "walletAddressLabel": "1",
+     "entity": "1",
+     "entityLogo": "1",
+     "pairAddress": "1",
+     "pairLabel": "1",
+     "exchangeAddress": "1",
+     "exchangeName": "1",
+     "exchangeLogo": "1",
+     "bought": {
+      "address": "1",
+      "name": "1",
+      "symbol": "1",
+      "logo": "1",
+      "amount": "1",
+      "usdPrice": 1,
+      "usdAmount": 1
+     },
+     "sold": {
+      "address": "1",
+      "name": "1",
+      "symbol": "1",
+      "logo": "1",
+      "amount": "1",
+      "usdPrice": 1,
+      "usdAmount": 1
+     },
+     "baseQuotePrice": "1",
+     "totalValueUsd": 1
+    }
+   ]
+  }
+ },
+ "getSwapsByWalletAddress": {
+  "path": "/wallets/{address}/swaps",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "transactionHash": "1",
+     "transactionIndex": 1,
+     "transactionType": "1",
+     "blockTimestamp": "1",
+     "blockNumber": 1,
+     "subCategory": "1",
+     "walletAddress": "1",
+     "walletAddressLabel": "1",
+     "entity": "1",
+     "entityLogo": "1",
+     "pairAddress": "1",
+     "pairLabel": "1",
+     "exchangeAddress": "1",
+     "exchangeName": "1",
+     "exchangeLogo": "1",
+     "bought": {
+      "address": "1",
+      "name": "1",
+      "symbol": "1",
+      "logo": "1",
+      "amount": "1",
+      "usdPrice": 1,
+      "usdAmount": 1
+     },
+     "sold": {
+      "address": "1",
+      "name": "1",
+      "symbol": "1",
+      "logo": "1",
+      "amount": "1",
+      "usdPrice": 1,
+      "usdAmount": 1
+     },
+     "baseQuotePrice": "1",
+     "totalValueUsd": 1
+    }
+   ]
+  }
+ },
+ "getTimeSeriesTokenAnalytics": {
+  "path": "/tokens/analytics/timeseries",
+  "method": "POST",
+  "sample": {
+   "result": [
+    {
+     "chainId": "1",
+     "tokenAddress": "1",
+     "timeseries": [
+      {
+       "timestamp": "1",
+       "buyVolume": 1,
+       "sellVolume": 1,
+       "liquidityUsd": 1,
+       "fullyDilutedValuation": 1
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "getTokenAnalytics": {
+  "path": "/tokens/{tokenAddress}/analytics",
+  "sample": {
+   "chainId": "1",
+   "categoryId": "1",
+   "totalBuyVolume": {
+    "5m": 1,
+    "1h": 1,
+    "6h": 1,
+    "24h": 1
+   },
+   "totalSellVolume": {
+    "5m": 1,
+    "1h": 1,
+    "6h": 1,
+    "24h": 1
+   },
+   "totalBuyers": {
+    "5m": 1,
+    "1h": 1,
+    "6h": 1,
+    "24h": 1
+   },
+   "totalSellers": {
+    "5m": 1,
+    "1h": 1,
+    "6h": 1,
+    "24h": 1
+   },
+   "totalBuys": {
+    "5m": 1,
+    "1h": 1,
+    "6h": 1,
+    "24h": 1
+   },
+   "totalSells": {
+    "5m": 1,
+    "1h": 1,
+    "6h": 1,
+    "24h": 1
+   },
+   "uniqueWallets": {
+    "5m": 1,
+    "1h": 1,
+    "6h": 1,
+    "24h": 1
+   },
+   "pricePercentChange": {
+    "5m": 1,
+    "1h": 1,
+    "6h": 1,
+    "24h": 1
+   },
+   "usdPrice": "1",
+   "totalLiquidity": "1",
+   "totalFullyDilutedValuation": "1"
+  }
+ },
+ "getTokenCategories": {
+  "path": "/tokens/categories",
+  "sample": [
+   {
+    "categories": [
+     {
+      "name": "1",
+      "id": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "getTokenHolders": {
+  "path": "/erc20/{tokenAddress}/holders",
+  "sample": {
+   "totalHolders": 1,
+   "holderSupply": {
+    "top10": {
+     "supply": "1",
+     "supplyPercent": 1
+    },
+    "top25": {
+     "supply": "1",
+     "supplyPercent": 1
+    },
+    "top50": {
+     "supply": "1",
+     "supplyPercent": 1
+    },
+    "top100": {
+     "supply": "1",
+     "supplyPercent": 1
+    },
+    "top250": {
+     "supply": "1",
+     "supplyPercent": 1
+    },
+    "top500": {
+     "supply": "1",
+     "supplyPercent": 1
+    }
+   },
+   "holderChange": {
+    "5min": {
+     "change": 1,
+     "changePercent": 1
+    },
+    "1h": {
+     "change": 1,
+     "changePercent": 1
+    },
+    "6h": {
+     "change": 1,
+     "changePercent": 1
+    },
+    "24h": {
+     "change": 1,
+     "changePercent": 1
+    },
+    "3d": {
+     "change": 1,
+     "changePercent": 1
+    },
+    "7d": {
+     "change": 1,
+     "changePercent": 1
+    },
+    "30d": {
+     "change": 1,
+     "changePercent": 1
+    }
+   },
+   "holdersByAcquisition": {
+    "swap": 1,
+    "transfer": 1,
+    "airdrop": 1
+   },
+   "holderDistribution": {
+    "whales": 1,
+    "sharks": 1,
+    "dolphins": 1,
+    "fish": 1,
+    "octopus": 1,
+    "crabs": 1,
+    "shrimps": 1
+   }
+  }
+ },
+ "getTokenMetadata": {
+  "path": "/erc20/metadata",
+  "sample": [
+   {
+    "address": "1",
+    "address_label": "1",
+    "name": "1",
+    "symbol": "1",
+    "decimals": "1",
+    "logo": "1",
+    "logo_hash": "1",
+    "thumbnail": "1",
+    "total_supply": "1",
+    "total_supply_formatted": "1",
+    "implementations": [
+     {
+      "chainId": "1",
+      "chain": "1",
+      "chainName": "1",
+      "address": "1"
+     }
+    ],
+    "fully_diluted_valuation": "1",
+    "block_number": "1",
+    "validated": 1,
+    "created_at": "1",
+    "possible_spam": true,
+    "verified_contract": true,
+    "categories": [
+     "1"
+    ],
+    "links": {
+     "bitbucket": "1",
+     "discord": "1",
+     "facebook": "1",
+     "github": "1",
+     "instagram": "1",
+     "linkedin": "1",
+     "medium": "1",
+     "reddit": "1",
+     "telegram": "1",
+     "tiktok": "1",
+     "twitter": "1",
+     "website": "1",
+     "youtube": "1"
+    },
+    "circulating_supply": "1",
+    "market_cap": "1"
+   }
+  ]
+ },
+ "getTokenOwners": {
+  "path": "/erc20/{token_address}/owners",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "totalSupply": "1",
+   "result": [
+    {
+     "owner_address": "1",
+     "owner_address_label": "1",
+     "balance": "1",
+     "balance_formatted": "1",
+     "usd_value": "1",
+     "is_contract": true,
+     "percentage_relative_to_total_supply": 1,
+     "entity": "1",
+     "entity_logo": "1"
+    }
+   ]
+  }
+ },
+ "getTokenPairs": {
+  "path": "/erc20/{token_address}/pairs",
+  "sample": {
+   "pairs": [
+    {
+     "exchange_address": "1",
+     "exchange_name": "1",
+     "exchange_logo": "1",
+     "pair_label": "1",
+     "pair_address": "1",
+     "usd_price": 1,
+     "usd_price_24hr": 1,
+     "usd_price_24hr_percent_change": 1,
+     "usd_price_24hr_usd_change": 1,
+     "liquidity_usd": 1,
+     "liquidity_skew": 1,
+     "inactive_pair": true,
+     "base_token": "1",
+     "quote_token": "1",
+     "volume_24h_native": 1,
+     "volume_24h_usd": 1,
+     "pair": [
+      {
+       "token_address": "1",
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "pair_token_type": "1",
+       "liquidity_usd": "1"
+      }
+     ]
+    }
+   ],
+   "cursor": "1",
+   "page_size": 1,
+   "page": 1
+  }
+ },
+ "getTokenPrice": {
+  "path": "/erc20/{address}/price",
+  "sample": {
+   "tokenName": "1",
+   "tokenSymbol": "1",
+   "tokenLogo": "1",
+   "tokenDecimals": "1",
+   "nativePrice": {
+    "value": "1",
+    "decimals": 1,
+    "name": "1",
+    "symbol": "1",
+    "address": "1"
+   },
+   "usdPrice": 1,
+   "usdPriceFormatted": "1",
+   "24hrPercentChange": "1",
+   "exchangeAddress": "1",
+   "exchangeName": "1",
+   "tokenAddress": "1",
+   "toBlock": "1",
+   "possibleSpam": true,
+   "verifiedContract": true,
+   "pairAddress": "1",
+   "pairTotalLiquidityUsd": "1",
+   "usdPrice24h": 1,
+   "usdPrice24hrUsdChange": 1,
+   "usdPrice24hrPercentChange": 1,
+   "securityScore": 1
+  }
+ },
+ "getTokenScore": {
+  "path": "/tokens/{tokenAddress}/score",
+  "sample": {
+   "tokenAddress": "1",
+   "chainId": "1",
+   "score": 1,
+   "updatedAt": "1",
+   "metrics": {
+    "usdPrice": 1,
+    "liquidityUsd": 1,
+    "volumeUsd": {
+     "10m": 1,
+     "30m": 1,
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "1d": 1,
+     "7d": 1,
+     "30d": 1
+    },
+    "transactions": {
+     "10m": 1,
+     "30m": 1,
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "1d": 1,
+     "7d": 1,
+     "30d": 1
+    },
+    "supply": {
+     "total": 1,
+     "top10Percent": 1
+    }
+   }
+  }
+ },
+ "getTokenTransfers": {
+  "path": "/erc20/{address}/transfers",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "transaction_hash": "1",
+     "address": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "value": "1",
+     "transaction_index": 1,
+     "log_index": 1,
+     "possible_spam": true,
+     "verified_contract": true
+    }
+   ]
+  }
+ },
+ "getTopProfitableWalletPerToken": {
+  "path": "/erc20/{address}/top-gainers",
+  "sample": {
+   "name": "1",
+   "symbol": "1",
+   "decimals": 1,
+   "logo": "1",
+   "possible_spam": true,
+   "result": [
+    {
+     "avg_buy_price_usd": "1",
+     "avg_cost_of_quantity_sold": "1",
+     "avg_sell_price_usd": "1",
+     "count_of_trades": 1,
+     "realized_profit_percentage": 1,
+     "realized_profit_usd": "1",
+     "total_sold_usd": "1",
+     "total_tokens_bought": "1",
+     "total_tokens_sold": "1",
+     "total_usd_invested": "1",
+     "address": "1"
+    }
+   ]
+  }
+ },
+ "getTransaction": {
+  "path": "/transaction/{transaction_hash}",
+  "sample": {
+   "hash": "1",
+   "nonce": "1",
+   "transaction_index": "1",
+   "from_address_entity": "1",
+   "from_address_entity_logo": "1",
+   "from_address": "1",
+   "from_address_label": "1",
+   "to_address_entity": "1",
+   "to_address_entity_logo": "1",
+   "to_address": "1",
+   "to_address_label": "1",
+   "value": "1",
+   "gas": "1",
+   "gas_price": "1",
+   "input": "1",
+   "receipt_cumulative_gas_used": "1",
+   "receipt_gas_used": "1",
+   "receipt_contract_address": "1",
+   "receipt_root": "1",
+   "receipt_status": "1",
+   "block_timestamp": "1",
+   "block_number": "1",
+   "block_hash": "1",
+   "logs": [
+    {
+     "log_index": "1",
+     "transaction_hash": "1",
+     "transaction_index": "1",
+     "address": "1",
+     "data": "1",
+     "topic0": "1",
+     "topic1": "1",
+     "topic2": "1",
+     "topic3": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1"
+    }
+   ],
+   "internal_transactions": [
+    {
+     "transaction_hash": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "type": "1",
+     "from": "1",
+     "to": "1",
+     "value": "1",
+     "gas": "1",
+     "gas_used": "1",
+     "input": "1",
+     "output": "1",
+     "error": "1"
+    }
+   ]
+  }
+ },
+ "getTransactionVerbose": {
+  "path": "/transaction/{transaction_hash}/verbose",
+  "sample": {
+   "hash": "1",
+   "nonce": "1",
+   "transaction_index": "1",
+   "from_address_entity": "1",
+   "from_address_entity_logo": "1",
+   "from_address": "1",
+   "from_address_label": "1",
+   "to_address_entity": "1",
+   "to_address_entity_logo": "1",
+   "to_address": "1",
+   "to_address_label": "1",
+   "value": "1",
+   "gas": "1",
+   "gas_price": "1",
+   "input": "1",
+   "receipt_cumulative_gas_used": "1",
+   "receipt_gas_used": "1",
+   "receipt_contract_address": "1",
+   "receipt_root": "1",
+   "receipt_status": "1",
+   "transaction_fee": "1",
+   "block_timestamp": "1",
+   "block_number": "1",
+   "block_hash": "1",
+   "logs": [
+    {
+     "log_index": "1",
+     "transaction_hash": "1",
+     "transaction_index": "1",
+     "address": "1",
+     "data": "1",
+     "topic0": "1",
+     "topic1": "1",
+     "topic2": "1",
+     "topic3": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "decoded_event": {
+      "signature": "1",
+      "label": "1",
+      "type": "1",
+      "params": [
+       {
+        "name": "1",
+        "value": "1",
+        "type": "1"
+       }
+      ]
+     }
+    }
+   ],
+   "decoded_call": {
+    "signature": "1",
+    "label": "1",
+    "type": "1",
+    "params": [
+     {
+      "name": "1",
+      "value": "1",
+      "type": "1"
+     }
+    ]
+   }
+  }
+ },
+ "getTrendingTokensV2": {
+  "path": "/tokens/trending",
+  "sample": [
+   {
+    "chainId": "1",
+    "tokenAddress": "1",
+    "name": "1",
+    "symbol": "1",
+    "uniqueName": "1",
+    "decimals": 1,
+    "logo": "1",
+    "usdPrice": 1,
+    "createdAt": 1,
+    "marketCap": 1,
+    "liquidityUsd": 1,
+    "holders": 1,
+    "pricePercentChange": {
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "24h": 1
+    },
+    "totalVolume": {
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "24h": 1
+    },
+    "transactions": {
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "24h": 1
+    },
+    "buyTransactions": {
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "24h": 1
+    },
+    "sellTransactions": {
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "24h": 1
+    },
+    "buyers": {
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "24h": 1
+    },
+    "sellers": {
+     "1h": 1,
+     "4h": 1,
+     "12h": 1,
+     "24h": 1
+    }
+   }
+  ]
+ },
+ "getUniqueOwnersByCollection": {
+  "path": "/nft/{address}/unique-owners",
+  "sample": {
+   "page": 1,
+   "pageSize": 1,
+   "cursor": "1",
+   "walletAddresses": [
+    "1"
+   ]
+  }
+ },
+ "getWalletActiveChains": {
+  "path": "/wallets/{address}/chains",
+  "sample": {
+   "address": "1",
+   "active_chains": [
+    {
+     "chain": "1",
+     "chain_id": "1",
+     "first_transaction": {
+      "block_number": "1",
+      "block_timestamp": "1",
+      "transaction_hash": "1"
+     },
+     "last_transaction": {
+      "block_number": "1",
+      "block_timestamp": "1",
+      "transaction_hash": "1"
+     }
+    }
+   ]
+  }
+ },
+ "getWalletApprovals": {
+  "path": "/wallets/{address}/approvals",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "block_number": "1",
+     "block_timestamp": "1",
+     "transaction_hash": "1",
+     "value": "1",
+     "value_formatted": "1",
+     "token": {
+      "address": "1",
+      "address_label": "1",
+      "name": "1",
+      "symbol": "1",
+      "logo": "1",
+      "possible_spam": true,
+      "verified_contract": true,
+      "current_balance": "1",
+      "current_balance_formatted": "1",
+      "usd_price": "1",
+      "usd_at_risk": "1"
+     },
+     "spender": {
+      "address": "1",
+      "address_label": "1",
+      "entity": "1",
+      "entity_logo": "1"
+     }
+    }
+   ]
+  }
+ },
+ "getWalletHistory": {
+  "path": "/wallets/{address}/history",
+  "sample": {
+   "synced_at": 1,
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "hash": "1",
+     "nonce": "1",
+     "transaction_index": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "value": "1",
+     "gas": "1",
+     "gas_price": "1",
+     "input": "1",
+     "receipt_cumulative_gas_used": "1",
+     "receipt_gas_used": "1",
+     "receipt_contract_address": "1",
+     "receipt_status": "1",
+     "transaction_fee": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "internal_transactions": [
+      {
+       "transaction_hash": "1",
+       "block_number": "1",
+       "block_hash": "1",
+       "type": "1",
+       "from": "1",
+       "to": "1",
+       "value": "1",
+       "gas": "1",
+       "gas_used": "1",
+       "input": "1",
+       "output": "1",
+       "error": "1"
+      }
+     ],
+     "category": "send",
+     "contract_interactions": {
+      "approvals": [
+       {
+        "value": "1",
+        "value_formatted": "1",
+        "token": {
+         "address": "1",
+         "address_label": "1",
+         "token_name": "1",
+         "token_logo": "1",
+         "token_symbol": "1"
+        },
+        "spender": {
+         "address": "1",
+         "address_label": "1",
+         "name": "1",
+         "symbol": "1",
+         "logo": "1",
+         "entity": "1",
+         "entity_logo": "1"
+        }
+       }
+      ]
+     },
+     "possible_spam": true,
+     "method_label": "1",
+     "summary": "1",
+     "nft_transfers": [
+      {
+       "token_address": "1",
+       "token_id": "1",
+       "token_name": "1",
+       "token_symbol": "1",
+       "from_address_entity": "1",
+       "from_address_entity_logo": "1",
+       "from_address": "1",
+       "from_address_label": "1",
+       "to_address_entity": "1",
+       "to_address_entity_logo": "1",
+       "to_address": "1",
+       "to_address_label": "1",
+       "value": "1",
+       "amount": "1",
+       "contract_type": "1",
+       "transaction_type": "1",
+       "log_index": 1,
+       "operator": "1",
+       "possible_spam": true,
+       "verified_collection": true,
+       "direction": "send",
+       "collection_logo": "1",
+       "collection_banner_image": "1",
+       "normalized_metadata": {
+        "name": "1",
+        "description": "1",
+        "image": "1",
+        "external_link": "1",
+        "external_url": "1",
+        "animation_url": "1",
+        "attributes": [
+         {
+          "trait_type": "1",
+          "value": {},
+          "display_type": "1",
+          "max_value": 1,
+          "trait_count": 1,
+          "order": 1
+         }
+        ]
+       }
+      }
+     ],
+     "erc20_transfers": [
+      {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "address": "1",
+       "block_timestamp": "1",
+       "to_address_entity": "1",
+       "to_address_entity_logo": "1",
+       "to_address": "1",
+       "to_address_label": "1",
+       "from_address_entity": "1",
+       "from_address_entity_logo": "1",
+       "from_address": "1",
+       "from_address_label": "1",
+       "value": "1",
+       "value_formatted": "1",
+       "log_index": 1,
+       "possible_spam": true,
+       "verified_contract": true,
+       "direction": "send"
+      }
+     ],
+     "native_transfers": [
+      {
+       "from_address_entity": "1",
+       "from_address_entity_logo": "1",
+       "from_address": "1",
+       "from_address_label": "1",
+       "to_address_entity": "1",
+       "to_address_entity_logo": "1",
+       "to_address": "1",
+       "to_address_label": "1",
+       "value": "1",
+       "value_formatted": "1",
+       "direction": "send",
+       "internal_transaction": true,
+       "token_symbol": "1",
+       "token_logo": "1"
+      }
+     ],
+     "logs": [
+      {
+       "log_index": "1",
+       "transaction_hash": "1",
+       "transaction_index": "1",
+       "address": "1",
+       "data": "1",
+       "topic0": "1",
+       "topic1": "1",
+       "topic2": "1",
+       "topic3": "1",
+       "block_timestamp": "1",
+       "block_number": "1",
+       "block_hash": "1",
+       "decoded_event": {
+        "signature": "1",
+        "label": "1",
+        "type": "1",
+        "params": [
+         {
+          "name": "1",
+          "value": "1",
+          "type": "1"
+         }
+        ]
+       }
+      }
+     ],
+     "has_more_erc20_transfers": true,
+     "has_more_nft_transfers": true,
+     "has_more_logs": true,
+     "has_more_internal_transactions": true
+    }
+   ]
+  },
+  "sample2": {
+   "synced_at": 1,
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "hash": "1",
+     "nonce": "1",
+     "transaction_index": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "value": "1",
+     "gas": "1",
+     "gas_price": "1",
+     "input": "1",
+     "receipt_cumulative_gas_used": "1",
+     "receipt_gas_used": "1",
+     "receipt_contract_address": "1",
+     "receipt_status": "1",
+     "transaction_fee": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "internal_transactions": [
+      {
+       "transaction_hash": "1",
+       "block_number": "1",
+       "block_hash": "1",
+       "type": "1",
+       "from": "1",
+       "to": "1",
+       "value": "1",
+       "gas": "1",
+       "gas_used": "1",
+       "input": "1",
+       "output": "1",
+       "error": "1"
+      }
+     ],
+     "category": "send",
+     "contract_interactions": {
+      "set_revokes_all": [
+       {
+        "token": {
+         "address": "1",
+         "address_label": "1",
+         "token_name": "1",
+         "token_logo": "1",
+         "token_symbol": "1"
+        },
+        "operator": {
+         "address": "1",
+         "address_label": "1",
+         "name": "1",
+         "symbol": "1",
+         "logo": "1",
+         "entity": "1",
+         "entity_logo": "1"
+        }
+       }
+      ]
+     },
+     "possible_spam": true,
+     "method_label": "1",
+     "summary": "1",
+     "nft_transfers": [
+      {
+       "token_address": "1",
+       "token_id": "1",
+       "token_name": "1",
+       "token_symbol": "1",
+       "from_address_entity": "1",
+       "from_address_entity_logo": "1",
+       "from_address": "1",
+       "from_address_label": "1",
+       "to_address_entity": "1",
+       "to_address_entity_logo": "1",
+       "to_address": "1",
+       "to_address_label": "1",
+       "value": "1",
+       "amount": "1",
+       "contract_type": "1",
+       "transaction_type": "1",
+       "log_index": 1,
+       "operator": "1",
+       "possible_spam": true,
+       "verified_collection": true,
+       "direction": "send",
+       "collection_logo": "1",
+       "collection_banner_image": "1",
+       "normalized_metadata": {
+        "name": "1",
+        "description": "1",
+        "image": "1",
+        "external_link": "1",
+        "external_url": "1",
+        "animation_url": "1",
+        "attributes": [
+         {
+          "trait_type": "1",
+          "value": {},
+          "display_type": "1",
+          "max_value": 1,
+          "trait_count": 1,
+          "order": 1
+         }
+        ]
+       }
+      }
+     ],
+     "erc20_transfers": [
+      {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "address": "1",
+       "block_timestamp": "1",
+       "to_address_entity": "1",
+       "to_address_entity_logo": "1",
+       "to_address": "1",
+       "to_address_label": "1",
+       "from_address_entity": "1",
+       "from_address_entity_logo": "1",
+       "from_address": "1",
+       "from_address_label": "1",
+       "value": "1",
+       "value_formatted": "1",
+       "log_index": 1,
+       "possible_spam": true,
+       "verified_contract": true,
+       "direction": "send"
+      }
+     ],
+     "native_transfers": [
+      {
+       "from_address_entity": "1",
+       "from_address_entity_logo": "1",
+       "from_address": "1",
+       "from_address_label": "1",
+       "to_address_entity": "1",
+       "to_address_entity_logo": "1",
+       "to_address": "1",
+       "to_address_label": "1",
+       "value": "1",
+       "value_formatted": "1",
+       "direction": "send",
+       "internal_transaction": true,
+       "token_symbol": "1",
+       "token_logo": "1"
+      }
+     ],
+     "logs": [
+      {
+       "log_index": "1",
+       "transaction_hash": "1",
+       "transaction_index": "1",
+       "address": "1",
+       "data": "1",
+       "topic0": "1",
+       "topic1": "1",
+       "topic2": "1",
+       "topic3": "1",
+       "block_timestamp": "1",
+       "block_number": "1",
+       "block_hash": "1",
+       "decoded_event": {
+        "signature": "1",
+        "label": "1",
+        "type": "1",
+        "params": [
+         {
+          "name": "1",
+          "value": "1",
+          "type": "1"
+         }
+        ]
+       }
+      }
+     ],
+     "has_more_erc20_transfers": true,
+     "has_more_nft_transfers": true,
+     "has_more_logs": true,
+     "has_more_internal_transactions": true
+    }
+   ]
+  }
+ },
+ "getWalletInsight": {
+  "path": "/wallets/{address}/insight",
+  "sample": {
+   "address": "1",
+   "addressType": "1",
+   "walletAgeDays": 1,
+   "firstActivityAt": {
+    "chain": "1",
+    "blockNumber": "1",
+    "blockTimestamp": "1",
+    "transactionHash": "1",
+    "type": "1",
+    "direction": "1"
+   },
+   "lastActivityAt": {
+    "chain": "1",
+    "blockNumber": "1",
+    "blockTimestamp": "1",
+    "transactionHash": "1",
+    "type": "1",
+    "direction": "1"
+   },
+   "firstInitiatedAt": {
+    "chain": "1",
+    "blockNumber": "1",
+    "blockTimestamp": "1",
+    "transactionHash": "1",
+    "type": "1",
+    "direction": "1"
+   },
+   "lastInitiatedAt": {
+    "chain": "1",
+    "blockNumber": "1",
+    "blockTimestamp": "1",
+    "transactionHash": "1",
+    "type": "1",
+    "direction": "1"
+   },
+   "activeDays": 1,
+   "activeChains": 1,
+   "mostActiveChain": "1",
+   "transactionsInitiated": 1,
+   "transactionsInvolved": 1,
+   "nativeTransfers": {
+    "sent": 1,
+    "received": 1,
+    "total": 1
+   },
+   "erc20Transfers": {
+    "sent": 1,
+    "received": 1,
+    "total": 1
+   },
+   "nftTransfers": {
+    "sent": 1,
+    "received": 1,
+    "total": 1
+   },
+   "uniqueCounterparties": {
+    "sentTo": 1,
+    "receivedFrom": 1
+   },
+   "swapVolumeUsd": 1,
+   "totalGasSpentUsd": "1",
+   "avgGasPerTransactionUsd": "1",
+   "nativeVolumeSentUsd": "1",
+   "nativeVolumeReceivedUsd": "1",
+   "nativeNetFlowUsd": "1",
+   "uniqueTokensInteracted": 1,
+   "contractsCreated": 1,
+   "largestNativeTransferInUsd": "1",
+   "largestNativeTransferOutUsd": "1",
+   "chainBreakdown": [
+    {
+     "chain": "1",
+     "walletAgeDays": 1,
+     "firstActivityAt": {
+      "chain": "1",
+      "blockNumber": "1",
+      "blockTimestamp": "1",
+      "transactionHash": "1",
+      "type": "1",
+      "direction": "1"
+     },
+     "lastActivityAt": {
+      "chain": "1",
+      "blockNumber": "1",
+      "blockTimestamp": "1",
+      "transactionHash": "1",
+      "type": "1",
+      "direction": "1"
+     },
+     "firstInitiatedAt": {
+      "chain": "1",
+      "blockNumber": "1",
+      "blockTimestamp": "1",
+      "transactionHash": "1",
+      "type": "1",
+      "direction": "1"
+     },
+     "lastInitiatedAt": {
+      "chain": "1",
+      "blockNumber": "1",
+      "blockTimestamp": "1",
+      "transactionHash": "1",
+      "type": "1",
+      "direction": "1"
+     },
+     "activeDays": 1,
+     "transactionsInitiated": 1,
+     "transactionsInvolved": 1,
+     "nativeTransfers": {
+      "sent": 1,
+      "received": 1,
+      "total": 1
+     },
+     "erc20Transfers": {
+      "sent": 1,
+      "received": 1,
+      "total": 1
+     },
+     "nftTransfers": {
+      "sent": 1,
+      "received": 1,
+      "total": 1
+     },
+     "uniqueCounterparties": {
+      "sentTo": 1,
+      "receivedFrom": 1
+     },
+     "swapVolumeUsd": 1,
+     "totalGasSpentNative": "1",
+     "totalGasSpentUsd": "1",
+     "avgGasPerTransactionNative": "1",
+     "avgGasPerTransactionUsd": "1",
+     "nativeVolumeSent": "1",
+     "nativeVolumeSentUsd": "1",
+     "nativeVolumeReceived": "1",
+     "nativeVolumeReceivedUsd": "1",
+     "nativeNetFlow": "1",
+     "nativeNetFlowUsd": "1",
+     "uniqueTokensInteracted": 1,
+     "contractsCreated": 1,
+     "largestNativeTransferIn": "1",
+     "largestNativeTransferInUsd": "1",
+     "largestNativeTransferOut": "1",
+     "largestNativeTransferOutUsd": "1"
+    }
+   ]
+  }
+ },
+ "getWalletNFTCollections": {
+  "path": "/{address}/nft/collections",
+  "sample": {
+   "status": "1",
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "contract_type": "1",
+     "name": "1",
+     "symbol": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "count": 1,
+     "collection_logo": "1",
+     "collection_banner_image": "1",
+     "floor_price": "1",
+     "floor_price_usd": "1",
+     "floor_price_currency": "1",
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "getWalletNFTTransfers": {
+  "path": "/{address}/nft/transfers",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "token_id": "1",
+     "token_name": "1",
+     "token_symbol": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "value": "1",
+     "amount": "1",
+     "contract_type": "1",
+     "block_number": "1",
+     "block_timestamp": "1",
+     "block_hash": "1",
+     "transaction_hash": "1",
+     "transaction_type": "1",
+     "transaction_index": 1,
+     "log_index": 1,
+     "operator": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     }
+    }
+   ],
+   "block_exists": true,
+   "index_complete": true
+  }
+ },
+ "getWalletNFTs": {
+  "path": "/{address}/nft",
+  "sample": {
+   "status": "1",
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "token_id": "1",
+     "contract_type": "1",
+     "owner_of": "1",
+     "block_number": "1",
+     "block_number_minted": "1",
+     "token_uri": "1",
+     "metadata": "1",
+     "normalized_metadata": {
+      "name": "1",
+      "description": "1",
+      "image": "1",
+      "external_link": "1",
+      "external_url": "1",
+      "animation_url": "1",
+      "attributes": [
+       {
+        "trait_type": "1",
+        "value": {},
+        "display_type": "1",
+        "max_value": 1,
+        "trait_count": 1,
+        "order": 1
+       }
+      ]
+     },
+     "media": {
+      "mimetype": "1",
+      "category": "image",
+      "status": "success",
+      "original_media_url": "1",
+      "updatedAt": "1",
+      "parent_hash": "1",
+      "media_collection": {
+       "low": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "medium": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       },
+       "high": {
+        "width": 1,
+        "height": 1,
+        "url": "1"
+       }
+      }
+     },
+     "amount": "1",
+     "name": "1",
+     "symbol": "1",
+     "token_hash": "1",
+     "rarity_rank": 1,
+     "rarity_percentage": 1,
+     "rarity_label": "1",
+     "last_token_uri_sync": "1",
+     "last_metadata_sync": "1",
+     "possible_spam": true,
+     "verified_collection": true,
+     "floor_price": "1",
+     "floor_price_usd": "1",
+     "floor_price_currency": "1",
+     "last_sale": {
+      "transaction_hash": "1",
+      "block_timestamp": "1",
+      "buyer_address": "1",
+      "seller_address": "1",
+      "price": "1",
+      "price_formatted": "1",
+      "usd_price_at_sale": "1",
+      "current_usd_value": "1",
+      "token_address": "1",
+      "token_id": "1",
+      "payment_token": {
+       "token_name": "1",
+       "token_symbol": "1",
+       "token_logo": "1",
+       "token_decimals": "1",
+       "token_address": "1"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "getWalletNetWorth": {
+  "path": "/wallets/{address}/net-worth",
+  "sample": {
+   "total_networth_usd": "1",
+   "chains": [
+    {
+     "chain": "1",
+     "native_balance": "1",
+     "native_balance_formatted": "1",
+     "native_balance_usd": "1",
+     "token_balance_usd": "1",
+     "networth_usd": "1"
+    }
+   ],
+   "unsupported_chain_ids": [
+    "1"
+   ],
+   "unavailable_chains": [
+    {
+     "chain_id": "1"
+    }
+   ]
+  }
+ },
+ "getWalletProfitability": {
+  "path": "/wallets/{address}/profitability",
+  "sample": {
+   "result": [
+    {
+     "token_address": "1",
+     "avg_buy_price_usd": "1",
+     "avg_sell_price_usd": "1",
+     "total_usd_invested": "1",
+     "total_tokens_sold": "1",
+     "total_tokens_bought": "1",
+     "total_sold_usd": "1",
+     "avg_cost_of_quantity_sold": "1",
+     "count_of_trades": 1,
+     "realized_profit_usd": "1",
+     "realized_profit_percentage": 1,
+     "total_buys": 1,
+     "total_sells": 1,
+     "name": "1",
+     "symbol": "1",
+     "decimals": "1",
+     "logo": "1",
+     "possible_spam": true
+    }
+   ]
+  }
+ },
+ "getWalletProfitabilitySummary": {
+  "path": "/wallets/{address}/profitability/summary",
+  "sample": {
+   "total_count_of_trades": 1,
+   "total_trade_volume": "1",
+   "total_realized_profit_usd": "1",
+   "total_realized_profit_percentage": 1,
+   "total_buys": 1,
+   "total_sells": 1,
+   "total_sold_volume_usd": "1",
+   "total_bought_volume_usd": "1"
+  }
+ },
+ "getWalletStats": {
+  "path": "/wallets/{address}/stats",
+  "sample": {
+   "nfts": "1",
+   "collections": "1",
+   "transactions": {
+    "total": "1"
+   },
+   "nft_transfers": {
+    "total": "1"
+   },
+   "token_transfers": {
+    "total": "1"
+   }
+  }
+ },
+ "getWalletTokenBalances": {
+  "path": "/{address}/erc20",
+  "sample": [
+   {
+    "token_address": "1",
+    "name": "1",
+    "symbol": "1",
+    "logo": "1",
+    "thumbnail": "1",
+    "decimals": 1,
+    "balance": "1",
+    "possible_spam": true,
+    "verified_contract": true
+   }
+  ]
+ },
+ "getWalletTokenBalancesPrice": {
+  "path": "/wallets/{address}/tokens",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "block_number": "1",
+   "cursor": "1",
+   "result": [
+    {
+     "token_address": "1",
+     "name": "1",
+     "symbol": "1",
+     "logo": "1",
+     "thumbnail": "1",
+     "decimals": 1,
+     "balance": "1",
+     "possible_spam": true,
+     "verified_contract": true,
+     "usd_price": "1",
+     "usd_price_24hr_percent_change": "1",
+     "usd_price_24hr_usd_change": "1",
+     "usd_value_24hr_usd_change": "1",
+     "usd_value": 1,
+     "portfolio_percentage": 1,
+     "balance_formatted": "1",
+     "native_token": true,
+     "total_supply": "1",
+     "total_supply_formatted": "1",
+     "percentage_relative_to_total_supply": 1
+    }
+   ]
+  }
+ },
+ "getWalletTokenTransfers": {
+  "path": "/{address}/erc20/transfers",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "cursor": "1",
+   "result": [
+    {
+     "token_name": "1",
+     "token_symbol": "1",
+     "token_logo": "1",
+     "token_decimals": "1",
+     "transaction_hash": "1",
+     "address": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "value": "1",
+     "transaction_index": 1,
+     "log_index": 1,
+     "possible_spam": true,
+     "verified_contract": true
+    }
+   ]
+  }
+ },
+ "getWalletTransactions": {
+  "path": "/{address}",
+  "sample": {
+   "cursor": "1",
+   "page": 1,
+   "page_size": 1,
+   "result": [
+    {
+     "hash": "1",
+     "nonce": "1",
+     "transaction_index": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "value": "1",
+     "gas": "1",
+     "gas_price": "1",
+     "input": "1",
+     "receipt_cumulative_gas_used": "1",
+     "receipt_gas_used": "1",
+     "receipt_contract_address": "1",
+     "receipt_root": "1",
+     "receipt_status": "1",
+     "transaction_fee": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "internal_transactions": [
+      {
+       "transaction_hash": "1",
+       "block_number": "1",
+       "block_hash": "1",
+       "type": "1",
+       "from": "1",
+       "to": "1",
+       "value": "1",
+       "gas": "1",
+       "gas_used": "1",
+       "input": "1",
+       "output": "1",
+       "error": "1"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "getWalletTransactionsVerbose": {
+  "path": "/{address}/verbose",
+  "sample": {
+   "cursor": "1",
+   "page": 1,
+   "page_size": 1,
+   "result": [
+    {
+     "hash": "1",
+     "nonce": "1",
+     "transaction_index": "1",
+     "from_address_entity": "1",
+     "from_address_entity_logo": "1",
+     "from_address": "1",
+     "from_address_label": "1",
+     "to_address_entity": "1",
+     "to_address_entity_logo": "1",
+     "to_address": "1",
+     "to_address_label": "1",
+     "value": "1",
+     "gas": "1",
+     "gas_price": "1",
+     "input": "1",
+     "receipt_cumulative_gas_used": "1",
+     "receipt_gas_used": "1",
+     "receipt_contract_address": "1",
+     "receipt_root": "1",
+     "receipt_status": "1",
+     "transaction_fee": "1",
+     "block_timestamp": "1",
+     "block_number": "1",
+     "block_hash": "1",
+     "logs": [
+      {
+       "log_index": "1",
+       "transaction_hash": "1",
+       "transaction_index": "1",
+       "address": "1",
+       "data": "1",
+       "topic0": "1",
+       "topic1": "1",
+       "topic2": "1",
+       "topic3": "1",
+       "block_timestamp": "1",
+       "block_number": "1",
+       "block_hash": "1",
+       "decoded_event": {
+        "signature": "1",
+        "label": "1",
+        "type": "1",
+        "params": [
+         {
+          "name": "1",
+          "value": "1",
+          "type": "1"
+         }
+        ]
+       }
+      }
+     ],
+     "decoded_call": {
+      "signature": "1",
+      "label": "1",
+      "type": "1",
+      "params": [
+       {
+        "name": "1",
+        "value": "1",
+        "type": "1"
+       }
+      ]
+     }
+    }
+   ]
+  }
+ },
+ "reSyncMetadata": {
+  "path": "/nft/{address}/{token_id}/metadata/resync",
+  "sample": {
+   "status": "1"
+  }
+ },
+ "resolveAddress": {
+  "path": "/resolve/{address}/reverse",
+  "sample": {
+   "name": "1"
+  }
+ },
+ "resolveAddressToDomain": {
+  "path": "/resolve/{address}/domain",
+  "sample": {
+   "name": "1"
+  }
+ },
+ "resolveDomain": {
+  "path": "/resolve/{domain}",
+  "sample": {
+   "address": "1"
+  }
+ },
+ "resolveENSDomain": {
+  "path": "/resolve/ens/{domain}",
+  "sample": {
+   "address": "1"
+  }
+ },
+ "resyncNFTRarity": {
+  "path": "/nft/{address}/traits/resync",
+  "sample": {
+   "status": "1"
+  }
+ },
+ "reviewContracts": {
+  "path": "/contracts-review",
+  "method": "POST",
+  "sample": {
+   "message": "1"
+  }
+ },
+ "runContractFunction": {
+  "path": "/{address}/function",
+  "method": "POST",
+  "sample": "1"
+ },
+ "searchEntities": {
+  "path": "/entities/search",
+  "sample": {
+   "page": 1,
+   "page_size": 1,
+   "result": {
+    "entities": [
+     {
+      "name": "1",
+      "id": "1",
+      "logo": "1",
+      "bio": "1",
+      "description": "1",
+      "website": "1",
+      "twitter": "1",
+      "type": "1"
+     }
+    ],
+    "addresses": [
+     {
+      "address": "1",
+      "chain": "1",
+      "is_multi_chain": true,
+      "primary_label": "1"
+     }
+    ],
+    "categories": [
+     {
+      "name": "1",
+      "id": "1"
+     }
+    ]
+   }
+  }
+ },
+ "searchTokens": {
+  "path": "/tokens/search",
+  "sample": {
+   "total": 1,
+   "result": [
+    {
+     "tokenAddress": "1",
+     "chainId": "1",
+     "name": "1",
+     "symbol": "1",
+     "blockNumber": 1,
+     "blockTimestamp": 1,
+     "usdPrice": 1,
+     "marketCap": 1,
+     "experiencedNetBuyers": {
+      "oneHour": 1,
+      "oneDay": 1,
+      "oneWeek": 1
+     },
+     "netVolumeUsd": {
+      "oneHour": 1,
+      "oneDay": 1
+     },
+     "liquidityChangeUSD": {
+      "oneHour": 1,
+      "oneDay": 1
+     },
+     "usdPricePercentChange": {
+      "oneHour": 1,
+      "oneDay": 1
+     },
+     "volumeUsd": {
+      "oneHour": 1,
+      "oneDay": 1
+     },
+     "securityScore": 1,
+     "logo": "1",
+     "isVerifiedContract": true,
+     "fullyDilutedValuation": 1,
+     "totalHolders": 1,
+     "totalLiquidityUsd": 1,
+     "implementations": [
+      {
+       "chainId": "1",
+       "chain": "1",
+       "chainName": "1",
+       "address": "1"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "syncNFTContract": {
+  "path": "/nft/{address}/sync",
+  "method": "PUT",
+  "sample": {
+   "message": "1"
+  }
+ },
+ "web3ApiVersion": {
+  "path": "/web3/version",
+  "sample": {
+   "version": "1"
+  }
+ }
+}

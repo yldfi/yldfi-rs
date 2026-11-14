@@ -9,6 +9,8 @@ homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/mrls"
 keywords = ["moralis", "web3", "ethereum", "nft", "defi"]
 categories = ["api-bindings", "web-programming"]
 readme = "README.md"
+# Spec test fixtures are large and only used by this repo's tests
+exclude = ["tests/spec_examples*"]
 
 [features]
 default = []
@@ -27,6 +29,7 @@ yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
+yldfi-spec-test = { path = "../spec-test" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 wiremock = "0.6"
 tokio-test = "0.4"
