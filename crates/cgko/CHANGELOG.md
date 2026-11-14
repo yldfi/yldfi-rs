@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.2.2...cgko-v0.3.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cgko:** DerivativeTicker.expired_at and DerivativeExchangeTicker.expired_at are Option<u64> (Unix timestamp), ConvertedVolume/ConvertedLast fields are Option<String>, matching the API (the old types failed to parse live responses). DomainError gains a Pagination variant.
+
+### Features
+
+* **cgko:** add trades paging and OHLCV options; check types against the OpenAPI spec ([#219](https://github.com/yldfi/yldfi-rs/issues/219)) ([4135f04](https://github.com/yldfi/yldfi-rs/commit/4135f046bb2352224fd68a1d3fff2b25afdbe97b))
+* **cgko:** match CoinGecko API changes through November 2026 ([#218](https://github.com/yldfi/yldfi-rs/issues/218)) ([6b570f2](https://github.com/yldfi/yldfi-rs/commit/6b570f25a5313b4be26f89ac511e5a56283a6087))
+
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.2.1...cgko-v0.2.2) (2026-11-09)
 
 

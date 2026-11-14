@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/yldfi/yldfi-rs/compare/crv-v0.2.2...crv-v0.2.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **crv:** satisfy clippy needless_bool on Rust 1.100; route pruning behaviour is unchanged ([#218](https://github.com/yldfi/yldfi-rs/issues/218)) ([6b570f2](https://github.com/yldfi/yldfi-rs/commit/6b570f25a5313b4be26f89ac511e5a56283a6087))
+
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/crv-v0.2.1...crv-v0.2.2) (2026-11-09)
 
 
