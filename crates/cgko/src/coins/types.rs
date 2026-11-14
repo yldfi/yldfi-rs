@@ -276,24 +276,22 @@ where
 {
     use serde::de::Error;
 
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum Num {
-        Number(f64),
-        Text(String),
-    }
-
-    let Some(points) = Option::<Vec<(f64, Num)>>::deserialize(deserializer)? else {
+    // Read through serde_json::Value rather than an untagged enum: with
+    // serde_json's `arbitrary_precision` feature (enabled elsewhere in the
+    // workspace) untagged enums cannot read numbers.
+    let Some(points) = Option::<Vec<(f64, serde_json::Value)>>::deserialize(deserializer)? else {
         return Ok(None);
     };
     points
         .into_iter()
-        .map(|(t, v)| match v {
-            Num::Number(n) => Ok((t, n)),
-            Num::Text(s) => s
-                .parse()
-                .map(|n| (t, n))
-                .map_err(|_| D::Error::custom(format!("invalid supply value {s:?}"))),
+        .map(|(t, v)| {
+            let n = match &v {
+                serde_json::Value::Number(n) => n.as_f64(),
+                serde_json::Value::String(s) => s.parse().ok(),
+                _ => None,
+            };
+            n.map(|n| (t, n))
+                .ok_or_else(|| D::Error::custom(format!("invalid supply value {v}")))
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Some)
