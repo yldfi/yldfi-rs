@@ -8,7 +8,7 @@
 * The following workspace dependencies were updated
   * dependencies
     * cgko bumped from 0.2.2 to 0.3.0
-    * crv bumped from 0.2.2 to 0.3.0
+    * crv bumped from 0.2.2 to 0.2.3
 
 ## [0.29.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.1...ethcli-v0.29.2) (2026-11-11)
 

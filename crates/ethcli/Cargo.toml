@@ -93,7 +93,7 @@ cgko = { version = "0.3.0", path = "../cgko" }
 dllma = { version = "0.2.2", path = "../dllma" }
 mrls = { version = "0.3.2", path = "../mrls" }
 dnapi = { version = "0.3.2", path = "../dnapi" }
-crv = { version = "0.3.0", path = "../crv" }
+crv = { version = "0.2.3", path = "../crv" }
 pythc = { version = "0.2.2", path = "../pythc" }
 tndrly = { version = "0.5.2", path = "../tndrly" }
 yldfi-common = { version = "0.1.7", path = "../yldfi-common" }

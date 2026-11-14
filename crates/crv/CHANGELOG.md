@@ -1,15 +1,11 @@
 # Changelog
 
-## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/crv-v0.2.2...crv-v0.3.0) (2026-11-14)
+## [0.2.3](https://github.com/yldfi/yldfi-rs/compare/crv-v0.2.2...crv-v0.2.3) (2026-11-14)
 
 
-### ⚠ BREAKING CHANGES
+### Bug Fixes
 
-* **cgko:** DerivativeTicker.expired_at and DerivativeExchangeTicker.expired_at are Option<u64> (Unix timestamp), ConvertedVolume/ConvertedLast fields are Option<String>, matching the API (the old types failed to parse live responses). DomainError gains a Pagination variant.
-
-### Features
-
-* **cgko:** match CoinGecko API changes through November 2026 ([#218](https://github.com/yldfi/yldfi-rs/issues/218)) ([6b570f2](https://github.com/yldfi/yldfi-rs/commit/6b570f25a5313b4be26f89ac511e5a56283a6087))
+* **crv:** satisfy clippy needless_bool on Rust 1.100; route pruning behaviour is unchanged ([#218](https://github.com/yldfi/yldfi-rs/issues/218)) ([6b570f2](https://github.com/yldfi/yldfi-rs/commit/6b570f25a5313b4be26f89ac511e5a56283a6087))
 
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/crv-v0.2.1...crv-v0.2.2) (2026-11-09)
 
