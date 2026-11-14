@@ -1,8 +1,8 @@
 //! Global and general API endpoints
 
 use super::types::{
-    ApiKeyUsage, AssetPlatform, DefiGlobalResponse, ExchangeRatesResponse, GlobalResponse,
-    MarketCapChart, PingResponse, SearchResponse, TokenList, TrendingResponse,
+    ApiKeyUsage, AssetPlatform, DefiGlobalResponse, ExchangeRatesResponse, FearAndGreedChart,
+    GlobalResponse, MarketCapChart, PingResponse, SearchResponse, TokenList, TrendingResponse,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -74,6 +74,16 @@ impl<'a> GlobalApi<'a> {
     /// * `days` - Data range (1, 7, 14, 30, 90, 180, 365, "max")
     pub async fn market_cap_chart(&self, days: &str) -> Result<MarketCapChart> {
         let path = format!("/global/market_cap_chart?days={days}");
+        self.client.get(&path).await
+    }
+
+    /// Get historical Crypto Fear & Greed Index data at daily granularity,
+    /// from 2024-08-14 onwards (Analyst plan and above)
+    ///
+    /// # Arguments
+    /// * `days` - Data range (1, 7, 14, 30, 90, 180, 365, "max")
+    pub async fn fear_and_greed_chart(&self, days: &str) -> Result<FearAndGreedChart> {
+        let path = format!("/global/fear_and_greed_chart?days={days}");
         self.client.get(&path).await
     }
 

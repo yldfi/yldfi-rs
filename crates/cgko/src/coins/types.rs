@@ -176,6 +176,8 @@ pub struct Ticker {
     pub volume: Option<f64>,
     pub converted_last: Option<HashMap<String, f64>>,
     pub converted_volume: Option<HashMap<String, f64>>,
+    /// Deprecated upstream: `CoinGecko` retired ticker trust scores, so this
+    /// is normally `None`. Tickers now sort by `volume_desc` by default.
     pub trust_score: Option<String>,
     pub bid_ask_spread_percentage: Option<f64>,
     pub timestamp: Option<String>,

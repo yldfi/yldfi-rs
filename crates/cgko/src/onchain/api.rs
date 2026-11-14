@@ -1,9 +1,10 @@
 //! Onchain/GeckoTerminal API endpoints
 
 use super::types::{
-    DexesResponse, HoldersChartResponse, MegafilterOptions, NetworksResponse, OhlcvResponse,
-    OnchainCategoriesResponse, PoolInfoResponse, PoolResponse, PoolsResponse, TokenHoldersResponse,
-    TokenInfoResponse, TokenOhlcvResponse, TokenPriceResponse, TokenResponse, TokenTradersResponse,
+    DexesResponse, HoldersChartResponse, LiquidityEventsOptions, LiquidityEventsResponse,
+    MegafilterOptions, NetworksResponse, OhlcvResponse, OnchainCategoriesResponse,
+    PoolInfoResponse, PoolResponse, PoolsResponse, TokenHoldersResponse, TokenInfoResponse,
+    TokenOhlcvResponse, TokenPriceResponse, TokenResponse, TokenTradersResponse,
     TokenTradesResponse, TokensResponse, TradesResponse,
 };
 use crate::client::Client;
@@ -122,6 +123,25 @@ impl<'a> OnchainApi<'a> {
     ) -> Result<TradesResponse> {
         let path = format!(
             "/onchain/networks/{network}/pools/{pool_address}/trades?include_anomalous={include_anomalous}"
+        );
+        self.client.get(&path).await
+    }
+
+    /// Get add and remove liquidity events for a pool (Analyst plan and
+    /// above)
+    ///
+    /// Paginate by passing `meta.next_cursor` back as the cursor option.
+    /// `CoinGecko` currently supports only some Solana DEXes; other pools
+    /// return `400`.
+    pub async fn pool_liquidity_events(
+        &self,
+        network: &str,
+        pool_address: &str,
+        options: &LiquidityEventsOptions,
+    ) -> Result<LiquidityEventsResponse> {
+        let path = format!(
+            "/onchain/networks/{network}/pools/{pool_address}/liquidity_events{}",
+            options.to_query_string()
         );
         self.client.get(&path).await
     }
