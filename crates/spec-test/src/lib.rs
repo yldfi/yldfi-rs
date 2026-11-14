@@ -36,9 +36,17 @@ pub type Skip = (&'static str, &'static str, &'static str);
 
 /// A [`Check`] for type `T`
 pub fn parse<T: DeserializeOwned>(value: &Value) -> Result<(), String> {
-    serde_json::from_value::<T>(value.clone())
+    // Name the field that failed, e.g. `result[0].usd_price: invalid type ...`
+    serde_path_to_error::deserialize::<_, T>(value.clone())
         .map(drop)
-        .map_err(|e| e.to_string())
+        .map_err(|e| {
+            let path = e.path().to_string();
+            if path == "." {
+                e.into_inner().to_string()
+            } else {
+                format!("{path}: {}", e.into_inner())
+            }
+        })
 }
 
 /// The responses for every operation in one spec, keyed by operation id
@@ -209,7 +217,7 @@ mod tests {
         assert!(spec.check("example", &checks, &[]).is_ok());
         let err = spec.check("sample", &checks, &[]).unwrap_err();
         assert!(err.starts_with("1 spec sample(s)"), "{err}");
-        assert!(err.contains("get-thing: invalid type: string"), "{err}");
+        assert!(err.contains("get-thing: id: invalid type: string"), "{err}");
         // An operation without that kind of response is skipped
         assert!(spec.check("sample2", &checks, &[]).is_ok());
         // A skip silences exactly that operation and kind
