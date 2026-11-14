@@ -25,10 +25,15 @@ pub struct PublicTreasuryByCoin {
     pub total_holdings: Option<f64>,
     pub total_value_usd: Option<f64>,
     pub market_cap_dominance: Option<f64>,
+    /// Holders when queried with entity `companies` (empty otherwise)
+    #[serde(default)]
     pub companies: Vec<CompanyHolding>,
+    /// Holders when queried with entity `governments` (empty otherwise)
+    #[serde(default)]
+    pub governments: Vec<CompanyHolding>,
 }
 
-/// Company holding data
+/// Company or government holding data
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CompanyHolding {
     pub name: String,
@@ -137,6 +142,24 @@ mod tests {
         assert_eq!(h.amount, Some(843.0));
         assert_eq!(h.holding_amount_change.as_ref().unwrap()["ytd"], 171.0);
         assert!(e.figi.is_none());
+    }
+
+    #[test]
+    fn treasury_by_coin_reads_companies_and_governments() {
+        let c: PublicTreasuryByCoin = serde_json::from_str(
+            r#"{"total_holdings":1.0,"total_value_usd":2.0,"market_cap_dominance":0.1,
+                "companies":[{"name":"Example Co","symbol":"EXCO.US","country":"US"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(c.companies.len(), 1);
+        assert!(c.governments.is_empty());
+        let g: PublicTreasuryByCoin = serde_json::from_str(
+            r#"{"total_holdings":1.0,"total_value_usd":2.0,"market_cap_dominance":0.1,
+                "governments":[{"name":"Example State","symbol":null,"country":"US"}]}"#,
+        )
+        .unwrap();
+        assert!(g.companies.is_empty());
+        assert_eq!(g.governments[0].name, "Example State");
     }
 
     #[test]

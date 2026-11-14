@@ -7,6 +7,7 @@ use super::types::{
 };
 use crate::client::Client;
 use crate::error::{pagination, Result};
+use crate::query::Query;
 
 /// Derivatives API
 pub struct DerivativesApi<'a> {
@@ -70,10 +71,10 @@ impl<'a> DerivativesApi<'a> {
         &self,
         underlying_type: Option<&str>,
     ) -> Result<Vec<UnderlyingAsset>> {
-        let path = match underlying_type {
-            Some(t) => format!("/derivatives/underlyings/list?underlying_type={t}"),
-            None => "/derivatives/underlyings/list".to_string(),
-        };
+        let query = Query::new()
+            .text("underlying_type", underlying_type)
+            .finish();
+        let path = format!("/derivatives/underlyings/list{query}");
         self.client.get(&path).await
     }
 

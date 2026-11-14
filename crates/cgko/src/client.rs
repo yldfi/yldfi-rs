@@ -153,7 +153,7 @@ impl Client {
 
     /// Percent-encode a value for use in a query string
     pub(crate) fn encode_query(value: &str) -> String {
-        url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
+        crate::query::encode(value)
     }
 
     /// The URL for `path`. Without a key, `CoinGecko` rejects its onchain

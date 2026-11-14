@@ -1,5 +1,6 @@
 //! Types for onchain/GeckoTerminal endpoints
 
+use crate::query::Query;
 use serde::{Deserialize, Serialize};
 
 /// Network data
@@ -177,6 +178,25 @@ pub struct TokenPriceAttributes {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OhlcvResponse {
     pub data: OhlcvData,
+    /// Base and quote token metadata
+    #[serde(default)]
+    pub meta: Option<OhlcvMeta>,
+}
+
+/// OHLCV metadata
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct OhlcvMeta {
+    pub base: Option<OhlcvToken>,
+    pub quote: Option<OhlcvToken>,
+}
+
+/// Token metadata in an OHLCV response
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct OhlcvToken {
+    pub name: Option<String>,
+    pub symbol: Option<String>,
+    pub coingecko_coin_id: Option<String>,
+    pub address: Option<String>,
 }
 
 /// OHLCV data
@@ -198,6 +218,16 @@ pub struct OhlcvAttributes {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TradesResponse {
     pub data: Vec<Trade>,
+    /// Pagination: pass `next_cursor` back via [`TradesOptions::cursor`]
+    #[serde(default)]
+    pub meta: Option<TradesMeta>,
+}
+
+/// Trades pagination metadata
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TradesMeta {
+    /// Cursor for the next page; `None` on the last page
+    pub next_cursor: Option<String>,
 }
 
 /// Trade data
@@ -324,27 +354,15 @@ impl LiquidityEventsOptions {
 
     #[must_use]
     pub fn to_query_string(&self) -> String {
-        let mut params = Vec::new();
-        if let Some(ref k) = self.kind {
-            params.push(format!("kind={k}"));
-        }
-        if let Some(v) = self.volume_in_usd_greater_than {
-            params.push(format!("volume_in_usd_greater_than={v}"));
-        }
-        if let Some(ref c) = self.cursor {
-            params.push(format!(
-                "cursor={}",
-                url::form_urlencoded::byte_serialize(c.as_bytes()).collect::<String>()
-            ));
-        }
-        if let Some(pp) = self.per_page {
-            params.push(format!("per_page={pp}"));
-        }
-        if params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", params.join("&"))
-        }
+        Query::new()
+            .text("kind", self.kind.as_deref())
+            .value(
+                "volume_in_usd_greater_than",
+                self.volume_in_usd_greater_than,
+            )
+            .text("cursor", self.cursor.as_deref())
+            .value("per_page", self.per_page)
+            .finish()
     }
 }
 
@@ -542,6 +560,9 @@ pub struct HoldersChartToken {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenOhlcvResponse {
     pub data: TokenOhlcvData,
+    /// Base and quote token metadata
+    #[serde(default)]
+    pub meta: Option<OhlcvMeta>,
 }
 
 /// Token OHLCV data
@@ -563,6 +584,185 @@ pub struct TokenOhlcvAttributes {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenTradesResponse {
     pub data: Vec<Trade>,
+    /// Pagination: pass `next_cursor` back via [`TradesOptions::cursor`]
+    #[serde(default)]
+    pub meta: Option<TradesMeta>,
+}
+
+/// Options for pool and token trades
+#[derive(Debug, Clone, Default)]
+pub struct TradesOptions {
+    /// Only trades worth more than this many USD (API default: 0)
+    pub trade_volume_in_usd_greater_than: Option<f64>,
+    /// Pool trades only: `base`, `quote` or a token address (API default:
+    /// `base`); not sent for token trades
+    pub token: Option<String>,
+    /// Lookback period: `1d` (API default), `7d` or `30d` (Analyst plan and
+    /// above)
+    pub trading_period: Option<String>,
+    /// Include trades flagged as anomalous (API default: false)
+    pub include_anomalous: Option<bool>,
+    /// `meta.next_cursor` from the previous page (Analyst plan and above)
+    pub cursor: Option<String>,
+    /// Results per page, 1 to 300 (API default: 300; Analyst plan and above)
+    pub per_page: Option<u32>,
+}
+
+impl TradesOptions {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Only trades worth more than `usd`
+    #[must_use]
+    pub fn trade_volume_in_usd_greater_than(mut self, usd: f64) -> Self {
+        self.trade_volume_in_usd_greater_than = Some(usd);
+        self
+    }
+
+    /// Pool trades only: `base`, `quote` or a token address
+    #[must_use]
+    pub fn token(mut self, token: impl Into<String>) -> Self {
+        self.token = Some(token.into());
+        self
+    }
+
+    /// Lookback period: `1d`, `7d` or `30d`
+    #[must_use]
+    pub fn trading_period(mut self, period: impl Into<String>) -> Self {
+        self.trading_period = Some(period.into());
+        self
+    }
+
+    /// Include trades flagged as anomalous
+    #[must_use]
+    pub fn include_anomalous(mut self, include: bool) -> Self {
+        self.include_anomalous = Some(include);
+        self
+    }
+
+    /// Continue from a previous page's `meta.next_cursor`
+    #[must_use]
+    pub fn cursor(mut self, cursor: impl Into<String>) -> Self {
+        self.cursor = Some(cursor.into());
+        self
+    }
+
+    /// Set the number of results per page (1 to 300)
+    #[must_use]
+    pub fn per_page(mut self, per_page: u32) -> Self {
+        self.per_page = Some(per_page);
+        self
+    }
+
+    #[must_use]
+    pub fn to_query_string(&self) -> String {
+        Query::new()
+            .value(
+                "trade_volume_in_usd_greater_than",
+                self.trade_volume_in_usd_greater_than,
+            )
+            .text("token", self.token.as_deref())
+            .text("trading_period", self.trading_period.as_deref())
+            .value("include_anomalous", self.include_anomalous)
+            .text("cursor", self.cursor.as_deref())
+            .value("per_page", self.per_page)
+            .finish()
+    }
+}
+
+/// Options for pool and token OHLCV
+#[derive(Debug, Clone, Default)]
+pub struct OhlcvOptions {
+    /// Candle size in timeframe units: day `1`; hour `1`, `4`, `12`;
+    /// minute `1`, `5`, `15`; second `1`, `15`, `30` (API default: 1)
+    pub aggregate: Option<u32>,
+    /// Return candles up to and including the one containing this Unix
+    /// timestamp (seconds)
+    pub before_timestamp: Option<u64>,
+    /// Number of candles, up to 1000 (API default: 100)
+    pub limit: Option<u32>,
+    /// `usd` (API default) or `token` (quote token)
+    pub currency: Option<String>,
+    /// Pool OHLCV only: `base`, `quote` or a token address (API default:
+    /// `base`); not sent for token OHLCV
+    pub token: Option<String>,
+    /// Include intervals with no trades (API default: false)
+    pub include_empty_intervals: Option<bool>,
+    /// Token OHLCV only: include data from inactive pools (API default:
+    /// false); not sent for pool OHLCV
+    pub include_inactive_source: Option<bool>,
+}
+
+impl OhlcvOptions {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the candle size in timeframe units
+    #[must_use]
+    pub fn aggregate(mut self, aggregate: u32) -> Self {
+        self.aggregate = Some(aggregate);
+        self
+    }
+
+    /// Only candles up to the one containing this Unix timestamp (seconds).
+    /// Free plans only serve the last 180 days.
+    #[must_use]
+    pub fn before_timestamp(mut self, timestamp: u64) -> Self {
+        self.before_timestamp = Some(timestamp);
+        self
+    }
+
+    /// Set the number of candles (up to 1000)
+    #[must_use]
+    pub fn limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// `usd` or `token`
+    #[must_use]
+    pub fn currency(mut self, currency: impl Into<String>) -> Self {
+        self.currency = Some(currency.into());
+        self
+    }
+
+    /// Pool OHLCV only: `base`, `quote` or a token address
+    #[must_use]
+    pub fn token(mut self, token: impl Into<String>) -> Self {
+        self.token = Some(token.into());
+        self
+    }
+
+    /// Include intervals with no trades
+    #[must_use]
+    pub fn include_empty_intervals(mut self, include: bool) -> Self {
+        self.include_empty_intervals = Some(include);
+        self
+    }
+
+    /// Token OHLCV only: include data from inactive pools
+    #[must_use]
+    pub fn include_inactive_source(mut self, include: bool) -> Self {
+        self.include_inactive_source = Some(include);
+        self
+    }
+
+    #[must_use]
+    pub fn to_query_string(&self) -> String {
+        Query::new()
+            .value("aggregate", self.aggregate)
+            .value("before_timestamp", self.before_timestamp)
+            .value("limit", self.limit)
+            .text("currency", self.currency.as_deref())
+            .text("token", self.token.as_deref())
+            .value("include_empty_intervals", self.include_empty_intervals)
+            .value("include_inactive_source", self.include_inactive_source)
+            .finish()
+    }
 }
 
 /// Onchain category
@@ -641,6 +841,59 @@ impl MegafilterOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trades_options_query() {
+        assert_eq!(TradesOptions::new().to_query_string(), "");
+        let q = TradesOptions::new()
+            .trade_volume_in_usd_greater_than(100.0)
+            .token("quote")
+            .trading_period("7d")
+            .include_anomalous(true)
+            .cursor("a+b=")
+            .per_page(50)
+            .to_query_string();
+        assert_eq!(
+            q,
+            "?trade_volume_in_usd_greater_than=100&token=quote&trading_period=7d&include_anomalous=true&cursor=a%2Bb%3D&per_page=50"
+        );
+    }
+
+    #[test]
+    fn ohlcv_options_query() {
+        assert_eq!(OhlcvOptions::new().to_query_string(), "");
+        let q = OhlcvOptions::new()
+            .aggregate(4)
+            .before_timestamp(1_700_000_000)
+            .limit(1000)
+            .currency("token")
+            .token("quote")
+            .include_empty_intervals(true)
+            .include_inactive_source(false)
+            .to_query_string();
+        assert_eq!(
+            q,
+            "?aggregate=4&before_timestamp=1700000000&limit=1000&currency=token&token=quote&include_empty_intervals=true&include_inactive_source=false"
+        );
+    }
+
+    #[test]
+    fn trades_and_ohlcv_read_meta() {
+        let t: TradesResponse =
+            serde_json::from_str(r#"{"data":[],"meta":{"next_cursor":"abc"}}"#).unwrap();
+        assert_eq!(t.meta.unwrap().next_cursor.as_deref(), Some("abc"));
+        let t: TradesResponse = serde_json::from_str(r#"{"data":[]}"#).unwrap();
+        assert!(t.meta.is_none());
+        let o: OhlcvResponse = serde_json::from_str(
+            r#"{"data":{"id":"x","attributes":{"ohlcv_list":[[1,2,3,4,5,6]]}},
+                "meta":{"base":{"symbol":"AAA"},"quote":{"symbol":"BBB"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            o.meta.unwrap().quote.unwrap().symbol.as_deref(),
+            Some("BBB")
+        );
+    }
 
     #[test]
     fn liquidity_events_match_spec() {
