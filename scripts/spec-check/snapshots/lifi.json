@@ -704,6 +704,7 @@
     "query:preferExchanges",
     "query:referrer",
     "query:routeTimingStrategies",
+    "query:skipSimulation",
     "query:slippage",
     "query:svmMaxSupportedTransactionVersion",
     "query:svmPriorityFeeLevel",
