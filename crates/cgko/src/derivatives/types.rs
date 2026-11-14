@@ -1,5 +1,6 @@
 //! Types for derivatives endpoints
 
+use crate::query::Query;
 use serde::{Deserialize, Serialize};
 
 /// Derivative ticker
@@ -196,18 +197,10 @@ impl DerivativeTickersOptions {
 
     #[must_use]
     pub fn to_query_string(&self) -> String {
-        let mut params = Vec::new();
-        if let Some(p) = self.page {
-            params.push(format!("page={p}"));
-        }
-        if let Some(pp) = self.per_page {
-            params.push(format!("per_page={pp}"));
-        }
-        if params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", params.join("&"))
-        }
+        Query::new()
+            .value("page", self.page)
+            .value("per_page", self.per_page)
+            .finish()
     }
 }
 
@@ -311,30 +304,14 @@ impl UnderlyingsOptions {
 
     #[must_use]
     pub fn to_query_string(&self) -> String {
-        let mut params = Vec::new();
-        if let Some(ref ids) = self.coin_ids {
-            params.push(format!("coin_ids={}", ids.join(",")));
-        }
-        if let Some(ref ids) = self.rwa_ids {
-            params.push(format!("rwa_ids={}", ids.join(",")));
-        }
-        if let Some(ref t) = self.underlying_type {
-            params.push(format!("underlying_type={t}"));
-        }
-        if let Some(p) = self.page {
-            params.push(format!("page={p}"));
-        }
-        if let Some(pp) = self.per_page {
-            params.push(format!("per_page={pp}"));
-        }
-        if let Some(ref o) = self.order {
-            params.push(format!("order={o}"));
-        }
-        if params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", params.join("&"))
-        }
+        Query::new()
+            .list("coin_ids", self.coin_ids.as_deref())
+            .list("rwa_ids", self.rwa_ids.as_deref())
+            .text("underlying_type", self.underlying_type.as_deref())
+            .value("page", self.page)
+            .value("per_page", self.per_page)
+            .text("order", self.order.as_deref())
+            .finish()
     }
 }
 

@@ -43,6 +43,7 @@
 
 pub mod client;
 pub mod error;
+mod query;
 
 pub mod categories;
 pub mod coins;

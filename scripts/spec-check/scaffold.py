@@ -16,11 +16,37 @@ import sys
 from examples import resolve
 from run import fetch_openapi
 
-RUST_KEYWORDS = {"type", "ref", "match", "move", "self", "struct", "enum", "fn", "mod", "use", "where", "loop"}
+# Strict and reserved Rust keywords (2021 edition and later)
+RUST_KEYWORDS = set("""
+    as async await break const continue crate dyn else enum extern false fn for gen if impl in
+    let loop match mod move mut pub ref return self Self static struct super trait true type
+    unsafe use where while abstract become box do final macro override priv try typeof unsized
+    virtual yield
+""".split())
 
 
 def pascal(name):
     return "".join(p[:1].upper() + p[1:] for p in re.split(r"[^A-Za-z0-9]+", name) if p)
+
+
+def ident(name):
+    """A Rust identifier for `name`: snake_case, `_` appended to keywords and
+    prefixed to names starting with a digit."""
+    out = snake(name) or "_"
+    if out in RUST_KEYWORDS:
+        out += "_"
+    if out[0].isdigit():
+        out = "_" + out
+    return out
+
+
+def kind_of(schema):
+    """The schema's type; OpenAPI 3.1 lists like ["string", "null"] give the
+    first non-null entry."""
+    kind = schema.get("type") if isinstance(schema, dict) else None
+    if isinstance(kind, list):
+        kind = next((k for k in kind if k != "null"), None)
+    return kind
 
 
 def snake(name):
@@ -42,7 +68,7 @@ class Scaffold:
         alts = schema.get("oneOf") or schema.get("anyOf")
         if alts:
             return "serde_json::Value"
-        kind = schema.get("type")
+        kind = kind_of(schema)
         if kind == "array":
             return f"Vec<{self.rust_type(schema.get('items', {}), hint)}>"
         if kind == "object" or "properties" in schema:
@@ -64,11 +90,9 @@ class Scaffold:
             desc = resolve(self.doc, sub).get("description", "") if isinstance(resolve(self.doc, sub), dict) else ""
             if desc:
                 lines.append(f"    /// {desc.splitlines()[0]}")
-            field = snake(prop)
-            if field != prop or field in RUST_KEYWORDS:
-                rust = field + "_" if field in RUST_KEYWORDS else field
+            field = ident(prop)
+            if field != prop:
                 lines.append(f'    #[serde(rename = "{prop}")]')
-                field = rust
             lines.append(f"    pub {field}: Option<{self.rust_type(sub, name + pascal(prop))}>,")
         lines.append("}")
         self.structs.append("\n".join(lines))
@@ -111,21 +135,21 @@ def main(argv):
             note = " (required)" if p.get("required") else ""
             if desc or note:
                 out.append(f"    /// {(desc[0].strip() if desc else '')}{note}".replace("///  ", "/// "))
-            ty = {"integer": "u64", "number": "f64", "boolean": "bool"}.get(p.get("schema", {}).get("type"), "String")
-            out.append(f"    pub {snake(p['name'])}: Option<{ty}>,")
+            ty = {"integer": "u64", "number": "f64", "boolean": "bool"}.get(kind_of(p.get("schema", {})), "String")
+            out.append(f"    pub {ident(p['name'])}: Option<{ty}>,")
         out += ["}", "", f"impl {opts} {{", "    #[must_use]", "    pub fn to_query_string(&self) -> String {",
                 "        let mut params = Vec::new();"]
         for p in query:
-            f = snake(p["name"])
-            ty = p.get("schema", {}).get("type")
+            f = ident(p["name"])
+            ty = kind_of(p.get("schema", {}))
             val = f"url::form_urlencoded::byte_serialize(v.as_bytes()).collect::<String>()" if ty not in ("integer", "number", "boolean") else "v"
             out.append(f'        if let Some(ref v) = self.{f} {{ params.push(format!("{p["name"]}={{}}", {val})); }}')
         out += ['        if params.is_empty() { String::new() } else { format!("?{}", params.join("&")) }', "    }", "}", ""]
     out += s.structs[::-1]
-    args = "".join(f", {snake(p['name'])}: &str" for p in path_params)
+    args = "".join(f", {ident(p['name'])}: &str" for p in path_params)
     if query:
         args += f", options: &{opts}"
-    rust_path = re.sub(r"\{([^}]+)\}", lambda m: "{" + snake(m.group(1)) + "}", path)
+    rust_path = re.sub(r"\{([^}]+)\}", lambda m: "{" + ident(m.group(1)) + "}", path)
     summary = op.get("summary", op_id)
     out += ["", f"    /// {summary}", f"    pub async fn {method}(&self{args}) -> Result<{ret}> {{"]
     suffix = "{}" if query else ""

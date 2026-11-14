@@ -1,5 +1,6 @@
 //! Types for onchain/GeckoTerminal endpoints
 
+use crate::query::Query;
 use serde::{Deserialize, Serialize};
 
 /// Network data
@@ -353,27 +354,15 @@ impl LiquidityEventsOptions {
 
     #[must_use]
     pub fn to_query_string(&self) -> String {
-        let mut params = Vec::new();
-        if let Some(ref k) = self.kind {
-            params.push(format!("kind={k}"));
-        }
-        if let Some(v) = self.volume_in_usd_greater_than {
-            params.push(format!("volume_in_usd_greater_than={v}"));
-        }
-        if let Some(ref c) = self.cursor {
-            params.push(format!(
-                "cursor={}",
-                url::form_urlencoded::byte_serialize(c.as_bytes()).collect::<String>()
-            ));
-        }
-        if let Some(pp) = self.per_page {
-            params.push(format!("per_page={pp}"));
-        }
-        if params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", params.join("&"))
-        }
+        Query::new()
+            .text("kind", self.kind.as_deref())
+            .value(
+                "volume_in_usd_greater_than",
+                self.volume_in_usd_greater_than,
+            )
+            .text("cursor", self.cursor.as_deref())
+            .value("per_page", self.per_page)
+            .finish()
     }
 }
 
@@ -600,18 +589,6 @@ pub struct TokenTradesResponse {
     pub meta: Option<TradesMeta>,
 }
 
-fn encode(value: &str) -> String {
-    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
-}
-
-fn query_string(params: &[String]) -> String {
-    if params.is_empty() {
-        String::new()
-    } else {
-        format!("?{}", params.join("&"))
-    }
-}
-
 /// Options for pool and token trades
 #[derive(Debug, Clone, Default)]
 pub struct TradesOptions {
@@ -681,26 +658,17 @@ impl TradesOptions {
 
     #[must_use]
     pub fn to_query_string(&self) -> String {
-        let mut params = Vec::new();
-        if let Some(v) = self.trade_volume_in_usd_greater_than {
-            params.push(format!("trade_volume_in_usd_greater_than={v}"));
-        }
-        if let Some(ref t) = self.token {
-            params.push(format!("token={}", encode(t)));
-        }
-        if let Some(ref p) = self.trading_period {
-            params.push(format!("trading_period={p}"));
-        }
-        if let Some(a) = self.include_anomalous {
-            params.push(format!("include_anomalous={a}"));
-        }
-        if let Some(ref c) = self.cursor {
-            params.push(format!("cursor={}", encode(c)));
-        }
-        if let Some(pp) = self.per_page {
-            params.push(format!("per_page={pp}"));
-        }
-        query_string(&params)
+        Query::new()
+            .value(
+                "trade_volume_in_usd_greater_than",
+                self.trade_volume_in_usd_greater_than,
+            )
+            .text("token", self.token.as_deref())
+            .text("trading_period", self.trading_period.as_deref())
+            .value("include_anomalous", self.include_anomalous)
+            .text("cursor", self.cursor.as_deref())
+            .value("per_page", self.per_page)
+            .finish()
     }
 }
 
@@ -785,29 +753,15 @@ impl OhlcvOptions {
 
     #[must_use]
     pub fn to_query_string(&self) -> String {
-        let mut params = Vec::new();
-        if let Some(a) = self.aggregate {
-            params.push(format!("aggregate={a}"));
-        }
-        if let Some(t) = self.before_timestamp {
-            params.push(format!("before_timestamp={t}"));
-        }
-        if let Some(l) = self.limit {
-            params.push(format!("limit={l}"));
-        }
-        if let Some(ref c) = self.currency {
-            params.push(format!("currency={c}"));
-        }
-        if let Some(ref t) = self.token {
-            params.push(format!("token={}", encode(t)));
-        }
-        if let Some(e) = self.include_empty_intervals {
-            params.push(format!("include_empty_intervals={e}"));
-        }
-        if let Some(i) = self.include_inactive_source {
-            params.push(format!("include_inactive_source={i}"));
-        }
-        query_string(&params)
+        Query::new()
+            .value("aggregate", self.aggregate)
+            .value("before_timestamp", self.before_timestamp)
+            .value("limit", self.limit)
+            .text("currency", self.currency.as_deref())
+            .text("token", self.token.as_deref())
+            .value("include_empty_intervals", self.include_empty_intervals)
+            .value("include_inactive_source", self.include_inactive_source)
+            .finish()
     }
 }
 
