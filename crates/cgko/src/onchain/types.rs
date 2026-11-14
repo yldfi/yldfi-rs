@@ -230,6 +230,123 @@ pub struct TradeAttributes {
     pub is_anomalous: Option<bool>,
 }
 
+/// Liquidity events response (`/pools/{pool_address}/liquidity_events`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LiquidityEventsResponse {
+    pub data: Vec<LiquidityEvent>,
+    pub meta: Option<LiquidityEventsMeta>,
+}
+
+/// Liquidity event
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LiquidityEvent {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub event_type: Option<String>,
+    pub attributes: LiquidityEventAttributes,
+}
+
+/// Liquidity event attributes
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LiquidityEventAttributes {
+    pub block_number: u64,
+    pub tx_hash: String,
+    pub tx_from_address: String,
+    pub block_timestamp: String,
+    /// `add` or `remove`
+    pub kind: String,
+    pub base_token_address: String,
+    /// Always positive; `kind` carries the direction
+    pub base_token_amount: String,
+    pub quote_token_address: String,
+    /// Always positive; `kind` carries the direction
+    pub quote_token_amount: String,
+    pub base_token_price_in_usd: String,
+    pub quote_token_price_in_usd: String,
+    /// Combined USD value of both tokens in the event
+    pub volume_in_usd: String,
+}
+
+/// Liquidity events pagination metadata
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LiquidityEventsMeta {
+    /// Pass back unchanged as `cursor` for the next page; `None` on the last
+    pub next_cursor: Option<String>,
+}
+
+/// Options for liquidity events by pool address
+#[derive(Debug, Clone, Default)]
+pub struct LiquidityEventsOptions {
+    /// `add` or `remove` (omit for both)
+    pub kind: Option<String>,
+    /// Only events worth more than this many USD
+    pub volume_in_usd_greater_than: Option<f64>,
+    /// `meta.next_cursor` from the previous page
+    pub cursor: Option<String>,
+    /// Results per page, 1 to 50 (API default: 20)
+    pub per_page: Option<u32>,
+}
+
+impl LiquidityEventsOptions {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Filter by kind (`add` or `remove`)
+    #[must_use]
+    pub fn kind(mut self, kind: impl Into<String>) -> Self {
+        self.kind = Some(kind.into());
+        self
+    }
+
+    /// Only events worth more than `usd`
+    #[must_use]
+    pub fn volume_in_usd_greater_than(mut self, usd: f64) -> Self {
+        self.volume_in_usd_greater_than = Some(usd);
+        self
+    }
+
+    /// Continue from a previous page's `meta.next_cursor`
+    #[must_use]
+    pub fn cursor(mut self, cursor: impl Into<String>) -> Self {
+        self.cursor = Some(cursor.into());
+        self
+    }
+
+    /// Set the number of results per page (1 to 50)
+    #[must_use]
+    pub fn per_page(mut self, per_page: u32) -> Self {
+        self.per_page = Some(per_page);
+        self
+    }
+
+    #[must_use]
+    pub fn to_query_string(&self) -> String {
+        let mut params = Vec::new();
+        if let Some(ref k) = self.kind {
+            params.push(format!("kind={k}"));
+        }
+        if let Some(v) = self.volume_in_usd_greater_than {
+            params.push(format!("volume_in_usd_greater_than={v}"));
+        }
+        if let Some(ref c) = self.cursor {
+            params.push(format!(
+                "cursor={}",
+                url::form_urlencoded::byte_serialize(c.as_bytes()).collect::<String>()
+            ));
+        }
+        if let Some(pp) = self.per_page {
+            params.push(format!("per_page={pp}"));
+        }
+        if params.is_empty() {
+            String::new()
+        } else {
+            format!("?{}", params.join("&"))
+        }
+    }
+}
+
 /// Multi-token response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokensResponse {
@@ -257,6 +374,10 @@ pub struct TokenInfoAttributes {
     pub twitter_handle: Option<String>,
     pub websites: Option<Vec<String>>,
     pub image_url: Option<String>,
+    /// Whether the token's name or symbol matches the `GeckoTerminal` NSFW
+    /// keyword list
+    #[serde(default)]
+    pub is_nsfw: Option<bool>,
 }
 
 /// Token info response
@@ -519,6 +640,44 @@ impl MegafilterOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn liquidity_events_match_spec() {
+        let json = r#"{"data":[{"id":"solana_1_abc_20_1792148006","type":"liquidity_event",
+            "attributes":{"block_number":457611113,"tx_hash":"abc","tx_from_address":"sender",
+            "block_timestamp":"2026-10-16T10:53:26Z","kind":"remove",
+            "base_token_address":"base","base_token_amount":"131587980.65415",
+            "quote_token_address":"quote","quote_token_amount":"187.258906",
+            "base_token_price_in_usd":"0.0001417","quote_token_price_in_usd":"106.496866",
+            "volume_in_usd":"38593.231589"}}],"meta":{"next_cursor":null}}"#;
+        let r: LiquidityEventsResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(r.data[0].attributes.kind, "remove");
+        assert_eq!(r.data[0].attributes.block_number, 457_611_113);
+        assert!(r.meta.unwrap().next_cursor.is_none());
+    }
+
+    #[test]
+    fn liquidity_events_options_query() {
+        assert_eq!(LiquidityEventsOptions::new().to_query_string(), "");
+        let q = LiquidityEventsOptions::new()
+            .kind("add")
+            .volume_in_usd_greater_than(1000.5)
+            .cursor("a+b/c=")
+            .per_page(50)
+            .to_query_string();
+        assert_eq!(
+            q,
+            "?kind=add&volume_in_usd_greater_than=1000.5&cursor=a%2Bb%2Fc%3D&per_page=50"
+        );
+    }
+
+    #[test]
+    fn token_info_reads_is_nsfw() {
+        let t: TokenInfoAttributes = serde_json::from_str(r#"{"is_nsfw":false}"#).unwrap();
+        assert_eq!(t.is_nsfw, Some(false));
+        let t: TokenInfoAttributes = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(t.is_nsfw.is_none());
+    }
 
     #[test]
     fn top_holders_data_is_an_object_with_string_amounts() {

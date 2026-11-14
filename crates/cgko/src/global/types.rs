@@ -40,6 +40,26 @@ pub struct GlobalData {
     pub market_cap_percentage: Option<HashMap<String, f64>>,
     pub market_cap_change_percentage_24h_usd: Option<f64>,
     pub updated_at: Option<u64>,
+    /// Current Crypto Fear & Greed Index
+    #[serde(default)]
+    pub fear_and_greed_index: Option<FearAndGreedIndex>,
+}
+
+/// Crypto Fear & Greed Index value
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FearAndGreedIndex {
+    /// Index value, 0 to 100
+    pub value: u8,
+    /// Sentiment label: `extreme_fear`, `fear`, `neutral`, `greed` or
+    /// `extreme_greed`
+    pub sentiment: String,
+}
+
+/// Historical fear and greed data (`/global/fear_and_greed_chart`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FearAndGreedChart {
+    /// Daily data points as `(timestamp_ms, value, sentiment)`
+    pub fear_and_greed: Vec<(u64, u8, String)>,
 }
 
 /// `DeFi` global data response
@@ -286,6 +306,33 @@ mod tests {
         assert!(c.id.is_none());
         let c: TrendingCategory = serde_json::from_str(r#"{}"#).unwrap();
         assert!(c.id.is_none());
+    }
+
+    #[test]
+    fn global_reads_fear_and_greed_index() {
+        let g: GlobalResponse = serde_json::from_str(
+            r#"{"data":{"updated_at":1779878351,
+                "fear_and_greed_index":{"value":44,"sentiment":"fear"}}}"#,
+        )
+        .unwrap();
+        let fg = g.data.fear_and_greed_index.unwrap();
+        assert_eq!(fg.value, 44);
+        assert_eq!(fg.sentiment, "fear");
+        let g: GlobalResponse = serde_json::from_str(r#"{"data":{}}"#).unwrap();
+        assert!(g.data.fear_and_greed_index.is_none());
+    }
+
+    #[test]
+    fn fear_and_greed_chart_reads_tuples() {
+        let c: FearAndGreedChart = serde_json::from_str(
+            r#"{"fear_and_greed":[[1792281600000,44,"fear"],[1792368000000,72,"extreme_greed"]]}"#,
+        )
+        .unwrap();
+        assert_eq!(c.fear_and_greed.len(), 2);
+        assert_eq!(
+            c.fear_and_greed[1],
+            (1_792_368_000_000, 72, "extreme_greed".to_string())
+        );
     }
 
     #[test]
