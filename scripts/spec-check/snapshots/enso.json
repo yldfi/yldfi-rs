@@ -784,6 +784,7 @@
     "query:ignoreAggregators",
     "query:ignoreStandards",
     "query:routingStrategy",
+    "query:swapType",
     "query:tokenIn*",
     "query:tokenOut*"
    ],
@@ -816,8 +817,10 @@
    "params": [
     "query:allowAsync",
     "query:amountIn*",
+    "query:bridgeFeeRefundReceiver",
     "query:chainId*",
     "query:crosschainRouteMode",
+    "query:destinationBridgeRefundReceiver",
     "query:destinationChainId",
     "query:effort",
     "query:executionMode",
@@ -832,7 +835,9 @@
     "query:refundReceiver",
     "query:routingStrategy",
     "query:slippage",
+    "query:sourceBridgeRefundReceiver",
     "query:spender",
+    "query:swapType",
     "query:toEoa",
     "query:tokenIn*",
     "query:tokenOut*",
@@ -1380,7 +1385,9 @@
   "POST /api/v1/shortcuts/bundle": {
    "deprecated": false,
    "params": [
+    "query:bridgeFeeRefundReceiver",
     "query:chainId*",
+    "query:destinationBridgeRefundReceiver",
     "query:executionMode",
     "query:fromAddress*",
     "query:ignoreAggregators",
@@ -1389,7 +1396,9 @@
     "query:refundReceiver",
     "query:routingStrategy",
     "query:skipQuote",
-    "query:spender"
+    "query:sourceBridgeRefundReceiver",
+    "query:spender",
+    "query:swapType"
    ],
    "request": [
     "[].action*",
@@ -1662,8 +1671,10 @@
    "request": [
     "allowAsync",
     "amountIn*",
+    "bridgeFeeRefundReceiver",
     "chainId*",
     "crosschainRouteMode",
+    "destinationBridgeRefundReceiver",
     "destinationChainId",
     "effort",
     "executionMode",
@@ -1678,7 +1689,9 @@
     "refundReceiver",
     "routingStrategy",
     "slippage",
+    "sourceBridgeRefundReceiver",
     "spender",
+    "swapType",
     "toEoa",
     "tokenIn*",
     "tokenOut*",
