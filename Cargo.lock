@@ -1932,6 +1932,7 @@ dependencies = [
  "tokio",
  "url",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]

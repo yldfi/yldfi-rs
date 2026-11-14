@@ -185,13 +185,16 @@ impl<'a> CoinsApi<'a> {
         self.client.get_coins(&path).await
     }
 
-    /// Get price chart data with configurable time span
+    /// Get price chart data: `span` points spaced `period` apart, ending now
     ///
     /// # Arguments
     ///
     /// * `tokens` - List of tokens
-    /// * `span` - Time span in seconds (optional, defaults to all history)
-    /// * `period` - Data point period: "1d", "4h", "1h", etc. (optional)
+    /// * `span` - Number of data points to return, at most 500 (optional).
+    ///   This is a count, not a duration: `Some(30)` with period `"1d"` is
+    ///   the last 30 days.
+    /// * `period` - Time between data points: "1d", "4h", "1h", etc.
+    ///   (optional, API default 24 hours)
     /// * `search_width` - Search width for finding prices (optional)
     ///
     /// # Example
@@ -202,8 +205,8 @@ impl<'a> CoinsApi<'a> {
     ///
     /// let client = dllma::Client::new()?;
     /// let tokens = vec![Token::coingecko("ethereum")];
-    /// // Get last 30 days with daily data points
-    /// let chart = client.coins().chart(&tokens, Some(30 * 86400), Some("1d"), None).await?;
+    /// // Last 30 days, one point per day
+    /// let chart = client.coins().chart(&tokens, Some(30), Some("1d"), None).await?;
     /// # Ok(())
     /// # }
     /// ```
