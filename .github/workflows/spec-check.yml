@@ -6,6 +6,9 @@ name: Weekly API spec check
 # reported in one tracking issue, split into breaking changes and additions and
 # marked where a crate calls the endpoint. Accept a reviewed change with
 # `python3 scripts/spec-check/run.py --update` and commit the snapshots.
+# For CoinGecko also refresh cgko's spec examples with
+# scripts/spec-check/examples.py (see crates/cgko/tests/spec_examples.rs) and
+# run `cargo test -p cgko`.
 # See scripts/spec-check/.
 
 on:
