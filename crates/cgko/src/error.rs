@@ -20,6 +20,10 @@ pub enum DomainError {
     /// URL parse error
     #[error("URL parse error: {0}")]
     UrlParse(#[from] url::ParseError),
+
+    /// The server's pagination did not behave as documented
+    #[error("Pagination error: {0}")]
+    Pagination(String),
 }
 
 /// Error type for `CoinGecko` API operations
@@ -37,4 +41,9 @@ pub fn not_found(resource: impl Into<String>) -> Error {
 /// Create an invalid parameter error
 pub fn invalid_param(message: impl Into<String>) -> Error {
     ApiError::domain(DomainError::InvalidParam(message.into()))
+}
+
+/// Create a pagination error
+pub fn pagination(message: impl Into<String>) -> Error {
+    ApiError::domain(DomainError::Pagination(message.into()))
 }

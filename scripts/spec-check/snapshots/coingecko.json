@@ -696,6 +696,19 @@
     "year_established*"
    ]
   },
+  "GET /derivatives/underlyings/list": {
+   "deprecated": false,
+   "params": [
+    "query:underlying_type"
+   ],
+   "request": [],
+   "response": [
+    "[].id*",
+    "[].name*",
+    "[].symbol*",
+    "[].underlying_type*"
+   ]
+  },
   "GET /entities/list": {
    "deprecated": false,
    "params": [
@@ -706,6 +719,7 @@
    "request": [],
    "response": [
     "[].country*",
+    "[].figi",
     "[].id*",
     "[].name*",
     "[].symbol*"
@@ -2372,6 +2386,7 @@
    "request": [],
    "response": [
     "country*",
+    "figi",
     "holdings*",
     "holdings[].amount*",
     "holdings[].amount_per_share*",

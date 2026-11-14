@@ -838,6 +838,44 @@
     "year_established*"
    ]
   },
+  "GET /derivatives/underlyings": {
+   "deprecated": false,
+   "params": [
+    "query:coin_ids",
+    "query:order",
+    "query:page",
+    "query:per_page",
+    "query:rwa_ids",
+    "query:underlying_type"
+   ],
+   "request": [],
+   "response": [
+    "[].current_price*",
+    "[].funding_rate*",
+    "[].id*",
+    "[].name*",
+    "[].open_interest*",
+    "[].open_interest_change_percentage_1h*",
+    "[].open_interest_change_percentage_24h*",
+    "[].price_change_percentage_24h*",
+    "[].symbol*",
+    "[].total_volume*",
+    "[].underlying_type*"
+   ]
+  },
+  "GET /derivatives/underlyings/list": {
+   "deprecated": false,
+   "params": [
+    "query:underlying_type"
+   ],
+   "request": [],
+   "response": [
+    "[].id*",
+    "[].name*",
+    "[].symbol*",
+    "[].underlying_type*"
+   ]
+  },
   "GET /entities/list": {
    "deprecated": false,
    "params": [
@@ -848,6 +886,7 @@
    "request": [],
    "response": [
     "[].country*",
+    "[].figi",
     "[].id*",
     "[].name*",
     "[].symbol*"
@@ -3477,6 +3516,7 @@
    "request": [],
    "response": [
     "country*",
+    "figi",
     "holdings*",
     "holdings[].amount*",
     "holdings[].amount_per_share*",

@@ -203,11 +203,7 @@ fn should_prune(
     let worst_best_tvl = best_by_tvl.last().map_or(0.0, |r| r.tvl_score);
 
     // Prune if we can't beat the worst best route and we're already deep
-    if depth >= 2 && potential_min_tvl < worst_best_tvl * 0.1 {
-        return true;
-    }
-
-    false
+    depth >= 2 && potential_min_tvl < worst_best_tvl * 0.1
 }
 
 /// Merge routes from different criteria and deduplicate

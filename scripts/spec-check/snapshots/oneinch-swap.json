@@ -61,6 +61,7 @@
     "query:amount*",
     "query:complexityLevel",
     "query:connectorTokens",
+    "query:deadline",
     "query:dst*",
     "query:excludePMMs",
     "query:excludedProtocols",
@@ -121,6 +122,7 @@
     "query:complexityLevel",
     "query:connectorTokens",
     "query:createAccessList",
+    "query:deadline",
     "query:disableEstimate",
     "query:dst*",
     "query:excludePMMs",
@@ -148,6 +150,7 @@
    ],
    "request": [],
    "response": [
+    "deadline",
     "dstAmount*",
     "dstToken",
     "dstToken.address*",

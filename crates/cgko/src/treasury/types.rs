@@ -10,6 +10,13 @@ pub struct EntityListItem {
     pub name: String,
     #[serde(rename = "type")]
     pub entity_type: Option<String>,
+    pub symbol: Option<String>,
+    /// Country code
+    pub country: Option<String>,
+    /// Financial Instrument Global Identifier (`None` for entities without
+    /// one, such as governments)
+    #[serde(default)]
+    pub figi: Option<String>,
 }
 
 /// Public treasury holdings by coin
@@ -42,6 +49,10 @@ pub struct PublicTreasuryByEntity {
     pub entity_type: Option<String>,
     pub symbol: Option<String>,
     pub country: Option<String>,
+    /// Financial Instrument Global Identifier (`None` for entities without
+    /// one, such as governments)
+    #[serde(default)]
+    pub figi: Option<String>,
     pub website_url: Option<String>,
     pub twitter_screen_name: Option<String>,
     pub total_treasury_value_usd: Option<f64>,
@@ -125,6 +136,19 @@ mod tests {
         let h = &e.holdings[0];
         assert_eq!(h.amount, Some(843.0));
         assert_eq!(h.holding_amount_change.as_ref().unwrap()["ytd"], 171.0);
+        assert!(e.figi.is_none());
+    }
+
+    #[test]
+    fn entities_list_reads_figi() {
+        let json = r#"[{"id": "example-state", "symbol": null, "name": "Example State",
+                "country": "US", "figi": null},
+            {"id": "example-co", "symbol": "EXCO.US", "name": "Example Co",
+                "country": "US", "figi": "BBG000000001"}]"#;
+        let v: Vec<EntityListItem> = serde_json::from_str(json).unwrap();
+        assert!(v[0].figi.is_none());
+        assert_eq!(v[1].figi.as_deref(), Some("BBG000000001"));
+        assert_eq!(v[1].country.as_deref(), Some("US"));
     }
 
     #[test]
