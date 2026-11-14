@@ -43,11 +43,30 @@ class SampleTest(unittest.TestCase):
         schema = {"type": "array", "items": {"type": "array", "items": {"type": "number"}}}
         self.assertEqual(sample({}, schema, first, [[1.5, 2.5], [3.5, 4.5]]), [[1, 1]])
 
+    def test_schema_level_examples_give_tuple_shape(self):
+        schema = {"type": "array", "items": {
+            "type": "array", "items": {"oneOf": [{"type": "number"}, {"type": "object"}]},
+            "example": [1640995200, 2500000000],
+        }}
+        self.assertEqual(sample({}, schema, last), [[1640995200, 2500000000]])
+
+    def test_untyped_items_use_the_example(self):
+        schema = {"type": "array", "items": {"type": "array", "example": [1640995200, 750000000]}}
+        self.assertEqual(sample({}, schema, first), [[1640995200, 750000000]])
+
+    def test_tuples_without_examples_leave_their_list_empty(self):
+        tuple_ = {"type": "array", "items": {"oneOf": [{"type": "number"}, {"type": "object"}]}}
+        schema = {"type": "object", "properties": {
+            "chart": {"type": "array", "items": tuple_},
+            "point": tuple_,
+        }}
+        self.assertEqual(sample({}, schema, first), {"chart": [], "point": []})
+
     def test_maps_use_an_example_key(self):
         schema = {"type": "object", "additionalProperties": {"type": "number"}}
         self.assertEqual(sample({}, schema, first, {"usd": 2.5}), {"usd": 1})
 
-    def test_extract_skips_operations_without_examples(self):
+    def test_extract_keeps_schema_only_operations(self):
         def op(op_id, example=None):
             media = {"schema": {"type": "object", "properties": {"x": {"type": "string"}}}}
             if example is not None:
@@ -57,7 +76,45 @@ class SampleTest(unittest.TestCase):
         doc = {"paths": {"/b": op("b", {"x": "y"}), "/a": op("a")}}
         self.assertEqual(
             extract(doc),
-            {"b": {"path": "/b", "example": {"x": "y"}, "sample": {"x": "1"}}},
+            {
+                "a": {"path": "/a", "sample": {"x": "1"}},
+                "b": {"path": "/b", "example": {"x": "y"}, "sample": {"x": "1"}},
+            },
+        )
+
+    def test_extract_other_methods_and_operations_without_ids(self):
+        schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+        doc = {"paths": {"/orders": {
+            "post": {"responses": {"201": {"content": {"application/json; charset=utf-8": {"schema": schema}}}}},
+            "delete": {"responses": {"204": {"description": "no body"}}},
+        }}}
+        self.assertEqual(
+            extract(doc),
+            {"POST /orders": {"path": "/orders", "method": "POST", "sample": {"ok": True}}},
+        )
+
+    def test_extract_records_per_path_servers(self):
+        media = {"application/json": {"schema": {"type": "integer"}}}
+        doc = {"paths": {"/chart/{pool}": {
+            "servers": [{"url": "https://yields.example"}],
+            "get": {"operationId": "chart", "responses": {"200": {"content": media}}},
+        }}}
+        self.assertEqual(
+            extract(doc),
+            {"chart": {"path": "/chart/{pool}", "server": "https://yields.example", "sample": 1}},
+        )
+
+    def test_extract_swagger2(self):
+        doc = {
+            "definitions": {"Thing": {"type": "object", "properties": {"id": {"type": "integer"}}}},
+            "paths": {"/things": {"get": {"operationId": "things", "responses": {"200": {
+                "schema": {"type": "array", "items": {"$ref": "#/definitions/Thing"}},
+                "examples": {"application/json": [{"id": 7}]},
+            }}}}},
+        }
+        self.assertEqual(
+            extract(doc),
+            {"things": {"path": "/things", "example": [{"id": 7}], "sample": [{"id": 1}]}},
         )
 
 

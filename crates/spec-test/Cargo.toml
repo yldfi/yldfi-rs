@@ -1,0 +1,11 @@
+[package]
+name = "yldfi-spec-test"
+version = "0.0.0"
+edition = "2021"
+description = "Test harness: checks API client response types against providers' OpenAPI examples"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

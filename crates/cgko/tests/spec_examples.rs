@@ -9,28 +9,10 @@
 //! crates/cgko/tests/spec_examples.json`.
 
 use cgko::{categories, coins, derivatives, exchanges, global, nfts, onchain, simple, treasury};
-use serde::de::DeserializeOwned;
-use serde_json::Value;
-use std::collections::BTreeMap;
 
-type Check = fn(&Value) -> Result<(), String>;
-
-fn parse<T: DeserializeOwned>(v: &Value) -> Result<(), String> {
-    serde_json::from_value::<T>(v.clone())
-        .map(drop)
-        .map_err(|e| e.to_string())
-}
-
-/// operationId -> the crate's response type for it
-fn checks() -> BTreeMap<&'static str, Check> {
-    macro_rules! map {
-        ($($op:literal => $ty:ty),* $(,)?) => {{
-            let mut m: BTreeMap<&'static str, Check> = BTreeMap::new();
-            $( m.insert($op, parse::<$ty>); )*
-            m
-        }};
-    }
-    map! {
+yldfi_spec_test::spec_tests! {
+    file: "spec_examples.json",
+    checks: {
         // Simple
         "simple-price" => simple::PricesResponse,
         "simple-supported-currencies" => simple::SupportedCurrencies,
@@ -128,12 +110,10 @@ fn checks() -> BTreeMap<&'static str, Check> {
         "token-trades-contract-address" => onchain::TokenTradesResponse,
         "pool-liquidity-events-contract-address" => onchain::LiquidityEventsResponse,
         "onchain-simple-price" => onchain::TokenPriceResponse,
-    }
-}
-
-/// Spec operations this crate does not implement yet. Adding an endpoint
-/// means moving it from here into `checks()`.
-const NOT_IMPLEMENTED: &[&str] = &[
+    },
+    // Spec operations this crate does not implement yet. Adding an endpoint
+    // means moving it from here into `checks`.
+    not_implemented: [
     "coins-id-supply-breakdown",
     "insights",
     "news",
@@ -152,64 +132,5 @@ const NOT_IMPLEMENTED: &[&str] = &[
     "wallet-token-balances",
     "wallet-token-transfers",
     "wallet-trades",
-];
-
-/// operationId -> its `example`, `sample` and `sample2` responses
-fn examples() -> BTreeMap<String, Value> {
-    let text = include_str!("spec_examples.json");
-    serde_json::from_str(text).expect("spec_examples.json")
-}
-
-fn check_all(kind: &str) {
-    let examples = examples();
-    let mut failures = Vec::new();
-    for (op, check) in checks() {
-        let Some(entry) = examples.get(op) else {
-            failures.push(format!("{op}: not in spec_examples.json"));
-            continue;
-        };
-        if let Some(value) = entry.get(kind) {
-            if let Err(e) = check(value) {
-                failures.push(format!("{op}: {e}"));
-            }
-        }
-    }
-    assert!(
-        failures.is_empty(),
-        "{} spec {kind}(s) failed to deserialize:\n  {}",
-        failures.len(),
-        failures.join("\n  ")
-    );
-}
-
-/// The spec's own example responses
-#[test]
-fn spec_examples_deserialize() {
-    check_all("example");
-}
-
-/// Responses built from the schema, with every field present
-#[test]
-fn spec_schema_samples_deserialize() {
-    check_all("sample");
-}
-
-/// The same, taking the last alternative where a field may be one of
-/// several types
-#[test]
-fn spec_schema_alternative_samples_deserialize() {
-    check_all("sample2");
-}
-
-#[test]
-fn every_spec_operation_is_checked_or_listed() {
-    let checks = checks();
-    let unknown: Vec<_> = examples()
-        .into_keys()
-        .filter(|op| !checks.contains_key(op.as_str()) && !NOT_IMPLEMENTED.contains(&op.as_str()))
-        .collect();
-    assert!(
-        unknown.is_empty(),
-        "spec operations neither checked nor listed in NOT_IMPLEMENTED: {unknown:?}"
-    );
+    ],
 }

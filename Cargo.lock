@@ -1349,6 +1349,7 @@ dependencies = [
  "tokio",
  "url",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]
@@ -6228,6 +6229,14 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "yldfi-spec-test"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
