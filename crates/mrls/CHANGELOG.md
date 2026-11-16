@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.2...mrls-v0.3.3) (2026-11-16)
+
+
+### Bug Fixes
+
+* **mrls:** accept Moralis numbers sent as strings, and two response shapes ([#224](https://github.com/yldfi/yldfi-rs/issues/224)) ([cae16b8](https://github.com/yldfi/yldfi-rs/commit/cae16b8209a6bd67e92e9deddd379fd0a196cdfd))
+
 ## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.1...mrls-v0.3.2) (2026-11-09)
 
 

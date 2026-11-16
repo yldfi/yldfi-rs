@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/ensof-v0.2.1...ensof-v0.2.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **ensof:** read multi-token and async route amounts, string prices ([#230](https://github.com/yldfi/yldfi-rs/issues/230)) ([a92b13c](https://github.com/yldfi/yldfi-rs/commit/a92b13c71d1a5547c2f7eb6d417dfd1bd30e3d74))
+
 ## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/ensof-v0.2.0...ensof-v0.2.1) (2026-11-09)
 
 

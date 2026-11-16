@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.3.0...lfi-v0.3.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **lfi:** read fractional gas prices and step durations ([#228](https://github.com/yldfi/yldfi-rs/issues/228)) ([1e41bce](https://github.com/yldfi/yldfi-rs/commit/1e41bce526738ffe7d3e12d9609109c1afef5b79))
+
 ## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.2.1...lfi-v0.3.0) (2026-11-09)
 
 

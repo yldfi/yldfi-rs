@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.4.0...alcmy-v0.4.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **alcmy:** accept NFT API numbers sent as strings, and new token types ([#226](https://github.com/yldfi/yldfi-rs/issues/226)) ([c8d0a74](https://github.com/yldfi/yldfi-rs/commit/c8d0a74d6c0892a32767822913e6129e32a7e6c7))
+
 ## [0.4.0](https://github.com/yldfi/yldfi-rs/compare/alcmy-v0.3.1...alcmy-v0.4.0) (2026-11-09)
 
 
