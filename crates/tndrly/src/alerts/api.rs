@@ -195,6 +195,18 @@ impl AlertOrEnvelope {
 
 #[cfg(test)]
 mod tests {
+    /// Tenderly's own example response for updating an alert
+    const SPEC_ALERT: &str = r##"{"alert": {"id": "510b9e97-5d94-430b-9904-1c6db2a473b2", "project_id": "dfdc391a-a15d-4590-9aef-8691259c7df4", "name": "Failed transaction in TetherToken", "description": "", "enabled": true, "color": "#ff5252", "severity": "danger", "created_at": "2023-12-13T12:30:57.416129Z", "delivery_channels": [{"delivery_channel_id": "b16b4b75-e034-44c9-a053-f10d769a1d64", "delivery_channel": {"id": "b16b4b75-e034-44c9-a053-f10d769a1d64", "type": "email", "owner_id": "7d5e8b1f-8bf8-4eae-a70f-fb7d354b1cc2", "project_id": null, "label": "Email: vanja@tenderly.co", "reference_id": "vanja@tenderly.co", "enabled": true, "created_at": "2022-04-13T14:30:10.920586Z", "information": {"email": "vanja@tenderly.co", "emails": ["vanja@tenderly.co"]}}, "enabled": true, "created_at": "2023-12-13T12:31:04.794397Z"}], "is_editable": true, "updated_at": "2023-12-13T12:31:04.799929504Z", "expressions": [{"type": "contract_address", "expression": {"address": "0xdac17f958d2ee523a2206206994597c13d831ec7", "transaction_type": null}}, {"type": "network", "expression": {"network_id": "1"}}, {"type": "tx_status", "expression": {"transaction_success": false}}]}}"##;
+
+    #[test]
+    fn alert_or_envelope_reads_the_spec_example_and_a_bare_alert() {
+        let wrapped: AlertOrEnvelope = serde_json::from_str(SPEC_ALERT).unwrap();
+        let alert = wrapped.into_alert();
+        let bare: serde_json::Value = serde_json::from_str(SPEC_ALERT).unwrap();
+        let bare: AlertOrEnvelope = serde_json::from_value(bare["alert"].clone()).unwrap();
+        assert_eq!(bare.into_alert().id, alert.id);
+    }
+
     use super::*;
     use crate::alerts::{AlertExpression, AlertType, ExpressionType};
 
