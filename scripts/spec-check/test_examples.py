@@ -28,6 +28,14 @@ class SampleTest(unittest.TestCase):
             {"n": 1, "i": 1, "s": "1", "b": True, "e": "coin"},
         )
 
+    def test_shapeless_nested_objects_are_left_out(self):
+        schema = {"type": "object", "properties": {
+            "gas": {"oneOf": [{"type": "object", "properties": {}}, {"type": "null"}]},
+            "price": {"type": "string"},
+            "list": {"type": "array", "items": {"type": "object"}},
+        }}
+        self.assertEqual(sample({}, schema, first), {"price": "1", "list": []})
+
     def test_all_of_a_scalar_is_that_scalar(self):
         doc = {"components": {"schemas": {"Amount": {"type": "string"}}}}
         schema = {"type": "object", "properties": {

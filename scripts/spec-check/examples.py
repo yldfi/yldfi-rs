@@ -54,12 +54,18 @@ def is_scalar(doc, schema):
     return isinstance(schema, dict) and schema.get("type") in SCALARS
 
 
-# Marks a tuple whose shape the spec does not give; never written out
+# Mark a tuple, or an object, whose shape the spec does not give; never
+# written out
 UNKNOWN_TUPLE = object()
+UNKNOWN_SHAPE = object()
 
 
 def known(value):
-    return [] if value is UNKNOWN_TUPLE else value
+    if value is UNKNOWN_TUPLE:
+        return []
+    if value is UNKNOWN_SHAPE:
+        return {}
+    return value
 
 
 def sample(doc, schema, pick, example=None, depth=0):
@@ -97,13 +103,17 @@ def sample(doc, schema, pick, example=None, depth=0):
         kind = next((k for k in kind if k != "null"), None)
     if kind == "object" or "properties" in schema:
         if not schema.get("properties") and not isinstance(schema.get("additionalProperties"), dict):
-            # No fields described: only an example says what is in it
-            return example if isinstance(example, dict) else {}
+            # No fields described: only an example says what is in it.
+            # Without one the shape is unknown, and the field is left out
+            # rather than sent as `{}` (some generated specs, such as 0x's,
+            # write `type: object, properties: {}` for plain strings)
+            return example if isinstance(example, dict) else UNKNOWN_SHAPE
         sub = example if isinstance(example, dict) else {}
-        out = {
-            name: known(sample(doc, prop, pick, sub.get(name), depth + 1))
-            for name, prop in schema.get("properties", {}).items()
-        }
+        out = {}
+        for name, prop in schema.get("properties", {}).items():
+            value = sample(doc, prop, pick, sub.get(name), depth + 1)
+            if value is not UNKNOWN_SHAPE:
+                out[name] = known(value)
         extra = schema.get("additionalProperties")
         if isinstance(extra, dict) and not out:
             key, value = next(iter(sub.items()), ("key", None))
@@ -125,7 +135,7 @@ def sample(doc, schema, pick, example=None, depth=0):
             return UNKNOWN_TUPLE
         first = example[0] if isinstance(example, list) and example else None
         item = sample(doc, items, pick, first, depth + 1)
-        if item is None or item is UNKNOWN_TUPLE:
+        if item is None or item is UNKNOWN_TUPLE or item is UNKNOWN_SHAPE:
             # An empty list still checks the types around it
             return []
         if is_scalar(doc, items) and isinstance(example, list) and example:
