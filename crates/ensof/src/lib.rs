@@ -632,7 +632,7 @@ mod tests {
             "GET /api/v1/wallet/approve?chainId=1&fromAddress=0xf&tokenAddress=0xt&amount=1000 HTTP/1.1"
         );
         assert_eq!(approve.tx.data, "0x095ea7b3");
-        assert_eq!(approve.tx.value, "");
+        assert_eq!(approve.tx.value, "0");
         assert_eq!(approve.gas.as_deref(), Some("50000"));
         assert_eq!(approve.spender.as_deref(), Some("0xs"));
     }

@@ -431,9 +431,15 @@ pub struct TransactionData {
     pub from: String,
     /// Encoded calldata
     pub data: String,
-    /// Value to send (for native token swaps); empty when Enso leaves it out
-    #[serde(default)]
+    /// Value to send in wei (for native token swaps); `"0"` when Enso
+    /// leaves it out, as it does for approvals
+    #[serde(default = "zero_value")]
     pub value: String,
+}
+
+/// Default `TransactionData::value`: no native token is sent
+fn zero_value() -> String {
+    "0".to_string()
 }
 
 /// Route step in the swap path
