@@ -1924,7 +1924,7 @@ dependencies = [
 
 [[package]]
 name = "dllma"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "reqwest 0.12.28",
  "secrecy",
@@ -1950,6 +1950,7 @@ dependencies = [
  "tokio",
  "wiremock",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]

@@ -13,7 +13,7 @@
 * The following workspace dependencies were updated
   * dependencies
     * alcmy bumped from 0.4.0 to 0.4.1
-    * dllma bumped from 0.2.2 to 0.2.3
+    * dllma bumped from 0.2.2 to 0.3.0
     * mrls bumped from 0.3.2 to 0.3.3
     * lfi bumped from 0.3.0 to 0.3.1
     * ensof bumped from 0.2.1 to 0.2.2

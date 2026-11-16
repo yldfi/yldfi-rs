@@ -90,7 +90,7 @@ chrono = "0.4"  # Timestamp formatting for CEX commands
 # API clients
 alcmy = { version = "0.4.1", path = "../alcmy" }
 cgko = { version = "0.3.0", path = "../cgko" }
-dllma = { version = "0.2.3", path = "../dllma" }
+dllma = { version = "0.3.0", path = "../dllma" }
 mrls = { version = "0.3.3", path = "../mrls" }
 dnapi = { version = "0.3.2", path = "../dnapi" }
 crv = { version = "0.2.3", path = "../crv" }
