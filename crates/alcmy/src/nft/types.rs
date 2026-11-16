@@ -1,6 +1,67 @@
 //! Types for the NFT API
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// A count or block number Alchemy sends as a number or as a decimal string
+fn opt_u64_flex<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Number(n) => n
+            .as_u64()
+            .map(Some)
+            .ok_or_else(|| D::Error::custom(format!("expected an unsigned integer, got {n}"))),
+        serde_json::Value::String(s) if s.is_empty() => Ok(None),
+        serde_json::Value::String(s) => s.parse().map(Some).map_err(D::Error::custom),
+        other => Err(D::Error::custom(format!(
+            "expected a number or numeric string, got {other}"
+        ))),
+    }
+}
+
+/// [`opt_u64_flex`] for required fields
+fn u64_flex<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    opt_u64_flex(deserializer)?
+        .ok_or_else(|| serde::de::Error::custom("expected a count, got null"))
+}
+
+/// A price Alchemy sends as a number or as a decimal string
+fn opt_f64_flex<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Number(n) => Ok(n.as_f64()),
+        serde_json::Value::String(s) if s.is_empty() => Ok(None),
+        serde_json::Value::String(s) => s.parse().map(Some).map_err(D::Error::custom),
+        other => Err(D::Error::custom(format!(
+            "expected a number or numeric string, got {other}"
+        ))),
+    }
+}
+
+/// A value Alchemy sends as a string or as a bare number, kept as a string
+fn required_string_or_number<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        other => Err(D::Error::custom(format!(
+            "expected a string or number, got {other}"
+        ))),
+    }
+}
 
 /// NFT token type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -10,6 +71,9 @@ pub enum NftTokenType {
     Erc1155,
     NoSupportedNftStandard,
     NotAContract,
+    /// `UNKNOWN`, and any token type this version does not know, so a new
+    /// type does not fail the whole response
+    #[serde(other)]
     Unknown,
 }
 
@@ -42,6 +106,7 @@ pub struct ContractMetadata {
     pub total_supply: Option<String>,
     pub token_type: Option<NftTokenType>,
     pub contract_deployer: Option<String>,
+    #[serde(default, deserialize_with = "opt_u64_flex")]
     pub deployed_block_number: Option<u64>,
     pub opensea_metadata: Option<OpenSeaMetadata>,
 }
@@ -50,6 +115,7 @@ pub struct ContractMetadata {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenSeaMetadata {
+    #[serde(default, deserialize_with = "opt_f64_flex")]
     pub floor_price: Option<f64>,
     pub collection_name: Option<String>,
     pub collection_slug: Option<String>,
@@ -71,6 +137,7 @@ pub struct NftImage {
     pub thumbnail_url: Option<String>,
     pub png_url: Option<String>,
     pub content_type: Option<String>,
+    #[serde(default, deserialize_with = "opt_u64_flex")]
     pub size: Option<u64>,
     pub original_url: Option<String>,
 }
@@ -107,6 +174,7 @@ pub struct Nft {
     pub raw: Option<NftRawMetadata>,
     #[serde(default)]
     pub attributes: Vec<NftAttribute>,
+    #[serde(default, deserialize_with = "string_or_number")]
     pub balance: Option<String>,
     pub acquired_at: Option<AcquiredAt>,
     pub collection: Option<CollectionInfo>,
@@ -129,6 +197,7 @@ pub struct CollectionInfo {
 #[serde(rename_all = "camelCase")]
 pub struct MintInfo {
     pub mint_address: Option<String>,
+    #[serde(default, deserialize_with = "opt_u64_flex")]
     pub block_number: Option<u64>,
     pub timestamp: Option<String>,
     pub transaction_hash: Option<String>,
@@ -139,6 +208,7 @@ pub struct MintInfo {
 #[serde(rename_all = "camelCase")]
 pub struct AcquiredAt {
     pub block_timestamp: Option<String>,
+    #[serde(default, deserialize_with = "opt_u64_flex")]
     pub block_number: Option<u64>,
 }
 
@@ -147,6 +217,7 @@ pub struct AcquiredAt {
 #[serde(rename_all = "camelCase")]
 pub struct OwnedNftsResponse {
     pub owned_nfts: Vec<Nft>,
+    #[serde(deserialize_with = "u64_flex")]
     pub total_count: u64,
     pub valid_at: Option<BlockInfo>,
     pub page_key: Option<String>,
@@ -161,7 +232,7 @@ pub struct OwnedNftsResponse {
 pub struct OwnedBaseNft {
     pub contract_address: String,
     pub token_id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "string_or_number")]
     pub balance: Option<String>,
 }
 
@@ -171,7 +242,7 @@ pub struct OwnedBaseNft {
 pub struct OwnedBaseNftsResponse {
     #[serde(default)]
     pub owned_nfts: Vec<OwnedBaseNft>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "u64_flex")]
     pub total_count: u64,
     #[serde(default)]
     pub valid_at: Option<BlockInfo>,
@@ -183,6 +254,7 @@ pub struct OwnedBaseNftsResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockInfo {
+    #[serde(default, deserialize_with = "opt_u64_flex")]
     pub block_number: Option<u64>,
     pub block_hash: Option<String>,
     pub block_timestamp: Option<String>,
@@ -208,13 +280,34 @@ pub struct OwnersForContractResponse {
 }
 
 /// One entry of [`OwnersForContractResponse::owners`]
-#[derive(Debug, Clone, Deserialize, Serialize)]
+///
+/// Parsed by hand rather than as an untagged enum, which cannot read numbers
+/// when serde_json's `arbitrary_precision` feature is on.
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum ContractOwner {
     /// Owner address (default response)
     Address(String),
     /// Owner with token balances (`withTokenBalances=true`)
     WithBalances(OwnerInfo),
+}
+
+impl<'de> Deserialize<'de> for ContractOwner {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        match serde_json::Value::deserialize(deserializer)? {
+            serde_json::Value::String(address) => Ok(Self::Address(address)),
+            value @ serde_json::Value::Object(_) => serde_json::from_value(value)
+                .map(Self::WithBalances)
+                .map_err(D::Error::custom),
+            other => Err(D::Error::custom(format!(
+                "expected an owner address or an owner with balances, got {other}"
+            ))),
+        }
+    }
 }
 
 impl ContractOwner {
@@ -241,6 +334,8 @@ pub struct OwnerInfo {
 #[serde(rename_all = "camelCase")]
 pub struct TokenBalance {
     pub token_id: String,
+    /// Balance (Alchemy sends a string or a number)
+    #[serde(deserialize_with = "required_string_or_number")]
     pub balance: String,
 }
 
@@ -249,6 +344,7 @@ pub struct TokenBalance {
 #[serde(rename_all = "camelCase")]
 pub struct ContractsForOwnerResponse {
     pub contracts: Vec<ContractWithMetadata>,
+    #[serde(deserialize_with = "u64_flex")]
     pub total_count: u64,
     pub page_key: Option<String>,
 }
@@ -259,7 +355,9 @@ pub struct ContractsForOwnerResponse {
 pub struct ContractWithMetadata {
     #[serde(flatten)]
     pub contract: ContractMetadata,
+    #[serde(default, deserialize_with = "string_or_number")]
     pub total_balance: Option<String>,
+    #[serde(default, deserialize_with = "string_or_number")]
     pub num_distinct_tokens_owned: Option<String>,
     pub is_spam: Option<bool>,
     pub image: Option<NftImage>,
@@ -336,10 +434,34 @@ pub struct ContractMetadataResponse {
 }
 
 /// Response for getContractMetadataBatch
-#[derive(Debug, Clone, Deserialize, Serialize)]
+///
+/// Reads `{"contracts": [...]}` and, as Alchemy's spec documents, a bare list
+/// of contracts.
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContractMetadataBatchResponse {
     pub contracts: Vec<ContractMetadata>,
+}
+
+impl<'de> Deserialize<'de> for ContractMetadataBatchResponse {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Wrapped {
+            contracts: Vec<ContractMetadata>,
+        }
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let contracts = if value.is_array() {
+            serde_json::from_value(value)
+        } else {
+            serde_json::from_value::<Wrapped>(value).map(|w| w.contracts)
+        };
+        contracts
+            .map(|contracts| Self { contracts })
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 /// Floor price response
@@ -356,6 +478,7 @@ pub struct FloorPriceResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FloorPriceMarketplace {
+    #[serde(default, deserialize_with = "opt_f64_flex")]
     pub floor_price: Option<f64>,
     pub price_currency: Option<String>,
     pub collection_url: Option<String>,
@@ -453,6 +576,50 @@ impl GetNftsForOwnerOptions {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unknown_token_types_read_as_unknown() {
+        let t: NftTokenType = serde_json::from_str(r#""ERC404""#).unwrap();
+        assert_eq!(t, NftTokenType::Unknown);
+        let t: NftTokenType = serde_json::from_str(r#""ERC1155""#).unwrap();
+        assert_eq!(t, NftTokenType::Erc1155);
+    }
+
+    #[test]
+    fn numbers_and_numeric_strings_both_read() {
+        let a: AcquiredAt =
+            serde_json::from_str(r#"{"blockTimestamp":"t","blockNumber":"18000000"}"#).unwrap();
+        assert_eq!(a.block_number, Some(18_000_000));
+        let a: AcquiredAt = serde_json::from_str(r#"{"blockNumber":18000000}"#).unwrap();
+        assert_eq!(a.block_number, Some(18_000_000));
+        let a: AcquiredAt = serde_json::from_str(r#"{"blockNumber":null}"#).unwrap();
+        assert!(a.block_number.is_none());
+        let b: TokenBalance = serde_json::from_str(r#"{"tokenId":"1","balance":2}"#).unwrap();
+        assert_eq!(b.balance, "2");
+        let b: TokenBalance = serde_json::from_str(r#"{"tokenId":"1","balance":"3"}"#).unwrap();
+        assert_eq!(b.balance, "3");
+    }
+
+    #[test]
+    fn contract_owner_reads_address_or_balances() {
+        let owners: Vec<ContractOwner> = serde_json::from_str(
+            r#"["0xabc",{"ownerAddress":"0xdef","tokenBalances":[{"tokenId":"7","balance":1}]}]"#,
+        )
+        .unwrap();
+        assert_eq!(owners[0].address(), "0xabc");
+        assert_eq!(owners[1].address(), "0xdef");
+        assert!(serde_json::from_str::<ContractOwner>("5").is_err());
+    }
+
+    #[test]
+    fn contract_metadata_batch_reads_list_or_object() {
+        let list: ContractMetadataBatchResponse =
+            serde_json::from_str(r#"[{"address":"0x1"}]"#).unwrap();
+        let obj: ContractMetadataBatchResponse =
+            serde_json::from_str(r#"{"contracts":[{"address":"0x1"}]}"#).unwrap();
+        assert_eq!(list.contracts.len(), 1);
+        assert_eq!(obj.contracts.len(), 1);
+    }
+
     use super::*;
 
     fn owned(json: serde_json::Value) -> OwnedNftsResponse {

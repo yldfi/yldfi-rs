@@ -1,0 +1,69 @@
+{
+ "get-historical-token-prices": {
+  "path": "/{apiKey}/tokens/historical",
+  "method": "POST",
+  "sample": {
+   "symbol": "1",
+   "currency": "1",
+   "data": [
+    {
+     "value": "1",
+     "timestamp": "1",
+     "marketCap": "1",
+     "totalVolume": "1"
+    }
+   ]
+  },
+  "sample2": {
+   "network": "1",
+   "address": "1",
+   "currency": "1",
+   "data": [
+    {
+     "value": "1",
+     "timestamp": "1",
+     "marketCap": "1",
+     "totalVolume": "1"
+    }
+   ]
+  }
+ },
+ "get-token-prices-by-address": {
+  "path": "/{apiKey}/tokens/by-address",
+  "method": "POST",
+  "sample": {
+   "data": [
+    {
+     "network": "1",
+     "address": "1",
+     "prices": [
+      {
+       "currency": "1",
+       "value": "1",
+       "lastUpdatedAt": "1"
+      }
+     ],
+     "error": "1"
+    }
+   ]
+  }
+ },
+ "get-token-prices-by-symbol": {
+  "path": "/{apiKey}/tokens/by-symbol",
+  "sample": {
+   "data": [
+    {
+     "symbol": "1",
+     "prices": [
+      {
+       "currency": "1",
+       "value": "1",
+       "lastUpdatedAt": "1"
+      }
+     ],
+     "error": "1"
+    }
+   ]
+  }
+ }
+}

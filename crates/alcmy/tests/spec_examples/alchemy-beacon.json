@@ -1,0 +1,1369 @@
+{
+ "GET /eth/v1/beacon/blinded_blocks/{block_id}": {
+  "path": "/eth/v1/beacon/blinded_blocks/{block_id}",
+  "example": {
+   "version": "electra",
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "message": {
+     "slot": "1",
+     "proposer_index": "1",
+     "parent_root": "0xfb31daa6101912aa79e36ad6dd7855cd2bc8b815bca9fabdfb67e6cacf584675",
+     "state_root": "0xc6e15c23bfdac16571045506f720ab4ec8c56e48991c519a48dc908775ea1d21",
+     "body": {
+      "randao_reveal": "0xb17165349aea618941de957b402be1a1389525d87ff7fc279ea2143c5100762f519c7a020384b61730de6264be8cd8ab0b5ac81bb318f25eb3c225ac6fe795f1673588f1e821ad06ef5536dc9518c0415b44f93587dabef1b0e2ecdbe3ea89eb",
+      "eth1_data": {
+       "deposit_root": "0x2ebc563cabdbbacbc56f0de1d2d1c2d5315a4b071fcd8566aabbf0a45161c64e.",
+       "deposit_count": "1",
+       "block_hash": "0x0958d83550263ff0d9f9a0bc5ea3cd2a136e0933b6f43cbb17f36e4da8d809b1"
+      },
+      "graffiti": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "proposer_slashings": [],
+      "attester_slashings": [],
+      "attestations": [],
+      "deposits": [],
+      "voluntary_exits": [],
+      "sync_aggregate": {
+       "sync_committee_bits": "0xfffffffffffffffffffffffffffffffbffffff7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbfffffffffffdfffffff",
+       "sync_committee_signature": "0x9136e6660f3c8abf726639a9e9814671d215fbc2975afa8cae3c8e9144616660b9809fa6ed7e44744cc4a8071e21944e0cb217661b293390d12a1a69866d703992c689bf49d487b05f0929492f2a68a36efd361d2f65d4cf689e1804bab9d979"
+      },
+      "bls_to_execution_changes": [],
+      "blob_kzg_commitments": [],
+      "execution_payload_header": {
+       "parent_hash": "0xb621b64ad77c6a789fbfc34bc5945851a0e583fa859a9e5dc2f2927e8298bd97",
+       "fee_recipient": "0x396343362be2a4da1ce0c1c210945346fb82aa49",
+       "state_root": "0xad75af7b799b4b7366609705769818174427d349961f1b3002774169e38dd5f9",
+       "receipts_root": "0x6b45e493bc93a2803e4af1e91988d8cc7254741baed70f67e8b8f2ad453884ea",
+       "logs_bloom": "0x00...",
+       "prev_randao": "0x9fce095f1f0b3c977503e04467b6bf9ea83cb50c6e5321f66ae06e3ea27c2d87",
+       "block_number": "23088792",
+       "gas_limit": "44912026",
+       "gas_used": "15221062",
+       "timestamp": "1754564939",
+       "extra_data": "0xe29ca82051756173617220287175617361722e77696e2920e29ca8",
+       "base_fee_per_gas": "1003546327",
+       "blob_gas_used": "1048576",
+       "excess_blob_gas": "2228224",
+       "block_hash": "0x6609ed5a861d5208061bb53ec034365bd9c19f9abb16ffb0b841c295fb98e422",
+       "transactions_root": "0x46dcf07b05940e27f9874fb18d4b48daa787e5ebfdb655bbb86c4d14efca2918",
+       "withdrawals_root": "0x11c64584cf1052c0f73f20933a7887b512df8416e5ca3015739bcaeb03870ce2"
+      },
+      "execution_requests": {
+       "deposits": [],
+       "withdrawals": [],
+       "consolidations": []
+      }
+     }
+    },
+    "signature": "0xb5670662afcb921b4e92b5378f33f110f0281c5d13b57fa6a7d6119481ed6f54435034337e4fe3eb0dae3a12b307a5d81a00d64df8c0c00f2b9926233e623e853b3d7cde2f10aa1e4b54c7e1e585bc144e22397dea647404657a23f740e0f35e"
+   }
+  },
+  "sample": {
+   "version": "1",
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "message": {
+     "slot": "1",
+     "proposer_index": "1",
+     "parent_root": "1",
+     "state_root": "1",
+     "body": {
+      "randao_reveal": "1",
+      "eth1_data": {
+       "deposit_root": "1",
+       "deposit_count": "1",
+       "block_hash": "1"
+      },
+      "graffiti": "1",
+      "proposer_slashings": [
+       {
+        "signed_header_1": {
+         "message": {
+          "slot": "1",
+          "proposer_index": "1",
+          "parent_root": "1",
+          "state_root": "1",
+          "body_root": "1"
+         },
+         "signature": "1"
+        },
+        "signed_header_2": {
+         "message": {
+          "slot": "1",
+          "proposer_index": "1",
+          "parent_root": "1",
+          "state_root": "1",
+          "body_root": "1"
+         },
+         "signature": "1"
+        }
+       }
+      ],
+      "attester_slashings": [
+       {}
+      ],
+      "attestations": [
+       {
+        "aggregation_bits": "1",
+        "data": {
+         "slot": "1",
+         "index": "1",
+         "beacon_block_root": "1",
+         "source": {
+          "epoch": "1",
+          "root": "1"
+         },
+         "target": {
+          "epoch": "1",
+          "root": "1"
+         }
+        },
+        "signature": "1",
+        "committee_bits": "1"
+       }
+      ],
+      "deposits": [
+       {}
+      ],
+      "voluntary_exits": [
+       {}
+      ],
+      "sync_aggregate": {
+       "sync_committee_bits": "1",
+       "sync_committee_signature": "1"
+      },
+      "bls_to_execution_changes": [
+       {}
+      ],
+      "blob_kzg_commitments": [
+       "1"
+      ],
+      "execution_payload_header": {
+       "parent_hash": "1",
+       "fee_recipient": "1",
+       "state_root": "1",
+       "receipts_root": "1",
+       "logs_bloom": "1",
+       "prev_randao": "1",
+       "block_number": "1",
+       "gas_limit": "1",
+       "gas_used": "1",
+       "timestamp": "1",
+       "extra_data": "1",
+       "base_fee_per_gas": "1",
+       "blob_gas_used": "1",
+       "excess_blob_gas": "1",
+       "block_hash": "1",
+       "transactions_root": "1",
+       "withdrawals_root": "1"
+      },
+      "execution_requests": {
+       "deposits": [
+        {}
+       ],
+       "withdrawals": [
+        {}
+       ],
+       "consolidations": [
+        {}
+       ]
+      }
+     }
+    },
+    "signature": "1"
+   }
+  }
+ },
+ "GET /eth/v1/beacon/blob_sidecars/{block_id}": {
+  "path": "/eth/v1/beacon/blob_sidecars/{block_id}",
+  "example": {
+   "version": "electra",
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": [
+    {
+     "index": "0",
+     "blob": "0x1bba050000000000000000000000000000000000000000000000000000000000",
+     "kzg_commitment": "0x9721f6bddeb94fe4bc809c63300cbb399ca7a04f5f75d7cf8c1ab9748b48aa37d7984353bc4bb2f6ac340289602b5690",
+     "kzg_proof": "0x9834b06604317c27b6be7d1afb1b554bd8cd389d7c0895e7d4d3ce86e080493238b5fc2a845ebaf9d91c0b132f3a9799",
+     "signed_block_header": {
+      "message": {
+       "slot": "12304801",
+       "proposer_index": "354571",
+       "parent_root": "0x18a7f340369eb4459e2274fc3eb98aad725351a9031fe3cbea8e75e888d5f78d",
+       "state_root": "0x94c85d613e6ac2db8aa7cd03ba14e2c4d5da01f9ce80982ea42071d2f476a2aa",
+       "body_root": "0x1b003d536c816c724abe2155314b88172b415eed0188c93eea1490d4c997b09a"
+      },
+      "signature": "0x9246ca0bf19832b17da41cce8456bc5fe426306607557f44a115a0070c886c9e30fa72e1102e8d8bbb3303cc44f5715c17db0b7c25959d828e4b555c1763dbad111f4cbed00cb3ac6447affec07976339bd799145b24d75ce0127eeae76d9640"
+     },
+     "kzg_commitment_inclusion_proof": [
+      "0x2816498e2a6e7dfb3397712273c67699cebc8c18502a18a743629287ae80b940",
+      "0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b",
+      "0x4f4e84e7c7d803068cf23187f44b8f8e18175c62ea1730d06c42573ef2494526",
+      "0xc78009fdf07fc56a11f122370658a353aaa542ed63e44c4bc15ff4cd105ab33c"
+     ]
+    }
+   ]
+  },
+  "sample": {
+   "version": "1",
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "index": "1",
+     "blob": "1",
+     "kzg_commitment": "1",
+     "kzg_proof": "1",
+     "signed_block_header": {
+      "message": {
+       "slot": "1",
+       "proposer_index": "1",
+       "parent_root": "1",
+       "state_root": "1",
+       "body_root": "1"
+      },
+      "signature": "1"
+     },
+     "kzg_commitment_inclusion_proof": [
+      "1",
+      "1",
+      "1",
+      "1"
+     ]
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/beacon/blocks/{block_id}/root": {
+  "path": "/eth/v1/beacon/blocks/{block_id}/root",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "root": "0xf8f483ed7ddcdd9c172789a6811607c74f980601071f02391ffb6824d7ceed44"
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "root": "1"
+   }
+  }
+ },
+ "GET /eth/v1/beacon/genesis": {
+  "path": "/eth/v1/beacon/genesis",
+  "example": {
+   "data": {
+    "genesis_time": "1606824023",
+    "genesis_validators_root": "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
+    "genesis_fork_version": "0x00000000"
+   }
+  },
+  "sample": {
+   "data": {
+    "genesis_time": "1",
+    "genesis_validators_root": "1",
+    "genesis_fork_version": "1"
+   }
+  }
+ },
+ "GET /eth/v1/beacon/headers": {
+  "path": "/eth/v1/beacon/headers",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": [
+    {
+     "root": "0x95656528b8dbed879305ffa67ed688f8e262b2dfa5f620e384056f49dec95267",
+     "canonical": true,
+     "header": {
+      "message": {
+       "slot": "12304896",
+       "proposer_index": "1093008",
+       "parent_root": "0x3590c9b1a918586a2dabde886abea7f26cfa3a11683be1ab73283e6af70733ba",
+       "state_root": "0xf5bcaecf4eeaf601cdce952429a40fbe1b3cc24c25baba21f5eed360f6e636f2",
+       "body_root": "0xb2d5058e1f4bc888fa4d6a859a88c975bee5d853aec239a2e67ecf92c3b2d6c5"
+      },
+      "signature": "0x8c5a8efa6e472c358dd7024fae6f6569cd60af754591ddc78ef9e9db287aa68cb7d38c171b96ae11d1b033c1f4921151021bc1d1f4541a5528d15e926d0ca8385286ca49670adcd0e8f26ec231895dc32d7146db55360e0f1ed5ab7757e34258"
+     }
+    }
+   ]
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "root": "1",
+     "canonical": true,
+     "header": {
+      "message": {
+       "slot": "1",
+       "proposer_index": "1",
+       "parent_root": "1",
+       "state_root": "1",
+       "body_root": "1"
+      },
+      "signature": "1"
+     }
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/beacon/headers/{block_id}": {
+  "path": "/eth/v1/beacon/headers/{block_id}",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "root": "0x352dd41c368cea0c91374483378ce9f65f7a7180ca6fa5e08ae17ca509d19c0c",
+    "canonical": true,
+    "header": {
+     "message": {
+      "slot": "12304928",
+      "proposer_index": "691971",
+      "parent_root": "0xbc985d8c2759cbc7cc71c0e228fe26198dc3194c5bdb01f84579f285c5165f96",
+      "state_root": "0x1010f4f05c6cdde0b1ca0cba5f3a39e00b2c13f774536513572b6fdd26d659dd",
+      "body_root": "0x1eec5d666b09799ad0b5e2909ba8393ef79b2aef2335ff41c0168066df5bd039"
+     },
+     "signature": "0x95aca2adcf0456e6b5a59bd0ff9267a884a10aaf5b2fce62f6d5df44edc3546edc17ba5891f6dc03885200b84ca5bef50f67c2d3fc7cfd0127e202b9bc3a084045b9daf0ac54c4309b6931e493415002272672e4520608af5fb821267821aa92"
+    }
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "root": "1",
+    "canonical": true,
+    "header": {
+     "message": {
+      "slot": "1",
+      "proposer_index": "1",
+      "parent_root": "1",
+      "state_root": "1",
+      "body_root": "1"
+     },
+     "signature": "1"
+    }
+   }
+  }
+ },
+ "GET /eth/v1/beacon/pool/voluntary_exits": {
+  "path": "/eth/v1/beacon/pool/voluntary_exits",
+  "example": {
+   "data": [
+    {
+     "message": {
+      "epoch": "261424",
+      "validator_index": "1180136"
+     },
+     "signature": "0xb3f71961be8f324ee67019db9b266d5fa0aa887a033ccdbc4f0d534af583ea3dac5edaf5b624e378745a63efce1cb9f108eee5b2c0ff61fb7d981dab91778fbc7f604f4ad1954889216a6256b37ce3395bbafc46fe008d349a65658ede2d26e1"
+    },
+    {
+     "message": {
+      "epoch": "382458",
+      "validator_index": "1698277"
+     },
+     "signature": "0xb27e369d96ff799b4a86c9ed961b4c2fbdceef1a2e2f6edad21e6d34b7ec719792f83f48337793061b4810b03047dacf10dbaa4c56939a5b177de63c782be6f06d226ff557d388328d50c99566042d8929585f14119684446a9c618c391502f6"
+    }
+   ]
+  },
+  "sample": {
+   "data": [
+    {
+     "message": {
+      "epoch": "1",
+      "validator_index": "1"
+     },
+     "signature": "1"
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/beacon/rewards/blocks/{block_id}": {
+  "path": "/eth/v1/beacon/rewards/blocks/{block_id}",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "proposer_index": "193817",
+    "total": "46942298",
+    "attestations": "45286422",
+    "sync_aggregate": "1655876",
+    "proposer_slashings": "0",
+    "attester_slashings": "0"
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "proposer_index": "1",
+    "total": "1",
+    "attestations": "1",
+    "sync_aggregate": "1",
+    "proposer_slashings": "1",
+    "attester_slashings": "1"
+   }
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/committees": {
+  "path": "/eth/v1/beacon/states/{state_id}/committees",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": [
+    {
+     "index": "0",
+     "slot": "12304512",
+     "validators": [
+      "1332420",
+      "641570",
+      "784221"
+     ]
+    },
+    {
+     "index": "1",
+     "slot": "12304512",
+     "validators": [
+      "900123",
+      "900456",
+      "900789"
+     ]
+    }
+   ]
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "index": "1",
+     "slot": "1",
+     "validators": [
+      "1",
+      "1",
+      "1"
+     ]
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/finality_checkpoints": {
+  "path": "/eth/v1/beacon/states/{state_id}/finality_checkpoints",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "previous_justified": {
+     "epoch": "384528",
+     "root": "0x95656528b8dbed879305ffa67ed688f8e262b2dfa5f620e384056f49dec95267"
+    },
+    "current_justified": {
+     "epoch": "384529",
+     "root": "0x352dd41c368cea0c91374483378ce9f65f7a7180ca6fa5e08ae17ca509d19c0c"
+    },
+    "finalized": {
+     "epoch": "384528",
+     "root": "0x95656528b8dbed879305ffa67ed688f8e262b2dfa5f620e384056f49dec95267"
+    }
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "previous_justified": {
+     "epoch": "1",
+     "root": "1"
+    },
+    "current_justified": {
+     "epoch": "1",
+     "root": "1"
+    },
+    "finalized": {
+     "epoch": "1",
+     "root": "1"
+    }
+   }
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/fork": {
+  "path": "/eth/v1/beacon/states/{state_id}/fork",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "previous_version": "0x04000000",
+    "current_version": "0x05000000",
+    "epoch": "364032"
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "previous_version": "1",
+    "current_version": "1",
+    "epoch": "1"
+   }
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/pending_consolidations": {
+  "path": "/eth/v1/beacon/states/{state_id}/pending_consolidations",
+  "example": {
+   "version": "electra",
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": [
+    {
+     "source_index": "1491340",
+     "target_index": "1491339"
+    },
+    {
+     "source_index": "1491347",
+     "target_index": "1491345"
+    }
+   ]
+  },
+  "sample": {
+   "version": "1",
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "source_index": "1",
+     "target_index": "1"
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/randao": {
+  "path": "/eth/v1/beacon/states/{state_id}/randao",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "randao": "0x8d4f4d6ec7e8f83a8a9b41bafc0b4a4c6e2d1e2b6e7c4c8b2f4a7a1d9e3c6f2"
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "randao": "1"
+   }
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/root": {
+  "path": "/eth/v1/beacon/states/{state_id}/root",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "root": "0xc9ebd508f4c6176153fd2df98b16ac51b24e2198bb8f6821da5085a70b7f7e2e"
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "root": "1"
+   }
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/sync_committees": {
+  "path": "/eth/v1/beacon/states/{state_id}/sync_committees",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "validators": [
+     "103943",
+     "986657",
+     "657591",
+     "874958"
+    ],
+    "validator_aggregates": [
+     [
+      "103943",
+      "986657"
+     ],
+     [
+      "657591",
+      "874958"
+     ]
+    ]
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "validators": [
+     "1",
+     "1",
+     "1",
+     "1"
+    ],
+    "validator_aggregates": [
+     [
+      "1",
+      "1"
+     ]
+    ]
+   }
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/validator_balances": {
+  "path": "/eth/v1/beacon/states/{state_id}/validator_balances",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": [
+    {
+     "index": "1",
+     "balance": "32000000000"
+    },
+    {
+     "index": "2",
+     "balance": "31950000000"
+    }
+   ]
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "index": "1",
+     "balance": "1"
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/validators": {
+  "path": "/eth/v1/beacon/states/{state_id}/validators",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": [
+    {
+     "index": "1",
+     "balance": "32000000000",
+     "status": "active_ongoing",
+     "validator": {
+      "pubkey": "0x93247f2209abcacf57b75a51dafae777f9dd38bc7053d1af526f220a7489a6d3a2753e5f3e8b1cfe39b56f43611df74a",
+      "withdrawal_credentials": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+      "effective_balance": "32000000000",
+      "slashed": false,
+      "activation_eligibility_epoch": "10",
+      "activation_epoch": "15",
+      "exit_epoch": "18446744073709551615",
+      "withdrawable_epoch": "18446744073709551615"
+     }
+    }
+   ]
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "index": "1",
+     "balance": "1",
+     "status": "1",
+     "validator": {
+      "pubkey": "1",
+      "withdrawal_credentials": "1",
+      "effective_balance": "1",
+      "slashed": true,
+      "activation_eligibility_epoch": "1",
+      "activation_epoch": "1",
+      "exit_epoch": "1",
+      "withdrawable_epoch": "1"
+     }
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/beacon/states/{state_id}/validators/{validator_id}": {
+  "path": "/eth/v1/beacon/states/{state_id}/validators/{validator_id}",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "index": "474200",
+    "balance": "2048384789135",
+    "status": "active_ongoing",
+    "validator": {
+     "pubkey": "0x842b273237caa03ff23a25e2664e5c9c6fb17342c0ec2f12b018cf0958cbe0e42f07500150bc5a9f8b44cfcf477e4a78",
+     "withdrawal_credentials": "0x02000000000000000000000039fd78fe6a72faae2ab5f1f053c253b2e3685c15",
+     "effective_balance": "2048000000000",
+     "slashed": false,
+     "activation_eligibility_epoch": "162210",
+     "activation_epoch": "162260",
+     "exit_epoch": "18446744073709551615",
+     "withdrawable_epoch": "18446744073709551615"
+    }
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "index": "1",
+    "balance": "1",
+    "status": "1",
+    "validator": {
+     "pubkey": "1",
+     "withdrawal_credentials": "1",
+     "effective_balance": "1",
+     "slashed": true,
+     "activation_eligibility_epoch": "1",
+     "activation_epoch": "1",
+     "exit_epoch": "1",
+     "withdrawable_epoch": "1"
+    }
+   }
+  }
+ },
+ "GET /eth/v1/config/deposit_contract": {
+  "path": "/eth/v1/config/deposit_contract",
+  "example": {
+   "data": {
+    "chain_id": "1",
+    "address": "0x00000000219ab540356cbb839cbe05303d7705fa"
+   }
+  },
+  "sample": {
+   "data": {
+    "chain_id": "1",
+    "address": "1"
+   }
+  }
+ },
+ "GET /eth/v1/config/fork_schedule": {
+  "path": "/eth/v1/config/fork_schedule",
+  "example": {
+   "data": [
+    {
+     "previous_version": "0x00000000",
+     "current_version": "0x00000000",
+     "epoch": "0"
+    },
+    {
+     "previous_version": "0x00000000",
+     "current_version": "0x01000000",
+     "epoch": "74240"
+    },
+    {
+     "previous_version": "0x01000000",
+     "current_version": "0x02000000",
+     "epoch": "144896"
+    },
+    {
+     "previous_version": "0x02000000",
+     "current_version": "0x03000000",
+     "epoch": "194048"
+    },
+    {
+     "previous_version": "0x03000000",
+     "current_version": "0x04000000",
+     "epoch": "269568"
+    },
+    {
+     "previous_version": "0x04000000",
+     "current_version": "0x05000000",
+     "epoch": "364032"
+    }
+   ]
+  },
+  "sample": {
+   "data": [
+    {
+     "previous_version": "1",
+     "current_version": "1",
+     "epoch": "1"
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/config/spec": {
+  "path": "/eth/v1/config/spec",
+  "example": {
+   "data": {
+    "CONFIG_NAME": "mainnet",
+    "PRESET_BASE": "mainnet",
+    "TERMINAL_TOTAL_DIFFICULTY": "58750000000000000000000",
+    "TERMINAL_BLOCK_HASH": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "TERMINAL_BLOCK_HASH_ACTIVATION_EPOCH": "18446744073709551615",
+    "MIN_GENESIS_ACTIVE_VALIDATOR_COUNT": "16384",
+    "MIN_GENESIS_TIME": "1606824000",
+    "GENESIS_FORK_VERSION": "0x00000000",
+    "ALTAIR_FORK_VERSION": "0x01000000",
+    "BELLATRIX_FORK_VERSION": "0x02000000",
+    "CAPELLA_FORK_VERSION": "0x03000000",
+    "DENEB_FORK_VERSION": "0x04000000",
+    "ELECTRA_FORK_VERSION": "0x05000000",
+    "FULU_FORK_VERSION": "0x06000000",
+    "SECONDS_PER_SLOT": "12",
+    "DEPOSIT_CHAIN_ID": "1",
+    "DEPOSIT_CONTRACT_ADDRESS": "0x00000000219ab540356cbb839cbe05303d7705fa"
+   }
+  },
+  "sample": {
+   "data": {
+    "CONFIG_NAME": "1"
+   }
+  }
+ },
+ "GET /eth/v1/debug/fork_choice": {
+  "path": "/eth/v1/debug/fork_choice",
+  "sample": {
+   "data": {}
+  }
+ },
+ "GET /eth/v1/node/peer_count": {
+  "path": "/eth/v1/node/peer_count",
+  "example": {
+   "data": {
+    "connected": "90",
+    "connecting": "0",
+    "disconnected": "520",
+    "disconnecting": "0"
+   }
+  },
+  "sample": {
+   "data": {
+    "disconnected": "1",
+    "connecting": "1",
+    "connected": "1",
+    "disconnecting": "1"
+   }
+  }
+ },
+ "GET /eth/v1/node/peers": {
+  "path": "/eth/v1/node/peers",
+  "example": {
+   "data": [
+    {
+     "peer_id": "16Uiu2HAmKBWSS9nVbC6wWiqYumsJpgahXTXfTcETChDPFrX7ME3n",
+     "enr": "enr:-MS4QJrTKMsIQZ8uT7BvXygCvABCPpIUIMrI1lUEwH...",
+     "last_seen_p2p_address": "/ip4/4.36.26.74/tcp/31060/p2p/16Uiu2HAmKB...",
+     "state": "disconnected",
+     "direction": "outbound"
+    },
+    {
+     "peer_id": "16Uiu2HAm1oi2ANh2sM3bgWyB6HqDjkYtn8V8R41GeKmPJj5HXq2o",
+     "enr": "enr:-N24QGpYPOnbQcf2gKSYFhVw3OPc5cFtsvqE0rxaAR...",
+     "last_seen_p2p_address": "/ip4/34.235.154.119/tcp/9000/p2p/16Uiu2HAm...",
+     "state": "disconnected",
+     "direction": "outbound"
+    }
+   ],
+   "meta": {
+    "count": 2
+   }
+  },
+  "sample": {
+   "data": [
+    {
+     "peer_id": "1",
+     "enr": "1",
+     "last_seen_p2p_address": "1",
+     "state": "disconnected",
+     "direction": "inbound"
+    }
+   ],
+   "meta": {
+    "count": 1
+   }
+  }
+ },
+ "GET /eth/v1/node/syncing": {
+  "path": "/eth/v1/node/syncing",
+  "example": {
+   "data": {
+    "is_syncing": false,
+    "is_optimistic": false,
+    "el_offline": false,
+    "head_slot": "12305681",
+    "sync_distance": "0"
+   }
+  },
+  "sample": {
+   "data": {
+    "head_slot": "1",
+    "sync_distance": "1",
+    "is_syncing": true,
+    "is_optimistic": true,
+    "el_offline": true
+   }
+  }
+ },
+ "GET /eth/v1/node/version": {
+  "path": "/eth/v1/node/version",
+  "example": {
+   "data": {
+    "version": "Lighthouse/v7.1.0-cfb1f73/x86_64-linux"
+   }
+  },
+  "sample": {
+   "data": {
+    "version": "1"
+   }
+  }
+ },
+ "GET /eth/v1/validator/duties/proposer/{epoch}": {
+  "path": "/eth/v1/validator/duties/proposer/{epoch}",
+  "example": {
+   "dependent_root": "0x51b5d760095b40e1ff476b00a913e8ca543caa20a5db0c25bea28e2d33769cf5",
+   "execution_optimistic": false,
+   "data": [
+    {
+     "pubkey": "0xb44cc2b9f06ba5746c99c30ed055bc67273f80498075afa42c8c5dae26f4e13ab35cf242f1e6123fcda0c32704ba471e",
+     "validator_index": "754422",
+     "slot": "12311040"
+    },
+    {
+     "pubkey": "0xb7dcbc581390651c3b6033153e3d81e6fe1b40560f94f381bb665f411c9c9ef8a802d078be55ee713b49dac507e6ead5",
+     "validator_index": "2028810",
+     "slot": "12311041"
+    }
+   ]
+  },
+  "sample": {
+   "dependent_root": "1",
+   "execution_optimistic": true,
+   "data": [
+    {
+     "pubkey": "1",
+     "validator_index": "1",
+     "slot": "1"
+    }
+   ]
+  }
+ },
+ "GET /eth/v1/validator/sync_committee_contribution": {
+  "path": "/eth/v1/validator/sync_committee_contribution",
+  "example": {
+   "data": {
+    "slot": "1",
+    "beacon_block_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+    "subcommittee_index": "1",
+    "aggregation_bits": "0xffffffffffffffffffffffffffffffff",
+    "signature": "0x1b66ac1f...71505"
+   }
+  },
+  "sample": {
+   "data": {
+    "slot": "1",
+    "beacon_block_root": "1",
+    "subcommittee_index": "1",
+    "aggregation_bits": "1",
+    "signature": "1"
+   }
+  }
+ },
+ "GET /eth/v2/beacon/blocks/{block_id}": {
+  "path": "/eth/v2/beacon/blocks/{block_id}",
+  "example": {
+   "version": "electra",
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "message": {
+     "slot": "12304813",
+     "proposer_index": "356622",
+     "parent_root": "0x9d7bf160847cebe069890d0d1811bd7665bff49fb65c311805ee0f124f4c7de2",
+     "state_root": "0xb0850a65116ed2fdd74340230967f3688d076d3d9903e61d0de174ff9a09a385",
+     "body": {
+      "randao_reveal": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505",
+      "eth1_data": {
+       "deposit_root": "0x2ebc563cabdbbacbc56f0de1d2d1c2d5315a4b071fcd8566aabbf0a45161c64e",
+       "deposit_count": "2045305",
+       "block_hash": "0x0958d83550263ff0d9f9a0bc5ea3cd2a136e0933b6f43cbb17f36e4da8d809b1"
+      },
+      "graffiti": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "proposer_slashings": [],
+      "attester_slashings": [],
+      "attestations": [
+       {
+        "aggregation_bits": "0xfffffffbffffffff...",
+        "data": {
+         "slot": "12304812",
+         "index": "0",
+         "beacon_block_root": "0x9d7bf160847cebe069890d0d1811bd7665bff49fb65c311805ee0f124f4c7de2",
+         "source": {
+          "epoch": "384524",
+          "root": "0x69d231105c8c6e602d868fc5e4015b429cf330125c3fdade8ac034db36f049b0"
+         },
+         "target": {
+          "epoch": "384525",
+          "root": "0x18a7f340369eb4459e2274fc3eb98aad725351a9031fe3cbea8e75e888d5f78d"
+         }
+        },
+        "signature": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505",
+        "committee_bits": "0xffffffffffffffff"
+       }
+      ],
+      "deposits": [],
+      "voluntary_exits": [],
+      "sync_aggregate": {
+       "sync_committee_bits": "0x01",
+       "sync_committee_signature": "0xa5fc41bbabe5c6bf0e118146e6d517..."
+      },
+      "bls_to_execution_changes": [],
+      "blob_kzg_commitments": [],
+      "execution_payload": {
+       "parent_hash": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+       "fee_recipient": "0xAbcF8e0d4e9587369b2301D0790347320302cc09",
+       "state_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+       "block_number": "1",
+       "gas_limit": "1",
+       "gas_used": "1",
+       "timestamp": "1",
+       "transactions": [],
+       "withdrawals": []
+      },
+      "execution_requests": {
+       "deposits": [],
+       "withdrawals": [],
+       "consolidations": []
+      }
+     }
+    },
+    "signature": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"
+   }
+  },
+  "sample": {
+   "version": "1",
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "message": {
+     "slot": "1",
+     "proposer_index": "1",
+     "parent_root": "1",
+     "state_root": "1",
+     "body": {
+      "randao_reveal": "1",
+      "eth1_data": {
+       "deposit_root": "1",
+       "deposit_count": "1",
+       "block_hash": "1"
+      },
+      "graffiti": "1",
+      "proposer_slashings": [
+       {}
+      ],
+      "attester_slashings": [
+       {}
+      ],
+      "attestations": [
+       {}
+      ],
+      "deposits": [
+       {}
+      ],
+      "voluntary_exits": [
+       {}
+      ],
+      "sync_aggregate": {},
+      "bls_to_execution_changes": [
+       {}
+      ],
+      "blob_kzg_commitments": [
+       "1"
+      ],
+      "execution_payload": {},
+      "execution_requests": {}
+     }
+    },
+    "signature": "1"
+   }
+  }
+ },
+ "GET /eth/v2/beacon/blocks/{block_id}/attestations": {
+  "path": "/eth/v2/beacon/blocks/{block_id}/attestations",
+  "example": {
+   "version": "electra",
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": [
+    {
+     "aggregation_bits": "0xfffffffffffffffffffffffffffe...",
+     "data": {
+      "slot": "12304636",
+      "index": "0",
+      "beacon_block_root": "0xcc83a9c3856bb3ca5d5cd41fdb7079e849ecab0d3477fc19fd584c97a69b090f",
+      "source": {
+       "epoch": "384518",
+       "root": "0x3697abccaeb877bb4c6ae3a6777bfbca017b816a43b7130235edc4eab5baee1b"
+      },
+      "target": {
+       "epoch": "384519",
+       "root": "0x0c28d4f4f4d7583f5b644c2340a882f8867a35bcf8f96c0a2ac5b647cabcabe0"
+      }
+     },
+     "signature": "0xb27f1518049ca0eb23cdbf09d1bd98b0a9ca67e4f034952da74fd275c4a740583e7f0e6f7c95cea664ac3b7d0daae427063219ff844e271e92d9f85362d720d823b40496cccda1e0892553c782b59f3944d7b3d8dfac8735786c9d02fb9c4702",
+     "committee_bits": "0x20d07a084b7aafdf"
+    }
+   ]
+  },
+  "sample": {
+   "version": "1",
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "aggregation_bits": "1",
+     "data": {
+      "slot": "1",
+      "index": "1",
+      "beacon_block_root": "1",
+      "source": {
+       "epoch": "1",
+       "root": "1"
+      },
+      "target": {
+       "epoch": "1",
+       "root": "1"
+      }
+     },
+     "signature": "1",
+     "committee_bits": "1"
+    }
+   ]
+  }
+ },
+ "GET /eth/v2/beacon/pool/attestations": {
+  "path": "/eth/v2/beacon/pool/attestations",
+  "sample": {
+   "version": "1",
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "aggregation_bits": "1",
+     "data": {
+      "slot": "1",
+      "index": "1",
+      "beacon_block_root": "1",
+      "source": {
+       "epoch": "1",
+       "root": "1"
+      },
+      "target": {
+       "epoch": "1",
+       "root": "1"
+      }
+     },
+     "signature": "1"
+    }
+   ]
+  }
+ },
+ "GET /eth/v2/debug/beacon/states/{state_id}": {
+  "path": "/eth/v2/debug/beacon/states/{state_id}",
+  "sample": {
+   "version": "1",
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {}
+  }
+ },
+ "GET /eth/v2/validator/aggregate_attestation": {
+  "path": "/eth/v2/validator/aggregate_attestation",
+  "example": {
+   "version": "electra",
+   "data": {
+    "aggregation_bits": "0x01",
+    "data": {
+     "slot": "1",
+     "index": "1",
+     "beacon_block_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+     "source": {
+      "epoch": "1",
+      "root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"
+     },
+     "target": {
+      "epoch": "1",
+      "root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"
+     }
+    },
+    "signature": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505",
+    "committee_bits": "0x0000000000000001"
+   }
+  },
+  "sample": {
+   "version": "1",
+   "data": {
+    "aggregation_bits": "1",
+    "data": {
+     "slot": "1",
+     "index": "1",
+     "beacon_block_root": "1",
+     "source": {
+      "epoch": "1",
+      "root": "1"
+     },
+     "target": {
+      "epoch": "1",
+      "root": "1"
+     }
+    },
+    "signature": "1",
+    "committee_bits": "1"
+   }
+  }
+ },
+ "POST /eth/v1/beacon/rewards/attestations/{epoch}": {
+  "path": "/eth/v1/beacon/rewards/attestations/{epoch}",
+  "method": "POST",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": {
+    "ideal_rewards": [
+     {
+      "effective_balance": "32000000000",
+      "head": "2500",
+      "target": "5000",
+      "source": "5000",
+      "inclusion_delay": "1",
+      "inactivity": "5000"
+     }
+    ],
+    "total_rewards": [
+     {
+      "validator_index": "474200",
+      "head": "2000",
+      "target": "2000",
+      "source": "4000",
+      "inclusion_delay": "1",
+      "inactivity": "2000"
+     }
+    ]
+   }
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": {
+    "ideal_rewards": [
+     {
+      "effective_balance": "1",
+      "head": "1",
+      "target": "1",
+      "source": "1",
+      "inclusion_delay": "1",
+      "inactivity": "1"
+     }
+    ],
+    "total_rewards": [
+     {
+      "validator_index": "1",
+      "head": "1",
+      "target": "1",
+      "source": "1",
+      "inclusion_delay": "1",
+      "inactivity": "1"
+     }
+    ]
+   }
+  }
+ },
+ "POST /eth/v1/beacon/rewards/sync_committee/{block_id}": {
+  "path": "/eth/v1/beacon/rewards/sync_committee/{block_id}",
+  "method": "POST",
+  "example": {
+   "execution_optimistic": false,
+   "finalized": false,
+   "data": [
+    {
+     "validator_index": "1",
+     "reward": "2000"
+    }
+   ]
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "finalized": true,
+   "data": [
+    {
+     "validator_index": "1",
+     "reward": "1"
+    }
+   ]
+  }
+ },
+ "POST /eth/v1/validator/duties/attester/{epoch}": {
+  "path": "/eth/v1/validator/duties/attester/{epoch}",
+  "method": "POST",
+  "example": {
+   "dependent_root": "0x017c4443db02f7e4ece54ada0ba2e1516596e39150261c59338b9b6f22d8fbeb",
+   "execution_optimistic": false,
+   "data": [
+    {
+     "pubkey": "0x842b273237caa03ff23a25e2664e5c9c6fb17342c0ec2f12b018cf0958cbe0e42f07500150bc5a9f8b44cfcf477e4a78",
+     "validator_index": "474200",
+     "committees_at_slot": "64",
+     "committee_index": "44",
+     "committee_length": "528",
+     "validator_committee_index": "308",
+     "slot": "12412675"
+    }
+   ]
+  },
+  "sample": {
+   "dependent_root": "1",
+   "execution_optimistic": true,
+   "data": [
+    {
+     "pubkey": "1",
+     "validator_index": "1",
+     "committee_index": "1",
+     "committee_length": "1",
+     "committees_at_slot": "1",
+     "validator_committee_index": "1",
+     "slot": "1"
+    }
+   ]
+  }
+ },
+ "POST /eth/v1/validator/duties/sync/{epoch}": {
+  "path": "/eth/v1/validator/duties/sync/{epoch}",
+  "method": "POST",
+  "example": {
+   "execution_optimistic": false,
+   "data": [
+    {
+     "pubkey": "0x93247f2209abcacf57b75a51dafae777f9dd38bc7053d1af526f220a7489a6d3a2753e5f3e8b1cfe39b56f43611df74a",
+     "validator_index": "1",
+     "validator_sync_committee_indices": [
+      "1"
+     ]
+    }
+   ]
+  },
+  "sample": {
+   "execution_optimistic": true,
+   "data": [
+    {
+     "pubkey": "1",
+     "validator_index": "1",
+     "validator_sync_committee_indices": [
+      "1"
+     ]
+    }
+   ]
+  }
+ }
+}
