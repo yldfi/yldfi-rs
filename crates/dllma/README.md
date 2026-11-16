@@ -75,8 +75,15 @@ let lst = client.yields().lst_rates().await?;
 Pro requests go to `https://pro-api.llama.fi/{API_KEY}/<path>`, following the
 [Pro OpenAPI spec](https://github.com/DefiLlama/api-docs/blob/main/defillama-openapi-pro.json):
 main-API endpoints are under `/api/...` (e.g. `/api/categories`,
-`/api/emissions`, `/api/overview/derivatives`), yields under `/yields/v1/...`,
-and ETFs under `/etfs/snapshot` / `/etfs/flows`. The removed
+`/api/emissions`, `/api/overview/derivatives`), yields under `/yields/v1/...`
+(DefiLlama's frozen legacy format) and `/yields/v2/...` (`earn`, `earn_query`,
+`earn_verified`, `borrow_markets`, `borrow_routes`, `loops` and their history
+methods), and ETFs under `/etfs/snapshot` / `/etfs/flows`.
+
+The TVL, fees, volumes, coins and stablecoins methods use the free hosts even
+with a key. `Config::with_api_key(key).pro_routes(true)` sends them to their
+Pro mirrors (`/api/...`, `/coins/...`, `/stablecoins/...`) instead, with the
+Pro plan's rate limits and credits. The removed
 `/etfs/overview*`, `/etfs/history*` and `/yields/lsdRates` methods are
 deprecated and return an error.
 

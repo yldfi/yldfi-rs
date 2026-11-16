@@ -53,6 +53,15 @@ where
     }
 }
 
+/// Deserialize a value that may be missing or `null` as its default
+pub(crate) fn null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 /// Deserialize an optional string that may also be sent as a bare number
 pub(crate) fn opt_string_or_number<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where

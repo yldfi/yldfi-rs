@@ -43,6 +43,8 @@ pub struct Config {
     pub api_key: Option<SecretApiKey>,
     /// HTTP client configuration
     inner: ApiConfig,
+    /// Send free-API requests to their Pro mirrors when a key is set
+    pro_routes: bool,
 }
 
 impl Config {
@@ -52,6 +54,7 @@ impl Config {
         Self {
             api_key: None,
             inner: ApiConfig::new(base_urls::MAIN),
+            pro_routes: false,
         }
     }
 
@@ -60,6 +63,7 @@ impl Config {
         Self {
             api_key: Some(SecretApiKey::new(api_key)),
             inner: ApiConfig::new(base_urls::MAIN),
+            pro_routes: false,
         }
     }
 
@@ -89,6 +93,29 @@ impl Config {
         self.inner.http.proxy = proxy;
         self
     }
+
+    /// Send the free API's endpoints to their Pro mirrors (off by default)
+    ///
+    /// With an API key set, the TVL, fees, volumes, coins and stablecoins
+    /// methods that normally call `api.llama.fi`, `coins.llama.fi` and
+    /// `stablecoins.llama.fi` call the same endpoints on
+    /// `pro-api.llama.fi` instead, under `/api/...`, `/coins/...` and
+    /// `/stablecoins/...`, which have the Pro plan's rate limits and use
+    /// its credits. The responses are the same. Without an API key this has
+    /// no effect.
+    ///
+    /// ```no_run
+    /// # fn example() -> dllma::error::Result<()> {
+    /// let config = dllma::Config::with_api_key("your-api-key").pro_routes(true);
+    /// let client = dllma::Client::with_config(config)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn pro_routes(mut self, enabled: bool) -> Self {
+        self.pro_routes = enabled;
+        self
+    }
 }
 
 impl Default for Config {
@@ -107,8 +134,11 @@ pub struct Client {
     coins_url: Url,
     stablecoins_url: Url,
     yields_url: Url,
+    pro_url: Url,
     /// Pro API key (if provided, enables Pro endpoints)
     api_key: Option<SecretApiKey>,
+    /// Send free-API requests to their Pro mirrors (only with a key)
+    pro_routes: bool,
 }
 
 impl Client {
@@ -135,6 +165,8 @@ impl Client {
             coins_url: Url::parse(base_urls::COINS)?,
             stablecoins_url: Url::parse(base_urls::STABLECOINS)?,
             yields_url: Url::parse(base_urls::YIELDS)?,
+            pro_url: Url::parse(base_urls::PRO)?,
+            pro_routes: config.pro_routes && config.api_key.is_some(),
             api_key: config.api_key,
         })
     }
@@ -157,7 +189,9 @@ impl Client {
             coins_url: Url::parse(base_urls::COINS)?,
             stablecoins_url: Url::parse(base_urls::STABLECOINS)?,
             yields_url: Url::parse(base_urls::YIELDS)?,
+            pro_url: Url::parse(base_urls::PRO)?,
             api_key: None,
+            pro_routes: false,
         })
     }
 
@@ -165,6 +199,13 @@ impl Client {
     #[must_use]
     pub fn has_pro_access(&self) -> bool {
         self.api_key.is_some()
+    }
+
+    /// Whether free-API endpoints go to their Pro mirrors
+    /// (see [`Config::pro_routes`])
+    #[must_use]
+    pub fn uses_pro_routes(&self) -> bool {
+        self.pro_routes
     }
 
     /// Get the underlying HTTP client
@@ -199,6 +240,9 @@ impl Client {
 
     /// Make a GET request to the main API (free endpoints)
     pub(crate) async fn get_main<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
+        if self.pro_routes {
+            return self.get_pro(&format!("/api{path}")).await;
+        }
         let url = self.main_url.join(path)?;
         self.get(&url).await
     }
@@ -215,12 +259,15 @@ impl Client {
             )
         })?;
 
-        let url = Url::parse(&format!("{}/{}{}", base_urls::PRO, api_key.expose(), path))?;
+        let url = Url::parse(&format!("{}{}{}", self.pro_url, api_key.expose(), path))?;
         self.get(&url).await
     }
 
     /// Make a GET request to the coins API
     pub(crate) async fn get_coins<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
+        if self.pro_routes {
+            return self.get_pro(&format!("/coins{path}")).await;
+        }
         let url = self.coins_url.join(path)?;
         self.get(&url).await
     }
@@ -230,6 +277,9 @@ impl Client {
         &self,
         path: &str,
     ) -> Result<T> {
+        if self.pro_routes {
+            return self.get_pro(&format!("/stablecoins{path}")).await;
+        }
         let url = self.stablecoins_url.join(path)?;
         self.get(&url).await
     }
@@ -313,8 +363,22 @@ impl Client {
                 "Pro API key required. Set DEFILLAMA_API_KEY or use Client::with_api_key()",
             )
         })?;
-        let url = Url::parse(&format!("{}/usage/{}", base_urls::PRO, api_key.expose()))?;
+        let url = Url::parse(&format!("{}usage/{}", self.pro_url, api_key.expose()))?;
         self.get(&url).await
+    }
+}
+
+#[cfg(test)]
+impl Client {
+    /// Point every host at `base` (a local test server)
+    pub(crate) fn with_test_base(mut self, base: &str) -> Self {
+        let url = Url::parse(base).expect("test base URL");
+        self.main_url = url.clone();
+        self.coins_url = url.clone();
+        self.stablecoins_url = url.clone();
+        self.yields_url = url.clone();
+        self.pro_url = url;
+        self
     }
 }
 
@@ -335,5 +399,55 @@ mod tests {
         let err = strip_url(err);
         assert!(!err.to_string().contains("FAKEKEY"), "{err}");
         assert!(!format!("{err:?}").contains("FAKEKEY"), "{err:?}");
+    }
+
+    fn test_client(config: Config, server: &crate::test_server::TestServer) -> Client {
+        Client::with_config(config)
+            .unwrap()
+            .with_test_base(&server.url)
+    }
+
+    #[tokio::test]
+    async fn pro_routes_send_free_endpoints_to_pro_mirrors() {
+        let config = Config::with_api_key("KEY").pro_routes(true);
+        let server = crate::test_server::TestServer::json("12.5");
+        let client = test_client(config.clone(), &server);
+        assert!(client.uses_pro_routes());
+        assert_eq!(client.tvl().protocol_tvl("aave").await.unwrap(), 12.5);
+        assert_eq!(server.path(), "/KEY/api/tvl/aave");
+
+        let server = crate::test_server::TestServer::json(r#"{"height":1,"timestamp":2}"#);
+        let client = test_client(config.clone(), &server);
+        client.coins().block("ethereum", 2).await.unwrap();
+        assert_eq!(server.path(), "/KEY/coins/block/ethereum/2");
+
+        let server = crate::test_server::TestServer::json("[]");
+        let client = test_client(config, &server);
+        client.stablecoins().chains().await.unwrap();
+        assert_eq!(server.path(), "/KEY/stablecoins/stablecoinchains");
+    }
+
+    #[tokio::test]
+    async fn free_endpoints_stay_free_by_default() {
+        let server = crate::test_server::TestServer::json("1");
+        let client = test_client(Config::with_api_key("KEY"), &server);
+        assert!(!client.uses_pro_routes());
+        client.tvl().protocol_tvl("aave").await.unwrap();
+        assert_eq!(server.path(), "/tvl/aave");
+
+        // Without a key the option has no effect
+        let server = crate::test_server::TestServer::json("1");
+        let client = test_client(Config::new().pro_routes(true), &server);
+        assert!(!client.uses_pro_routes());
+        client.tvl().protocol_tvl("aave").await.unwrap();
+        assert_eq!(server.path(), "/tvl/aave");
+    }
+
+    #[tokio::test]
+    async fn usage_puts_key_at_end() {
+        let server = crate::test_server::TestServer::json(r#"{"creditsLeft":5}"#);
+        let client = test_client(Config::with_api_key("KEY"), &server);
+        assert_eq!(client.usage().await.unwrap().credits_left, Some(5));
+        assert_eq!(server.path(), "/usage/KEY");
     }
 }
