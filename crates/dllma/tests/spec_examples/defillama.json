@@ -1,0 +1,682 @@
+{
+ "GET /batchHistorical": {
+  "path": "/batchHistorical",
+  "server": "https://coins.llama.fi",
+  "sample": {
+   "coins": {
+    "avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e": {
+     "symbol": "1",
+     "prices": [
+      {
+       "timestamp": 1,
+       "price": 1,
+       "confidence": 1
+      }
+     ]
+    }
+   }
+  }
+ },
+ "GET /block/{chain}/{timestamp}": {
+  "path": "/block/{chain}/{timestamp}",
+  "server": "https://coins.llama.fi",
+  "sample": {
+   "height": 1,
+   "timestamp": 1
+  }
+ },
+ "GET /chart/{coins}": {
+  "path": "/chart/{coins}",
+  "server": "https://coins.llama.fi",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": {
+     "decimals": 1,
+     "confidence": 1,
+     "prices": [
+      {
+       "timestamp": 1,
+       "price": 1
+      }
+     ],
+     "symbol": "1"
+    }
+   }
+  }
+ },
+ "GET /chart/{pool}": {
+  "path": "/chart/{pool}",
+  "server": "https://yields.llama.fi",
+  "sample": {
+   "status": "1",
+   "data": [
+    {
+     "timestamp": "1",
+     "tvlUsd": 1,
+     "apy": 1,
+     "apyBase": 1,
+     "apyReward": 1
+    }
+   ]
+  }
+ },
+ "GET /overview/dexs": {
+  "path": "/overview/dexs",
+  "server": "https://api.llama.fi",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "displayName": "1",
+     "total24h": 1,
+     "total7d": 1,
+     "change_1d": 1,
+     "change_7d": 1,
+     "chains": [
+      "1",
+      "1"
+     ]
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     2500000000
+    ]
+   ],
+   "allChains": [
+    "1",
+    "1",
+    "1"
+   ]
+  }
+ },
+ "GET /overview/dexs/{chain}": {
+  "path": "/overview/dexs/{chain}",
+  "server": "https://api.llama.fi",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "total24h": 1,
+     "change_1d": 1
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     1200000000
+    ]
+   ]
+  }
+ },
+ "GET /overview/fees": {
+  "path": "/overview/fees",
+  "server": "https://api.llama.fi",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "total24h": 1,
+     "revenue24h": 1,
+     "change_1d": 1,
+     "chains": [
+      "1",
+      "1"
+     ]
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     25000000
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1640995200,
+     {
+      "Uniswap": 5000000,
+      "Compound": 3000000
+     }
+    ]
+   ]
+  }
+ },
+ "GET /overview/fees/{chain}": {
+  "path": "/overview/fees/{chain}",
+  "server": "https://api.llama.fi",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "total24h": 1,
+     "revenue24h": 1,
+     "change_1d": 1,
+     "chains": [
+      "1",
+      "1"
+     ]
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     25000000
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1640995200,
+     {
+      "Uniswap": 5000000,
+      "Compound": 3000000
+     }
+    ]
+   ]
+  }
+ },
+ "GET /overview/open-interest": {
+  "path": "/overview/open-interest",
+  "server": "https://api.llama.fi",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "displayName": "1",
+     "total24h": 1,
+     "total7d": 1,
+     "change_1d": 1,
+     "change_7d": 1,
+     "chains": [
+      "1"
+     ]
+    }
+   ],
+   "totalDataChart": [
+    [
+     1654819200,
+     607785941
+    ]
+   ],
+   "allChains": [
+    "1",
+    "1",
+    "1"
+   ]
+  }
+ },
+ "GET /overview/options": {
+  "path": "/overview/options",
+  "server": "https://api.llama.fi",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "total24h": 1,
+     "change_1d": 1
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     750000000
+    ]
+   ]
+  }
+ },
+ "GET /percentage/{coins}": {
+  "path": "/percentage/{coins}",
+  "server": "https://coins.llama.fi",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": 1
+   }
+  }
+ },
+ "GET /pools": {
+  "path": "/pools",
+  "server": "https://yields.llama.fi",
+  "sample": {
+   "status": "1",
+   "data": [
+    {
+     "chain": "1",
+     "project": "1",
+     "symbol": "1",
+     "tvlUsd": 1,
+     "apyBase": 1,
+     "apyReward": 1,
+     "apy": 1,
+     "rewardTokens": [
+      "1"
+     ],
+     "pool": "1",
+     "apyPct1D": 1,
+     "apyPct7D": 1,
+     "apyPct30D": 1,
+     "stablecoin": true,
+     "ilRisk": "1",
+     "exposure": "1",
+     "predictions": {
+      "predictedClass": "1",
+      "predictedProbability": 1,
+      "binnedConfidence": 1
+     },
+     "poolMeta": "1",
+     "mu": 1,
+     "sigma": 1,
+     "count": 1,
+     "outlier": true,
+     "underlyingTokens": [
+      "1"
+     ],
+     "il7d": 1,
+     "apyBase7d": 1,
+     "apyMean30d": 1,
+     "volumeUsd1d": 1,
+     "volumeUsd7d": 1,
+     "apyBaseInception": 1
+    }
+   ]
+  }
+ },
+ "GET /prices/current/{coins}": {
+  "path": "/prices/current/{coins}",
+  "server": "https://coins.llama.fi",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": {
+     "decimals": 1,
+     "price": 1,
+     "symbol": "1",
+     "timestamp": 1,
+     "confidence": 1
+    }
+   }
+  }
+ },
+ "GET /prices/first/{coins}": {
+  "path": "/prices/first/{coins}",
+  "server": "https://coins.llama.fi",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": {
+     "price": 1,
+     "symbol": "1",
+     "timestamp": 1
+    }
+   }
+  }
+ },
+ "GET /prices/historical/{timestamp}/{coins}": {
+  "path": "/prices/historical/{timestamp}/{coins}",
+  "server": "https://coins.llama.fi",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": {
+     "decimals": 1,
+     "price": 1,
+     "symbol": "1",
+     "timestamp": 1,
+     "confidence": 1
+    }
+   }
+  }
+ },
+ "GET /protocol/{protocol}": {
+  "path": "/protocol/{protocol}",
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "symbol": "1",
+   "category": "1",
+   "chains": [
+    "1",
+    "1",
+    "1"
+   ],
+   "currentChainTvls": {
+    "Ethereum": 1
+   },
+   "chainTvls": {
+    "key": {
+     "tvl": [
+      {
+       "date": 1,
+       "totalLiquidityUSD": 1
+      }
+     ],
+     "tokens": [
+      {
+       "date": 1,
+       "tokens": {
+        "USDC": 1
+       }
+      }
+     ]
+    }
+   }
+  }
+ },
+ "GET /protocols": {
+  "path": "/protocols",
+  "sample": [
+   {
+    "id": "1",
+    "name": "1",
+    "symbol": "1",
+    "category": "1",
+    "chains": [
+     "1",
+     "1"
+    ],
+    "tvl": 1,
+    "chainTvls": {
+     "Ethereum": 1
+    },
+    "change_1d": 1,
+    "change_7d": 1
+   }
+  ]
+ },
+ "GET /stablecoin/{asset}": {
+  "path": "/stablecoin/{asset}",
+  "server": "https://stablecoins.llama.fi",
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "symbol": "1",
+   "totalCirculating": [
+    {
+     "date": 1,
+     "totalCirculating": 1
+    }
+   ],
+   "chainCirculating": {
+    "key": [
+     {
+      "date": 1,
+      "circulating": 1
+     }
+    ]
+   }
+  }
+ },
+ "GET /stablecoinchains": {
+  "path": "/stablecoinchains",
+  "server": "https://stablecoins.llama.fi",
+  "sample": [
+   {
+    "name": "1",
+    "totalCirculating": {
+     "peggedUSD": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoincharts/all": {
+  "path": "/stablecoincharts/all",
+  "server": "https://stablecoins.llama.fi",
+  "sample": [
+   {
+    "date": 1,
+    "totalCirculating": {
+     "peggedUSD": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoincharts/{chain}": {
+  "path": "/stablecoincharts/{chain}",
+  "server": "https://stablecoins.llama.fi",
+  "sample": [
+   {
+    "date": 1,
+    "totalCirculating": {
+     "peggedUSD": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoinprices": {
+  "path": "/stablecoinprices",
+  "server": "https://stablecoins.llama.fi",
+  "sample": [
+   {
+    "date": 1,
+    "prices": {
+     "USDT": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoins": {
+  "path": "/stablecoins",
+  "server": "https://stablecoins.llama.fi",
+  "sample": {
+   "peggedAssets": [
+    {
+     "id": "1",
+     "name": "1",
+     "symbol": "1",
+     "pegType": "1",
+     "pegMechanism": "1",
+     "circulating": {
+      "peggedUSD": 1
+     },
+     "chains": [
+      "1",
+      "1",
+      "1"
+     ],
+     "chainCirculating": {
+      "key": {
+       "current": {
+        "peggedUSD": 1
+       }
+      }
+     },
+     "price": 1
+    }
+   ]
+  }
+ },
+ "GET /summary/dexs/{protocol}": {
+  "path": "/summary/dexs/{protocol}",
+  "server": "https://api.llama.fi",
+  "sample": {
+   "name": "1",
+   "total24h": 1,
+   "totalAllTime": 1,
+   "totalDataChart": [
+    [
+     1640995200,
+     1500000000
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1640995200,
+     {
+      "Uniswap V3": 1200000000,
+      "Uniswap V2": 300000000
+     }
+    ]
+   ],
+   "chains": [
+    "1",
+    "1"
+   ]
+  }
+ },
+ "GET /summary/fees/{protocol}": {
+  "path": "/summary/fees/{protocol}",
+  "server": "https://api.llama.fi",
+  "example": {
+   "id": "parent#hyperliquid",
+   "name": "Hyperliquid",
+   "url": "https://hyperliquid.xyz",
+   "referralUrl": "https://app.hyperliquid.xyz/join/DEFILLAMAO",
+   "description": "Hyperliquid is a decentralized perpetual exchange with best-in-class speed, liquidity, and price",
+   "logo": "https://icons.llama.fi/hyperliquid.png",
+   "gecko_id": "hyperliquid",
+   "cmcId": "32196",
+   "chains": [
+    "Hyperliquid L1"
+   ],
+   "twitter": "HyperliquidX",
+   "github": [
+    "hyperliquid-dex"
+   ],
+   "symbol": "HYPE",
+   "address": "hyperliquid:0x0d01dc56dcaaca66ad901c959b4011ec",
+   "childProtocols": [
+    {}
+   ],
+   "linkedProtocols": [
+    "Hyperliquid",
+    "Hyperliquid Spot Orderbook"
+   ],
+   "defillamaId": "parent#hyperliquid",
+   "disabled": null,
+   "displayName": "Hyperliquid",
+   "module": null,
+   "category": null,
+   "methodologyURL": null,
+   "methodology": null,
+   "forkedFrom": null,
+   "audits": null,
+   "audit_links": null,
+   "versionKey": null,
+   "governanceID": null,
+   "treasury": null,
+   "parentProtocol": null,
+   "previousNames": null,
+   "latestFetchIsOk": true,
+   "slug": "hyperliquid",
+   "protocolType": "protocol",
+   "total24h": 4890250,
+   "total48hto24h": 4550411,
+   "total7d": 26184696,
+   "totalAllTime": 499292857,
+   "change_1d": 7.47,
+   "totalDataChart": [
+    [
+     1734912000,
+     1472923
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1734912000,
+     {
+      "Hyperliquid L1": {
+       "Hyperliquid Spot Orderbook": 1472923
+      }
+     }
+    ]
+   ]
+  },
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "url": "1",
+   "referralUrl": "1",
+   "description": "1",
+   "logo": "1",
+   "gecko_id": "1",
+   "cmcId": "1",
+   "chains": [
+    "1"
+   ],
+   "twitter": "1",
+   "github": [
+    "1"
+   ],
+   "symbol": "1",
+   "address": "1",
+   "childProtocols": [
+    {}
+   ],
+   "linkedProtocols": [
+    "1",
+    "1"
+   ],
+   "defillamaId": "1",
+   "disabled": true,
+   "displayName": "1",
+   "module": "1",
+   "category": "1",
+   "methodologyURL": "1",
+   "forkedFrom": "1",
+   "audits": [],
+   "audit_links": [],
+   "versionKey": "1",
+   "governanceID": "1",
+   "treasury": "1",
+   "parentProtocol": "1",
+   "previousNames": [],
+   "latestFetchIsOk": true,
+   "slug": "1",
+   "protocolType": "1",
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "totalAllTime": 1,
+   "change_1d": 1,
+   "totalDataChart": [
+    [
+     1734912000,
+     1472923
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1734912000,
+     {
+      "Hyperliquid L1": {
+       "Hyperliquid Spot Orderbook": 1472923
+      }
+     }
+    ]
+   ]
+  }
+ },
+ "GET /tvl/{protocol}": {
+  "path": "/tvl/{protocol}",
+  "example": 4962012809.795062,
+  "sample": 1
+ },
+ "GET /v2/chains": {
+  "path": "/v2/chains",
+  "sample": [
+   {
+    "gecko_id": "1",
+    "tvl": 1,
+    "tokenSymbol": "1",
+    "cmcId": "1",
+    "name": "1",
+    "chainId": 1
+   }
+  ]
+ },
+ "GET /v2/historicalChainTvl": {
+  "path": "/v2/historicalChainTvl",
+  "sample": [
+   {
+    "date": 1,
+    "tvl": 1
+   }
+  ]
+ },
+ "GET /v2/historicalChainTvl/{chain}": {
+  "path": "/v2/historicalChainTvl/{chain}",
+  "sample": [
+   {
+    "date": 1,
+    "tvl": 1
+   }
+  ]
+ }
+}

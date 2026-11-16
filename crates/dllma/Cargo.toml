@@ -9,6 +9,8 @@ homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/dllma"
 keywords = ["defi", "defillama", "tvl", "crypto", "api"]
 categories = ["api-bindings", "cryptography::cryptocurrencies"]
 readme = "README.md"
+# Spec test fixtures are large and only used by this repo's tests
+exclude = ["tests/spec_examples*"]
 
 [dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
@@ -21,6 +23,7 @@ url = "2"
 yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 
 [dev-dependencies]
+yldfi-spec-test = { path = "../spec-test" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 # Run the crate tests with arbitrary_precision enabled: ethcli pulls it in
 # workspace-wide via foundry-block-explorers, and it changes how buffered

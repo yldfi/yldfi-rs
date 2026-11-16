@@ -92,7 +92,9 @@ where
 /// Circulating supply data, keyed by peg (e.g. `peggedUSD`)
 ///
 /// Non-numeric entries (e.g. the nested `bridges` object that appears in
-/// `bridgedTo`) are ignored rather than failing the whole response.
+/// `bridgedTo`) are ignored rather than failing the whole response, and a
+/// value that is not an object at all (a bare `0` in some history points)
+/// reads as an empty supply.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(transparent)]
 pub struct CirculatingSupply {
@@ -105,11 +107,14 @@ impl<'de> Deserialize<'de> for CirculatingSupply {
     where
         D: Deserializer<'de>,
     {
-        let raw = HashMap::<String, serde_json::Value>::deserialize(deserializer)?;
-        let pegged = raw
-            .into_iter()
-            .filter_map(|(k, v)| value_to_f64(&v).map(|n| (k, FlexNumber(n))))
-            .collect();
+        // Rare history points send a bare `0` instead of an object
+        let pegged = match serde_json::Value::deserialize(deserializer)? {
+            serde_json::Value::Object(raw) => raw
+                .into_iter()
+                .filter_map(|(k, v)| value_to_f64(&v).map(|n| (k, FlexNumber(n))))
+                .collect(),
+            _ => HashMap::new(),
+        };
         Ok(Self { pegged })
     }
 }
@@ -147,19 +152,56 @@ pub struct StablecoinDetail {
     pub peg_type: Option<String>,
     /// Peg mechanism
     pub peg_mechanism: Option<String>,
-    /// Total circulating
+    /// Total circulating. Not sent by `/stablecoin/{id}`; see `tokens`.
     pub circulating: Option<CirculatingSupply>,
-    /// Chain breakdown
+    /// Chain breakdown. Not sent by `/stablecoin/{id}`; see
+    /// `current_chain_balances` and `chain_balances`.
     #[serde(default)]
     pub chain_circulating: HashMap<String, ChainCirculating>,
-    /// Chains this stablecoin is on
+    /// Chains this stablecoin is on. Not sent by `/stablecoin/{id}`; the
+    /// keys of `current_chain_balances` list them.
     #[serde(default)]
     pub chains: Vec<String>,
     /// Current price
     pub price: Option<FlexNumber>,
-    /// Token addresses per chain
+    /// Token addresses per chain. Not sent by `/stablecoin/{id}`.
     #[serde(default)]
     pub chain_addresses: HashMap<String, String>,
+    /// Current supply on each chain
+    #[serde(default)]
+    pub current_chain_balances: HashMap<String, CirculatingSupply>,
+    /// Daily supply history on each chain
+    #[serde(default)]
+    pub chain_balances: HashMap<String, ChainBalanceHistory>,
+    /// Daily total supply history, oldest first
+    #[serde(default)]
+    pub tokens: Vec<StablecoinSupplyPoint>,
+}
+
+/// One chain's daily supply history in a stablecoin's detail
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ChainBalanceHistory {
+    /// Daily points, oldest first
+    #[serde(default)]
+    pub tokens: Vec<StablecoinSupplyPoint>,
+}
+
+/// One day of a stablecoin's supply, in total or on one chain
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StablecoinSupplyPoint {
+    /// Day (Unix seconds)
+    #[serde(deserialize_with = "flex_u64")]
+    pub date: u64,
+    /// Circulating supply
+    pub circulating: Option<CirculatingSupply>,
+    /// Minted on this chain (chain history only)
+    pub minted: Option<CirculatingSupply>,
+    /// Minted but not yet released (chain history only)
+    pub unreleased: Option<CirculatingSupply>,
+    /// Bridged to this chain (chain history only; the per-bridge breakdown
+    /// is not kept)
+    pub bridged_to: Option<CirculatingSupply>,
 }
 
 /// Historical stablecoin chart data point
@@ -304,6 +346,35 @@ mod tests {
             .pegged
             .contains_key("peggedUSD"));
         assert!((usdt.price.unwrap().0 - 0.99977).abs() < 1e-4);
+    }
+
+    #[test]
+    fn stablecoin_detail_reads_live_balances() {
+        // Shape of a live /stablecoin/{id} response, trimmed
+        let json = r#"{"id":"1","name":"Example USD","address":"0x0","symbol":"EXUSD",
+            "gecko_id":"example-usd","pegType":"peggedUSD","pegMechanism":"fiat-backed",
+            "price":0.99916,
+            "currentChainBalances":{"Ethereum":{"peggedUSD":66862161304.43}},
+            "chainBalances":{"Ethereum":{"tokens":[{"date":1794614400,
+                "circulating":{"peggedUSD":66662295623.46},"minted":{"peggedUSD":84296691994.49},
+                "unreleased":{"peggedUSD":4599132005.22},
+                "bridgedTo":{"bridges":{"wormhole":{"BSC":{"amount":72881.7}}},"peggedUSD":199046.74}}]}},
+            "tokens":[{"date":1511913600,"circulating":{"peggedUSD":109970}},
+                {"date":1511999999,"circulating":{"peggedUSD":1},"minted":0,"bridgedTo":0}]}"#;
+        let d: StablecoinDetail = serde_json::from_str(json).unwrap();
+        assert!(
+            (d.current_chain_balances["Ethereum"].pegged["peggedUSD"].0 - 66_862_161_304.43).abs()
+                < 1.0
+        );
+        let point = &d.chain_balances["Ethereum"].tokens[0];
+        assert_eq!(point.date, 1_794_614_400);
+        assert!(point.unreleased.is_some());
+        let bridged = point.bridged_to.as_ref().unwrap();
+        assert!((bridged.pegged["peggedUSD"].0 - 199_046.74).abs() < 0.01);
+        assert_eq!(d.tokens[0].date, 1_511_913_600);
+        assert!(d.chain_circulating.is_empty());
+        // A bare 0 where an object is expected reads as empty
+        assert!(d.tokens[1].minted.as_ref().unwrap().pegged.is_empty());
     }
 
     #[test]

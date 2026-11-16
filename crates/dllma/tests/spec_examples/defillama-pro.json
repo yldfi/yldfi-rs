@@ -1,0 +1,7729 @@
+{
+ "GET /api/categories": {
+  "path": "/api/categories",
+  "sample": {
+   "chart": {
+    "1747440000": {
+     "Bridge": {
+      "tvl": 1,
+      "staking": 1,
+      "pool2": 1,
+      "doublecounted": 1,
+      "borrowed": 1,
+      "offers": 1,
+      "vesting": 1,
+      "treasury": 1,
+      "liquidstaking": 1,
+      "dcAndLsOverlap": 1
+     }
+    }
+   },
+   "categories": {
+    "Bridge": [
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1"
+    ]
+   }
+  }
+ },
+ "GET /api/chainAssets": {
+  "path": "/api/chainAssets",
+  "sample": {
+   "chain": {
+    "canonical": {
+     "total": "1",
+     "breakdown": {
+      "AGLD": "1"
+     }
+    },
+    "native": {
+     "total": "1",
+     "breakdown": {
+      "BENI": "1"
+     }
+    },
+    "thirdParty": {
+     "total": "1",
+     "breakdown": {
+      "BRZ": "1"
+     }
+    },
+    "total": {
+     "total": "1",
+     "breakdown": {
+      "AGLD": "1"
+     }
+    }
+   },
+   "timestamp": 1
+  }
+ },
+ "GET /api/emission/{protocol}": {
+  "path": "/api/emission/{protocol}",
+  "sample": {
+   "body": {
+    "documentedData": {
+     "data": [
+      {
+       "label": "1",
+       "data": [
+        {
+         "timestamp": 1,
+         "unlocked": 1,
+         "rawEmission": 1,
+         "burned": 1
+        }
+       ]
+      }
+     ],
+     "tokenAllocation": {
+      "current": {
+       "insiders": 1,
+       "noncirculating": 1,
+       "publicSale": 1,
+       "airdrop": 1,
+       "farming": 1
+      },
+      "final": {
+       "insiders": 1,
+       "noncirculating": 1,
+       "publicSale": 1,
+       "airdrop": 1,
+       "farming": 1
+      },
+      "progress": {
+       "insiders": 1,
+       "noncirculating": 1,
+       "publicSale": 1,
+       "airdrop": 1,
+       "farming": 1
+      }
+     }
+    },
+    "metadata": {
+     "notes": [
+      "1",
+      "1",
+      "1",
+      "1"
+     ],
+     "token": "1",
+     "sources": [
+      "1"
+     ],
+     "protocolIds": [
+      "1",
+      "1",
+      "1",
+      "1"
+     ],
+     "total": 1,
+     "chain": "1",
+     "name": "1",
+     "gecko_id": "1",
+     "defillamaIds": [
+      "1"
+     ],
+     "categories": {
+      "insiders": [
+       "1",
+       "1"
+      ],
+      "noncirculating": [
+       "1"
+      ],
+      "publicSale": [
+       "1"
+      ],
+      "airdrop": [
+       "1"
+      ],
+      "farming": [
+       "1"
+      ]
+     },
+     "protocolCategory": "1",
+     "chainName": "1",
+     "pId": "1"
+    }
+   },
+   "lastModified": "1"
+  }
+ },
+ "GET /api/emissions": {
+  "path": "/api/emissions",
+  "sample": [
+   {
+    "token": "1",
+    "sources": [
+     "1"
+    ],
+    "protocolId": "1",
+    "name": "1",
+    "circSupply": 1,
+    "circSupply30d": 1,
+    "totalLocked": 1,
+    "maxSupply": 1,
+    "gecko_id": "1",
+    "events": [
+     {
+      "description": "1",
+      "timestamp": 1,
+      "noOfTokens": [
+       1
+      ],
+      "category": "1",
+      "unlockType": "1"
+     }
+    ],
+    "nextEvent": {
+     "date": 1,
+     "toUnlock": 1
+    },
+    "unlocksPerDay": 1,
+    "mcap": 1
+   }
+  ]
+ },
+ "GET /api/entities": {
+  "path": "/api/entities",
+  "sample": [
+   {
+    "id": "1",
+    "name": "1",
+    "url": "1",
+    "description": "1",
+    "logo": "1",
+    "category": "1",
+    "module": "1",
+    "twitter": "1",
+    "symbol": "1",
+    "chain": "1",
+    "gecko_id": "1",
+    "cmcId": "1",
+    "chains": [
+     "1"
+    ],
+    "slug": "1",
+    "tvl": 1,
+    "chainTvls": {
+     "Ethereum": 1
+    },
+    "change_1h": 1,
+    "change_1d": 1,
+    "change_7d": 1,
+    "tokenBreakdowns": {
+     "ownTokens": 1,
+     "stablecoins": 1,
+     "majors": 1,
+     "others": 1
+    },
+    "mcap": 1
+   }
+  ]
+ },
+ "GET /api/forks": {
+  "path": "/api/forks",
+  "sample": {
+   "chart": {
+    "1752624000": {
+     "Uniswap V2": {
+      "staking": 1,
+      "tvl": 1,
+      "pool2": 1,
+      "doublecounted": 1,
+      "borrowed": 1,
+      "vesting": 1,
+      "liquidstaking": 1,
+      "dcAndLsOverlap": 1
+     }
+    }
+   },
+   "forks": {
+    "Uniswap V2": [
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1"
+    ]
+   }
+  }
+ },
+ "GET /api/hacks": {
+  "path": "/api/hacks",
+  "sample": [
+   {
+    "date": 1,
+    "name": "1",
+    "classification": "1",
+    "technique": "1",
+    "amount": 1,
+    "chain": [
+     "1"
+    ],
+    "bridgeHack": true,
+    "targetType": "1",
+    "source": "1",
+    "returnedFunds": 1,
+    "defillamaId": 1,
+    "language": "1"
+   }
+  ]
+ },
+ "GET /api/inflows/{protocol}/{timestamp}": {
+  "path": "/api/inflows/{protocol}/{timestamp}",
+  "sample": {
+   "outflows": 1,
+   "oldTokens": {
+    "date": 1,
+    "tvl": {
+     "POLYGONUSDC": 1
+    }
+   },
+   "currentTokens": {
+    "date": 1,
+    "tvl": {
+     "SKY": 1
+    }
+   }
+  }
+ },
+ "GET /api/lstRates": {
+  "path": "/api/lstRates",
+  "example": [
+   {
+    "name": "Lido",
+    "symbol": "stETH",
+    "address": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+    "type": "rebase",
+    "expectedRate": 1,
+    "marketRate": 0.9997,
+    "ethPeg": -0.03,
+    "fee": 0.1
+   },
+   {
+    "name": "StakeWise V3",
+    "symbol": "osETH",
+    "address": "0xf1C9acDc66974dFB6dEcB12aA385b9cD01190E38",
+    "type": "accruing",
+    "expectedRate": 1.0775,
+    "marketRate": 1.0615,
+    "ethPeg": -1.48,
+    "fee": 0.05
+   },
+   {
+    "name": "Bifrost Liquid Staking",
+    "symbol": "vETH",
+    "address": "0x4Bc3263Eb5bb2Ef7Ad9aB6FB68be80E43b43801F",
+    "type": "accruing",
+    "expectedRate": 1.1353,
+    "marketRate": null,
+    "ethPeg": null,
+    "fee": null
+   }
+  ],
+  "sample": [
+   {
+    "name": "1",
+    "symbol": "1",
+    "address": "1",
+    "type": "1",
+    "expectedRate": 1,
+    "marketRate": 1,
+    "ethPeg": 1,
+    "fee": 1
+   }
+  ]
+ },
+ "GET /api/oracles": {
+  "path": "/api/oracles",
+  "sample": {
+   "chart": {
+    "1752624000": {
+     "Chainlink": {
+      "tvl": 1,
+      "staking": 1,
+      "pool2": 1,
+      "borrowed": 1,
+      "treasury": 1,
+      "vesting": 1
+     }
+    }
+   },
+   "oracles": {
+    "Chainlink": [
+     "1",
+     "1",
+     "1",
+     "1"
+    ]
+   },
+   "chainsByOracle": {
+    "Chainlink": [
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1"
+    ]
+   }
+  }
+ },
+ "GET /api/overview/derivatives": {
+  "path": "/api/overview/derivatives",
+  "example": {
+   "totalDataChart": [
+    [
+     1614211200,
+     24949
+    ],
+    [
+     1614297600,
+     103833
+    ],
+    [
+     1614384000,
+     49317
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1614211200,
+     {
+      "dYdX V3": 24949
+     }
+    ],
+    [
+     1614297600,
+     {
+      "dYdX V3": 103833
+     }
+    ]
+   ],
+   "breakdown24h": null,
+   "breakdown30d": null,
+   "chain": null,
+   "allChains": [
+    "Hyperliquid L1",
+    "Solana",
+    "Ethereum",
+    "Arbitrum"
+   ],
+   "total24h": 23537303133,
+   "total48hto24h": 20741840211,
+   "total7d": 125290755214,
+   "total14dto7d": 71055642206,
+   "total60dto30d": 397917690387,
+   "total30d": 383278222548,
+   "total1y": 3515064792266,
+   "change_1d": 13.48,
+   "change_7d": 40.49,
+   "change_1m": 35.06,
+   "change_7dover7d": 76.33,
+   "change_30dover30d": -3.68,
+   "total7DaysAgo": 16753244737,
+   "total30DaysAgo": 17427351125,
+   "totalAllTime": 6567303144819,
+   "protocols": [
+    {
+     "total24h": 8479946,
+     "total48hto24h": 3440780,
+     "total7d": 78424631,
+     "total14dto7d": 60033358,
+     "total60dto30d": 92505218,
+     "total30d": 166435382,
+     "total1y": 9698297388,
+     "totalAllTime": 55654843707,
+     "average1y": 26865089.717451524,
+     "change_1d": 146.45,
+     "change_7d": -55.7,
+     "change_1m": 1226.98,
+     "change_7dover7d": 30.64,
+     "change_30dover30d": 79.92,
+     "breakdown24h": {
+      "optimism": {
+       "Synthetix v1+v2": 3547540
+      }
+     },
+     "breakdown30d": {
+      "optimism": {
+       "Synthetix v1+v2": 166435382
+      }
+     },
+     "total7DaysAgo": 19143749,
+     "total30DaysAgo": 639043,
+     "defillamaId": "115",
+     "name": "Synthetix v1+v2",
+     "displayName": "Synthetix v1+v2",
+     "module": "synthetix",
+     "category": "Synthetics",
+     "logo": "https://icons.llamao.fi/icons/protocols/synthetix.png",
+     "chains": [
+      "OP Mainnet"
+     ],
+     "protocolType": "protocol",
+     "methodologyURL": "https://github.com/DefiLlama/dimension-adapters/blob/master/dexs/synthetix",
+     "methodology": {
+      "UserFees": "Fees paid by users",
+      "Fees": "Fees paid by users",
+      "Revenue": "Fees paid by users",
+      "ProtocolRevenue": "Percentage of fees going to treasury",
+      "SupplySideRevenue": "LPs revenue"
+     },
+     "latestFetchIsOk": true,
+     "parentProtocol": "parent#synthetix",
+     "slug": "synthetix-v1+v2",
+     "linkedProtocols": [
+      "Synthetix",
+      "Synthetix v1+v2",
+      "Synthetix V3"
+     ],
+     "id": "115"
+    }
+   ]
+  },
+  "sample": {
+   "totalDataChart": [
+    [
+     1614211200,
+     24949
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1614211200,
+     {
+      "dYdX V3": 24949
+     }
+    ]
+   ],
+   "chain": "1",
+   "allChains": [
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "total14dto7d": 1,
+   "total60dto30d": 1,
+   "total30d": 1,
+   "total1y": 1,
+   "change_1d": 1,
+   "change_7d": 1,
+   "change_1m": 1,
+   "change_7dover7d": 1,
+   "change_30dover30d": 1,
+   "total7DaysAgo": 1,
+   "total30DaysAgo": 1,
+   "totalAllTime": 1,
+   "protocols": [
+    {
+     "total24h": 1,
+     "total48hto24h": 1,
+     "total7d": 1,
+     "total14dto7d": 1,
+     "total60dto30d": 1,
+     "total30d": 1,
+     "total1y": 1,
+     "totalAllTime": 1,
+     "average1y": 1,
+     "change_1d": 1,
+     "change_7d": 1,
+     "change_1m": 1,
+     "change_7dover7d": 1,
+     "change_30dover30d": 1,
+     "breakdown24h": {
+      "optimism": {
+       "Synthetix v1+v2": 3547540
+      }
+     },
+     "breakdown30d": {
+      "optimism": {
+       "Synthetix v1+v2": 166435382
+      }
+     },
+     "total7DaysAgo": 1,
+     "total30DaysAgo": 1,
+     "defillamaId": "1",
+     "name": "1",
+     "displayName": "1",
+     "module": "1",
+     "category": "1",
+     "logo": "1",
+     "chains": [
+      "1"
+     ],
+     "protocolType": "1",
+     "methodologyURL": "1",
+     "methodology": {
+      "UserFees": "Fees paid by users",
+      "Fees": "Fees paid by users",
+      "Revenue": "Fees paid by users",
+      "ProtocolRevenue": "Percentage of fees going to treasury",
+      "SupplySideRevenue": "LPs revenue"
+     },
+     "latestFetchIsOk": true,
+     "parentProtocol": "1",
+     "slug": "1",
+     "linkedProtocols": [
+      "1",
+      "1",
+      "1"
+     ],
+     "id": "1"
+    }
+   ]
+  }
+ },
+ "GET /api/overview/dexs": {
+  "path": "/api/overview/dexs",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "displayName": "1",
+     "total24h": 1,
+     "total7d": 1,
+     "change_1d": 1,
+     "change_7d": 1,
+     "chains": [
+      "1",
+      "1"
+     ]
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     2500000000
+    ]
+   ],
+   "allChains": [
+    "1",
+    "1",
+    "1"
+   ]
+  }
+ },
+ "GET /api/overview/dexs/{chain}": {
+  "path": "/api/overview/dexs/{chain}",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "total24h": 1,
+     "change_1d": 1
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     1200000000
+    ]
+   ]
+  }
+ },
+ "GET /api/overview/fees": {
+  "path": "/api/overview/fees",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "total24h": 1,
+     "revenue24h": 1,
+     "change_1d": 1,
+     "chains": [
+      "1",
+      "1"
+     ]
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     25000000
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1640995200,
+     {
+      "Uniswap": 5000000,
+      "Compound": 3000000
+     }
+    ]
+   ]
+  }
+ },
+ "GET /api/overview/fees/{chain}": {
+  "path": "/api/overview/fees/{chain}",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "total24h": 1,
+     "revenue24h": 1,
+     "change_1d": 1,
+     "chains": [
+      "1",
+      "1"
+     ]
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     25000000
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1640995200,
+     {
+      "Uniswap": 5000000,
+      "Compound": 3000000
+     }
+    ]
+   ]
+  }
+ },
+ "GET /api/overview/open-interest": {
+  "path": "/api/overview/open-interest",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "displayName": "1",
+     "total24h": 1,
+     "total7d": 1,
+     "change_1d": 1,
+     "change_7d": 1,
+     "chains": [
+      "1"
+     ]
+    }
+   ],
+   "totalDataChart": [
+    [
+     1654819200,
+     607785941
+    ]
+   ],
+   "allChains": [
+    "1",
+    "1",
+    "1"
+   ]
+  }
+ },
+ "GET /api/overview/options": {
+  "path": "/api/overview/options",
+  "sample": {
+   "protocols": [
+    {
+     "name": "1",
+     "total24h": 1,
+     "change_1d": 1
+    }
+   ],
+   "totalDataChart": [
+    [
+     1640995200,
+     750000000
+    ]
+   ]
+  }
+ },
+ "GET /api/overview/options/{chain}": {
+  "path": "/api/overview/options/{chain}",
+  "example": {
+   "totalDataChart": [
+    [
+     1656201600,
+     3947
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1656201600,
+     {
+      "Premia V2": 3947
+     }
+    ],
+    [
+     1656288000,
+     {
+      "Premia V2": 4716
+     }
+    ],
+    [
+     1656374400,
+     {
+      "Premia V2": 4716
+     }
+    ]
+   ],
+   "breakdown24h": null,
+   "breakdown30d": null,
+   "chain": "Ethereum",
+   "allChains": [
+    "Hyperliquid L1",
+    "Derive Chain",
+    "Arbitrum",
+    "Ethereum",
+    "Base",
+    "Berachain",
+    "Sui",
+    "OP Mainnet",
+    "Polygon",
+    "Fantom",
+    "Sonic",
+    "Blast",
+    "Mantle",
+    "Bitlayer",
+    "BSC",
+    "Sei",
+    "TON"
+   ],
+   "total24h": 38508,
+   "total48hto24h": 57674,
+   "total7d": 244966,
+   "total14dto7d": 181066,
+   "total60dto30d": 1543832,
+   "total30d": 715276,
+   "total1y": 38047667,
+   "change_1d": -33.23,
+   "change_7d": -0.13,
+   "change_1m": 619.37,
+   "change_7dover7d": 35.29,
+   "change_30dover30d": -53.67,
+   "total7DaysAgo": 38559,
+   "total30DaysAgo": 5353,
+   "totalAllTime": 212572409,
+   "protocols": [
+    {
+     "total24h": 0,
+     "total48hto24h": 0,
+     "total7d": 0,
+     "total14dto7d": 0,
+     "total60dto30d": 0,
+     "total30d": 0,
+     "total1y": 0,
+     "totalAllTime": 920677,
+     "total7DaysAgo": 0,
+     "total30DaysAgo": 0,
+     "defillamaId": "381",
+     "name": "Premia V2",
+     "displayName": "Premia V2",
+     "module": "premia-v2",
+     "category": "Options",
+     "logo": "https://icons.llamao.fi/icons/protocols/premia-v2.jpg",
+     "chains": [
+      "Ethereum",
+      "Arbitrum",
+      "Fantom",
+      "OP Mainnet"
+     ],
+     "protocolType": "protocol",
+     "methodologyURL": "https://github.com/DefiLlama/dimension-adapters/blob/master/options/premia-v2.ts",
+     "methodology": {
+      "UserFees": "Traders pay taker fees on each trade up to 3% of the option premium.",
+      "Fees": "Fees paid by users",
+      "Revenue": "Treasury and token holders revenue",
+      "ProtocolRevenue": "The protocol collects 20% of the taker fees.",
+      "HoldersRevenue": "vxPREMIA holders collect 80% of the taker fees.",
+      "SupplySideRevenue": "Liquidity providers earn revenue from market-making options."
+     },
+     "latestFetchIsOk": true,
+     "parentProtocol": "parent#premia",
+     "slug": "premia-v2",
+     "linkedProtocols": [
+      "Premia",
+      "Premia V2",
+      "Premia V3"
+     ],
+     "id": "381"
+    }
+   ]
+  },
+  "sample": {
+   "totalDataChart": [
+    [
+     1656201600,
+     3947
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1656201600,
+     {
+      "Premia V2": 3947
+     }
+    ]
+   ],
+   "chain": "1",
+   "allChains": [
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "total14dto7d": 1,
+   "total60dto30d": 1,
+   "total30d": 1,
+   "total1y": 1,
+   "change_1d": 1,
+   "change_7d": 1,
+   "change_1m": 1,
+   "change_7dover7d": 1,
+   "change_30dover30d": 1,
+   "total7DaysAgo": 1,
+   "total30DaysAgo": 1,
+   "totalAllTime": 1,
+   "protocols": [
+    {
+     "total24h": 1,
+     "total48hto24h": 1,
+     "total7d": 1,
+     "total14dto7d": 1,
+     "total60dto30d": 1,
+     "total30d": 1,
+     "total1y": 1,
+     "totalAllTime": 1,
+     "total7DaysAgo": 1,
+     "total30DaysAgo": 1,
+     "average1y": 1,
+     "change_1d": 1,
+     "change_7d": 1,
+     "change_1m": 1,
+     "change_7dover7d": 1,
+     "change_30dover30d": 1,
+     "defillamaId": "1",
+     "name": "1",
+     "displayName": "1",
+     "module": "1",
+     "category": "1",
+     "logo": "1",
+     "chains": [
+      "1",
+      "1",
+      "1",
+      "1"
+     ],
+     "protocolType": "1",
+     "methodologyURL": "1",
+     "methodology": {
+      "UserFees": "1"
+     },
+     "latestFetchIsOk": true,
+     "parentProtocol": "1",
+     "slug": "1",
+     "linkedProtocols": [
+      "1",
+      "1",
+      "1"
+     ],
+     "id": "1"
+    }
+   ]
+  }
+ },
+ "GET /api/perpFundingRates": {
+  "path": "/api/perpFundingRates",
+  "sample": {
+   "status": "1",
+   "data": [
+    {
+     "perp_id": "1",
+     "timestamp": "1",
+     "marketplace": "1",
+     "market": "1",
+     "baseAsset": "1",
+     "fundingRate": 1,
+     "fundingRatePrevious": 1,
+     "fundingTimePrevious": 1,
+     "openInterest": 1,
+     "indexPrice": 1,
+     "fundingRate7dAverage": 1,
+     "fundingRate7dSum": 1,
+     "fundingRate30dAverage": 1,
+     "fundingRate30dSum": 1
+    }
+   ]
+  }
+ },
+ "GET /api/protocol/{protocol}": {
+  "path": "/api/protocol/{protocol}",
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "symbol": "1",
+   "category": "1",
+   "chains": [
+    "1",
+    "1",
+    "1"
+   ],
+   "currentChainTvls": {
+    "Ethereum": 1
+   },
+   "chainTvls": {
+    "key": {
+     "tvl": [
+      {
+       "date": 1,
+       "totalLiquidityUSD": 1
+      }
+     ],
+     "tokens": [
+      {
+       "date": 1,
+       "tokens": {
+        "USDC": 1
+       }
+      }
+     ]
+    }
+   }
+  }
+ },
+ "GET /api/protocols": {
+  "path": "/api/protocols",
+  "sample": [
+   {
+    "id": "1",
+    "name": "1",
+    "symbol": "1",
+    "category": "1",
+    "chains": [
+     "1",
+     "1"
+    ],
+    "tvl": 1,
+    "chainTvls": {
+     "Ethereum": 1
+    },
+    "change_1d": 1,
+    "change_7d": 1
+   }
+  ]
+ },
+ "GET /api/raises": {
+  "path": "/api/raises",
+  "sample": {
+   "raises": [
+    {
+     "date": 1,
+     "name": "1",
+     "round": "1",
+     "amount": 1,
+     "chains": [
+      "1"
+     ],
+     "sector": "1",
+     "category": "1",
+     "categoryGroup": "1",
+     "source": "1",
+     "leadInvestors": [
+      "1"
+     ],
+     "otherInvestors": [
+      "1"
+     ],
+     "valuation": 1,
+     "defillamaId": "1"
+    }
+   ]
+  }
+ },
+ "GET /api/summary/derivatives/{protocol}": {
+  "path": "/api/summary/derivatives/{protocol}",
+  "example": {
+   "id": "parent#hyperliquid",
+   "name": "Hyperliquid",
+   "url": "https://hyperliquid.xyz",
+   "referralUrl": "https://app.hyperliquid.xyz/join/DEFILLAMAO",
+   "description": "Hyperliquid is a decentralized perpetual exchange with best-in-class speed, liquidity, and price",
+   "logo": "https://icons.llama.fi/hyperliquid.png",
+   "gecko_id": "hyperliquid",
+   "cmcId": "32196",
+   "chains": [
+    "Hyperliquid L1"
+   ],
+   "twitter": "HyperliquidX",
+   "github": [
+    "hyperliquid-dex"
+   ],
+   "symbol": "HYPE",
+   "address": "hyperliquid:0x0d01dc56dcaaca66ad901c959b4011ec",
+   "childProtocols": [
+    {}
+   ],
+   "linkedProtocols": [
+    "Hyperliquid",
+    "Hyperliquid Perps"
+   ],
+   "defillamaId": "parent#hyperliquid",
+   "disabled": null,
+   "displayName": "Hyperliquid",
+   "module": null,
+   "category": null,
+   "methodologyURL": null,
+   "methodology": null,
+   "forkedFrom": null,
+   "audits": null,
+   "audit_links": null,
+   "versionKey": null,
+   "governanceID": null,
+   "treasury": null,
+   "parentProtocol": null,
+   "previousNames": null,
+   "latestFetchIsOk": true,
+   "slug": "hyperliquid",
+   "protocolType": "protocol",
+   "total24h": 16946528076,
+   "total48hto24h": 14792562336,
+   "total7d": 86747987334,
+   "totalAllTime": 2003035982525,
+   "totalDataChart": [
+    [
+     1752710400,
+     16946528076
+    ],
+    [
+     1752796800,
+     21220070880
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1752710400,
+     {
+      "Hyperliquid L1": {
+       "Hyperliquid Perps": 16946528076
+      }
+     }
+    ],
+    [
+     1752796800,
+     {
+      "Hyperliquid L1": {
+       "Hyperliquid Perps": 21220070880
+      }
+     }
+    ]
+   ],
+   "change_1d": 14.56
+  },
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "url": "1",
+   "referralUrl": "1",
+   "description": "1",
+   "logo": "1",
+   "gecko_id": "1",
+   "cmcId": "1",
+   "chains": [
+    "1"
+   ],
+   "twitter": "1",
+   "github": [
+    "1"
+   ],
+   "symbol": "1",
+   "address": "1",
+   "childProtocols": [
+    {}
+   ],
+   "linkedProtocols": [
+    "1",
+    "1"
+   ],
+   "defillamaId": "1",
+   "disabled": true,
+   "displayName": "1",
+   "module": "1",
+   "category": "1",
+   "methodologyURL": "1",
+   "forkedFrom": "1",
+   "audits": [],
+   "audit_links": [],
+   "versionKey": "1",
+   "governanceID": "1",
+   "treasury": "1",
+   "parentProtocol": "1",
+   "previousNames": [],
+   "latestFetchIsOk": true,
+   "slug": "1",
+   "protocolType": "1",
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "totalAllTime": 1,
+   "totalDataChart": [
+    [
+     1752710400,
+     16946528076
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1752710400,
+     {
+      "Hyperliquid L1": {
+       "Hyperliquid Perps": 16946528076
+      }
+     }
+    ]
+   ],
+   "change_1d": 1
+  }
+ },
+ "GET /api/summary/dexs/{protocol}": {
+  "path": "/api/summary/dexs/{protocol}",
+  "sample": {
+   "name": "1",
+   "total24h": 1,
+   "totalAllTime": 1,
+   "totalDataChart": [
+    [
+     1640995200,
+     1500000000
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1640995200,
+     {
+      "Uniswap V3": 1200000000,
+      "Uniswap V2": 300000000
+     }
+    ]
+   ],
+   "chains": [
+    "1",
+    "1"
+   ]
+  }
+ },
+ "GET /api/summary/fees/{protocol}": {
+  "path": "/api/summary/fees/{protocol}",
+  "example": {
+   "id": "parent#hyperliquid",
+   "name": "Hyperliquid",
+   "url": "https://hyperliquid.xyz",
+   "referralUrl": "https://app.hyperliquid.xyz/join/DEFILLAMAO",
+   "description": "Hyperliquid is a decentralized perpetual exchange with best-in-class speed, liquidity, and price",
+   "logo": "https://icons.llama.fi/hyperliquid.png",
+   "gecko_id": "hyperliquid",
+   "cmcId": "32196",
+   "chains": [
+    "Hyperliquid L1"
+   ],
+   "twitter": "HyperliquidX",
+   "github": [
+    "hyperliquid-dex"
+   ],
+   "symbol": "HYPE",
+   "address": "hyperliquid:0x0d01dc56dcaaca66ad901c959b4011ec",
+   "childProtocols": [
+    {}
+   ],
+   "linkedProtocols": [
+    "Hyperliquid",
+    "Hyperliquid Spot Orderbook"
+   ],
+   "defillamaId": "parent#hyperliquid",
+   "disabled": null,
+   "displayName": "Hyperliquid",
+   "module": null,
+   "category": null,
+   "methodologyURL": null,
+   "methodology": null,
+   "forkedFrom": null,
+   "audits": null,
+   "audit_links": null,
+   "versionKey": null,
+   "governanceID": null,
+   "treasury": null,
+   "parentProtocol": null,
+   "previousNames": null,
+   "latestFetchIsOk": true,
+   "slug": "hyperliquid",
+   "protocolType": "protocol",
+   "total24h": 4890250,
+   "total48hto24h": 4550411,
+   "total7d": 26184696,
+   "totalAllTime": 499292857,
+   "change_1d": 7.47,
+   "totalDataChart": [
+    [
+     1734912000,
+     1472923
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1734912000,
+     {
+      "Hyperliquid L1": {
+       "Hyperliquid Spot Orderbook": 1472923
+      }
+     }
+    ]
+   ]
+  },
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "url": "1",
+   "referralUrl": "1",
+   "description": "1",
+   "logo": "1",
+   "gecko_id": "1",
+   "cmcId": "1",
+   "chains": [
+    "1"
+   ],
+   "twitter": "1",
+   "github": [
+    "1"
+   ],
+   "symbol": "1",
+   "address": "1",
+   "childProtocols": [
+    {}
+   ],
+   "linkedProtocols": [
+    "1",
+    "1"
+   ],
+   "defillamaId": "1",
+   "disabled": true,
+   "displayName": "1",
+   "module": "1",
+   "category": "1",
+   "methodologyURL": "1",
+   "forkedFrom": "1",
+   "audits": [],
+   "audit_links": [],
+   "versionKey": "1",
+   "governanceID": "1",
+   "treasury": "1",
+   "parentProtocol": "1",
+   "previousNames": [],
+   "latestFetchIsOk": true,
+   "slug": "1",
+   "protocolType": "1",
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "totalAllTime": 1,
+   "change_1d": 1,
+   "totalDataChart": [
+    [
+     1734912000,
+     1472923
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1734912000,
+     {
+      "Hyperliquid L1": {
+       "Hyperliquid Spot Orderbook": 1472923
+      }
+     }
+    ]
+   ]
+  }
+ },
+ "GET /api/summary/options/{protocol}": {
+  "path": "/api/summary/options/{protocol}",
+  "example": {
+   "id": "parent#lyra",
+   "name": "Derive",
+   "url": "https://derive.xyz",
+   "description": "Trade options & perps. Earn yield with restaking derivatives.",
+   "logo": "https://icons.llama.fi/derive.png",
+   "gecko_id": "derive",
+   "cmcId": "35014",
+   "chains": [
+    "OP Mainnet",
+    "Arbitrum",
+    "Derive Chain"
+   ],
+   "twitter": "derivexyz",
+   "governanceID": [
+    "snapshot:lyra.eth"
+   ],
+   "github": [
+    "lyra-finance"
+   ],
+   "treasury": "lyra.js",
+   "symbol": "DRV",
+   "address": "0xb1d1eae60eea9525032a6dcb4c1ce336a1de71be",
+   "childProtocols": [
+    {},
+    {}
+   ],
+   "linkedProtocols": [
+    "Derive",
+    "Derive V2",
+    "Derive Options"
+   ],
+   "defillamaId": "parent#lyra",
+   "disabled": null,
+   "displayName": "Derive",
+   "module": null,
+   "category": null,
+   "methodologyURL": null,
+   "methodology": null,
+   "forkedFrom": null,
+   "audits": null,
+   "audit_links": null,
+   "versionKey": null,
+   "parentProtocol": null,
+   "previousNames": null,
+   "latestFetchIsOk": true,
+   "slug": "derive",
+   "protocolType": "protocol",
+   "total24h": 849389,
+   "total48hto24h": 529694,
+   "total7d": 2327481,
+   "totalAllTime": 156317108,
+   "totalDataChart": [
+    [
+     1702684800,
+     15019
+    ],
+    [
+     1702771200,
+     15019
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1702684800,
+     {
+      "Ethereum": {
+       "Derive V2": 15019
+      }
+     }
+    ],
+    [
+     1702771200,
+     {
+      "Derive Chain": {
+       "Derive V2": 15019
+      }
+     }
+    ]
+   ],
+   "change_1d": 60.35
+  },
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "url": "1",
+   "description": "1",
+   "logo": "1",
+   "gecko_id": "1",
+   "cmcId": "1",
+   "chains": [
+    "1",
+    "1",
+    "1"
+   ],
+   "twitter": "1",
+   "governanceID": [
+    "1"
+   ],
+   "github": [
+    "1"
+   ],
+   "treasury": "1",
+   "symbol": "1",
+   "address": "1",
+   "childProtocols": [
+    {}
+   ],
+   "linkedProtocols": [
+    "1",
+    "1",
+    "1"
+   ],
+   "defillamaId": "1",
+   "displayName": "1",
+   "latestFetchIsOk": true,
+   "slug": "1",
+   "protocolType": "1",
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "totalAllTime": 1,
+   "totalDataChart": [
+    [
+     1702684800,
+     15019
+    ]
+   ],
+   "totalDataChartBreakdown": [
+    [
+     1702684800,
+     {
+      "Ethereum": {
+       "Derive V2": 15019
+      }
+     }
+    ]
+   ],
+   "change_1d": 1
+  }
+ },
+ "GET /api/tokenProtocols/{symbol}": {
+  "path": "/api/tokenProtocols/{symbol}",
+  "sample": [
+   {
+    "name": "1",
+    "category": "1",
+    "amountUsd": {
+     "coingecko:tether-avalanche-bridged-usdt-e": 1
+    }
+   }
+  ]
+ },
+ "GET /api/treasuries": {
+  "path": "/api/treasuries",
+  "sample": [
+   {
+    "id": "1",
+    "name": "1",
+    "address": "1",
+    "symbol": "1",
+    "url": "1",
+    "description": "1",
+    "chain": "1",
+    "logo": "1",
+    "audits": "1",
+    "audit_note": "1",
+    "gecko_id": "1",
+    "cmcId": "1",
+    "category": "1",
+    "chains": [
+     "1"
+    ],
+    "module": "1",
+    "treasury": "1",
+    "forkedFromIds": [
+     "1"
+    ],
+    "twitter": "1",
+    "slug": "1",
+    "tvl": 1,
+    "chainTvls": {
+     "Ethereum": 1
+    },
+    "change_1h": 1,
+    "change_1d": 1,
+    "change_7d": 1,
+    "tokenBreakdowns": {
+     "ownTokens": 1,
+     "stablecoins": 1,
+     "majors": 1,
+     "others": 1
+    },
+    "mcap": 1
+   }
+  ]
+ },
+ "GET /api/tvl/{protocol}": {
+  "path": "/api/tvl/{protocol}",
+  "example": 4962012809.795062,
+  "sample": 1
+ },
+ "GET /api/v2/chains": {
+  "path": "/api/v2/chains",
+  "sample": [
+   {
+    "gecko_id": "1",
+    "tvl": 1,
+    "tokenSymbol": "1",
+    "cmcId": "1",
+    "name": "1",
+    "chainId": 1
+   }
+  ]
+ },
+ "GET /api/v2/chart/fork/protocol-breakdown": {
+  "path": "/api/v2/chart/fork/protocol-breakdown",
+  "example": [
+   {
+    "timestamp": 1599696000,
+    "Uniswap V2": 1082367977.05
+   },
+   {
+    "timestamp": 1599868800,
+    "Uniswap V2": 1456479137.61,
+    "Saddle Finance": 41.34
+   }
+  ],
+  "sample": [
+   {
+    "timestamp": 1
+   }
+  ]
+ },
+ "GET /api/v2/chart/fork/protocol/{protocol}": {
+  "path": "/api/v2/chart/fork/protocol/{protocol}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/oracle": {
+  "path": "/api/v2/chart/oracle",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/oracle/chain-breakdown": {
+  "path": "/api/v2/chart/oracle/chain-breakdown",
+  "example": [
+   {
+    "timestamp": 1546560000,
+    "Ethereum": 273845651.27
+   },
+   {
+    "timestamp": 1546646400,
+    "Ethereum": 288674544.41
+   }
+  ],
+  "sample": [
+   {
+    "timestamp": 1
+   }
+  ]
+ },
+ "GET /api/v2/chart/oracle/chain/{chain}": {
+  "path": "/api/v2/chart/oracle/chain/{chain}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/oracle/chain/{chain}/protocol-breakdown": {
+  "path": "/api/v2/chart/oracle/chain/{chain}/protocol-breakdown",
+  "example": [
+   {
+    "timestamp": 1546560000,
+    "Chronicle": 273845651.27
+   },
+   {
+    "timestamp": 1546646400,
+    "Chronicle": 288674544.41
+   }
+  ],
+  "sample": [
+   {
+    "timestamp": 1
+   }
+  ]
+ },
+ "GET /api/v2/chart/oracle/protocol-breakdown": {
+  "path": "/api/v2/chart/oracle/protocol-breakdown",
+  "example": [
+   {
+    "timestamp": 1546560000,
+    "Chronicle": 273845651.27
+   },
+   {
+    "timestamp": 1546646400,
+    "Chronicle": 288674544.41
+   }
+  ],
+  "sample": [
+   {
+    "timestamp": 1
+   }
+  ]
+ },
+ "GET /api/v2/chart/oracle/protocol/{protocol}": {
+  "path": "/api/v2/chart/oracle/protocol/{protocol}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/oracle/protocol/{protocol}/chain-breakdown": {
+  "path": "/api/v2/chart/oracle/protocol/{protocol}/chain-breakdown",
+  "example": [
+   {
+    "timestamp": 1557273600,
+    "Ethereum": 9546.16
+   },
+   {
+    "timestamp": 1557360000,
+    "Ethereum": 10826.13
+   }
+  ],
+  "sample": [
+   {
+    "timestamp": 1
+   }
+  ]
+ },
+ "GET /api/v2/chart/treasury/protocol/{protocol}": {
+  "path": "/api/v2/chart/treasury/protocol/{protocol}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/treasury/protocol/{protocol}/chain-breakdown": {
+  "path": "/api/v2/chart/treasury/protocol/{protocol}/chain-breakdown",
+  "example": [
+   [
+    1609459200,
+    {
+     "Ethereum": 80000000,
+     "Polygon": 20000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "Ethereum": 81000000,
+     "Polygon": 20500000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1609459200,
+    {
+     "Ethereum": 80000000,
+     "Polygon": 20000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "Ethereum": 81000000,
+     "Polygon": 20500000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/treasury/protocol/{protocol}/token-breakdown": {
+  "path": "/api/v2/chart/treasury/protocol/{protocol}/token-breakdown",
+  "example": [
+   [
+    1609459200,
+    {
+     "AAVE": 50000000,
+     "USDC": 30000000,
+     "WETH": 20000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "AAVE": 51000000,
+     "USDC": 30500000,
+     "WETH": 20500000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1609459200,
+    {
+     "AAVE": 50000000,
+     "USDC": 30000000,
+     "WETH": 20000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "AAVE": 51000000,
+     "USDC": 30500000,
+     "WETH": 20500000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/tvl/protocol/{protocol}": {
+  "path": "/api/v2/chart/tvl/protocol/{protocol}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/tvl/protocol/{protocol}/chain-breakdown": {
+  "path": "/api/v2/chart/tvl/protocol/{protocol}/chain-breakdown",
+  "example": [
+   [
+    1609459200,
+    {
+     "Ethereum": 3200000000,
+     "Polygon": 1500000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "Ethereum": 3250000000,
+     "Polygon": 1520000000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1609459200,
+    {
+     "Ethereum": 3200000000,
+     "Polygon": 1500000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "Ethereum": 3250000000,
+     "Polygon": 1520000000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/tvl/protocol/{protocol}/token-breakdown": {
+  "path": "/api/v2/chart/tvl/protocol/{protocol}/token-breakdown",
+  "example": [
+   [
+    1609459200,
+    {
+     "USDC": 1000000000,
+     "USDT": 800000000,
+     "WETH": 500000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "USDC": 1010000000,
+     "USDT": 810000000,
+     "WETH": 510000000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1609459200,
+    {
+     "USDC": 1000000000,
+     "USDT": 800000000,
+     "WETH": 500000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "USDC": 1010000000,
+     "USDT": 810000000,
+     "WETH": 510000000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}": {
+  "path": "/api/v2/chart/{metric}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/category/{category}": {
+  "path": "/api/v2/chart/{metric}/category/{category}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/category/{category}/chain-breakdown": {
+  "path": "/api/v2/chart/{metric}/category/{category}/chain-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Ethereum": 30000000,
+     "Solana": 12000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Ethereum": 31000000,
+     "Solana": 12500000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1534550400,
+    {
+     "Ethereum": 30000000,
+     "Solana": 12000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Ethereum": 31000000,
+     "Solana": 12500000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/category/{category}/chain/{chain}": {
+  "path": "/api/v2/chart/{metric}/category/{category}/chain/{chain}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/category/{category}/chain/{chain}/protocol-breakdown": {
+  "path": "/api/v2/chart/{metric}/category/{category}/chain/{chain}/protocol-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/category/{category}/protocol-breakdown": {
+  "path": "/api/v2/chart/{metric}/category/{category}/protocol-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/chain-breakdown": {
+  "path": "/api/v2/chart/{metric}/chain-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Ethereum": 30000000,
+     "Solana": 12000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Ethereum": 31000000,
+     "Solana": 12500000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1534550400,
+    {
+     "Ethereum": 30000000,
+     "Solana": 12000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Ethereum": 31000000,
+     "Solana": 12500000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/chain/{chain}": {
+  "path": "/api/v2/chart/{metric}/chain/{chain}",
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/chain/{chain}/protocol-breakdown": {
+  "path": "/api/v2/chart/{metric}/chain/{chain}/protocol-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/protocol-breakdown": {
+  "path": "/api/v2/chart/{metric}/protocol-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/protocol/{protocol}": {
+  "path": "/api/v2/chart/{metric}/protocol/{protocol}",
+  "example": [
+   [
+    1665964800,
+    834139
+   ]
+  ],
+  "sample": [
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/protocol/{protocol}/chain-breakdown": {
+  "path": "/api/v2/chart/{metric}/protocol/{protocol}/chain-breakdown",
+  "example": [
+   [
+    1665964800,
+    {
+     "Ethereum": 834139,
+     "OP Mainnet": 834139
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1665964800,
+    {
+     "Ethereum": 834139,
+     "OP Mainnet": 834139
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/protocol/{protocol}/label-breakdown": {
+  "path": "/api/v2/chart/{metric}/protocol/{protocol}/label-breakdown",
+  "example": [
+   [
+    1607040000,
+    {
+     "Borrow Interest": 131
+    }
+   ],
+   [
+    1607126400,
+    {
+     "Borrow Interest": 334,
+     "Flash Loans": 50
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1607040000,
+    {
+     "Borrow Interest": 131
+    }
+   ],
+   [
+    1607126400,
+    {
+     "Borrow Interest": 334,
+     "Flash Loans": 50
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/chart/{metric}/protocol/{protocol}/version-breakdown": {
+  "path": "/api/v2/chart/{metric}/protocol/{protocol}/version-breakdown",
+  "example": [
+   [
+    1607040000,
+    {
+     "Aave V2": 131
+    }
+   ],
+   [
+    1607126400,
+    {
+     "Aave V2": 334,
+     "Aave V3": 500
+    }
+   ]
+  ],
+  "sample": [
+   [
+    1607040000,
+    {
+     "Aave V2": 131
+    }
+   ],
+   [
+    1607126400,
+    {
+     "Aave V2": 334,
+     "Aave V3": 500
+    }
+   ]
+  ]
+ },
+ "GET /api/v2/historicalChainTvl": {
+  "path": "/api/v2/historicalChainTvl",
+  "sample": [
+   {
+    "date": 1,
+    "tvl": 1
+   }
+  ]
+ },
+ "GET /api/v2/historicalChainTvl/{chain}": {
+  "path": "/api/v2/historicalChainTvl/{chain}",
+  "sample": [
+   {
+    "date": 1,
+    "tvl": 1
+   }
+  ]
+ },
+ "GET /api/v2/metrics/financial-statement/protocol/{protocol}": {
+  "path": "/api/v2/metrics/financial-statement/protocol/{protocol}",
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "address": "1",
+   "symbol": "1",
+   "url": "1",
+   "description": "1",
+   "chain": "1",
+   "logo": "1",
+   "audits": "1",
+   "audit_links": [
+    "1"
+   ],
+   "category": "1",
+   "chains": [
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "oraclesBreakdown": [
+    {
+     "name": "1",
+     "type": "1",
+     "proof": [
+      "1"
+     ]
+    }
+   ],
+   "module": "1",
+   "twitter": "1",
+   "github": [
+    "1"
+   ],
+   "listedAt": 1,
+   "parentProtocol": "1",
+   "dimensions": {
+    "fees": "1"
+   },
+   "methodology": {
+    "Gross Protocol Revenue": "1"
+   },
+   "breakdownMethodology": {
+    "Gross Protocol Revenue": {
+     "Borrow Interest": "1"
+    }
+   },
+   "methodologyURL": "1",
+   "tvlCodePath": "1",
+   "hallmarks": [
+    [
+     1650412800,
+     "Start AVAX Rewards"
+    ]
+   ],
+   "linkedProtocols": [
+    "1",
+    "1",
+    "1"
+   ],
+   "childProtocols": [
+    {
+     "name": "1",
+     "defillamaId": "1",
+     "displayName": "1",
+     "methodologyURL": "1",
+     "methodology": {
+      "key": "1"
+     },
+     "breakdownMethodology": {
+      "key": {
+       "key": "1"
+      }
+     }
+    }
+   ],
+   "hasLabelBreakdown": true,
+   "defillamaId": "1",
+   "displayName": "1",
+   "slug": "1",
+   "protocolType": "1",
+   "aggregates": {
+    "yearly": {
+     "key": {
+      "Gross Protocol Revenue": {
+       "value": 1,
+       "by-label": {
+        "Borrow Interest": 1
+       }
+      }
+     }
+    },
+    "quarterly": {
+     "key": {
+      "key": {
+       "value": 1,
+       "by-label": {
+        "key": 1
+       }
+      }
+     }
+    },
+    "monthly": {
+     "key": {
+      "key": {
+       "value": 1,
+       "by-label": {
+        "key": 1
+       }
+      }
+     }
+    }
+   }
+  },
+  "sample2": {
+   "id": "1",
+   "name": "1",
+   "address": "1",
+   "symbol": "1",
+   "url": "1",
+   "description": "1",
+   "chain": "1",
+   "logo": "1",
+   "audits": "1",
+   "audit_links": [
+    "1"
+   ],
+   "category": "1",
+   "chains": [
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "oraclesBreakdown": [
+    {
+     "name": "1",
+     "type": "1",
+     "proof": [
+      "1"
+     ]
+    }
+   ],
+   "module": "1",
+   "twitter": "1",
+   "github": [
+    "1"
+   ],
+   "listedAt": 1,
+   "parentProtocol": "1",
+   "dimensions": {
+    "fees": {
+     "adapter": "1",
+     "genuineSpikes": [
+      [
+       "2024-08-05",
+       "-"
+      ]
+     ]
+    }
+   },
+   "methodology": {
+    "Gross Protocol Revenue": "1"
+   },
+   "breakdownMethodology": {
+    "Gross Protocol Revenue": {
+     "Borrow Interest": "1"
+    }
+   },
+   "methodologyURL": "1",
+   "tvlCodePath": "1",
+   "hallmarks": [
+    [
+     1650412800,
+     "Start AVAX Rewards"
+    ]
+   ],
+   "linkedProtocols": [
+    "1",
+    "1",
+    "1"
+   ],
+   "childProtocols": [
+    {
+     "name": "1",
+     "defillamaId": "1",
+     "displayName": "1",
+     "methodologyURL": "1",
+     "methodology": {
+      "key": "1"
+     },
+     "breakdownMethodology": {
+      "key": {
+       "key": "1"
+      }
+     }
+    }
+   ],
+   "hasLabelBreakdown": true,
+   "defillamaId": "1",
+   "displayName": "1",
+   "slug": "1",
+   "protocolType": "1",
+   "aggregates": {
+    "yearly": {
+     "key": {
+      "Gross Protocol Revenue": {
+       "value": 1,
+       "by-label": {
+        "Borrow Interest": 1
+       }
+      }
+     }
+    },
+    "quarterly": {
+     "key": {
+      "key": {
+       "value": 1,
+       "by-label": {
+        "key": 1
+       }
+      }
+     }
+    },
+    "monthly": {
+     "key": {
+      "key": {
+       "value": 1,
+       "by-label": {
+        "key": 1
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "GET /api/v2/metrics/fork": {
+  "path": "/api/v2/metrics/fork",
+  "example": {
+   "Uniswap V2": [
+    "SushiSwap",
+    "PancakeSwap AMM",
+    "QuickSwap Dex"
+   ],
+   "Aave V2": [
+    "Geist Finance",
+    "Hundred Finance"
+   ]
+  },
+  "sample": {
+   "Uniswap V2": [
+    "1",
+    "1",
+    "1"
+   ]
+  }
+ },
+ "GET /api/v2/metrics/oracle": {
+  "path": "/api/v2/metrics/oracle",
+  "sample": {
+   "oracles": {
+    "Chainlink": [
+     "1",
+     "1",
+     "1"
+    ]
+   }
+  }
+ },
+ "GET /api/v2/metrics/treasury/protocol/{protocol}": {
+  "path": "/api/v2/metrics/treasury/protocol/{protocol}",
+  "example": {
+   "id": "parent#aave-treasury",
+   "name": "Aave (treasury)",
+   "url": "https://aave.com",
+   "description": "Aave is an Open Source and Non-Custodial protocol to earn interest on deposits and borrow assets",
+   "logo": "https://icons.llama.fi/aave.png",
+   "chains": [
+    "Ethereum",
+    "Arbitrum",
+    "OP Mainnet",
+    "Avalanche",
+    "Fantom",
+    "Polygon"
+   ],
+   "gecko_id": "aave",
+   "cmcId": "7278",
+   "treasury": "aave.js",
+   "twitter": "aave",
+   "governanceID": [
+    "snapshot:aave.eth",
+    "eip155:1:0xEC568fffba86c094cf06b22134B23074DFE2252c"
+   ],
+   "wrongLiquidity": true,
+   "github": [
+    "aave",
+    "bgd-labs"
+   ],
+   "stablecoins": [
+    "gho"
+   ],
+   "tokenRights": {
+    "rights": [
+     {
+      "label": "Governance",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Treasury",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Revenue",
+      "hasRight": true,
+      "details": "AAVE"
+     }
+    ],
+    "governanceData": {
+     "rights": "LIMITED",
+     "details": "Governance includes protocol parameters, treasury management, upgrades & onchain revenue",
+     "feeSwitchStatus": "ON",
+     "feeSwitchDetails": "$50m annual budget for token buybacks"
+    },
+    "holdersRevenueAndValueAccrual": {
+     "buybacks": "ACTIVE",
+     "dividends": "NONE",
+     "burns": "NONE",
+     "primaryValueAccrual": "Buybacks - $50M yearly budget for buybacks"
+    },
+    "tokenAlignment": {
+     "fundraising": "TOKEN",
+     "raiseDetailsLink": {
+      "label": "Strategic Round (Decrypt)",
+      "url": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions"
+     },
+     "associatedEntities": [
+      "DAO",
+      "Labs",
+      "Parent / Holdings Co"
+     ],
+     "equityRevenueCapture": "PARTIAL",
+     "equityStatement": "Labs owns the interface and offchain revenue"
+    }
+   },
+   "symbol": "AAVE",
+   "address": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+   "module": "treasury/aave.js",
+   "category": "Treasury",
+   "tvlCodePath": "https://github.com/DefiLlama/DefiLlama-Adapters/blob/main/projects/treasury/aave.js",
+   "currentChainTvls": {
+    "Ethereum-OwnTokens": 51486143.11756,
+    "Arbitrum-OwnTokens": 108.33167,
+    "OP Mainnet-OwnTokens": 339.41814,
+    "Avalanche-OwnTokens": 200.26047,
+    "Fantom-OwnTokens": 0,
+    "Fantom": 5317.95627,
+    "Polygon-OwnTokens": 0.49868,
+    "Arbitrum": 7665284.15367,
+    "Avalanche": 12653199.04222,
+    "OP Mainnet": 266147.25573,
+    "Ethereum": 50207476.33278,
+    "Polygon": 774382.58832,
+    "OwnTokens": 51486791.62651
+   },
+   "raises": [],
+   "mcap": 1775192426.0010407
+  },
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "address": "1",
+   "symbol": "1",
+   "url": "1",
+   "referralUrl": "1",
+   "description": "1",
+   "chain": "1",
+   "logo": "1",
+   "audits": "1",
+   "audit_note": "1",
+   "gecko_id": "1",
+   "cmcId": "1",
+   "category": "1",
+   "tags": [
+    "1"
+   ],
+   "chains": [
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "module": "1",
+   "treasury": "1",
+   "twitter": "1",
+   "audit_links": [
+    "1"
+   ],
+   "openSource": true,
+   "forkedFrom": [
+    "1"
+   ],
+   "oraclesByChain": {
+    "Ethereum": [
+     "1"
+    ]
+   },
+   "parentProtocol": "1",
+   "governanceID": [
+    "1",
+    "1"
+   ],
+   "github": [
+    "1",
+    "1"
+   ],
+   "currentChainTvls": {
+    "Ethereum-OwnTokens": 1
+   },
+   "isParentProtocol": true,
+   "mcap": 1,
+   "methodology": "1",
+   "raises": [
+    {
+     "round": "1",
+     "amount": 1,
+     "valuation": "1",
+     "source": "1",
+     "date": 1,
+     "defillamaId": "1",
+     "leadInvestors": [
+      "1"
+     ],
+     "otherInvestors": [
+      "1"
+     ],
+     "investors": [
+      "1"
+     ]
+    }
+   ],
+   "otherProtocols": [
+    "1"
+   ],
+   "hallmarks": [
+    []
+   ],
+   "stablecoins": [
+    "1"
+   ],
+   "misrepresentedTokens": true,
+   "deprecated": true,
+   "rugged": true,
+   "deadUrl": true,
+   "warningBanners": [
+    {
+     "message": "1",
+     "until": "1",
+     "level": "low"
+    }
+   ],
+   "tokenRights": {
+    "rights": [
+     {
+      "label": "Governance",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Treasury",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Revenue",
+      "hasRight": true,
+      "details": "AAVE"
+     }
+    ],
+    "governanceData": {
+     "rights": "LIMITED",
+     "details": "Governance includes protocol parameters, treasury management, upgrades & onchain revenue",
+     "feeSwitchStatus": "ON",
+     "feeSwitchDetails": "$50m annual budget for token buybacks"
+    },
+    "holdersRevenueAndValueAccrual": {
+     "buybacks": "ACTIVE",
+     "dividends": "NONE",
+     "burns": "NONE",
+     "primaryValueAccrual": "Buybacks - $50M yearly budget for buybacks"
+    },
+    "tokenAlignment": {
+     "fundraising": "TOKEN",
+     "raiseDetailsLink": {
+      "label": "Strategic Round (Decrypt)",
+      "url": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions"
+     },
+     "associatedEntities": [
+      "DAO",
+      "Labs",
+      "Parent / Holdings Co"
+     ],
+     "equityRevenueCapture": "PARTIAL",
+     "equityStatement": "Labs owns the interface and offchain revenue"
+    }
+   },
+   "wrongLiquidity": true,
+   "tvlCodePath": "1"
+  }
+ },
+ "GET /api/v2/metrics/tvl/protocol/{protocol}": {
+  "path": "/api/v2/metrics/tvl/protocol/{protocol}",
+  "example": {
+   "id": "parent#aave",
+   "name": "Aave",
+   "url": "https://aave.com",
+   "description": "Aave is an Open Source and Non-Custodial protocol to earn interest on deposits and borrow assets",
+   "logo": "https://icons.llama.fi/aave.png",
+   "chains": [],
+   "gecko_id": "aave",
+   "cmcId": "7278",
+   "treasury": "aave.js",
+   "twitter": "aave",
+   "governanceID": [
+    "snapshot:aave.eth",
+    "eip155:1:0xEC568fffba86c094cf06b22134B23074DFE2252c"
+   ],
+   "wrongLiquidity": true,
+   "github": [
+    "aave",
+    "bgd-labs"
+   ],
+   "stablecoins": [
+    "gho"
+   ],
+   "tokenRights": {
+    "rights": [
+     {
+      "label": "Governance",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Treasury",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Revenue",
+      "hasRight": true,
+      "details": "AAVE"
+     }
+    ],
+    "governanceData": {
+     "rights": "LIMITED",
+     "details": "Governance includes protocol parameters, treasury management, upgrades & onchain revenue",
+     "feeSwitchStatus": "ON",
+     "feeSwitchDetails": "$50m annual budget for token buybacks"
+    },
+    "holdersRevenueAndValueAccrual": {
+     "buybacks": "ACTIVE",
+     "dividends": "NONE",
+     "burns": "NONE",
+     "primaryValueAccrual": "Buybacks - $50M yearly budget for buybacks"
+    },
+    "tokenAlignment": {
+     "fundraising": "TOKEN",
+     "raiseDetailsLink": {
+      "label": "Strategic Round (Decrypt)",
+      "url": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions"
+     },
+     "associatedEntities": [
+      "DAO",
+      "Labs",
+      "Parent / Holdings Co"
+     ],
+     "equityRevenueCapture": "PARTIAL",
+     "equityStatement": "Labs owns the interface and offchain revenue"
+    }
+   },
+   "symbol": "AAVE",
+   "address": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+   "currentChainTvls": {
+    "Ethereum-staking": 300390294,
+    "Ethereum-pool2": 1001784,
+    "Avalanche-borrowed": 230805193,
+    "Ethereum": 21541108640,
+    "Ethereum-borrowed": 13105470847,
+    "Polygon": 164069009,
+    "Avalanche": 425186004,
+    "Polygon-borrowed": 71777370,
+    "staking": 300390294,
+    "pool2": 1001784,
+    "borrowed": 16477546481,
+    "Base": 720897079,
+    "Base-borrowed": 539408955,
+    "Arbitrum": 710909114,
+    "Arbitrum-borrowed": 493502165,
+    "OP Mainnet": 53112825,
+    "OP Mainnet-borrowed": 30898499,
+    "Gnosis": 67454440,
+    "Gnosis-borrowed": 28683972,
+    "Mantle": 285136854,
+    "Mantle-borrowed": 186143806,
+    "Plasma": 1958242285,
+    "Plasma-borrowed": 1655750534,
+    "BSC": 174954075,
+    "BSC-borrowed": 70470380,
+    "Linea": 49717184,
+    "Linea-borrowed": 38569924,
+    "Sonic": 12939987,
+    "Sonic-borrowed": 5315322,
+    "Scroll": 6971724,
+    "Scroll-borrowed": 5290161,
+    "ZKsync Era": 2782917,
+    "ZKsync Era-borrowed": 1245328,
+    "Soneium": 2038301,
+    "Soneium-borrowed": 292179,
+    "Metis": 959354,
+    "Metis-borrowed": 159370,
+    "Celo": 13373563,
+    "Celo-borrowed": 4923675,
+    "MegaETH": 19380664,
+    "MegaETH-borrowed": 34443,
+    "Aptos": 18649107,
+    "Aptos-borrowed": 8493938,
+    "Fantom": 4575,
+    "Fantom-borrowed": 1034,
+    "Harmony": 0,
+    "Harmony-borrowed": 309375
+   },
+   "isParentProtocol": true,
+   "raises": [
+    {
+     "date": 1594771200,
+     "name": "Aave",
+     "round": "Private token sale",
+     "amount": 3,
+     "source": "https://www.dcforecasts.com/altcoin-news/aave-raises-3m-from-three-arrows-capital-and-framework-ventures/",
+     "leadInvestors": [
+      "Framework Ventures",
+      "3AC"
+     ],
+     "otherInvestors": [],
+     "valuation": null,
+     "defillamaId": "111"
+    },
+    {
+     "date": 1602460800,
+     "name": "Aave",
+     "round": "Strategic ",
+     "amount": 25,
+     "source": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions",
+     "leadInvestors": [
+      "Blockchain Capital",
+      "Blockchain.com Ventures",
+      "Standard Crypto"
+     ],
+     "otherInvestors": [],
+     "valuation": null,
+     "defillamaId": "111"
+    },
+    {
+     "date": 1594166400,
+     "name": "Aave",
+     "round": "Private token sale",
+     "amount": 4.5,
+     "source": "https://decrypt.co/34991/parafi-invests-defi-lending-protocol",
+     "leadInvestors": [
+      "ParaFi Capital"
+     ],
+     "otherInvestors": [],
+     "valuation": null,
+     "defillamaId": "111"
+    },
+    {
+     "date": 1512000000,
+     "name": "Aave",
+     "round": "ICO",
+     "amount": 16.2,
+     "source": "https://twitter.com/aaveaave/status/936247348816175104",
+     "leadInvestors": [],
+     "otherInvestors": [],
+     "valuation": null,
+     "defillamaId": "1838"
+    }
+   ],
+   "mcap": 1775192426.0010407,
+   "otherProtocols": [
+    "Aave",
+    "Aave V3",
+    "Aave Horizon RWA",
+    "Aave V2",
+    "Aave Aptos",
+    "Aave V1",
+    "Aave Arc"
+   ],
+   "hallmarks": [
+    [
+     1619395200,
+     "Start Ethereum V2 Rewards"
+    ],
+    [
+     1633305600,
+     "Start AVAX V2 Rewards"
+    ],
+    [
+     1635292800,
+     "Potential xSUSHI attack found"
+    ],
+    [
+     1650412800,
+     "Start AVAX Rewards"
+    ],
+    [
+     1651881600,
+     "UST depeg"
+    ],
+    [
+     1654819200,
+     "stETH depeg"
+    ],
+    [
+     1659571200,
+     "Start OP Rewards"
+    ]
+   ]
+  },
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "address": "1",
+   "symbol": "1",
+   "url": "1",
+   "referralUrl": "1",
+   "description": "1",
+   "chain": "1",
+   "logo": "1",
+   "audits": "1",
+   "audit_note": "1",
+   "gecko_id": "1",
+   "cmcId": "1",
+   "category": "1",
+   "tags": [
+    "1"
+   ],
+   "chains": [
+    "1"
+   ],
+   "module": "1",
+   "treasury": "1",
+   "twitter": "1",
+   "audit_links": [
+    "1"
+   ],
+   "openSource": true,
+   "forkedFrom": [
+    "1"
+   ],
+   "oraclesByChain": {
+    "Ethereum": [
+     "1"
+    ]
+   },
+   "parentProtocol": "1",
+   "governanceID": [
+    "1",
+    "1"
+   ],
+   "github": [
+    "1",
+    "1"
+   ],
+   "currentChainTvls": {
+    "Ethereum-staking": 1
+   },
+   "isParentProtocol": true,
+   "mcap": 1,
+   "methodology": "1",
+   "raises": [
+    {
+     "round": "1",
+     "amount": 1,
+     "valuation": "1",
+     "source": "1",
+     "date": 1,
+     "defillamaId": "1",
+     "leadInvestors": [
+      "1",
+      "1"
+     ],
+     "otherInvestors": [
+      "1"
+     ],
+     "investors": [
+      "1"
+     ]
+    }
+   ],
+   "otherProtocols": [
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "hallmarks": [
+    [
+     1619395200,
+     "Start Ethereum V2 Rewards"
+    ]
+   ],
+   "stablecoins": [
+    "1"
+   ],
+   "misrepresentedTokens": true,
+   "deprecated": true,
+   "rugged": true,
+   "deadUrl": true,
+   "warningBanners": [
+    {
+     "message": "1",
+     "until": "1",
+     "level": "low"
+    }
+   ],
+   "tokenRights": {
+    "rights": [
+     {
+      "label": "Governance",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Treasury",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Revenue",
+      "hasRight": true,
+      "details": "AAVE"
+     }
+    ],
+    "governanceData": {
+     "rights": "LIMITED",
+     "details": "Governance includes protocol parameters, treasury management, upgrades & onchain revenue",
+     "feeSwitchStatus": "ON",
+     "feeSwitchDetails": "$50m annual budget for token buybacks"
+    },
+    "holdersRevenueAndValueAccrual": {
+     "buybacks": "ACTIVE",
+     "dividends": "NONE",
+     "burns": "NONE",
+     "primaryValueAccrual": "Buybacks - $50M yearly budget for buybacks"
+    },
+    "tokenAlignment": {
+     "fundraising": "TOKEN",
+     "raiseDetailsLink": {
+      "label": "Strategic Round (Decrypt)",
+      "url": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions"
+     },
+     "associatedEntities": [
+      "DAO",
+      "Labs",
+      "Parent / Holdings Co"
+     ],
+     "equityRevenueCapture": "PARTIAL",
+     "equityStatement": "Labs owns the interface and offchain revenue"
+    }
+   },
+   "wrongLiquidity": true,
+   "tvlCodePath": "1"
+  }
+ },
+ "GET /api/v2/metrics/{metric}": {
+  "path": "/api/v2/metrics/{metric}",
+  "sample": {
+   "allChains": [
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "total14dto7d": 1,
+   "total60dto30d": 1,
+   "total30d": 1,
+   "total1y": 1,
+   "change_1d": 1,
+   "change_7d": 1,
+   "change_1m": 1,
+   "change_7dover7d": 1,
+   "change_30dover30d": 1
+  }
+ },
+ "GET /api/v2/metrics/{metric}/categories": {
+  "path": "/api/v2/metrics/{metric}/categories",
+  "sample": [
+   {
+    "category": "1",
+    "total24h": 1,
+    "total7d": 1,
+    "total30d": 1,
+    "chains": [
+     "1",
+     "1"
+    ]
+   }
+  ]
+ },
+ "GET /api/v2/metrics/{metric}/category/{category}": {
+  "path": "/api/v2/metrics/{metric}/category/{category}",
+  "sample": {
+   "allChains": [
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "total14dto7d": 1,
+   "total60dto30d": 1,
+   "total30d": 1,
+   "total1y": 1,
+   "change_1d": 1,
+   "change_7d": 1,
+   "change_1m": 1,
+   "change_7dover7d": 1,
+   "change_30dover30d": 1,
+   "category": "1",
+   "allCategories": [
+    "1",
+    "1",
+    "1",
+    "1"
+   ]
+  }
+ },
+ "GET /api/v2/metrics/{metric}/category/{category}/chain/{chain}": {
+  "path": "/api/v2/metrics/{metric}/category/{category}/chain/{chain}",
+  "sample": {
+   "allChains": [
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "total14dto7d": 1,
+   "total60dto30d": 1,
+   "total30d": 1,
+   "total1y": 1,
+   "change_1d": 1,
+   "change_7d": 1,
+   "change_1m": 1,
+   "change_7dover7d": 1,
+   "change_30dover30d": 1,
+   "category": "1",
+   "allCategories": [
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "chain": "1"
+  }
+ },
+ "GET /api/v2/metrics/{metric}/chain/{chain}": {
+  "path": "/api/v2/metrics/{metric}/chain/{chain}",
+  "sample": {
+   "allChains": [
+    "1",
+    "1",
+    "1",
+    "1"
+   ],
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "total14dto7d": 1,
+   "total60dto30d": 1,
+   "total30d": 1,
+   "total1y": 1,
+   "change_1d": 1,
+   "change_7d": 1,
+   "change_1m": 1,
+   "change_7dover7d": 1,
+   "change_30dover30d": 1,
+   "chain": "1"
+  }
+ },
+ "GET /api/v2/metrics/{metric}/protocol/{protocol}": {
+  "path": "/api/v2/metrics/{metric}/protocol/{protocol}",
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "url": "1",
+   "description": "1",
+   "logo": "1",
+   "chains": [
+    "1",
+    "1",
+    "1"
+   ],
+   "gecko_id": "1",
+   "cmcId": "1",
+   "symbol": "1",
+   "twitter": "1",
+   "github": [
+    "1"
+   ],
+   "treasury": "1",
+   "governanceID": [
+    "1"
+   ],
+   "wrongLiquidity": true,
+   "stablecoins": [
+    "1"
+   ],
+   "total24h": 1,
+   "total48hto24h": 1,
+   "total7d": 1,
+   "total30d": 1,
+   "total1y": 1,
+   "change_1d": 1,
+   "change_7d": 1,
+   "change_1m": 1
+  }
+ },
+ "GET /bridges/bridge/{id}": {
+  "path": "/bridges/bridge/{id}",
+  "example": {
+   "id": 1,
+   "name": "polygon",
+   "displayName": "Polygon PoS Bridge",
+   "lastHourlyVolume": 118020.67633222912,
+   "currentDayVolume": 0,
+   "lastDailyVolume": 28740605.36474136,
+   "dayBeforeLastVolume": 17294645.046479236,
+   "weeklyVolume": 71188570.7201651,
+   "monthlyVolume": 490635601.59313035,
+   "lastHourlyTxs": {
+    "deposits": 10,
+    "withdrawals": 5
+   },
+   "currentDayTxs": {
+    "deposits": 0,
+    "withdrawals": 0
+   },
+   "prevDayTxs": {
+    "deposits": 153,
+    "withdrawals": 150
+   },
+   "dayBeforeLastTxs": {
+    "deposits": 173,
+    "withdrawals": 195
+   },
+   "weeklyTxs": {
+    "deposits": 2095,
+    "withdrawals": 1752
+   },
+   "monthlyTxs": {
+    "deposits": 6945,
+    "withdrawals": 5537
+   },
+   "chainBreakdown": {
+    "Polygon": {
+     "lastHourlyVolume": 118020.67633222912,
+     "currentDayVolume": 0,
+     "lastDailyVolume": 28740605.36474136,
+     "dayBeforeLastVolume": 17294645.046479236,
+     "weeklyVolume": 71188570.7201651,
+     "monthlyVolume": 490635601.59313035,
+     "last24hVolume": 34766385.06231544,
+     "lastHourlyTxs": {
+      "deposits": 10,
+      "withdrawals": 5
+     },
+     "currentDayTxs": {
+      "deposits": 0,
+      "withdrawals": 0
+     },
+     "prevDayTxs": {
+      "deposits": 153,
+      "withdrawals": 150
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 173,
+      "withdrawals": 195
+     },
+     "weeklyTxs": {
+      "deposits": 2095,
+      "withdrawals": 1752
+     },
+     "monthlyTxs": {
+      "deposits": 6945,
+      "withdrawals": 5537
+     }
+    },
+    "Ethereum": {
+     "lastHourlyVolume": 118020.67633222912,
+     "currentDayVolume": 0,
+     "lastDailyVolume": 28740605.36474136,
+     "dayBeforeLastVolume": 17294645.046479236,
+     "weeklyVolume": 71188570.7201651,
+     "monthlyVolume": 490635601.59313035,
+     "last24hVolume": 34766385.06231544,
+     "lastHourlyTxs": {
+      "deposits": 10,
+      "withdrawals": 5
+     },
+     "currentDayTxs": {
+      "deposits": 0,
+      "withdrawals": 0
+     },
+     "prevDayTxs": {
+      "deposits": 153,
+      "withdrawals": 150
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 173,
+      "withdrawals": 195
+     },
+     "weeklyTxs": {
+      "deposits": 2095,
+      "withdrawals": 1752
+     },
+     "monthlyTxs": {
+      "deposits": 6945,
+      "withdrawals": 5537
+     }
+    }
+   },
+   "destinationChain": "Polygon"
+  },
+  "sample": {
+   "id": 1,
+   "name": "1",
+   "displayName": "1",
+   "lastHourlyVolume": 1,
+   "currentDayVolume": 1,
+   "lastDailyVolume": 1,
+   "dayBeforeLastVolume": 1,
+   "weeklyVolume": 1,
+   "monthlyVolume": 1,
+   "lastHourlyTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "currentDayTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "prevDayTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "dayBeforeLastTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "weeklyTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "monthlyTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "chainBreakdown": {
+    "Polygon": {
+     "lastHourlyVolume": 118020.67633222912,
+     "currentDayVolume": 0,
+     "lastDailyVolume": 28740605.36474136,
+     "dayBeforeLastVolume": 17294645.046479236,
+     "weeklyVolume": 71188570.7201651,
+     "monthlyVolume": 490635601.59313035,
+     "last24hVolume": 34766385.06231544,
+     "lastHourlyTxs": {
+      "deposits": 10,
+      "withdrawals": 5
+     },
+     "currentDayTxs": {
+      "deposits": 0,
+      "withdrawals": 0
+     },
+     "prevDayTxs": {
+      "deposits": 153,
+      "withdrawals": 150
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 173,
+      "withdrawals": 195
+     },
+     "weeklyTxs": {
+      "deposits": 2095,
+      "withdrawals": 1752
+     },
+     "monthlyTxs": {
+      "deposits": 6945,
+      "withdrawals": 5537
+     }
+    },
+    "Ethereum": {
+     "lastHourlyVolume": 118020.67633222912,
+     "currentDayVolume": 0,
+     "lastDailyVolume": 28740605.36474136,
+     "dayBeforeLastVolume": 17294645.046479236,
+     "weeklyVolume": 71188570.7201651,
+     "monthlyVolume": 490635601.59313035,
+     "last24hVolume": 34766385.06231544,
+     "lastHourlyTxs": {
+      "deposits": 10,
+      "withdrawals": 5
+     },
+     "currentDayTxs": {
+      "deposits": 0,
+      "withdrawals": 0
+     },
+     "prevDayTxs": {
+      "deposits": 153,
+      "withdrawals": 150
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 173,
+      "withdrawals": 195
+     },
+     "weeklyTxs": {
+      "deposits": 2095,
+      "withdrawals": 1752
+     },
+     "monthlyTxs": {
+      "deposits": 6945,
+      "withdrawals": 5537
+     }
+    }
+   },
+   "destinationChain": "1"
+  }
+ },
+ "GET /bridges/bridgedaystats/{timestamp}/{chain}": {
+  "path": "/bridges/bridgedaystats/{timestamp}/{chain}",
+  "example": {
+   "date": 1752796800,
+   "totalTokensDeposited": {
+    "ethereum:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+     "usdValue": 8538374.477027368,
+     "amount": "17379331182",
+     "symbol": "USDC",
+     "decimals": 6
+    },
+    "ethereum:0x6De037ef9aD2725EB40118Bb1702EBb27e4Aeb24": {
+     "usdValue": 2123785.5869,
+     "amount": "2123785.5869",
+     "symbol": "RNDR",
+     "decimals": 18
+    }
+   },
+   "totalTokensWithdrawn": {
+    "ethereum:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+     "usdValue": 3020623.745962119,
+     "amount": "14680842655",
+     "symbol": "USDC",
+     "decimals": 6
+    },
+    "ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": {
+     "usdValue": 2214456.1061736266,
+     "amount": "28501633217143430245",
+     "symbol": "WETH",
+     "decimals": 18
+    }
+   },
+   "totalAddressDeposited": {
+    "ethereum:0x3a23F943181408EAC424116Af7b7790c94Cb97a5": {
+     "usdValue": 2447787.602843585,
+     "txs": 13
+    },
+    "ethereum:0x348C31025754113F599ccEa72747A726a133799b": {
+     "usdValue": 2115000,
+     "txs": 1
+    }
+   },
+   "totalAddressWithdrawn": {
+    "ethereum:0xb60d0C2E8309518373b40f8Eaa2CAd0d1De3deCb": {
+     "usdValue": 1196415.6440843595,
+     "txs": 2
+    },
+    "ethereum:0x49c3FeaFDdaefC3Bed06F4ff87CE86610C2c1076": {
+     "usdValue": 565794.5181076665,
+     "txs": 1
+    }
+   }
+  },
+  "sample": {
+   "date": 1,
+   "totalTokensDeposited": {
+    "ethereum:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+     "usdValue": 1,
+     "amount": "1",
+     "symbol": "1",
+     "decimals": 1
+    }
+   },
+   "totalTokensWithdrawn": {
+    "ethereum:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+     "usdValue": 1,
+     "amount": "1",
+     "symbol": "1",
+     "decimals": 1
+    }
+   },
+   "totalAddressDeposited": {
+    "ethereum:0x3a23F943181408EAC424116Af7b7790c94Cb97a5": {
+     "usdValue": 1,
+     "txs": 1
+    }
+   },
+   "totalAddressWithdrawn": {
+    "ethereum:0xb60d0C2E8309518373b40f8Eaa2CAd0d1De3deCb": {
+     "usdValue": 1,
+     "txs": 1
+    }
+   }
+  }
+ },
+ "GET /bridges/bridges": {
+  "path": "/bridges/bridges",
+  "example": {
+   "bridges": [
+    {
+     "id": 80,
+     "name": "hyperliquid",
+     "displayName": "Hyperliquid",
+     "icon": "icons:hyperliquid",
+     "volumePrevDay": 245562283.16810948,
+     "volumePrev2Day": 205702464.62591228,
+     "lastHourlyVolume": 0,
+     "last24hVolume": 245562283.16810948,
+     "lastDailyVolume": 245562283.16810948,
+     "dayBeforeLastVolume": 205702464.62591228,
+     "weeklyVolume": 1700279485.290507,
+     "monthlyVolume": 3986810177.448681,
+     "chains": [
+      "Arbitrum",
+      "Hyperliquid"
+     ],
+     "destinationChain": "Hyperliquid",
+     "url": "https://app.hyperliquid.xyz/trade",
+     "slug": "hyperliquid-bridge"
+    }
+   ]
+  },
+  "sample": {
+   "bridges": [
+    {
+     "id": 1,
+     "name": "1",
+     "displayName": "1",
+     "icon": "1",
+     "volumePrevDay": 1,
+     "volumePrev2Day": 1,
+     "lastHourlyVolume": 1,
+     "last24hVolume": 1,
+     "lastDailyVolume": 1,
+     "dayBeforeLastVolume": 1,
+     "weeklyVolume": 1,
+     "monthlyVolume": 1,
+     "chains": [
+      "1",
+      "1"
+     ],
+     "destinationChain": "1",
+     "url": "1",
+     "slug": "1"
+    }
+   ]
+  }
+ },
+ "GET /bridges/bridgevolume/{chain}": {
+  "path": "/bridges/bridgevolume/{chain}",
+  "example": [
+   {
+    "date": "1665964800",
+    "depositUSD": 11121806.082658675,
+    "withdrawUSD": 13970177.335270314,
+    "depositTxs": 218,
+    "withdrawTxs": 56
+   },
+   {
+    "date": "1666051200",
+    "depositUSD": 32940139.204768553,
+    "withdrawUSD": 157541586.9492474,
+    "depositTxs": 2042,
+    "withdrawTxs": 708
+   }
+  ],
+  "sample": [
+   {
+    "date": "1",
+    "depositUSD": 1,
+    "withdrawUSD": 1,
+    "depositTxs": 1,
+    "withdrawTxs": 1
+   }
+  ]
+ },
+ "GET /bridges/transactions/{id}": {
+  "path": "/bridges/transactions/{id}",
+  "example": {
+   "id": 1,
+   "name": "polygon",
+   "displayName": "Polygon PoS Bridge",
+   "lastHourlyVolume": 118020.67633222912,
+   "currentDayVolume": 0,
+   "lastDailyVolume": 28740605.36474136,
+   "dayBeforeLastVolume": 17294645.046479236,
+   "weeklyVolume": 71188570.7201651,
+   "monthlyVolume": 490635601.59313035,
+   "lastHourlyTxs": {
+    "deposits": 10,
+    "withdrawals": 5
+   },
+   "currentDayTxs": {
+    "deposits": 0,
+    "withdrawals": 0
+   },
+   "prevDayTxs": {
+    "deposits": 153,
+    "withdrawals": 150
+   },
+   "dayBeforeLastTxs": {
+    "deposits": 173,
+    "withdrawals": 195
+   },
+   "weeklyTxs": {
+    "deposits": 2095,
+    "withdrawals": 1752
+   },
+   "monthlyTxs": {
+    "deposits": 6945,
+    "withdrawals": 5537
+   },
+   "chainBreakdown": {
+    "Polygon": {
+     "lastHourlyVolume": 118020.67633222912,
+     "currentDayVolume": 0,
+     "lastDailyVolume": 28740605.36474136,
+     "dayBeforeLastVolume": 17294645.046479236,
+     "weeklyVolume": 71188570.7201651,
+     "monthlyVolume": 490635601.59313035,
+     "last24hVolume": 34766385.06231544,
+     "lastHourlyTxs": {
+      "deposits": 10,
+      "withdrawals": 5
+     },
+     "currentDayTxs": {
+      "deposits": 0,
+      "withdrawals": 0
+     },
+     "prevDayTxs": {
+      "deposits": 153,
+      "withdrawals": 150
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 173,
+      "withdrawals": 195
+     },
+     "weeklyTxs": {
+      "deposits": 2095,
+      "withdrawals": 1752
+     },
+     "monthlyTxs": {
+      "deposits": 6945,
+      "withdrawals": 5537
+     }
+    },
+    "Ethereum": {
+     "lastHourlyVolume": 118020.67633222912,
+     "currentDayVolume": 0,
+     "lastDailyVolume": 28740605.36474136,
+     "dayBeforeLastVolume": 17294645.046479236,
+     "weeklyVolume": 71188570.7201651,
+     "monthlyVolume": 490635601.59313035,
+     "last24hVolume": 34766385.06231544,
+     "lastHourlyTxs": {
+      "deposits": 10,
+      "withdrawals": 5
+     },
+     "currentDayTxs": {
+      "deposits": 0,
+      "withdrawals": 0
+     },
+     "prevDayTxs": {
+      "deposits": 153,
+      "withdrawals": 150
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 173,
+      "withdrawals": 195
+     },
+     "weeklyTxs": {
+      "deposits": 2095,
+      "withdrawals": 1752
+     },
+     "monthlyTxs": {
+      "deposits": 6945,
+      "withdrawals": 5537
+     }
+    }
+   },
+   "destinationChain": "Polygon"
+  },
+  "sample": {
+   "id": 1,
+   "name": "1",
+   "displayName": "1",
+   "lastHourlyVolume": 1,
+   "currentDayVolume": 1,
+   "lastDailyVolume": 1,
+   "dayBeforeLastVolume": 1,
+   "weeklyVolume": 1,
+   "monthlyVolume": 1,
+   "lastHourlyTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "currentDayTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "prevDayTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "dayBeforeLastTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "weeklyTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "monthlyTxs": {
+    "deposits": 1,
+    "withdrawals": 1
+   },
+   "chainBreakdown": {
+    "Polygon": {
+     "lastHourlyVolume": 1,
+     "currentDayVolume": 1,
+     "lastDailyVolume": 1,
+     "dayBeforeLastVolume": 1,
+     "weeklyVolume": 1,
+     "monthlyVolume": 1,
+     "last24hVolume": 1,
+     "lastHourlyTxs": {
+      "deposits": 1,
+      "withdrawals": 1
+     },
+     "currentDayTxs": {
+      "deposits": 1,
+      "withdrawals": 1
+     },
+     "prevDayTxs": {
+      "deposits": 1,
+      "withdrawals": 1
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 1,
+      "withdrawals": 1
+     },
+     "weeklyTxs": {
+      "deposits": 1,
+      "withdrawals": 1
+     },
+     "monthlyTxs": {
+      "deposits": 1,
+      "withdrawals": 1
+     }
+    }
+   },
+   "destinationChain": "1"
+  },
+  "sample2": [
+   {
+    "tx_hash": "1",
+    "ts": "1",
+    "tx_block": 1,
+    "tx_from": "1",
+    "tx_to": "1",
+    "token": "1",
+    "amount": "1",
+    "chain": "1",
+    "bridge_name": "1",
+    "usd_value": 1,
+    "sourceChain": "1"
+   }
+  ]
+ },
+ "GET /coins/batchHistorical": {
+  "path": "/coins/batchHistorical",
+  "sample": {
+   "coins": {
+    "avax:0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e": {
+     "symbol": "1",
+     "prices": [
+      {
+       "timestamp": 1,
+       "price": 1,
+       "confidence": 1
+      }
+     ]
+    }
+   }
+  }
+ },
+ "GET /coins/block/{chain}/{timestamp}": {
+  "path": "/coins/block/{chain}/{timestamp}",
+  "sample": {
+   "height": 1,
+   "timestamp": 1
+  }
+ },
+ "GET /coins/chart/{coins}": {
+  "path": "/coins/chart/{coins}",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": {
+     "decimals": 1,
+     "confidence": 1,
+     "prices": [
+      {
+       "timestamp": 1,
+       "price": 1
+      }
+     ],
+     "symbol": "1"
+    }
+   }
+  }
+ },
+ "GET /coins/percentage/{coins}": {
+  "path": "/coins/percentage/{coins}",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": 1
+   }
+  }
+ },
+ "GET /coins/prices/current/{coins}": {
+  "path": "/coins/prices/current/{coins}",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": {
+     "decimals": 1,
+     "price": 1,
+     "symbol": "1",
+     "timestamp": 1,
+     "confidence": 1
+    }
+   }
+  }
+ },
+ "GET /coins/prices/first/{coins}": {
+  "path": "/coins/prices/first/{coins}",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": {
+     "price": 1,
+     "symbol": "1",
+     "timestamp": 1
+    }
+   }
+  }
+ },
+ "GET /coins/prices/historical/{timestamp}/{coins}": {
+  "path": "/coins/prices/historical/{timestamp}/{coins}",
+  "sample": {
+   "coins": {
+    "ethereum:0xdF574c24545E5FfEcb9a659c229253D4111d87e1": {
+     "decimals": 1,
+     "price": 1,
+     "symbol": "1",
+     "timestamp": 1,
+     "confidence": 1
+    }
+   }
+  }
+ },
+ "GET /dat/institutions": {
+  "path": "/dat/institutions",
+  "sample": {
+   "institutionMetadata": {
+    "key": {
+     "institutionId": 1,
+     "ticker": "1",
+     "name": "1",
+     "type": "1",
+     "price": 1,
+     "priceChange24h": 1,
+     "volume24h": 1,
+     "mcapRealized": 1,
+     "mcapRealistic": 1,
+     "mcapMax": 1,
+     "realized_mNAV": 1,
+     "realistic_mNAV": 1,
+     "max_mNAV": 1,
+     "totalUsdValue": 1,
+     "totalCost": 1,
+     "holdings": {
+      "key": {
+       "amount": 1,
+       "avgPrice": 1,
+       "usdValue": 1,
+       "cost": 1,
+       "transactionCount": 1,
+       "firstAnnouncementDate": "1",
+       "lastAnnouncementDate": "1",
+       "supplyPercentage": 1
+      }
+     }
+    }
+   },
+   "assetMetadata": {
+    "key": {
+     "name": "1",
+     "ticker": "1",
+     "geckoId": "1",
+     "companies": 1,
+     "totalAmount": 1,
+     "totalUsdValue": 1,
+     "circSupplyPerc": 1
+    }
+   },
+   "institutions": [
+    {
+     "institutionId": 1,
+     "totalUsdValue": 1,
+     "totalCost": 1
+    }
+   ],
+   "assets": {
+    "key": [
+     {
+      "institutionId": 1,
+      "usdValue": 1,
+      "amount": 1
+     }
+    ]
+   },
+   "totalCompanies": 1,
+   "flows": {
+    "key": [
+     []
+    ]
+   },
+   "mNAV": {
+    "key": {
+     "key": [
+      []
+     ]
+    }
+   },
+   "lastUpdated": "1"
+  }
+ },
+ "GET /dat/institutions/{symbol}": {
+  "path": "/dat/institutions/{symbol}",
+  "sample": {
+   "institutionId": 1,
+   "ticker": "1",
+   "name": "1",
+   "type": "1",
+   "rank": 1,
+   "price": 1,
+   "priceChange24h": 1,
+   "volume24h": 1,
+   "fd_realized": "1",
+   "fd_realistic": "1",
+   "fd_max": "1",
+   "mcap_realized": 1,
+   "mcap_realistic": 1,
+   "mcap_max": 1,
+   "realized_mNAV": 1,
+   "realistic_mNAV": 1,
+   "max_mNAV": 1,
+   "totalCost": 1,
+   "totalUsdValue": 1,
+   "assets": {
+    "key": {
+     "amount": 1,
+     "avgPrice": 1,
+     "usdValue": 1,
+     "cost": 1
+    }
+   },
+   "assetsMeta": {
+    "key": {
+     "name": "1",
+     "ticker": "1"
+    }
+   },
+   "ohlcv": [
+    []
+   ],
+   "assetValue": [
+    []
+   ],
+   "stats": [
+    []
+   ],
+   "transactions": [
+    {
+     "id": 1,
+     "asset": "1",
+     "amount": "1",
+     "avg_price": "1",
+     "usd_value": "1",
+     "start_date": "1",
+     "end_date": "1",
+     "report_date": "1",
+     "type": "1",
+     "source_type": "1",
+     "source_url": "1",
+     "source_note": "1",
+     "is_approved": true,
+     "reject_reason": "1",
+     "last_updated": "1",
+     "ticker": "1",
+     "assetName": "1",
+     "assetTicker": "1"
+    }
+   ],
+   "lastUpdated": "1"
+  }
+ },
+ "GET /equities/v1/companies-list": {
+  "path": "/equities/v1/companies-list",
+  "example": [
+   {
+    "ticker": "NVDA",
+    "companyName": "NVIDIA Corporation",
+    "country": "US",
+    "countryName": "United States",
+    "sectorSlug": "technology",
+    "industrySlug": "semiconductors"
+   },
+   {
+    "ticker": "AAPL",
+    "companyName": "Apple Inc.",
+    "country": "US",
+    "countryName": "United States",
+    "sectorSlug": "technology",
+    "industrySlug": "consumer-electronics"
+   }
+  ],
+  "sample": [
+   {
+    "ticker": "1",
+    "companyName": "1",
+    "country": "1",
+    "countryName": "1",
+    "sectorSlug": "1",
+    "industrySlug": "1"
+   }
+  ]
+ },
+ "GET /equities/v1/dimensions": {
+  "path": "/equities/v1/dimensions",
+  "example": {
+   "revenue": {
+    "annual": [
+     [
+      "2025-12-31",
+      7181325000
+     ],
+     [
+      "2024-12-31",
+      6564028000
+     ],
+     [
+      "2023-12-31",
+      3108383000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      1412982000
+     ],
+     [
+      "2025-12-31",
+      1781129000
+     ],
+     [
+      "2025-09-30",
+      1868693000
+     ]
+    ]
+   },
+   "holdersRevenue": {
+    "annual": [
+     [
+      "2025-12-31",
+      790195000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      1062234000
+     ]
+    ]
+   },
+   "earnings": {
+    "annual": [
+     [
+      "2025-12-31",
+      1260327000
+     ],
+     [
+      "2024-12-31",
+      2577755000
+     ],
+     [
+      "2023-12-31",
+      94752000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      -394117000
+     ],
+     [
+      "2025-12-31",
+      -666733000
+     ],
+     [
+      "2025-09-30",
+      432552000
+     ]
+    ]
+   },
+   "basicSharesOutstanding": {
+    "annual": [
+     [
+      "2025-12-31",
+      254730000
+     ],
+     [
+      "2024-12-31",
+      245186000
+     ],
+     [
+      "2023-12-31",
+      234258000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      258413000
+     ],
+     [
+      "2025-12-31",
+      256109000
+     ],
+     [
+      "2025-09-30",
+      254730000
+     ]
+    ]
+   }
+  },
+  "sample": {
+   "revenue": {
+    "annual": [
+     [
+      "2025-12-31",
+      7181325000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      1412982000
+     ]
+    ]
+   }
+  }
+ },
+ "GET /equities/v1/earnings-calendar": {
+  "path": "/equities/v1/earnings-calendar",
+  "example": [
+   {
+    "ticker": "AAPL",
+    "iso2_country_code": "US",
+    "cik": "320193",
+    "event_key": "2026-Q3",
+    "date_status": "reported",
+    "report_date": "2026-07-30",
+    "report_time": "amc",
+    "accepted_at": "2026-07-30T20:30:28.000Z",
+    "fiscal_year": 2026,
+    "fiscal_period": "Q3",
+    "period_end": "2026-06-27",
+    "source": "8k_item_202",
+    "source_form": "8-K",
+    "accession_number": "0000320193-26-000018",
+    "max_drift_days": null,
+    "first_published_at": "2026-09-21 12:47:28.451",
+    "revision_count": 0,
+    "previous_report_date": "",
+    "inserted_at": "2026-09-27 03:15:57.342"
+   },
+   {
+    "ticker": "AAPL",
+    "iso2_country_code": "US",
+    "cik": "320193",
+    "event_key": "2026-Q4",
+    "date_status": "estimated",
+    "report_date": "2026-10-29",
+    "report_time": "unknown",
+    "accepted_at": "",
+    "fiscal_year": 2026,
+    "fiscal_period": "Q4",
+    "period_end": "2026-09-26",
+    "source": "cadence_model",
+    "source_form": "",
+    "accession_number": "",
+    "max_drift_days": 7,
+    "first_published_at": "2026-09-21 12:47:28.451",
+    "revision_count": 0,
+    "previous_report_date": "",
+    "inserted_at": "2026-09-27 03:15:57.342"
+   }
+  ],
+  "sample": [
+   {
+    "ticker": "1",
+    "iso2_country_code": "1",
+    "cik": "1",
+    "event_key": "1",
+    "date_status": "reported",
+    "report_date": "1",
+    "report_time": "bmo",
+    "accepted_at": "1",
+    "fiscal_year": 1,
+    "fiscal_period": "Q1",
+    "period_end": "1",
+    "source": "8k_item_202",
+    "source_form": "1",
+    "accession_number": "1",
+    "max_drift_days": 1,
+    "first_published_at": "1",
+    "revision_count": 1,
+    "previous_report_date": "1",
+    "inserted_at": "1"
+   }
+  ]
+ },
+ "GET /equities/v1/filings": {
+  "path": "/equities/v1/filings",
+  "sample": [
+   {
+    "filingDate": "1",
+    "reportDate": "1",
+    "form": "1",
+    "primaryDocumentUrl": "1",
+    "documentDescription": "1"
+   }
+  ]
+ },
+ "GET /equities/v1/industries": {
+  "path": "/equities/v1/industries",
+  "example": [
+   {
+    "industry": "Semiconductors",
+    "industrySlug": "semiconductors",
+    "sector": "Technology",
+    "sectorSlug": "technology",
+    "marketCap": 11449062913733.04,
+    "marketCapChange1d": 45052557957.41,
+    "dollarVolume24h": 91746535047,
+    "revenueTTM": 676181976411,
+    "earningsTTM": 281424204118,
+    "ebitdaTTM": 390274528397,
+    "enterpriseValue": 11425992099839.04,
+    "employeeCount": 527732,
+    "trailingPE": 40.51,
+    "earningsYield": 2.469,
+    "priceToRevenue": 16.86,
+    "priceToBook": 15.31,
+    "enterpriseValueToEbitda": 29.17,
+    "dividendYield": 0.2731,
+    "holdersYield": 0.9171,
+    "operatingProfitMarginTTM": 45.36,
+    "priceChangePercentage1d": 0.3951,
+    "priceChangePercentage7d": 3.745,
+    "priceChangePercentage1m": 10.31,
+    "priceChangePercentage3m": 7.26,
+    "priceChangePercentage6m": 55.79,
+    "priceChangePercentageYtd": 44.12,
+    "priceChangePercentage1y": 53.79,
+    "companyCount": 50,
+    "coverage": {
+     "priceChangePercentage1d": 1,
+     "priceChangePercentage7d": 1,
+     "priceChangePercentage1m": 1,
+     "priceChangePercentage3m": 1,
+     "priceChangePercentage6m": 0.9959,
+     "priceChangePercentageYtd": 0.9959,
+     "priceChangePercentage1y": 0.9958,
+     "trailingPE": 0.9957,
+     "earningsYield": 0.9957,
+     "priceToRevenue": 0.9957,
+     "priceToBook": 1,
+     "enterpriseValueToEbitda": 0.9957,
+     "dividendYield": 0.8788,
+     "holdersYield": 0.9821,
+     "operatingProfitMarginTTM": 0.9957
+    },
+    "weight": 13.8,
+    "sectorWeight": 38.83,
+    "dollarVolumeShare24h": 15.74,
+    "topHoldings": [
+     {
+      "ticker": "NVDA",
+      "name": "NVIDIA Corporation",
+      "marketCap": 5451313781934.43,
+      "sectorWeight": 47.61,
+      "priceChangePercentage1d": 0.2182
+     },
+     {
+      "ticker": "AVGO",
+      "name": "Broadcom Inc.",
+      "marketCap": 1684314940000,
+      "sectorWeight": 14.71,
+      "priceChangePercentage1d": 0.6993
+     },
+     {
+      "ticker": "MU",
+      "name": "Micron Technology Inc.",
+      "marketCap": 1222319653346.07,
+      "sectorWeight": 10.68,
+      "priceChangePercentage1d": 0.162
+     }
+    ],
+    "updatedAt": "2026-09-25T19:59:00Z",
+    "volumeAsOf": "2026-09-25T19:59:00Z",
+    "rank": 1
+   }
+  ],
+  "sample": [
+   {
+    "industry": "1",
+    "industrySlug": "1",
+    "sector": "1",
+    "sectorSlug": "1",
+    "rank": 1,
+    "weight": 1,
+    "sectorWeight": 1,
+    "dollarVolumeShare24h": 1,
+    "marketCap": 1,
+    "marketCapChange1d": 1,
+    "dollarVolume24h": 1,
+    "revenueTTM": 1,
+    "earningsTTM": 1,
+    "ebitdaTTM": 1,
+    "enterpriseValue": 1,
+    "employeeCount": 1,
+    "trailingPE": 1,
+    "earningsYield": 1,
+    "priceToRevenue": 1,
+    "priceToBook": 1,
+    "enterpriseValueToEbitda": 1,
+    "dividendYield": 1,
+    "holdersYield": 1,
+    "operatingProfitMarginTTM": 1,
+    "priceChangePercentage1d": 1,
+    "priceChangePercentage7d": 1,
+    "priceChangePercentage1m": 1,
+    "priceChangePercentage3m": 1,
+    "priceChangePercentage6m": 1,
+    "priceChangePercentageYtd": 1,
+    "priceChangePercentage1y": 1,
+    "companyCount": 1,
+    "coverage": {
+     "priceChangePercentage1d": 1
+    },
+    "updatedAt": "1",
+    "volumeAsOf": "1",
+    "topHoldings": [
+     {
+      "ticker": "1",
+      "name": "1",
+      "marketCap": 1,
+      "sectorWeight": 1,
+      "priceChangePercentage1d": 1
+     }
+    ]
+   }
+  ]
+ },
+ "GET /equities/v1/ohlcv": {
+  "path": "/equities/v1/ohlcv",
+  "example": [
+   [
+    1773964800,
+    247.98,
+    249.2,
+    246,
+    247.99,
+    88268000
+   ],
+   [
+    1773878400,
+    249.4,
+    251.83,
+    247.3,
+    248.96,
+    34864100
+   ]
+  ],
+  "sample": [
+   [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ]
+  ]
+ },
+ "GET /equities/v1/onchain": {
+  "path": "/equities/v1/onchain",
+  "example": {
+   "perps": [
+    {
+     "pair": "AAPL-USDC",
+     "price": 307.86,
+     "volume24h": 1823545.15,
+     "openInterest": 24278916.49,
+     "annualizedFundingRate": -70.13,
+     "tradeUrl": "https://app.hyperliquid.xyz/trade/xyz:AAPL",
+     "contractSlug": "xyz:AAPL",
+     "exchangeProtocolSlug": "hyperliquid-perps",
+     "rwaPlatformSlug": "trade-xyz",
+     "exchangeType": "DEX",
+     "updatedAt": "2026-06-07T10:04:21Z"
+    }
+   ],
+   "tokens": [
+    {
+     "issuer": "Backed Assets (JE) Limited",
+     "issuerRwaPlatformSlug": "backed-finance",
+     "price": 308.7,
+     "assetSlug": "AAPLx",
+     "activeMarketcap": 30068771
+    }
+   ]
+  },
+  "sample": {
+   "perps": [
+    {
+     "pair": "1",
+     "price": 1,
+     "volume24h": 1,
+     "openInterest": 1,
+     "annualizedFundingRate": 1,
+     "tradeUrl": "1",
+     "contractSlug": "1",
+     "exchangeProtocolSlug": "1",
+     "rwaPlatformSlug": "1",
+     "exchangeType": "CEX",
+     "updatedAt": "1"
+    }
+   ],
+   "tokens": [
+    {
+     "issuer": "1",
+     "issuerRwaPlatformSlug": "1",
+     "price": 1,
+     "assetSlug": "1",
+     "activeMarketcap": 1
+    }
+   ]
+  }
+ },
+ "GET /equities/v1/price-history": {
+  "path": "/equities/v1/price-history",
+  "example": [
+   [
+    "2026-03-20T00:00:00Z",
+    247.99
+   ],
+   [
+    "2026-03-19T00:00:00Z",
+    248.96
+   ]
+  ],
+  "sample": [
+   [
+    "2026-03-20T00:00:00Z",
+    247.99
+   ]
+  ]
+ },
+ "GET /equities/v1/sector": {
+  "path": "/equities/v1/sector",
+  "example": {
+   "sector": "Technology",
+   "sectorSlug": "technology",
+   "marketCap": 29484487070530.91,
+   "marketCapChange1d": 251664986364.37,
+   "dollarVolume24h": 233706720783.08,
+   "revenueTTM": 3618619651351,
+   "earningsTTM": 729280268773,
+   "ebitdaTTM": 1159818834166,
+   "enterpriseValue": 30012989630394.37,
+   "employeeCount": 6808759,
+   "trailingPE": 40.3,
+   "earningsYield": 2.482,
+   "priceToRevenue": 8.121,
+   "priceToBook": 12.1,
+   "enterpriseValueToEbitda": 25.8,
+   "dividendYield": 0.5053,
+   "holdersYield": 1.719,
+   "operatingProfitMarginTTM": 24.65,
+   "priceChangePercentage1d": 0.861,
+   "priceChangePercentage7d": 2.951,
+   "priceChangePercentage1m": 6.681,
+   "priceChangePercentage3m": 11.65,
+   "priceChangePercentage6m": 45.56,
+   "priceChangePercentageYtd": 29.18,
+   "priceChangePercentage1y": 30.25,
+   "companyCount": 475,
+   "coverage": {
+    "priceChangePercentage1d": 1,
+    "priceChangePercentage7d": 1,
+    "priceChangePercentage1m": 1,
+    "priceChangePercentage3m": 0.9998,
+    "priceChangePercentage6m": 0.9979,
+    "priceChangePercentageYtd": 0.9976,
+    "priceChangePercentage1y": 0.9964,
+    "trailingPE": 0.9967,
+    "earningsYield": 0.9967,
+    "priceToRevenue": 0.9967,
+    "priceToBook": 1,
+    "enterpriseValueToEbitda": 0.9967,
+    "dividendYield": 0.8057,
+    "holdersYield": 0.9594,
+    "operatingProfitMarginTTM": 0.9967
+   },
+   "weight": 35.54,
+   "dollarVolumeShare24h": 40.1,
+   "industryCount": 12,
+   "topHoldings": [
+    {
+     "ticker": "NVDA",
+     "name": "NVIDIA Corporation",
+     "marketCap": 5451313781934.43,
+     "sectorWeight": 18.49,
+     "priceChangePercentage1d": 0.2182
+    },
+    {
+     "ticker": "AAPL",
+     "name": "Apple Inc.",
+     "marketCap": 5009416613731.49,
+     "sectorWeight": 16.99,
+     "priceChangePercentage1d": 1.533
+    },
+    {
+     "ticker": "MSFT",
+     "name": "Microsoft Corporation Common Stock",
+     "marketCap": 3833594441460,
+     "sectorWeight": 13,
+     "priceChangePercentage1d": 3.663
+    },
+    {
+     "ticker": "AVGO",
+     "name": "Broadcom Inc.",
+     "marketCap": 1684314940000,
+     "sectorWeight": 5.713,
+     "priceChangePercentage1d": 0.6993
+    },
+    {
+     "ticker": "MU",
+     "name": "Micron Technology Inc.",
+     "marketCap": 1222319653346.07,
+     "sectorWeight": 4.146,
+     "priceChangePercentage1d": 0.162
+    },
+    {
+     "ticker": "AMD",
+     "name": "Advanced Micro Devices Inc.",
+     "marketCap": 1029188160000,
+     "sectorWeight": 3.491,
+     "priceChangePercentage1d": 0.2177
+    },
+    {
+     "ticker": "INTC",
+     "name": "Intel Corporation",
+     "marketCap": 617829000000,
+     "sectorWeight": 2.095,
+     "priceChangePercentage1d": -3.446
+    },
+    {
+     "ticker": "PLTR",
+     "name": "Palantir Technologies Inc. Class A Common Stock",
+     "marketCap": 455757473990,
+     "sectorWeight": 1.546,
+     "priceChangePercentage1d": -1.516
+    },
+    {
+     "ticker": "CSCO",
+     "name": "Cisco Systems, Inc.",
+     "marketCap": 421038200000,
+     "sectorWeight": 1.428,
+     "priceChangePercentage1d": -0.2524
+    },
+    {
+     "ticker": "ORCL",
+     "name": "Oracle Corporation",
+     "marketCap": 394848028800,
+     "sectorWeight": 1.339,
+     "priceChangePercentage1d": -1.749
+    }
+   ],
+   "updatedAt": "2026-09-25T19:59:00Z",
+   "volumeAsOf": "2026-09-25T19:59:00Z",
+   "rank": 1,
+   "description": "Semiconductors, software, hardware and IT services.",
+   "valuation": {
+    "trailingPE": 40.3,
+    "earningsYield": 2.482,
+    "priceToRevenue": 8.121,
+    "priceToBook": 12.1,
+    "enterpriseValueToEbitda": 25.8,
+    "operatingProfitMarginTTM": 24.65,
+    "dividendYield": 0.5053,
+    "medianTrailingPE": 32.53,
+    "medianPriceToRevenue": 3.601,
+    "medianPriceToBook": 4.45,
+    "medianEnterpriseValueToEbitda": 18.73,
+    "medianOperatingProfitMarginTTM": 6.05,
+    "medianDividendYield": 0.9544
+   },
+   "concentration": {
+    "top10MarketCapShare": 68.24,
+    "hhi": 889,
+    "megaCapCount": 24,
+    "megaCapThreshold": 200000000000,
+    "medianMarketCap": 3171914000
+   }
+  },
+  "sample": {
+   "sector": "1",
+   "sectorSlug": "1",
+   "rank": 1,
+   "weight": 1,
+   "dollarVolumeShare24h": 1,
+   "industryCount": 1,
+   "marketCap": 1,
+   "marketCapChange1d": 1,
+   "dollarVolume24h": 1,
+   "revenueTTM": 1,
+   "earningsTTM": 1,
+   "ebitdaTTM": 1,
+   "enterpriseValue": 1,
+   "employeeCount": 1,
+   "trailingPE": 1,
+   "earningsYield": 1,
+   "priceToRevenue": 1,
+   "priceToBook": 1,
+   "enterpriseValueToEbitda": 1,
+   "dividendYield": 1,
+   "holdersYield": 1,
+   "operatingProfitMarginTTM": 1,
+   "priceChangePercentage1d": 1,
+   "priceChangePercentage7d": 1,
+   "priceChangePercentage1m": 1,
+   "priceChangePercentage3m": 1,
+   "priceChangePercentage6m": 1,
+   "priceChangePercentageYtd": 1,
+   "priceChangePercentage1y": 1,
+   "companyCount": 1,
+   "coverage": {
+    "priceChangePercentage1d": 1
+   },
+   "updatedAt": "1",
+   "volumeAsOf": "1",
+   "topHoldings": [
+    {
+     "ticker": "1",
+     "name": "1",
+     "marketCap": 1,
+     "sectorWeight": 1,
+     "priceChangePercentage1d": 1
+    }
+   ],
+   "description": "1",
+   "valuation": {
+    "trailingPE": 1,
+    "earningsYield": 1,
+    "priceToRevenue": 1,
+    "priceToBook": 1,
+    "enterpriseValueToEbitda": 1,
+    "operatingProfitMarginTTM": 1,
+    "dividendYield": 1,
+    "medianTrailingPE": 1,
+    "medianPriceToRevenue": 1,
+    "medianPriceToBook": 1,
+    "medianEnterpriseValueToEbitda": 1,
+    "medianOperatingProfitMarginTTM": 1,
+    "medianDividendYield": 1
+   },
+   "concentration": {
+    "top10MarketCapShare": 1,
+    "hhi": 1,
+    "megaCapCount": 1,
+    "megaCapThreshold": 1,
+    "medianMarketCap": 1
+   }
+  }
+ },
+ "GET /equities/v1/sectors": {
+  "path": "/equities/v1/sectors",
+  "example": [
+   {
+    "sector": "Technology",
+    "sectorSlug": "technology",
+    "marketCap": 29484487070530.91,
+    "marketCapChange1d": 251664986364.37,
+    "dollarVolume24h": 233706720783.08,
+    "revenueTTM": 3618619651351,
+    "earningsTTM": 729280268773,
+    "ebitdaTTM": 1159818834166,
+    "enterpriseValue": 30012989630394.37,
+    "employeeCount": 6808759,
+    "trailingPE": 40.3,
+    "earningsYield": 2.482,
+    "priceToRevenue": 8.121,
+    "priceToBook": 12.1,
+    "enterpriseValueToEbitda": 25.8,
+    "dividendYield": 0.5053,
+    "holdersYield": 1.719,
+    "operatingProfitMarginTTM": 24.65,
+    "priceChangePercentage1d": 0.861,
+    "priceChangePercentage7d": 2.951,
+    "priceChangePercentage1m": 6.681,
+    "priceChangePercentage3m": 11.65,
+    "priceChangePercentage6m": 45.56,
+    "priceChangePercentageYtd": 29.18,
+    "priceChangePercentage1y": 30.25,
+    "companyCount": 475,
+    "coverage": {
+     "priceChangePercentage1d": 1,
+     "priceChangePercentage7d": 1,
+     "priceChangePercentage1m": 1,
+     "priceChangePercentage3m": 0.9998,
+     "priceChangePercentage6m": 0.9979,
+     "priceChangePercentageYtd": 0.9976,
+     "priceChangePercentage1y": 0.9964,
+     "trailingPE": 0.9967,
+     "earningsYield": 0.9967,
+     "priceToRevenue": 0.9967,
+     "priceToBook": 1,
+     "enterpriseValueToEbitda": 0.9967,
+     "dividendYield": 0.8057,
+     "holdersYield": 0.9594,
+     "operatingProfitMarginTTM": 0.9967
+    },
+    "weight": 35.54,
+    "dollarVolumeShare24h": 40.1,
+    "industryCount": 12,
+    "topHoldings": [
+     {
+      "ticker": "NVDA",
+      "name": "NVIDIA Corporation",
+      "marketCap": 5451313781934.43,
+      "sectorWeight": 18.49,
+      "priceChangePercentage1d": 0.2182
+     },
+     {
+      "ticker": "AAPL",
+      "name": "Apple Inc.",
+      "marketCap": 5009416613731.49,
+      "sectorWeight": 16.99,
+      "priceChangePercentage1d": 1.533
+     },
+     {
+      "ticker": "MSFT",
+      "name": "Microsoft Corporation Common Stock",
+      "marketCap": 3833594441460,
+      "sectorWeight": 13,
+      "priceChangePercentage1d": 3.663
+     }
+    ],
+    "updatedAt": "2026-09-25T19:59:00Z",
+    "volumeAsOf": "2026-09-25T19:59:00Z",
+    "rank": 1
+   }
+  ],
+  "sample": [
+   {
+    "sector": "1",
+    "sectorSlug": "1",
+    "rank": 1,
+    "weight": 1,
+    "dollarVolumeShare24h": 1,
+    "industryCount": 1,
+    "marketCap": 1,
+    "marketCapChange1d": 1,
+    "dollarVolume24h": 1,
+    "revenueTTM": 1,
+    "earningsTTM": 1,
+    "ebitdaTTM": 1,
+    "enterpriseValue": 1,
+    "employeeCount": 1,
+    "trailingPE": 1,
+    "earningsYield": 1,
+    "priceToRevenue": 1,
+    "priceToBook": 1,
+    "enterpriseValueToEbitda": 1,
+    "dividendYield": 1,
+    "holdersYield": 1,
+    "operatingProfitMarginTTM": 1,
+    "priceChangePercentage1d": 1,
+    "priceChangePercentage7d": 1,
+    "priceChangePercentage1m": 1,
+    "priceChangePercentage3m": 1,
+    "priceChangePercentage6m": 1,
+    "priceChangePercentageYtd": 1,
+    "priceChangePercentage1y": 1,
+    "companyCount": 1,
+    "coverage": {
+     "priceChangePercentage1d": 1
+    },
+    "updatedAt": "1",
+    "volumeAsOf": "1",
+    "topHoldings": [
+     {
+      "ticker": "1",
+      "name": "1",
+      "marketCap": 1,
+      "sectorWeight": 1,
+      "priceChangePercentage1d": 1
+     }
+    ]
+   }
+  ]
+ },
+ "GET /equities/v1/sectors-overview": {
+  "path": "/equities/v1/sectors-overview",
+  "example": {
+   "marketCap": 82964660714713.33,
+   "marketCapChange1d": 345803139721.38,
+   "dollarVolume24h": 582767711903.08,
+   "revenueTTM": 24757148479483,
+   "earningsTTM": 2642725287768,
+   "ebitdaTTM": 4436690488724,
+   "enterpriseValue": 100074056247123.19,
+   "employeeCount": 45614558,
+   "trailingPE": 30.43,
+   "earningsYield": 3.287,
+   "priceToRevenue": 3.247,
+   "priceToBook": 4.871,
+   "enterpriseValueToEbitda": 18.39,
+   "dividendYield": 1.344,
+   "holdersYield": 2.915,
+   "operatingProfitMarginTTM": 13.77,
+   "priceChangePercentage1d": 0.4196,
+   "priceChangePercentage7d": 0.8979,
+   "priceChangePercentage1m": 0.3504,
+   "priceChangePercentage3m": 3.812,
+   "priceChangePercentage6m": 20.51,
+   "priceChangePercentageYtd": 12.33,
+   "priceChangePercentage1y": 15,
+   "companyCount": 3196,
+   "coverage": {
+    "priceChangePercentage1d": 1,
+    "priceChangePercentage7d": 1,
+    "priceChangePercentage1m": 1,
+    "priceChangePercentage3m": 0.9997,
+    "priceChangePercentage6m": 0.9743,
+    "priceChangePercentageYtd": 0.9732,
+    "priceChangePercentage1y": 0.9718,
+    "trailingPE": 0.9692,
+    "earningsYield": 0.9692,
+    "priceToRevenue": 0.969,
+    "priceToBook": 0.9995,
+    "enterpriseValueToEbitda": 0.8866,
+    "dividendYield": 0.7692,
+    "holdersYield": 0.8687,
+    "operatingProfitMarginTTM": 0.8866
+   },
+   "medianTrailingPE": 20.12,
+   "medianPriceToRevenue": 2.656,
+   "medianPriceToBook": 2.226,
+   "medianEnterpriseValueToEbitda": 12.91,
+   "medianOperatingProfitMarginTTM": 8.51,
+   "medianDividendYield": 2.318,
+   "medianMarketCap": 2372244950.07,
+   "sectorCount": 11,
+   "industryCount": 144,
+   "bestSector1d": {
+    "sector": "Technology",
+    "sectorSlug": "technology",
+    "priceChangePercentage1d": 0.861,
+    "weight": 35.54
+   },
+   "worstSector1d": {
+    "sector": "Energy",
+    "sectorSlug": "energy",
+    "priceChangePercentage1d": -0.9536,
+    "weight": 3.368
+   },
+   "largestSector": {
+    "sector": "Technology",
+    "sectorSlug": "technology",
+    "priceChangePercentage1d": 0.861,
+    "weight": 35.54
+   },
+   "updatedAt": "2026-09-25T19:59:00Z",
+   "volumeAsOf": "2026-09-25T19:59:00Z"
+  },
+  "sample": {
+   "marketCap": 1,
+   "marketCapChange1d": 1,
+   "dollarVolume24h": 1,
+   "revenueTTM": 1,
+   "earningsTTM": 1,
+   "ebitdaTTM": 1,
+   "enterpriseValue": 1,
+   "employeeCount": 1,
+   "trailingPE": 1,
+   "earningsYield": 1,
+   "priceToRevenue": 1,
+   "priceToBook": 1,
+   "enterpriseValueToEbitda": 1,
+   "dividendYield": 1,
+   "holdersYield": 1,
+   "operatingProfitMarginTTM": 1,
+   "priceChangePercentage1d": 1,
+   "priceChangePercentage7d": 1,
+   "priceChangePercentage1m": 1,
+   "priceChangePercentage3m": 1,
+   "priceChangePercentage6m": 1,
+   "priceChangePercentageYtd": 1,
+   "priceChangePercentage1y": 1,
+   "companyCount": 1,
+   "coverage": {
+    "priceChangePercentage1d": 1
+   },
+   "updatedAt": "1",
+   "volumeAsOf": "1",
+   "medianTrailingPE": 1,
+   "medianPriceToRevenue": 1,
+   "medianPriceToBook": 1,
+   "medianEnterpriseValueToEbitda": 1,
+   "medianOperatingProfitMarginTTM": 1,
+   "medianDividendYield": 1,
+   "medianMarketCap": 1,
+   "sectorCount": 1,
+   "industryCount": 1,
+   "bestSector1d": {
+    "sector": "1",
+    "sectorSlug": "1",
+    "priceChangePercentage1d": 1,
+    "weight": 1
+   },
+   "worstSector1d": {
+    "sector": "1",
+    "sectorSlug": "1",
+    "priceChangePercentage1d": 1,
+    "weight": 1
+   },
+   "largestSector": {
+    "sector": "1",
+    "sectorSlug": "1",
+    "priceChangePercentage1d": 1,
+    "weight": 1
+   }
+  }
+ },
+ "GET /equities/v1/statements": {
+  "path": "/equities/v1/statements",
+  "example": {
+   "incomeStatement": {
+    "labels": [
+     "Revenue",
+     "Cost of Revenue",
+     "Gross Profit",
+     "Operating Expenses",
+     "Operating Income",
+     "Non-Operating Items",
+     "Income Before Tax",
+     "Income Tax",
+     "Net Income",
+     "Minority Interests",
+     "Preferred Stock Dividends",
+     "Net Income to Common",
+     "Shares Outstanding (Basic)",
+     "Shares Outstanding (Diluted)",
+     "EPS (Basic)",
+     "EPS (Diluted)",
+     "EBIT",
+     "EBITDA"
+    ],
+    "children": {
+     "quarterly": {
+      "Operating Expenses": {
+       "labels": [
+        "Research and Development",
+        "Selling, General, and Administrative",
+        "Other Operating Expenses"
+       ]
+      },
+      "Non-Operating Items": {
+       "labels": [
+        "Non-Operating Interest Income",
+        "Non-Operating Interest Expense",
+        "Other Income/Expense"
+       ]
+      }
+     },
+     "annual": {
+      "Operating Expenses": {
+       "labels": [
+        "Research and Development",
+        "Selling, General, and Administrative",
+        "Other Operating Expenses"
+       ]
+      },
+      "Non-Operating Items": {
+       "labels": [
+        "Non-Operating Interest Income",
+        "Non-Operating Interest Expense",
+        "Other Income/Expense"
+       ]
+      }
+     }
+    },
+    "quarterly": {
+     "periodEnding": [
+      "2024-03-31",
+      "2024-06-30",
+      "2024-09-30",
+      "2024-12-31"
+     ],
+     "values": [
+      [
+       1801112000,
+       2227962000,
+       1311908000,
+       2498462000
+      ],
+      [
+       234066000,
+       335426000,
+       197251000,
+       501181000
+      ],
+      [
+       1567046000,
+       1892536000,
+       1114657000,
+       1997281000
+      ],
+      [
+       987713000,
+       874725000,
+       791808000,
+       922324000
+      ],
+      [
+       579333000,
+       1017811000,
+       322849000,
+       1074957000
+      ],
+      [
+       8953000,
+       -5844000,
+       -20948000,
+       -31784000
+      ],
+      [
+       588286000,
+       1011967000,
+       301901000,
+       1043173000
+      ],
+      [
+       123540000,
+       212513000,
+       63399000,
+       219066000
+      ],
+      [
+       464746000,
+       799454000,
+       238502000,
+       824107000
+      ],
+      [
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       464746000,
+       799454000,
+       238502000,
+       824107000
+      ],
+      [
+       243000000,
+       245000000,
+       247000000,
+       249000000
+      ],
+      [
+       256000000,
+       258000000,
+       260000000,
+       262000000
+      ],
+      [
+       1.91,
+       3.26,
+       0.97,
+       3.31
+      ],
+      [
+       1.82,
+       3.1,
+       0.92,
+       3.15
+      ],
+      [
+       588286000,
+       1011967000,
+       301901000,
+       1043173000
+      ],
+      [
+       678286000,
+       1101967000,
+       391901000,
+       1133173000
+      ]
+     ],
+     "children": {
+      "Operating Expenses": {
+       "values": [
+        [
+         184225000,
+         291461000,
+         356264000,
+         459611000
+        ],
+        [
+         682257000,
+         535713000,
+         405395000,
+         461678000
+        ],
+        [
+         121231000,
+         47551000,
+         30149000,
+         1035000
+        ]
+       ]
+      },
+      "Non-Operating Items": {
+       "values": [
+        [
+         25000000,
+         28000000,
+         30000000,
+         32000000
+        ],
+        [
+         -12000000,
+         -30000000,
+         -45000000,
+         -58000000
+        ],
+        [
+         -4047000,
+         -3844000,
+         -5948000,
+         -5784000
+        ]
+       ]
+      }
+     }
+    },
+    "annual": {
+     "periodEnding": [
+      "2023-12-31",
+      "2024-12-31"
+     ],
+     "values": [
+      [
+       3037428000,
+       7839444000
+      ],
+      [
+       811923000,
+       1267924000
+      ],
+      [
+       2225505000,
+       6571520000
+      ],
+      [
+       2890526000,
+       3576570000
+      ],
+      [
+       -665021000,
+       2994950000
+      ],
+      [
+       -54982000,
+       -49623000
+      ],
+      [
+       -720003000,
+       2945327000
+      ],
+      [
+       -110000000,
+       615000000
+      ],
+      [
+       -610003000,
+       2330327000
+      ],
+      [
+       0,
+       0
+      ],
+      [
+       0,
+       0
+      ],
+      [
+       -610003000,
+       2330327000
+      ],
+      [
+       235000000,
+       246000000
+      ],
+      [
+       235000000,
+       259000000
+      ],
+      [
+       -2.6,
+       9.47
+      ],
+      [
+       -2.6,
+       9
+      ],
+      [
+       -720003000,
+       2945327000
+      ],
+      [
+       -540000000,
+       3300000000
+      ]
+     ],
+     "children": {
+      "Operating Expenses": {
+       "values": [
+        [
+         955264000,
+         1291561000
+        ],
+        [
+         1623040000,
+         2085743000
+        ],
+        [
+         312222000,
+         199266000
+        ]
+       ]
+      },
+      "Non-Operating Items": {
+       "values": [
+        [
+         85000000,
+         115000000
+        ],
+        [
+         -95000000,
+         -145000000
+        ],
+        [
+         -44982000,
+         -19623000
+        ]
+       ]
+      }
+     }
+    }
+   },
+   "balanceSheet": {
+    "labels": [
+     "Total Current Assets",
+     "Total Non-Current Assets",
+     "Total Assets",
+     "Total Current Liabilities",
+     "Total Non-Current Liabilities",
+     "Total Liabilities",
+     "Total Shareholders Equity",
+     "Minority Interest",
+     "Total Equity",
+     "Total Liabilities and Equity"
+    ],
+    "children": {
+     "quarterly": {
+      "Total Current Assets": {
+       "labels": [
+        "Cash",
+        "Cash Equivalents",
+        "Cash and Cash Equivalents",
+        "Other Short-Term Investments",
+        "Accounts Receivable",
+        "Other Receivables",
+        "Inventory",
+        "Prepaid Assets",
+        "Restricted Cash",
+        "Assets Held for Sale",
+        "Hedging Assets",
+        "Other Current Assets"
+       ]
+      },
+      "Total Non-Current Assets": {
+       "labels": [
+        "Properties",
+        "Land and Improvements",
+        "Machinery, Furniture and Equipment",
+        "Construction in Progress",
+        "Leases",
+        "Accumulated Depreciation",
+        "Goodwill",
+        "Investment Properties",
+        "Financial Assets",
+        "Intangible Assets",
+        "Investments and Advances",
+        "Other Non-Current Assets"
+       ]
+      },
+      "Total Current Liabilities": {
+       "labels": [
+        "Accounts Payable",
+        "Accrued Expenses",
+        "Short-Term Debt",
+        "Deferred Revenue",
+        "Tax Payable",
+        "Pensions",
+        "Other Current Liabilities"
+       ]
+      },
+      "Total Non-Current Liabilities": {
+       "labels": [
+        "Long-Term Provisions",
+        "Long-Term Debt",
+        "Provision for Risks and Charges",
+        "Deferred Liabilities",
+        "Derivative Product Liabilities",
+        "Other Non-Current Liabilities"
+       ]
+      },
+      "Total Shareholders Equity": {
+       "labels": [
+        "Common Stock",
+        "Retained Earnings",
+        "Other Shareholders' Equity",
+        "Additional Paid-In Capital",
+        "Treasury Stock"
+       ]
+      }
+     },
+     "annual": {
+      "Total Current Assets": {
+       "labels": [
+        "Cash",
+        "Cash Equivalents",
+        "Cash and Cash Equivalents",
+        "Other Short-Term Investments",
+        "Accounts Receivable",
+        "Other Receivables",
+        "Inventory",
+        "Prepaid Assets",
+        "Restricted Cash",
+        "Assets Held for Sale",
+        "Hedging Assets",
+        "Other Current Assets"
+       ]
+      },
+      "Total Non-Current Assets": {
+       "labels": [
+        "Properties",
+        "Land and Improvements",
+        "Machinery, Furniture and Equipment",
+        "Construction in Progress",
+        "Leases",
+        "Accumulated Depreciation",
+        "Goodwill",
+        "Investment Properties",
+        "Financial Assets",
+        "Intangible Assets",
+        "Investments and Advances",
+        "Other Non-Current Assets"
+       ]
+      },
+      "Total Current Liabilities": {
+       "labels": [
+        "Accounts Payable",
+        "Accrued Expenses",
+        "Short-Term Debt",
+        "Deferred Revenue",
+        "Tax Payable",
+        "Pensions",
+        "Other Current Liabilities"
+       ]
+      },
+      "Total Non-Current Liabilities": {
+       "labels": [
+        "Long-Term Provisions",
+        "Long-Term Debt",
+        "Provision for Risks and Charges",
+        "Deferred Liabilities",
+        "Derivative Product Liabilities",
+        "Other Non-Current Liabilities"
+       ]
+      },
+      "Total Shareholders Equity": {
+       "labels": [
+        "Common Stock",
+        "Retained Earnings",
+        "Other Shareholders' Equity",
+        "Additional Paid-In Capital",
+        "Treasury Stock"
+       ]
+      }
+     }
+    },
+    "quarterly": {
+     "periodEnding": [
+      "2024-03-31",
+      "2024-06-30",
+      "2024-09-30",
+      "2024-12-31"
+     ],
+     "values": [
+      [
+       79373000,
+       204728000,
+       209604000,
+       215571000
+      ],
+      [
+       126996000,
+       248147000,
+       250536000,
+       254181000
+      ],
+      [
+       206369000,
+       452875000,
+       460140000,
+       469752000
+      ],
+      [
+       108736000,
+       110517000,
+       111958000,
+       113465000
+      ],
+      [
+       108736000,
+       110517000,
+       111958000,
+       113465000
+      ],
+      [
+       217472000,
+       221034000,
+       223916000,
+       226930000
+      ],
+      [
+       231489000,
+       234641000,
+       237270000,
+       314164000
+      ],
+      [
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       231489000,
+       234641000,
+       237270000,
+       314164000
+      ],
+      [
+       448961000,
+       455675000,
+       461186000,
+       541094000
+      ]
+     ],
+     "children": {}
+    },
+    "annual": {
+     "periodEnding": [
+      "2023-12-31",
+      "2024-12-31"
+     ],
+     "values": [
+      [
+       217472000,
+       226930000
+      ],
+      [
+       217472000,
+       226930000
+      ],
+      [
+       434944000,
+       453860000
+      ],
+      [
+       110517000,
+       113465000
+      ],
+      [
+       110517000,
+       113465000
+      ],
+      [
+       221034000,
+       226930000
+      ],
+      [
+       234641000,
+       314164000
+      ],
+      [
+       0,
+       0
+      ],
+      [
+       234641000,
+       314164000
+      ],
+      [
+       455675000,
+       541094000
+      ]
+     ],
+     "children": {}
+    }
+   },
+   "cashflow": {
+    "labels": [
+     "Cash Flow from Operating Activities",
+     "Cash Flow from Investing Activities",
+     "Cash Flow from Financing Activities",
+     "Net Cash Flow",
+     "Free Cash Flow",
+     "End Cash Position",
+     "Income Tax Paid",
+     "Interest Paid"
+    ],
+    "children": {
+     "quarterly": {
+      "Cash Flow from Operating Activities": {
+       "labels": [
+        "Net Income",
+        "Depreciation",
+        "Deferred Taxes",
+        "Stock-Based Compensation",
+        "Other Non-Cash Items",
+        "Accounts Receivable",
+        "Accounts Payable",
+        "Other Assets and Liabilities"
+       ]
+      },
+      "Cash Flow from Investing Activities": {
+       "labels": [
+        "Capital Expenditures",
+        "Net Intangibles",
+        "Net Acquisitions",
+        "Purchase of Investments",
+        "Sale of Investments",
+        "Other Investing Activity"
+       ]
+      },
+      "Cash Flow from Financing Activities": {
+       "labels": [
+        "Long-Term Debt Issuance",
+        "Long-Term Debt Payments",
+        "Short-Term Debt Issuance",
+        "Common Stock Issuance",
+        "Common Stock Repurchase",
+        "Common Dividends",
+        "Other Financing Charges"
+       ]
+      }
+     },
+     "annual": {
+      "Cash Flow from Operating Activities": {
+       "labels": [
+        "Net Income",
+        "Depreciation",
+        "Deferred Taxes",
+        "Stock-Based Compensation",
+        "Other Non-Cash Items",
+        "Accounts Receivable",
+        "Accounts Payable",
+        "Other Assets and Liabilities"
+       ]
+      },
+      "Cash Flow from Investing Activities": {
+       "labels": [
+        "Capital Expenditures",
+        "Net Intangibles",
+        "Net Acquisitions",
+        "Purchase of Investments",
+        "Sale of Investments",
+        "Other Investing Activity"
+       ]
+      },
+      "Cash Flow from Financing Activities": {
+       "labels": [
+        "Long-Term Debt Issuance",
+        "Long-Term Debt Payments",
+        "Short-Term Debt Issuance",
+        "Common Stock Issuance",
+        "Common Stock Repurchase",
+        "Common Dividends",
+        "Other Financing Charges"
+       ]
+      }
+     }
+    },
+    "quarterly": {
+     "periodEnding": [
+      "2024-03-31",
+      "2024-06-30",
+      "2024-09-30",
+      "2024-12-31"
+     ],
+     "values": [
+      [
+       234066000,
+       335426000,
+       197251000,
+       501181000
+      ],
+      [
+       -121231000,
+       -248195000,
+       -242642000,
+       -297324000
+      ],
+      [
+       -98771300,
+       -87472500,
+       -29180800,
+       -92232400
+      ],
+      [
+       14063400,
+       -291300,
+       -74572000,
+       111624400
+      ],
+      [
+       112835000,
+       87231000,
+       -45391000,
+       203857000
+      ],
+      [
+       450000000,
+       449708700,
+       375136700,
+       486761100
+      ],
+      [
+       123540000,
+       212513000,
+       63399000,
+       219066000
+      ],
+      [
+       12000000,
+       30000000,
+       45000000,
+       58000000
+      ]
+     ],
+     "children": {}
+    },
+    "annual": {
+     "periodEnding": [
+      "2023-12-31",
+      "2024-12-31"
+     ],
+     "values": [
+      [
+       277826000,
+       317042000
+      ],
+      [
+       -413578000,
+       -362519000
+      ],
+      [
+       -55446300,
+       103406900
+      ],
+      [
+       -191198300,
+       57929900
+      ],
+      [
+       -135752000,
+       -45477000
+      ],
+      [
+       450000000,
+       507929900
+      ],
+      [
+       110000000,
+       615000000
+      ],
+      [
+       95000000,
+       145000000
+      ]
+     ],
+     "children": {}
+    }
+   }
+  },
+  "sample": {
+   "incomeStatement": {
+    "labels": [
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1"
+    ],
+    "children": {
+     "quarterly": {
+      "Operating Expenses": {
+       "labels": [
+        "1",
+        "1",
+        "1"
+       ]
+      }
+     },
+     "annual": {
+      "Operating Expenses": {
+       "labels": [
+        "1",
+        "1",
+        "1"
+       ]
+      }
+     }
+    },
+    "quarterly": {
+     "periodEnding": [
+      "1",
+      "1",
+      "1",
+      "1"
+     ],
+     "values": [
+      [
+       1,
+       1,
+       1,
+       1
+      ]
+     ],
+     "children": {
+      "Operating Expenses": {
+       "values": [
+        [
+         1,
+         1,
+         1,
+         1
+        ]
+       ]
+      }
+     }
+    },
+    "annual": {
+     "periodEnding": [
+      "1",
+      "1"
+     ],
+     "values": [
+      [
+       1,
+       1
+      ]
+     ],
+     "children": {
+      "Operating Expenses": {
+       "values": [
+        [
+         1,
+         1
+        ]
+       ]
+      }
+     }
+    }
+   },
+   "balanceSheet": {
+    "labels": [
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1"
+    ],
+    "children": {
+     "quarterly": {
+      "Total Current Assets": {
+       "labels": [
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1"
+       ]
+      }
+     },
+     "annual": {
+      "Total Current Assets": {
+       "labels": [
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1"
+       ]
+      }
+     }
+    },
+    "quarterly": {
+     "periodEnding": [
+      "1",
+      "1",
+      "1",
+      "1"
+     ],
+     "values": [
+      [
+       1,
+       1,
+       1,
+       1
+      ]
+     ],
+     "children": {
+      "key": {
+       "values": [
+        [
+         1
+        ]
+       ]
+      }
+     }
+    },
+    "annual": {
+     "periodEnding": [
+      "1",
+      "1"
+     ],
+     "values": [
+      [
+       1,
+       1
+      ]
+     ],
+     "children": {
+      "key": {
+       "values": [
+        [
+         1
+        ]
+       ]
+      }
+     }
+    }
+   },
+   "cashflow": {
+    "labels": [
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1"
+    ],
+    "children": {
+     "quarterly": {
+      "Cash Flow from Operating Activities": {
+       "labels": [
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1"
+       ]
+      }
+     },
+     "annual": {
+      "Cash Flow from Operating Activities": {
+       "labels": [
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1"
+       ]
+      }
+     }
+    },
+    "quarterly": {
+     "periodEnding": [
+      "1",
+      "1",
+      "1",
+      "1"
+     ],
+     "values": [
+      [
+       1,
+       1,
+       1,
+       1
+      ]
+     ],
+     "children": {
+      "key": {
+       "values": [
+        [
+         1
+        ]
+       ]
+      }
+     }
+    },
+    "annual": {
+     "periodEnding": [
+      "1",
+      "1"
+     ],
+     "values": [
+      [
+       1,
+       1
+      ]
+     ],
+     "children": {
+      "key": {
+       "values": [
+        [
+         1
+        ]
+       ]
+      }
+     }
+    }
+   }
+  }
+ },
+ "GET /equities/v1/summary": {
+  "path": "/equities/v1/summary",
+  "sample": {
+   "currentPrice": 1,
+   "volume": 1,
+   "marketCap": 1,
+   "circulatingMarketCap": 1,
+   "enterpriseValue": 1,
+   "fiftyTwoWeekHigh": 1,
+   "fiftyTwoWeekLow": 1,
+   "dividendYield": 1,
+   "trailingPE": 1,
+   "priceToRevenue": 1,
+   "priceChangePercentage1d": 1,
+   "priceChangePercentage7d": 1,
+   "priceChangePercentage1m": 1,
+   "priceChange1d": 1,
+   "marketCapChange1d": 1,
+   "priceToBook": 1,
+   "enterpriseValueToEbitda": 1,
+   "holdersYield": 1,
+   "updatedAt": "1",
+   "revenueTTM": 1,
+   "grossProfitTTM": 1,
+   "earningsTTM": 1,
+   "ebitdaTTM": 1,
+   "operatingProfitMarginTTM": 1,
+   "holdersRevenueTTM": 1,
+   "holderEarningsTTM": 1,
+   "dividendsTTM": 1,
+   "stockRepurchaseTTM": 1,
+   "stockIssuanceTTM": 1,
+   "stockBasedCompensationTTM": 1,
+   "cashAndCashEquivalents": 1,
+   "totalAssets": 1,
+   "totalLiabilities": 1,
+   "totalShareholdersEquity": 1,
+   "totalDebt": 1,
+   "circulatingSupply": 1,
+   "totalSupply": 1,
+   "employeeCount": 1
+  }
+ },
+ "GET /etfs/flows": {
+  "path": "/etfs/flows",
+  "example": [
+   {
+    "gecko_id": "bitcoin",
+    "day": "2024-01-11T00:00:00.000Z",
+    "total_flow_usd": 655300000
+   }
+  ],
+  "sample": [
+   {
+    "gecko_id": "1",
+    "day": "1",
+    "total_flow_usd": 1
+   }
+  ]
+ },
+ "GET /etfs/snapshot": {
+  "path": "/etfs/snapshot",
+  "example": [
+   {
+    "ticker": "IBIT",
+    "timestamp": 1755612389,
+    "asset": "bitcoin",
+    "issuer": "Blackrock",
+    "etf_name": "iShares Bitcoin Trust",
+    "custodian": "Coinbase",
+    "pct_fee": 0.25,
+    "url": "https://www.blackrock.com/us/individual/products/333011/ishares-bitcoin-trust",
+    "flows": -68700000,
+    "aum": 87276718199,
+    "volume": 453293317.84999996
+   }
+  ],
+  "sample": [
+   {
+    "ticker": "1",
+    "timestamp": 1,
+    "asset": "1",
+    "issuer": "1",
+    "etf_name": "1",
+    "custodian": "1",
+    "pct_fee": 1,
+    "url": "1",
+    "flows": 1,
+    "aum": 1,
+    "volume": 1
+   }
+  ]
+ },
+ "GET /fdv/performance/{period}": {
+  "path": "/fdv/performance/{period}",
+  "example": [
+   {
+    "date": 1751846400,
+    "Analytics": 0,
+    "Artificial Intelligence (AI)": 0,
+    "Bitcoin": 0,
+    "Bridge Governance Tokens": 0,
+    "Centralized Exchange (CEX) Token": 0,
+    "Data Availability": 0,
+    "Decentralized Finance (DeFi)": 0,
+    "Decentralized Identifier (DID)": 0,
+    "DePIN": 0,
+    "Ethereum": 0,
+    "Gaming (GameFi)": 0,
+    "Liquid Staking Governance Tokens": 0,
+    "Meme": 0,
+    "NFT Marketplace": 0,
+    "Oracle": 0,
+    "PolitiFi": 0,
+    "Prediction Markets": 0,
+    "Real World Assets (RWA)": 0,
+    "Rollup": 0,
+    "Smart Contract Platform": 0,
+    "SocialFi": 0,
+    "Solana": 0
+   }
+  ],
+  "sample": [
+   {
+    "date": 1,
+    "Analytics": 1,
+    "Artificial Intelligence (AI)": 1,
+    "Bitcoin": 1,
+    "Bridge Governance Tokens": 1,
+    "Centralized Exchange (CEX) Token": 1,
+    "Data Availability": 1,
+    "Decentralized Finance (DeFi)": 1,
+    "Decentralized Identifier (DID)": 1,
+    "DePIN": 1,
+    "Ethereum": 1,
+    "Gaming (GameFi)": 1,
+    "Liquid Staking Governance Tokens": 1,
+    "Meme": 1,
+    "NFT Marketplace": 1,
+    "Oracle": 1,
+    "PolitiFi": 1,
+    "Prediction Markets": 1,
+    "Real World Assets (RWA)": 1,
+    "Rollup": 1,
+    "Smart Contract Platform": 1,
+    "SocialFi": 1,
+    "Solana": 1
+   }
+  ]
+ },
+ "GET /pre-ipo/v1/companies-list": {
+  "path": "/pre-ipo/v1/companies-list",
+  "sample": {
+   "updatedAt": "1",
+   "data": [
+    {
+     "id": "1",
+     "name": "1",
+     "description": "1",
+     "website": "1",
+     "sector": "1",
+     "latestEstimatedValuation": 1,
+     "latestRaise": 1,
+     "latestFundingValuation": 1,
+     "latestFundingDate": "1",
+     "lastValuationDate": "1",
+     "totalRaised": 1,
+     "valuationChange1YPercentage": 1,
+     "premiumVsLatestFundingPercentage": 1
+    }
+   ]
+  }
+ },
+ "GET /pre-ipo/v1/integrations": {
+  "path": "/pre-ipo/v1/integrations",
+  "sample": {
+   "updatedAt": "1",
+   "data": {
+    "perps": [
+     {
+      "exchangeName": "1",
+      "platformSlug": "1",
+      "defillamaContract": "1",
+      "exchangeType": "CEX",
+      "openInterest": 1,
+      "volume": 1,
+      "price": 1,
+      "annualizedFundingRate": 1,
+      "tradeUrl": "1",
+      "estimatedValuation": 1
+     }
+    ],
+    "tokenIssuers": [
+     {
+      "issuerName": "1",
+      "slug": "1",
+      "backing": "Direct shares",
+      "productUrl": "1",
+      "price": 1,
+      "marketCap": 1,
+      "estimatedValuation": 1
+     }
+    ]
+   }
+  }
+ },
+ "GET /pre-ipo/v1/raises": {
+  "path": "/pre-ipo/v1/raises",
+  "sample": {
+   "updatedAt": "1",
+   "data": [
+    {
+     "date": "1",
+     "amountRaised": 1,
+     "valuation": 1,
+     "series": "1"
+    }
+   ]
+  }
+ },
+ "GET /pre-ipo/v1/summary": {
+  "path": "/pre-ipo/v1/summary",
+  "sample": {
+   "updatedAt": "1",
+   "data": {
+    "id": "1",
+    "name": "1",
+    "description": "1",
+    "summary": "1",
+    "website": "1",
+    "sector": "1",
+    "latestEstimatedValuation": 1,
+    "lastValuationDate": "1",
+    "latestRaise": {
+     "date": "1",
+     "amountRaised": 1,
+     "valuation": 1,
+     "series": "1"
+    }
+   }
+  }
+ },
+ "GET /pre-ipo/v1/valuations": {
+  "path": "/pre-ipo/v1/valuations",
+  "sample": {
+   "updatedAt": "1",
+   "data": [
+    {
+     "date": "1",
+     "estimatedValuation": 1
+    }
+   ]
+  }
+ },
+ "GET /rwa/chain/{chain}": {
+  "path": "/rwa/chain/{chain}",
+  "sample": {
+   "data": [
+    {
+     "id": "1",
+     "canonicalMarketId": "1",
+     "ticker": "1",
+     "assetName": "1",
+     "assetGroup": "1",
+     "primaryChain": "1",
+     "chain": [
+      "1",
+      "1"
+     ],
+     "category": [
+      "1"
+     ],
+     "assetClass": [
+      "1"
+     ],
+     "type": "1",
+     "rwaClassification": "1",
+     "accessModel": "1",
+     "issuer": "1",
+     "parentPlatform": "1",
+     "stablecoin": true,
+     "governance": true,
+     "onChainMcap": {
+      "Ethereum": 1
+     },
+     "activeAum": {
+      "Ethereum": 1
+     },
+     "defiActiveTvl": {
+      "Ethereum": {
+       "aave-v3": 1
+      }
+     },
+     "price": 1,
+     "activeAumData": true,
+     "coingeckoId": "1",
+     "logo": "1"
+    }
+   ]
+  }
+ },
+ "GET /rwa/chart/chain-breakdown": {
+  "path": "/rwa/chart/chain-breakdown",
+  "sample": [
+   {
+    "timestamp": 1
+   }
+  ]
+ },
+ "GET /rwa/chart/chain/{chain}": {
+  "path": "/rwa/chart/chain/{chain}",
+  "sample": [
+   {
+    "timestamp": 1,
+    "onChainMcap": 1,
+    "activeAum": 1,
+    "defiActiveTvl": 1
+   }
+  ]
+ },
+ "GET /rwa/current": {
+  "path": "/rwa/current",
+  "sample": [
+   {
+    "id": "1",
+    "canonicalMarketId": "1",
+    "ticker": "1",
+    "assetName": "1",
+    "assetGroup": "1",
+    "primaryChain": "1",
+    "chain": [
+     "1",
+     "1"
+    ],
+    "category": [
+     "1"
+    ],
+    "assetClass": [
+     "1"
+    ],
+    "type": "1",
+    "rwaClassification": "1",
+    "accessModel": "1",
+    "issuer": "1",
+    "parentPlatform": "1",
+    "stablecoin": true,
+    "governance": true,
+    "onChainMcap": {
+     "Ethereum": 1
+    },
+    "activeAum": {
+     "Ethereum": 1
+    },
+    "defiActiveTvl": {
+     "Ethereum": {
+      "aave-v3": 1
+     }
+    },
+    "price": 1,
+    "activeAumData": true,
+    "coingeckoId": "1",
+    "logo": "1"
+   }
+  ]
+ },
+ "GET /rwa/list": {
+  "path": "/rwa/list",
+  "sample": {
+   "canonicalMarketIds": [
+    "1",
+    "1"
+   ],
+   "platforms": [
+    "1",
+    "1"
+   ],
+   "chains": [
+    "1",
+    "1"
+   ],
+   "categories": [
+    "1",
+    "1"
+   ],
+   "assetGroups": [
+    "1"
+   ],
+   "idMap": {
+    "ondo/usdy": "1"
+   }
+  }
+ },
+ "GET /rwa/stats": {
+  "path": "/rwa/stats",
+  "sample": {
+   "totalOnChainMcap": 1,
+   "totalActiveMcap": 1,
+   "totalDefiActiveTvl": 1,
+   "assetCount": 1,
+   "assetIssuers": 1,
+   "byChain": {
+    "key": {
+     "base": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "stablecoinsOnly": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "governanceOnly": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "stablecoinsAndGovernance": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     }
+    }
+   },
+   "byCategory": {
+    "key": {
+     "base": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "stablecoinsOnly": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "governanceOnly": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "stablecoinsAndGovernance": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     }
+    }
+   },
+   "byPlatform": {
+    "key": {
+     "base": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "stablecoinsOnly": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "governanceOnly": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "stablecoinsAndGovernance": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     }
+    }
+   },
+   "byAssetGroup": {
+    "key": {
+     "base": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "stablecoinsOnly": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "governanceOnly": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     },
+     "stablecoinsAndGovernance": {
+      "onChainMcap": 1,
+      "activeAum": 1,
+      "defiActiveTvl": 1,
+      "assetCount": 1,
+      "assetIssuers": [
+       "1",
+       "1"
+      ]
+     }
+    }
+   }
+  }
+ },
+ "GET /stablecoins/stablecoin/{asset}": {
+  "path": "/stablecoins/stablecoin/{asset}",
+  "sample": {
+   "id": "1",
+   "name": "1",
+   "symbol": "1",
+   "totalCirculating": [
+    {
+     "date": 1,
+     "totalCirculating": 1
+    }
+   ],
+   "chainCirculating": {
+    "key": [
+     {
+      "date": 1,
+      "circulating": 1
+     }
+    ]
+   }
+  }
+ },
+ "GET /stablecoins/stablecoinchains": {
+  "path": "/stablecoins/stablecoinchains",
+  "sample": [
+   {
+    "name": "1",
+    "totalCirculating": {
+     "peggedUSD": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoins/stablecoincharts/all": {
+  "path": "/stablecoins/stablecoincharts/all",
+  "sample": [
+   {
+    "date": 1,
+    "totalCirculating": {
+     "peggedUSD": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoins/stablecoincharts/{chain}": {
+  "path": "/stablecoins/stablecoincharts/{chain}",
+  "sample": [
+   {
+    "date": 1,
+    "totalCirculating": {
+     "peggedUSD": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoins/stablecoindominance/{chain}": {
+  "path": "/stablecoins/stablecoindominance/{chain}",
+  "sample": [
+   {
+    "date": "1",
+    "totalCirculatingUSD": {
+     "peggedUSD": 1,
+     "peggedVAR": 1,
+     "peggedEUR": 1
+    },
+    "greatestMcap": {
+     "gecko_id": "1",
+     "symbol": "1",
+     "mcap": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoins/stablecoinprices": {
+  "path": "/stablecoins/stablecoinprices",
+  "sample": [
+   {
+    "date": 1,
+    "prices": {
+     "USDT": 1
+    }
+   }
+  ]
+ },
+ "GET /stablecoins/stablecoins": {
+  "path": "/stablecoins/stablecoins",
+  "sample": {
+   "peggedAssets": [
+    {
+     "id": "1",
+     "name": "1",
+     "symbol": "1",
+     "pegType": "1",
+     "pegMechanism": "1",
+     "circulating": {
+      "peggedUSD": 1
+     },
+     "chains": [
+      "1",
+      "1",
+      "1"
+     ],
+     "chainCirculating": {
+      "key": {
+       "current": {
+        "peggedUSD": 1
+       }
+      }
+     },
+     "price": 1
+    }
+   ]
+  }
+ },
+ "GET /yields/v1/chart/{pool}": {
+  "path": "/yields/v1/chart/{pool}",
+  "sample": {
+   "status": "1",
+   "data": [
+    {
+     "timestamp": "1",
+     "tvlUsd": 1,
+     "apy": 1,
+     "apyBase": 1,
+     "apyReward": 1,
+     "il7d": 1,
+     "apyBase7d": 1,
+     "pricePerShare": 1
+    }
+   ]
+  }
+ },
+ "GET /yields/v1/chartLendBorrow/{pool}": {
+  "path": "/yields/v1/chartLendBorrow/{pool}",
+  "sample": {
+   "status": "1",
+   "data": [
+    {
+     "timestamp": "1",
+     "totalSupplyUsd": 1,
+     "totalBorrowUsd": 1,
+     "debtCeilingUsd": 1,
+     "apyBase": 1,
+     "apyReward": 1,
+     "apyBaseBorrow": 1,
+     "apyRewardBorrow": 1
+    }
+   ]
+  }
+ },
+ "GET /yields/v1/pools": {
+  "path": "/yields/v1/pools",
+  "sample": {
+   "status": "1",
+   "data": [
+    {
+     "pool": "1",
+     "timestamp": "1",
+     "project": "1",
+     "chain": "1",
+     "symbol": "1",
+     "poolMeta": "1",
+     "underlyingTokens": [
+      "1"
+     ],
+     "rewardTokens": [
+      "1"
+     ],
+     "poolTokenAddress": "1",
+     "tvlUsd": 1,
+     "apy": 1,
+     "apyBase": 1,
+     "apyReward": 1,
+     "il7d": 1,
+     "apyBase7d": 1,
+     "volumeUsd1d": 1,
+     "volumeUsd7d": 1,
+     "apyBaseInception": 1,
+     "url": "1",
+     "apyPct1D": 1,
+     "apyPct7D": 1,
+     "apyPct30D": 1,
+     "apyMean30d": 1,
+     "stablecoin": true,
+     "ilRisk": "1",
+     "exposure": "1",
+     "return": 1,
+     "count": 1,
+     "apyMeanExpanding": 1,
+     "apyStdExpanding": 1,
+     "mu": 1,
+     "sigma": 1,
+     "outlier": true,
+     "project_factorized": 1,
+     "chain_factorized": 1,
+     "predictions": {
+      "predictedClass": "1",
+      "predictedProbability": 1,
+      "binnedConfidence": 1
+     },
+     "pool_old": "1"
+    }
+   ]
+  }
+ },
+ "GET /yields/v1/poolsBorrow": {
+  "path": "/yields/v1/poolsBorrow",
+  "sample": {
+   "status": "1",
+   "data": [
+    {
+     "chain": "1",
+     "project": "1",
+     "symbol": "1",
+     "tvlUsd": 1,
+     "apyBase": 1,
+     "apyReward": 1,
+     "apy": 1,
+     "rewardTokens": [
+      "1"
+     ],
+     "pool": "1",
+     "apyPct1D": 1,
+     "apyPct7D": 1,
+     "apyPct30D": 1,
+     "stablecoin": true,
+     "ilRisk": "1",
+     "exposure": "1",
+     "predictions": {
+      "predictedClass": "1",
+      "predictedProbability": 1,
+      "binnedConfidence": 1
+     },
+     "poolMeta": "1",
+     "mu": 1,
+     "sigma": 1,
+     "count": 1,
+     "outlier": true,
+     "underlyingTokens": [
+      "1"
+     ],
+     "il7d": 1,
+     "apyBase7d": 1,
+     "apyMean30d": 1,
+     "volumeUsd1d": 1,
+     "volumeUsd7d": 1,
+     "apyBaseInception": 1,
+     "apyBaseBorrow": 1,
+     "apyRewardBorrow": 1,
+     "totalSupplyUsd": 1,
+     "totalBorrowUsd": 1,
+     "debtCeilingUsd": 1,
+     "ltv": 1,
+     "borrowable": true,
+     "mintedCoin": "1",
+     "borrowFactor": 1
+    }
+   ]
+  }
+ },
+ "GET /yields/v2/borrow/markets": {
+  "path": "/yields/v2/borrow/markets",
+  "sample": {
+   "data": [
+    {
+     "id": "1",
+     "pool_key": "1",
+     "pool_token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1"
+     },
+     "display": {
+      "label": "1",
+      "detail": "1"
+     },
+     "url": "1",
+     "protocol": "1",
+     "chain": "1",
+     "collateral_token": {
+      "address": "1",
+      "symbol": "1",
+      "decimals": 1
+     },
+     "borrow_token": {
+      "address": "1",
+      "symbol": "1",
+      "decimals": 1
+     },
+     "reward_tokens": [
+      {
+       "address": "1",
+       "symbol": "1",
+       "decimals": 1
+      }
+     ],
+     "loan_to_value": 1,
+     "total_supply_usd": 1,
+     "total_borrow_usd": 1,
+     "available_borrow_usd": 1,
+     "supply_apy": {
+      "current": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      }
+     },
+     "borrow_cost_apy": {
+      "current": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      }
+     },
+     "intrinsic": {
+      "supply": {
+       "apy": {
+        "current": {
+         "base": 1
+        },
+        "avg_7d": {
+         "base": 1
+        },
+        "avg_30d": {
+         "base": 1
+        }
+       },
+       "source_pool": {
+        "id": "1",
+        "pool_token": "1",
+        "symbol": "1"
+       }
+      },
+      "borrow": {
+       "apy": {
+        "current": {
+         "base": 1
+        },
+        "avg_7d": {
+         "base": 1
+        },
+        "avg_30d": {
+         "base": 1
+        }
+       },
+       "source_pool": {
+        "id": "1",
+        "pool_token": "1",
+        "symbol": "1"
+       }
+      }
+     }
+    }
+   ]
+  }
+ },
+ "GET /yields/v2/borrow/markets/{id}/history": {
+  "path": "/yields/v2/borrow/markets/{id}/history",
+  "sample": {
+   "data": [
+    {
+     "date": "1",
+     "total_borrow_usd": 1,
+     "available_borrow_usd": 1,
+     "borrow_cost_apy": {
+      "avg_1d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      }
+     },
+     "intrinsic": {
+      "apy": {
+       "avg_1d": {
+        "base": 1
+       },
+       "avg_7d": {
+        "base": 1
+       },
+       "avg_30d": {
+        "base": 1
+       }
+      }
+     }
+    }
+   ]
+  }
+ },
+ "GET /yields/v2/borrow/routes": {
+  "path": "/yields/v2/borrow/routes",
+  "sample": {
+   "data": [
+    {
+     "display": {
+      "detail": "1"
+     },
+     "protocol": "1",
+     "chain": "1",
+     "collateral": {
+      "id": "1",
+      "pool_key": "1",
+      "url": "1",
+      "token": {
+       "address": "1",
+       "symbol": "1",
+       "decimals": 1
+      },
+      "loan_to_value": 1,
+      "total_supply_usd": 1,
+      "apy": {
+       "current": {
+        "base": 1,
+        "reward": 1,
+        "total": 1
+       },
+       "avg_7d": {
+        "base": 1,
+        "reward": 1,
+        "total": 1
+       },
+       "avg_30d": {
+        "base": 1,
+        "reward": 1,
+        "total": 1
+       }
+      },
+      "intrinsic": {
+       "apy": {
+        "current": {
+         "base": 1
+        },
+        "avg_7d": {
+         "base": 1
+        },
+        "avg_30d": {
+         "base": 1
+        }
+       },
+       "source_pool": {
+        "id": "1",
+        "pool_token": "1",
+        "symbol": "1"
+       }
+      },
+      "reward_tokens": [
+       {
+        "address": "1",
+        "symbol": "1",
+        "decimals": 1
+       }
+      ]
+     },
+     "borrow": {
+      "id": "1",
+      "pool_key": "1",
+      "url": "1",
+      "token": {
+       "address": "1",
+       "symbol": "1",
+       "decimals": 1
+      },
+      "total_borrow_usd": 1,
+      "available_borrow_usd": 1,
+      "cost_apy": {
+       "current": {
+        "base": 1,
+        "reward": 1,
+        "total": 1
+       },
+       "avg_7d": {
+        "base": 1,
+        "reward": 1,
+        "total": 1
+       },
+       "avg_30d": {
+        "base": 1,
+        "reward": 1,
+        "total": 1
+       }
+      },
+      "intrinsic": {
+       "apy": {
+        "current": {
+         "base": 1
+        },
+        "avg_7d": {
+         "base": 1
+        },
+        "avg_30d": {
+         "base": 1
+        }
+       },
+       "source_pool": {
+        "id": "1",
+        "pool_token": "1",
+        "symbol": "1"
+       }
+      },
+      "reward_tokens": [
+       {
+        "address": "1",
+        "symbol": "1",
+        "decimals": 1
+       }
+      ]
+     },
+     "net_apy": {
+      "current": {
+       "base": 1,
+       "base_reward": 1,
+       "base_intrinsic": 1,
+       "base_reward_intrinsic": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "base_reward": 1,
+       "base_intrinsic": 1,
+       "base_reward_intrinsic": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "base_reward": 1,
+       "base_intrinsic": 1,
+       "base_reward_intrinsic": 1
+      }
+     }
+    }
+   ]
+  }
+ },
+ "GET /yields/v2/earn": {
+  "path": "/yields/v2/earn",
+  "sample": {
+   "data": [
+    {
+     "id": "1",
+     "pool_key": "1",
+     "pool_token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1"
+     },
+     "display": {
+      "label": "1",
+      "detail": "1"
+     },
+     "reference_asset_symbol": "1",
+     "url": "1",
+     "protocol": "1",
+     "chain": "1",
+     "underlying_tokens": [
+      {
+       "address": "1",
+       "symbol": "1",
+       "decimals": 1
+      }
+     ],
+     "reward_tokens": [
+      {
+       "address": "1",
+       "symbol": "1",
+       "decimals": 1
+      }
+     ],
+     "tvl_usd": 1,
+     "apy": {
+      "current": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      }
+     },
+     "intrinsic": {
+      "apy": {
+       "current": {
+        "base": 1
+       },
+       "avg_7d": {
+        "base": 1
+       },
+       "avg_30d": {
+        "base": 1
+       }
+      },
+      "source_pool": {
+       "id": "1",
+       "pool_token": "1",
+       "symbol": "1"
+      }
+     },
+     "stability_30d": {
+      "base": 1,
+      "base_reward": 1,
+      "base_intrinsic": 1,
+      "base_reward_intrinsic": 1
+     },
+     "price_per_share": 1,
+     "volume_1d_usd": 1,
+     "attributes": {
+      "stablecoin_only": true,
+      "single_asset_exposure": true,
+      "impermanent_loss_risk": true
+     },
+     "holders": {
+      "count": 1,
+      "avg_position_usd": 1,
+      "top_10_share_pct": 1
+     },
+     "available_supply_usd": 1
+    }
+   ]
+  }
+ },
+ "GET /yields/v2/earn/query": {
+  "path": "/yields/v2/earn/query",
+  "sample": {
+   "data": [
+    {
+     "id": "1",
+     "pool_key": "1",
+     "pool_token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1"
+     },
+     "display": {
+      "label": "1",
+      "detail": "1"
+     },
+     "reference_asset_symbol": "1",
+     "url": "1",
+     "protocol": "1",
+     "chain": "1",
+     "underlying_tokens": [
+      {
+       "address": "1",
+       "symbol": "1",
+       "decimals": 1
+      }
+     ],
+     "reward_tokens": [
+      {
+       "address": "1",
+       "symbol": "1",
+       "decimals": 1
+      }
+     ],
+     "tvl_usd": 1,
+     "apy": {
+      "current": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      }
+     },
+     "intrinsic": {
+      "apy": {
+       "current": {
+        "base": 1
+       },
+       "avg_7d": {
+        "base": 1
+       },
+       "avg_30d": {
+        "base": 1
+       }
+      },
+      "source_pool": {
+       "id": "1",
+       "pool_token": "1",
+       "symbol": "1"
+      }
+     },
+     "stability_30d": {
+      "base": 1,
+      "base_reward": 1,
+      "base_intrinsic": 1,
+      "base_reward_intrinsic": 1
+     },
+     "price_per_share": 1,
+     "volume_1d_usd": 1,
+     "attributes": {
+      "stablecoin_only": true,
+      "single_asset_exposure": true,
+      "impermanent_loss_risk": true
+     },
+     "holders": {
+      "count": 1,
+      "avg_position_usd": 1,
+      "top_10_share_pct": 1
+     },
+     "available_supply_usd": 1
+    }
+   ],
+   "pagination": {
+    "total": 1,
+    "page": 1,
+    "limit": 1
+   }
+  }
+ },
+ "GET /yields/v2/earn/verified": {
+  "path": "/yields/v2/earn/verified",
+  "sample": {
+   "data": [
+    {
+     "id": "1",
+     "apy": {
+      "avg_1d": 1,
+      "avg_7d": 1,
+      "avg_30d": 1
+     },
+     "apy_as_of": "1",
+     "apy_note": "1",
+     "apy_confidence": "high",
+     "exit": {
+      "status": "instant",
+      "eta_seconds": 1,
+      "fee_bps": 1,
+      "as_of": "1",
+      "fee_flat": "1"
+     },
+     "exit_liquidity": {
+      "amount": "1",
+      "usd": 1,
+      "slippage_bps": 1,
+      "as_of": "1"
+     },
+     "tvl": {
+      "amount": "1",
+      "usd": 1,
+      "as_of": "1"
+     },
+     "price_per_share": 1,
+     "denomination": {
+      "address": "1",
+      "decimals": 1
+     }
+    }
+   ]
+  }
+ },
+ "GET /yields/v2/earn/verified/{id}": {
+  "path": "/yields/v2/earn/verified/{id}",
+  "sample": {
+   "data": {
+    "id": "1",
+    "apy": {
+     "avg_1d": 1,
+     "avg_7d": 1,
+     "avg_30d": 1
+    },
+    "apy_as_of": "1",
+    "apy_note": "1",
+    "apy_confidence": "high",
+    "exit": {
+     "status": "instant",
+     "eta_seconds": 1,
+     "fee_bps": 1,
+     "as_of": "1",
+     "fee_flat": "1"
+    },
+    "exit_liquidity": {
+     "amount": "1",
+     "usd": 1,
+     "slippage_bps": 1,
+     "as_of": "1"
+    },
+    "tvl": {
+     "amount": "1",
+     "usd": 1,
+     "as_of": "1"
+    },
+    "price_per_share": 1,
+    "denomination": {
+     "address": "1",
+     "decimals": 1
+    },
+    "methods": [
+     "1"
+    ]
+   }
+  }
+ },
+ "GET /yields/v2/earn/verified/{id}/history": {
+  "path": "/yields/v2/earn/verified/{id}/history",
+  "sample": {
+   "data": [
+    {
+     "date": "1",
+     "outcome": "ok_full",
+     "eta_seconds": 1,
+     "confidence": "high",
+     "apy": {
+      "avg_1d": 1,
+      "avg_7d": 1,
+      "avg_30d": 1
+     },
+     "price_per_share": 1,
+     "price_per_share_quoted": 1,
+     "reason": "rate_quality_floor",
+     "exit_liquidity": {
+      "amount": "1",
+      "usd": 1,
+      "slippage_bps": 1
+     },
+     "tvl": {
+      "amount": "1",
+      "usd": 1
+     },
+     "tvl_quoted": {
+      "amount": "1",
+      "usd": 1
+     }
+    }
+   ]
+  }
+ },
+ "GET /yields/v2/earn/{id}/history": {
+  "path": "/yields/v2/earn/{id}/history",
+  "sample": {
+   "data": [
+    {
+     "date": "1",
+     "tvl_usd": 1,
+     "apy": {
+      "avg_1d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      }
+     },
+     "intrinsic": {
+      "apy": {
+       "avg_1d": {
+        "base": 1
+       },
+       "avg_7d": {
+        "base": 1
+       },
+       "avg_30d": {
+        "base": 1
+       }
+      }
+     },
+     "price_per_share": 1
+    }
+   ]
+  }
+ },
+ "GET /yields/v2/loops": {
+  "path": "/yields/v2/loops",
+  "sample": {
+   "data": [
+    {
+     "id": "1",
+     "display": {
+      "detail": "1"
+     },
+     "protocol": "1",
+     "chain": "1",
+     "token": {
+      "address": "1",
+      "symbol": "1",
+      "decimals": 1
+     },
+     "url": "1",
+     "loan_to_value": 1,
+     "total_supply_usd": 1,
+     "total_borrow_usd": 1,
+     "available_borrow_usd": 1,
+     "supply_apy": {
+      "current": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      }
+     },
+     "borrow_cost_apy": {
+      "current": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_7d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      },
+      "avg_30d": {
+       "base": 1,
+       "reward": 1,
+       "total": 1
+      }
+     },
+     "loop_apy": {
+      "loop_count": 1,
+      "total": 1
+     },
+     "leverage": {
+      "supply_multiplier": 1,
+      "borrow_multiplier": 1
+     },
+     "intrinsic": {
+      "apy": {
+       "current": {
+        "base": 1
+       },
+       "avg_7d": {
+        "base": 1
+       },
+       "avg_30d": {
+        "base": 1
+       }
+      },
+      "source_pool": {
+       "id": "1",
+       "pool_token": "1",
+       "symbol": "1"
+      }
+     },
+     "reward_tokens": {
+      "supply": [
+       {
+        "address": "1",
+        "symbol": "1",
+        "decimals": 1
+       }
+      ],
+      "borrow": [
+       {
+        "address": "1",
+        "symbol": "1",
+        "decimals": 1
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}
