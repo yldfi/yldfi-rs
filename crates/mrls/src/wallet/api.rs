@@ -2,8 +2,8 @@
 
 use super::types::{
     ActiveChains, NativeBalance, NetWorth, PaginatedResponse, TokenApproval, TokenBalance,
-    TokenProfitability, WalletBalances, WalletHistoryEntry, WalletProfitability, WalletStats,
-    WalletTransaction,
+    TokenProfitability, WalletBalances, WalletHistoryEntry, WalletInsight, WalletProfitability,
+    WalletStats, WalletTransaction,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -49,6 +49,54 @@ impl WalletQuery {
     pub fn limit(mut self, limit: i32) -> Self {
         self.limit = Some(limit);
         self
+    }
+}
+
+/// Query parameters for [`WalletApi::get_insight`]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct WalletInsightQuery {
+    /// Chains to aggregate (e.g. `"eth"`, `"0x89"`); empty means every
+    /// supported chain
+    pub chains: Vec<String>,
+    /// Include the per-chain breakdown (`includeChainBreakdown`)
+    pub include_chain_breakdown: Option<bool>,
+}
+
+impl WalletInsightQuery {
+    /// Create a new query (all chains, no breakdown)
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a chain to aggregate
+    #[must_use]
+    pub fn chain(mut self, chain: impl Into<String>) -> Self {
+        self.chains.push(chain.into());
+        self
+    }
+
+    /// Include the per-chain breakdown
+    #[must_use]
+    pub fn include_chain_breakdown(mut self, include: bool) -> Self {
+        self.include_chain_breakdown = Some(include);
+        self
+    }
+
+    /// Query pairs, with `chains` in the indexed form Moralis expects
+    /// (`chains[0]=eth&chains[1]=polygon`)
+    fn to_query(&self) -> Vec<(String, String)> {
+        let mut query: Vec<(String, String)> = self
+            .chains
+            .iter()
+            .enumerate()
+            .map(|(i, chain)| (format!("chains[{i}]"), chain.clone()))
+            .collect();
+        if let Some(include) = self.include_chain_breakdown {
+            query.push(("includeChainBreakdown".to_string(), include.to_string()));
+        }
+        query
     }
 }
 
@@ -167,6 +215,21 @@ impl<'a> WalletApi<'a> {
         self.client.get(&path).await
     }
 
+    /// Get wallet insight metrics: activity age, transfer counts,
+    /// counterparties, gas spent and swap volume
+    ///
+    /// Calls `GET /wallets/{address}/insight`. Without a query (or with no
+    /// chains) the metrics aggregate every supported chain.
+    pub async fn get_insight(
+        &self,
+        address: &str,
+        query: Option<&WalletInsightQuery>,
+    ) -> Result<WalletInsight> {
+        let path = format!("/wallets/{address}/insight");
+        let query = query.map(WalletInsightQuery::to_query).unwrap_or_default();
+        self.client.get_with_query(&path, &query).await
+    }
+
     /// Get wallet profitability summary
     pub async fn get_profitability_summary(&self, address: &str) -> Result<WalletProfitability> {
         let path = format!("/wallets/{address}/profitability/summary");
@@ -257,6 +320,101 @@ mod multiple_balances_tests {
         assert!(multiple_balances_query(&many, None).is_err());
         let max = vec!["0xaa"; MAX_MULTIPLE_BALANCES_ADDRESSES];
         assert_eq!(multiple_balances_query(&max, None).unwrap().len(), 25);
+    }
+
+    #[test]
+    fn insight_query_uses_indexed_chains() {
+        let q = WalletInsightQuery::new()
+            .chain("eth")
+            .chain("0x89")
+            .include_chain_breakdown(true)
+            .to_query();
+        let mut url = reqwest::Url::parse("https://example.com/").unwrap();
+        url.query_pairs_mut().extend_pairs(&q);
+        assert_eq!(
+            url.query().unwrap(),
+            "chains%5B0%5D=eth&chains%5B1%5D=0x89&includeChainBreakdown=true"
+        );
+        assert!(WalletInsightQuery::new().to_query().is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_insight_parses_metrics() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/wallets/0xwallet/insight"))
+            .and(query_param("chains[0]", "eth"))
+            .and(query_param("includeChainBreakdown", "true"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "address": "0xwallet",
+                "addressType": "eoa",
+                "walletAgeDays": 1200,
+                "firstActivityAt": {
+                    "chain": "0x1", "blockNumber": "12345678",
+                    "blockTimestamp": "2023-01-01T00:00:00.000Z",
+                    "transactionHash": "0xhash", "type": "native_transfer",
+                    "direction": "received"
+                },
+                "lastActivityAt": null,
+                "activeDays": 300,
+                "activeChains": 1,
+                "mostActiveChain": "0x1",
+                "transactionsInitiated": 500,
+                "transactionsInvolved": "800",
+                "nativeTransfers": {"sent": 10, "received": 20, "total": 30},
+                "erc20Transfers": {"sent": "1", "received": "2", "total": "3"},
+                "nftTransfers": {"sent": 0, "received": 0, "total": 0},
+                "uniqueCounterparties": {"sentTo": 40, "receivedFrom": 50},
+                "swapVolumeUsd": 12345.67,
+                "totalGasSpentUsd": "321.5",
+                "nativeNetFlowUsd": "-10.25",
+                "uniqueTokensInteracted": 25,
+                "contractsCreated": 0,
+                "chainBreakdown": [{
+                    "chain": "0x1",
+                    "walletAgeDays": 1200,
+                    "totalGasSpentNative": "0.123456789012345678",
+                    "totalGasSpentUsd": "321.5",
+                    "largestNativeTransferIn": 2.5
+                }]
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let config = crate::client::Config::new("key").base_url(server.uri());
+        let client = crate::client::Client::with_config(config).unwrap();
+        let query = WalletInsightQuery::new()
+            .chain("eth")
+            .include_chain_breakdown(true);
+        let insight = client
+            .wallet()
+            .get_insight("0xwallet", Some(&query))
+            .await
+            .unwrap();
+        assert_eq!(insight.wallet_age_days, Some(1200));
+        let first = insight.first_activity_at.unwrap();
+        assert_eq!(first.block_number.as_deref(), Some("12345678"));
+        assert_eq!(first.activity_type.as_deref(), Some("native_transfer"));
+        assert!(insight.last_activity_at.is_none());
+        assert_eq!(insight.transactions_involved, Some(800));
+        assert_eq!(insight.erc20_transfers.unwrap().total, Some(3));
+        assert_eq!(
+            insight.unique_counterparties.unwrap().received_from,
+            Some(50)
+        );
+        assert_eq!(insight.swap_volume_usd, Some(12345.67));
+        assert_eq!(insight.total_gas_spent_usd, Some(321.5));
+        assert_eq!(insight.native_net_flow_usd, Some(-10.25));
+        let chain = &insight.chain_breakdown.unwrap()[0];
+        assert_eq!(
+            chain.total_gas_spent_native.as_deref(),
+            Some("0.123456789012345678")
+        );
+        assert_eq!(chain.largest_native_transfer_in.as_deref(), Some("2.5"));
     }
 
     #[tokio::test]

@@ -20,6 +20,7 @@ yldfi_spec_test::spec_tests! {
         "getEntitiesByCategory" => mrls::entities::EntitySearchResult,
         "getEntity" => mrls::entities::Entity,
         "getEntityCategories" => mrls::entities::CategoriesResponse,
+        "getHistoricalTokenScore" => mrls::discovery::TokenScoreHistory,
         "getLatestBlockNumber" => mrls::block::LatestBlock,
         "getMultipleNFTs" => Vec<mrls::nft::Nft>,
         "getMultipleTokenAnalytics" => mrls::analytics::BatchAnalyticsResponse,
@@ -68,6 +69,7 @@ yldfi_spec_test::spec_tests! {
         "getWalletActiveChains" => mrls::wallet::ActiveChains,
         "getWalletApprovals" => mrls::wallet::PaginatedResponse<mrls::wallet::TokenApproval>,
         "getWalletHistory" => mrls::wallet::PaginatedResponse<mrls::wallet::WalletHistoryEntry>,
+        "getWalletInsight" => mrls::wallet::WalletInsight,
         "getWalletNFTCollections" => mrls::nft::NftResponse<mrls::nft::NftCollection>,
         "getWalletNFTTransfers" => mrls::nft::NftResponse<mrls::nft::NftTransfer>,
         "getWalletNFTs" => mrls::nft::NftResponse<mrls::nft::Nft>,
@@ -94,8 +96,5 @@ yldfi_spec_test::spec_tests! {
         "syncNFTContract" => mrls::nft::NftSyncStatus,
         "web3ApiVersion" => mrls::utils::Web3Version,
     },
-    not_implemented: [
-        "getHistoricalTokenScore",
-        "getWalletInsight",
-    ],
+    not_implemented: [],
 }

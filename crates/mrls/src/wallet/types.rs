@@ -1,6 +1,6 @@
 //! Types for the Wallet API
 
-use crate::de::{string_or_f64, string_or_int};
+use crate::de::{number_as_string, string_or_f64, string_or_int, string_or_integer};
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
 
@@ -449,6 +449,225 @@ pub struct WalletNativeBalance {
     pub balance: Option<String>,
     /// Balance (formatted)
     pub balance_formatted: Option<String>,
+}
+
+/// Wallet insight metrics (`GET /wallets/{address}/insight`)
+///
+/// Activity age, transfer counts, counterparties and volumes, aggregated
+/// across the requested chains (all supported chains by default).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct WalletInsight {
+    /// Wallet address
+    pub address: Option<String>,
+    /// Address type (e.g. `"eoa"`)
+    pub address_type: Option<String>,
+    /// Wallet age in days
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub wallet_age_days: Option<i64>,
+    /// First activity (sent or received)
+    pub first_activity_at: Option<WalletActivity>,
+    /// Last activity (sent or received)
+    pub last_activity_at: Option<WalletActivity>,
+    /// First transaction the wallet initiated
+    pub first_initiated_at: Option<WalletActivity>,
+    /// Last transaction the wallet initiated
+    pub last_initiated_at: Option<WalletActivity>,
+    /// Days with activity
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub active_days: Option<i64>,
+    /// Chains with activity
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub active_chains: Option<i64>,
+    /// Chain with the most activity
+    pub most_active_chain: Option<String>,
+    /// Transactions the wallet initiated
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub transactions_initiated: Option<i64>,
+    /// Transactions the wallet was involved in
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub transactions_involved: Option<i64>,
+    /// Native token transfers
+    pub native_transfers: Option<TransferCounts>,
+    /// ERC-20 transfers
+    pub erc20_transfers: Option<TransferCounts>,
+    /// NFT transfers
+    pub nft_transfers: Option<TransferCounts>,
+    /// Distinct counterparties
+    pub unique_counterparties: Option<Counterparties>,
+    /// Swap volume (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub swap_volume_usd: Option<f64>,
+    /// Total gas spent (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub total_gas_spent_usd: Option<f64>,
+    /// Average gas per transaction (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub avg_gas_per_transaction_usd: Option<f64>,
+    /// Native token sent (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub native_volume_sent_usd: Option<f64>,
+    /// Native token received (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub native_volume_received_usd: Option<f64>,
+    /// Native token received minus sent (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub native_net_flow_usd: Option<f64>,
+    /// Distinct tokens interacted with
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub unique_tokens_interacted: Option<i64>,
+    /// Contracts deployed
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub contracts_created: Option<i64>,
+    /// Largest native transfer received (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub largest_native_transfer_in_usd: Option<f64>,
+    /// Largest native transfer sent (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub largest_native_transfer_out_usd: Option<f64>,
+    /// Per-chain breakdown (with `includeChainBreakdown=true`)
+    #[serde(default)]
+    pub chain_breakdown: Option<Vec<WalletInsightChain>>,
+}
+
+/// One chain's metrics in [`WalletInsight::chain_breakdown`]
+///
+/// Native amounts are decimal strings in the chain's native token.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct WalletInsightChain {
+    /// Chain (e.g. `"0x1"`)
+    pub chain: Option<String>,
+    /// Wallet age in days
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub wallet_age_days: Option<i64>,
+    /// First activity (sent or received)
+    pub first_activity_at: Option<WalletActivity>,
+    /// Last activity (sent or received)
+    pub last_activity_at: Option<WalletActivity>,
+    /// First transaction the wallet initiated
+    pub first_initiated_at: Option<WalletActivity>,
+    /// Last transaction the wallet initiated
+    pub last_initiated_at: Option<WalletActivity>,
+    /// Days with activity
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub active_days: Option<i64>,
+    /// Transactions the wallet initiated
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub transactions_initiated: Option<i64>,
+    /// Transactions the wallet was involved in
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub transactions_involved: Option<i64>,
+    /// Native token transfers
+    pub native_transfers: Option<TransferCounts>,
+    /// ERC-20 transfers
+    pub erc20_transfers: Option<TransferCounts>,
+    /// NFT transfers
+    pub nft_transfers: Option<TransferCounts>,
+    /// Distinct counterparties
+    pub unique_counterparties: Option<Counterparties>,
+    /// Swap volume (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub swap_volume_usd: Option<f64>,
+    /// Total gas spent (native)
+    #[serde(default, deserialize_with = "number_as_string")]
+    pub total_gas_spent_native: Option<String>,
+    /// Total gas spent (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub total_gas_spent_usd: Option<f64>,
+    /// Average gas per transaction (native)
+    #[serde(default, deserialize_with = "number_as_string")]
+    pub avg_gas_per_transaction_native: Option<String>,
+    /// Average gas per transaction (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub avg_gas_per_transaction_usd: Option<f64>,
+    /// Native token sent (native)
+    #[serde(default, deserialize_with = "number_as_string")]
+    pub native_volume_sent: Option<String>,
+    /// Native token sent (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub native_volume_sent_usd: Option<f64>,
+    /// Native token received (native)
+    #[serde(default, deserialize_with = "number_as_string")]
+    pub native_volume_received: Option<String>,
+    /// Native token received (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub native_volume_received_usd: Option<f64>,
+    /// Native token received minus sent (native)
+    #[serde(default, deserialize_with = "number_as_string")]
+    pub native_net_flow: Option<String>,
+    /// Native token received minus sent (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub native_net_flow_usd: Option<f64>,
+    /// Distinct tokens interacted with
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub unique_tokens_interacted: Option<i64>,
+    /// Contracts deployed
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub contracts_created: Option<i64>,
+    /// Largest native transfer received (native)
+    #[serde(default, deserialize_with = "number_as_string")]
+    pub largest_native_transfer_in: Option<String>,
+    /// Largest native transfer received (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub largest_native_transfer_in_usd: Option<f64>,
+    /// Largest native transfer sent (native)
+    #[serde(default, deserialize_with = "number_as_string")]
+    pub largest_native_transfer_out: Option<String>,
+    /// Largest native transfer sent (USD)
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub largest_native_transfer_out_usd: Option<f64>,
+}
+
+/// A transaction marking the start or end of a wallet's activity
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct WalletActivity {
+    /// Chain (e.g. `"0x1"`)
+    pub chain: Option<String>,
+    /// Block number
+    #[serde(default, deserialize_with = "number_as_string")]
+    pub block_number: Option<String>,
+    /// Block timestamp (ISO 8601)
+    pub block_timestamp: Option<String>,
+    /// Transaction hash
+    pub transaction_hash: Option<String>,
+    /// Activity type (e.g. `"native_transfer"`)
+    #[serde(rename = "type")]
+    pub activity_type: Option<String>,
+    /// Direction (e.g. `"sent"` or `"received"`)
+    pub direction: Option<String>,
+}
+
+/// Sent / received / total transfer counts
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct TransferCounts {
+    /// Transfers sent
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub sent: Option<i64>,
+    /// Transfers received
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub received: Option<i64>,
+    /// All transfers
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub total: Option<i64>,
+}
+
+/// Distinct addresses a wallet sent to and received from
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct Counterparties {
+    /// Distinct recipients
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub sent_to: Option<i64>,
+    /// Distinct senders
+    #[serde(default, deserialize_with = "string_or_integer")]
+    pub received_from: Option<i64>,
 }
 
 #[cfg(test)]

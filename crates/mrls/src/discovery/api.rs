@@ -9,7 +9,7 @@
 //! (`GET /tokens/trending`) or the batch
 //! [`AnalyticsApi`](crate::analytics::AnalyticsApi) (`POST /tokens/analytics`).
 
-use super::types::{TokenAnalytics, TokenScore};
+use super::types::{TokenAnalytics, TokenScore, TokenScoreHistory};
 use crate::client::Client;
 use crate::error::Result;
 use serde::Serialize;
@@ -92,5 +92,61 @@ impl<'a> DiscoveryApi<'a> {
         } else {
             self.client.get(&path).await
         }
+    }
+
+    /// Get a token's score history
+    ///
+    /// Calls `GET /tokens/{address}/score/historical`. `timeframe` is `1d`,
+    /// `7d` or `30d`.
+    pub async fn get_token_score_history(
+        &self,
+        token_address: &str,
+        timeframe: &str,
+        chain: Option<&str>,
+    ) -> Result<TokenScoreHistory> {
+        let path = format!("/tokens/{token_address}/score/historical");
+        let mut query = vec![("timeframe", timeframe)];
+        if let Some(chain) = chain {
+            query.push(("chain", chain));
+        }
+        self.client.get_with_query(&path, &query).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Client, Config};
+    use wiremock::matchers::{header, method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn token_score_history_sends_timeframe_and_chain() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/tokens/0xtoken/score/historical"))
+            .and(query_param("timeframe", "7d"))
+            .and(query_param("chain", "base"))
+            .and(header("X-API-Key", "key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "chainId": "0x2105",
+                "tokenAddress": "0xtoken",
+                "timeseries": [
+                    {"timestamp": "2026-11-01T00:00:00.000Z", "score": 81},
+                    {"timestamp": "2026-11-02T00:00:00.000Z", "score": "82.5"}
+                ]
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = Client::with_config(Config::new("key").base_url(server.uri())).unwrap();
+        let history = client
+            .discovery()
+            .get_token_score_history("0xtoken", "7d", Some("base"))
+            .await
+            .unwrap();
+        assert_eq!(history.chain_id.as_deref(), Some("0x2105"));
+        let scores: Vec<_> = history.timeseries.iter().map(|p| p.score).collect();
+        assert_eq!(scores, vec![Some(81.0), Some(82.5)]);
     }
 }

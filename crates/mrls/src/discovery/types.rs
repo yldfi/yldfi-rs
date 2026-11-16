@@ -133,6 +133,32 @@ pub struct TokenScore {
     pub metrics: Option<TokenScoreMetrics>,
 }
 
+/// Historical token score (`GET /tokens/{address}/score/historical`)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct TokenScoreHistory {
+    /// Chain ID (e.g. "0x1")
+    pub chain_id: Option<String>,
+    /// Token address
+    pub token_address: Option<String>,
+    /// Score over time
+    #[serde(default)]
+    pub timeseries: Vec<TokenScorePoint>,
+}
+
+/// One point of a token's score history
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct TokenScorePoint {
+    /// Timestamp (ISO 8601)
+    pub timestamp: Option<String>,
+    /// Score at that time
+    #[serde(default, deserialize_with = "string_or_f64")]
+    pub score: Option<f64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

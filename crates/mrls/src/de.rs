@@ -63,6 +63,29 @@ where
     }
 }
 
+/// Deserialize a decimal amount Moralis may send as a number or a string,
+/// keeping its text so no precision is lost (an empty string or `"null"`
+/// reads as `None`).
+pub(crate) fn number_as_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Number(number) => Ok(Some(number.to_string())),
+        serde_json::Value::String(value) => {
+            if value.is_empty() || value == "null" {
+                Ok(None)
+            } else {
+                Ok(Some(value))
+            }
+        }
+        value => Err(de::Error::custom(format!(
+            "expected a number or a string containing one, got {value}"
+        ))),
+    }
+}
+
 /// Deserialize a value that could be either a string or an integer.
 /// Moralis API sometimes returns block numbers and similar fields as integers
 /// rather than strings.
@@ -145,5 +168,25 @@ mod tests {
         assert_eq!((v.a, v.b), (None, None));
         assert!(serde_json::from_str::<Ints>(r#"{"a": "x"}"#).is_err());
         assert!(serde_json::from_str::<Ints>(r#"{"a": 3000000000}"#).is_err());
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Amounts {
+        #[serde(default, deserialize_with = "super::number_as_string")]
+        a: Option<String>,
+        #[serde(default, deserialize_with = "super::number_as_string")]
+        b: Option<String>,
+    }
+
+    #[test]
+    fn number_as_string_keeps_text() {
+        let v: Amounts =
+            serde_json::from_str(r#"{"a": "1.000000000000000001", "b": 12345678901234567890}"#)
+                .unwrap();
+        assert_eq!(v.a.as_deref(), Some("1.000000000000000001"));
+        assert_eq!(v.b.as_deref(), Some("12345678901234567890"));
+        let v: Amounts = serde_json::from_str(r#"{"a": "", "b": null}"#).unwrap();
+        assert_eq!((v.a, v.b), (None, None));
+        assert!(serde_json::from_str::<Amounts>(r#"{"a": true}"#).is_err());
     }
 }
