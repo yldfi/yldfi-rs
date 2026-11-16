@@ -1,0 +1,86 @@
+{
+ "marketPrices": {
+  "path": "/prices",
+  "sample": {
+   "priceRoute": {
+    "blockNumber": 1,
+    "network": 1,
+    "srcToken": "1",
+    "srcDecimals": 1,
+    "srcAmount": "1",
+    "destToken": "1",
+    "destDecimals": 1,
+    "destAmount": "1",
+    "bestRoute": [],
+    "gasCostUSD": "1",
+    "gasCost": "1",
+    "side": "SELL",
+    "version": "1",
+    "contractAddress": "1",
+    "tokenTransferProxy": "1",
+    "contractMethod": "1",
+    "partnerFee": 1,
+    "srcUSD": "1",
+    "destUSD": "1",
+    "partner": "1",
+    "maxImpactReached": true,
+    "hmac": "1"
+   }
+  }
+ },
+ "marketSwap": {
+  "path": "/swap",
+  "sample": {
+   "priceRoute": {
+    "blockNumber": 1,
+    "network": 1,
+    "srcToken": "1",
+    "srcDecimals": 1,
+    "srcAmount": "1",
+    "destToken": "1",
+    "destDecimals": 1,
+    "destAmount": "1",
+    "bestRoute": [],
+    "gasCostUSD": "1",
+    "gasCost": "1",
+    "side": "SELL",
+    "version": "1",
+    "contractAddress": "1",
+    "tokenTransferProxy": "1",
+    "contractMethod": "1",
+    "partnerFee": 1,
+    "srcUSD": "1",
+    "destUSD": "1",
+    "partner": "1",
+    "maxImpactReached": true,
+    "hmac": "1"
+   },
+   "txParams": {
+    "from": "1",
+    "to": "1",
+    "value": "1",
+    "data": "1",
+    "gasPrice": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "gas": "1",
+    "chainId": 1
+   }
+  }
+ },
+ "marketTransactions": {
+  "path": "/transactions/{chainId}",
+  "method": "POST",
+  "sample": {
+   "from": "1",
+   "to": "1",
+   "value": "1",
+   "data": "1",
+   "gasPrice": "1",
+   "maxFeePerGas": "1",
+   "maxPriorityFeePerGas": "1",
+   "gas": "1",
+   "chainId": 1
+  }
+ }
+}

@@ -3159,6 +3159,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]
@@ -3795,6 +3796,7 @@ dependencies = [
  "url",
  "wiremock",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]
@@ -5641,6 +5643,7 @@ dependencies = [
  "tokio-test",
  "url",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]
@@ -6393,4 +6396,5 @@ dependencies = [
  "tokio-test",
  "wiremock",
  "yldfi-common",
+ "yldfi-spec-test",
 ]

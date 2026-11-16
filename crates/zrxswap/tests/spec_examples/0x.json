@@ -1,0 +1,839 @@
+{
+ "gasless_chains": {
+  "path": "/gasless/chains",
+  "sample": {
+   "chains": [
+    {
+     "chainId": 1,
+     "chainName": "1"
+    }
+   ],
+   "zid": "1"
+  }
+ },
+ "gasless_getprice": {
+  "path": "/gasless/price",
+  "sample": {
+   "allowanceTarget": "1",
+   "blockNumber": "1",
+   "buyAmount": "1",
+   "buyToken": "1",
+   "fees": {
+    "integratorFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "integratorFees": [
+     {
+      "amount": "1",
+      "token": "1",
+      "type": "volume"
+     }
+    ],
+    "zeroExFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "gasFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "gas"
+    }
+   },
+   "issues": {
+    "allowance": {
+     "actual": "1",
+     "spender": "1"
+    },
+    "balance": {
+     "token": "1",
+     "actual": "1",
+     "expected": "1"
+    },
+    "simulationIncomplete": true,
+    "invalidSourcesPassed": [
+     "1"
+    ]
+   },
+   "liquidityAvailable": true,
+   "minBuyAmount": "1",
+   "route": {
+    "fills": [
+     {
+      "from": "1",
+      "to": "1",
+      "source": "1",
+      "proportionBps": "1"
+     }
+    ],
+    "tokens": [
+     {
+      "address": "1",
+      "symbol": "1"
+     }
+    ]
+   },
+   "sellAmount": "1",
+   "sellToken": "1",
+   "target": "1",
+   "tokenMetadata": {
+    "buyToken": {},
+    "sellToken": {}
+   },
+   "zid": "1"
+  },
+  "sample2": {
+   "liquidityAvailable": true,
+   "zid": "1"
+  }
+ },
+ "gasless_getquote": {
+  "path": "/gasless/quote",
+  "sample": {
+   "allowanceTarget": "1",
+   "approval": {
+    "type": "executeMetaTransaction::approve",
+    "hash": "1",
+    "eip712": {
+     "types": {
+      "key": [
+       {
+        "name": "1",
+        "type": "1"
+       }
+      ]
+     },
+     "domain": {
+      "name": "1",
+      "version": "1",
+      "chainId": 1,
+      "verifyingContract": "1",
+      "salt": "1"
+     },
+     "message": {
+      "key": "1"
+     },
+     "primaryType": "1"
+    }
+   },
+   "blockNumber": "1",
+   "buyAmount": "1",
+   "buyToken": "1",
+   "fees": {
+    "integratorFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "integratorFees": [
+     {
+      "amount": "1",
+      "token": "1",
+      "type": "volume"
+     }
+    ],
+    "zeroExFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "gasFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "gas"
+    }
+   },
+   "issues": {
+    "allowance": {
+     "actual": "1",
+     "spender": "1"
+    },
+    "balance": {
+     "token": "1",
+     "actual": "1",
+     "expected": "1"
+    },
+    "simulationIncomplete": true,
+    "invalidSourcesPassed": [
+     "1"
+    ]
+   },
+   "liquidityAvailable": true,
+   "minBuyAmount": "1",
+   "route": {
+    "fills": [
+     {
+      "from": "1",
+      "to": "1",
+      "source": "1",
+      "proportionBps": "1"
+     }
+    ],
+    "tokens": [
+     {
+      "address": "1",
+      "symbol": "1"
+     }
+    ]
+   },
+   "sellAmount": "1",
+   "sellToken": "1",
+   "target": "1",
+   "tokenMetadata": {
+    "buyToken": {},
+    "sellToken": {}
+   },
+   "trade": {
+    "type": "settler_metatransaction",
+    "hash": "1",
+    "eip712": {
+     "types": {
+      "key": [
+       {
+        "name": "1",
+        "type": "1"
+       }
+      ]
+     },
+     "domain": {
+      "name": "1",
+      "version": "1",
+      "chainId": 1,
+      "verifyingContract": "1",
+      "salt": "1"
+     },
+     "message": {
+      "key": "1"
+     },
+     "primaryType": "1"
+    }
+   },
+   "zid": "1"
+  },
+  "sample2": {
+   "liquidityAvailable": true,
+   "zid": "1"
+  }
+ },
+ "gasless_getstatus": {
+  "path": "/gasless/status/{tradeHash}",
+  "sample": {
+   "approvalTransactions": [
+    {
+     "hash": "1",
+     "timestamp": 1
+    }
+   ],
+   "status": "pending",
+   "transactions": [
+    {
+     "hash": "1",
+     "timestamp": 1
+    }
+   ],
+   "zid": "1"
+  },
+  "sample2": {
+   "approvalTransactions": [
+    {
+     "hash": "1",
+     "timestamp": 1
+    }
+   ],
+   "reason": "transaction_simulation_failed",
+   "status": "failed",
+   "transactions": [
+    {
+     "hash": "1",
+     "timestamp": 1
+    }
+   ],
+   "zid": "1"
+  }
+ },
+ "gasless_submit": {
+  "path": "/gasless/submit",
+  "method": "POST",
+  "sample": {
+   "tradeHash": "1",
+   "type": "settler_metatransaction",
+   "zid": "1"
+  }
+ },
+ "sources_getsources": {
+  "path": "/sources",
+  "sample": {
+   "sources": [
+    "1"
+   ],
+   "zid": "1"
+  }
+ },
+ "swap_allowanceholderGetprice": {
+  "path": "/swap/allowance-holder/price",
+  "sample": {
+   "allowanceTarget": "1",
+   "blockNumber": "1",
+   "buyAmount": "1",
+   "buyToken": "1",
+   "fees": {
+    "integratorFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "integratorFees": [
+     {
+      "amount": "1",
+      "token": "1",
+      "type": "volume"
+     }
+    ],
+    "zeroExFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "gasFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "gas"
+    }
+   },
+   "issues": {
+    "allowance": {
+     "actual": "1",
+     "spender": "1"
+    },
+    "balance": {
+     "token": "1",
+     "actual": "1",
+     "expected": "1"
+    },
+    "simulationIncomplete": true,
+    "invalidSourcesPassed": [
+     "1"
+    ]
+   },
+   "liquidityAvailable": true,
+   "minBuyAmount": "1",
+   "mode": "exact-in",
+   "route": {
+    "fills": [
+     {
+      "from": "1",
+      "to": "1",
+      "source": "1",
+      "proportionBps": "1"
+     }
+    ],
+    "tokens": [
+     {
+      "address": "1",
+      "symbol": "1"
+     }
+    ]
+   },
+   "sellAmount": "1",
+   "sellToken": "1",
+   "tokenMetadata": {
+    "buyToken": {},
+    "sellToken": {}
+   },
+   "zid": "1",
+   "gasPrice": "1"
+  },
+  "sample2": {
+   "liquidityAvailable": true,
+   "zid": "1"
+  }
+ },
+ "swap_allowanceholderGetquote": {
+  "path": "/swap/allowance-holder/quote",
+  "sample": {
+   "allowanceTarget": "1",
+   "blockNumber": "1",
+   "buyAmount": "1",
+   "buyToken": "1",
+   "fees": {
+    "integratorFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "integratorFees": [
+     {
+      "amount": "1",
+      "token": "1",
+      "type": "volume"
+     }
+    ],
+    "zeroExFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "gasFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "gas"
+    }
+   },
+   "issues": {
+    "allowance": {
+     "actual": "1",
+     "spender": "1"
+    },
+    "balance": {
+     "token": "1",
+     "actual": "1",
+     "expected": "1"
+    },
+    "simulationIncomplete": true,
+    "invalidSourcesPassed": [
+     "1"
+    ]
+   },
+   "liquidityAvailable": true,
+   "minBuyAmount": "1",
+   "mode": "exact-in",
+   "route": {
+    "fills": [
+     {
+      "from": "1",
+      "to": "1",
+      "source": "1",
+      "proportionBps": "1"
+     }
+    ],
+    "tokens": [
+     {
+      "address": "1",
+      "symbol": "1"
+     }
+    ]
+   },
+   "sellAmount": "1",
+   "sellToken": "1",
+   "tokenMetadata": {
+    "buyToken": {},
+    "sellToken": {}
+   },
+   "zid": "1",
+   "transaction": {
+    "to": "1",
+    "data": "1",
+    "gasPrice": "1",
+    "value": "1"
+   }
+  },
+  "sample2": {
+   "liquidityAvailable": true,
+   "zid": "1"
+  }
+ },
+ "swap_chains": {
+  "path": "/swap/chains",
+  "sample": {
+   "chains": [
+    {
+     "chainId": 1,
+     "chainName": "1"
+    }
+   ],
+   "zid": "1"
+  }
+ },
+ "swap_permit2Getprice": {
+  "path": "/swap/permit2/price",
+  "sample": {
+   "allowanceTarget": "1",
+   "blockNumber": "1",
+   "buyAmount": "1",
+   "buyToken": "1",
+   "fees": {
+    "integratorFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "integratorFees": [
+     {
+      "amount": "1",
+      "token": "1",
+      "type": "volume"
+     }
+    ],
+    "zeroExFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "gasFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "gas"
+    }
+   },
+   "issues": {
+    "allowance": {
+     "actual": "1",
+     "spender": "1"
+    },
+    "balance": {
+     "token": "1",
+     "actual": "1",
+     "expected": "1"
+    },
+    "simulationIncomplete": true,
+    "invalidSourcesPassed": [
+     "1"
+    ]
+   },
+   "liquidityAvailable": true,
+   "minBuyAmount": "1",
+   "mode": "exact-in",
+   "route": {
+    "fills": [
+     {
+      "from": "1",
+      "to": "1",
+      "source": "1",
+      "proportionBps": "1"
+     }
+    ],
+    "tokens": [
+     {
+      "address": "1",
+      "symbol": "1"
+     }
+    ]
+   },
+   "sellAmount": "1",
+   "sellToken": "1",
+   "tokenMetadata": {
+    "buyToken": {},
+    "sellToken": {}
+   },
+   "zid": "1",
+   "gasPrice": "1"
+  },
+  "sample2": {
+   "liquidityAvailable": true,
+   "zid": "1"
+  }
+ },
+ "swap_permit2Getquote": {
+  "path": "/swap/permit2/quote",
+  "sample": {
+   "allowanceTarget": "1",
+   "blockNumber": "1",
+   "buyAmount": "1",
+   "buyToken": "1",
+   "fees": {
+    "integratorFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "integratorFees": [
+     {
+      "amount": "1",
+      "token": "1",
+      "type": "volume"
+     }
+    ],
+    "zeroExFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "volume"
+    },
+    "gasFee": {
+     "amount": "1",
+     "token": "1",
+     "type": "gas"
+    }
+   },
+   "issues": {
+    "allowance": {
+     "actual": "1",
+     "spender": "1"
+    },
+    "balance": {
+     "token": "1",
+     "actual": "1",
+     "expected": "1"
+    },
+    "simulationIncomplete": true,
+    "invalidSourcesPassed": [
+     "1"
+    ]
+   },
+   "liquidityAvailable": true,
+   "minBuyAmount": "1",
+   "mode": "exact-in",
+   "route": {
+    "fills": [
+     {
+      "from": "1",
+      "to": "1",
+      "source": "1",
+      "proportionBps": "1"
+     }
+    ],
+    "tokens": [
+     {
+      "address": "1",
+      "symbol": "1"
+     }
+    ]
+   },
+   "sellAmount": "1",
+   "sellToken": "1",
+   "tokenMetadata": {
+    "buyToken": {},
+    "sellToken": {}
+   },
+   "zid": "1",
+   "permit2": {
+    "type": "Permit2",
+    "hash": "1",
+    "eip712": {
+     "types": {
+      "key": [
+       {
+        "name": "1",
+        "type": "1"
+       }
+      ]
+     },
+     "domain": {
+      "name": "1",
+      "version": "1",
+      "chainId": 1,
+      "verifyingContract": "1",
+      "salt": "1"
+     },
+     "message": {
+      "key": "1"
+     },
+     "primaryType": "1"
+    }
+   },
+   "transaction": {
+    "to": "1",
+    "data": "1",
+    "gasPrice": "1",
+    "value": "1"
+   }
+  },
+  "sample2": {
+   "liquidityAvailable": true,
+   "zid": "1"
+  }
+ },
+ "tradeAnalytics_tradeAnalytics::gasless": {
+  "path": "/trade-analytics/gasless",
+  "sample": {
+   "nextCursor": "1",
+   "trades": [
+    {
+     "appName": "1",
+     "blockNumber": "1",
+     "buyToken": "1",
+     "buyAmount": "1",
+     "chainId": 1,
+     "chainName": "1",
+     "fees": {
+      "integratorFee": {
+       "token": "1",
+       "amount": "1",
+       "amountUsd": "1",
+       "recipient": "1"
+      },
+      "integratorFees": [
+       {
+        "token": "1",
+        "amount": "1",
+        "amountUsd": "1",
+        "recipient": "1"
+       }
+      ],
+      "zeroExFee": {
+       "token": "1",
+       "amount": "1",
+       "amountUsd": "1",
+       "recipient": "1"
+      }
+     },
+     "gasUsed": "1",
+     "protocolVersion": "0xv4",
+     "sellToken": "1",
+     "sellAmount": "1",
+     "slippageBps": "1",
+     "taker": "1",
+     "timestamp": 1,
+     "tokens": [
+      {
+       "address": "1",
+       "symbol": "1"
+      }
+     ],
+     "tradeId": 1,
+     "transactionHash": "1",
+     "volumeUsd": "1",
+     "zid": "1",
+     "service": "gasless"
+    }
+   ],
+   "zid": "1"
+  },
+  "sample2": {
+   "nextCursor": "1",
+   "trades": [
+    {
+     "appName": "1",
+     "blockNumber": "1",
+     "buyToken": "1",
+     "buyAmount": "1",
+     "chainId": 1,
+     "chainName": "1",
+     "fees": {
+      "integratorFee": null,
+      "integratorFees": [
+       {
+        "token": "1",
+        "amount": "1",
+        "amountUsd": "1",
+        "recipient": "1"
+       }
+      ],
+      "zeroExFee": null
+     },
+     "gasUsed": "1",
+     "protocolVersion": null,
+     "sellToken": "1",
+     "sellAmount": "1",
+     "slippageBps": "1",
+     "taker": "1",
+     "timestamp": 1,
+     "tokens": [
+      {
+       "address": "1",
+       "symbol": "1"
+      }
+     ],
+     "tradeId": 1,
+     "transactionHash": "1",
+     "volumeUsd": "1",
+     "zid": "1",
+     "service": "gasless"
+    }
+   ],
+   "zid": "1"
+  }
+ },
+ "tradeAnalytics_tradeAnalytics::swap": {
+  "path": "/trade-analytics/swap",
+  "sample": {
+   "nextCursor": "1",
+   "trades": [
+    {
+     "appName": "1",
+     "blockNumber": "1",
+     "buyToken": "1",
+     "buyAmount": "1",
+     "chainId": 1,
+     "chainName": "1",
+     "fees": {
+      "integratorFee": {
+       "token": "1",
+       "amount": "1",
+       "amountUsd": "1",
+       "recipient": "1"
+      },
+      "integratorFees": [
+       {
+        "token": "1",
+        "amount": "1",
+        "amountUsd": "1",
+        "recipient": "1"
+       }
+      ],
+      "zeroExFee": {
+       "token": "1",
+       "amount": "1",
+       "amountUsd": "1",
+       "recipient": "1"
+      }
+     },
+     "gasUsed": "1",
+     "protocolVersion": "0xv4",
+     "sellToken": "1",
+     "sellAmount": "1",
+     "slippageBps": "1",
+     "taker": "1",
+     "timestamp": 1,
+     "tokens": [
+      {
+       "address": "1",
+       "symbol": "1"
+      }
+     ],
+     "tradeId": 1,
+     "transactionHash": "1",
+     "volumeUsd": "1",
+     "zid": "1",
+     "service": "swap"
+    }
+   ],
+   "zid": "1"
+  },
+  "sample2": {
+   "nextCursor": "1",
+   "trades": [
+    {
+     "appName": "1",
+     "blockNumber": "1",
+     "buyToken": "1",
+     "buyAmount": "1",
+     "chainId": 1,
+     "chainName": "1",
+     "fees": {
+      "integratorFee": null,
+      "integratorFees": [
+       {
+        "token": "1",
+        "amount": "1",
+        "amountUsd": "1",
+        "recipient": "1"
+       }
+      ],
+      "zeroExFee": null
+     },
+     "gasUsed": "1",
+     "protocolVersion": null,
+     "sellToken": "1",
+     "sellAmount": "1",
+     "slippageBps": "1",
+     "taker": "1",
+     "timestamp": 1,
+     "tokens": [
+      {
+       "address": "1",
+       "symbol": "1"
+      }
+     ],
+     "tradeId": 1,
+     "transactionHash": "1",
+     "volumeUsd": "1",
+     "zid": "1",
+     "service": "swap"
+    }
+   ],
+   "zid": "1"
+  }
+ }
+}
