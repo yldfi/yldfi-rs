@@ -127,6 +127,13 @@ class SampleTest(unittest.TestCase):
             {"r": {"path": "/r", "example": {"id": "a", "n": 2}, "sample": {"id": "a", "n": 2}}},
         )
 
+    def test_extract_skips_dangling_refs(self):
+        ok = {"200": {"content": {"application/json": {"schema": {"type": "integer"}}}}}
+        bad = {"200": {"$ref": "#/components/responses/Missing"}}
+        doc = {"paths": {"/a": {"get": {"operationId": "a", "responses": ok}},
+                         "/b": {"get": {"operationId": "b", "responses": bad}}}}
+        self.assertEqual(extract(doc), {"a": {"path": "/a", "sample": 1}})
+
     def test_extract_swagger2(self):
         doc = {
             "definitions": {"Thing": {"type": "object", "properties": {"id": {"type": "integer"}}}},

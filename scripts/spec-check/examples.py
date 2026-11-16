@@ -34,9 +34,13 @@ MAX_SAMPLE_DEPTH = 12
 
 
 def resolve(doc, schema):
+    """Follow $refs. A $ref to something the spec does not define (a spec
+    error) resolves to None, so only the operation using it is skipped."""
     while isinstance(schema, dict) and "$ref" in schema:
         node = doc
         for part in schema["$ref"].lstrip("#/").split("/"):
+            if not isinstance(node, dict) or part not in node:
+                return None
             node = node[part]
         schema = node
     return schema
