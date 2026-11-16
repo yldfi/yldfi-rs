@@ -32,7 +32,7 @@ pub use client::Client;
 pub use error::{Error, Result};
 pub use types::{
     BuildRouteRequest, BuildRouteResponse, Chain, RouteRequest, RouteSummary, RoutesResponse,
-    SwapStep, TokenInfo,
+    SwapData, SwapRequest, SwapResponse, SwapStep, TokenInfo,
 };
 
 // Re-export common utilities

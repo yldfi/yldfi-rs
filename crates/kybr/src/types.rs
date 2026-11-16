@@ -524,6 +524,284 @@ pub struct BuildRouteData {
     pub gas_usd: Option<String>,
 }
 
+/// Parameters for `GET /{chain}/api/v1/swap`: find the best route and
+/// encode it in one call
+///
+/// `KyberSwap` restricts this endpoint to partners that build every route
+/// they request, since it includes RFQ liquidity; otherwise use
+/// [`Client::get_route_data`](crate::Client::get_route_data) followed by
+/// [`Client::build_route`](crate::Client::build_route).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SwapRequest {
+    /// Input token address (`0xEeee...EEeE` for the native token)
+    pub token_in: String,
+    /// Output token address (`0xEeee...EEeE` for the native token)
+    pub token_out: String,
+    /// Input amount in base units
+    pub amount_in: String,
+    /// Address the input tokens are transferred from
+    pub sender: Option<String>,
+    /// Address the output tokens are sent to
+    pub recipient: Option<String>,
+    /// Wallet that originates the transaction, for exclusive pools and rates
+    pub origin: Option<String>,
+    /// Slippage tolerance in bips (sent as `slippageTolerance`, 10 = 0.1%)
+    pub slippage_tolerance_bps: Option<u32>,
+    /// Deadline (unix seconds); the API defaults to 20 minutes from now
+    pub deadline: Option<u64>,
+    /// Only route through these sources (comma-separated)
+    pub included_sources: Option<String>,
+    /// Never route through these sources (comma-separated)
+    pub excluded_sources: Option<String>,
+    /// Exclude RFQ sources
+    pub exclude_rfq_sources: Option<bool>,
+    /// Only use sources that accept scaled input amounts
+    pub only_scalable_sources: Option<bool>,
+    /// Only route directly from `token_in` to `token_out`, without hops
+    pub only_direct_pools: Option<bool>,
+    /// Only return a single-path route
+    pub only_single_path: Option<bool>,
+    /// Account for gas cost when picking the route (API default: true)
+    pub gas_include: Option<bool>,
+    /// Gas price in wei to route with
+    pub gas_price: Option<String>,
+    /// Charge the fee in the input (`currency_in`) or output
+    /// (`currency_out`) token
+    pub charge_fee_by: Option<String>,
+    /// Whether `fee_amount` is in bps (10000 = 100%) rather than wei
+    pub is_in_bps: Option<bool>,
+    /// Fee amount(s), comma-separated for several receivers
+    pub fee_amount: Option<String>,
+    /// Fee receiver address(es), comma-separated
+    pub fee_receiver: Option<String>,
+    /// Encoded permit calldata, to swap without an approval
+    pub permit: Option<String>,
+    /// Allow a slippage tolerance above the API's cap
+    pub ignore_capped_slippage: Option<bool>,
+    /// Estimate gas with `eth_estimateGas`, which also detects reverts
+    pub enable_gas_estimation: Option<bool>,
+    /// Source recorded on chain for the swap
+    pub source: Option<String>,
+    /// Referral info for the swap's `ClientData` event
+    pub referral: Option<String>,
+}
+
+impl SwapRequest {
+    /// A swap of `amount_in` of `token_in` into `token_out`
+    #[must_use]
+    pub fn new(
+        token_in: impl Into<String>,
+        token_out: impl Into<String>,
+        amount_in: impl Into<String>,
+    ) -> Self {
+        Self {
+            token_in: token_in.into(),
+            token_out: token_out.into(),
+            amount_in: amount_in.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Set the sender (input tokens are taken from it)
+    #[must_use]
+    pub fn with_sender(mut self, sender: impl Into<String>) -> Self {
+        self.sender = Some(sender.into());
+        self
+    }
+
+    /// Set the recipient of the output tokens
+    #[must_use]
+    pub fn with_recipient(mut self, recipient: impl Into<String>) -> Self {
+        self.recipient = Some(recipient.into());
+        self
+    }
+
+    /// Set the origin wallet
+    #[must_use]
+    pub fn with_origin(mut self, origin: impl Into<String>) -> Self {
+        self.origin = Some(origin.into());
+        self
+    }
+
+    /// Set slippage tolerance in bips (10 = 0.1%)
+    #[must_use]
+    pub fn with_slippage_bps(mut self, bps: u32) -> Self {
+        self.slippage_tolerance_bps = Some(bps);
+        self
+    }
+
+    /// Set the deadline (unix seconds)
+    #[must_use]
+    pub fn with_deadline(mut self, deadline: u64) -> Self {
+        self.deadline = Some(deadline);
+        self
+    }
+
+    /// Only route through these sources (comma-separated)
+    #[must_use]
+    pub fn with_included_sources(mut self, sources: impl Into<String>) -> Self {
+        self.included_sources = Some(sources.into());
+        self
+    }
+
+    /// Never route through these sources (comma-separated)
+    #[must_use]
+    pub fn with_excluded_sources(mut self, sources: impl Into<String>) -> Self {
+        self.excluded_sources = Some(sources.into());
+        self
+    }
+
+    /// Exclude RFQ sources
+    #[must_use]
+    pub fn with_exclude_rfq_sources(mut self, exclude: bool) -> Self {
+        self.exclude_rfq_sources = Some(exclude);
+        self
+    }
+
+    /// Charge an integrator fee
+    ///
+    /// `charge_fee_by` is `currency_in` or `currency_out`; with `is_in_bps`
+    /// the amount is in bps (10000 = 100%), otherwise in wei.
+    #[must_use]
+    pub fn with_fee(
+        mut self,
+        charge_fee_by: impl Into<String>,
+        fee_amount: impl Into<String>,
+        is_in_bps: bool,
+        fee_receiver: impl Into<String>,
+    ) -> Self {
+        self.charge_fee_by = Some(charge_fee_by.into());
+        self.fee_amount = Some(fee_amount.into());
+        self.is_in_bps = Some(is_in_bps);
+        self.fee_receiver = Some(fee_receiver.into());
+        self
+    }
+
+    /// Estimate gas with `eth_estimateGas`
+    #[must_use]
+    pub fn with_gas_estimation(mut self, enabled: bool) -> Self {
+        self.enable_gas_estimation = Some(enabled);
+        self
+    }
+
+    /// Set the source recorded on chain
+    #[must_use]
+    pub fn with_source(mut self, source: impl Into<String>) -> Self {
+        self.source = Some(source.into());
+        self
+    }
+
+    /// Query parameters for `GET /{chain}/api/v1/swap`
+    #[must_use]
+    pub fn to_query_params(&self) -> Vec<(&'static str, String)> {
+        let mut params = vec![
+            ("tokenIn", self.token_in.clone()),
+            ("tokenOut", self.token_out.clone()),
+            ("amountIn", self.amount_in.clone()),
+        ];
+        let strings = [
+            ("sender", &self.sender),
+            ("recipient", &self.recipient),
+            ("origin", &self.origin),
+            ("includedSources", &self.included_sources),
+            ("excludedSources", &self.excluded_sources),
+            ("gasPrice", &self.gas_price),
+            ("chargeFeeBy", &self.charge_fee_by),
+            ("feeAmount", &self.fee_amount),
+            ("feeReceiver", &self.fee_receiver),
+            ("permit", &self.permit),
+            ("source", &self.source),
+            ("referral", &self.referral),
+        ];
+        for (key, value) in strings {
+            if let Some(value) = value {
+                params.push((key, value.clone()));
+            }
+        }
+        let bools = [
+            ("excludeRFQSources", self.exclude_rfq_sources),
+            ("onlyScalableSources", self.only_scalable_sources),
+            ("onlyDirectPools", self.only_direct_pools),
+            ("onlySinglePath", self.only_single_path),
+            ("gasInclude", self.gas_include),
+            ("isInBps", self.is_in_bps),
+            ("ignoreCappedSlippage", self.ignore_capped_slippage),
+            ("enableGasEstimation", self.enable_gas_estimation),
+        ];
+        for (key, value) in bools {
+            if let Some(value) = value {
+                params.push((key, value.to_string()));
+            }
+        }
+        if let Some(bps) = self.slippage_tolerance_bps {
+            params.push(("slippageTolerance", bps.to_string()));
+        }
+        if let Some(deadline) = self.deadline {
+            params.push(("deadline", deadline.to_string()));
+        }
+        params
+    }
+}
+
+/// Response of `GET /{chain}/api/v1/swap`
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SwapResponse {
+    /// Response code (0 = success)
+    pub code: i32,
+    /// Response message
+    #[serde(default)]
+    pub message: Option<String>,
+    /// Route and encoded transaction
+    #[serde(default)]
+    pub data: Option<SwapData>,
+    /// Request ID, for support
+    #[serde(default)]
+    pub request_id: Option<String>,
+}
+
+/// The route and its encoded transaction, from `GET /{chain}/api/v1/swap`
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SwapData {
+    /// The route found
+    pub route_summary: RouteSummary,
+    /// Router contract to send the transaction to
+    pub router_address: String,
+    /// Encoded calldata
+    pub data: String,
+    /// Native token value to send, in wei
+    #[serde(default)]
+    pub transaction_value: Option<String>,
+    /// Input amount
+    #[serde(default)]
+    pub amount_in: Option<String>,
+    /// Input amount in USD
+    #[serde(default)]
+    pub amount_in_usd: Option<String>,
+    /// Output amount
+    #[serde(default)]
+    pub amount_out: Option<String>,
+    /// Output amount in USD
+    #[serde(default)]
+    pub amount_out_usd: Option<String>,
+    /// Gas limit
+    #[serde(default)]
+    pub gas: Option<String>,
+    /// Gas cost in USD
+    #[serde(default)]
+    pub gas_usd: Option<String>,
+    /// Additional cost in USD (e.g. L1 fee)
+    #[serde(default)]
+    pub additional_cost_usd: Option<String>,
+    /// What the additional cost is for
+    #[serde(default)]
+    pub additional_cost_message: Option<String>,
+}
+
 /// Token info
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenInfo {

@@ -11,10 +11,11 @@ yldfi_spec_test::spec_tests! {
     file: "spec_examples/kyberswap.json",
     checks: {
         "get-route" => kybr::RoutesResponse,
+        "get-swap" => kybr::SwapResponse,
         "post-route-encoded" => kybr::BuildRouteResponse,
     },
     not_implemented: [
+        // Legacy unversioned route (no RFQ), superseded by the V1 routes
         "get-route-encode",
-        "get-swap",
     ],
 }
