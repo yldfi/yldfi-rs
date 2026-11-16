@@ -1,0 +1,2428 @@
+{
+ "AccountController_accountId": {
+  "path": "/api/v1/account/accountId",
+  "sample": "1"
+ },
+ "ActionsController_findAll": {
+  "path": "/api/v1/actions",
+  "sample": [
+   {
+    "action": "approve",
+    "inputs": {
+     "key": {
+      "type": "1",
+      "description": "1",
+      "optional": true
+     }
+    },
+    "variants": [
+     {
+      "action": "1",
+      "inputs": {
+       "key": {
+        "type": "1",
+        "description": "1",
+        "optional": true
+       }
+      },
+      "bundleName": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "ActionsController_getActionsBySlug": {
+  "path": "/api/v1/actions/{slug}",
+  "sample": [
+   {
+    "action": "approve",
+    "inputs": {
+     "key": {
+      "type": "1",
+      "description": "1",
+      "optional": true
+     }
+    },
+    "variants": [
+     {
+      "action": "1",
+      "inputs": {
+       "key": {
+        "type": "1",
+        "description": "1",
+        "optional": true
+       }
+      },
+      "bundleName": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "AggregatorsController_aggregators": {
+  "path": "/api/v1/aggregators",
+  "sample": [
+   "1"
+  ]
+ },
+ "ArbitrumNativeController_checkBridgeTransaction": {
+  "path": "/api/v1/arbitrum-native/bridge/check",
+  "sample": {
+   "sourceChainId": 1,
+   "sourceTxHash": "1",
+   "destinationChainId": 1,
+   "retryableTicketId": "1",
+   "destinationTxHash": "1",
+   "ticketExpiresAt": 1,
+   "status": "pending",
+   "error": "1"
+  }
+ },
+ "BundleController_bundleShortcutTransaction": {
+  "path": "/api/v1/shortcuts/bundle",
+  "method": "POST",
+  "example": {
+   "metadata": {
+    "bridgeRefundAssets": [],
+    "bridgeFees": []
+   },
+   "createdAt": 20483231,
+   "tx": {
+    "to": "0x0000000000000000000000000000000000000000",
+    "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "data": "0x",
+    "value": "0"
+   },
+   "gas": "450000",
+   "amountsOut": {
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": "999000"
+   },
+   "route": [],
+   "bundle": [
+    {
+     "protocol": "uniswap-v2",
+     "action": "swap",
+     "args": {
+      "tokenIn": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "tokenOut": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "amountIn": "1000000000000000000",
+      "receiver": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+     }
+    },
+    {
+     "protocol": "enso",
+     "action": "slippage",
+     "args": {
+      "bps": "100",
+      "amountOut": {
+       "useOutputOfCallAt": 0
+      }
+     }
+    }
+   ]
+  },
+  "sample": {
+   "bundle": [
+    {
+     "protocol": "1",
+     "action": "approve",
+     "args": {
+      "tokenIn": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "tokenOut": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "amountIn": "1000000000000000000",
+      "receiver": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+     }
+    }
+   ],
+   "gas": "1",
+   "amountsOut": {
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": "1"
+   },
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": "1"
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "metadata": {
+    "bridgeRefundAssets": [
+     {
+      "protocol": "cctp",
+      "chainId": 1,
+      "token": "1",
+      "recipient": "1",
+      "symbol": "1"
+     }
+    ],
+    "bridgeFees": [
+     {
+      "protocol": "1",
+      "component": "bridge",
+      "chainId": 1,
+      "destinationChainId": 1,
+      "token": "1",
+      "type": "maximum",
+      "deductedFromAmountOut": true,
+      "amount": "1",
+      "amountUsd": "1"
+     }
+    ],
+    "bridgeFeeUsd": "1"
+   },
+   "intent": {
+    "address": "1"
+   },
+   "createdAt": 1,
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "minAmountsOut": {
+    "key": "1"
+   },
+   "priceImpact": 1,
+   "feeAmount": {
+    "key": "1"
+   },
+   "userOp": {
+    "callData": "1",
+    "callGasLimit": "1",
+    "factory": "1",
+    "factoryData": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "nonce": "1",
+    "paymaster": "1",
+    "paymasterData": "1",
+    "paymasterPostOpGasLimit": "1",
+    "paymasterVerificationGasLimit": "1",
+    "preVerificationGas": "1",
+    "sender": "1",
+    "signature": "1",
+    "verificationGasLimit": "1"
+   },
+   "approvals": [
+    {
+     "to": "1",
+     "from": "1",
+     "data": "1",
+     "description": "1"
+    }
+   ],
+   "preTransactions": [
+    {
+     "type": "tokenApproval",
+     "tx": {
+      "data": "1",
+      "to": "1",
+      "from": "1",
+      "value": "1"
+     },
+     "token": "1",
+     "spender": "1",
+     "amount": "1",
+     "description": "1"
+    }
+   ],
+   "bridgingEstimates": [
+    {
+     "fromChainId": 1,
+     "toChainId": 1,
+     "token": "1",
+     "estimatedSeconds": 1,
+     "sendConfirmations": 1,
+     "receiveConfirmations": 1,
+     "sendBlockTimeSeconds": 1,
+     "receiveBlockTimeSeconds": 1,
+     "bridge": "1",
+     "source": "protocol",
+     "note": "1"
+    }
+   ],
+   "validUntil": 1
+  },
+  "sample2": {
+   "bundle": [
+    {
+     "protocol": "1",
+     "action": "approve",
+     "args": {
+      "tokenIn": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "tokenOut": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "amountIn": "1000000000000000000",
+      "receiver": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+     }
+    }
+   ],
+   "gas": "1",
+   "amountsOut": {
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": "1"
+   },
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": [
+       "1"
+      ]
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "metadata": {
+    "bridgeRefundAssets": [
+     {
+      "protocol": "cctp",
+      "chainId": 1,
+      "token": "1",
+      "recipient": "1",
+      "symbol": "1"
+     }
+    ],
+    "bridgeFees": [
+     {
+      "protocol": "1",
+      "component": "bridge",
+      "chainId": 1,
+      "destinationChainId": 1,
+      "token": "1",
+      "type": "maximum",
+      "deductedFromAmountOut": true,
+      "amount": "1",
+      "amountUsd": "1"
+     }
+    ],
+    "bridgeFeeUsd": "1"
+   },
+   "intent": {
+    "address": "1"
+   },
+   "createdAt": 1,
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "minAmountsOut": {
+    "key": "1"
+   },
+   "priceImpact": 1,
+   "feeAmount": {
+    "key": "1"
+   },
+   "userOp": {
+    "callData": "1",
+    "callGasLimit": "1",
+    "factory": "1",
+    "factoryData": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "nonce": "1",
+    "paymaster": "1",
+    "paymasterData": "1",
+    "paymasterPostOpGasLimit": "1",
+    "paymasterVerificationGasLimit": "1",
+    "preVerificationGas": "1",
+    "sender": "1",
+    "signature": "1",
+    "verificationGasLimit": "1"
+   },
+   "approvals": [
+    {
+     "to": "1",
+     "from": "1",
+     "data": "1",
+     "description": "1"
+    }
+   ],
+   "preTransactions": [
+    {
+     "type": "tokenApproval",
+     "tx": {
+      "data": "1",
+      "to": "1",
+      "from": "1",
+      "value": "1"
+     },
+     "token": "1",
+     "spender": "1",
+     "amount": "1",
+     "description": "1"
+    }
+   ],
+   "bridgingEstimates": [
+    {
+     "fromChainId": 1,
+     "toChainId": 1,
+     "token": "1",
+     "estimatedSeconds": 1,
+     "sendConfirmations": 1,
+     "receiveConfirmations": 1,
+     "sendBlockTimeSeconds": 1,
+     "receiveBlockTimeSeconds": 1,
+     "bridge": "1",
+     "source": "protocol",
+     "note": "1"
+    }
+   ],
+   "validUntil": 1
+  }
+ },
+ "CcipController_checkBridgeTransaction": {
+  "path": "/api/v1/ccip/bridge/check",
+  "sample": {
+   "sourceChainId": 1,
+   "sourceTxHash": "1",
+   "sourceChainIdFinality": 1,
+   "sourceChainEstimatedTimeForFinalitySeconds": 1,
+   "ccipSendParams": {
+    "destinationChainSelector": "1",
+    "message": {
+     "receiver": "1",
+     "tokenAmounts": [
+      {
+       "token": "1",
+       "amount": "1"
+      }
+     ],
+     "feeToken": "1"
+    }
+   },
+   "ccipSendParamsDecoded": {
+    "destinationChainId": 1,
+    "data": {
+     "receiver": "1",
+     "error": "1"
+    },
+    "tokenAmounts": [
+     {
+      "token": {
+       "address": "1",
+       "symbol": "1",
+       "name": "1",
+       "decimals": 1
+      },
+      "amount": "1"
+     }
+    ],
+    "fee": {
+     "token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1",
+      "decimals": 1
+     },
+     "amount": "1"
+    },
+    "extraArgs": {
+     "gasLimit": "1",
+     "allowOutOfOrderExecution": true
+    }
+   },
+   "destinationChainId": 1,
+   "destinationTxHash": "1",
+   "status": "pending",
+   "readyForManualExecution": true,
+   "ensoSourceEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "ensoDestinationEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "intent": {
+    "requestId": "1",
+    "executor": "1",
+    "executionChainId": 1,
+    "phase": "awaiting_funds",
+    "status": "1",
+    "statusDescription": "1",
+    "source": "keeper",
+    "deadline": "1",
+    "executionTxHash": "1",
+    "executionExplorerUrl": "1",
+    "executedAt": "1",
+    "refundTxHash": "1",
+    "refundExplorerUrl": "1",
+    "refundedAt": "1",
+    "error": "1"
+   },
+   "destinationExecutionTxHash": "1",
+   "error": "1"
+  }
+ },
+ "CcipController_getRouter": {
+  "path": "/api/v1/ccip/router",
+  "sample": {
+   "router": "1"
+  }
+ },
+ "CctpController_checkBridgeTransaction": {
+  "path": "/api/v1/cctp/bridge/check",
+  "sample": {
+   "sourceChainId": 1,
+   "sourceTxHash": "1",
+   "destinationChainId": 1,
+   "destinationTxHash": "1",
+   "status": "pending",
+   "transferType": "fast",
+   "delayReason": "1",
+   "forward": {
+    "state": "1",
+    "errorCode": "1",
+    "errorDetails": "1",
+    "txHash": "1"
+   },
+   "depositForBurn": {
+    "amount": "1",
+    "destinationDomain": 1,
+    "mintRecipient": "1",
+    "burnToken": "1",
+    "destinationCaller": "1",
+    "maxFee": "1",
+    "minFinalityThreshold": 1
+   },
+   "depositForBurnDecoded": {
+    "burnToken": {
+     "token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1",
+      "decimals": 1
+     },
+     "amount": "1"
+    },
+    "destinationChainId": 1,
+    "mintRecipient": "1",
+    "destinationCaller": "1",
+    "maxFee": {
+     "token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1",
+      "decimals": 1
+     },
+     "amount": "1"
+    },
+    "minFinalityThreshold": {
+     "value": 1,
+     "type": "fast"
+    },
+    "finalityThresholdExecuted": {
+     "value": 1,
+     "type": "fast"
+    },
+    "feeExecuted": {
+     "token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1",
+      "decimals": 1
+     },
+     "amount": "1"
+    }
+   },
+   "depositForBurnWithHook": {
+    "amount": "1",
+    "destinationDomain": 1,
+    "mintRecipient": "1",
+    "burnToken": "1",
+    "destinationCaller": "1",
+    "maxFee": "1",
+    "minFinalityThreshold": 1,
+    "hookData": "1"
+   },
+   "depositForBurnWithHookDecoded": {
+    "burnToken": {
+     "token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1",
+      "decimals": 1
+     },
+     "amount": "1"
+    },
+    "destinationChainId": 1,
+    "mintRecipient": "1",
+    "destinationCaller": "1",
+    "maxFee": {
+     "token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1",
+      "decimals": 1
+     },
+     "amount": "1"
+    },
+    "minFinalityThreshold": {
+     "value": 1,
+     "type": "fast"
+    },
+    "finalityThresholdExecuted": {
+     "value": 1,
+     "type": "fast"
+    },
+    "feeExecuted": {
+     "token": {
+      "address": "1",
+      "symbol": "1",
+      "name": "1",
+      "decimals": 1
+     },
+     "amount": "1"
+    },
+    "hookData": {
+     "raw": "1",
+     "forwardingService": true,
+     "hyperCoreTransfer": true,
+     "hyperCoreRecipient": "1",
+     "hyperCoreDestinationDex": 1,
+     "hyperCoreDestinationDexType": "perps"
+    }
+   },
+   "ensoSourceEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "ensoDestinationEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "intent": {
+    "requestId": "1",
+    "executor": "1",
+    "executionChainId": 1,
+    "phase": "awaiting_funds",
+    "status": "1",
+    "statusDescription": "1",
+    "source": "keeper",
+    "deadline": "1",
+    "executionTxHash": "1",
+    "executionExplorerUrl": "1",
+    "executedAt": "1",
+    "refundTxHash": "1",
+    "refundExplorerUrl": "1",
+    "refundedAt": "1",
+    "error": "1"
+   },
+   "destinationExecutionTxHash": "1",
+   "error": "1"
+  }
+ },
+ "CctpController_getClaimTx": {
+  "path": "/api/v1/cctp/bridge/claim",
+  "sample": {
+   "claimable": true,
+   "destinationChainId": 1,
+   "tx": {
+    "to": "1",
+    "data": "1",
+    "value": "1",
+    "chainId": 1
+   },
+   "reason": "1"
+  }
+ },
+ "CctpController_getTokenMessenger": {
+  "path": "/api/v1/cctp/bridge/tokenmessengerv2",
+  "sample": {
+   "address": "1"
+  }
+ },
+ "LayerZeroController_checkBridgeTransaction": {
+  "path": "/api/v1/stargate/bridge/check",
+  "sample": {
+   "sourceChainId": 1,
+   "sourceTxHash": "1",
+   "destinationChainId": 1,
+   "destinationTxHash": "1",
+   "status": "pending",
+   "isMultiBridge": true,
+   "hops": [
+    {
+     "sourceChainId": 1,
+     "sourceTxHash": "1",
+     "destinationChainId": 1,
+     "destinationTxHash": "1",
+     "status": "pending",
+     "layerZeroMessage": {
+      "srcEid": 1,
+      "dstEid": 1,
+      "srcChainId": 1,
+      "dstChainId": 1,
+      "status": "1",
+      "srcTxHash": "1",
+      "dstTxHash": "1",
+      "srcBlockNumber": 1,
+      "dstBlockNumber": 1,
+      "srcTimestamp": "1",
+      "dstTimestamp": "1",
+      "sender": "1",
+      "receiver": "1"
+     },
+     "ensoSourceEvent": {
+      "accountId": "1",
+      "requestId": "1",
+      "blockNumber": 1,
+      "transactionHash": "1",
+      "chainId": 1,
+      "success": true,
+      "error": "1",
+      "refundDetails": {
+       "token": "1",
+       "amount": "1",
+       "recipient": "1",
+       "isNative": true
+      }
+     },
+     "ensoDestinationEvent": {
+      "accountId": "1",
+      "requestId": "1",
+      "blockNumber": 1,
+      "transactionHash": "1",
+      "chainId": 1,
+      "success": true,
+      "error": "1",
+      "refundDetails": {
+       "token": "1",
+       "amount": "1",
+       "recipient": "1",
+       "isNative": true
+      }
+     }
+    }
+   ],
+   "layerZeroMessage": {
+    "srcEid": 1,
+    "dstEid": 1,
+    "srcChainId": 1,
+    "dstChainId": 1,
+    "status": "1",
+    "srcTxHash": "1",
+    "dstTxHash": "1",
+    "srcBlockNumber": 1,
+    "dstBlockNumber": 1,
+    "srcTimestamp": "1",
+    "dstTimestamp": "1",
+    "sender": "1",
+    "receiver": "1"
+   },
+   "ensoSourceEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "ensoDestinationEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "ensoMetadata": {
+    "tokenIn": "1",
+    "tokenOut": "1",
+    "amountIn": "1",
+    "chainId": 1,
+    "timestamp": 1
+   },
+   "intent": {
+    "requestId": "1",
+    "executor": "1",
+    "executionChainId": 1,
+    "phase": "awaiting_funds",
+    "status": "1",
+    "statusDescription": "1",
+    "source": "keeper",
+    "deadline": "1",
+    "executionTxHash": "1",
+    "executionExplorerUrl": "1",
+    "executedAt": "1",
+    "refundTxHash": "1",
+    "refundExplorerUrl": "1",
+    "refundedAt": "1",
+    "error": "1"
+   },
+   "destinationExecutionTxHash": "1",
+   "error": "1"
+  }
+ },
+ "LayerZeroController_getPoolAddress": {
+  "path": "/api/v1/stargate/pool",
+  "sample": [
+   {
+    "pool": "1",
+    "chainId": 1,
+    "destinationChainId": 1,
+    "token": "1",
+    "decimals": 1,
+    "destinationData": {
+     "pool": "1",
+     "token": "1",
+     "decimals": 1
+    }
+   }
+  ]
+ },
+ "MayanController_checkBridgeTransaction": {
+  "path": "/api/v1/mayan/bridge/check",
+  "sample": {
+   "sourceChainId": 1,
+   "sourceTxHash": "1",
+   "orderHash": "1",
+   "destinationChainId": 1,
+   "destinationTxHash": "1",
+   "refundChainId": 1,
+   "refundTxHash": "1",
+   "status": "pending",
+   "mayanStatus": "1",
+   "intent": {
+    "requestId": "1",
+    "executor": "1",
+    "executionChainId": 1,
+    "phase": "awaiting_funds",
+    "status": "1",
+    "statusDescription": "1",
+    "source": "keeper",
+    "deadline": "1",
+    "executionTxHash": "1",
+    "executionExplorerUrl": "1",
+    "executedAt": "1",
+    "refundTxHash": "1",
+    "refundExplorerUrl": "1",
+    "refundedAt": "1",
+    "error": "1"
+   },
+   "destinationExecutionTxHash": "1",
+   "ensoDestinationEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "error": "1"
+  }
+ },
+ "NetworksController_networks": {
+  "path": "/api/v1/networks",
+  "sample": [
+   {
+    "id": 1,
+    "name": "1",
+    "isConnected": true
+   }
+  ]
+ },
+ "NonTokenizedController_nontokenizedPositions": {
+  "path": "/api/v1/nontokenized",
+  "sample": {
+   "meta": {
+    "total": 1,
+    "lastPage": 1,
+    "currentPage": 1,
+    "perPage": 1,
+    "prev": 1,
+    "next": 1,
+    "cursor": 1
+   },
+   "data": [
+    {
+     "chainId": 1,
+     "project": "1",
+     "protocol": "1",
+     "address": "1",
+     "positionId": "1",
+     "primaryAddress": "1",
+     "name": "1",
+     "logosUri": "1",
+     "underlyingTokens": [
+      {
+       "address": "1",
+       "chainId": 1,
+       "type": "1",
+       "decimals": 1,
+       "symbol": "1",
+       "name": "1",
+       "logosUri": [
+        "1"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "NontokenizedController_routeNontokenizedShorcutTransaction": {
+  "path": "/api/v1/shortcuts/route/nontokenized",
+  "sample": {
+   "metadata": {
+    "bridgeRefundAssets": [
+     {
+      "protocol": "cctp",
+      "chainId": 1,
+      "token": "1",
+      "recipient": "1",
+      "symbol": "1"
+     }
+    ],
+    "bridgeFees": [
+     {
+      "protocol": "1",
+      "component": "bridge",
+      "chainId": 1,
+      "destinationChainId": 1,
+      "token": "1",
+      "type": "maximum",
+      "deductedFromAmountOut": true,
+      "amount": "1",
+      "amountUsd": "1"
+     }
+    ],
+    "bridgeFeeUsd": "1"
+   },
+   "createdAt": 1,
+   "gas": "1",
+   "amountDeposited": "1",
+   "amountOut": "1",
+   "priceImpact": 1,
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": "1"
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "feeAmount": [
+    "1"
+   ],
+   "ensoFeeAmount": [
+    "1"
+   ],
+   "userOp": {
+    "callData": "1",
+    "callGasLimit": "1",
+    "factory": "1",
+    "factoryData": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "nonce": "1",
+    "paymaster": "1",
+    "paymasterData": "1",
+    "paymasterPostOpGasLimit": "1",
+    "paymasterVerificationGasLimit": "1",
+    "preVerificationGas": "1",
+    "sender": "1",
+    "signature": "1",
+    "verificationGasLimit": "1"
+   },
+   "bridgingEstimates": [
+    {
+     "fromChainId": 1,
+     "toChainId": 1,
+     "token": "1",
+     "estimatedSeconds": 1,
+     "sendConfirmations": 1,
+     "receiveConfirmations": 1,
+     "sendBlockTimeSeconds": 1,
+     "receiveBlockTimeSeconds": 1,
+     "bridge": "1",
+     "source": "protocol",
+     "note": "1"
+    }
+   ],
+   "validUntil": 1
+  },
+  "sample2": {
+   "metadata": {
+    "bridgeRefundAssets": [
+     {
+      "protocol": "cctp",
+      "chainId": 1,
+      "token": "1",
+      "recipient": "1",
+      "symbol": "1"
+     }
+    ],
+    "bridgeFees": [
+     {
+      "protocol": "1",
+      "component": "bridge",
+      "chainId": 1,
+      "destinationChainId": 1,
+      "token": "1",
+      "type": "maximum",
+      "deductedFromAmountOut": true,
+      "amount": "1",
+      "amountUsd": "1"
+     }
+    ],
+    "bridgeFeeUsd": "1"
+   },
+   "createdAt": 1,
+   "gas": "1",
+   "amountDeposited": [
+    "1"
+   ],
+   "amountOut": "1",
+   "priceImpact": 1,
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": [
+       "1"
+      ]
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "feeAmount": [
+    "1"
+   ],
+   "ensoFeeAmount": [
+    "1"
+   ],
+   "userOp": {
+    "callData": "1",
+    "callGasLimit": "1",
+    "factory": "1",
+    "factoryData": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "nonce": "1",
+    "paymaster": "1",
+    "paymasterData": "1",
+    "paymasterPostOpGasLimit": "1",
+    "paymasterVerificationGasLimit": "1",
+    "preVerificationGas": "1",
+    "sender": "1",
+    "signature": "1",
+    "verificationGasLimit": "1"
+   },
+   "bridgingEstimates": [
+    {
+     "fromChainId": 1,
+     "toChainId": 1,
+     "token": "1",
+     "estimatedSeconds": 1,
+     "sendConfirmations": 1,
+     "receiveConfirmations": 1,
+     "sendBlockTimeSeconds": 1,
+     "receiveBlockTimeSeconds": 1,
+     "bridge": "1",
+     "source": "protocol",
+     "note": "1"
+    }
+   ],
+   "validUntil": 1
+  }
+ },
+ "PricesController_getPrice": {
+  "path": "/api/v1/prices/{chainId}/{address}",
+  "sample": {
+   "decimals": 1,
+   "price": 1,
+   "address": "1",
+   "symbol": "1",
+   "name": "1",
+   "timestamp": 1,
+   "chainId": 1
+  }
+ },
+ "PricesController_getPrices": {
+  "path": "/api/v1/prices/{chainId}",
+  "sample": [
+   {
+    "decimals": 1,
+    "price": 1,
+    "address": "1",
+    "symbol": "1",
+    "name": "1",
+    "timestamp": 1,
+    "chainId": 1
+   }
+  ]
+ },
+ "ProjectsController_getStandardsByProject": {
+  "path": "/api/v1/projects/{project}/protocols",
+  "sample": [
+   {
+    "project": "1",
+    "slug": "1",
+    "name": "1",
+    "description": "1",
+    "url": "1",
+    "logosUri": [
+     "1"
+    ],
+    "chains": [
+     {
+      "id": 1,
+      "name": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "ProjectsController_standards": {
+  "path": "/api/v1/projects",
+  "sample": [
+   {
+    "id": "1",
+    "chains": [
+     1
+    ],
+    "protocols": [
+     "1"
+    ]
+   }
+  ]
+ },
+ "ProtocolsController_findAll": {
+  "path": "/api/v1/protocols",
+  "sample": [
+   {
+    "project": "1",
+    "slug": "1",
+    "name": "1",
+    "description": "1",
+    "url": "1",
+    "logosUri": [
+     "1"
+    ],
+    "chains": [
+     {
+      "id": 1,
+      "name": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "QuoteController_quote": {
+  "path": "/api/v1/shortcuts/quote",
+  "sample": {
+   "amountOut": "1",
+   "priceImpact": 1,
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": "1"
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "feeAmount": [
+    "1"
+   ],
+   "ensoFeeAmount": [
+    "1"
+   ]
+  },
+  "sample2": {
+   "amountOut": "1",
+   "priceImpact": 1,
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": [
+       "1"
+      ]
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "feeAmount": [
+    "1"
+   ],
+   "ensoFeeAmount": [
+    "1"
+   ]
+  }
+ },
+ "RelayController_checkBridgeTransaction": {
+  "path": "/api/v1/relay/bridge/check",
+  "sample": {
+   "sourceChainId": 1,
+   "sourceTxHash": "1",
+   "destinationChainId": 1,
+   "destinationTxHash": "1",
+   "refundChainId": 1,
+   "refundTxHash": "1",
+   "status": "pending",
+   "relayRequest": {
+    "status": "success",
+    "user": "1",
+    "recipient": "1",
+    "inTxs": [
+     {
+      "hash": "1",
+      "chainId": 1,
+      "block": 1,
+      "timestamp": 1,
+      "status": "1"
+     }
+    ],
+    "outTxs": [
+     {
+      "hash": "1",
+      "chainId": 1,
+      "block": 1,
+      "timestamp": 1,
+      "status": "1"
+     }
+    ],
+    "currency": {
+     "chainId": 1,
+     "address": "1",
+     "symbol": "1",
+     "name": "1",
+     "decimals": 1
+    },
+    "fees": {
+     "gas": "1",
+     "fixed": "1",
+     "price": "1",
+     "gateway": "1"
+    },
+    "feesUsd": {
+     "gas": "1",
+     "fixed": "1",
+     "price": "1",
+     "gateway": "1"
+    },
+    "failReason": "1",
+    "createdAt": "1",
+    "updatedAt": "1"
+   },
+   "ensoSourceEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "ensoDestinationEvent": {
+    "accountId": "1",
+    "requestId": "1",
+    "blockNumber": 1,
+    "transactionHash": "1",
+    "chainId": 1,
+    "success": true,
+    "error": "1",
+    "refundDetails": {
+     "token": "1",
+     "amount": "1",
+     "recipient": "1",
+     "isNative": true
+    }
+   },
+   "intent": {
+    "requestId": "1",
+    "executor": "1",
+    "executionChainId": 1,
+    "phase": "awaiting_funds",
+    "status": "1",
+    "statusDescription": "1",
+    "source": "keeper",
+    "deadline": "1",
+    "executionTxHash": "1",
+    "executionExplorerUrl": "1",
+    "executedAt": "1",
+    "refundTxHash": "1",
+    "refundExplorerUrl": "1",
+    "refundedAt": "1",
+    "error": "1"
+   },
+   "destinationExecutionTxHash": "1",
+   "error": "1"
+  }
+ },
+ "RouterController_postRouteShortcutTransaction": {
+  "path": "/api/v1/shortcuts/route",
+  "method": "POST",
+  "sample": {
+   "gas": "1",
+   "amountOut": "1",
+   "blockNumber": 1,
+   "priceImpact": 1,
+   "feeAmount": [
+    "1"
+   ],
+   "ensoFeeAmount": [
+    "1"
+   ],
+   "metadata": {
+    "bridgeRefundAssets": [
+     {
+      "protocol": "cctp",
+      "chainId": 1,
+      "token": "1",
+      "recipient": "1",
+      "symbol": "1"
+     }
+    ],
+    "bridgeFees": [
+     {
+      "protocol": "1",
+      "component": "bridge",
+      "chainId": 1,
+      "destinationChainId": 1,
+      "token": "1",
+      "type": "maximum",
+      "deductedFromAmountOut": true,
+      "amount": "1",
+      "amountUsd": "1"
+     }
+    ],
+    "bridgeFeeUsd": "1"
+   },
+   "async": {
+    "chainId": 1,
+    "tokenIn": "1",
+    "amountIn": "1",
+    "tokenOut": "1",
+    "estimatedAmountOut": "1",
+    "estimatedMinAmountOut": "1",
+    "priceImpact": 1,
+    "pricing": "fixed",
+    "beneficiary": "1",
+    "claim": {
+     "type": "erc721",
+     "contract": "1",
+     "transferable": true,
+     "idFrom": {
+      "event": "1",
+      "arg": "1"
+     }
+    },
+    "settlement": {
+     "type": "push",
+     "by": "holder",
+     "call": {
+      "contract": "1",
+      "signature": "1"
+     }
+    },
+    "timing": {
+     "kind": "delay",
+     "minSeconds": 1,
+     "estimatedSeconds": 1,
+     "claimWindowSeconds": 1
+    },
+    "cancel": {
+     "contract": "1",
+     "signature": "1",
+     "by": "holder"
+    },
+    "refund": {
+     "by": [
+      "holder"
+     ],
+     "settlement": {
+      "type": "push",
+      "by": "holder",
+      "call": {
+       "contract": "1",
+       "signature": "1"
+      }
+     }
+    },
+    "status": {
+     "contract": "1",
+     "signature": "1"
+    }
+   },
+   "minAmountOut": "1",
+   "intent": {
+    "address": "1"
+   },
+   "createdAt": 1,
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": "1"
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "detailedRoute": [
+    "1"
+   ],
+   "userOp": {
+    "callData": "1",
+    "callGasLimit": "1",
+    "factory": "1",
+    "factoryData": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "nonce": "1",
+    "paymaster": "1",
+    "paymasterData": "1",
+    "paymasterPostOpGasLimit": "1",
+    "paymasterVerificationGasLimit": "1",
+    "preVerificationGas": "1",
+    "sender": "1",
+    "signature": "1",
+    "verificationGasLimit": "1"
+   },
+   "preTransactions": [
+    {
+     "type": "tokenApproval",
+     "tx": {
+      "data": "1",
+      "to": "1",
+      "from": "1",
+      "value": "1"
+     },
+     "token": "1",
+     "spender": "1",
+     "amount": "1",
+     "description": "1"
+    }
+   ],
+   "bridgingEstimates": [
+    {
+     "fromChainId": 1,
+     "toChainId": 1,
+     "token": "1",
+     "estimatedSeconds": 1,
+     "sendConfirmations": 1,
+     "receiveConfirmations": 1,
+     "sendBlockTimeSeconds": 1,
+     "receiveBlockTimeSeconds": 1,
+     "bridge": "1",
+     "source": "protocol",
+     "note": "1"
+    }
+   ],
+   "validUntil": 1,
+   "transactionCost": "1",
+   "transactionCostUsd": "1"
+  },
+  "sample2": {
+   "gas": "1",
+   "amountOut": [
+    "1"
+   ],
+   "blockNumber": 1,
+   "priceImpact": 1,
+   "feeAmount": [
+    "1"
+   ],
+   "ensoFeeAmount": [
+    "1"
+   ],
+   "metadata": {
+    "bridgeRefundAssets": [
+     {
+      "protocol": "cctp",
+      "chainId": 1,
+      "token": "1",
+      "recipient": "1",
+      "symbol": "1"
+     }
+    ],
+    "bridgeFees": [
+     {
+      "protocol": "1",
+      "component": "bridge",
+      "chainId": 1,
+      "destinationChainId": 1,
+      "token": "1",
+      "type": "maximum",
+      "deductedFromAmountOut": true,
+      "amount": "1",
+      "amountUsd": "1"
+     }
+    ],
+    "bridgeFeeUsd": "1"
+   },
+   "async": {
+    "chainId": 1,
+    "tokenIn": "1",
+    "amountIn": "1",
+    "tokenOut": "1",
+    "estimatedAmountOut": "1",
+    "estimatedMinAmountOut": "1",
+    "priceImpact": 1,
+    "pricing": "fixed",
+    "beneficiary": "1",
+    "claim": {
+     "type": "erc721",
+     "contract": "1",
+     "transferable": true,
+     "idFrom": {
+      "event": "1",
+      "arg": "1"
+     }
+    },
+    "settlement": {
+     "type": "push",
+     "by": "holder",
+     "call": {
+      "contract": "1",
+      "signature": "1"
+     }
+    },
+    "timing": {
+     "kind": "delay",
+     "minSeconds": 1,
+     "estimatedSeconds": 1,
+     "claimWindowSeconds": 1
+    },
+    "cancel": {
+     "contract": "1",
+     "signature": "1",
+     "by": "holder"
+    },
+    "refund": {
+     "by": [
+      "holder"
+     ],
+     "settlement": {
+      "type": "push",
+      "by": "holder",
+      "call": {
+       "contract": "1",
+       "signature": "1"
+      }
+     }
+    },
+    "status": {
+     "contract": "1",
+     "signature": "1"
+    }
+   },
+   "minAmountOut": [
+    "1"
+   ],
+   "intent": {
+    "address": "1"
+   },
+   "createdAt": 1,
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": [
+       "1"
+      ]
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "detailedRoute": [
+    "1"
+   ],
+   "userOp": {
+    "callData": "1",
+    "callGasLimit": "1",
+    "factory": "1",
+    "factoryData": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "nonce": "1",
+    "paymaster": "1",
+    "paymasterData": "1",
+    "paymasterPostOpGasLimit": "1",
+    "paymasterVerificationGasLimit": "1",
+    "preVerificationGas": "1",
+    "sender": "1",
+    "signature": "1",
+    "verificationGasLimit": "1"
+   },
+   "preTransactions": [
+    {
+     "type": "tokenApproval",
+     "tx": {
+      "data": "1",
+      "to": "1",
+      "from": "1",
+      "value": "1"
+     },
+     "token": "1",
+     "spender": "1",
+     "amount": "1",
+     "description": "1"
+    }
+   ],
+   "bridgingEstimates": [
+    {
+     "fromChainId": 1,
+     "toChainId": 1,
+     "token": "1",
+     "estimatedSeconds": 1,
+     "sendConfirmations": 1,
+     "receiveConfirmations": 1,
+     "sendBlockTimeSeconds": 1,
+     "receiveBlockTimeSeconds": 1,
+     "bridge": "1",
+     "source": "protocol",
+     "note": "1"
+    }
+   ],
+   "validUntil": 1,
+   "transactionCost": "1",
+   "transactionCostUsd": "1"
+  }
+ },
+ "RouterController_routeShortcutTransaction": {
+  "path": "/api/v1/shortcuts/route",
+  "sample": {
+   "gas": "1",
+   "amountOut": "1",
+   "blockNumber": 1,
+   "priceImpact": 1,
+   "feeAmount": [
+    "1"
+   ],
+   "ensoFeeAmount": [
+    "1"
+   ],
+   "metadata": {
+    "bridgeRefundAssets": [
+     {
+      "protocol": "cctp",
+      "chainId": 1,
+      "token": "1",
+      "recipient": "1",
+      "symbol": "1"
+     }
+    ],
+    "bridgeFees": [
+     {
+      "protocol": "1",
+      "component": "bridge",
+      "chainId": 1,
+      "destinationChainId": 1,
+      "token": "1",
+      "type": "maximum",
+      "deductedFromAmountOut": true,
+      "amount": "1",
+      "amountUsd": "1"
+     }
+    ],
+    "bridgeFeeUsd": "1"
+   },
+   "async": {
+    "chainId": 1,
+    "tokenIn": "1",
+    "amountIn": "1",
+    "tokenOut": "1",
+    "estimatedAmountOut": "1",
+    "estimatedMinAmountOut": "1",
+    "priceImpact": 1,
+    "pricing": "fixed",
+    "beneficiary": "1",
+    "claim": {
+     "type": "erc721",
+     "contract": "1",
+     "transferable": true,
+     "idFrom": {
+      "event": "1",
+      "arg": "1"
+     }
+    },
+    "settlement": {
+     "type": "push",
+     "by": "holder",
+     "call": {
+      "contract": "1",
+      "signature": "1"
+     }
+    },
+    "timing": {
+     "kind": "delay",
+     "minSeconds": 1,
+     "estimatedSeconds": 1,
+     "claimWindowSeconds": 1
+    },
+    "cancel": {
+     "contract": "1",
+     "signature": "1",
+     "by": "holder"
+    },
+    "refund": {
+     "by": [
+      "holder"
+     ],
+     "settlement": {
+      "type": "push",
+      "by": "holder",
+      "call": {
+       "contract": "1",
+       "signature": "1"
+      }
+     }
+    },
+    "status": {
+     "contract": "1",
+     "signature": "1"
+    }
+   },
+   "minAmountOut": "1",
+   "intent": {
+    "address": "1"
+   },
+   "createdAt": 1,
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": "1"
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "detailedRoute": [
+    "1"
+   ],
+   "userOp": {
+    "callData": "1",
+    "callGasLimit": "1",
+    "factory": "1",
+    "factoryData": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "nonce": "1",
+    "paymaster": "1",
+    "paymasterData": "1",
+    "paymasterPostOpGasLimit": "1",
+    "paymasterVerificationGasLimit": "1",
+    "preVerificationGas": "1",
+    "sender": "1",
+    "signature": "1",
+    "verificationGasLimit": "1"
+   },
+   "preTransactions": [
+    {
+     "type": "tokenApproval",
+     "tx": {
+      "data": "1",
+      "to": "1",
+      "from": "1",
+      "value": "1"
+     },
+     "token": "1",
+     "spender": "1",
+     "amount": "1",
+     "description": "1"
+    }
+   ],
+   "bridgingEstimates": [
+    {
+     "fromChainId": 1,
+     "toChainId": 1,
+     "token": "1",
+     "estimatedSeconds": 1,
+     "sendConfirmations": 1,
+     "receiveConfirmations": 1,
+     "sendBlockTimeSeconds": 1,
+     "receiveBlockTimeSeconds": 1,
+     "bridge": "1",
+     "source": "protocol",
+     "note": "1"
+    }
+   ],
+   "validUntil": 1,
+   "transactionCost": "1",
+   "transactionCostUsd": "1"
+  },
+  "sample2": {
+   "gas": "1",
+   "amountOut": [
+    "1"
+   ],
+   "blockNumber": 1,
+   "priceImpact": 1,
+   "feeAmount": [
+    "1"
+   ],
+   "ensoFeeAmount": [
+    "1"
+   ],
+   "metadata": {
+    "bridgeRefundAssets": [
+     {
+      "protocol": "cctp",
+      "chainId": 1,
+      "token": "1",
+      "recipient": "1",
+      "symbol": "1"
+     }
+    ],
+    "bridgeFees": [
+     {
+      "protocol": "1",
+      "component": "bridge",
+      "chainId": 1,
+      "destinationChainId": 1,
+      "token": "1",
+      "type": "maximum",
+      "deductedFromAmountOut": true,
+      "amount": "1",
+      "amountUsd": "1"
+     }
+    ],
+    "bridgeFeeUsd": "1"
+   },
+   "async": {
+    "chainId": 1,
+    "tokenIn": "1",
+    "amountIn": "1",
+    "tokenOut": "1",
+    "estimatedAmountOut": "1",
+    "estimatedMinAmountOut": "1",
+    "priceImpact": 1,
+    "pricing": "fixed",
+    "beneficiary": "1",
+    "claim": {
+     "type": "erc721",
+     "contract": "1",
+     "transferable": true,
+     "idFrom": {
+      "event": "1",
+      "arg": "1"
+     }
+    },
+    "settlement": {
+     "type": "push",
+     "by": "holder",
+     "call": {
+      "contract": "1",
+      "signature": "1"
+     }
+    },
+    "timing": {
+     "kind": "delay",
+     "minSeconds": 1,
+     "estimatedSeconds": 1,
+     "claimWindowSeconds": 1
+    },
+    "cancel": {
+     "contract": "1",
+     "signature": "1",
+     "by": "holder"
+    },
+    "refund": {
+     "by": [
+      "holder"
+     ],
+     "settlement": {
+      "type": "push",
+      "by": "holder",
+      "call": {
+       "contract": "1",
+       "signature": "1"
+      }
+     }
+    },
+    "status": {
+     "contract": "1",
+     "signature": "1"
+    }
+   },
+   "minAmountOut": [
+    "1"
+   ],
+   "intent": {
+    "address": "1"
+   },
+   "createdAt": 1,
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "route": [
+    {
+     "tokenIn": [
+      "1"
+     ],
+     "tokenOut": [
+      "1"
+     ],
+     "protocol": "1",
+     "action": "approve",
+     "primaryAddress": "1",
+     "internalRoutes": [
+      "1"
+     ],
+     "args": {
+      "key": [
+       "1"
+      ]
+     },
+     "sources": [
+      "1"
+     ],
+     "poolAddresses": [
+      "1"
+     ],
+     "estimatedAmountOut": [
+      "1"
+     ],
+     "chainId": 1,
+     "sourceChainId": 1,
+     "destinationChainId": 1,
+     "positionOut": [
+      "1"
+     ],
+     "via": "cctp-forwarder"
+    }
+   ],
+   "detailedRoute": [
+    "1"
+   ],
+   "userOp": {
+    "callData": "1",
+    "callGasLimit": "1",
+    "factory": "1",
+    "factoryData": "1",
+    "maxFeePerGas": "1",
+    "maxPriorityFeePerGas": "1",
+    "nonce": "1",
+    "paymaster": "1",
+    "paymasterData": "1",
+    "paymasterPostOpGasLimit": "1",
+    "paymasterVerificationGasLimit": "1",
+    "preVerificationGas": "1",
+    "sender": "1",
+    "signature": "1",
+    "verificationGasLimit": "1"
+   },
+   "preTransactions": [
+    {
+     "type": "tokenApproval",
+     "tx": {
+      "data": "1",
+      "to": "1",
+      "from": "1",
+      "value": "1"
+     },
+     "token": "1",
+     "spender": "1",
+     "amount": "1",
+     "description": "1"
+    }
+   ],
+   "bridgingEstimates": [
+    {
+     "fromChainId": 1,
+     "toChainId": 1,
+     "token": "1",
+     "estimatedSeconds": 1,
+     "sendConfirmations": 1,
+     "receiveConfirmations": 1,
+     "sendBlockTimeSeconds": 1,
+     "receiveBlockTimeSeconds": 1,
+     "bridge": "1",
+     "source": "protocol",
+     "note": "1"
+    }
+   ],
+   "validUntil": 1,
+   "transactionCost": "1",
+   "transactionCostUsd": "1"
+  }
+ },
+ "StandardsController_getProtocolBySlug": {
+  "path": "/api/v1/standards/{slug}",
+  "sample": {
+   "project": "1",
+   "slug": "1",
+   "name": "1",
+   "description": "1",
+   "url": "1",
+   "logosUri": [
+    "1"
+   ],
+   "chains": [
+    {
+     "id": 1,
+     "name": "1"
+    }
+   ]
+  }
+ },
+ "StandardsController_standards": {
+  "path": "/api/v1/standards",
+  "sample": [
+   {
+    "protocol": {
+     "slug": "1",
+     "url": "1"
+    },
+    "forks": [
+     {
+      "slug": "1",
+      "url": "1"
+     }
+    ],
+    "actions": [
+     {
+      "action": "approve",
+      "name": "1",
+      "functionNames": [
+       "1"
+      ],
+      "supportedChains": [
+       {
+        "id": 1,
+        "name": "1"
+       }
+      ],
+      "inputs": [
+       "1"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "TokensController_tokens": {
+  "path": "/api/v1/tokens",
+  "sample": {
+   "meta": {
+    "total": 1,
+    "lastPage": 1,
+    "currentPage": 1,
+    "perPage": 1,
+    "prev": 1,
+    "next": 1,
+    "cursor": 1
+   },
+   "data": [
+    {
+     "address": "1",
+     "chainId": 1,
+     "type": "1",
+     "decimals": 1,
+     "symbol": "1",
+     "name": "1",
+     "logosUri": [
+      "1"
+     ],
+     "underlyingTokens": [
+      {
+       "address": "1",
+       "chainId": 1,
+       "type": "1",
+       "decimals": 1,
+       "symbol": "1",
+       "name": "1",
+       "logosUri": [
+        "1"
+       ]
+      }
+     ],
+     "project": "1",
+     "protocol": "1",
+     "depositType": 1,
+     "redeemType": 1,
+     "apy": 1,
+     "apyBase": 1,
+     "apyReward": 1,
+     "borrowApyBase": 1,
+     "borrowApyReward": 1,
+     "tvl": 1,
+     "primaryAddress": "1"
+    }
+   ]
+  }
+ },
+ "WalletController_createApproveTransaction": {
+  "path": "/api/v1/wallet/approve",
+  "sample": {
+   "tx": {
+    "data": "1",
+    "to": "1",
+    "from": "1",
+    "value": "1"
+   },
+   "gas": "1",
+   "token": "1",
+   "amount": "1",
+   "spender": "1"
+  }
+ },
+ "WalletController_wallet": {
+  "path": "/api/v1/wallet",
+  "sample": {
+   "address": "1",
+   "isDeployed": true
+  }
+ },
+ "WalletController_walletBalances": {
+  "path": "/api/v1/wallet/balances",
+  "sample": [
+   {
+    "token": "1",
+    "amount": "1",
+    "chainId": 1,
+    "decimals": 1,
+    "price": "1",
+    "name": "1",
+    "symbol": "1",
+    "logoUri": "1"
+   }
+  ]
+ }
+}
