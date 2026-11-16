@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/yldfi/yldfi-rs/compare/ensof-v0.2.2...ensof-v0.2.3) (2026-11-16)
+
+
+### Features
+
+* **ensof:** add token, quote, metadata and wallet endpoints ([#235](https://github.com/yldfi/yldfi-rs/issues/235)) ([7b660a7](https://github.com/yldfi/yldfi-rs/commit/7b660a787696bb40c0dec42c7fe5ed3f94b817bf))
+
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/ensof-v0.2.1...ensof-v0.2.2) (2026-11-16)
 
 

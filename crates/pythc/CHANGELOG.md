@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/yldfi/yldfi-rs/compare/pythc-v0.2.2...pythc-v0.2.3) (2026-11-16)
+
+
+### Features
+
+* **pythc:** add historical price updates and publisher stake caps ([#241](https://github.com/yldfi/yldfi-rs/issues/241)) ([7e70ec8](https://github.com/yldfi/yldfi-rs/commit/7e70ec8099ea971c3b7377d473f49bfbf12c9f65))
+
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/pythc-v0.2.1...pythc-v0.2.2) (2026-11-09)
 
 

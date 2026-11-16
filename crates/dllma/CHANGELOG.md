@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/dllma-v0.3.0...dllma-v0.3.1) (2026-11-16)
+
+
+### Features
+
+* **dllma:** add yields v2 methods and opt-in Pro routes for free endpoints ([#236](https://github.com/yldfi/yldfi-rs/issues/236)) ([7d70f50](https://github.com/yldfi/yldfi-rs/commit/7d70f502a18bf534fac0393d9de2a3164b6bebdd))
+
 ## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/dllma-v0.2.2...dllma-v0.3.0) (2026-11-16)
 
 

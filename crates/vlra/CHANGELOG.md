@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.2.1...vlra-v0.2.2) (2026-11-16)
+
+
+### Features
+
+* **vlra:** add the market swap endpoint (price and tx in one call) ([#240](https://github.com/yldfi/yldfi-rs/issues/240)) ([a14baa2](https://github.com/yldfi/yldfi-rs/commit/a14baa2c19af79e682f1ac550f922331e0af2761))
+
 ## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.2.0...vlra-v0.2.1) (2026-11-09)
 
 

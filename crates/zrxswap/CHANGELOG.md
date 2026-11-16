@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/zrxswap-v0.2.1...zrxswap-v0.2.2) (2026-11-16)
+
+
+### Features
+
+* **zrxswap:** add AllowanceHolder, gasless and chains endpoints ([#238](https://github.com/yldfi/yldfi-rs/issues/238)) ([d50d0f9](https://github.com/yldfi/yldfi-rs/commit/d50d0f987097f8c85767644a46bd5f09feddd13b))
+
 ## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/zrxswap-v0.2.0...zrxswap-v0.2.1) (2026-11-09)
 
 

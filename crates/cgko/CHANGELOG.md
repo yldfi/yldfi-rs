@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.3.0...cgko-v0.3.1) (2026-11-16)
+
+
+### Features
+
+* **cgko:** add wallet, RWA, news, multi-network and trade-range endpoints ([#243](https://github.com/yldfi/yldfi-rs/issues/243)) ([1bbb5b7](https://github.com/yldfi/yldfi-rs/commit/1bbb5b7b9d78aadde25421c57002aaedede8eedf))
+
 ## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/cgko-v0.2.2...cgko-v0.3.0) (2026-11-14)
 
 
