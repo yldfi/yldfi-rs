@@ -662,7 +662,42 @@ ethcli gecko global trending
 
 # NFT data
 ethcli gecko nfts get bored-ape-yacht-club
+
+# Tokenized real-world assets (list/markets/get/issuers work keyless)
+ethcli gecko rwas list --asset-type stock
+ethcli gecko rwas markets --asset-type etf --per-page 20
+ethcli gecko rwas get 1-800-flowers-com            # --full adds tokens and market data
+ethcli gecko rwas issuers
+ethcli gecko rwas issuer <issuer-id>
+ethcli gecko rwas tickers <rwa-id> --depth         # Basic plan or above
+ethcli gecko rwas chart <rwa-id> --days 90         # Basic plan or above
+
+# Onchain wallets (Analyst plan or above); --networks must be all EVM or all non-EVM
+ethcli gecko wallets balances 0x... --networks eth,base
+ethcli gecko wallets transfers eth 0x... --from 2026-11-01 --to 2026-11-07 --direction in
+ethcli gecko wallets trades eth 0x... --token 0x...
+ethcli gecko wallets pnl 0x... --networks eth,base --sort unrealized_pnl_usd_desc
+
+# News and insights (Analyst plan or above)
+ethcli gecko news --coin bitcoin --type guides
+ethcli gecko insights --from 2026-11-01 --to 2026-11-15
+
+# Supply breakdown (Analyst plan or above)
+ethcli gecko coins supply-breakdown uniswap
+
+# Onchain: multi-network token prices/data (Enterprise plan), trades
+ethcli gecko onchain token-price-multi eth:0xc02a...,base:0x4200... --market-cap
+ethcli gecko onchain tokens-multi eth:0xc02a... --top-pools
+ethcli gecko onchain pool-trades eth 0x... --min-volume-usd 1000          # keyless OK
+ethcli gecko onchain pool-trades eth 0x... --from 2026-11-01 --to 2026-11-02   # Analyst plan
+ethcli gecko onchain token-trades eth 0x... --from 2026-11-01 --to 2026-11-02  # Analyst plan
 ```
+
+Commands that need a paid plan (wallets, news, insights, supply-breakdown,
+RWA tickers/chart, multi-network onchain, trade ranges) fail before any request
+without a Pro key (`COINGECKO_API_KEY` + `COINGECKO_PRO=1`, or `use_pro = true`
+under `[coingecko]`). `-o/--format` goes before the subcommand for grouped
+commands (`ethcli gecko rwas -o ndjson list`).
 
 ## Llama (DefiLlama) Commands
 
@@ -682,9 +717,26 @@ ethcli llama coins chart ethereum:0x... --period 1d
 # Yields
 ethcli llama yields pools
 
+# Yields v2 (Pro key required)
+ethcli llama yields earn --chain ethereum,base --protocol aave-v3 --stablecoin true --min-tvl 1000000 --limit 50
+ethcli llama yields earn --all                     # every earn pool, unpaginated
+ethcli llama yields earn-history <pool-id> --range 30d   # 30d | 90d | max (default: full series)
+ethcli llama yields verified
+ethcli llama yields verified-pool <pool-id>
+ethcli llama yields verified-history <pool-id> --range 90d
+ethcli llama yields borrow-markets
+ethcli llama yields borrow-history <market-id> --range max
+ethcli llama yields borrow-routes
+ethcli llama yields loops
+
 # Stablecoins
 ethcli llama stablecoins list
 ```
+
+With a key, `pro_routes = true` under `[defillama]` in the config file (or
+`DEFILLAMA_PRO_ROUTES=1`) sends the TVL, coins, volumes, fees and stablecoins
+commands to `pro-api.llama.fi` (Pro rate limits, uses credits; same responses).
+Without a key it has no effect.
 
 ## Moralis Commands
 
@@ -696,6 +748,14 @@ ethcli moralis wallet balance 0x...
 ethcli moralis wallet tokens 0x...
 ethcli moralis wallet transactions 0x...
 ethcli moralis token transfers 0x...
+
+# Wallet insight (age, activity, counterparties, gas, swap volume); all chains by default
+ethcli moralis wallet insight 0x...
+ethcli moralis wallet insight 0x... --chains eth,base --chain-breakdown
+
+# Token score and score history (EVM only; --chain goes before the subcommand)
+ethcli moralis discovery token-score 0x...
+ethcli moralis discovery --chain base token-score-history 0x... --timeframe 30d   # 1d | 7d | 30d
 
 # NFT data
 ethcli moralis nft list 0x...
@@ -1260,6 +1320,7 @@ ethcli chainlink oracles --chain arbitrum
 | `ALCHEMY_ACCESS_KEY` | `alchemy gas-manager` (`gas-sponsorship`) | Access key with Gas Manager permissions (dashboard -> Security); or `ethcli config set-alchemy-access-key --stdin` |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (increases rate limit) |
 | `DEFILLAMA_API_KEY` | Pro endpoints; DefiLlama yields from 2026-11-13 | DefiLlama API plan key; or `ethcli config set-defillama --stdin` |
+| `DEFILLAMA_PRO_ROUTES` | Optional | `1`/`true`: route `ethcli llama` free endpoints through the Pro API (needs `DEFILLAMA_API_KEY`); or `pro_routes = true` under `[defillama]` |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
 | `DUNE_API_KEY` | `ethcli dune` | Dune Analytics queries |
 | `CHAINLINK_API_KEY` | `chainlink streams` only | Data Streams API key |

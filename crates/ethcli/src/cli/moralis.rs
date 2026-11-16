@@ -205,6 +205,18 @@ pub enum WalletCommands {
         /// Comma-separated wallet addresses
         addresses: String,
     },
+
+    /// Get wallet insight: age, activity, transfer counts, counterparties, gas, swap volume
+    Insight {
+        /// Wallet address
+        address: String,
+        /// Only these chains, comma-separated (default: every supported chain; ignores --chain)
+        #[arg(long, value_delimiter = ',')]
+        chains: Vec<String>,
+        /// Include a per-chain breakdown
+        #[arg(long)]
+        chain_breakdown: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -662,6 +674,15 @@ pub enum DiscoveryCommands {
         /// Token contract address
         address: String,
     },
+
+    /// Get a token's score history
+    TokenScoreHistory {
+        /// Token contract address
+        address: String,
+        /// Timeframe
+        #[arg(long, default_value = "7d", value_parser = ["1d", "7d", "30d"])]
+        timeframe: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -856,6 +877,18 @@ async fn handle_wallet(
                 .wallet()
                 .get_multiple_balances(&addrs, Some(&args.chain))
                 .await?;
+            print_output(&response, args.format)?;
+        }
+        WalletCommands::Insight {
+            address,
+            chains,
+            chain_breakdown,
+        } => {
+            if !quiet {
+                eprintln!("Fetching insight for {}...", address);
+            }
+            let query = wallet_insight_query(chains, *chain_breakdown)?;
+            let response = client.wallet().get_insight(address, Some(&query)).await?;
             print_output(&response, args.format)?;
         }
     }
@@ -1635,6 +1668,16 @@ async fn handle_discovery(
                 .await?;
             print_output(&response, args.format)?;
         }
+        DiscoveryCommands::TokenScoreHistory { address, timeframe } => {
+            if !quiet {
+                eprintln!("Fetching {} score history for {}...", timeframe, address);
+            }
+            let response = client
+                .discovery()
+                .get_token_score_history(address, timeframe, Some(&args.chain))
+                .await?;
+            print_output(&response, args.format)?;
+        }
     }
     Ok(())
 }
@@ -1751,6 +1794,23 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
     Ok(())
 }
 
+/// Build the `/wallets/{address}/insight` query; Fantom is refused like
+/// the group-level `--chain`.
+fn wallet_insight_query(
+    chains: &[String],
+    chain_breakdown: bool,
+) -> anyhow::Result<mrls::WalletInsightQuery> {
+    let mut query = mrls::WalletInsightQuery::new();
+    for chain in chains.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
+        ensure_moralis_chain_supported(chain)?;
+        query = query.chain(chain);
+    }
+    if chain_breakdown {
+        query = query.include_chain_breakdown(true);
+    }
+    Ok(query)
+}
+
 /// Parse `addr1:id1,addr2:id2`. A bad entry is an error: dropping it would
 /// silently return fewer NFTs than asked for.
 fn parse_nft_tokens(tokens: &str) -> anyhow::Result<Vec<mrls::nft::NftTokenInput>> {
@@ -1799,5 +1859,91 @@ mod tests {
         for chain in ["eth", "polygon", "bsc", "arbitrum", "base", "optimism"] {
             assert!(ensure_moralis_chain_supported(chain).is_ok());
         }
+    }
+
+    use super::{DiscoveryCommands, MoralisCommands, WalletCommands};
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct Cli {
+        #[command(subcommand)]
+        command: MoralisCommands,
+    }
+
+    fn try_parse(args: &[&str]) -> Result<MoralisCommands, clap::Error> {
+        let argv = std::iter::once("moralis").chain(args.iter().copied());
+        Cli::try_parse_from(argv).map(|cli| cli.command)
+    }
+
+    #[test]
+    fn wallet_insight_parses_into_query() {
+        let cmd = try_parse(&[
+            "wallet",
+            "insight",
+            "0xabc",
+            "--chains",
+            "eth, base",
+            "--chain-breakdown",
+        ])
+        .unwrap();
+        let MoralisCommands::Wallet {
+            action:
+                WalletCommands::Insight {
+                    address,
+                    chains,
+                    chain_breakdown,
+                },
+            ..
+        } = cmd
+        else {
+            panic!("expected wallet insight");
+        };
+        assert_eq!(address, "0xabc");
+        let query = super::wallet_insight_query(&chains, chain_breakdown).unwrap();
+        assert_eq!(query.chains, ["eth", "base"]);
+        assert_eq!(query.include_chain_breakdown, Some(true));
+
+        // No --chains: every chain, no breakdown flag sent
+        let query = super::wallet_insight_query(&[], false).unwrap();
+        assert!(query.chains.is_empty());
+        assert_eq!(query.include_chain_breakdown, None);
+
+        assert!(super::wallet_insight_query(&["eth".into(), "fantom".into()], false).is_err());
+    }
+
+    #[test]
+    fn token_score_history_parses() {
+        let cmd = try_parse(&[
+            "discovery",
+            "--chain",
+            "base",
+            "token-score-history",
+            "0xtoken",
+            "--timeframe",
+            "30d",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cmd,
+            MoralisCommands::Discovery {
+                action: DiscoveryCommands::TokenScoreHistory { ref timeframe, .. },
+                ref args,
+            } if timeframe == "30d" && args.chain == "base"
+        ));
+        assert!(matches!(
+            try_parse(&["discovery", "token-score-history", "0xtoken"]).unwrap(),
+            MoralisCommands::Discovery {
+                action: DiscoveryCommands::TokenScoreHistory { ref timeframe, .. },
+                ..
+            } if timeframe == "7d"
+        ));
+        assert!(try_parse(&[
+            "discovery",
+            "token-score-history",
+            "0xt",
+            "--timeframe",
+            "2d"
+        ])
+        .is_err());
     }
 }

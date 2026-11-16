@@ -166,6 +166,108 @@ pub enum YieldsCommands {
         /// Pool ID
         pool: String,
     },
+
+    /// Yields v2 earn pools, filtered and paginated (Pro key required)
+    Earn {
+        /// Chain slug, lowercase (comma-separated or repeated; any match)
+        #[arg(long, value_delimiter = ',')]
+        chain: Vec<String>,
+        /// Protocol slug, lowercase, e.g. aave-v3 (comma-separated or repeated; any match)
+        #[arg(long, value_delimiter = ',')]
+        protocol: Vec<String>,
+        /// true: only all-stablecoin pools; false: only the rest
+        #[arg(long, value_name = "BOOL")]
+        stablecoin: Option<bool>,
+        /// true: only single-asset pools; false: only the rest
+        #[arg(long, value_name = "BOOL")]
+        single_asset: Option<bool>,
+        /// true: only pools with impermanent loss risk; false: only the rest
+        #[arg(long, value_name = "BOOL")]
+        il_risk: Option<bool>,
+        /// Minimum TVL in USD
+        #[arg(long)]
+        min_tvl: Option<f64>,
+        /// Page number (1-based)
+        #[arg(long)]
+        page: Option<u32>,
+        /// Page size, 1 to 300 (default 100)
+        #[arg(long)]
+        limit: Option<u32>,
+        /// Every earn pool in one unfiltered list instead of a page
+        #[arg(
+            long,
+            conflicts_with_all = ["chain", "protocol", "stablecoin", "single_asset", "il_risk", "min_tvl", "page", "limit"]
+        )]
+        all: bool,
+    },
+
+    /// Daily history of an earn pool, oldest first (Pro key required)
+    EarnHistory {
+        /// Earn pool ID
+        id: String,
+        /// History window (default: full series)
+        #[arg(long, value_enum)]
+        range: Option<HistoryRangeArg>,
+    },
+
+    /// Measured (verified) yield of every simulated earn pool (Pro key required)
+    Verified,
+
+    /// Measured yield of one earn pool, with the simulated on-chain calls (Pro key required)
+    VerifiedPool {
+        /// Earn pool ID
+        id: String,
+    },
+
+    /// Daily measured history of an earn pool, oldest first (Pro key required)
+    VerifiedHistory {
+        /// Earn pool ID
+        id: String,
+        /// History window (default: full series)
+        #[arg(long, value_enum)]
+        range: Option<HistoryRangeArg>,
+    },
+
+    /// Latest data for every borrow market (Pro key required)
+    BorrowMarkets,
+
+    /// Daily borrow-side history of a borrow market, oldest first (Pro key required)
+    BorrowHistory {
+        /// Borrow market ID
+        id: String,
+        /// History window (default: full series)
+        #[arg(long, value_enum)]
+        range: Option<HistoryRangeArg>,
+    },
+
+    /// Every borrowing route: a collateral position paired with a debt market (Pro key required)
+    BorrowRoutes,
+
+    /// Every leveraged looping strategy (Pro key required)
+    Loops,
+}
+
+/// History window for the yields v2 history commands
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum HistoryRangeArg {
+    /// Last 30 days
+    #[value(name = "30d")]
+    Days30,
+    /// Last 90 days
+    #[value(name = "90d")]
+    Days90,
+    /// The full series
+    Max,
+}
+
+impl From<HistoryRangeArg> for dllma::yields::HistoryRange {
+    fn from(range: HistoryRangeArg) -> Self {
+        match range {
+            HistoryRangeArg::Days30 => Self::Days30,
+            HistoryRangeArg::Days90 => Self::Days90,
+            HistoryRangeArg::Max => Self::Max,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -235,9 +337,19 @@ pub async fn handle(command: &LlamaCommands, quiet: bool) -> anyhow::Result<()> 
         .and_then(|l| l.api_key.as_ref().map(|s| s.expose_secret().to_string()))
         .or_else(|| std::env::var("DEFILLAMA_API_KEY").ok());
 
+    // Opt-in: route the free endpoints through the Pro API (needs a key)
+    let pro_routes = config
+        .as_ref()
+        .and_then(|c| c.defillama.as_ref())
+        .is_some_and(|l| l.pro_routes)
+        || std::env::var("DEFILLAMA_PRO_ROUTES").is_ok_and(|v| is_truthy(&v));
+
     let client = if let Some(key) = api_key {
-        dllma::Client::with_api_key(&key)?
+        dllma::Client::with_config(dllma::Config::with_api_key(key).pro_routes(pro_routes))?
     } else {
+        if pro_routes && !quiet {
+            eprintln!("Note: DefiLlama pro_routes has no effect without an API key");
+        }
         dllma::Client::new()?
     };
 
@@ -414,8 +526,168 @@ async fn handle_yields(
                 .map_err(|e| anyhow::anyhow!(llama_key_hint(e.to_string())))?;
             print_output(&response, args.format)?;
         }
+        YieldsCommands::Earn {
+            chain,
+            protocol,
+            stablecoin,
+            single_asset,
+            il_risk,
+            min_tvl,
+            page,
+            limit,
+            all,
+        } => {
+            if *all {
+                if !quiet {
+                    eprintln!("Fetching all earn pools...");
+                }
+                let response = client.yields().earn().await.map_err(key_hint)?;
+                print_output(&response, args.format)?;
+            } else {
+                if !quiet {
+                    eprintln!("Fetching earn pools...");
+                }
+                let query = earn_query(
+                    chain,
+                    protocol,
+                    *stablecoin,
+                    *single_asset,
+                    *il_risk,
+                    *min_tvl,
+                    *page,
+                    *limit,
+                );
+                let response = client.yields().earn_query(&query).await.map_err(key_hint)?;
+                print_output(&response, args.format)?;
+            }
+        }
+        YieldsCommands::EarnHistory { id, range } => {
+            if !quiet {
+                eprintln!("Fetching earn history for {}...", id);
+            }
+            let response = client
+                .yields()
+                .earn_history(id, range.map(Into::into))
+                .await
+                .map_err(key_hint)?;
+            print_output(&response, args.format)?;
+        }
+        YieldsCommands::Verified => {
+            if !quiet {
+                eprintln!("Fetching verified earn yields...");
+            }
+            let response = client.yields().earn_verified().await.map_err(key_hint)?;
+            print_output(&response, args.format)?;
+        }
+        YieldsCommands::VerifiedPool { id } => {
+            if !quiet {
+                eprintln!("Fetching verified yield for {}...", id);
+            }
+            let response = client
+                .yields()
+                .earn_verified_pool(id)
+                .await
+                .map_err(key_hint)?;
+            print_output(&response, args.format)?;
+        }
+        YieldsCommands::VerifiedHistory { id, range } => {
+            if !quiet {
+                eprintln!("Fetching verified history for {}...", id);
+            }
+            let response = client
+                .yields()
+                .earn_verified_history(id, range.map(Into::into))
+                .await
+                .map_err(key_hint)?;
+            print_output(&response, args.format)?;
+        }
+        YieldsCommands::BorrowMarkets => {
+            if !quiet {
+                eprintln!("Fetching borrow markets...");
+            }
+            let response = client.yields().borrow_markets().await.map_err(key_hint)?;
+            print_output(&response, args.format)?;
+        }
+        YieldsCommands::BorrowHistory { id, range } => {
+            if !quiet {
+                eprintln!("Fetching borrow history for {}...", id);
+            }
+            let response = client
+                .yields()
+                .borrow_market_history(id, range.map(Into::into))
+                .await
+                .map_err(key_hint)?;
+            print_output(&response, args.format)?;
+        }
+        YieldsCommands::BorrowRoutes => {
+            if !quiet {
+                eprintln!("Fetching borrow routes...");
+            }
+            let response = client.yields().borrow_routes().await.map_err(key_hint)?;
+            print_output(&response, args.format)?;
+        }
+        YieldsCommands::Loops => {
+            if !quiet {
+                eprintln!("Fetching looping strategies...");
+            }
+            let response = client.yields().loops().await.map_err(key_hint)?;
+            print_output(&response, args.format)?;
+        }
     }
     Ok(())
+}
+
+/// Add the `ethcli config set-defillama` hint to Pro-key errors
+fn key_hint(e: dllma::error::Error) -> anyhow::Error {
+    anyhow::anyhow!(llama_key_hint(e.to_string()))
+}
+
+/// Build the `/yields/v2/earn/query` filters
+#[allow(clippy::too_many_arguments)]
+fn earn_query(
+    chains: &[String],
+    protocols: &[String],
+    stablecoin: Option<bool>,
+    single_asset: Option<bool>,
+    il_risk: Option<bool>,
+    min_tvl: Option<f64>,
+    page: Option<u32>,
+    limit: Option<u32>,
+) -> dllma::yields::EarnQuery {
+    let mut query = dllma::yields::EarnQuery::new();
+    for chain in chains.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
+        query = query.chain(chain.to_lowercase());
+    }
+    for protocol in protocols.iter().map(|p| p.trim()).filter(|p| !p.is_empty()) {
+        query = query.protocol(protocol.to_lowercase());
+    }
+    if let Some(v) = stablecoin {
+        query = query.stablecoin(v);
+    }
+    if let Some(v) = single_asset {
+        query = query.single_asset_exposure(v);
+    }
+    if let Some(v) = il_risk {
+        query = query.impermanent_loss_risk(v);
+    }
+    if let Some(v) = min_tvl {
+        query = query.min_tvl(v);
+    }
+    if let Some(v) = page {
+        query = query.page(v);
+    }
+    if let Some(v) = limit {
+        query = query.limit(v);
+    }
+    query
+}
+
+/// `1`, `true`, `yes` and `on` (any case) enable a boolean env setting
+fn is_truthy(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 async fn handle_volumes(
@@ -565,4 +837,145 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct Cli {
+        #[command(subcommand)]
+        command: LlamaCommands,
+    }
+
+    fn try_yields(args: &[&str]) -> Result<YieldsCommands, clap::Error> {
+        let argv = ["llama", "yields"].into_iter().chain(args.iter().copied());
+        Cli::try_parse_from(argv).map(|cli| match cli.command {
+            LlamaCommands::Yields { action, .. } => action,
+            _ => unreachable!(),
+        })
+    }
+
+    fn yields(args: &[&str]) -> YieldsCommands {
+        try_yields(args).unwrap()
+    }
+
+    #[test]
+    fn earn_filters_parse_into_query() {
+        let YieldsCommands::Earn {
+            chain,
+            protocol,
+            stablecoin,
+            single_asset,
+            il_risk,
+            min_tvl,
+            page,
+            limit,
+            all,
+        } = yields(&[
+            "earn",
+            "--chain",
+            "Ethereum,base",
+            "--protocol",
+            "aave-v3",
+            "--stablecoin",
+            "true",
+            "--min-tvl",
+            "1000000",
+            "--limit",
+            "50",
+        ])
+        else {
+            panic!("expected earn");
+        };
+        assert!(!all);
+        let query = earn_query(
+            &chain,
+            &protocol,
+            stablecoin,
+            single_asset,
+            il_risk,
+            min_tvl,
+            page,
+            limit,
+        );
+        assert_eq!(
+            query.to_query_string(),
+            "?chain=ethereum&chain=base&protocol=aave-v3&stablecoin=true&min_tvl=1000000&limit=50"
+        );
+        assert!(try_yields(&["earn", "--all", "--chain", "ethereum"]).is_err());
+        assert!(matches!(
+            yields(&["earn", "--all"]),
+            YieldsCommands::Earn { all: true, .. }
+        ));
+    }
+
+    #[test]
+    fn history_ranges_parse() {
+        assert!(matches!(
+            yields(&["earn-history", "pool-1", "--range", "30d"]),
+            YieldsCommands::EarnHistory {
+                range: Some(HistoryRangeArg::Days30),
+                ..
+            }
+        ));
+        assert!(matches!(
+            yields(&["verified-history", "pool-1", "--range", "max"]),
+            YieldsCommands::VerifiedHistory {
+                range: Some(HistoryRangeArg::Max),
+                ..
+            }
+        ));
+        assert!(matches!(
+            yields(&["borrow-history", "m-1"]),
+            YieldsCommands::BorrowHistory { range: None, .. }
+        ));
+        assert!(try_yields(&["earn-history", "pool-1", "--range", "7d"]).is_err());
+        assert_eq!(
+            dllma::yields::HistoryRange::from(HistoryRangeArg::Days90).as_str(),
+            "90d"
+        );
+    }
+
+    #[test]
+    fn v2_list_commands_parse() {
+        assert!(matches!(yields(&["verified"]), YieldsCommands::Verified));
+        assert!(matches!(
+            yields(&["verified-pool", "pool-1"]),
+            YieldsCommands::VerifiedPool { .. }
+        ));
+        assert!(matches!(
+            yields(&["borrow-markets"]),
+            YieldsCommands::BorrowMarkets
+        ));
+        assert!(matches!(
+            yields(&["borrow-routes"]),
+            YieldsCommands::BorrowRoutes
+        ));
+        assert!(matches!(yields(&["loops"]), YieldsCommands::Loops));
+        // v1 commands are unchanged
+        assert!(matches!(yields(&["pools"]), YieldsCommands::Pools));
+    }
+
+    #[test]
+    fn pro_routes_env_values() {
+        for v in ["1", "true", "TRUE", " yes ", "on"] {
+            assert!(is_truthy(v), "{v}");
+        }
+        for v in ["", "0", "false", "off", "no"] {
+            assert!(!is_truthy(v), "{v}");
+        }
+    }
+
+    #[test]
+    fn pro_routes_config_key() {
+        let cfg: crate::config::LlamaConfig = toml::from_str("pro_routes = true").unwrap();
+        assert!(cfg.pro_routes && cfg.api_key.is_none());
+        let cfg: crate::config::LlamaConfig = toml::from_str("").unwrap();
+        assert!(!cfg.pro_routes);
+        // Default (off) isn't written back to the config file
+        assert!(!toml::to_string(&cfg).unwrap().contains("pro_routes"));
+    }
 }
