@@ -126,10 +126,11 @@ pub enum CoinsCommands {
     Chart {
         /// Tokens in chain:address format (comma-separated)
         tokens: String,
-        /// Time span in seconds
+        /// Number of data points, at most 500 (a count, not seconds: 30 with
+        /// period 1d is the last 30 days)
         #[arg(long)]
         span: Option<u64>,
-        /// Period: 1d, 4h, 1h
+        /// Time between data points: 1d, 4h, 1h (default 24h)
         #[arg(long)]
         period: Option<String>,
     },
