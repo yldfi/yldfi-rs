@@ -1,0 +1,882 @@
+{
+ "createOrder": {
+  "path": "/api/v1/orders",
+  "method": "POST",
+  "example": "0xff2e2e54d178997f173266817c1e9ed6fee1a1aae4b43971c53b543cffcc2969845c6f5599fbb25dbdd1b9b013daf85c03f3c63763e4bc4a",
+  "sample": "1"
+ },
+ "debugOrder": {
+  "path": "/restricted/api/v1/debug/order/{uid}",
+  "sample": {
+   "orderUid": "1",
+   "order": {
+    "sellToken": "1",
+    "buyToken": "1",
+    "receiver": "1",
+    "sellAmount": "1",
+    "buyAmount": "1",
+    "validTo": 1,
+    "feeAmount": "1",
+    "kind": "buy",
+    "partiallyFillable": true,
+    "sellTokenBalance": "erc20",
+    "buyTokenBalance": "erc20",
+    "signingScheme": "eip712",
+    "signature": "1",
+    "from": "1",
+    "quoteId": 1,
+    "appData": "1",
+    "appDataHash": "1",
+    "fullBalanceCheck": true,
+    "creationDate": "1",
+    "class": "limit",
+    "owner": "1",
+    "uid": "1",
+    "availableBalance": "1",
+    "executedSellAmount": "1",
+    "executedSellAmountBeforeFees": "1",
+    "executedBuyAmount": "1",
+    "executedFeeAmount": "1",
+    "invalidated": true,
+    "status": "presignaturePending",
+    "isLiquidityOrder": true,
+    "ethflowData": {
+     "refundTxHash": "1",
+     "userValidTo": 1
+    },
+    "onchainUser": "1",
+    "onchainOrderData": {
+     "sender": "1",
+     "placementError": "QuoteNotFound"
+    },
+    "executedFee": "1",
+    "executedFeeToken": "1",
+    "gasCost": "1",
+    "fullAppData": "1",
+    "validFrom": 1,
+    "settlementContract": "1",
+    "quote": {
+     "gasAmount": "1",
+     "gasPrice": "1",
+     "sellTokenPrice": "1",
+     "sellAmount": "1",
+     "buyAmount": "1",
+     "feeAmount": "1",
+     "solver": "1",
+     "verified": true
+    },
+    "interactions": {
+     "pre": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ],
+     "post": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ]
+    }
+   },
+   "events": [
+    {
+     "label": "1",
+     "timestamp": "1",
+     "reason": "1"
+    }
+   ],
+   "auctions": [
+    {
+     "id": 1,
+     "block": 1,
+     "deadline": 1,
+     "nativePrices": {
+      "key": "1"
+     },
+     "proposedSolutions": [
+      {
+       "solutionUid": 1,
+       "ranking": 1,
+       "solver": "1",
+       "isWinner": true,
+       "filteredOut": true,
+       "score": "1",
+       "executedSell": "1",
+       "executedBuy": "1"
+      }
+     ],
+     "executions": [
+      {
+       "executedFee": "1",
+       "executedFeeToken": "1",
+       "blockNumber": 1,
+       "protocolFees": [
+        {
+         "token": "1",
+         "amount": "1"
+        }
+       ]
+      }
+     ],
+     "settlementAttempts": [
+      {
+       "solver": "1",
+       "solutionUid": 1,
+       "startTimestamp": "1",
+       "endTimestamp": "1",
+       "startBlock": 1,
+       "endBlock": 1,
+       "deadlineBlock": 1,
+       "outcome": "1"
+      }
+     ],
+     "feePolicies": [
+      {
+       "kind": "surplus",
+       "surplusFactor": 1,
+       "surplusMaxVolumeFactor": 1,
+       "volumeFactor": 1,
+       "priceImprovementFactor": 1,
+       "priceImprovementMaxVolumeFactor": 1
+      }
+     ]
+    }
+   ],
+   "trades": [
+    {
+     "blockNumber": 1,
+     "logIndex": 1,
+     "buyAmount": "1",
+     "sellAmount": "1",
+     "sellAmountBeforeFees": "1",
+     "txHash": "1",
+     "auctionId": 1
+    }
+   ]
+  }
+ },
+ "debugSimulation": {
+  "path": "/restricted/api/v1/debug/simulation/{uid}",
+  "sample": {
+   "tenderly_request": {
+    "network_id": "1",
+    "block_number": 1,
+    "transaction_index": 1,
+    "from": "1",
+    "to": "1",
+    "input": "1",
+    "gas": 1,
+    "gas_price": 1,
+    "value": "1",
+    "simulation_type": "full",
+    "save": true,
+    "save_if_fails": true,
+    "generate_access_list": true,
+    "state_objects": {
+     "key": {
+      "balance": "1",
+      "code": "1",
+      "storage": {
+       "key": "1"
+      }
+     }
+    },
+    "access_list": [
+     {
+      "address": "1",
+      "storage_keys": [
+       "1"
+      ]
+     }
+    ]
+   },
+   "error": "1"
+  }
+ },
+ "debugSimulationPost": {
+  "path": "/restricted/api/v1/debug/simulation",
+  "method": "POST",
+  "sample": {
+   "tenderly_request": {
+    "network_id": "1",
+    "block_number": 1,
+    "transaction_index": 1,
+    "from": "1",
+    "to": "1",
+    "input": "1",
+    "gas": 1,
+    "gas_price": 1,
+    "value": "1",
+    "simulation_type": "full",
+    "save": true,
+    "save_if_fails": true,
+    "generate_access_list": true,
+    "state_objects": {
+     "key": {
+      "balance": "1",
+      "code": "1",
+      "storage": {
+       "key": "1"
+      }
+     }
+    },
+    "access_list": [
+     {
+      "address": "1",
+      "storage_keys": [
+       "1"
+      ]
+     }
+    ]
+   },
+   "error": "1"
+  }
+ },
+ "getAddressTotalSurplus": {
+  "path": "/api/v1/users/{address}/total_surplus",
+  "sample": {
+   "totalSurplus": "1"
+  }
+ },
+ "getAppDataByHash": {
+  "path": "/api/v1/app_data/{app_data_hash}",
+  "sample": {
+   "fullAppData": "1"
+  }
+ },
+ "getCurrentBatchAuction": {
+  "path": "/api/v1/auction",
+  "sample": {
+   "id": 1,
+   "block": 1,
+   "orders": [
+    {
+     "uid": "1",
+     "sellToken": "1",
+     "buyToken": "1",
+     "sellAmount": "1",
+     "buyAmount": "1",
+     "created": "1",
+     "validTo": 1,
+     "kind": "buy",
+     "receiver": "1",
+     "owner": "1",
+     "partiallyFillable": true,
+     "executed": "1",
+     "preInteractions": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ],
+     "postInteractions": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ],
+     "sellTokenBalance": "erc20",
+     "buyTokenBalance": "erc20",
+     "class": "limit",
+     "appData": "1",
+     "signature": "1",
+     "protocolFees": [],
+     "quote": {
+      "sellAmount": "1",
+      "buyAmount": "1",
+      "fee": "1"
+     },
+     "penaltyCapNative": "1"
+    }
+   ],
+   "prices": {
+    "key": "1"
+   },
+   "surplusCapturingJitOrderOwners": [
+    "1"
+   ]
+  }
+ },
+ "getOrder": {
+  "path": "/api/v1/orders/{UID}",
+  "sample": {
+   "sellToken": "1",
+   "buyToken": "1",
+   "receiver": "1",
+   "sellAmount": "1",
+   "buyAmount": "1",
+   "validTo": 1,
+   "feeAmount": "1",
+   "kind": "buy",
+   "partiallyFillable": true,
+   "sellTokenBalance": "erc20",
+   "buyTokenBalance": "erc20",
+   "signingScheme": "eip712",
+   "signature": "1",
+   "from": "1",
+   "quoteId": 1,
+   "appData": "1",
+   "appDataHash": "1",
+   "fullBalanceCheck": true,
+   "creationDate": "1",
+   "class": "limit",
+   "owner": "1",
+   "uid": "1",
+   "availableBalance": "1",
+   "executedSellAmount": "1",
+   "executedSellAmountBeforeFees": "1",
+   "executedBuyAmount": "1",
+   "executedFeeAmount": "1",
+   "invalidated": true,
+   "status": "presignaturePending",
+   "isLiquidityOrder": true,
+   "ethflowData": {
+    "refundTxHash": "1",
+    "userValidTo": 1
+   },
+   "onchainUser": "1",
+   "onchainOrderData": {
+    "sender": "1",
+    "placementError": "QuoteNotFound"
+   },
+   "executedFee": "1",
+   "executedFeeToken": "1",
+   "gasCost": "1",
+   "fullAppData": "1",
+   "validFrom": 1,
+   "settlementContract": "1",
+   "quote": {
+    "gasAmount": "1",
+    "gasPrice": "1",
+    "sellTokenPrice": "1",
+    "sellAmount": "1",
+    "buyAmount": "1",
+    "feeAmount": "1",
+    "solver": "1",
+    "verified": true
+   },
+   "interactions": {
+    "pre": [
+     {
+      "target": "1",
+      "value": "1",
+      "callData": "1"
+     }
+    ],
+    "post": [
+     {
+      "target": "1",
+      "value": "1",
+      "callData": "1"
+     }
+    ]
+   }
+  }
+ },
+ "getOrderStatus": {
+  "path": "/api/v1/orders/{UID}/status",
+  "sample": {
+   "type": "open",
+   "value": [
+    {
+     "solver": "1",
+     "executedAmounts": {
+      "sell": "1",
+      "buy": "1"
+     }
+    }
+   ]
+  }
+ },
+ "getOrders": {
+  "path": "/api/v1/orders/by_uids",
+  "method": "POST",
+  "sample": {
+   "order": {
+    "sellToken": "1",
+    "buyToken": "1",
+    "receiver": "1",
+    "sellAmount": "1",
+    "buyAmount": "1",
+    "validTo": 1,
+    "feeAmount": "1",
+    "kind": "buy",
+    "partiallyFillable": true,
+    "sellTokenBalance": "erc20",
+    "buyTokenBalance": "erc20",
+    "signingScheme": "eip712",
+    "signature": "1",
+    "from": "1",
+    "quoteId": 1,
+    "appData": "1",
+    "appDataHash": "1",
+    "fullBalanceCheck": true,
+    "creationDate": "1",
+    "class": "limit",
+    "owner": "1",
+    "uid": "1",
+    "availableBalance": "1",
+    "executedSellAmount": "1",
+    "executedSellAmountBeforeFees": "1",
+    "executedBuyAmount": "1",
+    "executedFeeAmount": "1",
+    "invalidated": true,
+    "status": "presignaturePending",
+    "isLiquidityOrder": true,
+    "ethflowData": {
+     "refundTxHash": "1",
+     "userValidTo": 1
+    },
+    "onchainUser": "1",
+    "onchainOrderData": {
+     "sender": "1",
+     "placementError": "QuoteNotFound"
+    },
+    "executedFee": "1",
+    "executedFeeToken": "1",
+    "gasCost": "1",
+    "fullAppData": "1",
+    "validFrom": 1,
+    "settlementContract": "1",
+    "quote": {
+     "gasAmount": "1",
+     "gasPrice": "1",
+     "sellTokenPrice": "1",
+     "sellAmount": "1",
+     "buyAmount": "1",
+     "feeAmount": "1",
+     "solver": "1",
+     "verified": true
+    },
+    "interactions": {
+     "pre": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ],
+     "post": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ]
+    }
+   }
+  },
+  "sample2": {
+   "error": {
+    "uid": "1",
+    "description": "1"
+   }
+  }
+ },
+ "getOrdersByTxHash": {
+  "path": "/api/v1/transactions/{txHash}/orders",
+  "sample": [
+   {
+    "sellToken": "1",
+    "buyToken": "1",
+    "receiver": "1",
+    "sellAmount": "1",
+    "buyAmount": "1",
+    "validTo": 1,
+    "feeAmount": "1",
+    "kind": "buy",
+    "partiallyFillable": true,
+    "sellTokenBalance": "erc20",
+    "buyTokenBalance": "erc20",
+    "signingScheme": "eip712",
+    "signature": "1",
+    "from": "1",
+    "quoteId": 1,
+    "appData": "1",
+    "appDataHash": "1",
+    "fullBalanceCheck": true,
+    "creationDate": "1",
+    "class": "limit",
+    "owner": "1",
+    "uid": "1",
+    "availableBalance": "1",
+    "executedSellAmount": "1",
+    "executedSellAmountBeforeFees": "1",
+    "executedBuyAmount": "1",
+    "executedFeeAmount": "1",
+    "invalidated": true,
+    "status": "presignaturePending",
+    "isLiquidityOrder": true,
+    "ethflowData": {
+     "refundTxHash": "1",
+     "userValidTo": 1
+    },
+    "onchainUser": "1",
+    "onchainOrderData": {
+     "sender": "1",
+     "placementError": "QuoteNotFound"
+    },
+    "executedFee": "1",
+    "executedFeeToken": "1",
+    "gasCost": "1",
+    "fullAppData": "1",
+    "validFrom": 1,
+    "settlementContract": "1",
+    "quote": {
+     "gasAmount": "1",
+     "gasPrice": "1",
+     "sellTokenPrice": "1",
+     "sellAmount": "1",
+     "buyAmount": "1",
+     "feeAmount": "1",
+     "solver": "1",
+     "verified": true
+    },
+    "interactions": {
+     "pre": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ],
+     "post": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "getSolverCompetitionByAuctionIdV2": {
+  "path": "/api/v2/solver_competition/{auction_id}",
+  "sample": {
+   "auctionId": 1,
+   "auctionStartBlock": 1,
+   "auctionDeadlineBlock": 1,
+   "fastPath": true,
+   "transactionHashes": [
+    "1"
+   ],
+   "referenceScores": {
+    "key": "1"
+   },
+   "auction": {
+    "orders": [
+     "1"
+    ],
+    "prices": {
+     "key": "1"
+    }
+   },
+   "solutions": [
+    {
+     "ranking": 1,
+     "solverAddress": "1",
+     "score": "1",
+     "referenceScore": "1",
+     "txHash": "1",
+     "clearingPrices": {
+      "key": "1"
+     },
+     "orders": [
+      {
+       "id": "1",
+       "sellAmount": "1",
+       "buyAmount": "1"
+      }
+     ],
+     "isWinner": true,
+     "filteredOut": true
+    }
+   ]
+  }
+ },
+ "getSolverCompetitionByTxHashV2": {
+  "path": "/api/v2/solver_competition/by_tx_hash/{tx_hash}",
+  "sample": {
+   "auctionId": 1,
+   "auctionStartBlock": 1,
+   "auctionDeadlineBlock": 1,
+   "fastPath": true,
+   "transactionHashes": [
+    "1"
+   ],
+   "referenceScores": {
+    "key": "1"
+   },
+   "auction": {
+    "orders": [
+     "1"
+    ],
+    "prices": {
+     "key": "1"
+    }
+   },
+   "solutions": [
+    {
+     "ranking": 1,
+     "solverAddress": "1",
+     "score": "1",
+     "referenceScore": "1",
+     "txHash": "1",
+     "clearingPrices": {
+      "key": "1"
+     },
+     "orders": [
+      {
+       "id": "1",
+       "sellAmount": "1",
+       "buyAmount": "1"
+      }
+     ],
+     "isWinner": true,
+     "filteredOut": true
+    }
+   ]
+  }
+ },
+ "getSolverCompetitionLatestV2": {
+  "path": "/api/v2/solver_competition/latest",
+  "sample": {
+   "auctionId": 1,
+   "auctionStartBlock": 1,
+   "auctionDeadlineBlock": 1,
+   "fastPath": true,
+   "transactionHashes": [
+    "1"
+   ],
+   "referenceScores": {
+    "key": "1"
+   },
+   "auction": {
+    "orders": [
+     "1"
+    ],
+    "prices": {
+     "key": "1"
+    }
+   },
+   "solutions": [
+    {
+     "ranking": 1,
+     "solverAddress": "1",
+     "score": "1",
+     "referenceScore": "1",
+     "txHash": "1",
+     "clearingPrices": {
+      "key": "1"
+     },
+     "orders": [
+      {
+       "id": "1",
+       "sellAmount": "1",
+       "buyAmount": "1"
+      }
+     ],
+     "isWinner": true,
+     "filteredOut": true
+    }
+   ]
+  }
+ },
+ "getTokenNativePrice": {
+  "path": "/api/v1/token/{token}/native_price",
+  "sample": {
+   "price": 1
+  }
+ },
+ "getTradesV2": {
+  "path": "/api/v2/trades",
+  "sample": [
+   {
+    "blockNumber": 1,
+    "logIndex": 1,
+    "orderUid": "1",
+    "owner": "1",
+    "sellToken": "1",
+    "buyToken": "1",
+    "sellAmount": "1",
+    "sellAmountBeforeFees": "1",
+    "buyAmount": "1",
+    "txHash": "1",
+    "executedProtocolFees": [
+     {
+      "policy": {
+       "surplus": {
+        "factor": 1,
+        "maxVolumeFactor": 1
+       }
+      },
+      "amount": "1",
+      "token": "1"
+     }
+    ],
+    "gasCost": "1",
+    "penaltyCapNative": "1"
+   }
+  ],
+  "sample2": [
+   {
+    "blockNumber": 1,
+    "logIndex": 1,
+    "orderUid": "1",
+    "owner": "1",
+    "sellToken": "1",
+    "buyToken": "1",
+    "sellAmount": "1",
+    "sellAmountBeforeFees": "1",
+    "buyAmount": "1",
+    "txHash": "1",
+    "executedProtocolFees": [
+     {
+      "policy": {
+       "priceImprovement": {
+        "factor": 1,
+        "maxVolumeFactor": 1,
+        "quote": {
+         "sellAmount": "1",
+         "buyAmount": "1",
+         "fee": "1"
+        }
+       }
+      },
+      "amount": "1",
+      "token": "1"
+     }
+    ],
+    "gasCost": "1",
+    "penaltyCapNative": "1"
+   }
+  ]
+ },
+ "getUserOrdersPaginated": {
+  "path": "/api/v1/account/{owner}/orders",
+  "sample": [
+   {
+    "sellToken": "1",
+    "buyToken": "1",
+    "receiver": "1",
+    "sellAmount": "1",
+    "buyAmount": "1",
+    "validTo": 1,
+    "feeAmount": "1",
+    "kind": "buy",
+    "partiallyFillable": true,
+    "sellTokenBalance": "erc20",
+    "buyTokenBalance": "erc20",
+    "signingScheme": "eip712",
+    "signature": "1",
+    "from": "1",
+    "quoteId": 1,
+    "appData": "1",
+    "appDataHash": "1",
+    "fullBalanceCheck": true,
+    "creationDate": "1",
+    "class": "limit",
+    "owner": "1",
+    "uid": "1",
+    "availableBalance": "1",
+    "executedSellAmount": "1",
+    "executedSellAmountBeforeFees": "1",
+    "executedBuyAmount": "1",
+    "executedFeeAmount": "1",
+    "invalidated": true,
+    "status": "presignaturePending",
+    "isLiquidityOrder": true,
+    "ethflowData": {
+     "refundTxHash": "1",
+     "userValidTo": 1
+    },
+    "onchainUser": "1",
+    "onchainOrderData": {
+     "sender": "1",
+     "placementError": "QuoteNotFound"
+    },
+    "executedFee": "1",
+    "executedFeeToken": "1",
+    "gasCost": "1",
+    "fullAppData": "1",
+    "validFrom": 1,
+    "settlementContract": "1",
+    "quote": {
+     "gasAmount": "1",
+     "gasPrice": "1",
+     "sellTokenPrice": "1",
+     "sellAmount": "1",
+     "buyAmount": "1",
+     "feeAmount": "1",
+     "solver": "1",
+     "verified": true
+    },
+    "interactions": {
+     "pre": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ],
+     "post": [
+      {
+       "target": "1",
+       "value": "1",
+       "callData": "1"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "quote": {
+  "path": "/api/v1/quote",
+  "method": "POST",
+  "sample": {
+   "quote": {
+    "sellToken": "1",
+    "buyToken": "1",
+    "receiver": "1",
+    "sellAmount": "1",
+    "buyAmount": "1",
+    "validTo": 1,
+    "appData": "1",
+    "appDataHash": "1",
+    "feeAmount": "1",
+    "gasAmount": "1",
+    "gasPrice": "1",
+    "sellTokenPrice": "1",
+    "kind": "buy",
+    "partiallyFillable": true,
+    "sellTokenBalance": "erc20",
+    "buyTokenBalance": "erc20",
+    "signingScheme": "eip712"
+   },
+   "from": "1",
+   "expiration": "1",
+   "id": 1,
+   "verified": true,
+   "protocolFeeBps": "1"
+  }
+ },
+ "registerAppData": {
+  "path": "/api/v1/app_data",
+  "method": "PUT",
+  "example": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "sample": "1"
+ },
+ "registerAppDataByHash": {
+  "path": "/api/v1/app_data/{app_data_hash}",
+  "method": "PUT",
+  "example": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "sample": "1"
+ }
+}
