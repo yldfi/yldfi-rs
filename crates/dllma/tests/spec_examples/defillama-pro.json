@@ -526,8 +526,6 @@
      }
     ]
    ],
-   "breakdown24h": {},
-   "breakdown30d": {},
    "chain": "1",
    "allChains": [
     "1",
@@ -895,8 +893,6 @@
      }
     ]
    ],
-   "breakdown24h": {},
-   "breakdown30d": {},
    "chain": "1",
    "allChains": [
     "1",
@@ -1198,7 +1194,6 @@
    "module": "1",
    "category": "1",
    "methodologyURL": "1",
-   "methodology": {},
    "forkedFrom": "1",
    "audits": [],
    "audit_links": [],
@@ -1358,7 +1353,6 @@
    "module": "1",
    "category": "1",
    "methodologyURL": "1",
-   "methodology": {},
    "forkedFrom": "1",
    "audits": [],
    "audit_links": [],
@@ -1509,18 +1503,7 @@
     "1"
    ],
    "defillamaId": "1",
-   "disabled": {},
    "displayName": "1",
-   "module": {},
-   "category": {},
-   "methodologyURL": {},
-   "methodology": {},
-   "forkedFrom": {},
-   "audits": {},
-   "audit_links": {},
-   "versionKey": {},
-   "parentProtocol": {},
-   "previousNames": {},
    "latestFetchIsOk": true,
    "slug": "1",
    "protocolType": "1",
