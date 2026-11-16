@@ -149,3 +149,32 @@ impl ParsedPriceFeed {
         now - self.price.publish_time > max_age_secs
     }
 }
+
+/// Response from `/v2/updates/publisher_stake_caps/latest`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct PublisherStakeCapsResponse {
+    /// Binary update data (for on-chain use)
+    pub binary: BinaryData,
+    /// Parsed updates (absent when requested with `parsed=false`)
+    #[serde(default)]
+    pub parsed: Option<Vec<ParsedPublisherStakeCaps>>,
+}
+
+/// One parsed publisher stake caps update
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct ParsedPublisherStakeCaps {
+    /// Stake cap of each publisher
+    pub publisher_stake_caps: Vec<PublisherStakeCap>,
+}
+
+/// The stake cap of one publisher
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct PublisherStakeCap {
+    /// Publisher public key (base58)
+    pub publisher: String,
+    /// Stake cap
+    pub cap: u64,
+}

@@ -92,5 +92,8 @@ pub use client::{
 pub use error::{
     feed_not_found, invalid_feed_id, is_unauthorized, stale_price, DomainError, Error, Result,
 };
-pub use types::{LatestPriceResponse, ParsedPriceFeed, PriceData, PriceFeedId};
+pub use types::{
+    LatestPriceResponse, ParsedPriceFeed, ParsedPublisherStakeCaps, PriceData, PriceFeedId,
+    PublisherStakeCap, PublisherStakeCapsResponse,
+};
 pub use yldfi_common::http::HttpClientConfig;

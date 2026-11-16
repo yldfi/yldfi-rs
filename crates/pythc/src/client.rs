@@ -10,7 +10,7 @@ use yldfi_common::api::{ApiConfig, BaseClient, SecretApiKey};
 use yldfi_common::{with_retry, RetryConfig};
 
 use crate::error::{DomainError, Error, Result};
-use crate::types::{LatestPriceResponse, ParsedPriceFeed, PriceFeedId};
+use crate::types::{LatestPriceResponse, ParsedPriceFeed, PriceFeedId, PublisherStakeCapsResponse};
 
 /// Maximum length of error body to include in error messages
 const MAX_ERROR_BODY_LEN: usize = 500;
@@ -297,6 +297,73 @@ impl Client {
     pub async fn get_latest_price(&self, feed_id: &str) -> Result<Option<ParsedPriceFeed>> {
         let feeds = self.get_latest_prices(&[feed_id]).await?;
         Ok(feeds.into_iter().next())
+    }
+
+    /// Get historical prices: for each feed, the first price update
+    /// published at or after `publish_time` (unix seconds)
+    ///
+    /// Uses `/v2/updates/price/{publish_time}`. Returns the parsed feeds;
+    /// use [`Self::get_price_updates_at`] to also get the binary update data
+    /// for on-chain use.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # async fn example() -> pythc::error::Result<()> {
+    /// let client = pythc::Client::from_env()?;
+    /// let feeds = client
+    ///     .get_prices_at(&[pythc::feed_ids::ETH_USD], 1_704_067_200)
+    ///     .await?;
+    /// for feed in feeds {
+    ///     println!("{} at {}: {:?}", feed.id, feed.price.publish_time, feed.price_f64());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get_prices_at(
+        &self,
+        feed_ids: &[&str],
+        publish_time: u64,
+    ) -> Result<Vec<ParsedPriceFeed>> {
+        if feed_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        Ok(self
+            .get_price_updates_at(feed_ids, publish_time)
+            .await?
+            .parsed)
+    }
+
+    /// Get the price updates (binary and parsed) published at or after
+    /// `publish_time` (unix seconds), one per feed
+    ///
+    /// Uses `/v2/updates/price/{publish_time}`. `binary` holds the signed
+    /// update to submit on chain.
+    pub async fn get_price_updates_at(
+        &self,
+        feed_ids: &[&str],
+        publish_time: u64,
+    ) -> Result<LatestPriceResponse> {
+        for id in feed_ids {
+            if !validate_feed_id(id) {
+                return Err(crate::error::invalid_feed_id(*id));
+            }
+        }
+
+        let mut url = Url::parse(&self.base.url(&format!("/v2/updates/price/{publish_time}")))?;
+        {
+            let mut pairs = url.query_pairs_mut();
+            for id in feed_ids {
+                pairs.append_pair("ids[]", &normalize_feed_id(id));
+            }
+        }
+
+        self.get_url(&url).await
+    }
+
+    /// Get the latest publisher stake caps update
+    /// (`/v2/updates/publisher_stake_caps/latest`)
+    pub async fn get_latest_publisher_stake_caps(&self) -> Result<PublisherStakeCapsResponse> {
+        self.get("/v2/updates/publisher_stake_caps/latest").await
     }
 
     /// Get all available price feed IDs
