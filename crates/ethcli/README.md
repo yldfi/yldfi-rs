@@ -1317,22 +1317,27 @@ Direct access to KyberSwap API. No API key required.
 
 ```bash
 # Get optimal swap routes
-ethcli kyberswap routes <token_in> <token_out> <amount_in> --chain ethereum
-ethcli kyberswap routes 0xC02...Cc2 0xA0b8... 1000000000000000000 --save-gas
+ethcli kyber-swap routes <token_in> <token_out> <amount_in> --chain ethereum
+ethcli kyber-swap routes 0xC02...Cc2 0xA0b8... 1000000000000000000 --save-gas
 
 # Get route with full data
-ethcli kyberswap route-data <token_in> <token_out> <amount_in> --chain ethereum
+ethcli kyber-swap route-data <token_in> <token_out> <amount_in> --chain ethereum
 
 # Build swap transaction from route
-ethcli kyberswap build <token_in> <token_out> <amount_in> <sender> <recipient> \
+ethcli kyber-swap build <token_in> <token_out> <amount_in> <sender> <recipient> \
   --chain ethereum --slippage-bps 50 --route-summary '<json>'
+
+# Route + calldata in one call (KyberSwap restricts /swap to partners:
+# pass --client-id or set KYBERSWAP_CLIENT_ID; recipient defaults to sender)
+ethcli kyber-swap swap <token_in> <token_out> <amount_in> <sender> [recipient] \
+  --chain ethereum --slippage-bps 50 --client-id <partner-id>
 ```
 
 **Alias**: `ethcli kyber`
 
 ### 0x Protocol - DEX Aggregator
 
-Direct access to 0x API. Optional `ZEROX_API_KEY` or `0X_API_KEY` for higher rate limits.
+Direct access to 0x API. Requires an API key: `[zerox]` in config, or `ZEROX_API_KEY` / `0X_API_KEY`.
 
 ```bash
 # Get swap quote with transaction data
@@ -1342,8 +1347,21 @@ ethcli 0x quote 0xEee...EEeE 0xA0b8... 1000000000000000000 0xYourAddress --slipp
 # Get price estimate (lighter, no tx data)
 ethcli 0x price <sell_token> <buy_token> <sell_amount> <taker> --chain ethereum
 
+# Use the AllowanceHolder flow (plain ERC-20 approval) instead of Permit2
+ethcli 0x quote <sell_token> <buy_token> <sell_amount> <taker> --allowance-holder
+ethcli 0x price <sell_token> <buy_token> <sell_amount> <taker> --allowance-holder
+
 # Get liquidity sources
 ethcli 0x sources --chain ethereum
+
+# Supported chains (Swap API, or Gasless API with --gasless)
+ethcli 0x chains
+ethcli 0x chains --gasless
+
+# Gasless swaps (ERC-20 sell token; gas paid from the sell token)
+ethcli 0x gasless-price <sell_token> <buy_token> <sell_amount> <taker> --chain base
+ethcli 0x gasless-quote <sell_token> <buy_token> <sell_amount> <taker> --chain base
+ethcli 0x gasless-status <trade_hash> --chain base
 ```
 
 **Alias**: `ethcli zerox`
@@ -1354,34 +1372,47 @@ Direct access to CoW Protocol API. No API key required.
 
 ```bash
 # Get MEV-protected swap quote
-ethcli cowswap quote <sell_token> <buy_token> <amount> <from> --chain ethereum
-ethcli cowswap quote 0xC02...Cc2 0xA0b8... 1000000000000000000 0xYourAddress --kind sell
+ethcli cow-swap quote <sell_token> <buy_token> <amount> <from> --chain ethereum
+ethcli cow-swap quote 0xC02...Cc2 0xA0b8... 1000000000000000000 0xYourAddress --kind sell
 
 # Get order by UID
-ethcli cowswap order <uid> --chain ethereum
+ethcli cow-swap order <uid> --chain ethereum
 
 # Get orders for an address
-ethcli cowswap orders <owner> --chain ethereum
+ethcli cow-swap orders <owner> --chain ethereum
+
+# Order competition status (solvers that bid on it)
+ethcli cow-swap order-status <uid> --chain ethereum
+
+# Orders settled in a transaction / several orders by UID (max 128)
+ethcli cow-swap orders-by-tx <tx_hash> --chain ethereum
+ethcli cow-swap orders-by-uids --uid <uid1>,<uid2> --chain ethereum
+
+# Full appData document for an appData hash
+ethcli cow-swap app-data <app_data_hash> --chain ethereum
+
+# Total surplus earned by a user (endpoint marked unstable by CoW)
+ethcli cow-swap surplus <address> --chain ethereum
 
 # Get trades for an address (paginated via /api/v2/trades; API default limit 10)
-ethcli cowswap trades <owner> --chain ethereum --limit 100 --offset 0
+ethcli cow-swap trades <owner> --chain ethereum --limit 100 --offset 0
 
 # Get trades for an order
-ethcli cowswap order-trades <uid> --chain ethereum
+ethcli cow-swap order-trades <uid> --chain ethereum
 
 # Get current auction
-ethcli cowswap auction --chain ethereum
+ethcli cow-swap auction --chain ethereum
 
 # Get solver competition (v2 API): by auction ID, by settlement tx, or latest
-ethcli cowswap competition <auction_id> --chain ethereum
-ethcli cowswap competition --tx-hash <settlement_tx> --chain ethereum
-ethcli cowswap competition --chain ethereum
+ethcli cow-swap competition <auction_id> --chain ethereum
+ethcli cow-swap competition --tx-hash <settlement_tx> --chain ethereum
+ethcli cow-swap competition --chain ethereum
 
 # Get native token price
-ethcli cowswap native-price <token> --chain ethereum
+ethcli cow-swap native-price <token> --chain ethereum
 
 # Cancel orders (signature over OrderCancellations(bytes[] orderUids))
-ethcli cowswap cancel-orders --uid <uid1>,<uid2> <signature> --chain ethereum
+ethcli cow-swap cancel-orders --uid <uid1>,<uid2> <signature> --chain ethereum
 ```
 
 **Alias**: `ethcli cow`
@@ -1395,6 +1426,14 @@ Direct access to LI.FI API for cross-chain swaps and bridges. Optional `LIFI_INT
 ethcli lifi quote <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
 ethcli lifi quote 1 0xA0b8... 137 0x2791... 1000000000 0xYourAddress --slippage 0.5
 
+# Quote by output amount: how much to send to receive exactly <to_amount>
+ethcli lifi quote-to-amount <from_chain> <from_token> <to_chain> <to_token> <to_amount> <from_address>
+ethcli lifi quote-to-amount 1 USDC 42161 USDC 10000000 0xYourAddress
+
+# Bridge/swap, then run contract calls on the destination chain (beta)
+ethcli lifi contract-calls <from_chain> <from_token> <to_chain> <to_token> <to_amount> <from_address> \
+  --calls '[{"fromAmount":"...","fromTokenAddress":"0x...","toContractAddress":"0x...","toContractCallData":"0x...","toContractGasLimit":"..."}]'
+
 # Get multiple routes
 ethcli lifi routes <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
 
@@ -1404,6 +1443,14 @@ ethcli lifi best-route <from_chain> <from_token> <to_chain> <to_token> <amount> 
 # Get transaction status
 ethcli lifi status <tx_hash> --from-chain 1 --to-chain 137
 
+# Transfers sent or received by a wallet (last 30 days unless --from-timestamp;
+# page with the response's next/previous cursors)
+ethcli lifi transfers <wallet> --status all --limit 20
+ethcli lifi transfers <wallet> --from-timestamp 1700000000 --next <cursor>
+
+# LI.Fuel gas refuel status
+ethcli lifi gas-status <tx_hash>
+
 # List supported chains
 ethcli lifi chains
 
@@ -1412,6 +1459,9 @@ ethcli lifi chain <chain_id>
 
 # List tokens for a chain
 ethcli lifi tokens --chain-id 1
+
+# Look up one token by symbol or address
+ethcli lifi token 1 USDC
 
 # List available tools (bridges/exchanges)
 ethcli lifi tools
@@ -1443,6 +1493,9 @@ ethcli velora price 0xC02...Cc2 0xA0b8... 1000000000000000000 --src-decimals 18 
 # Build swap transaction
 ethcli velora transaction <user_address> --chain ethereum --slippage 100 --price-route '<json>'
 
+# Price route + transaction in one call (lower rate limits, no RFQ liquidity)
+ethcli velora swap <src_token> <dest_token> <amount> <user_address> --chain ethereum --slippage 100
+
 # List supported tokens
 ethcli velora tokens --chain ethereum
 ```
@@ -1463,6 +1516,24 @@ ethcli enso price <token> --chain-id 1
 
 # Get token balances for an address
 ethcli enso balances <address> --chain-id 1
+
+# Quote (output amount and route, no tx data); sender is optional
+ethcli enso quote <token_in> <token_out> <amount_in> [from_address] --chain-id 1
+
+# Prices of several tokens on one chain (max 100)
+ethcli enso prices <token1> <token2> --chain-id 1
+
+# Search tokens (filters: --chain-id, --project, --protocol, --address, --symbol,
+# --underlying, --type defi|base, --apy-from/--apy-to, --tvl-from/--tvl-to, paging)
+ethcli enso tokens --chain-id 1 --protocol aave-v3 --include-metadata
+
+# Networks and protocols
+ethcli enso networks
+ethcli enso protocols --chain-id 1
+
+# Approval transaction for Enso's router, and the Enso smart wallet of an address
+ethcli enso approve <token> <amount> <from_address> --chain-id 1
+ethcli enso wallet <from_address> --chain-id 1
 ```
 
 ### Pyth Network - Price Feeds
@@ -1479,6 +1550,9 @@ or set `PYTH_API_KEY`. The config file key takes precedence over the environment
 ethcli pyth price BTC/USD
 ethcli pyth price ETH SOL AVAX
 
+# Price at a past time (first update published at or after the unix timestamp)
+ethcli pyth price ETH/USD --at 1704067200
+
 # Search for price feeds
 ethcli pyth search "BTC"
 ethcli pyth search "ETH/USD"
@@ -1489,6 +1563,9 @@ ethcli pyth feeds --asset-type crypto
 
 # Get well-known feed IDs
 ethcli pyth known-feeds
+
+# Latest publisher stake caps update
+ethcli pyth stake-caps
 ```
 
 **Notes**:
