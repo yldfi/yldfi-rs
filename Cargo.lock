@@ -3323,6 +3323,7 @@ dependencies = [
  "tracing",
  "wiremock",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]

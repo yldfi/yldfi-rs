@@ -37,6 +37,7 @@ pub struct TokenPrice {
     /// Token address
     pub token_address: Option<String>,
     /// USD price
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub usd_price: Option<f64>,
     /// USD price formatted
     pub usd_price_formatted: Option<String>,
@@ -87,6 +88,7 @@ pub struct TokenTransfer {
     /// Value
     pub value: String,
     /// Log index
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub log_index: Option<i32>,
     /// Possible spam
     pub possible_spam: Option<bool>,
@@ -98,8 +100,10 @@ pub struct TokenTransferResponse {
     /// Cursor for pagination
     pub cursor: Option<String>,
     /// Page
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page: Option<i32>,
     /// Page size
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page_size: Option<i32>,
     /// Results
     #[serde(default)]
@@ -177,6 +181,7 @@ pub struct TokenHoldersResponse {
     /// Cursor for pagination
     pub cursor: Option<String>,
     /// Page size
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page_size: Option<i32>,
     /// Results
     pub result: Vec<TokenHolder>,
@@ -218,6 +223,7 @@ pub struct TokenSwap {
     pub amount1_out: Option<String>,
     /// USD value
     #[serde(alias = "total_value_usd")]
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub total_value_usd: Option<f64>,
     /// Wallet address
     #[serde(alias = "wallet_address")]
@@ -272,6 +278,7 @@ pub struct TokenSearchResult {
     pub verified: Option<bool>,
     /// Security score
     #[serde(alias = "security_score")]
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub security_score: Option<i32>,
 }
 
@@ -282,6 +289,7 @@ pub struct TokenSearchResponse {
     #[serde(default)]
     pub result: Vec<TokenSearchResult>,
     /// Total number of matches
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub total: Option<i64>,
 }
 
@@ -356,6 +364,7 @@ pub struct PairOhlcvResponse {
     /// Cursor for the next page
     pub cursor: Option<String>,
     /// Page
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page: Option<i32>,
     /// Pair address
     pub pair_address: Option<String>,
@@ -402,12 +411,16 @@ pub struct PairStats {
     )]
     pub price_change_24h: Option<f64>,
     /// Buys 24h
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub buys_24h: Option<i64>,
     /// Sells 24h
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub sells_24h: Option<i64>,
     /// Buyers 24h
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub buyers_24h: Option<i64>,
     /// Sellers 24h
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub sellers_24h: Option<i64>,
 }
 
@@ -428,8 +441,10 @@ pub struct TokenResponse<T> {
     /// Cursor
     pub cursor: Option<String>,
     /// Page
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page: Option<i32>,
     /// Page size
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page_size: Option<i32>,
     /// Results
     pub result: Vec<T>,
@@ -457,10 +472,13 @@ pub struct TokenAddressInput {
 #[serde(rename_all = "camelCase")]
 pub struct TokenHoldersSummary {
     /// Total holders
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub total_holders: Option<i64>,
     /// Holders change 24h
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub holders_change_24h: Option<i64>,
     /// Holders change percentage 24h
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub holders_change_percent_24h: Option<f64>,
 }
 
@@ -546,6 +564,7 @@ pub struct TopTrader {
     pub avg_sell_price_usd: Option<f64>,
     /// Trade count
     #[serde(alias = "trade_count", alias = "count_of_trades")]
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub trade_count: Option<i64>,
 }
 

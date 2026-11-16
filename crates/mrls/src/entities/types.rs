@@ -44,6 +44,7 @@ pub struct EntityCategory {
     /// Category description
     pub description: Option<String>,
     /// Entity count in category
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub entity_count: Option<i64>,
 }
 
@@ -51,15 +52,20 @@ pub struct EntityCategory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntitySearchResult {
     /// Page
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page: Option<i32>,
     /// Page size
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page_size: Option<i32>,
     /// Matches, grouped by kind
     pub result: EntitySearchMatches,
 }
 
 /// Entity search matches
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+///
+/// Search returns matches grouped by kind; `/entities/categories/{id}`
+/// returns a plain list of entities, which reads into `entities`.
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct EntitySearchMatches {
     /// Matching entities
     #[serde(default)]
@@ -70,6 +76,36 @@ pub struct EntitySearchMatches {
     /// Matching categories
     #[serde(default)]
     pub categories: Vec<EntityCategory>,
+}
+
+impl<'de> Deserialize<'de> for EntitySearchMatches {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Grouped {
+            #[serde(default)]
+            entities: Vec<SearchEntity>,
+            #[serde(default)]
+            addresses: Vec<SearchAddress>,
+            #[serde(default)]
+            categories: Vec<EntityCategory>,
+        }
+        let value = serde_json::Value::deserialize(deserializer)?;
+        if value.is_array() {
+            return Ok(Self {
+                entities: serde_json::from_value(value).map_err(serde::de::Error::custom)?,
+                ..Self::default()
+            });
+        }
+        let g: Grouped = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+        Ok(Self {
+            entities: g.entities,
+            addresses: g.addresses,
+            categories: g.categories,
+        })
+    }
 }
 
 /// Entity in a search result
@@ -129,6 +165,19 @@ pub struct CategoriesResponse {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn search_matches_read_grouped_and_plain_lists() {
+        let grouped: EntitySearchMatches = serde_json::from_str(
+            r#"{"entities":[{"id":"1","name":"Example"}],"addresses":[],"categories":[]}"#,
+        )
+        .unwrap();
+        assert_eq!(grouped.entities[0].name.as_deref(), Some("Example"));
+        let plain: EntitySearchMatches =
+            serde_json::from_str(r#"[{"id":2,"name":"Example","type":"exchange"}]"#).unwrap();
+        assert_eq!(plain.entities[0].id.as_deref(), Some("2"));
+        assert!(plain.addresses.is_empty());
+    }
+
     use super::*;
 
     #[test]
