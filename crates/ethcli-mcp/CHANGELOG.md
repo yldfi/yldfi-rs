@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.0...ethcli-mcp-v0.6.1) (2026-11-16)
+
+
+### Features
+
+* **ethcli-mcp:** add tools for new LI.FI, CoW, Enso, 0x, Kyber, Velora, Pyth, CoinGecko, DefiLlama and Moralis commands ([#249](https://github.com/yldfi/yldfi-rs/issues/249)) ([63b159f](https://github.com/yldfi/yldfi-rs/commit/63b159f8ada5c4622afc62d005b02d5a30927471))
+
 ## [0.6.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.5.2...ethcli-mcp-v0.6.0) (2026-11-09)
 
 
