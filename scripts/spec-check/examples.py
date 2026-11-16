@@ -88,6 +88,9 @@ def sample(doc, schema, pick, example=None, depth=0):
     if isinstance(kind, list):
         kind = next((k for k in kind if k != "null"), None)
     if kind == "object" or "properties" in schema:
+        if not schema.get("properties") and not isinstance(schema.get("additionalProperties"), dict):
+            # No fields described: only an example says what is in it
+            return example if isinstance(example, dict) else {}
         sub = example if isinstance(example, dict) else {}
         out = {
             name: known(sample(doc, prop, pick, sub.get(name), depth + 1))
@@ -129,6 +132,31 @@ def sample(doc, schema, pick, example=None, depth=0):
 METHODS = ("get", "post", "put", "patch", "delete")
 
 
+def schema_example(doc, schema, depth=0):
+    """The example a schema itself carries, through $ref and single-branch
+    oneOf/anyOf/allOf wrappers."""
+    schema = resolve(doc, schema)
+    if not isinstance(schema, dict) or depth > MAX_SAMPLE_DEPTH:
+        return None
+    if "example" in schema:
+        return schema["example"]
+    for key in ("oneOf", "anyOf", "allOf"):
+        alts = schema.get(key)
+        if isinstance(alts, list) and len(alts) == 1:
+            return schema_example(doc, alts[0], depth + 1)
+    return None
+
+
+def describes_fields(doc, schema):
+    """False for a schema that is only `type: object` (or empty): a sample
+    built from it is `{}` and checks nothing."""
+    schema = resolve(doc, schema)
+    if not isinstance(schema, dict):
+        return False
+    shape = ("properties", "additionalProperties", "items", "allOf", "oneOf", "anyOf", "enum")
+    return any(k in schema for k in shape) or schema.get("type") not in (None, "object")
+
+
 def success_response(doc, op):
     """(schema, example) of an operation's first 2xx JSON response, for
     OpenAPI 3 and Swagger 2."""
@@ -166,6 +194,8 @@ def extract(doc):
             if not isinstance(op, dict):
                 continue
             schema, example = success_response(doc, op)
+            if example is None and schema is not None:
+                example = schema_example(doc, schema)
             if schema is None and example is None:
                 continue
             entry = {"path": path}
@@ -177,7 +207,7 @@ def extract(doc):
                 entry["server"] = servers[0].get("url")
             if example is not None:
                 entry["example"] = example
-            if schema:
+            if schema and describes_fields(doc, schema):
                 first = known(sample(doc, schema, lambda alts: alts[0], example))
                 last = known(sample(doc, schema, lambda alts: alts[-1], example))
                 entry["sample"] = first
