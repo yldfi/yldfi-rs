@@ -4,7 +4,7 @@
 
 use crate::cli::OutputFormat;
 use clap::{Args, Subcommand};
-use vlra::{Client, PriceRequest, TransactionRequest};
+use vlra::{Client, PriceRequest, SwapRequest, TransactionRequest};
 
 #[derive(Args, Clone)]
 pub struct VeloraArgs {
@@ -70,6 +70,42 @@ pub enum VeloraCommands {
         /// back to Velora unmodified.
         #[arg(long)]
         price_route: String,
+    },
+
+    /// Get a price route and its transaction in one call (`/swap`)
+    ///
+    /// Velora gives this endpoint lower rate limits and no RFQ liquidity;
+    /// use `price` + `transaction` for those.
+    Swap {
+        /// Source token address
+        src_token: String,
+        /// Destination token address
+        dest_token: String,
+        /// Amount in smallest units (wei)
+        amount: String,
+        /// User address (wallet executing the swap)
+        user_address: String,
+        /// Chain name (ethereum, bsc, polygon, arbitrum, optimism, base, avalanche, fantom)
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+        /// Side: SELL or BUY
+        #[arg(long, default_value = "SELL", value_parser = ["SELL", "BUY", "sell", "buy"])]
+        side: String,
+        /// Source token decimals (auto-detected via RPC on non-mainnet chains)
+        #[arg(long)]
+        src_decimals: Option<u8>,
+        /// Destination token decimals (auto-detected via RPC on non-mainnet chains)
+        #[arg(long)]
+        dest_decimals: Option<u8>,
+        /// Exclude DEXs (comma-separated)
+        #[arg(long)]
+        exclude_dexs: Option<String>,
+        /// Slippage in basis points (e.g., 100 = 1%)
+        #[arg(long, default_value = "100")]
+        slippage: u32,
+        /// Receiver address (defaults to user address)
+        #[arg(long)]
+        receiver: Option<String>,
     },
 
     /// List supported tokens
@@ -146,11 +182,7 @@ pub async fn run(args: VeloraArgs, _chain: &str) -> anyhow::Result<()> {
                     .ok_or_else(|| anyhow::anyhow!("Unsupported network {id} in price route"))?,
                 None => chain_name_to_vlra_chain(&chain)?,
             };
-            if !(1..=5000).contains(&slippage) {
-                anyhow::bail!(
-                    "--slippage is in basis points and must be between 1 and 5000 (got {slippage})"
-                );
-            }
+            check_slippage(slippage)?;
 
             let mut request =
                 TransactionRequest::from_raw_price_route(raw_route, &user_address, slippage)
@@ -163,6 +195,51 @@ pub async fn run(args: VeloraArgs, _chain: &str) -> anyhow::Result<()> {
             output_json(&tx, args.format)?;
         }
 
+        VeloraCommands::Swap {
+            src_token,
+            dest_token,
+            amount,
+            user_address,
+            chain,
+            side,
+            src_decimals,
+            dest_decimals,
+            exclude_dexs,
+            slippage,
+            receiver,
+        } => {
+            let vlra_chain = chain_name_to_vlra_chain(&chain)?;
+            check_slippage(slippage)?;
+            let (src_decimals, dest_decimals) = resolve_decimals(
+                vlra_chain,
+                &src_token,
+                &dest_token,
+                src_decimals,
+                dest_decimals,
+            )
+            .await;
+            let mut price = match side.to_uppercase().as_str() {
+                "BUY" => PriceRequest::buy(&src_token, &dest_token, &amount),
+                _ => PriceRequest::sell(&src_token, &dest_token, &amount),
+            };
+            if let Some(d) = src_decimals {
+                price = price.with_src_decimals(d);
+            }
+            if let Some(d) = dest_decimals {
+                price = price.with_dest_decimals(d);
+            }
+            if let Some(dexs) = exclude_dexs {
+                price = price.with_exclude_dexs(dexs);
+            }
+            let mut request = SwapRequest::new(price, &user_address).with_slippage(slippage);
+            if let Some(recv) = receiver {
+                request = request.with_receiver(recv);
+            }
+
+            let swap = client.get_swap(vlra_chain, &request).await?;
+            output_json(&swap, args.format)?;
+        }
+
         VeloraCommands::Tokens { chain } => {
             let vlra_chain = chain_name_to_vlra_chain(&chain)?;
             let tokens = client.get_tokens(vlra_chain).await?;
@@ -170,6 +247,15 @@ pub async fn run(args: VeloraArgs, _chain: &str) -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn check_slippage(slippage: u32) -> anyhow::Result<()> {
+    if !(1..=5000).contains(&slippage) {
+        anyhow::bail!(
+            "--slippage is in basis points and must be between 1 and 5000 (got {slippage})"
+        );
+    }
     Ok(())
 }
 
@@ -261,6 +347,60 @@ mod tests {
         assert_eq!(extract_price_route(full).unwrap()["hmac"], "abc");
         assert_eq!(extract_price_route(bare).unwrap()["network"], 42161);
         assert!(extract_price_route("[1]").is_err());
+    }
+
+    #[derive(clap::Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        command: VeloraCommands,
+    }
+
+    fn parse(args: &[&str]) -> Result<VeloraCommands, clap::Error> {
+        use clap::Parser;
+        TestCli::try_parse_from(std::iter::once("velora").chain(args.iter().copied()))
+            .map(|c| c.command)
+    }
+
+    #[test]
+    fn parses_swap() {
+        match parse(&["swap", "0xsrc", "0xdest", "100", "0xuser"]).unwrap() {
+            VeloraCommands::Swap {
+                user_address,
+                slippage,
+                side,
+                receiver,
+                ..
+            } => {
+                assert_eq!(user_address, "0xuser");
+                assert_eq!(slippage, 100);
+                assert_eq!(side, "SELL");
+                assert!(receiver.is_none());
+            }
+            _ => panic!("expected swap"),
+        }
+        assert!(matches!(
+            parse(&[
+                "swap",
+                "0xsrc",
+                "0xdest",
+                "100",
+                "0xuser",
+                "--side",
+                "buy",
+                "--chain",
+                "base",
+                "--slippage",
+                "50",
+                "--receiver",
+                "0xrecv",
+            ])
+            .unwrap(),
+            VeloraCommands::Swap { .. }
+        ));
+        assert!(parse(&["swap", "0xsrc", "0xdest", "100"]).is_err());
+        assert!(check_slippage(0).is_err());
+        assert!(check_slippage(5001).is_err());
+        assert!(check_slippage(100).is_ok());
     }
 
     #[tokio::test]

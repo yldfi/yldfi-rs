@@ -59,10 +59,14 @@ pub struct PythArgs {
 
 #[derive(Subcommand, Clone)]
 pub enum PythCommands {
-    /// Get latest price for one or more feeds
+    /// Get latest price for one or more feeds (or the price at a past time with --at)
     Price {
         /// Feed IDs or symbols (e.g., "BTC/USD" or feed ID hex)
         feeds: Vec<String>,
+        /// Unix timestamp (seconds): return the first price published at or
+        /// after this time instead of the latest
+        #[arg(long)]
+        at: Option<u64>,
     },
 
     /// Search for price feeds by query
@@ -80,13 +84,21 @@ pub enum PythCommands {
 
     /// Get well-known feed IDs
     KnownFeeds,
+
+    /// Get the latest publisher stake caps update
+    StakeCaps,
 }
 
 pub async fn run(args: PythArgs, _chain: &str) -> anyhow::Result<()> {
     let config = ConfigFile::load_default().ok().flatten();
     let api_key = resolve_api_key(config.as_ref());
 
-    if api_key.is_none() && matches!(args.action, PythCommands::Price { .. }) {
+    if api_key.is_none()
+        && matches!(
+            args.action,
+            PythCommands::Price { .. } | PythCommands::StakeCaps
+        )
+    {
         anyhow::bail!(MISSING_API_KEY_HELP);
     }
 
@@ -95,7 +107,7 @@ pub async fn run(args: PythArgs, _chain: &str) -> anyhow::Result<()> {
     let client = build_client(api_key)?;
 
     match args.action {
-        PythCommands::Price { feeds } => {
+        PythCommands::Price { feeds, at } => {
             // Convert symbols to feed IDs where needed
             let feed_ids: Vec<String> = feeds
                 .iter()
@@ -108,7 +120,15 @@ pub async fn run(args: PythArgs, _chain: &str) -> anyhow::Result<()> {
 
             let feed_refs: Vec<&str> = feed_ids.iter().map(|s| s.as_str()).collect();
 
-            if feed_refs.len() == 1 {
+            if let Some(publish_time) = at {
+                let prices = client.get_prices_at(&feed_refs, publish_time).await?;
+                // Keep the single-feed output shape of the latest-price path
+                if feed_refs.len() == 1 {
+                    output_json(&prices.into_iter().next(), args.format)?;
+                } else {
+                    output_json(&prices, args.format)?;
+                }
+            } else if feed_refs.len() == 1 {
                 let price = client.get_latest_price(feed_refs[0]).await?;
                 output_json(&price, args.format)?;
             } else {
@@ -135,6 +155,11 @@ pub async fn run(args: PythArgs, _chain: &str) -> anyhow::Result<()> {
         PythCommands::KnownFeeds => {
             let known = get_known_feeds();
             output_json(&known, args.format)?;
+        }
+
+        PythCommands::StakeCaps => {
+            let caps = client.get_latest_publisher_stake_caps().await?;
+            output_json(&caps, args.format)?;
         }
     }
 
@@ -197,6 +222,42 @@ mod tests {
     fn build_client_attaches_key() {
         assert!(build_client(Some("k".into())).unwrap().has_api_key());
         assert!(!build_client(None).unwrap().has_api_key());
+    }
+
+    #[derive(clap::Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        command: PythCommands,
+    }
+
+    fn parse(args: &[&str]) -> Result<PythCommands, clap::Error> {
+        use clap::Parser;
+        TestCli::try_parse_from(std::iter::once("pyth").chain(args.iter().copied()))
+            .map(|c| c.command)
+    }
+
+    #[test]
+    fn parses_price_at() {
+        match parse(&["price", "BTC/USD", "ETH"]).unwrap() {
+            PythCommands::Price { feeds, at } => {
+                assert_eq!(feeds, vec!["BTC/USD", "ETH"]);
+                assert!(at.is_none());
+            }
+            _ => panic!("expected price"),
+        }
+        match parse(&["price", "ETH", "--at", "1704067200"]).unwrap() {
+            PythCommands::Price { at, .. } => assert_eq!(at, Some(1_704_067_200)),
+            _ => panic!("expected price"),
+        }
+        assert!(parse(&["price", "ETH", "--at", "yesterday"]).is_err());
+    }
+
+    #[test]
+    fn parses_stake_caps() {
+        assert!(matches!(
+            parse(&["stake-caps"]).unwrap(),
+            PythCommands::StakeCaps
+        ));
     }
 
     #[test]

@@ -72,6 +72,52 @@ pub enum CowSwapCommands {
         chain: String,
     },
 
+    /// Get an order's competition status and the solvers that bid on it
+    OrderStatus {
+        /// Order UID
+        uid: String,
+        /// Chain
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+
+    /// Get the orders settled in a transaction
+    OrdersByTx {
+        /// Settlement transaction hash
+        tx_hash: String,
+        /// Chain
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+
+    /// Get several orders by UID (up to 128; unknown UIDs are left out)
+    OrdersByUids {
+        /// Order UIDs (comma-separated or repeated)
+        #[arg(long = "uid", required = true, value_delimiter = ',')]
+        uids: Vec<String>,
+        /// Chain
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+
+    /// Get the full appData document registered for an appData hash
+    AppData {
+        /// appData hash (32-byte hex)
+        hash: String,
+        /// Chain
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+
+    /// Get the total surplus a user has earned (endpoint marked unstable by CoW)
+    Surplus {
+        /// User address
+        address: String,
+        /// Chain
+        #[arg(long, default_value = "ethereum")]
+        chain: String,
+    },
+
     /// Get trades for an address (paginated, newest first)
     Trades {
         /// Owner address
@@ -253,6 +299,41 @@ pub async fn run(args: CowSwapArgs, _chain: &str) -> anyhow::Result<()> {
                 .get_orders_by_owner_paginated(Some(cow_chain), &owner, offset, limit)
                 .await?;
             output_json(&orders, args.format)?;
+        }
+
+        CowSwapCommands::OrderStatus { uid, chain } => {
+            let cow_chain = chain_name_to_cow_chain(&chain)?;
+            let status = client.get_order_status(Some(cow_chain), &uid).await?;
+            output_json(&status, args.format)?;
+        }
+
+        CowSwapCommands::OrdersByTx { tx_hash, chain } => {
+            let cow_chain = chain_name_to_cow_chain(&chain)?;
+            let orders = client
+                .get_orders_by_tx_hash(Some(cow_chain), &tx_hash)
+                .await?;
+            output_json(&orders, args.format)?;
+        }
+
+        CowSwapCommands::OrdersByUids { uids, chain } => {
+            let cow_chain = chain_name_to_cow_chain(&chain)?;
+            if uids.len() > 128 {
+                anyhow::bail!("At most 128 order UIDs can be looked up per request");
+            }
+            let orders = client.get_orders_by_uids(Some(cow_chain), &uids).await?;
+            output_json(&orders, args.format)?;
+        }
+
+        CowSwapCommands::AppData { hash, chain } => {
+            let cow_chain = chain_name_to_cow_chain(&chain)?;
+            let app_data = client.get_app_data(Some(cow_chain), &hash).await?;
+            output_json(&app_data, args.format)?;
+        }
+
+        CowSwapCommands::Surplus { address, chain } => {
+            let cow_chain = chain_name_to_cow_chain(&chain)?;
+            let surplus = client.get_total_surplus(Some(cow_chain), &address).await?;
+            output_json(&surplus, args.format)?;
         }
 
         CowSwapCommands::Trades {
@@ -441,4 +522,66 @@ fn output_json<T: serde::Serialize>(value: &T, format: OutputFormat) -> anyhow::
     };
     println!("{}", json);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(clap::Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        command: CowSwapCommands,
+    }
+
+    fn parse(args: &[&str]) -> Result<CowSwapCommands, clap::Error> {
+        use clap::Parser;
+        TestCli::try_parse_from(std::iter::once("cow-swap").chain(args.iter().copied()))
+            .map(|c| c.command)
+    }
+
+    #[test]
+    fn parses_order_status() {
+        match parse(&["order-status", "0xuid", "--chain", "gnosis"]).unwrap() {
+            CowSwapCommands::OrderStatus { uid, chain } => {
+                assert_eq!(uid, "0xuid");
+                assert_eq!(chain, "gnosis");
+            }
+            _ => panic!("expected order-status"),
+        }
+    }
+
+    #[test]
+    fn parses_orders_by_tx() {
+        match parse(&["orders-by-tx", "0xtx"]).unwrap() {
+            CowSwapCommands::OrdersByTx { tx_hash, chain } => {
+                assert_eq!(tx_hash, "0xtx");
+                assert_eq!(chain, "ethereum");
+            }
+            _ => panic!("expected orders-by-tx"),
+        }
+    }
+
+    #[test]
+    fn parses_orders_by_uids() {
+        match parse(&["orders-by-uids", "--uid", "0xa,0xb", "--uid", "0xc"]).unwrap() {
+            CowSwapCommands::OrdersByUids { uids, .. } => {
+                assert_eq!(uids, vec!["0xa", "0xb", "0xc"]);
+            }
+            _ => panic!("expected orders-by-uids"),
+        }
+        assert!(parse(&["orders-by-uids"]).is_err());
+    }
+
+    #[test]
+    fn parses_app_data_and_surplus() {
+        assert!(matches!(
+            parse(&["app-data", "0xhash"]).unwrap(),
+            CowSwapCommands::AppData { .. }
+        ));
+        assert!(matches!(
+            parse(&["surplus", "0xaddr", "--chain", "base"]).unwrap(),
+            CowSwapCommands::Surplus { .. }
+        ));
+    }
 }

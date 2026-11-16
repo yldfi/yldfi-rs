@@ -84,13 +84,13 @@ ethcli solodit    # Solodit vulnerability database (smart contract security find
 ```
 ethcli 1inch      # 1inch API (quote, swap, tokens, sources, approvals) - requires API key
 ethcli open-ocean # De¹/OpenOcean API (quote, swap, reverse-quote, tokens, dexes)
-ethcli kyber-swap # KyberSwap API (routes, route-data, build)
-ethcli 0x         # 0x Protocol API (quote, price, sources)
-ethcli cow-swap   # CowSwap API (quote, orders, trades, auctions) - MEV protected
-ethcli lifi       # LI.FI API (quote, routes, status, chains, tokens, bridges)
-ethcli velora     # Velora/ParaSwap API (price, transaction, tokens)
-ethcli enso       # Enso Finance API (route, price, balances) - requires API key
-ethcli pyth       # Pyth Network API (price feeds, search, known-feeds)
+ethcli kyber-swap # KyberSwap API (routes, route-data, build, swap)
+ethcli 0x         # 0x Protocol API (quote, price, sources, chains, gasless) - requires API key
+ethcli cow-swap   # CowSwap API (quote, orders, order status, trades, auctions, app data, surplus) - MEV protected
+ethcli lifi       # LI.FI API (quote, quote-to-amount, routes, status, transfers, chains, tokens, bridges)
+ethcli velora     # Velora/ParaSwap API (price, transaction, swap, tokens)
+ethcli enso       # Enso Finance API (route, quote, prices, tokens, protocols, approve, wallet) - requires API key
+ethcli pyth       # Pyth Network API (price feeds incl. historical, search, known-feeds, stake caps)
 ```
 
 ### Security & Token Analysis
@@ -867,6 +867,12 @@ ethcli kyber-swap route-data <token_in> <token_out> <amount_in> --chain ethereum
 # --route-summary takes the `routes` output or the full `route-data` output, sent unmodified
 ethcli kyber-swap build <token_in> <token_out> <amount_in> <sender> <recipient> \
   --chain ethereum --slippage-bps 50 --route-summary '<json>'
+
+# Route + calldata in one call (GET /api/v1/swap). KyberSwap restricts this
+# endpoint to partners: pass --client-id or set KYBERSWAP_CLIENT_ID.
+# recipient defaults to sender; --deadline is seconds from now (API default 20 min)
+ethcli kyber-swap swap <token_in> <token_out> <amount_in> <sender> [recipient] \
+  --chain ethereum --slippage-bps 50 --client-id <partner-id> [--exclude-rfq]
 ```
 
 **Alias**: `ethcli kyber`
@@ -882,8 +888,22 @@ ethcli 0x quote <sell_token> <buy_token> <sell_amount> <taker> --chain ethereum 
 # Get price estimate (lighter)
 ethcli 0x price <sell_token> <buy_token> <sell_amount> <taker> --chain ethereum
 
+# AllowanceHolder flow (approve `allowanceTarget`, no Permit2 signature)
+ethcli 0x quote <sell_token> <buy_token> <sell_amount> <taker> --allowance-holder
+ethcli 0x price <sell_token> <buy_token> <sell_amount> <taker> --allowance-holder
+
 # Get liquidity sources
 ethcli 0x sources --chain ethereum
+
+# Supported chains (Swap API; --gasless for the Gasless API)
+ethcli 0x chains
+ethcli 0x chains --gasless
+
+# Gasless swaps (ERC-20 sell token, gas paid from it). gasless-quote returns the
+# EIP-712 trade/approval to sign; submitting signatures is not supported.
+ethcli 0x gasless-price <sell_token> <buy_token> <sell_amount> <taker> --chain base
+ethcli 0x gasless-quote <sell_token> <buy_token> <sell_amount> <taker> --chain base
+ethcli 0x gasless-status <trade_hash> --chain base
 ```
 
 **Alias**: `ethcli zerox`
@@ -901,6 +921,13 @@ ethcli cow-swap order <uid> --chain ethereum
 ethcli cow-swap orders <owner> --chain ethereum
 ethcli cow-swap trades <owner> --chain ethereum --limit 100   # paginated, API default 10
 ethcli cow-swap order-trades <uid> --chain ethereum
+ethcli cow-swap order-status <uid> --chain ethereum            # competition status + solver bids
+ethcli cow-swap orders-by-tx <tx_hash> --chain ethereum        # orders settled in a tx
+ethcli cow-swap orders-by-uids --uid <uid1>,<uid2> --chain ethereum   # max 128; unknown UIDs left out
+
+# App data and user surplus
+ethcli cow-swap app-data <app_data_hash> --chain ethereum
+ethcli cow-swap surplus <address> --chain ethereum             # endpoint marked unstable by CoW
 
 # Auction data
 ethcli cow-swap auction --chain ethereum
@@ -926,17 +953,34 @@ Direct access to LI.FI cross-chain aggregator API. Optional `LIFI_INTEGRATOR` fo
 # LI.FI's decimal fraction, max 50%)
 ethcli lifi quote <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
 
+# Quote by output amount (/quote/toAmount): action.fromAmount is what to send
+ethcli lifi quote-to-amount <from_chain> <from_token> <to_chain> <to_token> <to_amount> <from_address>
+ethcli lifi quote-to-amount 1 USDC 42161 USDC 10000000 0xYourAddress
+
+# Bridge/swap then run contract calls on the destination chain (/quote/contractCalls, beta);
+# --calls is a JSON array of ContractCall objects (a single object is accepted)
+ethcli lifi contract-calls <from_chain> <from_token> <to_chain> <to_token> <to_amount> <from_address> \
+  --calls '[{"fromAmount":"...","fromTokenAddress":"0x...","toContractAddress":"0x...","toContractCallData":"0x...","toContractGasLimit":"..."}]'
+
 # Routes
 ethcli lifi routes <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
 ethcli lifi best-route <from_chain> <from_token> <to_chain> <to_token> <amount> <from_address>
 
 # Transaction status
 ethcli lifi status <tx_hash> --from-chain 1 --to-chain 137
+ethcli lifi gas-status <tx_hash>                    # LI.Fuel refuel status (NOT_FOUND if unknown)
+
+# Wallet transfer history (/v2/analytics/transfers). Last 30 days unless
+# --from-timestamp; --status all|done|pending|failed (API default done);
+# page with the response's `next`/`previous` cursors
+ethcli lifi transfers <wallet> --status all --limit 20
+ethcli lifi transfers <wallet> --from-timestamp 1700000000 --next <cursor>
 
 # Discovery
 ethcli lifi chains
 ethcli lifi chain <chain_id>
 ethcli lifi tokens --chain-id 1
+ethcli lifi token 1 USDC                            # one token by symbol or address
 ethcli lifi tools
 ethcli lifi bridges
 ethcli lifi exchanges
@@ -957,6 +1001,10 @@ ethcli velora price <src_token> <dest_token> <amount> --chain ethereum --side SE
 # Build swap transaction (--price-route: full `price` output or its priceRoute, sent unmodified;
 # non-mainnet token decimals are auto-detected via RPC)
 ethcli velora transaction <user_address> --chain ethereum --slippage 100 --price-route '<json>'
+
+# Price route + transaction in one call (GET /swap; lower rate limits, no RFQ).
+# Takes the `price` flags plus --slippage (bps, 1-5000) and --receiver
+ethcli velora swap <src_token> <dest_token> <amount> <user_address> --chain ethereum --slippage 100
 
 # List tokens
 ethcli velora tokens --chain ethereum
@@ -980,9 +1028,32 @@ ethcli enso balances <address> --chain-id 1
 
 # Bundle actions (defaults to the EOA-executable `router` strategy)
 ethcli enso bundle <from_address> '[{"protocol":"enso","action":"route","args":{...}}]'
+
+# Quote: output amount and route, no tx data (sender optional)
+ethcli enso quote <token_in> <token_out> <amount_in> [from_address] --chain-id 1 \
+  [--ignore-aggregators 1inch,0x] [--effort light|medium|high|max] [--swap-type any|rfq|amm]
+
+# Prices of several tokens (max 100; null for tokens Enso cannot price)
+ethcli enso prices <token1> <token2> --chain-id 1
+
+# Search tokens (filters: --chain-id, --project, --protocol, --address, --symbol,
+# --underlying, --type defi|base, --apy-from/--apy-to, --tvl-from/--tvl-to,
+# --include-metadata, --include-underlying, --page/--page-size/--cursor)
+ethcli enso tokens --chain-id 1 --protocol aave-v3 --include-metadata
+
+# Networks and protocols
+ethcli enso networks
+ethcli enso protocols --chain-id 1 --slug aave-v3
+
+# Approval tx for Enso's router (or the smart wallet with --routing-strategy)
+ethcli enso approve <token> <amount> <from_address> --chain-id 1
+
+# Enso smart wallet of an address
+ethcli enso wallet <from_address> --chain-id 1
 ```
 
-`--chain-id` defaults to the global `--chain`.
+`--chain-id` defaults to the global `--chain`, except on `tokens` and `protocols`,
+where it is an optional filter (omit it to search every chain).
 
 ### Pyth Network Commands
 
@@ -995,6 +1066,9 @@ Direct access to the Pyth Network Hermes API (`https://pyth.dourolabs.app/hermes
 ethcli pyth price BTC/USD
 ethcli pyth price ETH SOL AVAX
 
+# Price at a past time (first update at or after the unix timestamp)
+ethcli pyth price ETH/USD --at 1704067200
+
 # Search for feeds
 ethcli pyth search "BTC"
 
@@ -1002,11 +1076,14 @@ ethcli pyth search "BTC"
 ethcli pyth feeds
 ethcli pyth feeds --asset-type crypto
 ethcli pyth known-feeds
+
+# Latest publisher stake caps update
+ethcli pyth stake-caps
 ```
 
 **Notes**:
 - Supports common symbols: BTC, ETH, SOL, USDC, USDT, DAI, AVAX, ARB, OP, LINK, UNI, AAVE, CRV, CVX, etc.
-- Without a key, `pyth price` errors with setup instructions and the `price` aggregator reports Pyth as `PYTH_API_KEY not configured`
+- Without a key, `pyth price` and `pyth stake-caps` error with setup instructions and the `price` aggregator reports Pyth as `PYTH_API_KEY not configured`
 - `pyth search`/`feeds` send the key when available
 
 ## Uniswap Commands
