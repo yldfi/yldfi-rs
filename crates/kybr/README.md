@@ -17,6 +17,7 @@
 
 - **Route API** - Get optimal swap routes across DEXs
 - **Build API** - Get transaction calldata for execution
+- **Swap API** - Route and calldata in one call (partner-restricted)
 - **Multi-chain** - Supports the 19 EVM chains KyberSwap lists as active
 
 ## Installation

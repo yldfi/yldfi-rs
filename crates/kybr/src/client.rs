@@ -3,7 +3,7 @@
 use crate::error::{self, Error, Result};
 use crate::types::{
     BuildRouteData, BuildRouteRequest, BuildRouteResponse, Chain, RouteData, RouteRequest,
-    RouteSummary, RoutesResponse,
+    RouteSummary, RoutesResponse, SwapData, SwapRequest, SwapResponse,
 };
 use crate::{default_config, Config};
 use yldfi_common::api::BaseClient;
@@ -178,6 +178,56 @@ impl Client {
 
         response.data.ok_or_else(error::no_route_found)
     }
+
+    /// Find the best route and encode its transaction in one call
+    /// (`GET /{chain}/api/v1/swap`)
+    ///
+    /// Combines [`get_route_data`](Self::get_route_data) and
+    /// [`build_route`](Self::build_route) into one round trip. `KyberSwap`
+    /// restricts it to partners (identify with
+    /// [`with_client_id`](Self::with_client_id)) because, unlike the legacy
+    /// `/route/encode`, it includes RFQ liquidity.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use kybr::{Client, Chain, SwapRequest};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), kybr::Error> {
+    ///     let client = Client::new()?.with_client_id("my-app");
+    ///
+    ///     let request = SwapRequest::new(
+    ///         "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    ///         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    ///         "1000000000000000000",
+    ///     )
+    ///     .with_sender("0xYourAddress")
+    ///     .with_recipient("0xYourAddress")
+    ///     .with_slippage_bps(50);
+    ///
+    ///     let swap = client.get_swap(Chain::Ethereum, &request).await?;
+    ///     println!("Send to {}: {}", swap.router_address, swap.data);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_swap(&self, chain: Chain, request: &SwapRequest) -> Result<SwapData> {
+        let path = format!("/{}/api/v1/swap", chain.as_str());
+        let response: SwapResponse = self
+            .base
+            .get_with_headers(&path, &request.to_query_params(), self.build_headers())
+            .await?;
+
+        if response.code != 0 {
+            return Err(Error::api(
+                response.code as u16,
+                response.message.unwrap_or_default(),
+            ));
+        }
+
+        response.data.ok_or_else(error::no_route_found)
+    }
 }
 
 #[cfg(test)]
@@ -265,6 +315,137 @@ mod tests {
             client.build_headers().get("x-client-id").unwrap(),
             "example-app"
         );
+    }
+
+    /// A one-shot HTTP server on localhost that answers 200 with `body` and
+    /// hands back the request head it received
+    fn serve_once(body: String) -> (String, std::sync::mpsc::Receiver<String>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let _ = tx.send(String::from_utf8_lossy(&buf[..n]).into_owned());
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+            }
+        });
+        (format!("http://{addr}"), rx)
+    }
+
+    fn swap_body(code: i32) -> String {
+        serde_json::json!({
+            "code": code,
+            "message": if code == 0 { "successfully" } else { "route not found" },
+            "data": if code == 0 { serde_json::json!({
+                "routeSummary": {
+                    "tokenIn": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+                    "amountIn": "1000000000000000000",
+                    "amountInUsd": "2691.83",
+                    "tokenOut": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                    "amountOut": "2694223548",
+                    "amountOutUsd": "2688.29",
+                    "gas": "697210",
+                    "gasPrice": "105254963",
+                    "gasUsd": "0.19",
+                    "l1FeeUsd": "0",
+                    "route": [[{"pool": "0xe6ff", "tokenIn": "0xc02a", "tokenOut": "0xa0b8",
+                        "swapAmount": "1", "amountOut": "2", "exchange": "uniswapv3",
+                        "poolType": "uniswapv3", "poolExtra": null, "extra": null}]],
+                    "routeID": "e30c6d4c",
+                    "checksum": "4239051851851966504",
+                    "timestamp": 1_790_368_014
+                },
+                "routerAddress": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+                "amountIn": "1000000000000000000",
+                "amountOut": "2694223548",
+                "gas": "330498",
+                "gasUsd": "0.09",
+                "data": "0xe21fd0e9",
+                "transactionValue": "0"
+            }) } else { serde_json::Value::Null },
+            "requestId": "req-1"
+        })
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn test_get_swap() {
+        let (url, request_head) = serve_once(swap_body(0));
+        let client = Client::with_config(Config::new(url))
+            .unwrap()
+            .with_client_id("example-app");
+        let request = SwapRequest::new(
+            "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "1000000000000000000",
+        )
+        .with_sender("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+        .with_recipient("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+        .with_slippage_bps(50);
+        let swap = client.get_swap(Chain::Base, &request).await.unwrap();
+        assert_eq!(
+            swap.router_address,
+            "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+        );
+        assert_eq!(swap.data, "0xe21fd0e9");
+        assert_eq!(swap.transaction_value.as_deref(), Some("0"));
+        assert_eq!(swap.route_summary.amount_out, "2694223548");
+
+        let head = request_head.recv().unwrap().to_lowercase();
+        let request_line = head.lines().next().unwrap();
+        assert!(
+            request_line.starts_with("get /base/api/v1/swap?tokenin=0xc02a"),
+            "{request_line}"
+        );
+        assert!(
+            request_line.contains("&slippagetolerance=50"),
+            "{request_line}"
+        );
+        assert!(head.contains("x-client-id: example-app"), "{head}");
+    }
+
+    #[tokio::test]
+    async fn test_get_swap_error_code() {
+        let (url, _) = serve_once(swap_body(4008));
+        let client = Client::with_config(Config::new(url)).unwrap();
+        let request = SwapRequest::new("0xa", "0xb", "1");
+        let err = client
+            .get_swap(Chain::Ethereum, &request)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("route not found"), "{err}");
+    }
+
+    #[test]
+    fn test_swap_request_query_params() {
+        let request = SwapRequest::new("0xa", "0xb", "1")
+            .with_fee("currency_in", "10", true, "0xf")
+            .with_exclude_rfq_sources(true)
+            .with_deadline(1_800_000_000);
+        let params = request.to_query_params();
+        let get = |k: &str| {
+            params
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(get("amountIn"), Some("1"));
+        assert_eq!(get("chargeFeeBy"), Some("currency_in"));
+        assert_eq!(get("feeAmount"), Some("10"));
+        assert_eq!(get("isInBps"), Some("true"));
+        assert_eq!(get("feeReceiver"), Some("0xf"));
+        assert_eq!(get("excludeRFQSources"), Some("true"));
+        assert_eq!(get("deadline"), Some("1800000000"));
+        assert_eq!(get("sender"), None);
+        assert_eq!(get("slippageTolerance"), None);
     }
 
     #[test]
