@@ -3,7 +3,7 @@
 //! Each tool wraps an ethcli command and exposes it via MCP.
 //! Tools use subprocess execution for full CLI compatibility.
 //!
-//! Total: 236 tools covering all ethcli subcommands.
+//! 580+ tools covering the ethcli subcommands.
 
 use crate::executor::{ArgsBuilder, ExecutionError, ValidationError};
 
@@ -3982,6 +3982,360 @@ pub async fn gecko_onchain_search_pools(query: &str) -> Result<String, ToolError
         .map_err(ToolError::from)
 }
 
+pub async fn gecko_coins_supply_breakdown(id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("gecko")
+        .subcommand("coins")
+        .subcommand("supply-breakdown")
+        .arg(id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_onchain_token_price_multi(
+    tokens: &str,
+    market_cap: bool,
+    volume: bool,
+    price_change: bool,
+    reserve: bool,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("gecko")
+        .subcommand("onchain")
+        .subcommand("token-price-multi")
+        .arg(tokens)
+        .opt_flag("--market-cap", market_cap)
+        .opt_flag("--volume", volume)
+        .opt_flag("--price-change", price_change)
+        .opt_flag("--reserve", reserve)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_onchain_tokens_multi(
+    tokens: &str,
+    top_pools: bool,
+    composition: bool,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("gecko")
+        .subcommand("onchain")
+        .subcommand("tokens-multi")
+        .arg(tokens)
+        .opt_flag("--top-pools", top_pools || composition)
+        .opt_flag("--composition", composition)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn gecko_onchain_pool_trades(
+    network: &str,
+    address: &str,
+    from: Option<&str>,
+    to: Option<&str>,
+    period: Option<&str>,
+    token: Option<&str>,
+    min_volume_usd: Option<f64>,
+    cursor: Option<&str>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let min_volume_usd = min_volume_usd.map(|v| v.to_string());
+    let per_page = per_page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("onchain")
+        .subcommand("pool-trades")
+        .arg(network)
+        .arg(address)
+        .opt("--from", from)
+        .opt("--to", to)
+        .opt("--period", period)
+        .opt("--token", token)
+        .opt("--min-volume-usd", min_volume_usd.as_deref())
+        .opt("--cursor", cursor)
+        .opt("--per-page", per_page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn gecko_onchain_token_trades(
+    network: &str,
+    address: &str,
+    from: Option<&str>,
+    to: Option<&str>,
+    period: Option<&str>,
+    min_volume_usd: Option<f64>,
+    cursor: Option<&str>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let min_volume_usd = min_volume_usd.map(|v| v.to_string());
+    let per_page = per_page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("onchain")
+        .subcommand("token-trades")
+        .arg(network)
+        .arg(address)
+        .opt("--from", from)
+        .opt("--to", to)
+        .opt("--period", period)
+        .opt("--min-volume-usd", min_volume_usd.as_deref())
+        .opt("--cursor", cursor)
+        .opt("--per-page", per_page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Gecko RWAs ---
+
+pub async fn gecko_rwas_list(asset_type: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("gecko")
+        .subcommand("rwas")
+        .subcommand("list")
+        .opt("--asset-type", asset_type)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_rwas_markets(
+    asset_type: Option<&str>,
+    ids: Option<&str>,
+    issuer: Option<&str>,
+    order: Option<&str>,
+    per_page: Option<u32>,
+    page: Option<u32>,
+) -> Result<String, ToolError> {
+    let per_page = per_page.map(|v| v.to_string());
+    let page = page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("rwas")
+        .subcommand("markets")
+        .opt("--asset-type", asset_type)
+        .opt("--ids", ids)
+        .opt("--issuer", issuer)
+        .opt("--order", order)
+        .opt("--per-page", per_page.as_deref())
+        .opt("--page", page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_rwas_get(id: &str, full: bool) -> Result<String, ToolError> {
+    ArgsBuilder::new("gecko")
+        .subcommand("rwas")
+        .subcommand("get")
+        .arg(id)
+        .opt_flag("--full", full)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_rwas_issuers() -> Result<String, ToolError> {
+    ArgsBuilder::new("gecko")
+        .subcommand("rwas")
+        .subcommand("issuers")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_rwas_issuer(id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("gecko")
+        .subcommand("rwas")
+        .subcommand("issuer")
+        .arg(id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_rwas_tickers(
+    id: &str,
+    page: Option<u32>,
+    order: Option<&str>,
+    depth: bool,
+) -> Result<String, ToolError> {
+    let page = page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("rwas")
+        .subcommand("tickers")
+        .arg(id)
+        .opt("--page", page.as_deref())
+        .opt("--order", order)
+        .opt_flag("--depth", depth)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_rwas_chart(
+    id: &str,
+    days: Option<&str>,
+    interval: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("gecko")
+        .subcommand("rwas")
+        .subcommand("chart")
+        .arg(id)
+        .opt("--days", days)
+        .opt("--interval", interval)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Gecko Wallets ---
+
+pub async fn gecko_wallets_balances(
+    address: &str,
+    networks: &str,
+    sort: Option<&str>,
+    min_value_usd: Option<f64>,
+    page: Option<u32>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let min_value_usd = min_value_usd.map(|v| v.to_string());
+    let page = page.map(|v| v.to_string());
+    let per_page = per_page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("wallets")
+        .subcommand("balances")
+        .arg(address)
+        .opt("--networks", Some(networks))
+        .opt("--sort", sort)
+        .opt("--min-value-usd", min_value_usd.as_deref())
+        .opt("--page", page.as_deref())
+        .opt("--per-page", per_page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn gecko_wallets_transfers(
+    network: &str,
+    address: &str,
+    token: Option<&str>,
+    from: Option<&str>,
+    to: Option<&str>,
+    direction: Option<&str>,
+    cursor: Option<&str>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let per_page = per_page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("wallets")
+        .subcommand("transfers")
+        .arg(network)
+        .arg(address)
+        .opt("--token", token)
+        .opt("--from", from)
+        .opt("--to", to)
+        .opt("--direction", direction)
+        .opt("--cursor", cursor)
+        .opt("--per-page", per_page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn gecko_wallets_trades(
+    network: &str,
+    address: &str,
+    token: Option<&str>,
+    from: Option<&str>,
+    to: Option<&str>,
+    cursor: Option<&str>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let per_page = per_page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("wallets")
+        .subcommand("trades")
+        .arg(network)
+        .arg(address)
+        .opt("--token", token)
+        .opt("--from", from)
+        .opt("--to", to)
+        .opt("--cursor", cursor)
+        .opt("--per-page", per_page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_wallets_pnl(
+    address: &str,
+    networks: &str,
+    sort: Option<&str>,
+    page: Option<u32>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let page = page.map(|v| v.to_string());
+    let per_page = per_page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("wallets")
+        .subcommand("pnl")
+        .arg(address)
+        .opt("--networks", Some(networks))
+        .opt("--sort", sort)
+        .opt("--page", page.as_deref())
+        .opt("--per-page", per_page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Gecko News & Insights ---
+
+pub async fn gecko_news(
+    coin: Option<&str>,
+    language: Option<&str>,
+    news_type: Option<&str>,
+    page: Option<u32>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let page = page.map(|v| v.to_string());
+    let per_page = per_page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("news")
+        .opt("--coin", coin)
+        .opt("--language", language)
+        .opt("--type", news_type)
+        .opt("--page", page.as_deref())
+        .opt("--per-page", per_page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn gecko_insights(
+    coin: Option<&str>,
+    from: Option<&str>,
+    to: Option<&str>,
+    page: Option<u32>,
+    per_page: Option<u32>,
+) -> Result<String, ToolError> {
+    let page = page.map(|v| v.to_string());
+    let per_page = per_page.map(|v| v.to_string());
+    ArgsBuilder::new("gecko")
+        .subcommand("insights")
+        .opt("--coin", coin)
+        .opt("--from", from)
+        .opt("--to", to)
+        .opt("--page", page.as_deref())
+        .opt("--per-page", per_page.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 // =============================================================================
 // GOPLUS (6 subcommands) - Security
 // =============================================================================
@@ -4181,6 +4535,123 @@ pub async fn llama_stablecoins() -> Result<String, ToolError> {
     ArgsBuilder::new("llama")
         .subcommand("stablecoins")
         .subcommand("list")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// --- Llama Yields v2 (Pro key required) ---
+
+#[allow(clippy::too_many_arguments)]
+pub async fn llama_yields_earn(
+    chain: Option<&str>,
+    protocol: Option<&str>,
+    stablecoin: Option<bool>,
+    single_asset: Option<bool>,
+    min_tvl: Option<f64>,
+    page: Option<u32>,
+    limit: Option<u32>,
+) -> Result<String, ToolError> {
+    let stablecoin = stablecoin.map(|v| v.to_string());
+    let single_asset = single_asset.map(|v| v.to_string());
+    let min_tvl = min_tvl.map(|v| v.to_string());
+    let page = page.map(|v| v.to_string());
+    let limit = limit.map(|v| v.to_string());
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("earn")
+        .opt("--chain", chain)
+        .opt("--protocol", protocol)
+        .opt("--stablecoin", stablecoin.as_deref())
+        .opt("--single-asset", single_asset.as_deref())
+        .opt("--min-tvl", min_tvl.as_deref())
+        .opt("--page", page.as_deref())
+        .opt("--limit", limit.as_deref())
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn llama_yields_earn_history(id: &str, range: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("earn-history")
+        .arg(id)
+        .opt("--range", range)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn llama_yields_verified() -> Result<String, ToolError> {
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("verified")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn llama_yields_verified_pool(id: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("verified-pool")
+        .arg(id)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn llama_yields_verified_history(
+    id: &str,
+    range: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("verified-history")
+        .arg(id)
+        .opt("--range", range)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn llama_yields_borrow_markets() -> Result<String, ToolError> {
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("borrow-markets")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn llama_yields_borrow_history(
+    id: &str,
+    range: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("borrow-history")
+        .arg(id)
+        .opt("--range", range)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn llama_yields_borrow_routes() -> Result<String, ToolError> {
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("borrow-routes")
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn llama_yields_loops() -> Result<String, ToolError> {
+    ArgsBuilder::new("llama")
+        .subcommand("yields")
+        .subcommand("loops")
         .execute()
         .await
         .map_err(ToolError::from)
@@ -4607,6 +5078,23 @@ pub async fn moralis_wallet_multiple_balances(
         .opt("--chain", chain)
         .subcommand("multiple-balances")
         .arg(addresses)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+// `wallet insight` covers every chain unless --chains is set; it ignores --chain
+pub async fn moralis_wallet_insight(
+    address: &str,
+    chains: Option<&str>,
+    chain_breakdown: bool,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("moralis")
+        .subcommand("wallet")
+        .subcommand("insight")
+        .arg(address)
+        .opt("--chains", chains)
+        .opt_flag("--chain-breakdown", chain_breakdown)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -5249,6 +5737,22 @@ pub async fn moralis_discovery_token_score(
         .opt("--chain", chain)
         .subcommand("token-score")
         .arg(address)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn moralis_discovery_token_score_history(
+    address: &str,
+    timeframe: Option<&str>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("moralis")
+        .subcommand("discovery")
+        .opt("--chain", chain)
+        .subcommand("token-score-history")
+        .arg(address)
+        .opt("--timeframe", timeframe)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -6915,6 +7419,39 @@ pub async fn kyberswap_build(
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn kyberswap_swap(
+    token_in: &str,
+    token_out: &str,
+    amount_in: &str,
+    sender: &str,
+    recipient: Option<&str>,
+    slippage_bps: Option<u32>,
+    exclude_rfq: bool,
+    client_id: Option<&str>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let slippage_bps = slippage_bps.map(|v| v.to_string());
+    let mut builder = ArgsBuilder::new("kyber-swap")
+        .subcommand("swap")
+        .arg(token_in)
+        .arg(token_out)
+        .arg(amount_in)
+        .arg(sender);
+    if let Some(r) = recipient {
+        builder = builder.arg(r);
+    }
+    builder
+        .chain(chain)
+        .opt("--slippage-bps", slippage_bps.as_deref())
+        .opt_flag("--exclude-rfq", exclude_rfq)
+        .opt("--client-id", client_id)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 // =============================================================================
 // 0X (3 subcommands)
 // =============================================================================
@@ -6924,6 +7461,7 @@ pub async fn zerox_quote(
     buy_token: &str,
     sell_amount: &str,
     taker: &str,
+    allowance_holder: bool,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("0x")
@@ -6932,6 +7470,7 @@ pub async fn zerox_quote(
         .arg(buy_token)
         .arg(sell_amount)
         .arg(taker)
+        .opt_flag("--allowance-holder", allowance_holder)
         .chain(chain)
         .execute()
         .await
@@ -6943,6 +7482,7 @@ pub async fn zerox_price(
     buy_token: &str,
     sell_amount: &str,
     taker: &str,
+    allowance_holder: bool,
     chain: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("0x")
@@ -6951,6 +7491,7 @@ pub async fn zerox_price(
         .arg(buy_token)
         .arg(sell_amount)
         .arg(taker)
+        .opt_flag("--allowance-holder", allowance_holder)
         .chain(chain)
         .execute()
         .await
@@ -6960,6 +7501,72 @@ pub async fn zerox_price(
 pub async fn zerox_sources(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("0x")
         .subcommand("sources")
+        .chain(chain)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn zerox_chains(gasless: bool) -> Result<String, ToolError> {
+    ArgsBuilder::new("0x")
+        .subcommand("chains")
+        .opt_flag("--gasless", gasless)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn zerox_gasless_price(
+    sell_token: &str,
+    buy_token: &str,
+    sell_amount: &str,
+    taker: &str,
+    slippage_bps: Option<u32>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let slippage_bps = slippage_bps.map(|v| v.to_string());
+    ArgsBuilder::new("0x")
+        .subcommand("gasless-price")
+        .arg(sell_token)
+        .arg(buy_token)
+        .arg(sell_amount)
+        .arg(taker)
+        .opt("--slippage-bps", slippage_bps.as_deref())
+        .chain(chain)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn zerox_gasless_quote(
+    sell_token: &str,
+    buy_token: &str,
+    sell_amount: &str,
+    taker: &str,
+    slippage_bps: Option<u32>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let slippage_bps = slippage_bps.map(|v| v.to_string());
+    ArgsBuilder::new("0x")
+        .subcommand("gasless-quote")
+        .arg(sell_token)
+        .arg(buy_token)
+        .arg(sell_amount)
+        .arg(taker)
+        .opt("--slippage-bps", slippage_bps.as_deref())
+        .chain(chain)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn zerox_gasless_status(
+    trade_hash: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("0x")
+        .subcommand("gasless-status")
+        .arg(trade_hash)
         .chain(chain)
         .execute()
         .await
@@ -7093,6 +7700,76 @@ pub async fn cowswap_native_price(token: &str, chain: Option<&str>) -> Result<St
     ArgsBuilder::new("cow-swap")
         .subcommand("native-price")
         .arg(token)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn cowswap_order_status(
+    order_uid: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("cow-swap")
+        .subcommand("order-status")
+        .arg(order_uid)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn cowswap_orders_by_tx(tx_hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("cow-swap")
+        .subcommand("orders-by-tx")
+        .arg(tx_hash)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn cowswap_orders_by_uids(
+    uids: &[String],
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    if uids.is_empty() {
+        return Err(ToolError::InvalidInput(
+            "uids must contain at least one order UID".to_string(),
+        ));
+    }
+    let uids = uids.join(",");
+    ArgsBuilder::new("cow-swap")
+        .subcommand("orders-by-uids")
+        .opt("--uid", Some(&uids))
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn cowswap_app_data(
+    app_data_hash: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("cow-swap")
+        .subcommand("app-data")
+        .arg(app_data_hash)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn cowswap_surplus(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("cow-swap")
+        .subcommand("surplus")
+        .arg(address)
         .chain(chain)
         .format_json()
         .execute()
@@ -7375,6 +8052,113 @@ pub async fn lifi_step_transaction(step_json: &str) -> Result<String, ToolError>
         .map_err(ToolError::from)
 }
 
+pub async fn lifi_token(chain_id: u64, token: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("lifi")
+        .subcommand("token")
+        .arg(&chain_id.to_string())
+        .arg(token)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn lifi_quote_to_amount(
+    from_chain: u64,
+    from_token: &str,
+    to_chain: u64,
+    to_token: &str,
+    to_amount: &str,
+    from_address: &str,
+    to_address: Option<&str>,
+    slippage: Option<f64>,
+) -> Result<String, ToolError> {
+    let slippage = slippage.map(|s| s.to_string());
+    ArgsBuilder::new("lifi")
+        .subcommand("quote-to-amount")
+        .arg(&from_chain.to_string())
+        .arg(from_token)
+        .arg(&to_chain.to_string())
+        .arg(to_token)
+        .arg(to_amount)
+        .arg(from_address)
+        .opt("--to-address", to_address)
+        .opt("--slippage", slippage.as_deref())
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn lifi_contract_calls(
+    from_chain: u64,
+    from_token: &str,
+    to_chain: u64,
+    to_token: &str,
+    to_amount: &str,
+    from_address: &str,
+    calls: &str,
+    fallback_address: Option<&str>,
+    slippage: Option<f64>,
+) -> Result<String, ToolError> {
+    let slippage = slippage.map(|s| s.to_string());
+    ArgsBuilder::new("lifi")
+        .subcommand("contract-calls")
+        .arg(&from_chain.to_string())
+        .arg(from_token)
+        .arg(&to_chain.to_string())
+        .arg(to_token)
+        .arg(to_amount)
+        .arg(from_address)
+        .opt("--calls", Some(calls))
+        .opt("--fallback-address", fallback_address)
+        .opt("--slippage", slippage.as_deref())
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn lifi_transfers(
+    wallet: &str,
+    status: Option<&str>,
+    limit: Option<u32>,
+    next: Option<&str>,
+    previous: Option<&str>,
+    from_timestamp: Option<u64>,
+    to_timestamp: Option<u64>,
+) -> Result<String, ToolError> {
+    let limit = limit.map(|v| v.to_string());
+    let from_timestamp = from_timestamp.map(|v| v.to_string());
+    let to_timestamp = to_timestamp.map(|v| v.to_string());
+    ArgsBuilder::new("lifi")
+        .subcommand("transfers")
+        .arg(wallet)
+        .opt("--status", status)
+        .opt("--limit", limit.as_deref())
+        .opt("--next", next)
+        .opt("--previous", previous)
+        .opt("--from-timestamp", from_timestamp.as_deref())
+        .opt("--to-timestamp", to_timestamp.as_deref())
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn lifi_gas_status(tx_hash: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("lifi")
+        .subcommand("gas-status")
+        .arg(tx_hash)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 // =============================================================================
 // VELORA (3 subcommands)
 // =============================================================================
@@ -7419,6 +8203,34 @@ pub async fn velora_tokens(chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("velora")
         .subcommand("tokens")
         .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn velora_swap(
+    src_token: &str,
+    dest_token: &str,
+    amount: &str,
+    user_address: &str,
+    side: Option<&str>,
+    slippage: Option<u32>,
+    receiver: Option<&str>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let slippage = slippage.map(|v| v.to_string());
+    ArgsBuilder::new("velora")
+        .subcommand("swap")
+        .arg(src_token)
+        .arg(dest_token)
+        .arg(amount)
+        .arg(user_address)
+        .chain(chain)
+        .opt("--side", side)
+        .opt("--slippage", slippage.as_deref())
+        .opt("--receiver", receiver)
         .format_json()
         .execute()
         .await
@@ -7497,14 +8309,154 @@ pub async fn enso_bundle(
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn enso_quote(
+    from_token: &str,
+    to_token: &str,
+    amount: &str,
+    from_address: Option<&str>,
+    chain_id: Option<&str>,
+    ignore_aggregators: Option<&str>,
+    effort: Option<&str>,
+    swap_type: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("enso")
+        .subcommand("quote")
+        .arg(from_token)
+        .arg(to_token)
+        .arg(amount);
+    if let Some(from) = from_address {
+        builder = builder.arg(from);
+    }
+    builder
+        .opt("--chain-id", chain_id)
+        .opt("--ignore-aggregators", ignore_aggregators)
+        .opt("--effort", effort)
+        .opt("--swap-type", swap_type)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn enso_prices(tokens: &[String], chain_id: Option<&str>) -> Result<String, ToolError> {
+    if tokens.is_empty() {
+        return Err(ToolError::InvalidInput(
+            "tokens must contain at least one token address".to_string(),
+        ));
+    }
+    let mut builder = ArgsBuilder::new("enso").subcommand("prices");
+    for token in tokens {
+        builder = builder.arg(token);
+    }
+    builder
+        .opt("--chain-id", chain_id)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn enso_tokens(
+    chain_id: Option<&str>,
+    project: Option<&str>,
+    protocol: Option<&str>,
+    address: Option<&str>,
+    symbol: Option<&str>,
+    token_type: Option<&str>,
+    include_metadata: bool,
+    page: Option<u64>,
+    page_size: Option<u64>,
+) -> Result<String, ToolError> {
+    let page = page.map(|v| v.to_string());
+    let page_size = page_size.map(|v| v.to_string());
+    ArgsBuilder::new("enso")
+        .subcommand("tokens")
+        .opt("--chain-id", chain_id)
+        .opt("--project", project)
+        .opt("--protocol", protocol)
+        .opt("--address", address)
+        .opt("--symbol", symbol)
+        .opt("--type", token_type)
+        .opt_flag("--include-metadata", include_metadata)
+        .opt("--page", page.as_deref())
+        .opt("--page-size", page_size.as_deref())
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn enso_networks() -> Result<String, ToolError> {
+    ArgsBuilder::new("enso")
+        .subcommand("networks")
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn enso_protocols(
+    chain_id: Option<&str>,
+    slug: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("enso")
+        .subcommand("protocols")
+        .opt("--chain-id", chain_id)
+        .opt("--slug", slug)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn enso_approve(
+    token: &str,
+    amount: &str,
+    from_address: &str,
+    chain_id: Option<&str>,
+    routing_strategy: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("enso")
+        .subcommand("approve")
+        .arg(token)
+        .arg(amount)
+        .arg(from_address)
+        .opt("--chain-id", chain_id)
+        .opt("--routing-strategy", routing_strategy)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn enso_wallet(
+    from_address: &str,
+    chain_id: Option<&str>,
+    routing_strategy: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("enso")
+        .subcommand("wallet")
+        .arg(from_address)
+        .opt("--chain-id", chain_id)
+        .opt("--routing-strategy", routing_strategy)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 // =============================================================================
 // PYTH (4 subcommands)
 // =============================================================================
 
-pub async fn pyth_price(symbols: &str) -> Result<String, ToolError> {
+pub async fn pyth_price(symbols: &str, at: Option<u64>) -> Result<String, ToolError> {
+    let at = at.map(|v| v.to_string());
     ArgsBuilder::new("pyth")
         .subcommand("price")
         .arg(symbols)
+        .opt("--at", at.as_deref())
         .format_json()
         .execute()
         .await
@@ -7534,6 +8486,15 @@ pub async fn pyth_feeds(asset_type: Option<&str>) -> Result<String, ToolError> {
 pub async fn pyth_known_feeds() -> Result<String, ToolError> {
     ArgsBuilder::new("pyth")
         .subcommand("known-feeds")
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn pyth_stake_caps() -> Result<String, ToolError> {
+    ArgsBuilder::new("pyth")
+        .subcommand("stake-caps")
         .format_json()
         .execute()
         .await
@@ -7989,6 +8950,15 @@ mod policy_tests {
         assert_read_only_denied(moralis_nft_sync_collection("0xabc", None).await);
         assert_read_only_denied(moralis_nft_resync_metadata("0xabc", "1", None).await);
         assert_read_only_denied(moralis_nft_resync_traits("0xabc", None).await);
+    }
+
+    // Rejected before ethcli is spawned
+    #[tokio::test]
+    async fn list_tools_reject_empty_lists() {
+        let err = cowswap_orders_by_uids(&[], None).await.unwrap_err();
+        assert!(err.to_string().contains("at least one"), "{err}");
+        let err = enso_prices(&[], None).await.unwrap_err();
+        assert!(err.to_string().contains("at least one"), "{err}");
     }
 
     #[test]

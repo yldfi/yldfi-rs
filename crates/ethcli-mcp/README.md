@@ -15,7 +15,7 @@
 
 ## Overview
 
-Exposes 200+ Ethereum tools via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP), enabling AI assistants like Claude to query blockchains, analyze transactions, fetch DeFi data, and interact with 50+ data sources. The default MCP surface is read-only for local and remote state changes.
+Exposes 580+ Ethereum tools via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP), enabling AI assistants like Claude to query blockchains, analyze transactions, fetch DeFi data, and interact with 50+ data sources. The default MCP surface is read-only for local and remote state changes.
 
 ## Features
 
@@ -31,7 +31,7 @@ cap a result window even when requests stay below their rate limit. If that
 happens, split the history into smaller block ranges and paginate each range.
 This tool does not automatically split ranges or bypass provider limits.
 
-- **230+ MCP tools** - Broad ethcli functionality exposed as typed tools, with mutating tools gated by policy
+- **580+ MCP tools** - Broad ethcli functionality exposed as typed tools, with mutating tools gated by policy
 - **JSON Schema validation** - All tool inputs have schemas for LLM structured output
 - **Multi-chain support** - Ethereum, Polygon, Arbitrum, Optimism, Base, and more
 - **DEX aggregators** - 1inch, CowSwap, LI.FI, KyberSwap, OpenOcean, 0x, Velora, Enso
@@ -101,16 +101,16 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | Category | Count | Examples |
 |----------|-------|----------|
 | `cast_*` | 14 | Unit conversions, hashing, ABI encoding |
-| `lifi_*` | 12 | Cross-chain quotes, bridges, chains |
+| `lifi_*` | 19 | Cross-chain quotes, bridges, chains, transfers |
 | `curve_*` | 10 | Pools, routing, lending |
 | `uniswap_*` | 9 | V2/V3/V4 pool queries |
 | `rpc_*` | 9 | Direct blockchain calls |
 | `tenderly_*` | 34 | Simulation, VNets (CRUD + Admin RPC + RPC Simulation) |
-| `cowswap_*` | 11 | MEV-protected trading |
+| `cowswap_*` | 16 | MEV-protected trading |
 | `account_*` | 8 | Balance, transactions |
 | `oneinch_*` | 7 | DEX aggregator |
 | `goplus_*` | 6 | Security analysis |
-| Other | 176 | See full list below |
+| Other | 452 | See full list below |
 
 <details>
 <summary>All 42 tool categories</summary>
@@ -119,38 +119,38 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 |----------|-------|
 | cast_* | 14 |
 | config_* | 15 |
-| lifi_* | 12 |
+| lifi_* | 19 |
 | curve_* | 10 |
 | uniswap_* | 9 |
 | rpc_* | 9 |
 | tenderly_* | 34 |
 | simulate_* | 8 |
 | endpoints_* | 8 |
-| cowswap_* | 11 |
+| cowswap_* | 16 |
 | account_* | 8 |
 | oneinch_* | 7 |
 | cex_* | 7 |
 | blacklist_* | 7 |
 | address_* | 7 |
-| llama_* | 6 |
+| llama_* | 15 |
 | goplus_* | 6 |
 | alchemy_* | 6 |
 | solodit_* | 5 |
 | openocean_* | 5 |
-| moralis_* | 5 |
+| moralis_* | 82 |
 | kong_* | 5 |
-| gecko_* | 5 |
+| gecko_* | 54 |
 | sig_* | 4 |
-| pyth_* | 4 |
+| pyth_* | 5 |
 | ens_* | 4 |
 | contract_* | 8 |
 | chainlink_* | 4 |
-| zerox_* | 3 |
-| velora_* | 3 |
+| zerox_* | 7 |
+| velora_* | 4 |
 | token_* | 3 |
 | quote_* | 3 |
-| kyberswap_* | 3 |
-| enso_* | 3 |
+| kyberswap_* | 4 |
+| enso_* | 11 |
 | dune_* | 3 |
 | gas_* | 2 |
 | yields | 1 |

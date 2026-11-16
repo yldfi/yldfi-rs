@@ -1073,6 +1073,7 @@ impl EthcliMcpServer {
             &input.buy_token,
             &input.sell_amount,
             &input.taker,
+            input.allowance_holder,
             Some(&input.chain),
         )
         .await
@@ -1139,11 +1140,13 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get price from Pyth Network oracle (requires PYTH_API_KEY or config_set_pyth)",
+        description = "Get price from Pyth Network oracle, latest or at a past unix time with `at` (requires PYTH_API_KEY or config_set_pyth)",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn pyth_price(&self, Parameters(input): Parameters<PythPriceInput>) -> CallToolResult {
-        tools::pyth_price(&input.symbols).await.to_response()
+        tools::pyth_price(&input.symbols, input.at)
+            .await
+            .to_response()
     }
 
     #[tool(
@@ -4232,6 +4235,304 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(
+        description = "Get token prices across networks in one request from CoinGecko onchain data (Enterprise plan)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_onchain_token_price_multi(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainTokenPriceMultiInput>,
+    ) -> CallToolResult {
+        tools::gecko_onchain_token_price_multi(
+            &input.tokens,
+            input.market_cap,
+            input.volume,
+            input.price_change,
+            input.reserve,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get token data across networks in one request from CoinGecko onchain data (Enterprise plan)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_onchain_tokens_multi(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainTokensMultiInput>,
+    ) -> CallToolResult {
+        tools::gecko_onchain_tokens_multi(&input.tokens, input.top_pools, input.composition)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get trades for a pool from CoinGecko onchain data (recent trades keyless; from/to ranges need the Analyst plan)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_onchain_pool_trades(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainPoolTradesInput>,
+    ) -> CallToolResult {
+        tools::gecko_onchain_pool_trades(
+            &input.network,
+            &input.address,
+            input.from.as_deref(),
+            input.to.as_deref(),
+            input.period.as_deref(),
+            input.token.as_deref(),
+            input.min_volume_usd,
+            input.cursor.as_deref(),
+            input.per_page,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get trades for a token across all its pools from CoinGecko onchain data (paid API; from/to ranges need the Analyst plan)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_onchain_token_trades(
+        &self,
+        Parameters(input): Parameters<GeckoOnchainTokenTradesInput>,
+    ) -> CallToolResult {
+        tools::gecko_onchain_token_trades(
+            &input.network,
+            &input.address,
+            input.from.as_deref(),
+            input.to.as_deref(),
+            input.period.as_deref(),
+            input.min_volume_usd,
+            input.cursor.as_deref(),
+            input.per_page,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get a coin's supply breakdown from CoinGecko (Analyst plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_coins_supply_breakdown(
+        &self,
+        Parameters(input): Parameters<GeckoCoinInput>,
+    ) -> CallToolResult {
+        tools::gecko_coins_supply_breakdown(&input.id)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "List tokenized real-world assets (stocks, commodities, ETFs) from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_rwas_list(
+        &self,
+        Parameters(input): Parameters<GeckoRwasListInput>,
+    ) -> CallToolResult {
+        tools::gecko_rwas_list(input.asset_type.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get tokenized real-world assets with price, market cap, volume and price changes from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_rwas_markets(
+        &self,
+        Parameters(input): Parameters<GeckoRwasMarketsInput>,
+    ) -> CallToolResult {
+        tools::gecko_rwas_markets(
+            input.asset_type.as_deref(),
+            input.ids.as_deref(),
+            input.issuer.as_deref(),
+            input.order.as_deref(),
+            input.per_page,
+            input.page,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get a tokenized real-world asset's metadata from CoinGecko (full=true adds tokens and market data)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_rwas_get(
+        &self,
+        Parameters(input): Parameters<GeckoRwasGetInput>,
+    ) -> CallToolResult {
+        tools::gecko_rwas_get(&input.id, input.full)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "List tokenized real-world asset issuers from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_rwas_issuers(&self) -> CallToolResult {
+        tools::gecko_rwas_issuers().await.to_response()
+    }
+
+    #[tool(
+        description = "Get a tokenized real-world asset issuer's market data and tokens from CoinGecko",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_rwas_issuer(
+        &self,
+        Parameters(input): Parameters<GeckoRwasIdInput>,
+    ) -> CallToolResult {
+        tools::gecko_rwas_issuer(&input.id).await.to_response()
+    }
+
+    #[tool(
+        description = "Get CEX and DEX tickers of the tokens tracking a real-world asset from CoinGecko (Basic plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_rwas_tickers(
+        &self,
+        Parameters(input): Parameters<GeckoRwasTickersInput>,
+    ) -> CallToolResult {
+        tools::gecko_rwas_tickers(&input.id, input.page, input.order.as_deref(), input.depth)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get historical tokenized price, market cap and volume of a real-world asset from CoinGecko (Basic plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_rwas_chart(
+        &self,
+        Parameters(input): Parameters<GeckoRwasChartInput>,
+    ) -> CallToolResult {
+        tools::gecko_rwas_chart(&input.id, input.days.as_deref(), input.interval.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get a wallet's token balances across networks from CoinGecko onchain data (Analyst plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_wallets_balances(
+        &self,
+        Parameters(input): Parameters<GeckoWalletsBalancesInput>,
+    ) -> CallToolResult {
+        tools::gecko_wallets_balances(
+            &input.address,
+            &input.networks,
+            input.sort.as_deref(),
+            input.min_value_usd,
+            input.page,
+            input.per_page,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get a wallet's token transfers on one network from CoinGecko onchain data (Analyst plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_wallets_transfers(
+        &self,
+        Parameters(input): Parameters<GeckoWalletsTransfersInput>,
+    ) -> CallToolResult {
+        tools::gecko_wallets_transfers(
+            &input.network,
+            &input.address,
+            input.token.as_deref(),
+            input.from.as_deref(),
+            input.to.as_deref(),
+            input.direction.as_deref(),
+            input.cursor.as_deref(),
+            input.per_page,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get a wallet's DEX trades on one network from CoinGecko onchain data (Analyst plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_wallets_trades(
+        &self,
+        Parameters(input): Parameters<GeckoWalletsTradesInput>,
+    ) -> CallToolResult {
+        tools::gecko_wallets_trades(
+            &input.network,
+            &input.address,
+            input.token.as_deref(),
+            input.from.as_deref(),
+            input.to.as_deref(),
+            input.cursor.as_deref(),
+            input.per_page,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get a wallet's realized and unrealized PnL across networks from CoinGecko onchain data (Analyst plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_wallets_pnl(
+        &self,
+        Parameters(input): Parameters<GeckoWalletsPnlInput>,
+    ) -> CallToolResult {
+        tools::gecko_wallets_pnl(
+            &input.address,
+            &input.networks,
+            input.sort.as_deref(),
+            input.page,
+            input.per_page,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get latest crypto news and guides from CoinGecko (Analyst plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_news(&self, Parameters(input): Parameters<GeckoNewsInput>) -> CallToolResult {
+        tools::gecko_news(
+            input.coin.as_deref(),
+            input.language.as_deref(),
+            input.news_type.as_deref(),
+            input.page,
+            input.per_page,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get latest coin insights from CoinGecko (Analyst plan or above)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gecko_insights(
+        &self,
+        Parameters(input): Parameters<GeckoInsightsInput>,
+    ) -> CallToolResult {
+        tools::gecko_insights(
+            input.coin.as_deref(),
+            input.from.as_deref(),
+            input.to.as_deref(),
+            input.page,
+            input.per_page,
+        )
+        .await
+        .to_response()
+    }
+
     // =========================================================================
     // GOPLUS (additional)
     // =========================================================================
@@ -4325,6 +4626,111 @@ impl EthcliMcpServer {
     )]
     async fn llama_stablecoins(&self) -> CallToolResult {
         tools::llama_stablecoins().await.to_response()
+    }
+
+    #[tool(
+        description = "Get DefiLlama yields v2 earn pools, filtered and paginated (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_earn(
+        &self,
+        Parameters(input): Parameters<LlamaYieldsEarnInput>,
+    ) -> CallToolResult {
+        tools::llama_yields_earn(
+            input.chain.as_deref(),
+            input.protocol.as_deref(),
+            input.stablecoin,
+            input.single_asset,
+            input.min_tvl,
+            input.page,
+            input.limit,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get daily history of a DefiLlama yields v2 earn pool, oldest first (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_earn_history(
+        &self,
+        Parameters(input): Parameters<LlamaYieldsHistoryInput>,
+    ) -> CallToolResult {
+        tools::llama_yields_earn_history(&input.id, input.range.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get measured (verified) yield of every simulated DefiLlama earn pool (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_verified(&self) -> CallToolResult {
+        tools::llama_yields_verified().await.to_response()
+    }
+
+    #[tool(
+        description = "Get measured yield of one DefiLlama earn pool, with the simulated on-chain calls (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_verified_pool(
+        &self,
+        Parameters(input): Parameters<LlamaYieldsIdInput>,
+    ) -> CallToolResult {
+        tools::llama_yields_verified_pool(&input.id)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get daily measured history of a DefiLlama earn pool, oldest first (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_verified_history(
+        &self,
+        Parameters(input): Parameters<LlamaYieldsHistoryInput>,
+    ) -> CallToolResult {
+        tools::llama_yields_verified_history(&input.id, input.range.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get latest data for every DefiLlama borrow market (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_borrow_markets(&self) -> CallToolResult {
+        tools::llama_yields_borrow_markets().await.to_response()
+    }
+
+    #[tool(
+        description = "Get daily borrow-side history of a DefiLlama borrow market, oldest first (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_borrow_history(
+        &self,
+        Parameters(input): Parameters<LlamaYieldsHistoryInput>,
+    ) -> CallToolResult {
+        tools::llama_yields_borrow_history(&input.id, input.range.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get every DefiLlama borrowing route: a collateral position paired with a debt market (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_borrow_routes(&self) -> CallToolResult {
+        tools::llama_yields_borrow_routes().await.to_response()
+    }
+
+    #[tool(
+        description = "Get every DefiLlama leveraged looping strategy (requires DEFILLAMA_API_KEY)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn llama_yields_loops(&self) -> CallToolResult {
+        tools::llama_yields_loops().await.to_response()
     }
 
     // =========================================================================
@@ -4756,6 +5162,23 @@ impl EthcliMcpServer {
         tools::moralis_wallet_multiple_balances(&input.addresses, Some(input.chain.as_str()))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Get wallet insight from Moralis: age, activity, transfer counts, counterparties, gas and swap volume (all chains unless chains is set)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn moralis_wallet_insight(
+        &self,
+        Parameters(input): Parameters<MoralisWalletInsightInput>,
+    ) -> CallToolResult {
+        tools::moralis_wallet_insight(
+            &input.address,
+            input.chains.as_deref(),
+            input.chain_breakdown,
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -5408,6 +5831,23 @@ impl EthcliMcpServer {
         tools::moralis_discovery_token_score(&input.address, Some(input.chain.as_str()))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Get a token's score history via Moralis discovery (EVM only)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn moralis_discovery_token_score_history(
+        &self,
+        Parameters(input): Parameters<MoralisTokenScoreHistoryInput>,
+    ) -> CallToolResult {
+        tools::moralis_discovery_token_score_history(
+            &input.address,
+            input.timeframe.as_deref(),
+            Some(input.chain.as_str()),
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -6849,6 +7289,29 @@ impl EthcliMcpServer {
         .to_response()
     }
 
+    #[tool(
+        description = "Get KyberSwap route and swap calldata in one call (partner-only endpoint: needs client_id or KYBERSWAP_CLIENT_ID). Returns calldata only; nothing is sent",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn kyberswap_swap(
+        &self,
+        Parameters(input): Parameters<KyberSwapInput>,
+    ) -> CallToolResult {
+        tools::kyberswap_swap(
+            &input.token_in,
+            &input.token_out,
+            &input.amount_in,
+            &input.sender,
+            input.recipient.as_deref(),
+            input.slippage_bps,
+            input.exclude_rfq,
+            input.client_id.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
     // =========================================================================
     // 0X (additional)
     // =========================================================================
@@ -6863,6 +7326,7 @@ impl EthcliMcpServer {
             &input.buy_token,
             &input.sell_amount,
             &input.taker,
+            input.allowance_holder,
             Some(&input.chain),
         )
         .await
@@ -6878,6 +7342,70 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<ZeroxChainInput>,
     ) -> CallToolResult {
         tools::zerox_sources(Some(&input.chain)).await.to_response()
+    }
+
+    #[tool(
+        description = "Get chains supported by the 0x Swap API (or the Gasless API with gasless=true)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn zerox_chains(
+        &self,
+        Parameters(input): Parameters<ZeroxChainsInput>,
+    ) -> CallToolResult {
+        tools::zerox_chains(input.gasless).await.to_response()
+    }
+
+    #[tool(
+        description = "Get indicative price for a gasless swap from 0x (ERC-20 sell token; gas paid from the sell token)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn zerox_gasless_price(
+        &self,
+        Parameters(input): Parameters<ZeroxGaslessInput>,
+    ) -> CallToolResult {
+        tools::zerox_gasless_price(
+            &input.sell_token,
+            &input.buy_token,
+            &input.sell_amount,
+            &input.taker,
+            input.slippage_bps,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get firm gasless quote from 0x: the EIP-712 trade (and approval, if needed) to sign. Does not submit anything",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn zerox_gasless_quote(
+        &self,
+        Parameters(input): Parameters<ZeroxGaslessInput>,
+    ) -> CallToolResult {
+        tools::zerox_gasless_quote(
+            &input.sell_token,
+            &input.buy_token,
+            &input.sell_amount,
+            &input.taker,
+            input.slippage_bps,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get status of a submitted 0x gasless trade",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn zerox_gasless_status(
+        &self,
+        Parameters(input): Parameters<ZeroxGaslessStatusInput>,
+    ) -> CallToolResult {
+        tools::zerox_gasless_status(&input.trade_hash, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================
@@ -6980,6 +7508,71 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<CowswapTokenInput>,
     ) -> CallToolResult {
         tools::cowswap_native_price(&input.token, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get competition status of an order from CoW Swap (status and solver bids)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn cowswap_order_status(
+        &self,
+        Parameters(input): Parameters<CowswapOrderInput>,
+    ) -> CallToolResult {
+        tools::cowswap_order_status(&input.order_uid, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get the orders settled in a transaction from CoW Swap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn cowswap_orders_by_tx(
+        &self,
+        Parameters(input): Parameters<CowswapTxHashInput>,
+    ) -> CallToolResult {
+        tools::cowswap_orders_by_tx(&input.tx_hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get several orders by UID from CoW Swap (up to 128; unknown UIDs are left out)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn cowswap_orders_by_uids(
+        &self,
+        Parameters(input): Parameters<CowswapOrdersByUidsInput>,
+    ) -> CallToolResult {
+        tools::cowswap_orders_by_uids(&input.uids, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get the full appData document registered for an appData hash from CoW Swap",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn cowswap_app_data(
+        &self,
+        Parameters(input): Parameters<CowswapAppDataInput>,
+    ) -> CallToolResult {
+        tools::cowswap_app_data(&input.app_data_hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get the total surplus a user has earned on CoW Swap (endpoint marked unstable by CoW)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn cowswap_surplus(
+        &self,
+        Parameters(input): Parameters<CowswapAddressInput>,
+    ) -> CallToolResult {
+        tools::cowswap_surplus(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
@@ -7212,6 +7805,93 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(
+        description = "Get one token by address or symbol from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_token(&self, Parameters(input): Parameters<LifiTokenInput>) -> CallToolResult {
+        tools::lifi_token(input.chain_id, &input.token)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get cross-chain quote by output amount from LI.FI (how much to send to receive exactly to_amount)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_quote_to_amount(
+        &self,
+        Parameters(input): Parameters<LifiQuoteToAmountInput>,
+    ) -> CallToolResult {
+        tools::lifi_quote_to_amount(
+            input.from_chain,
+            &input.from_token,
+            input.to_chain,
+            &input.to_token,
+            &input.to_amount,
+            &input.from_address,
+            input.to_address.as_deref(),
+            input.slippage,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get a LI.FI quote for a bridge/swap followed by contract calls on the destination chain (beta). Calls format: [{\"fromAmount\":\"...\",\"fromTokenAddress\":\"0x...\",\"toContractAddress\":\"0x...\",\"toContractCallData\":\"0x...\",\"toContractGasLimit\":\"...\"}]",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_contract_calls(
+        &self,
+        Parameters(input): Parameters<LifiContractCallsInput>,
+    ) -> CallToolResult {
+        tools::lifi_contract_calls(
+            input.from_chain,
+            &input.from_token,
+            input.to_chain,
+            &input.to_token,
+            &input.to_amount,
+            &input.from_address,
+            &input.calls,
+            input.fallback_address.as_deref(),
+            input.slippage,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get cross-chain transfers sent or received by a wallet from LI.FI (last 30 days unless from_timestamp; page with next/previous cursors)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_transfers(
+        &self,
+        Parameters(input): Parameters<LifiTransfersInput>,
+    ) -> CallToolResult {
+        tools::lifi_transfers(
+            &input.wallet,
+            input.status.as_deref(),
+            input.limit,
+            input.next.as_deref(),
+            input.previous.as_deref(),
+            input.from_timestamp,
+            input.to_timestamp,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get status of a LI.Fuel gas refuel from LI.FI",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn lifi_gas_status(
+        &self,
+        Parameters(input): Parameters<LifiGasStatusInput>,
+    ) -> CallToolResult {
+        tools::lifi_gas_status(&input.tx_hash).await.to_response()
+    }
+
     // =========================================================================
     // VELORA
     // =========================================================================
@@ -7261,6 +7941,25 @@ impl EthcliMcpServer {
         Parameters(input): Parameters<VeloraChainInput>,
     ) -> CallToolResult {
         tools::velora_tokens(Some(&input.chain)).await.to_response()
+    }
+
+    #[tool(
+        description = "Get swap price route and transaction data in one call from Velora (ParaSwap); lower rate limits, no RFQ. Returns calldata only; nothing is sent",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn velora_swap(&self, Parameters(input): Parameters<VeloraSwapInput>) -> CallToolResult {
+        tools::velora_swap(
+            &input.src_token,
+            &input.dest_token,
+            &input.amount,
+            &input.user_address,
+            input.side.as_deref(),
+            input.slippage,
+            input.receiver.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -7321,6 +8020,109 @@ impl EthcliMcpServer {
         .to_response()
     }
 
+    #[tool(
+        description = "Get swap quote from Enso (output amount and route, no transaction data)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn enso_quote(&self, Parameters(input): Parameters<EnsoQuoteInput>) -> CallToolResult {
+        tools::enso_quote(
+            &input.from_token,
+            &input.to_token,
+            &input.amount,
+            input.from_address.as_deref(),
+            Some(&input.chain_id),
+            input.ignore_aggregators.as_deref(),
+            input.effort.as_deref(),
+            input.swap_type.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get USD prices of several tokens on one chain from Enso (max 100; null for tokens Enso cannot price)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn enso_prices(&self, Parameters(input): Parameters<EnsoPricesInput>) -> CallToolResult {
+        tools::enso_prices(&input.tokens, Some(&input.chain_id))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Search base and DeFi tokens known to Enso (filter by chain, project, protocol, address, symbol or type; paginated)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn enso_tokens(&self, Parameters(input): Parameters<EnsoTokensInput>) -> CallToolResult {
+        tools::enso_tokens(
+            input.chain_id.as_deref(),
+            input.project.as_deref(),
+            input.protocol.as_deref(),
+            input.address.as_deref(),
+            input.symbol.as_deref(),
+            input.token_type.as_deref(),
+            input.include_metadata,
+            input.page,
+            input.page_size,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get networks supported by Enso",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn enso_networks(&self) -> CallToolResult {
+        tools::enso_networks().await.to_response()
+    }
+
+    #[tool(
+        description = "Get protocols supported by Enso, optionally filtered by chain or slug",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn enso_protocols(
+        &self,
+        Parameters(input): Parameters<EnsoProtocolsInput>,
+    ) -> CallToolResult {
+        tools::enso_protocols(input.chain_id.as_deref(), input.slug.as_deref())
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Build an unsigned transaction approving Enso's router (or smart wallet) to spend a token. Nothing is sent",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn enso_approve(
+        &self,
+        Parameters(input): Parameters<EnsoApproveInput>,
+    ) -> CallToolResult {
+        tools::enso_approve(
+            &input.token,
+            &input.amount,
+            &input.from_address,
+            Some(&input.chain_id),
+            input.routing_strategy.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Get the Enso smart wallet address of an owner from Enso",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn enso_wallet(&self, Parameters(input): Parameters<EnsoWalletInput>) -> CallToolResult {
+        tools::enso_wallet(
+            &input.from_address,
+            Some(&input.chain_id),
+            input.routing_strategy.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
     // =========================================================================
     // PYTH (additional)
     // =========================================================================
@@ -7341,6 +8143,14 @@ impl EthcliMcpServer {
     )]
     async fn pyth_known_feeds(&self) -> CallToolResult {
         tools::pyth_known_feeds().await.to_response()
+    }
+
+    #[tool(
+        description = "Get the latest Pyth publisher stake caps update (requires PYTH_API_KEY or config_set_pyth)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn pyth_stake_caps(&self) -> CallToolResult {
+        tools::pyth_stake_caps().await.to_response()
     }
 
     // =========================================================================
@@ -8016,5 +8826,103 @@ mod annotation_tests {
         }
         problems.sort();
         assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
+
+    /// Tools for the LI.FI, CoW, Enso, 0x, Kyber, Velora, Pyth, CoinGecko,
+    /// DefiLlama and Moralis commands added in ethcli #245/#247: all
+    /// registered, all read-only.
+    #[test]
+    fn new_aggregator_and_data_tools_are_registered_read_only() {
+        let expected = [
+            "lifi_token",
+            "lifi_quote_to_amount",
+            "lifi_contract_calls",
+            "lifi_transfers",
+            "lifi_gas_status",
+            "cowswap_order_status",
+            "cowswap_orders_by_tx",
+            "cowswap_orders_by_uids",
+            "cowswap_app_data",
+            "cowswap_surplus",
+            "enso_quote",
+            "enso_prices",
+            "enso_tokens",
+            "enso_networks",
+            "enso_protocols",
+            "enso_approve",
+            "enso_wallet",
+            "zerox_chains",
+            "zerox_gasless_price",
+            "zerox_gasless_quote",
+            "zerox_gasless_status",
+            "kyberswap_swap",
+            "velora_swap",
+            "pyth_stake_caps",
+            "gecko_rwas_list",
+            "gecko_rwas_markets",
+            "gecko_rwas_get",
+            "gecko_rwas_issuers",
+            "gecko_rwas_issuer",
+            "gecko_rwas_tickers",
+            "gecko_rwas_chart",
+            "gecko_wallets_balances",
+            "gecko_wallets_transfers",
+            "gecko_wallets_trades",
+            "gecko_wallets_pnl",
+            "gecko_news",
+            "gecko_insights",
+            "gecko_coins_supply_breakdown",
+            "gecko_onchain_token_price_multi",
+            "gecko_onchain_tokens_multi",
+            "gecko_onchain_pool_trades",
+            "gecko_onchain_token_trades",
+            "llama_yields_earn",
+            "llama_yields_earn_history",
+            "llama_yields_verified",
+            "llama_yields_verified_pool",
+            "llama_yields_verified_history",
+            "llama_yields_borrow_markets",
+            "llama_yields_borrow_history",
+            "llama_yields_borrow_routes",
+            "llama_yields_loops",
+            "moralis_wallet_insight",
+            "moralis_discovery_token_score_history",
+        ];
+        let tools = EthcliMcpServer::tool_router().list_all();
+        let calls = registered_tool_functions();
+        for name in expected {
+            let tool = tools
+                .iter()
+                .find(|t| t.name == name)
+                .unwrap_or_else(|| panic!("{name} is not registered"));
+            assert_eq!(
+                tool.annotations.as_ref().and_then(|a| a.read_only_hint),
+                Some(true),
+                "{name}"
+            );
+            assert_eq!(calls.get(name).map(String::as_str), Some(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn existing_tools_accept_new_optional_fields_and_old_inputs() {
+        let quote: ZeroxQuoteInput = serde_json::from_value(serde_json::json!({
+            "sell_token": "0xa", "buy_token": "0xb", "sell_amount": "1", "taker": "0xc"
+        }))
+        .unwrap();
+        assert!(!quote.allowance_holder);
+        let price: ZeroxPriceInput = serde_json::from_value(serde_json::json!({
+            "sell_token": "0xa", "buy_token": "0xb", "sell_amount": "1", "taker": "0xc",
+            "allowance_holder": true
+        }))
+        .unwrap();
+        assert!(price.allowance_holder);
+        let pyth: PythPriceInput =
+            serde_json::from_value(serde_json::json!({"symbols": "ETH/USD"})).unwrap();
+        assert_eq!(pyth.at, None);
+        let pyth: PythPriceInput =
+            serde_json::from_value(serde_json::json!({"symbols": "ETH/USD", "at": 1704067200}))
+                .unwrap();
+        assert_eq!(pyth.at, Some(1_704_067_200));
     }
 }
