@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "crates/yldfi-common",
+    # Unpublished test harness (dev-dependency only)
+    "crates/spec-test",
     "crates/ethcli",
     "crates/ethcli-mcp",
     "crates/tndrly",
