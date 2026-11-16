@@ -1566,6 +1566,7 @@ dependencies = [
  "tokio-test",
  "wiremock",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]
