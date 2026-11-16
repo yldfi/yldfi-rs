@@ -853,6 +853,9 @@ pub struct ZeroxQuoteInput {
     pub sell_amount: String,
     /// Taker address
     pub taker: String,
+    /// Use the AllowanceHolder flow (approve `allowanceTarget`, no Permit2 signature) instead of Permit2
+    #[serde(default)]
+    pub allowance_holder: bool,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -928,6 +931,9 @@ pub struct LifiQuoteInput {
 pub struct PythPriceInput {
     /// Symbol or price feed ID
     pub symbols: String,
+    /// Unix timestamp (seconds): return the first price published at or after this time instead of the latest
+    #[serde(default)]
+    pub at: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -2226,6 +2232,289 @@ pub struct GeckoOnchainPoolOhlcvInput {
     pub timeframe: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoOnchainTokenPriceMultiInput {
+    /// Up to 50 network:address pairs, comma-separated (e.g. "eth:0xc02a...,base:0x4200...")
+    pub tokens: String,
+    /// Include market cap
+    #[serde(default)]
+    pub market_cap: bool,
+    /// Include 24h volume
+    #[serde(default)]
+    pub volume: bool,
+    /// Include 24h price change
+    #[serde(default)]
+    pub price_change: bool,
+    /// Include total reserve in USD
+    #[serde(default)]
+    pub reserve: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoOnchainTokensMultiInput {
+    /// Up to 50 network:address pairs, comma-separated (e.g. "eth:0xc02a...,base:0x4200...")
+    pub tokens: String,
+    /// Include each token's top pools
+    #[serde(default)]
+    pub top_pools: bool,
+    /// Include pool composition (implies top_pools)
+    #[serde(default)]
+    pub composition: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoOnchainPoolTradesInput {
+    /// Network ID (e.g., "eth")
+    pub network: String,
+    /// Pool address
+    pub address: String,
+    /// Range start: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (needs `to`; Analyst plan)
+    #[serde(default)]
+    pub from: Option<String>,
+    /// Range end: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (needs `from`)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// Lookback without a range: 1d (default), 7d, 30d (7d/30d: Analyst plan)
+    #[serde(default)]
+    pub period: Option<String>,
+    /// Trade side: base (default), quote or a token address
+    #[serde(default)]
+    pub token: Option<String>,
+    /// Only trades worth more than this many USD
+    #[serde(default)]
+    pub min_volume_usd: Option<f64>,
+    /// meta.next_cursor from the previous page (Analyst plan)
+    #[serde(default)]
+    pub cursor: Option<String>,
+    /// Results per page, 1 to 300 (Analyst plan)
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoOnchainTokenTradesInput {
+    /// Network ID (e.g., "eth")
+    pub network: String,
+    /// Token address
+    pub address: String,
+    /// Range start: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (needs `to`; Analyst plan)
+    #[serde(default)]
+    pub from: Option<String>,
+    /// Range end: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (needs `from`)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// Lookback without a range: 1d (default), 7d, 30d (7d/30d: Analyst plan)
+    #[serde(default)]
+    pub period: Option<String>,
+    /// Only trades worth more than this many USD
+    #[serde(default)]
+    pub min_volume_usd: Option<f64>,
+    /// meta.next_cursor from the previous page (Analyst plan)
+    #[serde(default)]
+    pub cursor: Option<String>,
+    /// Results per page, 1 to 300 (Analyst plan)
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
+// --- Gecko RWAs ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoRwasListInput {
+    /// Filter: stock, commodity or etf
+    #[serde(default)]
+    pub asset_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoRwasMarketsInput {
+    /// Filter: stock, commodity or etf
+    #[serde(default)]
+    pub asset_type: Option<String>,
+    /// RWA IDs (comma-separated)
+    #[serde(default)]
+    pub ids: Option<String>,
+    /// Issuer ID (see gecko_rwas_issuers)
+    #[serde(default)]
+    pub issuer: Option<String>,
+    /// market_cap_desc (default), market_cap_asc, volume_desc, volume_asc, id_asc, id_desc
+    #[serde(default)]
+    pub order: Option<String>,
+    /// Results per page, 1 to 250 (default 100)
+    #[serde(default)]
+    pub per_page: Option<u32>,
+    /// Page number
+    #[serde(default)]
+    pub page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoRwasGetInput {
+    /// RWA ID (e.g., "1-800-flowers-com")
+    pub id: String,
+    /// Also include its tokens, tokenized and perpetuals market data
+    #[serde(default)]
+    pub full: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoRwasIdInput {
+    /// RWA issuer ID (see gecko_rwas_issuers)
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoRwasTickersInput {
+    /// RWA ID
+    pub id: String,
+    /// Page number (100 tickers per page)
+    #[serde(default)]
+    pub page: Option<u32>,
+    /// volume_desc (default), volume_asc, last_traded_at_desc, last_traded_at_asc
+    #[serde(default)]
+    pub order: Option<String>,
+    /// Include 2% order book depth
+    #[serde(default)]
+    pub depth: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoRwasChartInput {
+    /// RWA ID
+    pub id: String,
+    /// Days of data, a number or "max" (default: 30)
+    #[serde(default)]
+    pub days: Option<String>,
+    /// Data interval: 5m, hourly or daily (default: chosen from days)
+    #[serde(default)]
+    pub interval: Option<String>,
+}
+
+// --- Gecko Wallets ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoWalletsBalancesInput {
+    /// Wallet address
+    pub address: String,
+    /// Network IDs, comma-separated, all EVM or all non-EVM (e.g., "eth,base")
+    pub networks: String,
+    /// value_usd_desc (default) or value_usd_asc
+    #[serde(default)]
+    pub sort: Option<String>,
+    /// Minimum holding value in USD
+    #[serde(default)]
+    pub min_value_usd: Option<f64>,
+    /// Page number
+    #[serde(default)]
+    pub page: Option<u32>,
+    /// Results per page, 1 to 100 (default 50)
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoWalletsTransfersInput {
+    /// Network ID (e.g., "eth")
+    pub network: String,
+    /// Wallet address
+    pub address: String,
+    /// Only this token contract address
+    #[serde(default)]
+    pub token: Option<String>,
+    /// Window start: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (needs `to`; default: last 7 days)
+    #[serde(default)]
+    pub from: Option<String>,
+    /// Window end: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (needs `from`)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// in (received) or out (sent); both when omitted
+    #[serde(default)]
+    pub direction: Option<String>,
+    /// meta.next_cursor from the previous page
+    #[serde(default)]
+    pub cursor: Option<String>,
+    /// Results per page, 1 to 300 (default 100)
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoWalletsTradesInput {
+    /// Network ID (e.g., "eth")
+    pub network: String,
+    /// Wallet address
+    pub address: String,
+    /// Only trades involving this token contract address
+    #[serde(default)]
+    pub token: Option<String>,
+    /// Window start: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (needs `to`; default: last 7 days)
+    #[serde(default)]
+    pub from: Option<String>,
+    /// Window end: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (needs `from`)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// meta.next_cursor from the previous page
+    #[serde(default)]
+    pub cursor: Option<String>,
+    /// Results per page, 1 to 300 (default 100)
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoWalletsPnlInput {
+    /// Wallet address
+    pub address: String,
+    /// Network IDs, comma-separated, all EVM or all non-EVM (e.g., "eth,base")
+    pub networks: String,
+    /// realized_pnl_usd_desc (default), unrealized_pnl_usd_desc, total_buy_usd_desc, total_sell_usd_desc
+    #[serde(default)]
+    pub sort: Option<String>,
+    /// Page number
+    #[serde(default)]
+    pub page: Option<u32>,
+    /// Results per page, 1 to 300 (default 100)
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
+// --- Gecko News & Insights ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoNewsInput {
+    /// Only news about this coin ID (also returns guides)
+    #[serde(default)]
+    pub coin: Option<String>,
+    /// Language code, e.g. en (default), de, ja, zh-tw
+    #[serde(default)]
+    pub language: Option<String>,
+    /// all (default), news or guides (guides needs coin)
+    #[serde(default)]
+    pub news_type: Option<String>,
+    /// Page, 1 to 20
+    #[serde(default)]
+    pub page: Option<u32>,
+    /// Results per page, 1 to 20
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GeckoInsightsInput {
+    /// Only insights about this coin ID
+    #[serde(default)]
+    pub coin: Option<String>,
+    /// Start date (YYYY-MM-DD)
+    #[serde(default)]
+    pub from: Option<String>,
+    /// End date (YYYY-MM-DD)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// Page, 1 to 20
+    #[serde(default)]
+    pub page: Option<u32>,
+    /// Results per page, 1 to 20
+    #[serde(default)]
+    pub per_page: Option<u32>,
+}
+
 // --- GoPlus Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GoplusBatchInput {
@@ -2256,6 +2545,46 @@ pub struct LlamaProtocolInput {
     pub protocol: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LlamaYieldsEarnInput {
+    /// Chain slugs, lowercase, comma-separated (any match; e.g. "ethereum,base")
+    #[serde(default)]
+    pub chain: Option<String>,
+    /// Protocol slugs, lowercase, comma-separated (any match; e.g. "aave-v3")
+    #[serde(default)]
+    pub protocol: Option<String>,
+    /// true: only all-stablecoin pools; false: only the rest
+    #[serde(default)]
+    pub stablecoin: Option<bool>,
+    /// true: only single-asset pools; false: only the rest
+    #[serde(default)]
+    pub single_asset: Option<bool>,
+    /// Minimum TVL in USD
+    #[serde(default)]
+    pub min_tvl: Option<f64>,
+    /// Page number (1-based)
+    #[serde(default)]
+    pub page: Option<u32>,
+    /// Page size, 1 to 300 (default 100)
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LlamaYieldsIdInput {
+    /// Earn pool ID
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LlamaYieldsHistoryInput {
+    /// Earn pool ID (borrow market ID for llama_yields_borrow_history)
+    pub id: String,
+    /// History window: 30d, 90d or max (default: full series)
+    #[serde(default)]
+    pub range: Option<String>,
+}
+
 // --- Moralis ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisChainOnlyInput {
@@ -2269,6 +2598,30 @@ pub struct MoralisAddressInput {
     /// Wallet or contract address
     pub address: String,
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
+    #[serde(default = "default_moralis_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisWalletInsightInput {
+    /// Wallet address
+    pub address: String,
+    /// Only these chains, comma-separated (e.g. "eth,base"; default: every supported chain)
+    #[serde(default)]
+    pub chains: Option<String>,
+    /// Include a per-chain breakdown
+    #[serde(default)]
+    pub chain_breakdown: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisTokenScoreHistoryInput {
+    /// Token contract address
+    pub address: String,
+    /// Timeframe: 1d, 7d (default) or 30d
+    #[serde(default)]
+    pub timeframe: Option<String>,
+    /// Blockchain chain (EVM only, e.g., eth, polygon, bsc, arbitrum, base). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
 }
@@ -2937,6 +3290,33 @@ pub struct KyberBuildInput {
     pub chain: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct KyberSwapInput {
+    /// Source token address
+    pub token_in: String,
+    /// Destination token address
+    pub token_out: String,
+    /// Amount in smallest units (wei)
+    pub amount_in: String,
+    /// Sender address (input tokens are taken from it)
+    pub sender: String,
+    /// Recipient address (defaults to sender)
+    #[serde(default)]
+    pub recipient: Option<String>,
+    /// Slippage tolerance in basis points (default: 50 = 0.5%)
+    #[serde(default)]
+    pub slippage_bps: Option<u32>,
+    /// Exclude RFQ sources
+    #[serde(default)]
+    pub exclude_rfq: bool,
+    /// KyberSwap partner client ID (falls back to KYBERSWAP_CLIENT_ID; the endpoint is partner-only)
+    #[serde(default)]
+    pub client_id: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 // --- 0x Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ZeroxPriceInput {
@@ -2948,6 +3328,9 @@ pub struct ZeroxPriceInput {
     pub sell_amount: String,
     /// Taker address (wallet executing the swap)
     pub taker: String,
+    /// Use the AllowanceHolder flow (approve `allowanceTarget`, no Permit2 signature) instead of Permit2
+    #[serde(default)]
+    pub allowance_holder: bool,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -2955,6 +3338,40 @@ pub struct ZeroxPriceInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ZeroxChainInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ZeroxChainsInput {
+    /// List the Gasless API's chains instead of the Swap API's
+    #[serde(default)]
+    pub gasless: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ZeroxGaslessInput {
+    /// Sell token address (ERC-20; the native token is not supported)
+    pub sell_token: String,
+    /// Buy token address
+    pub buy_token: String,
+    /// Sell amount in smallest units
+    pub sell_amount: String,
+    /// Taker address (wallet executing the swap)
+    pub taker: String,
+    /// Slippage in basis points (default: 100 = 1%)
+    #[serde(default)]
+    pub slippage_bps: Option<u32>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ZeroxGaslessStatusInput {
+    /// Trade hash (`trade.hash` from zerox_gasless_quote)
+    pub trade_hash: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -3037,6 +3454,42 @@ pub struct CowswapAuctionInput {
 pub struct CowswapTokenInput {
     /// Token address
     pub token: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapTxHashInput {
+    /// Settlement transaction hash
+    pub tx_hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapOrdersByUidsInput {
+    /// Order UIDs (up to 128; unknown UIDs are left out of the result)
+    pub uids: Vec<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapAppDataInput {
+    /// appData hash (32-byte hex)
+    pub app_data_hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CowswapAddressInput {
+    /// User address
+    pub address: String,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -3162,6 +3615,90 @@ pub struct LifiStepTransactionInput {
     pub step_json: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LifiTokenInput {
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    pub chain_id: u64,
+    /// Token address or symbol (e.g. USDC)
+    pub token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LifiQuoteToAmountInput {
+    /// Source chain ID (e.g. 1 for Ethereum, 42161 for Arbitrum)
+    pub from_chain: u64,
+    /// Source token address
+    pub from_token: String,
+    /// Destination chain ID (e.g. 10 for Optimism, 8453 for Base)
+    pub to_chain: u64,
+    /// Destination token address
+    pub to_token: String,
+    /// Amount to receive, in the destination token's smallest units
+    pub to_amount: String,
+    /// Sender address
+    pub from_address: String,
+    /// Receiver address (defaults to sender)
+    #[serde(default)]
+    pub to_address: Option<String>,
+    /// Slippage tolerance in percent (e.g. 0.5 = 0.5%; default 0.5)
+    #[serde(default)]
+    pub slippage: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LifiContractCallsInput {
+    /// Source chain ID (e.g. 1 for Ethereum, 42161 for Arbitrum)
+    pub from_chain: u64,
+    /// Source token address
+    pub from_token: String,
+    /// Destination chain ID
+    pub to_chain: u64,
+    /// Token the contract calls need on the destination chain
+    pub to_token: String,
+    /// Amount of `to_token` the calls need, in smallest units
+    pub to_amount: String,
+    /// Sender address
+    pub from_address: String,
+    /// Contract calls as a JSON array: [{"fromAmount":"...","fromTokenAddress":"0x...","toContractAddress":"0x...","toContractCallData":"0x...","toContractGasLimit":"..."}]
+    pub calls: String,
+    /// Where bridged tokens go if a call fails (defaults to sender)
+    #[serde(default)]
+    pub fallback_address: Option<String>,
+    /// Slippage tolerance in percent (e.g. 0.5 = 0.5%; default 0.5)
+    #[serde(default)]
+    pub slippage: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LifiTransfersInput {
+    /// Sending or receiving wallet address
+    pub wallet: String,
+    /// Transfer status: all, done, pending, failed (API default: done)
+    #[serde(default)]
+    pub status: Option<String>,
+    /// Page size (API default: 10)
+    #[serde(default)]
+    pub limit: Option<u32>,
+    /// Cursor from a previous response's `next`
+    #[serde(default)]
+    pub next: Option<String>,
+    /// Cursor from a previous response's `previous` (not with `next`)
+    #[serde(default)]
+    pub previous: Option<String>,
+    /// Oldest timestamp to include, unix seconds (default: last 30 days)
+    #[serde(default)]
+    pub from_timestamp: Option<u64>,
+    /// Newest timestamp to include, unix seconds
+    #[serde(default)]
+    pub to_timestamp: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LifiGasStatusInput {
+    /// Transaction hash that started the LI.Fuel refuel
+    pub tx_hash: String,
+}
+
 // --- Velora ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct VeloraPriceInput {
@@ -3191,6 +3728,30 @@ pub struct VeloraTxInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct VeloraChainInput {
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct VeloraSwapInput {
+    /// Source token address
+    pub src_token: String,
+    /// Destination token address
+    pub dest_token: String,
+    /// Amount in smallest units (wei)
+    pub amount: String,
+    /// User address (wallet executing the swap)
+    pub user_address: String,
+    /// Side: SELL (default) or BUY
+    #[serde(default)]
+    pub side: Option<String>,
+    /// Slippage in basis points, 1-5000 (default: 100 = 1%)
+    #[serde(default)]
+    pub slippage: Option<u32>,
+    /// Receiver address (defaults to user address)
+    #[serde(default)]
+    pub receiver: Option<String>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -3240,6 +3801,109 @@ pub struct EnsoBundleInput {
     #[serde(default = "default_chain_id")]
     pub chain_id: String,
     /// Routing strategy: router, delegate, ensowallet
+    pub routing_strategy: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EnsoQuoteInput {
+    /// From token address
+    pub from_token: String,
+    /// To token address
+    pub to_token: String,
+    /// Amount in smallest units (wei)
+    pub amount: String,
+    /// Sender address (optional for quotes)
+    #[serde(default)]
+    pub from_address: Option<String>,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
+    /// Aggregators to leave out, comma-separated (e.g. "1inch,0x")
+    #[serde(default)]
+    pub ignore_aggregators: Option<String>,
+    /// Latency/quality trade-off: light, medium, high, max
+    #[serde(default)]
+    pub effort: Option<String>,
+    /// Swaps the quote may use: any, rfq, amm
+    #[serde(default)]
+    pub swap_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EnsoPricesInput {
+    /// Token addresses (max 100)
+    pub tokens: Vec<String>,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EnsoTokensInput {
+    /// Only this chain ID (omit to search every chain)
+    #[serde(default)]
+    pub chain_id: Option<String>,
+    /// Only this project (e.g. aave)
+    #[serde(default)]
+    pub project: Option<String>,
+    /// Only this protocol slug (e.g. aave-v3)
+    #[serde(default)]
+    pub protocol: Option<String>,
+    /// Only these token addresses (comma-separated)
+    #[serde(default)]
+    pub address: Option<String>,
+    /// Only these symbols (comma-separated)
+    #[serde(default)]
+    pub symbol: Option<String>,
+    /// Token type: defi or base
+    #[serde(default)]
+    pub token_type: Option<String>,
+    /// Include symbol, name and logos
+    #[serde(default)]
+    pub include_metadata: bool,
+    /// Page number
+    #[serde(default)]
+    pub page: Option<u64>,
+    /// Page size (max 1000)
+    #[serde(default)]
+    pub page_size: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EnsoProtocolsInput {
+    /// Only protocols on this chain ID (omit for every chain)
+    #[serde(default)]
+    pub chain_id: Option<String>,
+    /// Only the protocol with this slug (e.g. aave-v3)
+    #[serde(default)]
+    pub slug: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EnsoApproveInput {
+    /// Token address
+    pub token: String,
+    /// Amount in smallest units
+    pub amount: String,
+    /// Token owner (sender) address
+    pub from_address: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
+    /// Routing strategy (approve the smart wallet with ensowallet/delegate; default: router)
+    #[serde(default)]
+    pub routing_strategy: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EnsoWalletInput {
+    /// Owner address
+    pub from_address: String,
+    /// Chain ID (e.g. 1 for Ethereum, 137 for Polygon)
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
+    /// Routing strategy (router, delegate, ensowallet)
+    #[serde(default)]
     pub routing_strategy: Option<String>,
 }
 
