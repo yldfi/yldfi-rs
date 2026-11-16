@@ -44,8 +44,10 @@ pub struct PairAddress {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefiSummary {
     /// Total USD value
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub total_usd_value: Option<f64>,
     /// Active protocols
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub active_protocols: Option<i32>,
     /// Protocols
     pub protocols: Option<Vec<ProtocolSummary>>,
@@ -61,8 +63,10 @@ pub struct ProtocolSummary {
     /// Protocol logo
     pub protocol_logo: Option<String>,
     /// Total USD value
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub total_usd_value: Option<f64>,
     /// Position count
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub position_count: Option<i32>,
 }
 
