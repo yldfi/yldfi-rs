@@ -24,6 +24,10 @@ LI.FI is a multi-chain liquidity aggregation protocol that integrates multiple b
 - **DEX aggregation** - Optimal routing through DEXs on each chain
 - **Route optimization** - Find the best route by price, speed, or security
 - **Transaction tracking** - Monitor cross-chain transaction status
+- **Exact-output quotes** - Quote by the amount to receive (`get_quote_to_amount`)
+- **Destination contract calls** - Bridge and then call contracts on the destination chain (`get_contract_calls_quote`, beta)
+- **Transfer history** - Page through a wallet's transfers (`get_transfers`)
+- **Token lookup** - Fetch one token by address or symbol (`get_token`)
 
 ## Quick Start
 

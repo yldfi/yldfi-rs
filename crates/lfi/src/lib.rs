@@ -239,6 +239,9 @@ pub use types::{
     ConnectionToken,
     ConnectionsRequest,
     ConnectionsResponse,
+    // Contract call types
+    ContractCall,
+    ContractCallsRequest,
     Estimate,
     ExchangeOptions,
     FailedRoute,
@@ -247,6 +250,7 @@ pub use types::{
     GasCost,
     GasPrice,
     GasPricesResponse,
+    GasStatusResponse,
     Insurance,
     // Quote types
     Quote,
@@ -262,6 +266,7 @@ pub use types::{
     StatusResponse,
     Step,
     StepType,
+    ToAmountQuoteRequest,
     // Token types
     Token,
     TokenAmount,
@@ -278,6 +283,10 @@ pub use types::{
     // Transaction types
     TransactionRequest,
     TransactionStatus,
+    // Analytics types
+    TransferStatusFilter,
+    TransfersRequest,
+    TransfersResponse,
 };
 
 /// Default base URL for the LI.FI API

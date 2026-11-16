@@ -42,6 +42,83 @@ where
     }
 }
 
+/// A unix timestamp in seconds, sent as a number, a numeric string or (on
+/// the receiving side of some transfers) an RFC 3339 UTC date such as
+/// `2026-10-09T19:21:47.000Z`
+fn opt_unix_timestamp<'de, D>(deserializer: D) -> std::result::Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    let value = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;
+    if let Some(seconds) = value.as_str().and_then(parse_rfc3339_seconds) {
+        return Ok(Some(seconds));
+    }
+    opt_u64_rounded(value).map_err(D::Error::custom)
+}
+
+/// Parse `YYYY-MM-DDTHH:MM:SS[.fff](Z|±HH:MM)` into unix seconds
+fn parse_rfc3339_seconds(s: &str) -> Option<u64> {
+    /// The all-digit number at `range` of `s`
+    fn digits(s: &str, range: std::ops::Range<usize>) -> Option<i64> {
+        let part = s.get(range)?;
+        if part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        part.parse().ok()
+    }
+    let b = s.as_bytes();
+    if b.len() < 20
+        || b[4] != b'-'
+        || b[7] != b'-'
+        || !matches!(b[10], b'T' | b't' | b' ')
+        || b[13] != b':'
+        || b[16] != b':'
+    {
+        return None;
+    }
+    let (year, month, day) = (digits(s, 0..4)?, digits(s, 5..7)?, digits(s, 8..10)?);
+    let (hour, minute, second) = (digits(s, 11..13)?, digits(s, 14..16)?, digits(s, 17..19)?);
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 60
+    {
+        return None;
+    }
+    // Skip fractional seconds, then read the UTC offset (bytes 0..19 are
+    // ASCII by now, so slicing there is safe)
+    let mut rest = &s[19..];
+    if let Some(frac) = rest.strip_prefix('.') {
+        let n = frac.bytes().take_while(u8::is_ascii_digit).count();
+        if n == 0 {
+            return None;
+        }
+        rest = &frac[n..];
+    }
+    let offset = match rest {
+        "Z" | "z" => 0,
+        _ if rest.len() == 6 && rest.as_bytes()[3] == b':' => {
+            let sign = match rest.as_bytes()[0] {
+                b'+' => 1,
+                b'-' => -1,
+                _ => return None,
+            };
+            sign * (digits(rest, 1..3)? * 3600 + digits(rest, 4..6)? * 60)
+        }
+        _ => return None,
+    };
+    // Days since 1970-01-01 (Howard Hinnant's days_from_civil)
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    u64::try_from(days * 86_400 + hour * 3600 + minute * 60 + second - offset).ok()
+}
+
 /// Serialize an optional list as a single comma-separated value.
 ///
 /// `serde_urlencoded` (used for GET query strings) cannot serialize sequences,
@@ -394,6 +471,395 @@ pub struct Quote {
     /// Integrator
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub integrator: Option<String>,
+}
+
+/// Request parameters for a quote by output amount (`GET /quote/toAmount`)
+///
+/// Like [`QuoteRequest`], but LI.FI works out the `fromAmount` needed to
+/// receive `to_amount`. The response is a [`Quote`] whose
+/// `action.from_amount` is the amount to send.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToAmountQuoteRequest {
+    /// Source chain ID
+    pub from_chain: ChainId,
+    /// Destination chain ID
+    pub to_chain: ChainId,
+    /// Source token address
+    pub from_token: String,
+    /// Destination token address
+    pub to_token: String,
+    /// Amount to receive, in the destination token's base units
+    pub to_amount: String,
+    /// Sender address
+    pub from_address: String,
+    /// Recipient address (defaults to `from_address` if not specified)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_address: Option<String>,
+    /// Slippage tolerance as a decimal fraction (`0.005` = 0.5%); sent
+    /// unchanged, so `0.5` is **50%**
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slippage: Option<f64>,
+    /// Integrator identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub integrator: Option<String>,
+    /// Integrator fee as a decimal fraction (`0.003` = 0.3%); sent
+    /// unchanged, so `0.3` is a **30%** fee
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fee: Option<f64>,
+    /// Referrer address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub referrer: Option<String>,
+    /// Allowed bridges
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
+    pub allow_bridges: Option<Vec<String>>,
+    /// Denied bridges
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
+    pub deny_bridges: Option<Vec<String>>,
+    /// Allowed exchanges
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
+    pub allow_exchanges: Option<Vec<String>>,
+    /// Denied exchanges
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_comma_list"
+    )]
+    pub deny_exchanges: Option<Vec<String>>,
+    /// Route preference (LI.FI documents `FASTEST` and `CHEAPEST` here)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<RouteOrder>,
+}
+
+impl ToAmountQuoteRequest {
+    /// Create a new quote request for receiving `to_amount`
+    pub fn new(
+        from_chain: ChainId,
+        to_chain: ChainId,
+        from_token: impl Into<String>,
+        to_token: impl Into<String>,
+        to_amount: impl Into<String>,
+        from_address: impl Into<String>,
+    ) -> Self {
+        Self {
+            from_chain,
+            to_chain,
+            from_token: from_token.into(),
+            to_token: to_token.into(),
+            to_amount: to_amount.into(),
+            from_address: from_address.into(),
+            to_address: None,
+            slippage: None,
+            integrator: None,
+            fee: None,
+            referrer: None,
+            allow_bridges: None,
+            deny_bridges: None,
+            allow_exchanges: None,
+            deny_exchanges: None,
+            order: None,
+        }
+    }
+
+    /// Set the destination address (recipient)
+    #[must_use]
+    pub fn with_to_address(mut self, to_address: impl Into<String>) -> Self {
+        self.to_address = Some(to_address.into());
+        self
+    }
+
+    /// Set slippage tolerance as a decimal fraction (`0.005` = 0.5%)
+    #[must_use]
+    pub fn with_slippage(mut self, slippage: f64) -> Self {
+        self.slippage = Some(slippage);
+        self
+    }
+
+    /// Set integrator identifier
+    #[must_use]
+    pub fn with_integrator(mut self, integrator: impl Into<String>) -> Self {
+        self.integrator = Some(integrator.into());
+        self
+    }
+
+    /// Set integrator fee as a decimal fraction (`0.003` = 0.3%)
+    #[must_use]
+    pub fn with_fee(mut self, fee: f64) -> Self {
+        self.fee = Some(fee);
+        self
+    }
+
+    /// Set referrer address
+    #[must_use]
+    pub fn with_referrer(mut self, referrer: impl Into<String>) -> Self {
+        self.referrer = Some(referrer.into());
+        self
+    }
+
+    /// Set allowed bridges
+    #[must_use]
+    pub fn with_allowed_bridges(mut self, bridges: Vec<String>) -> Self {
+        self.allow_bridges = Some(bridges);
+        self
+    }
+
+    /// Set denied bridges
+    #[must_use]
+    pub fn with_denied_bridges(mut self, bridges: Vec<String>) -> Self {
+        self.deny_bridges = Some(bridges);
+        self
+    }
+
+    /// Set allowed exchanges
+    #[must_use]
+    pub fn with_allowed_exchanges(mut self, exchanges: Vec<String>) -> Self {
+        self.allow_exchanges = Some(exchanges);
+        self
+    }
+
+    /// Set denied exchanges
+    #[must_use]
+    pub fn with_denied_exchanges(mut self, exchanges: Vec<String>) -> Self {
+        self.deny_exchanges = Some(exchanges);
+        self
+    }
+
+    /// Set route ordering preference
+    #[must_use]
+    pub fn with_order(mut self, order: RouteOrder) -> Self {
+        self.order = Some(order);
+        self
+    }
+}
+
+// ============================================================================
+// Contract Calls Types
+// ============================================================================
+
+/// One contract call to run on the destination chain
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContractCall {
+    /// Amount of `from_token_address` the call expects to have available
+    pub from_amount: String,
+    /// Token the call consumes (the zero address for the native token)
+    pub from_token_address: String,
+    /// Contract to call
+    pub to_contract_address: String,
+    /// Calldata for the call
+    pub to_contract_call_data: String,
+    /// Gas limit for the call
+    pub to_contract_gas_limit: String,
+    /// Address to approve, if not `to_contract_address`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_approval_address: Option<String>,
+    /// Token the call outputs, if any (e.g. stETH when staking ETH)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_token_address: Option<String>,
+}
+
+impl ContractCall {
+    /// Create a contract call
+    pub fn new(
+        from_amount: impl Into<String>,
+        from_token_address: impl Into<String>,
+        to_contract_address: impl Into<String>,
+        to_contract_call_data: impl Into<String>,
+        to_contract_gas_limit: impl Into<String>,
+    ) -> Self {
+        Self {
+            from_amount: from_amount.into(),
+            from_token_address: from_token_address.into(),
+            to_contract_address: to_contract_address.into(),
+            to_contract_call_data: to_contract_call_data.into(),
+            to_contract_gas_limit: to_contract_gas_limit.into(),
+            to_approval_address: None,
+            to_token_address: None,
+        }
+    }
+
+    /// Set the address to approve, if not the called contract
+    #[must_use]
+    pub fn with_approval_address(mut self, address: impl Into<String>) -> Self {
+        self.to_approval_address = Some(address.into());
+        self
+    }
+
+    /// Set the token the call outputs
+    #[must_use]
+    pub fn with_to_token_address(mut self, address: impl Into<String>) -> Self {
+        self.to_token_address = Some(address.into());
+        self
+    }
+}
+
+/// Request body for `POST /quote/contractCalls`
+///
+/// Bridges and swaps `from_token` so that `to_amount` of `to_token` is
+/// available on the destination chain, then runs `contract_calls` there.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContractCallsRequest {
+    /// Source chain ID
+    pub from_chain: ChainId,
+    /// Source token address
+    pub from_token: String,
+    /// Sender address
+    pub from_address: String,
+    /// Destination chain ID
+    pub to_chain: ChainId,
+    /// Token the contract calls need on the destination chain
+    pub to_token: String,
+    /// Amount of `to_token` the contract calls need, in base units
+    pub to_amount: String,
+    /// Calls to run on the destination chain
+    pub contract_calls: Vec<ContractCall>,
+    /// Where bridged tokens go if a call fails (defaults to `from_address`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_fallback_address: Option<String>,
+    /// Token the calls output, to send back to the user
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contract_outputs_token: Option<String>,
+    /// Slippage tolerance as a decimal fraction (`0.005` = 0.5%)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slippage: Option<f64>,
+    /// Integrator identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub integrator: Option<String>,
+    /// Integrator fee as a decimal fraction (`0.003` = 0.3%)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fee: Option<f64>,
+    /// Referrer address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub referrer: Option<String>,
+    /// Allowed bridges
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_bridges: Option<Vec<String>>,
+    /// Denied bridges
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deny_bridges: Option<Vec<String>>,
+    /// Allowed exchanges
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_exchanges: Option<Vec<String>>,
+    /// Denied exchanges
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deny_exchanges: Option<Vec<String>>,
+    /// Whether the bridge may run calls in its destination transaction
+    /// (LI.FI defaults to `true`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_destination_call: Option<bool>,
+}
+
+impl ContractCallsRequest {
+    /// Create a contract calls request
+    pub fn new(
+        from_chain: ChainId,
+        from_token: impl Into<String>,
+        from_address: impl Into<String>,
+        to_chain: ChainId,
+        to_token: impl Into<String>,
+        to_amount: impl Into<String>,
+        contract_calls: Vec<ContractCall>,
+    ) -> Self {
+        Self {
+            from_chain,
+            from_token: from_token.into(),
+            from_address: from_address.into(),
+            to_chain,
+            to_token: to_token.into(),
+            to_amount: to_amount.into(),
+            contract_calls,
+            to_fallback_address: None,
+            contract_outputs_token: None,
+            slippage: None,
+            integrator: None,
+            fee: None,
+            referrer: None,
+            allow_bridges: None,
+            deny_bridges: None,
+            allow_exchanges: None,
+            deny_exchanges: None,
+            allow_destination_call: None,
+        }
+    }
+
+    /// Set the address bridged tokens go to if a call fails
+    #[must_use]
+    pub fn with_fallback_address(mut self, address: impl Into<String>) -> Self {
+        self.to_fallback_address = Some(address.into());
+        self
+    }
+
+    /// Set the token the calls output
+    #[must_use]
+    pub fn with_contract_outputs_token(mut self, token: impl Into<String>) -> Self {
+        self.contract_outputs_token = Some(token.into());
+        self
+    }
+
+    /// Set slippage tolerance as a decimal fraction (`0.005` = 0.5%)
+    #[must_use]
+    pub fn with_slippage(mut self, slippage: f64) -> Self {
+        self.slippage = Some(slippage);
+        self
+    }
+
+    /// Set integrator identifier
+    #[must_use]
+    pub fn with_integrator(mut self, integrator: impl Into<String>) -> Self {
+        self.integrator = Some(integrator.into());
+        self
+    }
+
+    /// Set integrator fee as a decimal fraction (`0.003` = 0.3%)
+    #[must_use]
+    pub fn with_fee(mut self, fee: f64) -> Self {
+        self.fee = Some(fee);
+        self
+    }
+
+    /// Set referrer address
+    #[must_use]
+    pub fn with_referrer(mut self, referrer: impl Into<String>) -> Self {
+        self.referrer = Some(referrer.into());
+        self
+    }
+
+    /// Set allowed bridges
+    #[must_use]
+    pub fn with_allowed_bridges(mut self, bridges: Vec<String>) -> Self {
+        self.allow_bridges = Some(bridges);
+        self
+    }
+
+    /// Set denied bridges
+    #[must_use]
+    pub fn with_denied_bridges(mut self, bridges: Vec<String>) -> Self {
+        self.deny_bridges = Some(bridges);
+        self
+    }
+
+    /// Set allowed exchanges
+    #[must_use]
+    pub fn with_allowed_exchanges(mut self, exchanges: Vec<String>) -> Self {
+        self.allow_exchanges = Some(exchanges);
+        self
+    }
+
+    /// Set denied exchanges
+    #[must_use]
+    pub fn with_denied_exchanges(mut self, exchanges: Vec<String>) -> Self {
+        self.deny_exchanges = Some(exchanges);
+        self
+    }
 }
 
 // ============================================================================
@@ -1088,7 +1554,9 @@ pub struct StatusResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionInfo {
-    /// Transaction hash
+    /// Transaction hash (empty while the transaction is not known yet, e.g.
+    /// the receiving side of a pending transfer, which only has `chain_id`)
+    #[serde(default)]
     pub tx_hash: String,
     /// Transaction link
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1130,11 +1598,12 @@ pub struct TransactionInfo {
     /// Steps executed in this transaction
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub included_steps: Option<Vec<serde_json::Value>>,
-    /// Timestamp
+    /// Timestamp (unix seconds; LI.FI sometimes sends an ISO-8601 date,
+    /// which is converted)
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "opt_u64_rounded"
+        deserialize_with = "opt_unix_timestamp"
     )]
     pub timestamp: Option<u64>,
 }
@@ -1532,6 +2001,198 @@ pub struct GasPrice {
 /// The keys are chain IDs as strings (e.g., "1" for Ethereum, "10" for Optimism).
 pub type GasPricesResponse = std::collections::HashMap<String, GasPrice>;
 
+/// Status of a LI.Fuel gas refuel (`GET /gas/status`)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GasStatusResponse {
+    /// Refuel status (`NOT_FOUND`, `PENDING` or `DONE`)
+    pub status: TransactionStatus,
+    /// Transaction that started the refuel
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sending: Option<TransactionInfo>,
+    /// Transaction that delivered the gas
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receiving: Option<TransactionInfo>,
+}
+
+// ============================================================================
+// Analytics Types
+// ============================================================================
+
+/// Status filter for [`TransfersRequest`]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TransferStatusFilter {
+    /// Every transfer
+    All,
+    /// Completed transfers (LI.FI's default)
+    #[default]
+    Done,
+    /// Transfers still in progress
+    Pending,
+    /// Failed transfers
+    Failed,
+}
+
+/// Query for a page of transfers (`GET /v2/analytics/transfers`)
+///
+/// Without `from_timestamp`, LI.FI only returns the last 30 days.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransfersRequest {
+    /// Sending or receiving wallet address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wallet: Option<String>,
+    /// Integrator to filter by
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub integrator: Option<String>,
+    /// Transfer status (LI.FI defaults to `DONE`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<TransferStatusFilter>,
+    /// Oldest timestamp to include (unix seconds; defaults to 30 days ago)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_timestamp: Option<u64>,
+    /// Newest timestamp to include (unix seconds; defaults to now)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_timestamp: Option<u64>,
+    /// Source chain
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_chain: Option<ChainId>,
+    /// Destination chain
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_chain: Option<ChainId>,
+    /// Source token (requires `from_chain`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_token: Option<String>,
+    /// Destination token (requires `to_chain`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_token: Option<String>,
+    /// Page size (LI.FI defaults to 10)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    /// Cursor from a previous response's `next`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next: Option<String>,
+    /// Cursor from a previous response's `previous`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous: Option<String>,
+}
+
+impl TransfersRequest {
+    /// Create an empty transfers query
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Transfers sent or received by `wallet`
+    #[must_use]
+    pub fn for_wallet(wallet: impl Into<String>) -> Self {
+        Self::new().with_wallet(wallet)
+    }
+
+    /// Filter by sending or receiving wallet
+    #[must_use]
+    pub fn with_wallet(mut self, wallet: impl Into<String>) -> Self {
+        self.wallet = Some(wallet.into());
+        self
+    }
+
+    /// Filter by integrator
+    #[must_use]
+    pub fn with_integrator(mut self, integrator: impl Into<String>) -> Self {
+        self.integrator = Some(integrator.into());
+        self
+    }
+
+    /// Filter by status
+    #[must_use]
+    pub fn with_status(mut self, status: TransferStatusFilter) -> Self {
+        self.status = Some(status);
+        self
+    }
+
+    /// Only include transfers in this time range (unix seconds)
+    #[must_use]
+    pub fn with_time_range(mut self, from: Option<u64>, to: Option<u64>) -> Self {
+        self.from_timestamp = from;
+        self.to_timestamp = to;
+        self
+    }
+
+    /// Filter by source chain
+    #[must_use]
+    pub fn with_from_chain(mut self, chain: ChainId) -> Self {
+        self.from_chain = Some(chain);
+        self
+    }
+
+    /// Filter by destination chain
+    #[must_use]
+    pub fn with_to_chain(mut self, chain: ChainId) -> Self {
+        self.to_chain = Some(chain);
+        self
+    }
+
+    /// Filter by source token (also set the source chain)
+    #[must_use]
+    pub fn with_from_token(mut self, token: impl Into<String>) -> Self {
+        self.from_token = Some(token.into());
+        self
+    }
+
+    /// Filter by destination token (also set the destination chain)
+    #[must_use]
+    pub fn with_to_token(mut self, token: impl Into<String>) -> Self {
+        self.to_token = Some(token.into());
+        self
+    }
+
+    /// Set the page size
+    #[must_use]
+    pub fn with_limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Fetch the page after the one that returned this cursor
+    #[must_use]
+    pub fn with_next(mut self, cursor: impl Into<String>) -> Self {
+        self.next = Some(cursor.into());
+        self.previous = None;
+        self
+    }
+
+    /// Fetch the page before the one that returned this cursor
+    #[must_use]
+    pub fn with_previous(mut self, cursor: impl Into<String>) -> Self {
+        self.previous = Some(cursor.into());
+        self.next = None;
+        self
+    }
+}
+
+/// A page of transfers (`GET /v2/analytics/transfers`)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransfersResponse {
+    /// Transfers, each in the same shape as a `/status` response
+    #[serde(default)]
+    pub data: Vec<StatusResponse>,
+    /// Whether there is a next page
+    #[serde(default)]
+    pub has_next: bool,
+    /// Whether there is a previous page
+    #[serde(default)]
+    pub has_previous: bool,
+    /// Cursor for the next page (pass to [`TransfersRequest::with_next`])
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<String>,
+    /// Cursor for the previous page
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<String>,
+}
+
 // ============================================================================
 // Error Types
 // ============================================================================
@@ -1562,6 +2223,47 @@ mod tests {
         assert!(serde_json::from_str::<GasPrice>(r#"{"fast":-1}"#).is_err());
         let big: GasPrice = serde_json::from_str(r#"{"fast":325078318000}"#).unwrap();
         assert_eq!(big.fast, Some(325_078_318_000));
+    }
+
+    #[test]
+    fn transaction_timestamps_accept_iso_dates() {
+        // Live /v2/analytics/transfers sends some receiving timestamps as
+        // ISO-8601 dates
+        let info: TransactionInfo =
+            serde_json::from_str(r#"{"txHash":"0x01","timestamp":"2026-10-09T19:21:47.000Z"}"#)
+                .unwrap();
+        assert_eq!(info.timestamp, Some(1_791_573_707));
+        let info: TransactionInfo =
+            serde_json::from_str(r#"{"txHash":"0x01","timestamp":1791573707}"#).unwrap();
+        assert_eq!(info.timestamp, Some(1_791_573_707));
+        for (s, t) in [
+            ("1970-01-01T00:00:00Z", Some(0)),
+            ("2000-02-29T12:00:00Z", Some(951_825_600)),
+            ("2024-03-01T00:00:00.5+01:00", Some(1_709_247_600)),
+            ("2024-03-01", None),
+            ("2024-13-01T00:00:00Z", None),
+            ("2024-03-01T00:00:00", None),
+            ("1969-12-31T23:59:59Z", None),
+        ] {
+            assert_eq!(parse_rfc3339_seconds(s), t, "{s}");
+        }
+        assert!(serde_json::from_str::<TransactionInfo>(
+            r#"{"txHash":"0x01","timestamp":"yesterday"}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn pending_transfer_receiving_side_has_no_hash() {
+        // Live pending transfers send `"receiving":{"chainId":42161}`
+        let status: StatusResponse = serde_json::from_str(
+            r#"{"status":"PENDING","substatus":"WAIT_DESTINATION_TRANSACTION",
+                "sending":{"txHash":"0x01","chainId":1},"receiving":{"chainId":42161}}"#,
+        )
+        .unwrap();
+        let receiving = status.receiving.unwrap();
+        assert!(receiving.tx_hash.is_empty());
+        assert_eq!(receiving.chain_id, Some(42161));
     }
 
     #[test]

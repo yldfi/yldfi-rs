@@ -2,9 +2,10 @@
 
 use crate::error::{self, Error, Result};
 use crate::types::{
-    Chain, ChainId, ChainsResponse, Connection, ConnectionsRequest, ConnectionsResponse, Quote,
-    QuoteRequest, Route, RoutesRequest, RoutesResponse, StatusRequest, StatusResponse, Token,
-    TokensRequest, TokensResponse, Tool, ToolsResponse,
+    Chain, ChainId, ChainsResponse, Connection, ConnectionsRequest, ConnectionsResponse,
+    ContractCallsRequest, GasStatusResponse, Quote, QuoteRequest, Route, RoutesRequest,
+    RoutesResponse, StatusRequest, StatusResponse, ToAmountQuoteRequest, Token, TokensRequest,
+    TokensResponse, Tool, ToolsResponse, TransfersRequest, TransfersResponse,
 };
 use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
@@ -275,6 +276,104 @@ impl Client {
         self.get_with_query("/quote", &query_request).await
     }
 
+    /// Get a quote for receiving an exact amount (`GET /quote/toAmount`)
+    ///
+    /// LI.FI works out how much of the source token to send; read it from
+    /// `quote.action.from_amount`.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use lfi::{Client, ToAmountQuoteRequest, chains};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), lfi::Error> {
+    ///     let client = Client::with_integrator("my-app")?;
+    ///
+    ///     // How much USDC on Ethereum buys exactly 10 USDC on Arbitrum?
+    ///     let request = ToAmountQuoteRequest::new(
+    ///         chains::ETHEREUM,
+    ///         chains::ARBITRUM,
+    ///         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    ///         "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    ///         "10000000", // 10 USDC
+    ///         "0xYourAddress",
+    ///     );
+    ///
+    ///     let quote = client.get_quote_to_amount(&request).await?;
+    ///     println!("Send: {}", quote.action.from_amount);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_quote_to_amount(&self, request: &ToAmountQuoteRequest) -> Result<Quote> {
+        let mut request = request.clone();
+        if request.integrator.is_none() {
+            request.integrator = self.integrator.clone();
+        }
+        if request.referrer.is_none() {
+            request.referrer = self.referrer.clone();
+        }
+        if request.fee.is_none() {
+            request.fee = self.fee;
+        }
+
+        self.get_with_query("/quote/toAmount", &request).await
+    }
+
+    /// Get a quote that bridges or swaps tokens and then runs contract calls
+    /// on the destination chain (`POST /quote/contractCalls`, beta)
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use lfi::{Client, ContractCall, ContractCallsRequest, chains};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), lfi::Error> {
+    ///     let client = Client::with_integrator("my-app")?;
+    ///
+    ///     // Stake 0.01 ETH with Lido on Ethereum, paying with USDC on Arbitrum
+    ///     let stake = ContractCall::new(
+    ///         "10000000000000000",
+    ///         "0x0000000000000000000000000000000000000000",
+    ///         "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+    ///         "0x",
+    ///         "110000",
+    ///     )
+    ///     .with_to_token_address("0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84");
+    ///
+    ///     let request = ContractCallsRequest::new(
+    ///         chains::ARBITRUM,
+    ///         "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    ///         "0xYourAddress",
+    ///         chains::ETHEREUM,
+    ///         "ETH",
+    ///         "10000000000000000",
+    ///         vec![stake],
+    ///     );
+    ///
+    ///     let quote = client.get_contract_calls_quote(&request).await?;
+    ///     println!("Send: {}", quote.action.from_amount);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_contract_calls_quote(&self, request: &ContractCallsRequest) -> Result<Quote> {
+        let mut request = request.clone();
+        if request.integrator.is_none() {
+            request.integrator = self.integrator.clone();
+        }
+        if request.referrer.is_none() {
+            request.referrer = self.referrer.clone();
+        }
+        if request.fee.is_none() {
+            request.fee = self.fee;
+        }
+
+        self.post("/quote/contractCalls", &request).await
+    }
+
     // ========================================================================
     // Routes API (Advanced)
     // ========================================================================
@@ -486,6 +585,32 @@ impl Client {
             .unwrap_or_default())
     }
 
+    /// Get one token by address or symbol (`GET /token`)
+    ///
+    /// An unknown token is reported by the API as an error.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use lfi::{Client, chains};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), lfi::Error> {
+    ///     let client = Client::new()?;
+    ///     let usdc = client.get_token(chains::ETHEREUM, "USDC").await?;
+    ///     println!("{} {} {:?}", usdc.symbol, usdc.address, usdc.price_usd);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_token(&self, chain_id: ChainId, token: &str) -> Result<Token> {
+        self.get_with_query(
+            "/token",
+            &[("chain", chain_id.to_string().as_str()), ("token", token)],
+        )
+        .await
+    }
+
     // ========================================================================
     // Connections API
     // ========================================================================
@@ -632,6 +757,61 @@ impl Client {
         self.get(&gas_prices_path(chain_id)).await
     }
 
+    /// Get the status of a LI.Fuel gas refuel (`GET /gas/status`)
+    ///
+    /// `tx_hash` is the transaction that started the refuel; an unknown hash
+    /// returns status `NOT_FOUND`.
+    pub async fn get_gas_status(&self, tx_hash: &str) -> Result<GasStatusResponse> {
+        self.get_with_query("/gas/status", &[("txHash", tx_hash)])
+            .await
+    }
+
+    // ========================================================================
+    // Analytics API
+    // ========================================================================
+
+    /// Get a page of transfers (`GET /v2/analytics/transfers`)
+    ///
+    /// Each transfer has the same shape as a [`get_status`](Self::get_status)
+    /// response. The request goes to the `/v2` sibling of the configured
+    /// base URL (`.../v1` becomes `.../v2`).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use lfi::{Client, TransferStatusFilter, TransfersRequest};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), lfi::Error> {
+    ///     let client = Client::new()?;
+    ///
+    ///     let mut request = TransfersRequest::for_wallet("0xYourAddress")
+    ///         .with_status(TransferStatusFilter::All)
+    ///         .with_limit(50);
+    ///     loop {
+    ///         let page = client.get_transfers(&request).await?;
+    ///         for transfer in &page.data {
+    ///             println!("{:?} {:?}", transfer.transaction_id, transfer.status);
+    ///         }
+    ///         match page.next {
+    ///             Some(next) if page.has_next => request = request.with_next(next),
+    ///             _ => break,
+    ///         }
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_transfers(&self, request: &TransfersRequest) -> Result<TransfersResponse> {
+        let url = format!("{}/analytics/transfers", v2_base_url(&self.base_url));
+        let response = self
+            .authed(self.http.get(&url).query(request))
+            .send()
+            .await?;
+
+        self.handle_response(response).await
+    }
+
     // ========================================================================
     // Convenience Methods
     // ========================================================================
@@ -663,6 +843,17 @@ fn gas_prices_path(chain_id: ChainId) -> String {
     format!("/gas/prices/{chain_id}")
 }
 
+/// The `/v2` base URL next to a `/v1` one
+///
+/// A base URL without a trailing `/v1` gets `/v2` appended.
+fn v2_base_url(base_url: &str) -> String {
+    let base = base_url.trim_end_matches('/');
+    match base.strip_suffix("/v1") {
+        Some(root) => format!("{root}/v2"),
+        None => format!("{base}/v2"),
+    }
+}
+
 /// Check the parameters `/connections` requires
 fn check_connections_request(request: &ConnectionsRequest) -> Result<()> {
     if request.from_chain.is_none() {
@@ -689,7 +880,7 @@ fn error_from_body(status: u16, body: &str, retry_after: Option<u64>) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{chains, RouteOrder, RoutesOptions};
+    use crate::types::{chains, ContractCall, RouteOrder, RoutesOptions};
 
     #[test]
     fn test_connections_require_both_chains() {
@@ -906,5 +1097,334 @@ mod tests {
                 panic!("Quote request failed");
             }
         }
+    }
+
+    /// A one-shot HTTP server on localhost that answers `status` with `body`.
+    /// Returns a `/v1` base URL and a handle that yields the raw request.
+    fn serve_once(status: u16, body: &'static str) -> (String, std::thread::JoinHandle<String>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            let mut buf = [0u8; 4096];
+            // Read the headers, then as much body as Content-Length says
+            loop {
+                let n = stream.read(&mut buf).unwrap();
+                request.extend_from_slice(&buf[..n]);
+                let text = String::from_utf8_lossy(&request);
+                if let Some(end) = text.find("\r\n\r\n") {
+                    let length = text[..end]
+                        .lines()
+                        .find_map(|l| {
+                            let (name, value) = l.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().ok())?
+                        })
+                        .unwrap_or(0);
+                    if request.len() >= end + 4 + length {
+                        break;
+                    }
+                }
+                if n == 0 {
+                    break;
+                }
+            }
+            write!(
+                stream,
+                "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+            String::from_utf8(request).unwrap()
+        });
+        (format!("http://{addr}/v1"), handle)
+    }
+
+    fn mock_client(base_url: &str) -> Client {
+        Client::with_config(
+            Config::new()
+                .with_base_url(base_url)
+                .with_integrator("test-app"),
+        )
+        .unwrap()
+    }
+
+    /// The request line, e.g. `GET /v1/token?chain=1&token=USDC`
+    fn request_line(request: &str) -> &str {
+        request
+            .lines()
+            .next()
+            .unwrap()
+            .trim_end_matches(" HTTP/1.1")
+    }
+
+    const TOKEN_JSON: &str = r#"{"address":"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48","chainId":1,
+        "symbol":"USDC","decimals":6,"name":"USD Coin","coinKey":"USDC","priceUSD":"1.0000908634",
+        "marketCapUSD":69064275759.0928,"tags":["stablecoin"],"verificationStatus":"verified"}"#;
+
+    /// Trimmed from a live `/quote/toAmount` response
+    const STEP_JSON: &str = r#"{"type":"lifi","id":"54d860da-05b9-445c-8d04-bdcf009e69d9:0",
+        "tool":"across","toolDetails":{"key":"across","name":"AcrossV4"},
+        "action":{"fromToken":{"address":"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48","chainId":1,
+            "symbol":"USDC","decimals":6,"name":"USD Coin"},"fromAmount":"10052647",
+            "toToken":{"address":"0xaf88d065e77c8cC2239327C5EDb3A432268e5831","chainId":42161,
+            "symbol":"USDC","decimals":6,"name":"USD Coin"},"fromChainId":1,"toChainId":42161,
+            "slippage":0.005,"fromAddress":"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"},
+        "estimate":{"tool":"across","fromAmount":"10052647","toAmount":"10020020",
+            "toAmountMin":"10000000","approvalAddress":"0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"},
+        "includedSteps":[],"recommendedSlippage":0.005}"#;
+
+    #[tokio::test]
+    async fn test_get_token_sends_chain_and_token() {
+        let (base, server) = serve_once(200, TOKEN_JSON);
+        let token = mock_client(&base)
+            .get_token(chains::ETHEREUM, "USDC")
+            .await
+            .unwrap();
+        assert_eq!(token.symbol, "USDC");
+        assert_eq!(token.decimals, 6);
+        assert_eq!(token.price_usd.as_deref(), Some("1.0000908634"));
+        let request = server.join().unwrap();
+        assert_eq!(request_line(&request), "GET /v1/token?chain=1&token=USDC");
+    }
+
+    #[tokio::test]
+    async fn test_get_token_reports_unknown_token() {
+        let (base, server) = serve_once(
+            400,
+            r#"{"message":"/token Unknown token symbol","code":1011}"#,
+        );
+        let err = mock_client(&base)
+            .get_token(chains::ETHEREUM, "NOPE")
+            .await
+            .unwrap_err();
+        assert_eq!(err.status_code(), Some(400));
+        assert!(err.to_string().contains("Unknown token symbol"), "{err}");
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_to_amount_sends_to_amount_and_defaults() {
+        let (base, server) = serve_once(200, STEP_JSON);
+        let request = ToAmountQuoteRequest::new(
+            chains::ETHEREUM,
+            chains::ARBITRUM,
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+            "10000000",
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+        )
+        .with_slippage(0.005)
+        .with_denied_bridges(vec!["hop".into(), "relay".into()]);
+        let quote = mock_client(&base)
+            .get_quote_to_amount(&request)
+            .await
+            .unwrap();
+        assert_eq!(quote.action.from_amount, "10052647");
+        assert_eq!(quote.estimate.to_amount_min, "10000000");
+        let request = server.join().unwrap();
+        let line = request_line(&request);
+        assert!(line.starts_with("GET /v1/quote/toAmount?"), "{line}");
+        for part in [
+            "fromChain=1",
+            "toChain=42161",
+            "toAmount=10000000",
+            "slippage=0.005",
+            "denyBridges=hop%2Crelay",
+            "integrator=test-app",
+        ] {
+            assert!(line.contains(part), "{part} missing from {line}");
+        }
+        assert!(!line.contains("fromAmount"), "{line}");
+    }
+
+    #[tokio::test]
+    async fn test_get_contract_calls_quote_posts_body() {
+        let (base, server) = serve_once(200, STEP_JSON);
+        let call = ContractCall::new(
+            "10000000000000000",
+            "0x0000000000000000000000000000000000000000",
+            "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+            "0x",
+            "110000",
+        )
+        .with_to_token_address("0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84");
+        let request = ContractCallsRequest::new(
+            chains::ARBITRUM,
+            "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            chains::ETHEREUM,
+            "ETH",
+            "10000000000000000",
+            vec![call],
+        )
+        .with_slippage(0.005);
+        let quote = mock_client(&base)
+            .get_contract_calls_quote(&request)
+            .await
+            .unwrap();
+        assert_eq!(quote.tool, "across");
+        let request = server.join().unwrap();
+        assert_eq!(request_line(&request), "POST /v1/quote/contractCalls");
+        let body: serde_json::Value =
+            serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(body["fromChain"], 42161);
+        assert_eq!(body["toChain"], 1);
+        assert_eq!(body["toAmount"], "10000000000000000");
+        assert_eq!(body["integrator"], "test-app");
+        assert_eq!(body["slippage"], 0.005);
+        let call = &body["contractCalls"][0];
+        assert_eq!(call["toContractCallData"], "0x");
+        assert_eq!(call["toContractGasLimit"], "110000");
+        assert_eq!(
+            call["toTokenAddress"],
+            "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84"
+        );
+        assert!(call.get("toApprovalAddress").is_none());
+        assert!(body.get("toFallbackAddress").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_gas_status() {
+        let (base, server) = serve_once(200, r#"{"status":"NOT_FOUND"}"#);
+        let status = mock_client(&base).get_gas_status("0xabc").await.unwrap();
+        assert_eq!(status.status, crate::types::TransactionStatus::NotFound);
+        assert!(status.sending.is_none());
+        let request = server.join().unwrap();
+        assert_eq!(request_line(&request), "GET /v1/gas/status?txHash=0xabc");
+
+        let status: GasStatusResponse = serde_json::from_str(
+            r#"{"status":"DONE","sending":{"txHash":"0x01","chainId":137,"amount":"10000","block":39397739},
+                "receiving":{"txHash":"0x02","chainId":100}}"#,
+        )
+        .unwrap();
+        assert_eq!(status.status, crate::types::TransactionStatus::Done);
+        assert_eq!(status.sending.unwrap().amount.as_deref(), Some("10000"));
+        assert_eq!(status.receiving.unwrap().chain_id, Some(100));
+    }
+
+    #[tokio::test]
+    async fn test_get_transfers_uses_v2_and_pages() {
+        // Shape of a live /v2/analytics/transfers page, trimmed
+        let (base, server) = serve_once(
+            200,
+            r#"{"data":[{"transactionId":"0xb9f1","sending":{"txHash":"0x24c9","chainId":1,
+                "amount":"1","timestamp":1760036399},"receiving":{"txHash":"0x5d1e","chainId":10,
+                "timestamp":"2025-10-09T18:59:59.000Z"},
+                "lifiExplorerLink":"https://scan.li.fi/tx/0x24c9","fromAddress":"0xd8da",
+                "toAddress":"0xd8da","tool":"across","status":"DONE","substatus":"COMPLETED",
+                "metadata":{"integrator":"jumper.exchange"},"feeCosts":[]}],
+                "hasPrevious":true,"hasNext":true,"next":"W3siJGRhdGUi","previous":"W3siJGRhdGUj"}"#,
+        );
+        let request = TransfersRequest::for_wallet("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+            .with_status(crate::types::TransferStatusFilter::All)
+            .with_time_range(Some(1_600_000_000), None)
+            .with_from_chain(chains::ETHEREUM)
+            .with_limit(1)
+            .with_next("W3siJGRhdGUh");
+        let page = mock_client(&base).get_transfers(&request).await.unwrap();
+        assert_eq!(page.data.len(), 1);
+        assert_eq!(page.data[0].tool.as_deref(), Some("across"));
+        let receiving = page.data[0].receiving.as_ref().unwrap();
+        assert_eq!(receiving.timestamp, Some(1_760_036_399));
+        assert_eq!(page.data[0].status, crate::types::TransactionStatus::Done);
+        assert!(page.has_next && page.has_previous);
+        assert_eq!(page.next.as_deref(), Some("W3siJGRhdGUi"));
+        let request = server.join().unwrap();
+        assert_eq!(
+            request_line(&request),
+            "GET /v2/analytics/transfers?wallet=0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045\
+             &status=ALL&fromTimestamp=1600000000&fromChain=1&limit=1&next=W3siJGRhdGUh"
+        );
+
+        // The last page has no cursors
+        let page: TransfersResponse =
+            serde_json::from_str(r#"{"data":[],"hasPrevious":false,"hasNext":false}"#).unwrap();
+        assert!(page.data.is_empty() && !page.has_next && page.next.is_none());
+    }
+
+    #[test]
+    fn test_v2_base_url() {
+        assert_eq!(v2_base_url("https://li.quest/v1"), "https://li.quest/v2");
+        assert_eq!(v2_base_url("https://li.quest/v1/"), "https://li.quest/v2");
+        assert_eq!(
+            v2_base_url("https://proxy.example/lifi"),
+            "https://proxy.example/lifi/v2"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_new_endpoints_real() {
+        let client = Client::new().unwrap();
+        let usdc = client.get_token(chains::ETHEREUM, "USDC").await.unwrap();
+        assert_eq!(usdc.address, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+
+        let quote = client
+            .get_quote_to_amount(&ToAmountQuoteRequest::new(
+                chains::ETHEREUM,
+                chains::ARBITRUM,
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+                "10000000",
+                "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            ))
+            .await
+            .unwrap();
+        println!("toAmount quote: send {}", quote.action.from_amount);
+
+        let page = client
+            .get_transfers(
+                &TransfersRequest::for_wallet("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
+                    .with_status(crate::types::TransferStatusFilter::All)
+                    .with_time_range(Some(1_600_000_000), None)
+                    .with_limit(3),
+            )
+            .await
+            .unwrap();
+        println!(
+            "transfers: {} (has_next {})",
+            page.data.len(),
+            page.has_next
+        );
+        for status in [
+            crate::types::TransferStatusFilter::All,
+            crate::types::TransferStatusFilter::Pending,
+        ] {
+            let page = client
+                .get_transfers(&TransfersRequest::new().with_status(status).with_limit(100))
+                .await
+                .unwrap();
+            println!("{status:?} transfers: {}", page.data.len());
+        }
+
+        let status = client
+            .get_gas_status("0x74546ce8aac58d33c212474293dcfeeadecef115847da75131a2ff6692e03b96")
+            .await
+            .unwrap();
+        println!("gas status: {:?}", status.status);
+
+        let quote = client
+            .get_contract_calls_quote(&ContractCallsRequest::new(
+                chains::ARBITRUM,
+                "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+                "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                chains::ETHEREUM,
+                "ETH",
+                "10000000000000000",
+                vec![ContractCall::new(
+                    "10000000000000000",
+                    "0x0000000000000000000000000000000000000000",
+                    "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+                    "0x",
+                    "110000",
+                )
+                .with_to_token_address("0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84")],
+            ))
+            .await
+            .unwrap();
+        println!("contractCalls quote: send {}", quote.action.from_amount);
     }
 }
