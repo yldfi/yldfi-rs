@@ -1,0 +1,1168 @@
+{
+ "DELETE /v1/dashboards/{dashboard_id}/schedule": {
+  "path": "/v1/dashboards/{dashboard_id}/schedule",
+  "method": "DELETE",
+  "sample": {
+   "deleted": true
+  }
+ },
+ "DELETE /v1/folders/{folder_id}": {
+  "path": "/v1/folders/{folder_id}",
+  "method": "DELETE",
+  "sample": {
+   "archived_dashboard_count": 1,
+   "archived_query_count": 1,
+   "deleted_folder_count": 1,
+   "folder_id": "1",
+   "path": "1"
+  }
+ },
+ "DELETE /v1/materialized-views/{name}": {
+  "path": "/v1/materialized-views/{name}",
+  "method": "DELETE",
+  "sample": {
+   "message": "1"
+  }
+ },
+ "DELETE /v1/queries/{query_id}/schedule": {
+  "path": "/v1/queries/{query_id}/schedule",
+  "method": "DELETE",
+  "sample": {
+   "deleted": true
+  }
+ },
+ "DELETE /v1/uploads/{namespace}/{table_name}": {
+  "path": "/v1/uploads/{namespace}/{table_name}",
+  "method": "DELETE",
+  "sample": {
+   "message": "1"
+  }
+ },
+ "DELETE /v1/visualizations/{visualization_id}": {
+  "path": "/v1/visualizations/{visualization_id}",
+  "method": "DELETE",
+  "sample": {
+   "ok": true
+  }
+ },
+ "GET /v1/contracts/submissions": {
+  "path": "/v1/contracts/submissions",
+  "sample": {
+   "next_cursor": "1",
+   "submissions": [
+    {
+     "address": "1",
+     "blockchain_name": "1",
+     "comment": "1",
+     "contract_name": "1",
+     "created_at": "1",
+     "id": "1",
+     "idempotency_key": "1",
+     "project_name": "1",
+     "status": "pending",
+     "submission_type": "new",
+     "updated_at": "1"
+    }
+   ],
+   "total": 1
+  }
+ },
+ "GET /v1/dashboards/by-slug/{owner_handle}/{slug}": {
+  "path": "/v1/dashboards/by-slug/{owner_handle}/{slug}",
+  "sample": {
+   "dashboard_id": 1,
+   "dashboard_url": "1",
+   "is_private": true,
+   "name": "1",
+   "param_widgets": [
+    {
+     "key": "1",
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "query_id": 1,
+     "visualization_widget_id": 1,
+     "widget_id": "1"
+    }
+   ],
+   "slug": "1",
+   "tags": [
+    "1"
+   ],
+   "text_widgets": [
+    {
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "text": "1",
+     "widget_id": 1
+    }
+   ],
+   "visualization_widgets": [
+    {
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "visualization_id": 1,
+     "widget_id": 1
+    }
+   ]
+  }
+ },
+ "GET /v1/dashboards/{dashboard_id}": {
+  "path": "/v1/dashboards/{dashboard_id}",
+  "sample": {
+   "dashboard_id": 1,
+   "dashboard_url": "1",
+   "is_private": true,
+   "name": "1",
+   "param_widgets": [
+    {
+     "key": "1",
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "query_id": 1,
+     "visualization_widget_id": 1,
+     "widget_id": "1"
+    }
+   ],
+   "slug": "1",
+   "tags": [
+    "1"
+   ],
+   "text_widgets": [
+    {
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "text": "1",
+     "widget_id": 1
+    }
+   ],
+   "visualization_widgets": [
+    {
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "visualization_id": 1,
+     "widget_id": 1
+    }
+   ]
+  }
+ },
+ "GET /v1/datasets": {
+  "path": "/v1/datasets",
+  "sample": {
+   "datasets": [
+    {
+     "columns": [
+      {
+       "metadata": {
+        "description": "1",
+        "filtering_column": true
+       },
+       "name": "1",
+       "nullable": true,
+       "type": "1"
+      }
+     ],
+     "created_at": "1",
+     "full_name": "1",
+     "is_private": true,
+     "metadata": null,
+     "owner": {
+      "handle": "1",
+      "type": "1"
+     },
+     "type": "1",
+     "updated_at": "1"
+    }
+   ],
+   "total": 1
+  }
+ },
+ "GET /v1/datasets/{slug}": {
+  "path": "/v1/datasets/{slug}",
+  "sample": {
+   "columns": [
+    {
+     "metadata": {
+      "description": "1",
+      "filtering_column": true
+     },
+     "name": "1",
+     "nullable": true,
+     "type": "1"
+    }
+   ],
+   "created_at": "1",
+   "full_name": "1",
+   "is_private": true,
+   "metadata": null,
+   "owner": {
+    "handle": "1",
+    "type": "1"
+   },
+   "type": "1",
+   "updated_at": "1"
+  }
+ },
+ "GET /v1/endpoints/{handle}/{endpoint_slug}/results": {
+  "path": "/v1/endpoints/{handle}/{endpoint_slug}/results",
+  "sample": {
+   "cancelled_at": "1",
+   "error": {
+    "message": "1",
+    "metadata": {
+     "column": 1,
+     "line": 1
+    },
+    "type": "1"
+   },
+   "execution_ended_at": "1",
+   "execution_id": "1",
+   "execution_started_at": "1",
+   "expires_at": "1",
+   "is_execution_finished": true,
+   "next_offset": 1,
+   "next_uri": "1",
+   "query_id": 1,
+   "result": {
+    "metadata": {
+     "column_names": [
+      "1",
+      "1",
+      "1"
+     ],
+     "column_types": [
+      "1",
+      "1",
+      "1"
+     ],
+     "datapoint_count": 1,
+     "execution_time_millis": 1,
+     "pending_time_millis": 1,
+     "result_set_bytes": 1,
+     "row_count": 1,
+     "total_result_set_bytes": 1,
+     "total_row_count": 1
+    },
+    "rows": [
+     {
+      "key": null
+     }
+    ],
+    "update_type": "1"
+   },
+   "state": "1",
+   "submitted_at": "1"
+  }
+ },
+ "GET /v1/execution/{execution_id}/results": {
+  "path": "/v1/execution/{execution_id}/results",
+  "sample": {
+   "cancelled_at": "1",
+   "error": {
+    "message": "1",
+    "metadata": {
+     "column": 1,
+     "line": 1
+    },
+    "type": "1"
+   },
+   "execution_ended_at": "1",
+   "execution_id": "1",
+   "execution_started_at": "1",
+   "expires_at": "1",
+   "is_execution_finished": true,
+   "next_offset": 1,
+   "next_uri": "1",
+   "query_id": 1,
+   "result": {
+    "metadata": {
+     "column_names": [
+      "1",
+      "1",
+      "1"
+     ],
+     "column_types": [
+      "1",
+      "1",
+      "1"
+     ],
+     "datapoint_count": 1,
+     "execution_time_millis": 1,
+     "pending_time_millis": 1,
+     "result_set_bytes": 1,
+     "row_count": 1,
+     "total_result_set_bytes": 1,
+     "total_row_count": 1
+    },
+    "rows": [
+     {
+      "key": null
+     }
+    ],
+    "update_type": "1"
+   },
+   "state": "1",
+   "submitted_at": "1"
+  }
+ },
+ "GET /v1/execution/{execution_id}/status": {
+  "path": "/v1/execution/{execution_id}/status",
+  "sample": {
+   "cancelled_at": "1",
+   "error": {
+    "message": "1",
+    "metadata": {
+     "column": 1,
+     "line": 1
+    },
+    "type": "1"
+   },
+   "execution_cost_credits": 1,
+   "execution_ended_at": "1",
+   "execution_id": "1",
+   "execution_started_at": "1",
+   "expires_at": "1",
+   "is_execution_finished": true,
+   "max_inflight_interactive_executions": 1,
+   "max_inflight_interactive_reached": 1,
+   "query_id": 1,
+   "queue_position": 1,
+   "result_metadata": {
+    "column_names": [
+     "1",
+     "1",
+     "1"
+    ],
+    "column_types": [
+     "1",
+     "1",
+     "1"
+    ],
+    "datapoint_count": 1,
+    "execution_time_millis": 1,
+    "pending_time_millis": 1,
+    "result_set_bytes": 1,
+    "row_count": 1,
+    "total_result_set_bytes": 1,
+    "total_row_count": 1
+   },
+   "state": "1",
+   "submitted_at": "1"
+  }
+ },
+ "GET /v1/folders": {
+  "path": "/v1/folders",
+  "sample": {
+   "folders": [
+    {
+     "folder_id": "1",
+     "item_count": 1,
+     "name": "1",
+     "path": "1"
+    }
+   ],
+   "next_offset": 1
+  }
+ },
+ "GET /v1/folders/{folder_id}": {
+  "path": "/v1/folders/{folder_id}",
+  "sample": {
+   "folder": {
+    "color": "1",
+    "created_at": "1",
+    "description": "1",
+    "folder_id": "1",
+    "icon": "1",
+    "name": "1",
+    "parent_folder_id": "1",
+    "path": "1",
+    "updated_at": "1"
+   },
+   "has_more_subfolders": true,
+   "items": [
+    {
+     "id": 1,
+     "is_private": true,
+     "name": "1",
+     "type": "query",
+     "updated_at": "1"
+    }
+   ],
+   "next_offset": 1,
+   "subfolders": [
+    {
+     "folder_id": "1",
+     "item_count": 1,
+     "name": "1",
+     "path": "1"
+    }
+   ],
+   "total_items": 1
+  }
+ },
+ "GET /v1/materialized-views": {
+  "path": "/v1/materialized-views",
+  "sample": {
+   "materialized_views": [
+    {
+     "id": "1",
+     "is_private": true,
+     "query_id": 1,
+     "sql_id": "1",
+     "table_size_bytes": 1
+    }
+   ],
+   "next_offset": 1
+  }
+ },
+ "GET /v1/materialized-views/{name}": {
+  "path": "/v1/materialized-views/{name}",
+  "sample": {
+   "id": "1",
+   "is_private": true,
+   "last_execution_ids": [
+    "1"
+   ],
+   "owner_team_id": 1,
+   "owner_user_id": 1,
+   "query_id": 1,
+   "schedule": {
+    "cron_expression": "1",
+    "expires_at": "1",
+    "next_execution_time": "1",
+    "performance": "1"
+   },
+   "sql_id": "1",
+   "table_size_bytes": 1
+  }
+ },
+ "GET /v1/pipelines/executions/{pipeline_execution_id}/status": {
+  "path": "/v1/pipelines/executions/{pipeline_execution_id}/status",
+  "sample": {
+   "error": "1",
+   "node_executions": [
+    {
+     "id": 1,
+     "materialized_view_refresh_status": {
+      "error": "1",
+      "execution_id": "1",
+      "name": "1",
+      "status": "1"
+     },
+     "query_execution_status": {
+      "error": "1",
+      "execution_id": "1",
+      "query_id": 1,
+      "status": "1"
+     }
+    }
+   ],
+   "status": "1"
+  }
+ },
+ "GET /v1/queries": {
+  "path": "/v1/queries",
+  "sample": {
+   "queries": [
+    {
+     "created_at": "1",
+     "description": "1",
+     "id": 1,
+     "name": "1",
+     "owner": "1",
+     "tags": [
+      "1"
+     ],
+     "updated_at": "1"
+    }
+   ],
+   "total": 1
+  }
+ },
+ "GET /v1/queries/{query_id}/visualizations": {
+  "path": "/v1/queries/{query_id}/visualizations",
+  "sample": {
+   "results": [
+    {
+     "created_at": "1",
+     "id": 1,
+     "name": "1",
+     "type": "1",
+     "updated_at": "1"
+    }
+   ],
+   "total_count": 1
+  }
+ },
+ "GET /v1/query/{queryId}": {
+  "path": "/v1/query/{queryId}",
+  "sample": {
+   "contributors": [
+    {
+     "contribution_count": 1,
+     "handle": "1"
+    }
+   ],
+   "description": "1",
+   "is_archived": true,
+   "is_private": true,
+   "is_temp": true,
+   "is_unsaved": true,
+   "name": "1",
+   "owner": "1",
+   "parameters": [
+    {
+     "description": "1",
+     "enumFromResults": {
+      "columnName": "1",
+      "queryId": 1
+     },
+     "enumOptions": [
+      "1"
+     ],
+     "isFreeformAllowed": true,
+     "isMultiselect": true,
+     "key": "1",
+     "type": "1",
+     "value": "1",
+     "values": [
+      "1"
+     ]
+    }
+   ],
+   "query_engine": "1",
+   "query_id": 1,
+   "query_sql": "1",
+   "tags": [
+    "1"
+   ],
+   "version": 1
+  }
+ },
+ "GET /v1/query/{query_id}/pipeline": {
+  "path": "/v1/query/{query_id}/pipeline",
+  "sample": {
+   "pipeline": {
+    "nodes": [
+     {
+      "dependencies": [
+       1
+      ],
+      "id": 1,
+      "materialized_view_refresh": {
+       "name": "1",
+       "performance": "small"
+      },
+      "query_execution": {
+       "performance": "small",
+       "query_id": 1
+      }
+     }
+    ]
+   }
+  }
+ },
+ "GET /v1/query/{query_id}/results": {
+  "path": "/v1/query/{query_id}/results",
+  "sample": {
+   "cancelled_at": "1",
+   "error": {
+    "message": "1",
+    "metadata": {
+     "column": 1,
+     "line": 1
+    },
+    "type": "1"
+   },
+   "execution_ended_at": "1",
+   "execution_id": "1",
+   "execution_started_at": "1",
+   "expires_at": "1",
+   "is_execution_finished": true,
+   "next_offset": 1,
+   "next_uri": "1",
+   "query_id": 1,
+   "result": {
+    "metadata": {
+     "column_names": [
+      "1",
+      "1",
+      "1"
+     ],
+     "column_types": [
+      "1",
+      "1",
+      "1"
+     ],
+     "datapoint_count": 1,
+     "execution_time_millis": 1,
+     "pending_time_millis": 1,
+     "result_set_bytes": 1,
+     "row_count": 1,
+     "total_result_set_bytes": 1,
+     "total_row_count": 1
+    },
+    "rows": [
+     {
+      "key": null
+     }
+    ],
+    "update_type": "1"
+   },
+   "state": "1",
+   "submitted_at": "1"
+  }
+ },
+ "GET /v1/schedules": {
+  "path": "/v1/schedules",
+  "sample": {
+   "schedules": [
+    {
+     "cron_expression": "1",
+     "dashboard_id": 1,
+     "expires_at": "1",
+     "next_execution_time": "1",
+     "performance": "small",
+     "query_id": 1,
+     "type": "query"
+    }
+   ],
+   "total": 1
+  }
+ },
+ "GET /v1/uploads": {
+  "path": "/v1/uploads",
+  "sample": {
+   "next_offset": 1,
+   "tables": [
+    {
+     "columns": [
+      {
+       "metadata": {
+        "key": null
+       },
+       "name": "1",
+       "nullable": true,
+       "type": "1"
+      }
+     ],
+     "created_at": "1",
+     "full_name": "1",
+     "is_private": true,
+     "owner": {
+      "handle": "1",
+      "type": "1"
+     },
+     "purged_at": "1",
+     "table_size_bytes": "1",
+     "updated_at": "1"
+    }
+   ]
+  }
+ },
+ "GET /v1/visualizations/{visualization_id}": {
+  "path": "/v1/visualizations/{visualization_id}",
+  "sample": {
+   "created_at": "1",
+   "description": "1",
+   "id": 1,
+   "name": "1",
+   "options": {
+    "key": null
+   },
+   "query_id": 1,
+   "type": "1",
+   "updated_at": "1"
+  }
+ },
+ "PATCH /v1/dashboards/{dashboard_id}": {
+  "path": "/v1/dashboards/{dashboard_id}",
+  "method": "PATCH",
+  "sample": {
+   "dashboard_id": 1,
+   "dashboard_url": "1",
+   "is_private": true,
+   "name": "1",
+   "param_widgets": [
+    {
+     "key": "1",
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "query_id": 1,
+     "visualization_widget_id": 1,
+     "widget_id": "1"
+    }
+   ],
+   "slug": "1",
+   "tags": [
+    "1"
+   ],
+   "text_widgets": [
+    {
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "text": "1",
+     "widget_id": 1
+    }
+   ],
+   "visualization_widgets": [
+    {
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "visualization_id": 1,
+     "widget_id": 1
+    }
+   ]
+  }
+ },
+ "PATCH /v1/folders/{folder_id}": {
+  "path": "/v1/folders/{folder_id}",
+  "method": "PATCH",
+  "sample": {
+   "color": "1",
+   "created_at": "1",
+   "description": "1",
+   "folder_id": "1",
+   "icon": "1",
+   "name": "1",
+   "parent_folder_id": "1",
+   "path": "1",
+   "updated_at": "1"
+  }
+ },
+ "PATCH /v1/query/{queryId}": {
+  "path": "/v1/query/{queryId}",
+  "method": "PATCH",
+  "sample": {
+   "query_id": 1
+  }
+ },
+ "POST /v1/content/move": {
+  "path": "/v1/content/move",
+  "method": "POST",
+  "sample": {
+   "moved_dashboard_ids": [
+    1
+   ],
+   "moved_query_ids": [
+    1
+   ],
+   "target_folder": {
+    "color": "1",
+    "created_at": "1",
+    "description": "1",
+    "folder_id": "1",
+    "icon": "1",
+    "name": "1",
+    "parent_folder_id": "1",
+    "path": "1",
+    "updated_at": "1"
+   }
+  }
+ },
+ "POST /v1/contracts/decode": {
+  "path": "/v1/contracts/decode",
+  "method": "POST",
+  "sample": {
+   "results": [
+    {
+     "error": "1",
+     "index": 1,
+     "replayed": true,
+     "status": "pending",
+     "submission_id": "1"
+    }
+   ]
+  }
+ },
+ "POST /v1/dashboards": {
+  "path": "/v1/dashboards",
+  "method": "POST",
+  "sample": {
+   "dashboard_id": 1,
+   "dashboard_url": "1",
+   "is_private": true,
+   "name": "1",
+   "param_widgets": [
+    {
+     "key": "1",
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "query_id": 1,
+     "visualization_widget_id": 1,
+     "widget_id": "1"
+    }
+   ],
+   "slug": "1",
+   "tags": [
+    "1"
+   ],
+   "text_widgets": [
+    {
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "text": "1",
+     "widget_id": 1
+    }
+   ],
+   "visualization_widgets": [
+    {
+     "position": {
+      "col": 1,
+      "row": 1,
+      "size_x": 1,
+      "size_y": 1
+     },
+     "visualization_id": 1,
+     "widget_id": 1
+    }
+   ]
+  }
+ },
+ "POST /v1/dashboards/{dashboard_id}/archive": {
+  "path": "/v1/dashboards/{dashboard_id}/archive",
+  "method": "POST",
+  "sample": {
+   "dashboard_id": 1,
+   "ok": true
+  }
+ },
+ "POST /v1/datasets/search": {
+  "path": "/v1/datasets/search",
+  "method": "POST",
+  "sample": {
+   "pagination": {
+    "has_more": true,
+    "limit": 1,
+    "next_offset": 1,
+    "offset": 1
+   },
+   "results": [
+    {
+     "blockchains": [
+      "1"
+     ],
+     "category": "1",
+     "dataset_type": "1",
+     "description": "1",
+     "full_name": "1",
+     "metadata": {
+      "abi_type": "1",
+      "contract_name": "1",
+      "description": "1",
+      "page_rank_score": 1,
+      "project_name": "1",
+      "spell_metadata": [
+       1
+      ],
+      "spell_type": "1"
+     },
+     "owner_scope": "1",
+     "schema": [
+      1
+     ],
+     "visibility": "1"
+    }
+   ],
+   "total": 1
+  }
+ },
+ "POST /v1/datasets/search-by-contract": {
+  "path": "/v1/datasets/search-by-contract",
+  "method": "POST",
+  "sample": {
+   "pagination": {
+    "has_more": true,
+    "limit": 1,
+    "next_offset": 1,
+    "offset": 1
+   },
+   "results": [
+    {
+     "blockchains": [
+      "1"
+     ],
+     "category": "1",
+     "dataset_type": "1",
+     "description": "1",
+     "full_name": "1",
+     "metadata": {
+      "abi_type": "1",
+      "contract_name": "1",
+      "description": "1",
+      "page_rank_score": 1,
+      "project_name": "1",
+      "spell_metadata": [
+       1
+      ],
+      "spell_type": "1"
+     },
+     "owner_scope": "1",
+     "schema": [
+      1
+     ],
+     "visibility": "1"
+    }
+   ],
+   "total": 1
+  }
+ },
+ "POST /v1/execution/{execution_id}/cancel": {
+  "path": "/v1/execution/{execution_id}/cancel",
+  "method": "POST",
+  "sample": {
+   "success": true
+  }
+ },
+ "POST /v1/folders": {
+  "path": "/v1/folders",
+  "method": "POST",
+  "sample": {
+   "color": "1",
+   "created_at": "1",
+   "description": "1",
+   "folder_id": "1",
+   "icon": "1",
+   "name": "1",
+   "parent_folder_id": "1",
+   "path": "1",
+   "updated_at": "1"
+  }
+ },
+ "POST /v1/folders/{folder_id}/move": {
+  "path": "/v1/folders/{folder_id}/move",
+  "method": "POST",
+  "sample": {
+   "color": "1",
+   "created_at": "1",
+   "description": "1",
+   "folder_id": "1",
+   "icon": "1",
+   "name": "1",
+   "parent_folder_id": "1",
+   "path": "1",
+   "updated_at": "1"
+  }
+ },
+ "POST /v1/materialized-views": {
+  "path": "/v1/materialized-views",
+  "method": "POST",
+  "sample": {
+   "execution_id": "1",
+   "name": "1"
+  }
+ },
+ "POST /v1/materialized-views/{name}/refresh": {
+  "path": "/v1/materialized-views/{name}/refresh",
+  "method": "POST",
+  "sample": {
+   "execution_id": "1",
+   "sql_id": "1"
+  }
+ },
+ "POST /v1/pipelines/execute": {
+  "path": "/v1/pipelines/execute",
+  "method": "POST",
+  "sample": {
+   "pipeline_execution_id": "1"
+  }
+ },
+ "POST /v1/queries/{query_id}/visualizations": {
+  "path": "/v1/queries/{query_id}/visualizations",
+  "method": "POST",
+  "sample": {
+   "id": 1
+  }
+ },
+ "POST /v1/query": {
+  "path": "/v1/query",
+  "method": "POST",
+  "sample": {
+   "query_id": 1
+  }
+ },
+ "POST /v1/query/{queryId}/archive": {
+  "path": "/v1/query/{queryId}/archive",
+  "method": "POST",
+  "sample": {
+   "query_id": 1
+  }
+ },
+ "POST /v1/query/{queryId}/private": {
+  "path": "/v1/query/{queryId}/private",
+  "method": "POST",
+  "sample": {
+   "query_id": 1
+  }
+ },
+ "POST /v1/query/{queryId}/unarchive": {
+  "path": "/v1/query/{queryId}/unarchive",
+  "method": "POST",
+  "sample": {
+   "query_id": 1
+  }
+ },
+ "POST /v1/query/{queryId}/unprivate": {
+  "path": "/v1/query/{queryId}/unprivate",
+  "method": "POST",
+  "sample": {
+   "query_id": 1
+  }
+ },
+ "POST /v1/query/{query_id}/execute": {
+  "path": "/v1/query/{query_id}/execute",
+  "method": "POST",
+  "sample": {
+   "execution_id": "1",
+   "state": "1"
+  }
+ },
+ "POST /v1/query/{query_id}/pipeline/execute": {
+  "path": "/v1/query/{query_id}/pipeline/execute",
+  "method": "POST",
+  "sample": {
+   "pipeline_execution_id": "1"
+  }
+ },
+ "POST /v1/sql/execute": {
+  "path": "/v1/sql/execute",
+  "method": "POST",
+  "sample": {
+   "execution_id": "1",
+   "state": "1"
+  }
+ },
+ "POST /v1/uploads": {
+  "path": "/v1/uploads",
+  "method": "POST",
+  "sample": {
+   "already_existed": true,
+   "example_query": "1",
+   "full_name": "1",
+   "message": "1",
+   "namespace": "1",
+   "table_name": "1"
+  }
+ },
+ "POST /v1/uploads/csv": {
+  "path": "/v1/uploads/csv",
+  "method": "POST",
+  "sample": {
+   "full_name": "1",
+   "success": true,
+   "table_name": "1"
+  }
+ },
+ "POST /v1/uploads/{namespace}/{table_name}/clear": {
+  "path": "/v1/uploads/{namespace}/{table_name}/clear",
+  "method": "POST",
+  "sample": {
+   "message": "1"
+  }
+ },
+ "POST /v1/uploads/{namespace}/{table_name}/insert": {
+  "path": "/v1/uploads/{namespace}/{table_name}/insert",
+  "method": "POST",
+  "sample": {
+   "bytes_written": 1,
+   "name": "1",
+   "rows_written": 1
+  }
+ },
+ "POST /v1/usage": {
+  "path": "/v1/usage",
+  "method": "POST",
+  "sample": {
+   "billing_periods": [
+    {
+     "credits_included": 1,
+     "credits_used": 1,
+     "end_date": "1",
+     "start_date": "1"
+    }
+   ],
+   "bytes_allowed": 1,
+   "bytes_used": 1,
+   "private_dashboards": 1,
+   "private_queries": 1
+  }
+ },
+ "PUT /v1/dashboards/{dashboard_id}/schedule": {
+  "path": "/v1/dashboards/{dashboard_id}/schedule",
+  "method": "PUT",
+  "sample": {
+   "created": true,
+   "cron_expression": "1",
+   "dashboard_id": 1,
+   "expires_at": "1",
+   "next_execution_time": "1",
+   "performance": "small",
+   "query_id": 1,
+   "type": "query"
+  }
+ },
+ "PUT /v1/queries/{query_id}/schedule": {
+  "path": "/v1/queries/{query_id}/schedule",
+  "method": "PUT",
+  "sample": {
+   "created": true,
+   "cron_expression": "1",
+   "dashboard_id": 1,
+   "expires_at": "1",
+   "next_execution_time": "1",
+   "performance": "small",
+   "query_id": 1,
+   "type": "query"
+  }
+ },
+ "PUT /v1/visualizations/{visualization_id}": {
+  "path": "/v1/visualizations/{visualization_id}",
+  "method": "PUT",
+  "sample": {
+   "id": 1
+  }
+ }
+}

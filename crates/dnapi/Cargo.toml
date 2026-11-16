@@ -9,6 +9,8 @@ homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/dnapi"
 keywords = ["dune", "analytics", "blockchain", "api", "client"]
 categories = ["api-bindings", "web-programming::http-client"]
 readme = "README.md"
+# Spec test fixtures are large and only used by this repo's tests
+exclude = ["tests/spec_examples*"]
 
 [dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
@@ -20,6 +22,7 @@ tokio = { version = "1", features = ["time"] }
 yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 
 [dev-dependencies]
+yldfi-spec-test = { path = "../spec-test" }
 http = "1"
 wiremock = "0.6"
 tokio = { version = "1", features = ["full", "macros"] }
