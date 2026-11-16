@@ -569,6 +569,134 @@ pub enum OrderStatus {
     Unknown,
 }
 
+/// One element of the `POST /api/v1/orders/by_uids` response
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OrderLookup {
+    /// The order (API shape `{"order": <Order>}`)
+    Order(Box<Order>),
+    /// An order the API found but could not convert
+    /// (API shape `{"error": {"uid": ..., "description": ...}}`)
+    Error(OrderLookupError),
+}
+
+impl OrderLookup {
+    /// The order, if it was returned
+    #[must_use]
+    pub fn order(&self) -> Option<&Order> {
+        match self {
+            OrderLookup::Order(order) => Some(order),
+            OrderLookup::Error(_) => None,
+        }
+    }
+
+    /// The UID of the order or of the failed lookup
+    #[must_use]
+    pub fn uid(&self) -> &str {
+        match self {
+            OrderLookup::Order(order) => &order.uid,
+            OrderLookup::Error(error) => &error.uid,
+        }
+    }
+}
+
+/// Error for one order in a `POST /api/v1/orders/by_uids` response
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct OrderLookupError {
+    /// Order UID
+    pub uid: String,
+    /// What went wrong
+    #[serde(default)]
+    pub description: String,
+}
+
+/// Competition status of an order (`GET /api/v1/orders/{uid}/status`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CompetitionOrderStatus {
+    /// Where the order is in the auction process (API field `type`)
+    #[serde(rename = "type")]
+    pub status: CompetitionStatus,
+    /// Solvers that took part in the latest competition, sorted by score
+    /// ascending, so the last one is the winner. Empty for statuses that
+    /// carry no solver list.
+    #[serde(default, deserialize_with = "null_as_default")]
+    pub value: Vec<SolverExecution>,
+}
+
+/// Auction stage of an order (see `CompetitionOrderStatus` in
+/// cowprotocol/services `openapi.yml`)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum CompetitionStatus {
+    /// Order is open and waiting for an auction
+    Open,
+    /// Order is scheduled for the next auction
+    Scheduled,
+    /// Order is part of the running auction
+    Active,
+    /// Solvers proposed solutions for the order
+    Solved,
+    /// The winning solution is being executed
+    Executing,
+    /// Order was traded
+    Traded,
+    /// Order was cancelled
+    Cancelled,
+    /// A status this version doesn't know, so a new API value doesn't fail
+    /// the whole response
+    #[serde(other)]
+    Unknown,
+}
+
+/// A solver's entry in an order's competition status
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SolverExecution {
+    /// Solver name or on-chain address
+    pub solver: String,
+    /// Amounts the solver proposed to execute; `None` if it did not
+    /// provide a solution for this order
+    #[serde(default)]
+    pub executed_amounts: Option<ExecutedAmounts>,
+}
+
+/// Executed sell and buy amounts (decimal strings, token atoms)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ExecutedAmounts {
+    /// Amount sold
+    pub sell: String,
+    /// Amount bought
+    pub buy: String,
+}
+
+/// Full `appData` document (`GET /api/v1/app_data/{app_data_hash}`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppDataObject {
+    /// The `appData` JSON document, as the string whose hash is the
+    /// `appData` hash
+    pub full_app_data: String,
+}
+
+/// A user's total surplus (`GET /api/v1/users/{address}/total_surplus`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TotalSurplus {
+    /// Total surplus, as a decimal string in native token atoms (wei)
+    #[serde(default)]
+    pub total_surplus: Option<String>,
+}
+
+/// Deserialize `null` as the type's default value
+fn null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 /// API error response
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
