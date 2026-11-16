@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.3.1...lfi-v0.3.2) (2026-11-16)
+
+
+### Features
+
+* **lfi:** add token, toAmount quote, contract calls, transfers and gas status endpoints ([#237](https://github.com/yldfi/yldfi-rs/issues/237)) ([1a3d2a5](https://github.com/yldfi/yldfi-rs/commit/1a3d2a57b155000675e4786042804f4141a825ee))
+
 ## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.3.0...lfi-v0.3.1) (2026-11-16)
 
 

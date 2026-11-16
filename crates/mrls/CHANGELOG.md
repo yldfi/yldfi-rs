@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.3...mrls-v0.3.4) (2026-11-16)
+
+
+### Features
+
+* **mrls:** add wallet insight and historical token score ([#242](https://github.com/yldfi/yldfi-rs/issues/242)) ([0b03f15](https://github.com/yldfi/yldfi-rs/commit/0b03f15d58bc40cbf0f50590e51876f23aa2c0a3))
+
 ## [0.3.3](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.2...mrls-v0.3.3) (2026-11-16)
 
 

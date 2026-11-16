@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/kybr-v0.2.1...kybr-v0.2.2) (2026-11-16)
+
+
+### Features
+
+* **kybr:** add the V1 swap endpoint (route and calldata in one call) ([#239](https://github.com/yldfi/yldfi-rs/issues/239)) ([554327d](https://github.com/yldfi/yldfi-rs/commit/554327d0cfbd85484abe775141a08589278dd4fd))
+
 ## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/kybr-v0.2.0...kybr-v0.2.1) (2026-11-09)
 
 

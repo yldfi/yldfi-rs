@@ -1,6 +1,6 @@
 [package]
 name = "ethcli"
-version = "0.29.4"
+version = "0.29.5"
 edition = "2021"
 rust-version = "1.95"
 description = "Comprehensive Ethereum CLI for logs, transactions, accounts, and contracts"
@@ -89,24 +89,24 @@ chrono = "0.4"  # Timestamp formatting for CEX commands
 
 # API clients
 alcmy = { version = "0.4.1", path = "../alcmy" }
-cgko = { version = "0.3.0", path = "../cgko" }
-dllma = { version = "0.3.0", path = "../dllma" }
-mrls = { version = "0.3.3", path = "../mrls" }
+cgko = { version = "0.3.1", path = "../cgko" }
+dllma = { version = "0.3.1", path = "../dllma" }
+mrls = { version = "0.3.4", path = "../mrls" }
 dnapi = { version = "0.3.2", path = "../dnapi" }
 crv = { version = "0.2.3", path = "../crv" }
-pythc = { version = "0.2.2", path = "../pythc" }
+pythc = { version = "0.2.3", path = "../pythc" }
 tndrly = { version = "0.5.2", path = "../tndrly" }
 yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 
 # DEX aggregator clients
 openoc = { version = "0.2.1", path = "../openoc" }
-cowp = { version = "0.2.2", path = "../cowp" }
-kybr = { version = "0.2.1", path = "../kybr" }
-zrxswap = { version = "0.2.1", path = "../zrxswap" }
+cowp = { version = "0.2.3", path = "../cowp" }
+kybr = { version = "0.2.2", path = "../kybr" }
+zrxswap = { version = "0.2.2", path = "../zrxswap" }
 oinch = { version = "0.2.1", path = "../oinch" }
-lfi = { version = "0.3.1", path = "../lfi" }
-vlra = { version = "0.2.1", path = "../vlra" }
-ensof = { version = "0.2.2", path = "../ensof" }
+lfi = { version = "0.3.2", path = "../lfi" }
+vlra = { version = "0.2.2", path = "../vlra" }
+ensof = { version = "0.2.3", path = "../ensof" }
 
 # Uniswap client (V2, V3, V4)
 unswp = { version = "0.1.8", path = "../unswp" }

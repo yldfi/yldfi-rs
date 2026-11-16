@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.29.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.4...ethcli-v0.29.5) (2026-11-16)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * cgko bumped from 0.3.0 to 0.3.1
+    * dllma bumped from 0.3.0 to 0.3.1
+    * mrls bumped from 0.3.3 to 0.3.4
+    * pythc bumped from 0.2.2 to 0.2.3
+    * cowp bumped from 0.2.2 to 0.2.3
+    * kybr bumped from 0.2.1 to 0.2.2
+    * zrxswap bumped from 0.2.1 to 0.2.2
+    * lfi bumped from 0.3.1 to 0.3.2
+    * vlra bumped from 0.2.1 to 0.2.2
+    * ensof bumped from 0.2.2 to 0.2.3
+
 ## [0.29.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.3...ethcli-v0.29.4) (2026-11-16)
 
 

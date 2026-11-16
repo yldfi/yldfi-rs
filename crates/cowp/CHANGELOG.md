@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/yldfi/yldfi-rs/compare/cowp-v0.2.2...cowp-v0.2.3) (2026-11-16)
+
+
+### Features
+
+* **cowp:** add order status, by-UIDs, by-tx, app data and surplus endpoints ([#234](https://github.com/yldfi/yldfi-rs/issues/234)) ([ac71ba1](https://github.com/yldfi/yldfi-rs/commit/ac71ba11e558ae4f05bee2be3692fc47f9732b06))
+
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/cowp-v0.2.1...cowp-v0.2.2) (2026-11-09)
 
 
