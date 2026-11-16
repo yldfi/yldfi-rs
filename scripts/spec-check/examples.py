@@ -34,9 +34,13 @@ MAX_SAMPLE_DEPTH = 12
 
 
 def resolve(doc, schema):
+    """Follow $refs. A $ref to something the spec does not define (a spec
+    error) resolves to None, so only the operation using it is skipped."""
     while isinstance(schema, dict) and "$ref" in schema:
         node = doc
         for part in schema["$ref"].lstrip("#/").split("/"):
+            if not isinstance(node, dict) or part not in node:
+                return None
             node = node[part]
         schema = node
     return schema
@@ -76,12 +80,16 @@ def sample(doc, schema, pick, example=None, depth=0):
         if schema.get(key):
             return sample(doc, pick(schema[key]), pick, example, depth + 1)
     if schema.get("allOf"):
-        merged = {}
-        for part in schema["allOf"]:
-            value = sample(doc, part, pick, example, depth + 1)
-            if isinstance(value, dict):
+        # Objects merge; anything else (e.g. allOf: [$ref to a string type],
+        # used just to add a description) is that value
+        values = [sample(doc, part, pick, example, depth + 1) for part in schema["allOf"]]
+        objects = [v for v in values if isinstance(v, dict)]
+        if objects and len(objects) == len([v for v in values if v is not None]):
+            merged = {}
+            for value in objects:
                 merged.update(value)
-        return merged
+            return merged
+        return next((v for v in values if v is not None and not isinstance(v, dict)), None)
     if "enum" in schema and schema["enum"]:
         return schema["enum"][0]
     kind = schema.get("type")
