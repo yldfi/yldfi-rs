@@ -5,7 +5,9 @@
 
 use crate::error::{Error, Result};
 use crate::types::{
-    ApiError, Chain, PriceRequest, PriceResponse, QuoteRequest, QuoteResponse, SourcesResponse,
+    ApiError, Chain, ChainsResponse, GaslessPriceResponse, GaslessQuoteResponse,
+    GaslessStatusResponse, PriceRequest, PriceResponse, QuoteRequest, QuoteResponse,
+    SourcesResponse, SupportedChain,
 };
 use reqwest::Client as HttpClient;
 use serde::de::DeserializeOwned;
@@ -411,6 +413,148 @@ impl Client {
         let response: SourcesResponse = self.get(&url, &params).await?;
         Ok(response.sources)
     }
+
+    /// Get an indicative price using AllowanceHolder for approvals
+    ///
+    /// Same as [`get_price`](Self::get_price), but for the AllowanceHolder
+    /// flow (`/swap/allowance-holder/price`): the taker sets a standard
+    /// ERC-20 allowance on `allowance_target` instead of signing a Permit2
+    /// message. 0x recommends this flow for most integrators.
+    pub async fn get_allowance_holder_price(
+        &self,
+        chain: Chain,
+        request: &PriceRequest,
+    ) -> Result<PriceResponse> {
+        let url = format!("{}/swap/allowance-holder/price", self.api_base_url());
+        let mut params = request.to_query_params();
+        self.add_chain_param(chain, &mut params);
+        self.get_swap(&url, &params).await
+    }
+
+    /// Get a firm quote using AllowanceHolder for approvals
+    ///
+    /// Same as [`get_quote`](Self::get_quote), but for the AllowanceHolder
+    /// flow (`/swap/allowance-holder/quote`). Requires a taker. The response
+    /// has no `permit2` data: approve `allowance_target` for the sell token,
+    /// then send `transaction` as is.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use zrxswap::{Client, Chain, QuoteRequest};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), zrxswap::Error> {
+    ///     let client = Client::with_api_key("your-api-key")?;
+    ///
+    ///     let request = QuoteRequest::sell(
+    ///         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
+    ///         "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // WETH
+    ///         "1000000000", // 1000 USDC
+    ///     )
+    ///     .with_taker("0xYourWalletAddress");
+    ///
+    ///     let quote = client
+    ///         .get_allowance_holder_quote(Chain::Ethereum, &request)
+    ///         .await?;
+    ///     println!("Approve: {:?}", quote.allowance_target);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_allowance_holder_quote(
+        &self,
+        chain: Chain,
+        request: &QuoteRequest,
+    ) -> Result<QuoteResponse> {
+        let url = format!("{}/swap/allowance-holder/quote", self.api_base_url());
+        let mut params = request.to_query_params();
+        self.add_chain_param(chain, &mut params);
+        self.get_swap(&url, &params).await
+    }
+
+    /// Get the chains the Swap API supports (`/swap/chains`)
+    ///
+    /// Includes chains this crate's [`Chain`] enum does not list; see
+    /// [`SupportedChain::chain`].
+    pub async fn get_swap_chains(&self) -> Result<Vec<SupportedChain>> {
+        let url = format!("{}/swap/chains", self.api_base_url());
+        let response: ChainsResponse = self.get(&url, &[]).await?;
+        Ok(response.chains)
+    }
+
+    /// Get the chains the Gasless API supports (`/gasless/chains`)
+    pub async fn get_gasless_chains(&self) -> Result<Vec<SupportedChain>> {
+        let url = format!("{}/gasless/chains", self.api_base_url());
+        let response: ChainsResponse = self.get(&url, &[]).await?;
+        Ok(response.chains)
+    }
+
+    /// Get an indicative price for a gasless swap (`/gasless/price`)
+    ///
+    /// Gasless swaps sell an ERC-20 token (not the native token) by
+    /// `sellAmount`; the gas is paid from the sell token.
+    pub async fn get_gasless_price(
+        &self,
+        chain: Chain,
+        request: &PriceRequest,
+    ) -> Result<GaslessPriceResponse> {
+        let url = format!("{}/gasless/price", self.api_base_url());
+        let mut params = request.to_query_params();
+        self.add_chain_param(chain, &mut params);
+        self.get_swap(&url, &params).await
+    }
+
+    /// Get a firm quote for a gasless swap (`/gasless/quote`)
+    ///
+    /// Requires a taker. Returns the EIP-712 trade (and, when needed,
+    /// approval) to sign; submitting the signatures is not supported by
+    /// this crate.
+    pub async fn get_gasless_quote(
+        &self,
+        chain: Chain,
+        request: &QuoteRequest,
+    ) -> Result<GaslessQuoteResponse> {
+        let url = format!("{}/gasless/quote", self.api_base_url());
+        let mut params = request.to_query_params();
+        self.add_chain_param(chain, &mut params);
+        self.get_swap(&url, &params).await
+    }
+
+    /// Get the status of a submitted gasless trade
+    /// (`/gasless/status/{tradeHash}`)
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - The chain the trade was submitted on
+    /// * `trade_hash` - The trade's EIP-712 hash (`trade.hash` of the quote)
+    pub async fn get_gasless_status(
+        &self,
+        chain: Chain,
+        trade_hash: &str,
+    ) -> Result<GaslessStatusResponse> {
+        let url = format!(
+            "{}/gasless/status/{}",
+            self.api_base_url(),
+            encode_path_segment(trade_hash)
+        );
+        let mut params = vec![];
+        self.add_chain_param(chain, &mut params);
+        self.get(&url, &params).await
+    }
+}
+
+/// Percent-encode a value for use as one path segment
+fn encode_path_segment(segment: &str) -> String {
+    let mut out = String::with_capacity(segment.len());
+    for b in segment.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }
 
 /// Decode a swap price/quote body, mapping `liquidityAvailable: false` to
@@ -455,6 +599,203 @@ mod tests {
             ),
             "{err:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_allowance_holder_quote() {
+        use wiremock::matchers::{header, method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/swap/allowance-holder/quote"))
+            .and(query_param("chainId", "8453"))
+            .and(query_param("taker", "0xc"))
+            .and(header("0x-version", "v2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "allowanceTarget": "0x0000000000001ff3684f28c67538d4d072c22734",
+                "blockNumber": "1",
+                "buyAmount": "2", "buyToken": "0xb",
+                "sellAmount": "1", "sellToken": "0xa",
+                "liquidityAvailable": true,
+                "minBuyAmount": "1",
+                "transaction": {"to": "0xd", "data": "0x", "gas": null, "gasPrice": "1", "value": "0"},
+                "zid": "0x1"
+            })))
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        let request = QuoteRequest::sell("0xa", "0xb", "1").with_taker("0xc");
+        let quote = client
+            .get_allowance_holder_quote(Chain::Base, &request)
+            .await
+            .unwrap();
+        assert_eq!(quote.buy_amount, "2");
+        assert!(quote.permit2.is_none());
+        assert_eq!(quote.transaction.unwrap().to, "0xd");
+    }
+
+    #[tokio::test]
+    async fn test_allowance_holder_price_no_route() {
+        use crate::error::DomainError;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/swap/allowance-holder/price"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(r#"{"liquidityAvailable":false,"zid":"0x1"}"#),
+            )
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        let err = client
+            .get_allowance_holder_price(Chain::Ethereum, &PriceRequest::sell("0xa", "0xb", "1"))
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            crate::error::ApiError::Domain(DomainError::NoRouteFound)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_chains() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        for route in ["/swap/chains", "/gasless/chains"] {
+            Mock::given(method("GET"))
+                .and(path(route))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "chains": [
+                        {"chainId": 1, "chainName": "Ethereum"},
+                        {"chainId": 999999, "chainName": "Somechain"}
+                    ],
+                    "zid": "0x1"
+                })))
+                .mount(&server)
+                .await;
+        }
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        for chains in [
+            client.get_swap_chains().await.unwrap(),
+            client.get_gasless_chains().await.unwrap(),
+        ] {
+            assert_eq!(chains.len(), 2);
+            assert_eq!(chains[0].chain_name, "Ethereum");
+            assert_eq!(chains[0].chain(), Some(Chain::Ethereum));
+            assert_eq!(chains[1].chain(), None);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_gasless_quote() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/gasless/quote"))
+            .and(query_param("chainId", "137"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "allowanceTarget": null,
+                "approval": null,
+                "blockNumber": "1",
+                "buyAmount": "2", "buyToken": "0xb",
+                "sellAmount": "1", "sellToken": "0xa",
+                "fees": {
+                    "integratorFee": null,
+                    "integratorFees": null,
+                    "zeroExFee": {"amount": "3", "token": "0xb", "type": "volume"},
+                    "gasFee": {"amount": "4", "token": "0xb", "type": "gas"}
+                },
+                "liquidityAvailable": true,
+                "target": "0xe",
+                "trade": {
+                    "type": "settler_metatransaction",
+                    "hash": "0xfeed",
+                    "eip712": {"types": {}, "domain": {"chainId": 137}, "message": {}, "primaryType": "x"}
+                },
+                "zid": "0x1"
+            })))
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        let request = QuoteRequest::sell("0xa", "0xb", "1").with_taker("0xc");
+        let quote = client
+            .get_gasless_quote(Chain::Polygon, &request)
+            .await
+            .unwrap();
+        assert!(quote.approval.is_none());
+        let trade = quote.trade.unwrap();
+        assert_eq!(trade.kind, "settler_metatransaction");
+        assert_eq!(trade.hash, "0xfeed");
+        let fees = quote.fees.unwrap();
+        assert_eq!(fees.gas_fee.unwrap().amount, "4");
+        assert_eq!(fees.zero_ex_fee.unwrap().fee_type, "volume");
+    }
+
+    #[tokio::test]
+    async fn test_gasless_price() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/gasless/price"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "buyAmount": "2", "buyToken": "0xb",
+                "sellAmount": "1", "sellToken": "0xa",
+                "liquidityAvailable": true,
+                "zid": "0x1"
+            })))
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        let price = client
+            .get_gasless_price(Chain::Ethereum, &PriceRequest::sell("0xa", "0xb", "1"))
+            .await
+            .unwrap();
+        assert_eq!(price.buy_amount, "2");
+        assert!(price.fees.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_gasless_status() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/gasless/status/0xabc"))
+            .and(query_param("chainId", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status": "failed",
+                "reason": "order_expired",
+                "transactions": [{"hash": "0xt", "timestamp": 1_700_000_000}],
+                "zid": "0x1"
+            })))
+            .mount(&server)
+            .await;
+        let client = Client::with_config(Config::new().base_url(server.uri())).unwrap();
+        let status = client
+            .get_gasless_status(Chain::Ethereum, "0xabc")
+            .await
+            .unwrap();
+        assert_eq!(status.status, "failed");
+        assert_eq!(status.reason.as_deref(), Some("order_expired"));
+        assert_eq!(status.transactions[0].timestamp, 1_700_000_000);
+        assert!(status.approval_transactions.is_empty());
+    }
+
+    #[test]
+    fn test_encode_path_segment() {
+        assert_eq!(encode_path_segment("0xAbC-_.~"), "0xAbC-_.~");
+        assert_eq!(encode_path_segment("a/b?c"), "a%2Fb%3Fc");
     }
 
     #[test]

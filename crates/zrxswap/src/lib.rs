@@ -184,9 +184,11 @@ pub mod types;
 pub use client::{Client, Config, DEFAULT_BASE_URL};
 pub use error::{Error, Result};
 pub use types::{
-    AllowanceIssue, ApiError, BalanceIssue, Chain, LiquiditySource, Permit2Data, PriceRequest,
-    PriceResponse, QuoteIssues, QuoteRequest, QuoteResponse, Route, RouteFill, RouteToken,
-    SourcesResponse, TokenMetadata, Transaction, ValidationError,
+    AllowanceIssue, ApiError, BalanceIssue, Chain, ChainsResponse, Fee, Fees, GaslessPriceResponse,
+    GaslessQuoteResponse, GaslessSignable, GaslessStatusResponse, GaslessTransaction,
+    LiquiditySource, Permit2Data, PriceRequest, PriceResponse, QuoteIssues, QuoteRequest,
+    QuoteResponse, Route, RouteFill, RouteToken, SourcesResponse, SupportedChain, TokenMetadata,
+    Transaction, ValidationError,
 };
 
 // Re-export common utilities

@@ -720,6 +720,220 @@ pub struct SourcesResponse {
     pub zid: Option<String>,
 }
 
+/// Response from the `/swap/chains` and `/gasless/chains` endpoints
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ChainsResponse {
+    /// Chains the endpoint family supports
+    pub chains: Vec<SupportedChain>,
+    /// 0x request ID
+    #[serde(default)]
+    pub zid: Option<String>,
+}
+
+/// A chain supported by the 0x API
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SupportedChain {
+    /// Chain ID (e.g. `1` for Ethereum)
+    pub chain_id: u64,
+    /// Chain name as 0x spells it (e.g. `"Ethereum"`)
+    pub chain_name: String,
+}
+
+impl SupportedChain {
+    /// The matching [`Chain`], if this crate knows it
+    #[must_use]
+    pub const fn chain(&self) -> Option<Chain> {
+        Chain::from_chain_id(self.chain_id)
+    }
+}
+
+/// A fee charged on a swap
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct Fee {
+    /// Amount in base units of `token`
+    pub amount: String,
+    /// Token the fee is taken in
+    pub token: String,
+    /// Fee type: `"volume"` or `"gas"`
+    #[serde(rename = "type")]
+    pub fee_type: String,
+}
+
+/// Fees charged on a swap
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct Fees {
+    /// The integrator fee (the first one when several are charged)
+    #[serde(default)]
+    pub integrator_fee: Option<Fee>,
+    /// Every integrator fee, when several recipients are set
+    #[serde(default)]
+    pub integrator_fees: Option<Vec<Fee>>,
+    /// 0x's own fee
+    #[serde(default)]
+    pub zero_ex_fee: Option<Fee>,
+    /// Gas fee taken from the trade (gasless swaps)
+    #[serde(default)]
+    pub gas_fee: Option<Fee>,
+}
+
+/// Indicative price for a gasless swap (`/gasless/price`)
+///
+/// Same request parameters as [`QuoteRequest`]; gasless swaps sell an
+/// ERC-20 (not the native token) and take `sellAmount`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GaslessPriceResponse {
+    /// Address to set the sell token allowance for, when one is needed
+    #[serde(default)]
+    pub allowance_target: Option<String>,
+    /// Block number the price was computed at
+    #[serde(default)]
+    pub block_number: Option<String>,
+    /// Amount of buy token
+    pub buy_amount: String,
+    /// Buy token address
+    pub buy_token: String,
+    /// Amount of sell token
+    pub sell_amount: String,
+    /// Sell token address
+    pub sell_token: String,
+    /// Fees charged on the swap
+    #[serde(default)]
+    pub fees: Option<Fees>,
+    /// Issues/warnings about the price
+    #[serde(default)]
+    pub issues: Option<QuoteIssues>,
+    /// Whether liquidity is available for this swap
+    #[serde(default)]
+    pub liquidity_available: Option<bool>,
+    /// Minimum buy amount after slippage
+    #[serde(default)]
+    pub min_buy_amount: Option<String>,
+    /// Route information
+    #[serde(default)]
+    pub route: Option<Route>,
+    /// Settler contract the trade will execute through
+    #[serde(default)]
+    pub target: Option<String>,
+    /// Token tax metadata
+    #[serde(default)]
+    pub token_metadata: Option<TokenMetadataWrapper>,
+    /// 0x request ID
+    #[serde(default)]
+    pub zid: Option<String>,
+}
+
+/// Firm quote for a gasless swap (`/gasless/quote`)
+///
+/// Sign `trade.eip712` (and `approval.eip712` when present) and submit the
+/// signatures to `/gasless/submit`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GaslessQuoteResponse {
+    /// Address to set the sell token allowance for, when one is needed
+    #[serde(default)]
+    pub allowance_target: Option<String>,
+    /// Gasless approval to sign, when the sell token supports one and the
+    /// allowance is missing
+    #[serde(default)]
+    pub approval: Option<GaslessSignable>,
+    /// Block number the quote was computed at
+    #[serde(default)]
+    pub block_number: Option<String>,
+    /// Amount of buy token
+    pub buy_amount: String,
+    /// Buy token address
+    pub buy_token: String,
+    /// Amount of sell token
+    pub sell_amount: String,
+    /// Sell token address
+    pub sell_token: String,
+    /// Fees charged on the swap
+    #[serde(default)]
+    pub fees: Option<Fees>,
+    /// Issues/warnings about the quote
+    #[serde(default)]
+    pub issues: Option<QuoteIssues>,
+    /// Whether liquidity is available for this swap
+    #[serde(default)]
+    pub liquidity_available: Option<bool>,
+    /// Minimum buy amount after slippage
+    #[serde(default)]
+    pub min_buy_amount: Option<String>,
+    /// Route information
+    #[serde(default)]
+    pub route: Option<Route>,
+    /// Settler contract the trade will execute through
+    #[serde(default)]
+    pub target: Option<String>,
+    /// Token tax metadata
+    #[serde(default)]
+    pub token_metadata: Option<TokenMetadataWrapper>,
+    /// The trade to sign
+    #[serde(default)]
+    pub trade: Option<GaslessSignable>,
+    /// 0x request ID
+    #[serde(default)]
+    pub zid: Option<String>,
+}
+
+/// EIP-712 payload of a gasless approval or trade
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GaslessSignable {
+    /// Kind, e.g. `"permit"` or `"settler_metatransaction"`
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// EIP-712 hash of the payload
+    pub hash: String,
+    /// EIP-712 typed data (`types`, `domain`, `message`, `primaryType`) to sign
+    pub eip712: serde_json::Value,
+}
+
+/// Status of a submitted gasless trade (`/gasless/status/{tradeHash}`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GaslessStatusResponse {
+    /// `pending`, `submitted`, `succeeded`, `confirmed` or `failed`
+    pub status: String,
+    /// Why the trade failed, when `status` is `failed` (e.g.
+    /// `"order_expired"`)
+    #[serde(default)]
+    pub reason: Option<String>,
+    /// Trade transactions submitted on chain
+    #[serde(default)]
+    pub transactions: Vec<GaslessTransaction>,
+    /// Gasless approval transactions submitted on chain
+    #[serde(default)]
+    pub approval_transactions: Vec<GaslessTransaction>,
+    /// 0x request ID
+    #[serde(default)]
+    pub zid: Option<String>,
+}
+
+/// A transaction submitted for a gasless trade
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct GaslessTransaction {
+    /// Transaction hash
+    pub hash: String,
+    /// Unix timestamp the transaction was submitted at
+    pub timestamp: u64,
+}
+
 /// API error response
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
