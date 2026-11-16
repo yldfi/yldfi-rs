@@ -101,9 +101,7 @@
         }
        }
       ],
-      "attester_slashings": [
-       {}
-      ],
+      "attester_slashings": [],
       "attestations": [
        {
         "aggregation_bits": "1",
@@ -124,19 +122,13 @@
         "committee_bits": "1"
        }
       ],
-      "deposits": [
-       {}
-      ],
-      "voluntary_exits": [
-       {}
-      ],
+      "deposits": [],
+      "voluntary_exits": [],
       "sync_aggregate": {
        "sync_committee_bits": "1",
        "sync_committee_signature": "1"
       },
-      "bls_to_execution_changes": [
-       {}
-      ],
+      "bls_to_execution_changes": [],
       "blob_kzg_commitments": [
        "1"
       ],
@@ -160,15 +152,9 @@
        "withdrawals_root": "1"
       },
       "execution_requests": {
-       "deposits": [
-        {}
-       ],
-       "withdrawals": [
-        {}
-       ],
-       "consolidations": [
-        {}
-       ]
+       "deposits": [],
+       "withdrawals": [],
+       "consolidations": []
       }
      }
     },
@@ -825,9 +811,7 @@
  },
  "GET /eth/v1/debug/fork_choice": {
   "path": "/eth/v1/debug/fork_choice",
-  "sample": {
-   "data": {}
-  }
+  "sample": {}
  },
  "GET /eth/v1/node/peer_count": {
   "path": "/eth/v1/node/peer_count",
@@ -1060,12 +1044,8 @@
        "block_hash": "1"
       },
       "graffiti": "1",
-      "proposer_slashings": [
-       {}
-      ],
-      "attester_slashings": [
-       {}
-      ],
+      "proposer_slashings": [],
+      "attester_slashings": [],
       "attestations": [
        {
         "aggregation_bits": "0xfffffffbffffffff...",
@@ -1086,19 +1066,13 @@
         "committee_bits": "0xffffffffffffffff"
        }
       ],
-      "deposits": [
-       {}
-      ],
-      "voluntary_exits": [
-       {}
-      ],
+      "deposits": [],
+      "voluntary_exits": [],
       "sync_aggregate": {
        "sync_committee_bits": "0x01",
        "sync_committee_signature": "0xa5fc41bbabe5c6bf0e118146e6d517..."
       },
-      "bls_to_execution_changes": [
-       {}
-      ],
+      "bls_to_execution_changes": [],
       "blob_kzg_commitments": [
        "1"
       ],
@@ -1209,8 +1183,7 @@
   "sample": {
    "version": "1",
    "execution_optimistic": true,
-   "finalized": true,
-   "data": {}
+   "finalized": true
   }
  },
  "GET /eth/v2/validator/aggregate_attestation": {
