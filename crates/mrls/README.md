@@ -15,14 +15,14 @@
 
 ## Features
 
-- **Wallet API** - Native balances, token balances, transactions, approvals, net worth, profitability
+- **Wallet API** - Native balances, token balances, transactions, approvals, net worth, profitability, insight metrics
 - **Token API** - Metadata, prices, transfers, swaps, pairs, holders, search, trending
 - **NFT API** - NFT metadata, transfers, owners, trades, floor prices, collections
 - **DeFi API** - Positions and protocol summaries (legacy pair price/reserves/address helpers are deprecated)
 - **Block API** - Block data, timestamps, date-to-block lookups
 - **Transaction API** - Transaction details, decoded calls, internal transactions
 - **Resolve API** - ENS, Unstoppable Domains, domain resolution
-- **Token Analytics API** - Batch and timeseries analytics (`client.analytics()`), per-token analytics and scores (`client.discovery()`)
+- **Token Analytics API** - Batch and timeseries analytics (`client.analytics()`), per-token analytics, scores and score history (`client.discovery()`)
 - **Entities API** - Wallet/protocol/exchange labels and categories
 
 ## Removed Moralis Endpoints

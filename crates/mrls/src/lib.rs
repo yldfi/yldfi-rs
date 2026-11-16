@@ -172,7 +172,7 @@ pub use resolve::ResolveApi;
 pub use token::TokenApi;
 pub use transaction::{TransactionApi, TransactionQuery};
 pub use utils::{UtilsApi, UtilsQuery};
-pub use wallet::{WalletApi, WalletQuery};
+pub use wallet::{WalletApi, WalletInsightQuery, WalletQuery};
 
 /// Result type alias for this crate
 pub type Result<T> = std::result::Result<T, Error>;
