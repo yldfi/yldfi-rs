@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.29.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.5...ethcli-v0.29.6) (2026-11-16)
+
+
+### Features
+
+* **ethcli:** add gecko RWA/wallet/news, llama yields v2 and moralis insight commands ([#247](https://github.com/yldfi/yldfi-rs/issues/247)) ([57dbc2e](https://github.com/yldfi/yldfi-rs/commit/57dbc2e06325c90243e7221660ac20ee649b686d))
+* **ethcli:** expose new LI.FI, CoW, Enso, 0x, Kyber, Velora and Pyth endpoints ([#245](https://github.com/yldfi/yldfi-rs/issues/245)) ([bd7a507](https://github.com/yldfi/yldfi-rs/commit/bd7a5076731632ac8ebf22f43c84375e3962333e))
+
 ## [0.29.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.4...ethcli-v0.29.5) (2026-11-16)
 
 
