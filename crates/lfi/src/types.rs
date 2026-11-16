@@ -8,6 +8,40 @@ use serde::{Deserialize, Serialize};
 /// Chain ID type - uses numeric chain IDs
 pub type ChainId = u64;
 
+/// A count, duration or price LI.FI sends as an integer, but sometimes as a
+/// fraction (one chain reports gas prices like `1.5`; route steps report
+/// `executionDuration` like `1.5`) or a numeric string. Rounded to the
+/// nearest integer, so one fractional value cannot fail a whole response.
+fn opt_u64_rounded<'de, D>(deserializer: D) -> std::result::Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    let rounded = |v: f64| {
+        if v.is_finite() && v >= 0.0 && v <= u64::MAX as f64 {
+            Ok(Some(v.round() as u64))
+        } else {
+            Err(D::Error::custom(format!(
+                "expected a non-negative number, got {v}"
+            )))
+        }
+    };
+    match <serde_json::Value as serde::Deserialize>::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(None),
+        // Whole numbers are read exactly; only fractions go through f64
+        serde_json::Value::Number(n) => match n.as_u64() {
+            Some(v) => Ok(Some(v)),
+            None => rounded(n.as_f64().unwrap_or(f64::NAN)),
+        },
+        serde_json::Value::String(s) if s.trim().is_empty() => Ok(None),
+        serde_json::Value::String(s) => match s.trim().parse::<u64>() {
+            Ok(v) => Ok(Some(v)),
+            Err(_) => rounded(s.trim().parse::<f64>().map_err(D::Error::custom)?),
+        },
+        other => Err(D::Error::custom(format!("expected a number, got {other}"))),
+    }
+}
+
 /// Serialize an optional list as a single comma-separated value.
 ///
 /// `serde_urlencoded` (used for GET query strings) cannot serialize sequences,
@@ -655,7 +689,11 @@ pub struct Route {
     )]
     pub gas_cost_usd: Option<String>,
     /// Total execution time in seconds
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "opt_u64_rounded"
+    )]
     pub execution_duration: Option<u64>,
     /// Tags for this route
     #[serde(default)]
@@ -806,7 +844,11 @@ pub struct Estimate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval_address: Option<String>,
     /// Execution duration in seconds
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "opt_u64_rounded"
+    )]
     pub execution_duration: Option<u64>,
     /// Fee costs
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1089,7 +1131,11 @@ pub struct TransactionInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub included_steps: Option<Vec<serde_json::Value>>,
     /// Timestamp
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "opt_u64_rounded"
+    )]
     pub timestamp: Option<u64>,
 }
 
@@ -1452,16 +1498,32 @@ pub struct ToolsResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GasPrice {
     /// Standard gas price (wei)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "opt_u64_rounded"
+    )]
     pub standard: Option<u64>,
     /// Fast gas price (wei)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "opt_u64_rounded"
+    )]
     pub fast: Option<u64>,
     /// Fastest gas price (wei)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "opt_u64_rounded"
+    )]
     pub fastest: Option<u64>,
     /// Last updated timestamp (unix seconds)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "opt_u64_rounded"
+    )]
     pub last_updated: Option<u64>,
 }
 
@@ -1486,6 +1548,38 @@ pub struct ApiError {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn measurements_accept_fractions_and_strings() {
+        // Shapes seen in live /gas/prices and /advanced/routes responses
+        let g: GasPrice = serde_json::from_str(
+            r#"{"standard":1,"fast":1.5,"fastest":"2","lastUpdated":1794811560}"#,
+        )
+        .unwrap();
+        assert_eq!((g.standard, g.fast, g.fastest), (Some(1), Some(2), Some(2)));
+        assert_eq!(g.last_updated, Some(1_794_811_560));
+        let g: GasPrice = serde_json::from_str(r#"{"fast":null}"#).unwrap();
+        assert_eq!(g.fast, None);
+        assert!(serde_json::from_str::<GasPrice>(r#"{"fast":-1}"#).is_err());
+        let big: GasPrice = serde_json::from_str(r#"{"fast":325078318000}"#).unwrap();
+        assert_eq!(big.fast, Some(325_078_318_000));
+    }
+
+    #[test]
+    fn supported_chains_read_live_shapes() {
+        // Trimmed from a live /tools response: bridges list chain pairs,
+        // exchanges list chain IDs
+        let entries: Vec<SupportedChainEntry> =
+            serde_json::from_str(r#"[{"fromChainId":1,"toChainId":10},137]"#).unwrap();
+        assert!(matches!(
+            entries[0],
+            SupportedChainEntry::Pair(SupportedChainPair {
+                from_chain_id: 1,
+                to_chain_id: 10
+            })
+        ));
+        assert!(matches!(entries[1], SupportedChainEntry::Single(137)));
+    }
+
     #[test]
     fn transaction_status_tolerates_new_values() {
         use super::TransactionStatus;
