@@ -609,9 +609,7 @@
      "details_visible": true,
      "include_in_transaction_listing": true,
      "verification_type": "1",
-     "previous_versions": [
-      {}
-     ],
+     "previous_versions": [],
      "added_at": "1"
     }
    ],
@@ -663,9 +661,7 @@
      "details_visible": true,
      "include_in_transaction_listing": true,
      "verification_type": "1",
-     "previous_versions": [
-      {}
-     ],
+     "previous_versions": [],
      "added_at": "1"
     }
    ]
@@ -983,7 +979,6 @@
     "created_at": "1",
     "last_push_at": "1",
     "number_of_users": 1,
-    "options": {},
     "owner": {
      "id": "1",
      "username": "1",
@@ -1624,7 +1619,6 @@
     "created_at": "1",
     "last_push_at": "1",
     "number_of_users": 1,
-    "options": {},
     "owner": {
      "id": "1",
      "username": "1",
@@ -4194,7 +4188,6 @@
        ]
       },
       "customSource": {
-       "compilerInfo": {},
        "customSourceData": [
         {
          "name": "1",
@@ -4228,7 +4221,6 @@
        "selector": "1",
        "signature": "1"
       },
-      "functionInputs": {},
       "contractAbiImport": "1",
       "from": "1",
       "gas": "1",
@@ -4276,7 +4268,6 @@
        ]
       },
       "customSource": {
-       "compilerInfo": {},
        "customSourceData": [
         {
          "name": "1",
@@ -5518,7 +5509,6 @@
      "created_at": "1",
      "last_push_at": "1",
      "number_of_users": 1,
-     "options": {},
      "owner": {
       "id": "1",
       "username": "1",
@@ -5830,7 +5820,6 @@
      "parameters": [],
      "intrinsic_gas": 1,
      "refund_gas": 1,
-     "call_trace": {},
      "stack_trace": [],
      "logs": [],
      "state_diff": [],
@@ -5867,7 +5856,6 @@
     "status": true,
     "access_list": [],
     "queue_origin": "1",
-    "block_header": {},
     "deposit_tx": true,
     "system_tx": true,
     "error_message": "1",
@@ -5910,8 +5898,6 @@
      "compiler_version": "1",
      "optimizations_used": true,
      "optimization_runs": 1,
-     "libraries": {},
-     "compiler_settings": {},
      "deployed_bytecode": "1",
      "creation_bytecode": "1",
      "data": {
@@ -5931,8 +5917,7 @@
      "creation_tx": "1",
      "creator_address": "1",
      "language": "solidity",
-     "in_project": true,
-     "token_info": {}
+     "in_project": true
     }
    ],
    "generated_access_list": [
@@ -5997,7 +5982,6 @@
        "parameters": [],
        "intrinsic_gas": 1,
        "refund_gas": 1,
-       "call_trace": {},
        "stack_trace": [],
        "logs": [],
        "balance_diff": [
@@ -6057,8 +6041,6 @@
       "status": true,
       "access_list": [],
       "queue_origin": "1",
-      "block_header": {},
-      "state_overrides": {},
       "deposit_tx": true,
       "system_tx": true,
       "nonce": 1,
@@ -6100,8 +6082,6 @@
        "compiler_version": "1",
        "optimizations_used": true,
        "optimization_runs": 1,
-       "libraries": {},
-       "compiler_settings": {},
        "deployed_bytecode": "1",
        "creation_bytecode": "1",
        "data": {
@@ -6268,7 +6248,6 @@
     "created_at": "1",
     "last_push_at": "1",
     "number_of_users": 1,
-    "options": {},
     "owner": {
      "id": "1",
      "username": "1",
