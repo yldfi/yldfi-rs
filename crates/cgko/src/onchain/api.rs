@@ -2,13 +2,15 @@
 
 use super::types::{
     DexesResponse, HoldersChartResponse, LiquidityEventsOptions, LiquidityEventsResponse,
-    MegafilterOptions, NetworksResponse, OhlcvOptions, OhlcvResponse, OnchainCategoriesResponse,
-    PoolInfoResponse, PoolResponse, PoolsResponse, TokenHoldersResponse, TokenInfoResponse,
-    TokenOhlcvResponse, TokenPriceResponse, TokenResponse, TokenTradersResponse,
-    TokenTradesResponse, TokensResponse, TradesOptions, TradesResponse,
+    MegafilterOptions, NetworkTokensResponse, NetworksResponse, OhlcvOptions, OhlcvResponse,
+    OnchainCategoriesResponse, PoolInfoResponse, PoolResponse, PoolsResponse,
+    SimpleTokenPriceResponse, TokenHoldersResponse, TokenInfoResponse, TokenOhlcvResponse,
+    TokenPriceOptions, TokenPriceResponse, TokenResponse, TokenTradersResponse,
+    TokenTradesResponse, TokensMultiNetworkOptions, TokensResponse, TradesOptions, TradesResponse,
 };
 use crate::client::Client;
 use crate::error::Result;
+use crate::query::Query;
 
 /// Onchain (`GeckoTerminal`) API
 pub struct OnchainApi<'a> {
@@ -78,6 +80,69 @@ impl<'a> OnchainApi<'a> {
             network,
             addresses.join(",")
         );
+        self.client.get(&path).await
+    }
+
+    /// Get token prices on one network, with optional market cap, 24h
+    /// volume, 24h price change and total reserve
+    ///
+    /// The response maps are keyed by token address.
+    pub async fn token_price_with_options(
+        &self,
+        network: &str,
+        addresses: &[&str],
+        options: &TokenPriceOptions,
+    ) -> Result<SimpleTokenPriceResponse> {
+        let path = format!(
+            "/onchain/simple/networks/{}/token_price/{}{}",
+            network,
+            addresses.join(","),
+            options.to_query_string()
+        );
+        self.client.get(&path).await
+    }
+
+    /// Get token prices across networks in one request (Enterprise plan
+    /// only)
+    ///
+    /// # Arguments
+    /// * `tokens` - Up to 50 `network_id:token_address` pairs, e.g.
+    ///   `eth:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2`; networks can be
+    ///   mixed. The response maps are keyed by the same pairs.
+    ///
+    /// An unknown network fails the whole request with `400`; a token
+    /// address that cannot be resolved is left out of the response.
+    pub async fn token_price_multi_network(
+        &self,
+        tokens: &[&str],
+        options: &TokenPriceOptions,
+    ) -> Result<SimpleTokenPriceResponse> {
+        let tokens = to_strings(tokens);
+        let query = options
+            .add_to(Query::new().list("tokens", Some(&tokens)))
+            .finish();
+        let path = format!("/onchain/simple/token_price/multi{query}");
+        self.client.get(&path).await
+    }
+
+    /// Get token data across networks in one request (Enterprise plan only)
+    ///
+    /// # Arguments
+    /// * `tokens` - Up to 50 `network_id:token_address` pairs; networks can
+    ///   be mixed. Each token's `attributes.network` names its network.
+    ///
+    /// An unknown network fails the whole request with `400`; a token
+    /// address that cannot be resolved is left out of the response.
+    pub async fn tokens_multi_network(
+        &self,
+        tokens: &[&str],
+        options: &TokensMultiNetworkOptions,
+    ) -> Result<NetworkTokensResponse> {
+        let tokens = to_strings(tokens);
+        let query = options
+            .add_to(Query::new().list("tokens", Some(&tokens)))
+            .finish();
+        let path = format!("/onchain/tokens/multi{query}");
         self.client.get(&path).await
     }
 
@@ -163,6 +228,34 @@ impl<'a> OnchainApi<'a> {
         let path = format!(
             "/onchain/networks/{network}/pools/{pool_address}/trades{}",
             options.to_query_string()
+        );
+        self.client.get(&path).await
+    }
+
+    /// Get pool trades between two times (Analyst plan and above)
+    ///
+    /// # Arguments
+    /// * `from`, `to` - Window ends, both inclusive, as an ISO date
+    ///   (`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`) or a Unix timestamp; at most 30
+    ///   days apart and not in the future
+    ///
+    /// Page with [`TradesOptions::cursor`] and `meta.next_cursor`.
+    /// [`TradesOptions::trading_period`] does not apply here and is not sent.
+    pub async fn pool_trades_range(
+        &self,
+        network: &str,
+        pool_address: &str,
+        from: &str,
+        to: &str,
+        options: &TradesOptions,
+    ) -> Result<TradesResponse> {
+        let options = TradesOptions {
+            trading_period: None,
+            ..options.clone()
+        };
+        let path = format!(
+            "/onchain/networks/{network}/pools/{pool_address}/trades/range{}",
+            range_query(from, to, &options)
         );
         self.client.get(&path).await
     }
@@ -373,6 +466,37 @@ impl<'a> OnchainApi<'a> {
         self.client.get(&path).await
     }
 
+    /// Get token trades across all pools between two times (Analyst plan
+    /// and above)
+    ///
+    /// # Arguments
+    /// * `from`, `to` - Window ends, both inclusive, as an ISO date
+    ///   (`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`) or a Unix timestamp; at most 30
+    ///   days apart and not in the future
+    ///
+    /// Page with [`TradesOptions::cursor`] and `meta.next_cursor`.
+    /// [`TradesOptions::token`] and [`TradesOptions::trading_period`] do not
+    /// apply here and are not sent.
+    pub async fn token_trades_range(
+        &self,
+        network: &str,
+        token_address: &str,
+        from: &str,
+        to: &str,
+        options: &TradesOptions,
+    ) -> Result<TokenTradesResponse> {
+        let options = TradesOptions {
+            token: None,
+            trading_period: None,
+            ..options.clone()
+        };
+        let path = format!(
+            "/onchain/networks/{network}/tokens/{token_address}/trades/range{}",
+            range_query(from, to, &options)
+        );
+        self.client.get(&path).await
+    }
+
     /// Advanced pool filtering with megafilter (Pro API only)
     pub async fn megafilter(&self, options: &MegafilterOptions) -> Result<PoolsResponse> {
         let path = format!("/onchain/pools/megafilter{}", options.to_query_string());
@@ -396,6 +520,17 @@ impl<'a> OnchainApi<'a> {
     }
 }
 
+fn to_strings(values: &[&str]) -> Vec<String> {
+    values.iter().map(|v| (*v).to_string()).collect()
+}
+
+/// `?from=..&to=..` followed by the trade options
+fn range_query(from: &str, to: &str, options: &TradesOptions) -> String {
+    options
+        .add_to(Query::new().text("from", Some(from)).text("to", Some(to)))
+        .finish()
+}
+
 fn search_pools_path(query: &str) -> String {
     format!(
         "/onchain/search/pools?query={}",
@@ -413,5 +548,186 @@ mod search_tests {
             search_pools_path("weth/usdc #1"),
             "/onchain/search/pools?query=weth%2Fusdc+%231"
         );
+    }
+}
+
+#[cfg(test)]
+mod mock_tests {
+    use super::*;
+    use crate::mock::Mock;
+
+    const WETH: &str = "eth:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+
+    #[tokio::test]
+    async fn token_price_multi_network() {
+        let mock = Mock::new(
+            r#"{"data":{"id":"1965b339","type":"simple_token_price","attributes":{
+                "token_prices":{"eth:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2":"2472.55",
+                    "solana:6Nwa":"0.00725052986758138039267632966543134822451730159307662487"},
+                "market_cap_usd":{"eth:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2":"5102178003.8",
+                    "solana:6Nwa":null},
+                "last_trade_timestamp":{"solana:6Nwa":"1789028068"}}}}"#,
+        );
+        let options = TokenPriceOptions::new()
+            .include_market_cap(true)
+            .mcap_fdv_fallback(false)
+            .include_24hr_vol(true)
+            .include_24hr_price_change(true)
+            .include_total_reserve_in_usd(true)
+            .include_inactive_source(true);
+        let r = mock
+            .client
+            .onchain()
+            .token_price_multi_network(&[WETH, "solana:6Nwa"], &options)
+            .await
+            .unwrap();
+        assert_eq!(
+            mock.request(),
+            "/onchain/simple/token_price/multi?tokens=eth%3A0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2,solana%3A6Nwa\
+             &include_market_cap=true&mcap_fdv_fallback=false&include_24hr_vol=true\
+             &include_24hr_price_change=true&include_total_reserve_in_usd=true&include_inactive_source=true"
+        );
+        let a = r.data.attributes.unwrap();
+        // Full precision: prices stay strings
+        assert_eq!(
+            a.token_prices.unwrap()["solana:6Nwa"].as_deref(),
+            Some("0.00725052986758138039267632966543134822451730159307662487")
+        );
+        assert!(a.market_cap_usd.unwrap()["solana:6Nwa"].is_none());
+        assert!(a.h24_volume_usd.is_none());
+    }
+
+    #[tokio::test]
+    async fn token_price_with_options() {
+        let mock = Mock::new(
+            r#"{"data":{"id":"49dd","type":"simple_token_price","attributes":{
+                "token_prices":{"0xc02a":"2084.57"},"h24_volume_usd":{"0xc02a":"313441016.14"}}}}"#,
+        );
+        let r = mock
+            .client
+            .onchain()
+            .token_price_with_options(
+                "eth",
+                &["0xc02a", "0xdac1"],
+                &TokenPriceOptions::new().include_24hr_vol(true),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            mock.request(),
+            "/onchain/simple/networks/eth/token_price/0xc02a,0xdac1?include_24hr_vol=true"
+        );
+        let a = r.data.attributes.unwrap();
+        assert_eq!(
+            a.h24_volume_usd.unwrap()["0xc02a"].as_deref(),
+            Some("313441016.14")
+        );
+    }
+
+    #[tokio::test]
+    async fn tokens_multi_network() {
+        let mock = Mock::new(
+            r#"{"data":[{"id":"solana_2g4L","type":"token","attributes":{"network":"solana",
+                "address":"2g4L","name":"SORACAT","symbol":"SORACAT","decimals":6,
+                "image_url":null,"coingecko_coin_id":null,"total_supply":"1000000000000000.0",
+                "normalized_total_supply":"1000000000.0","price_usd":"0.000006746080385",
+                "fdv_usd":"6746.08","total_reserve_in_usd":"5234.61","volume_usd":{"h24":"0.0"},
+                "market_cap_usd":null,"launchpad_details":{"graduation_percentage":2.16,
+                    "completed":false,"completed_at":null,"migrated_destination_pool_address":null},
+                "last_trade_timestamp":"1759502562"},
+                "relationships":{"top_pools":{"data":[{"id":"solana_7Dyo","type":"pool"}]}}}],
+                "included":[{"id":"solana_7Dyo","type":"pool","attributes":{"address":"7Dyo"}}]}"#,
+        );
+        let r = mock
+            .client
+            .onchain()
+            .tokens_multi_network(
+                &["solana:2g4L"],
+                &TokensMultiNetworkOptions::new()
+                    .include_top_pools()
+                    .include_composition(true)
+                    .include_inactive_source(false),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            mock.request(),
+            "/onchain/tokens/multi?tokens=solana%3A2g4L&include=top_pools\
+             &include_composition=true&include_inactive_source=false"
+        );
+        let a = r.data[0].attributes.as_ref().unwrap();
+        assert_eq!(a.network.as_deref(), Some("solana"));
+        assert_eq!(a.normalized_total_supply.as_deref(), Some("1000000000.0"));
+        let launchpad = a.launchpad_details.as_ref().unwrap();
+        assert_eq!(launchpad.graduation_percentage, Some(2.16));
+        assert_eq!(launchpad.completed, Some(false));
+        assert_eq!(r.included.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn pool_trades_range() {
+        let mock = Mock::new(
+            r#"{"data":[{"id":"eth_25928873_0x2d17_167_1788825063","type":"trade","attributes":{
+                "block_number":25928873,"tx_hash":"0x2d17","tx_from_address":"0x0000",
+                "from_token_amount":"0.475091","to_token_amount":"0.00019",
+                "price_from_in_currency_token":"0.0004","price_to_in_currency_token":"1.0",
+                "price_from_in_usd":"0.9997","price_to_in_usd":"2492.43",
+                "block_timestamp":"2026-09-07T23:50:47Z","kind":"sell","volume_in_usd":"0.47",
+                "from_token_address":"0xdac1","to_token_address":"0xc02a","is_anomalous":false}}],
+                "meta":{"next_cursor":"eyJi"}}"#,
+        );
+        let options = TradesOptions::new()
+            .trading_period("7d")
+            .token("quote")
+            .per_page(300);
+        let r = mock
+            .client
+            .onchain()
+            .pool_trades_range("eth", "0x06da", "2026-09-01", "2026-09-08T12:00", &options)
+            .await
+            .unwrap();
+        // trading_period does not apply to a range and is dropped
+        assert_eq!(
+            mock.request(),
+            "/onchain/networks/eth/pools/0x06da/trades/range?from=2026-09-01&to=2026-09-08T12%3A00&token=quote&per_page=300"
+        );
+        assert_eq!(
+            r.data[0].attributes.as_ref().unwrap().block_number,
+            Some(25_928_873)
+        );
+        assert_eq!(r.meta.unwrap().next_cursor.as_deref(), Some("eyJi"));
+    }
+
+    #[tokio::test]
+    async fn token_trades_range() {
+        let mock = Mock::new(
+            r#"{"data":[{"id":"eth_25928919_0xe527_73_1788825611","type":"trade","attributes":{
+                "pool_address":"0x0fb0","pool_dex":"uniswap-v4-ethereum","block_number":25928919,
+                "tx_hash":"0xe527","kind":"sell","volume_in_usd":"2490.40","is_anomalous":false}}],
+                "meta":{"next_cursor":null}}"#,
+        );
+        let options = TradesOptions::new()
+            .token("base")
+            .trading_period("30d")
+            .trade_volume_in_usd_greater_than(1000.0)
+            .include_anomalous(true)
+            .cursor("abc");
+        let r = mock
+            .client
+            .onchain()
+            .token_trades_range("eth", "0xdac1", "1788300000", "1788900000", &options)
+            .await
+            .unwrap();
+        // token and trading_period do not apply here and are dropped
+        assert_eq!(
+            mock.request(),
+            "/onchain/networks/eth/tokens/0xdac1/trades/range?from=1788300000&to=1788900000\
+             &trade_volume_in_usd_greater_than=1000&include_anomalous=true&cursor=abc"
+        );
+        assert_eq!(
+            r.data[0].attributes.as_ref().unwrap().kind.as_deref(),
+            Some("sell")
+        );
+        assert!(r.meta.unwrap().next_cursor.is_none());
     }
 }

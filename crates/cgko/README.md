@@ -22,6 +22,9 @@
 - **Derivatives** - Derivatives exchanges and data
 - **NFTs** - NFT collections, floor prices, market data
 - **On-chain** - On-chain DEX data (Pro)
+- **Wallets** - On-chain wallet balances, transfers, trades and PnL (Analyst plan and above)
+- **RWAs** - Tokenized real-world assets: stocks, ETFs, commodities
+- **News** - Crypto news and coin insights (Analyst plan and above)
 - **Global** - Global crypto statistics
 - **Treasury** - Company crypto holdings
 

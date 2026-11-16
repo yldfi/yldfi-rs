@@ -268,6 +268,44 @@ pub struct SupplyChart {
     pub total_supply: Option<Vec<(f64, f64)>>,
 }
 
+/// Supply breakdown of a coin (`/coins/{id}/supply_breakdown`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SupplyBreakdown {
+    pub id: String,
+    pub symbol: Option<String>,
+    pub name: Option<String>,
+    pub supply_data: Option<SupplyData>,
+    /// Wallets holding the non-circulating supply
+    #[serde(default)]
+    pub non_circulating_wallets: Vec<NonCirculatingWallet>,
+}
+
+/// Supply totals of a coin
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SupplyData {
+    pub total_supply: Option<f64>,
+    pub circulating_supply: Option<f64>,
+    pub outstanding_supply: Option<f64>,
+    pub non_circulating_supply: Option<f64>,
+    /// ISO 8601 time
+    pub last_updated: Option<String>,
+}
+
+/// A wallet holding non-circulating supply
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NonCirculatingWallet {
+    pub address: Option<String>,
+    /// e.g. `UNI Timelock`
+    pub label: Option<String>,
+    pub balance: Option<f64>,
+    pub percentage_of_total_supply: Option<f64>,
+    /// The balance update was unreliable; the circulating supply uses the
+    /// last known-good balance until `CoinGecko` reviews it
+    pub anomaly: Option<bool>,
+    /// ISO 8601 time
+    pub last_updated: Option<String>,
+}
+
 /// `[timestamp, supply]` points, where `CoinGecko` sends the supply as a
 /// number or a decimal string
 fn supply_points<'de, D>(deserializer: D) -> Result<Option<Vec<(f64, f64)>>, D::Error>
