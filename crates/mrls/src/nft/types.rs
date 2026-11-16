@@ -187,6 +187,7 @@ pub struct NftTransfer {
     /// Block hash
     pub block_hash: Option<String>,
     /// Log index
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub log_index: Option<i32>,
     /// Operator
     pub operator: Option<String>,
@@ -251,6 +252,7 @@ pub struct NftTrade {
     /// Price formatted
     pub price_formatted: Option<String>,
     /// USD price
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub usd_price: Option<f64>,
     /// Block timestamp
     pub block_timestamp: Option<String>,
@@ -358,6 +360,7 @@ pub struct NftTrait {
     #[serde(alias = "value")]
     pub trait_value: Option<serde_json::Value>,
     /// Number of NFTs with this value
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub count: Option<i64>,
     /// Share of the collection with this value (percent)
     #[serde(default, deserialize_with = "string_or_f64")]
@@ -372,6 +375,7 @@ pub struct NftTraitValue {
     /// Trait value
     pub trait_value: Option<serde_json::Value>,
     /// Number of NFTs with this value
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub count: Option<i64>,
     /// Share of the collection with this value (percent)
     #[serde(default, deserialize_with = "string_or_f64")]
@@ -404,8 +408,10 @@ pub struct NftResponse<T> {
     /// Status
     pub status: Option<String>,
     /// Page
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page: Option<i32>,
     /// Page size
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page_size: Option<i32>,
     /// Cursor
     pub cursor: Option<String>,
@@ -445,6 +451,7 @@ pub struct NftsByTraitsRequest {
     pub cursor: Option<String>,
     /// Limit
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub limit: Option<i32>,
 }
 
@@ -561,6 +568,7 @@ pub struct NftSalePrices {
     /// Average sale
     pub average_sale: Option<NftAverageSale>,
     /// Number of trades
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub total_trades: Option<i64>,
     /// Message (set when no data is available)
     pub message: Option<String>,
