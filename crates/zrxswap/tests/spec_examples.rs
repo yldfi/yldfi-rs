@@ -10,23 +10,43 @@
 yldfi_spec_test::spec_tests! {
     file: "spec_examples/0x.json",
     checks: {
+        "gasless_chains" => zrxswap::ChainsResponse,
+        "gasless_getprice" => zrxswap::GaslessPriceResponse,
+        "gasless_getquote" => zrxswap::GaslessQuoteResponse,
+        "gasless_getstatus" => zrxswap::GaslessStatusResponse,
         "sources_getsources" => zrxswap::SourcesResponse,
+        "swap_allowanceholderGetprice" => zrxswap::PriceResponse,
+        "swap_allowanceholderGetquote" => zrxswap::QuoteResponse,
+        "swap_chains" => zrxswap::ChainsResponse,
         "swap_permit2Getprice" => zrxswap::PriceResponse,
         "swap_permit2Getquote" => zrxswap::QuoteResponse,
     },
     not_implemented: [
-        "gasless_chains",
-        "gasless_getprice",
-        "gasless_getquote",
-        "gasless_getstatus",
         "gasless_submit",
-        "swap_allowanceholderGetprice",
-        "swap_allowanceholderGetquote",
-        "swap_chains",
         "tradeAnalytics_tradeAnalytics::gasless",
         "tradeAnalytics_tradeAnalytics::swap",
     ],
     skip: [
+        (
+            "gasless_getprice",
+            "sample2",
+            "the no-liquidity response (the spec types its liquidityAvailable as any boolean), which the client turns into an error before parsing",
+        ),
+        (
+            "gasless_getquote",
+            "sample2",
+            "the no-liquidity response (the spec types its liquidityAvailable as any boolean), which the client turns into an error before parsing",
+        ),
+        (
+            "swap_allowanceholderGetprice",
+            "sample2",
+            "the no-liquidity response, which the client turns into an error before parsing",
+        ),
+        (
+            "swap_allowanceholderGetquote",
+            "sample2",
+            "the no-liquidity response, which the client turns into an error before parsing",
+        ),
         (
             "swap_permit2Getprice",
             "sample2",

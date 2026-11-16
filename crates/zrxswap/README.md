@@ -21,8 +21,9 @@
 
 - Multi-chain support (Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, and more)
 - Professional-grade liquidity aggregation across 100+ DEXs
-- Permit2 integration for efficient token approvals
-- Gasless trading support
+- Permit2 and AllowanceHolder price/quote endpoints
+- Gasless price, quote and trade status endpoints
+- Supported-chain and liquidity-source lookups
 - MEV protection options
 - Type-safe request/response handling
 
