@@ -5,8 +5,9 @@
 
 use crate::error::{self, Error, Result};
 use crate::types::{
-    ApiError, Chain, Order, OrderCancellations, OrderCreation, OrderResponse, QuoteRequest,
-    QuoteResponse, Trade, TradesQuery,
+    ApiError, AppDataObject, Chain, CompetitionOrderStatus, Order, OrderCancellations,
+    OrderCreation, OrderLookup, OrderResponse, QuoteRequest, QuoteResponse, TotalSurplus, Trade,
+    TradesQuery,
 };
 use serde::de::DeserializeOwned;
 use std::time::Duration;
@@ -24,6 +25,8 @@ pub struct Config {
     pub proxy: Option<String>,
     /// Default chain
     pub chain: Chain,
+    /// Base URL used for every chain instead of the chain's URL
+    base_url_override: Option<String>,
 }
 
 impl Default for Config {
@@ -34,6 +37,7 @@ impl Default for Config {
             timeout: Duration::from_secs(30),
             proxy: None,
             chain: Chain::Mainnet,
+            base_url_override: None,
         }
     }
 }
@@ -50,6 +54,18 @@ impl Config {
     pub fn with_chain(mut self, chain: Chain) -> Self {
         self.chain = chain;
         self.base_url = chain.api_url().to_string();
+        self
+    }
+
+    /// Send every request to `url` (e.g. a self-hosted orderbook or a
+    /// staging API, including the network path segment) instead of the
+    /// chain's `api.cow.fi` URL. The `chain` argument of each call is then
+    /// ignored.
+    #[must_use]
+    pub fn with_base_url(mut self, url: impl Into<String>) -> Self {
+        let url = url.into();
+        self.base_url.clone_from(&url);
+        self.base_url_override = Some(url);
         self
     }
 
@@ -100,6 +116,7 @@ impl Config {
 pub struct Client {
     base: BaseClient,
     default_chain: Chain,
+    base_url_override: Option<String>,
 }
 
 impl Client {
@@ -116,12 +133,16 @@ impl Client {
         Ok(Self {
             base,
             default_chain,
+            base_url_override: config.base_url_override,
         })
     }
 
     /// Get the base URL for a chain
-    fn base_url(&self, chain: Option<Chain>) -> &'static str {
-        chain.unwrap_or(self.default_chain).api_url()
+    fn base_url(&self, chain: Option<Chain>) -> &str {
+        match &self.base_url_override {
+            Some(url) => url.trim_end_matches('/'),
+            None => chain.unwrap_or(self.default_chain).api_url(),
+        }
     }
 
     /// Make a GET request to the API
@@ -263,6 +284,77 @@ impl Client {
         limit: Option<u32>,
     ) -> Result<Vec<Order>> {
         let path = orders_by_owner_path(owner, offset, limit);
+        self.get(chain, &path).await
+    }
+
+    /// Get several orders by UID (`POST /api/v1/orders/by_uids`)
+    ///
+    /// Takes up to 128 UIDs. Each element of the result is either the order
+    /// or an error for an order the API could not convert. Orders that do
+    /// not exist are left out, and the result is not guaranteed to be in
+    /// the order of `uids`.
+    pub async fn get_orders_by_uids(
+        &self,
+        chain: Option<Chain>,
+        uids: &[String],
+    ) -> Result<Vec<OrderLookup>> {
+        if uids.len() > MAX_ORDERS_BY_UIDS {
+            return Err(error::invalid_param(format!(
+                "at most {MAX_ORDERS_BY_UIDS} order UIDs per request, got {}",
+                uids.len()
+            )));
+        }
+        self.post(chain, "/api/v1/orders/by_uids", &uids).await
+    }
+
+    /// Get the competition status of an order
+    /// (`GET /api/v1/orders/{uid}/status`)
+    ///
+    /// Besides the status, lists the solvers that took part in the latest
+    /// competition for the order, with the amounts each proposed to execute.
+    pub async fn get_order_status(
+        &self,
+        chain: Option<Chain>,
+        uid: &str,
+    ) -> Result<CompetitionOrderStatus> {
+        let path = format!("/api/v1/orders/{uid}/status");
+        self.get(chain, &path).await
+    }
+
+    /// Get the orders settled in a transaction
+    /// (`GET /api/v1/transactions/{tx_hash}/orders`)
+    pub async fn get_orders_by_tx_hash(
+        &self,
+        chain: Option<Chain>,
+        tx_hash: &str,
+    ) -> Result<Vec<Order>> {
+        let path = format!("/api/v1/transactions/{tx_hash}/orders");
+        self.get(chain, &path).await
+    }
+
+    /// Get the full `appData` document registered for an `appData` hash
+    /// (`GET /api/v1/app_data/{app_data_hash}`)
+    ///
+    /// Returns a 404 error when no document is stored for the hash.
+    pub async fn get_app_data(
+        &self,
+        chain: Option<Chain>,
+        app_data_hash: &str,
+    ) -> Result<AppDataObject> {
+        let path = format!("/api/v1/app_data/{app_data_hash}");
+        self.get(chain, &path).await
+    }
+
+    /// Get the total surplus a user has earned
+    /// (`GET /api/v1/users/{address}/total_surplus`)
+    ///
+    /// CoW marks this endpoint as unstable.
+    pub async fn get_total_surplus(
+        &self,
+        chain: Option<Chain>,
+        address: &str,
+    ) -> Result<TotalSurplus> {
+        let path = format!("/api/v1/users/{address}/total_surplus");
         self.get(chain, &path).await
     }
 
@@ -466,6 +558,9 @@ impl Client {
     }
 }
 
+/// Most order UIDs `POST /api/v1/orders/by_uids` accepts per request
+const MAX_ORDERS_BY_UIDS: usize = 128;
+
 /// Build the `GET /api/v1/account/{owner}/orders` path with pagination
 fn orders_by_owner_path(owner: &str, offset: Option<u64>, limit: Option<u32>) -> String {
     let mut params = Vec::new();
@@ -668,6 +763,182 @@ mod tests {
         let out = serde_json::to_value(&order).unwrap();
         assert_eq!(out["creationDate"], "2026-09-25T10:00:00.000000Z");
         assert_eq!(out["status"], "presignaturePending");
+    }
+
+    fn mock_client(server: &wiremock::MockServer) -> Client {
+        Client::with_config(Config::new().with_base_url(server.uri())).unwrap()
+    }
+
+    fn order_json(uid: &str) -> serde_json::Value {
+        serde_json::json!({
+            "uid": uid, "sellToken": "0xa", "buyToken": "0xb", "sellAmount": "1",
+            "buyAmount": "2", "kind": "sell", "status": "fulfilled",
+            "creationDate": "2026-09-25T10:00:00.000000Z", "owner": "0xo"
+        })
+    }
+
+    #[tokio::test]
+    async fn test_base_url_override_ignores_chain() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/orders/0x01"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(order_json("0x01")))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = mock_client(&server);
+        let order = client.get_order(Some(Chain::Gnosis), "0x01").await.unwrap();
+        assert_eq!(order.uid, "0x01");
+    }
+
+    #[tokio::test]
+    async fn test_get_orders_by_uids() {
+        use wiremock::matchers::{body_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/orders/by_uids"))
+            .and(body_json(serde_json::json!(["0x01", "0x02"])))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                {"order": order_json("0x01")},
+                {"error": {"uid": "0x02", "description": "bad order"}}
+            ])))
+            .mount(&server)
+            .await;
+        let client = mock_client(&server);
+        let uids = vec!["0x01".to_string(), "0x02".to_string()];
+        let result = client.get_orders_by_uids(None, &uids).await.unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].order().unwrap().uid, "0x01");
+        assert_eq!(result[1].uid(), "0x02");
+        match &result[1] {
+            crate::types::OrderLookup::Error(e) => assert_eq!(e.description, "bad order"),
+            crate::types::OrderLookup::Order(_) => panic!("expected an error entry"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_orders_by_uids_rejects_too_many() {
+        let client =
+            Client::with_config(Config::new().with_base_url("http://127.0.0.1:9")).unwrap();
+        let uids = vec!["0x01".to_string(); MAX_ORDERS_BY_UIDS + 1];
+        let err = client.get_orders_by_uids(None, &uids).await.unwrap_err();
+        assert!(err.to_string().contains("at most 128"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn test_get_order_status() {
+        use crate::types::CompetitionStatus;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/orders/0x01/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "type": "traded",
+                "value": [
+                    {"solver": "loser"},
+                    {"solver": "winner", "executedAmounts": {"sell": "10", "buy": "20"}}
+                ]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/orders/0x02/status"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"type": "open"})),
+            )
+            .mount(&server)
+            .await;
+        let client = mock_client(&server);
+
+        let status = client.get_order_status(None, "0x01").await.unwrap();
+        assert_eq!(status.status, CompetitionStatus::Traded);
+        assert_eq!(status.value.len(), 2);
+        assert!(status.value[0].executed_amounts.is_none());
+        let winner = status.value[1].executed_amounts.as_ref().unwrap();
+        assert_eq!((winner.sell.as_str(), winner.buy.as_str()), ("10", "20"));
+
+        let status = client.get_order_status(None, "0x02").await.unwrap();
+        assert_eq!(status.status, CompetitionStatus::Open);
+        assert!(status.value.is_empty());
+    }
+
+    #[test]
+    fn test_competition_status_values() {
+        use crate::types::{CompetitionOrderStatus, CompetitionStatus};
+        let s: CompetitionOrderStatus =
+            serde_json::from_str(r#"{"type":"someFutureStatus","value":null}"#).unwrap();
+        assert_eq!(s.status, CompetitionStatus::Unknown);
+        assert!(s.value.is_empty());
+        let s: CompetitionOrderStatus = serde_json::from_str(r#"{"type":"executing"}"#).unwrap();
+        assert_eq!(s.status, CompetitionStatus::Executing);
+    }
+
+    #[tokio::test]
+    async fn test_get_orders_by_tx_hash() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/transactions/0xabc/orders"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!([order_json("0x01"), order_json("0x02")])),
+            )
+            .mount(&server)
+            .await;
+        let client = mock_client(&server);
+        let orders = client.get_orders_by_tx_hash(None, "0xabc").await.unwrap();
+        let uids: Vec<_> = orders.iter().map(|o| o.uid.as_str()).collect();
+        assert_eq!(uids, ["0x01", "0x02"]);
+    }
+
+    #[tokio::test]
+    async fn test_get_app_data() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/app_data/0xhash"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "fullAppData": r#"{"version":"0.9.0","metadata":{}}"#
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/app_data/0xmissing"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let client = mock_client(&server);
+        let app_data = client.get_app_data(None, "0xhash").await.unwrap();
+        assert_eq!(
+            app_data.full_app_data,
+            r#"{"version":"0.9.0","metadata":{}}"#
+        );
+        let err = client.get_app_data(None, "0xmissing").await.unwrap_err();
+        assert_eq!(err.status_code(), Some(404));
+    }
+
+    #[tokio::test]
+    async fn test_get_total_surplus() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/users/0xuser/total_surplus"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"totalSurplus": "123456789"})),
+            )
+            .mount(&server)
+            .await;
+        let client = mock_client(&server);
+        let surplus = client.get_total_surplus(None, "0xuser").await.unwrap();
+        assert_eq!(surplus.total_surplus.as_deref(), Some("123456789"));
     }
 
     #[test]
