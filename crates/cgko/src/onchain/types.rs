@@ -2,6 +2,7 @@
 
 use crate::query::Query;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Network data
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -656,9 +657,8 @@ impl TradesOptions {
         self
     }
 
-    #[must_use]
-    pub fn to_query_string(&self) -> String {
-        Query::new()
+    pub(crate) fn add_to(&self, query: Query) -> Query {
+        query
             .value(
                 "trade_volume_in_usd_greater_than",
                 self.trade_volume_in_usd_greater_than,
@@ -668,7 +668,11 @@ impl TradesOptions {
             .value("include_anomalous", self.include_anomalous)
             .text("cursor", self.cursor.as_deref())
             .value("per_page", self.per_page)
-            .finish()
+    }
+
+    #[must_use]
+    pub fn to_query_string(&self) -> String {
+        self.add_to(Query::new()).finish()
     }
 }
 
@@ -836,6 +840,246 @@ impl MegafilterOptions {
             format!("?{}", params.join("&"))
         }
     }
+}
+
+/// Options for onchain token prices
+/// ([`super::OnchainApi::token_price_with_options`] and
+/// [`super::OnchainApi::token_price_multi_network`])
+#[derive(Debug, Clone, Default)]
+pub struct TokenPriceOptions {
+    /// Include market cap (API default: false)
+    pub include_market_cap: Option<bool>,
+    /// Return FDV when market cap is not available (API default: false)
+    pub mcap_fdv_fallback: Option<bool>,
+    /// Include 24h volume (API default: false)
+    pub include_24hr_vol: Option<bool>,
+    /// Include 24h price change (API default: false)
+    pub include_24hr_price_change: Option<bool>,
+    /// Include total reserve in USD (API default: false)
+    pub include_total_reserve_in_usd: Option<bool>,
+    /// Fall back to inactive pools (most recent swap) when no top pool is
+    /// found (API default: false)
+    pub include_inactive_source: Option<bool>,
+}
+
+impl TokenPriceOptions {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Include market cap
+    #[must_use]
+    pub fn include_market_cap(mut self, include: bool) -> Self {
+        self.include_market_cap = Some(include);
+        self
+    }
+
+    /// Return FDV when market cap is not available
+    #[must_use]
+    pub fn mcap_fdv_fallback(mut self, fallback: bool) -> Self {
+        self.mcap_fdv_fallback = Some(fallback);
+        self
+    }
+
+    /// Include 24h volume
+    #[must_use]
+    pub fn include_24hr_vol(mut self, include: bool) -> Self {
+        self.include_24hr_vol = Some(include);
+        self
+    }
+
+    /// Include 24h price change
+    #[must_use]
+    pub fn include_24hr_price_change(mut self, include: bool) -> Self {
+        self.include_24hr_price_change = Some(include);
+        self
+    }
+
+    /// Include total reserve in USD
+    #[must_use]
+    pub fn include_total_reserve_in_usd(mut self, include: bool) -> Self {
+        self.include_total_reserve_in_usd = Some(include);
+        self
+    }
+
+    /// Fall back to inactive pools when no top pool is found
+    #[must_use]
+    pub fn include_inactive_source(mut self, include: bool) -> Self {
+        self.include_inactive_source = Some(include);
+        self
+    }
+
+    pub(crate) fn add_to(&self, query: Query) -> Query {
+        query
+            .value("include_market_cap", self.include_market_cap)
+            .value("mcap_fdv_fallback", self.mcap_fdv_fallback)
+            .value("include_24hr_vol", self.include_24hr_vol)
+            .value("include_24hr_price_change", self.include_24hr_price_change)
+            .value(
+                "include_total_reserve_in_usd",
+                self.include_total_reserve_in_usd,
+            )
+            .value("include_inactive_source", self.include_inactive_source)
+    }
+
+    #[must_use]
+    pub fn to_query_string(&self) -> String {
+        self.add_to(Query::new()).finish()
+    }
+}
+
+/// Onchain token prices with the optional market data
+///
+/// Each map is keyed like the request: by token address for one network,
+/// by `network_id:token_address` across networks. A value is `None` when
+/// `CoinGecko` has no figure (e.g. the market cap of an unverified token).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SimpleTokenPriceResponse {
+    pub data: SimpleTokenPriceData,
+}
+
+/// Onchain token prices data
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SimpleTokenPriceData {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub data_type: Option<String>,
+    pub attributes: Option<SimpleTokenPriceAttributes>,
+}
+
+/// Onchain token prices and the market data asked for, as decimal strings
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SimpleTokenPriceAttributes {
+    /// Price in USD
+    pub token_prices: Option<HashMap<String, Option<String>>>,
+    /// Market cap in USD (`include_market_cap`)
+    #[serde(default)]
+    pub market_cap_usd: Option<HashMap<String, Option<String>>>,
+    /// 24h volume in USD (`include_24hr_vol`)
+    #[serde(default)]
+    pub h24_volume_usd: Option<HashMap<String, Option<String>>>,
+    /// 24h price change in percent (`include_24hr_price_change`)
+    #[serde(default)]
+    pub h24_price_change_percentage: Option<HashMap<String, Option<String>>>,
+    /// Total reserve in USD (`include_total_reserve_in_usd`)
+    #[serde(default)]
+    pub total_reserve_in_usd: Option<HashMap<String, Option<String>>>,
+    /// Unix time of the last trade, as a string
+    #[serde(default)]
+    pub last_trade_timestamp: Option<HashMap<String, Option<String>>>,
+}
+
+/// Options for [`super::OnchainApi::tokens_multi_network`]
+#[derive(Debug, Clone, Default)]
+pub struct TokensMultiNetworkOptions {
+    /// Include each token's top pools in `included` (`top_pools`)
+    pub include: Option<String>,
+    /// Include base and quote token balance and liquidity in the included
+    /// pools (needs `include=top_pools`; API default: false)
+    pub include_composition: Option<bool>,
+    /// Fall back to inactive pools (most recent swap) (API default: false)
+    pub include_inactive_source: Option<bool>,
+}
+
+impl TokensMultiNetworkOptions {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Include each token's top pools (`include=top_pools`)
+    #[must_use]
+    pub fn include_top_pools(mut self) -> Self {
+        self.include = Some("top_pools".to_string());
+        self
+    }
+
+    /// Include pool composition (needs [`Self::include_top_pools`])
+    #[must_use]
+    pub fn include_composition(mut self, include: bool) -> Self {
+        self.include_composition = Some(include);
+        self
+    }
+
+    /// Fall back to inactive pools
+    #[must_use]
+    pub fn include_inactive_source(mut self, include: bool) -> Self {
+        self.include_inactive_source = Some(include);
+        self
+    }
+
+    pub(crate) fn add_to(&self, query: Query) -> Query {
+        query
+            .text("include", self.include.as_deref())
+            .value("include_composition", self.include_composition)
+            .value("include_inactive_source", self.include_inactive_source)
+    }
+}
+
+/// Tokens across networks (`/onchain/tokens/multi`)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NetworkTokensResponse {
+    pub data: Vec<NetworkToken>,
+    /// Top pools, when requested with `include=top_pools`
+    #[serde(default)]
+    pub included: Option<Vec<serde_json::Value>>,
+}
+
+/// A token on a named network
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NetworkToken {
+    /// `{network}_{address}`
+    pub id: String,
+    #[serde(rename = "type")]
+    pub token_type: Option<String>,
+    pub attributes: Option<NetworkTokenAttributes>,
+    /// References to the token's top pools
+    #[serde(default)]
+    pub relationships: Option<serde_json::Value>,
+}
+
+/// Token data, with the network it is on
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NetworkTokenAttributes {
+    /// Network ID
+    pub network: Option<String>,
+    pub address: Option<String>,
+    pub name: Option<String>,
+    pub symbol: Option<String>,
+    pub decimals: Option<u32>,
+    pub image_url: Option<String>,
+    pub coingecko_coin_id: Option<String>,
+    /// Raw total supply (in the smallest unit)
+    pub total_supply: Option<String>,
+    /// Total supply divided by `10^decimals`
+    #[serde(default)]
+    pub normalized_total_supply: Option<String>,
+    pub price_usd: Option<String>,
+    pub fdv_usd: Option<String>,
+    /// Reserve of this token only, across all its pools
+    pub total_reserve_in_usd: Option<String>,
+    pub volume_usd: Option<VolumeUsd>,
+    /// `None` for unverified tokens
+    pub market_cap_usd: Option<String>,
+    /// Unix time of the last trade, as a string
+    #[serde(default)]
+    pub last_trade_timestamp: Option<String>,
+    /// Bonding-curve (launchpad) status, for tokens that have not graduated
+    #[serde(default)]
+    pub launchpad_details: Option<LaunchpadDetails>,
+}
+
+/// Launchpad bonding-curve status of a token
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LaunchpadDetails {
+    /// Progress towards graduation, in percent
+    pub graduation_percentage: Option<f64>,
+    /// Whether the token has graduated
+    pub completed: Option<bool>,
+    pub completed_at: Option<String>,
+    /// Pool the token migrated to on graduation
+    pub migrated_destination_pool_address: Option<String>,
 }
 
 #[cfg(test)]

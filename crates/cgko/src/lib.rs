@@ -43,6 +43,8 @@
 
 pub mod client;
 pub mod error;
+#[cfg(test)]
+mod mock;
 mod query;
 
 pub mod categories;
@@ -50,10 +52,13 @@ pub mod coins;
 pub mod derivatives;
 pub mod exchanges;
 pub mod global;
+pub mod news;
 pub mod nfts;
 pub mod onchain;
+pub mod rwas;
 pub mod simple;
 pub mod treasury;
+pub mod wallets;
 
 pub use client::{Client, Config};
 pub use error::{Error, Result};
@@ -142,5 +147,24 @@ impl Client {
     #[must_use]
     pub fn treasury(&self) -> treasury::TreasuryApi<'_> {
         treasury::TreasuryApi::new(self)
+    }
+
+    /// Access onchain wallet endpoints: token balances, transfers, trades
+    /// and PnL (Analyst plan and above)
+    #[must_use]
+    pub fn wallets(&self) -> wallets::WalletsApi<'_> {
+        wallets::WalletsApi::new(self)
+    }
+
+    /// Access crypto news and coin insights (Analyst plan and above)
+    #[must_use]
+    pub fn news(&self) -> news::NewsApi<'_> {
+        news::NewsApi::new(self)
+    }
+
+    /// Access tokenized real-world asset (RWA) endpoints
+    #[must_use]
+    pub fn rwas(&self) -> rwas::RwasApi<'_> {
+        rwas::RwasApi::new(self)
     }
 }

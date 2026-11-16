@@ -2,7 +2,7 @@
 
 use super::types::{
     CoinContractData, CoinData, CoinHistory, CoinListItem, CoinMarket, CoinTickers, MarketChart,
-    MarketsOptions, OhlcData, RecentlyAddedCoin, SupplyChart, TopMoversResponse,
+    MarketsOptions, OhlcData, RecentlyAddedCoin, SupplyBreakdown, SupplyChart, TopMoversResponse,
 };
 use crate::client::Client;
 use crate::error::Result;
@@ -253,6 +253,19 @@ impl<'a> CoinsApi<'a> {
         let path = format!("/coins/{id}/total_supply_chart/range?from={from}&to={to}");
         self.client.get(&path).await
     }
+
+    /// Get a coin's supply breakdown: total, circulating and
+    /// non-circulating supply, and the wallets holding the non-circulating
+    /// supply (Analyst plan and above)
+    ///
+    /// Not every coin has one: `CoinGecko`'s `/coins/{id}` response says so
+    /// in `has_supply_breakdown`. A wallet with `anomaly` set had an
+    /// unreliable balance update, and the circulating supply falls back to
+    /// its last known-good balance.
+    pub async fn supply_breakdown(&self, id: &str) -> Result<SupplyBreakdown> {
+        let path = format!("/coins/{id}/supply_breakdown");
+        self.client.get(&path).await
+    }
 }
 
 fn ohlc_range_path(id: &str, vs_currency: &str, from: u64, to: u64, interval: &str) -> String {
@@ -271,5 +284,31 @@ mod tests {
             ohlc_range_path("bitcoin", "usd", 1, 2, "hourly"),
             "/coins/bitcoin/ohlc/range?vs_currency=usd&from=1&to=2&interval=hourly"
         );
+    }
+
+    #[tokio::test]
+    async fn supply_breakdown() {
+        let mock = crate::mock::Mock::new(
+            r#"{"id":"uniswap","symbol":"uni","name":"Uniswap",
+                "supply_data":{"total_supply":894182420.0329479,"circulating_supply":622047561.5538775,
+                    "outstanding_supply":0.0,"non_circulating_supply":272134858.4790704,
+                    "last_updated":"2026-06-15T04:23:07.552Z"},
+                "non_circulating_wallets":[{"address":"0x1a9C","label":"UNI Timelock",
+                    "balance":272134858.4790704,"percentage_of_total_supply":30.4329777849204,
+                    "anomaly":false,"last_updated":"2026-06-14T12:10:34.565Z"}]}"#,
+        );
+        let r = mock
+            .client
+            .coins()
+            .supply_breakdown("uniswap")
+            .await
+            .unwrap();
+        assert_eq!(mock.request(), "/coins/uniswap/supply_breakdown");
+        let supply = r.supply_data.unwrap();
+        assert_eq!(supply.circulating_supply, Some(622_047_561.553_877_5));
+        assert_eq!(supply.outstanding_supply, Some(0.0));
+        let wallet = &r.non_circulating_wallets[0];
+        assert_eq!(wallet.label.as_deref(), Some("UNI Timelock"));
+        assert_eq!(wallet.anomaly, Some(false));
     }
 }

@@ -151,6 +151,13 @@ impl Client {
         self.is_pro
     }
 
+    /// Point the client at another server (unit tests)
+    #[cfg(test)]
+    pub(crate) fn with_base_url(mut self, base_url: &str) -> Self {
+        self.base_url = Url::parse(base_url).unwrap();
+        self
+    }
+
     /// Percent-encode a value for use in a query string
     pub(crate) fn encode_query(value: &str) -> String {
         crate::query::encode(value)

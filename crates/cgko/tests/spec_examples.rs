@@ -8,7 +8,10 @@
 //! https://raw.githubusercontent.com/coingecko/coingecko-api-oas/main/pro-api.json
 //! crates/cgko/tests/spec_examples.json`.
 
-use cgko::{categories, coins, derivatives, exchanges, global, nfts, onchain, simple, treasury};
+use cgko::{
+    categories, coins, derivatives, exchanges, global, news, nfts, onchain, rwas, simple, treasury,
+    wallets,
+};
 
 yldfi_spec_test::spec_tests! {
     file: "spec_examples.json",
@@ -36,6 +39,7 @@ yldfi_spec_test::spec_tests! {
         "coins-contract-address" => coins::CoinContractData,
         "contract-address-market-chart" => coins::MarketChart,
         "contract-address-market-chart-range" => coins::MarketChart,
+        "coins-id-supply-breakdown" => coins::SupplyBreakdown,
         // Categories
         "coins-categories-list" => Vec<categories::CategoryListItem>,
         "coins-categories" => Vec<categories::Category>,
@@ -79,6 +83,17 @@ yldfi_spec_test::spec_tests! {
         "global-defi" => global::DefiGlobalResponse,
         "global-market-cap-chart" => global::MarketCapChart,
         "global-fear-and-greed-chart" => global::FearAndGreedChart,
+        // News
+        "news" => Vec<news::NewsArticle>,
+        "insights" => Vec<news::Insight>,
+        // RWAs
+        "rwas-list" => Vec<rwas::RwaListItem>,
+        "rwas-markets" => Vec<rwas::RwaMarket>,
+        "rwas-id" => rwas::Rwa,
+        "rwas-id-tickers" => rwas::RwaTickers,
+        "rwas-id-market-chart" => rwas::RwaMarketChart,
+        "rwas-issuers-list" => Vec<rwas::RwaIssuerListItem>,
+        "rwas-issuers-id" => rwas::RwaIssuer,
         // Onchain
         "networks-list" => onchain::NetworksResponse,
         "dexes-list" => onchain::DexesResponse,
@@ -110,27 +125,17 @@ yldfi_spec_test::spec_tests! {
         "token-trades-contract-address" => onchain::TokenTradesResponse,
         "pool-liquidity-events-contract-address" => onchain::LiquidityEventsResponse,
         "onchain-simple-price" => onchain::TokenPriceResponse,
+        "onchain-simple-price-multi" => onchain::SimpleTokenPriceResponse,
+        "tokens-data-contract-addresses-multi" => onchain::NetworkTokensResponse,
+        "pool-trades-contract-address-range" => onchain::TradesResponse,
+        "token-trades-contract-address-range" => onchain::TokenTradesResponse,
+        // Wallets
+        "wallet-token-balances" => wallets::WalletBalancesResponse,
+        "wallet-token-transfers" => wallets::WalletTransfersResponse,
+        "wallet-trades" => wallets::WalletTradesResponse,
+        "wallet-pnl" => wallets::WalletPnlResponse,
     },
     // Spec operations this crate does not implement yet. Adding an endpoint
     // means moving it from here into `checks`.
-    not_implemented: [
-    "coins-id-supply-breakdown",
-    "insights",
-    "news",
-    "onchain-simple-price-multi",
-    "pool-trades-contract-address-range",
-    "rwas-id",
-    "rwas-id-market-chart",
-    "rwas-id-tickers",
-    "rwas-issuers-id",
-    "rwas-issuers-list",
-    "rwas-list",
-    "rwas-markets",
-    "token-trades-contract-address-range",
-    "tokens-data-contract-addresses-multi",
-    "wallet-pnl",
-    "wallet-token-balances",
-    "wallet-token-transfers",
-    "wallet-trades",
-    ],
+    not_implemented: [],
 }
