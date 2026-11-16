@@ -566,8 +566,16 @@
      "change_1m": 1,
      "change_7dover7d": 1,
      "change_30dover30d": 1,
-     "breakdown24h": {},
-     "breakdown30d": {},
+     "breakdown24h": {
+      "optimism": {
+       "Synthetix v1+v2": 3547540
+      }
+     },
+     "breakdown30d": {
+      "optimism": {
+       "Synthetix v1+v2": 166435382
+      }
+     },
      "total7DaysAgo": 1,
      "total30DaysAgo": 1,
      "defillamaId": "1",
@@ -581,7 +589,13 @@
      ],
      "protocolType": "1",
      "methodologyURL": "1",
-     "methodology": {},
+     "methodology": {
+      "UserFees": "Fees paid by users",
+      "Fees": "Fees paid by users",
+      "Revenue": "Fees paid by users",
+      "ProtocolRevenue": "Percentage of fees going to treasury",
+      "SupplySideRevenue": "LPs revenue"
+     },
      "latestFetchIsOk": true,
      "parentProtocol": "1",
      "slug": "1",
@@ -1591,6 +1605,7 @@
  },
  "GET /api/tvl/{protocol}": {
   "path": "/api/tvl/{protocol}",
+  "example": 4962012809.795062,
   "sample": 1
  },
  "GET /api/v2/chains": {
@@ -1608,6 +1623,17 @@
  },
  "GET /api/v2/chart/fork/protocol-breakdown": {
   "path": "/api/v2/chart/fork/protocol-breakdown",
+  "example": [
+   {
+    "timestamp": 1599696000,
+    "Uniswap V2": 1082367977.05
+   },
+   {
+    "timestamp": 1599868800,
+    "Uniswap V2": 1456479137.61,
+    "Saddle Finance": 41.34
+   }
+  ],
   "sample": [
    {
     "timestamp": 1
@@ -1634,6 +1660,16 @@
  },
  "GET /api/v2/chart/oracle/chain-breakdown": {
   "path": "/api/v2/chart/oracle/chain-breakdown",
+  "example": [
+   {
+    "timestamp": 1546560000,
+    "Ethereum": 273845651.27
+   },
+   {
+    "timestamp": 1546646400,
+    "Ethereum": 288674544.41
+   }
+  ],
   "sample": [
    {
     "timestamp": 1
@@ -1651,6 +1687,16 @@
  },
  "GET /api/v2/chart/oracle/chain/{chain}/protocol-breakdown": {
   "path": "/api/v2/chart/oracle/chain/{chain}/protocol-breakdown",
+  "example": [
+   {
+    "timestamp": 1546560000,
+    "Chronicle": 273845651.27
+   },
+   {
+    "timestamp": 1546646400,
+    "Chronicle": 288674544.41
+   }
+  ],
   "sample": [
    {
     "timestamp": 1
@@ -1659,6 +1705,16 @@
  },
  "GET /api/v2/chart/oracle/protocol-breakdown": {
   "path": "/api/v2/chart/oracle/protocol-breakdown",
+  "example": [
+   {
+    "timestamp": 1546560000,
+    "Chronicle": 273845651.27
+   },
+   {
+    "timestamp": 1546646400,
+    "Chronicle": 288674544.41
+   }
+  ],
   "sample": [
    {
     "timestamp": 1
@@ -1676,6 +1732,16 @@
  },
  "GET /api/v2/chart/oracle/protocol/{protocol}/chain-breakdown": {
   "path": "/api/v2/chart/oracle/protocol/{protocol}/chain-breakdown",
+  "example": [
+   {
+    "timestamp": 1557273600,
+    "Ethereum": 9546.16
+   },
+   {
+    "timestamp": 1557360000,
+    "Ethereum": 10826.13
+   }
+  ],
   "sample": [
    {
     "timestamp": 1
@@ -1693,6 +1759,22 @@
  },
  "GET /api/v2/chart/treasury/protocol/{protocol}/chain-breakdown": {
   "path": "/api/v2/chart/treasury/protocol/{protocol}/chain-breakdown",
+  "example": [
+   [
+    1609459200,
+    {
+     "Ethereum": 80000000,
+     "Polygon": 20000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "Ethereum": 81000000,
+     "Polygon": 20500000
+    }
+   ]
+  ],
   "sample": [
    [
     1609459200,
@@ -1712,6 +1794,24 @@
  },
  "GET /api/v2/chart/treasury/protocol/{protocol}/token-breakdown": {
   "path": "/api/v2/chart/treasury/protocol/{protocol}/token-breakdown",
+  "example": [
+   [
+    1609459200,
+    {
+     "AAVE": 50000000,
+     "USDC": 30000000,
+     "WETH": 20000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "AAVE": 51000000,
+     "USDC": 30500000,
+     "WETH": 20500000
+    }
+   ]
+  ],
   "sample": [
    [
     1609459200,
@@ -1742,6 +1842,22 @@
  },
  "GET /api/v2/chart/tvl/protocol/{protocol}/chain-breakdown": {
   "path": "/api/v2/chart/tvl/protocol/{protocol}/chain-breakdown",
+  "example": [
+   [
+    1609459200,
+    {
+     "Ethereum": 3200000000,
+     "Polygon": 1500000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "Ethereum": 3250000000,
+     "Polygon": 1520000000
+    }
+   ]
+  ],
   "sample": [
    [
     1609459200,
@@ -1761,6 +1877,24 @@
  },
  "GET /api/v2/chart/tvl/protocol/{protocol}/token-breakdown": {
   "path": "/api/v2/chart/tvl/protocol/{protocol}/token-breakdown",
+  "example": [
+   [
+    1609459200,
+    {
+     "USDC": 1000000000,
+     "USDT": 800000000,
+     "WETH": 500000000
+    }
+   ],
+   [
+    1609545600,
+    {
+     "USDC": 1010000000,
+     "USDT": 810000000,
+     "WETH": 510000000
+    }
+   ]
+  ],
   "sample": [
    [
     1609459200,
@@ -1800,6 +1934,22 @@
  },
  "GET /api/v2/chart/{metric}/category/{category}/chain-breakdown": {
   "path": "/api/v2/chart/{metric}/category/{category}/chain-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Ethereum": 30000000,
+     "Solana": 12000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Ethereum": 31000000,
+     "Solana": 12500000
+    }
+   ]
+  ],
   "sample": [
    [
     1534550400,
@@ -1828,6 +1978,22 @@
  },
  "GET /api/v2/chart/{metric}/category/{category}/chain/{chain}/protocol-breakdown": {
   "path": "/api/v2/chart/{metric}/category/{category}/chain/{chain}/protocol-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ],
   "sample": [
    [
     1534550400,
@@ -1847,6 +2013,22 @@
  },
  "GET /api/v2/chart/{metric}/category/{category}/protocol-breakdown": {
   "path": "/api/v2/chart/{metric}/category/{category}/protocol-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ],
   "sample": [
    [
     1534550400,
@@ -1866,6 +2048,22 @@
  },
  "GET /api/v2/chart/{metric}/chain-breakdown": {
   "path": "/api/v2/chart/{metric}/chain-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Ethereum": 30000000,
+     "Solana": 12000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Ethereum": 31000000,
+     "Solana": 12500000
+    }
+   ]
+  ],
   "sample": [
    [
     1534550400,
@@ -1894,6 +2092,22 @@
  },
  "GET /api/v2/chart/{metric}/chain/{chain}/protocol-breakdown": {
   "path": "/api/v2/chart/{metric}/chain/{chain}/protocol-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ],
   "sample": [
    [
     1534550400,
@@ -1913,6 +2127,22 @@
  },
  "GET /api/v2/chart/{metric}/protocol-breakdown": {
   "path": "/api/v2/chart/{metric}/protocol-breakdown",
+  "example": [
+   [
+    1534550400,
+    {
+     "Uniswap V3": 15000000,
+     "Aave": 8000000
+    }
+   ],
+   [
+    1534636800,
+    {
+     "Uniswap V3": 15500000,
+     "Aave": 8200000
+    }
+   ]
+  ],
   "sample": [
    [
     1534550400,
@@ -1968,6 +2198,21 @@
  },
  "GET /api/v2/chart/{metric}/protocol/{protocol}/label-breakdown": {
   "path": "/api/v2/chart/{metric}/protocol/{protocol}/label-breakdown",
+  "example": [
+   [
+    1607040000,
+    {
+     "Borrow Interest": 131
+    }
+   ],
+   [
+    1607126400,
+    {
+     "Borrow Interest": 334,
+     "Flash Loans": 50
+    }
+   ]
+  ],
   "sample": [
    [
     1607040000,
@@ -1986,6 +2231,21 @@
  },
  "GET /api/v2/chart/{metric}/protocol/{protocol}/version-breakdown": {
   "path": "/api/v2/chart/{metric}/protocol/{protocol}/version-breakdown",
+  "example": [
+   [
+    1607040000,
+    {
+     "Aave V2": 131
+    }
+   ],
+   [
+    1607126400,
+    {
+     "Aave V2": 334,
+     "Aave V3": 500
+    }
+   ]
+  ],
   "sample": [
    [
     1607040000,
@@ -2265,6 +2525,17 @@
  },
  "GET /api/v2/metrics/fork": {
   "path": "/api/v2/metrics/fork",
+  "example": {
+   "Uniswap V2": [
+    "SushiSwap",
+    "PancakeSwap AMM",
+    "QuickSwap Dex"
+   ],
+   "Aave V2": [
+    "Geist Finance",
+    "Hundred Finance"
+   ]
+  },
   "sample": {
    "Uniswap V2": [
     "1",
@@ -2287,6 +2558,104 @@
  },
  "GET /api/v2/metrics/treasury/protocol/{protocol}": {
   "path": "/api/v2/metrics/treasury/protocol/{protocol}",
+  "example": {
+   "id": "parent#aave-treasury",
+   "name": "Aave (treasury)",
+   "url": "https://aave.com",
+   "description": "Aave is an Open Source and Non-Custodial protocol to earn interest on deposits and borrow assets",
+   "logo": "https://icons.llama.fi/aave.png",
+   "chains": [
+    "Ethereum",
+    "Arbitrum",
+    "OP Mainnet",
+    "Avalanche",
+    "Fantom",
+    "Polygon"
+   ],
+   "gecko_id": "aave",
+   "cmcId": "7278",
+   "treasury": "aave.js",
+   "twitter": "aave",
+   "governanceID": [
+    "snapshot:aave.eth",
+    "eip155:1:0xEC568fffba86c094cf06b22134B23074DFE2252c"
+   ],
+   "wrongLiquidity": true,
+   "github": [
+    "aave",
+    "bgd-labs"
+   ],
+   "stablecoins": [
+    "gho"
+   ],
+   "tokenRights": {
+    "rights": [
+     {
+      "label": "Governance",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Treasury",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Revenue",
+      "hasRight": true,
+      "details": "AAVE"
+     }
+    ],
+    "governanceData": {
+     "rights": "LIMITED",
+     "details": "Governance includes protocol parameters, treasury management, upgrades & onchain revenue",
+     "feeSwitchStatus": "ON",
+     "feeSwitchDetails": "$50m annual budget for token buybacks"
+    },
+    "holdersRevenueAndValueAccrual": {
+     "buybacks": "ACTIVE",
+     "dividends": "NONE",
+     "burns": "NONE",
+     "primaryValueAccrual": "Buybacks - $50M yearly budget for buybacks"
+    },
+    "tokenAlignment": {
+     "fundraising": "TOKEN",
+     "raiseDetailsLink": {
+      "label": "Strategic Round (Decrypt)",
+      "url": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions"
+     },
+     "associatedEntities": [
+      "DAO",
+      "Labs",
+      "Parent / Holdings Co"
+     ],
+     "equityRevenueCapture": "PARTIAL",
+     "equityStatement": "Labs owns the interface and offchain revenue"
+    }
+   },
+   "symbol": "AAVE",
+   "address": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+   "module": "treasury/aave.js",
+   "category": "Treasury",
+   "tvlCodePath": "https://github.com/DefiLlama/DefiLlama-Adapters/blob/main/projects/treasury/aave.js",
+   "currentChainTvls": {
+    "Ethereum-OwnTokens": 51486143.11756,
+    "Arbitrum-OwnTokens": 108.33167,
+    "OP Mainnet-OwnTokens": 339.41814,
+    "Avalanche-OwnTokens": 200.26047,
+    "Fantom-OwnTokens": 0,
+    "Fantom": 5317.95627,
+    "Polygon-OwnTokens": 0.49868,
+    "Arbitrum": 7665284.15367,
+    "Avalanche": 12653199.04222,
+    "OP Mainnet": 266147.25573,
+    "Ethereum": 50207476.33278,
+    "Polygon": 774382.58832,
+    "OwnTokens": 51486791.62651
+   },
+   "raises": [],
+   "mcap": 1775192426.0010407
+  },
   "sample": {
    "id": "1",
    "name": "1",
@@ -2382,13 +2751,273 @@
      "level": "low"
     }
    ],
-   "tokenRights": {},
+   "tokenRights": {
+    "rights": [
+     {
+      "label": "Governance",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Treasury",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Revenue",
+      "hasRight": true,
+      "details": "AAVE"
+     }
+    ],
+    "governanceData": {
+     "rights": "LIMITED",
+     "details": "Governance includes protocol parameters, treasury management, upgrades & onchain revenue",
+     "feeSwitchStatus": "ON",
+     "feeSwitchDetails": "$50m annual budget for token buybacks"
+    },
+    "holdersRevenueAndValueAccrual": {
+     "buybacks": "ACTIVE",
+     "dividends": "NONE",
+     "burns": "NONE",
+     "primaryValueAccrual": "Buybacks - $50M yearly budget for buybacks"
+    },
+    "tokenAlignment": {
+     "fundraising": "TOKEN",
+     "raiseDetailsLink": {
+      "label": "Strategic Round (Decrypt)",
+      "url": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions"
+     },
+     "associatedEntities": [
+      "DAO",
+      "Labs",
+      "Parent / Holdings Co"
+     ],
+     "equityRevenueCapture": "PARTIAL",
+     "equityStatement": "Labs owns the interface and offchain revenue"
+    }
+   },
    "wrongLiquidity": true,
    "tvlCodePath": "1"
   }
  },
  "GET /api/v2/metrics/tvl/protocol/{protocol}": {
   "path": "/api/v2/metrics/tvl/protocol/{protocol}",
+  "example": {
+   "id": "parent#aave",
+   "name": "Aave",
+   "url": "https://aave.com",
+   "description": "Aave is an Open Source and Non-Custodial protocol to earn interest on deposits and borrow assets",
+   "logo": "https://icons.llama.fi/aave.png",
+   "chains": [],
+   "gecko_id": "aave",
+   "cmcId": "7278",
+   "treasury": "aave.js",
+   "twitter": "aave",
+   "governanceID": [
+    "snapshot:aave.eth",
+    "eip155:1:0xEC568fffba86c094cf06b22134B23074DFE2252c"
+   ],
+   "wrongLiquidity": true,
+   "github": [
+    "aave",
+    "bgd-labs"
+   ],
+   "stablecoins": [
+    "gho"
+   ],
+   "tokenRights": {
+    "rights": [
+     {
+      "label": "Governance",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Treasury",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Revenue",
+      "hasRight": true,
+      "details": "AAVE"
+     }
+    ],
+    "governanceData": {
+     "rights": "LIMITED",
+     "details": "Governance includes protocol parameters, treasury management, upgrades & onchain revenue",
+     "feeSwitchStatus": "ON",
+     "feeSwitchDetails": "$50m annual budget for token buybacks"
+    },
+    "holdersRevenueAndValueAccrual": {
+     "buybacks": "ACTIVE",
+     "dividends": "NONE",
+     "burns": "NONE",
+     "primaryValueAccrual": "Buybacks - $50M yearly budget for buybacks"
+    },
+    "tokenAlignment": {
+     "fundraising": "TOKEN",
+     "raiseDetailsLink": {
+      "label": "Strategic Round (Decrypt)",
+      "url": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions"
+     },
+     "associatedEntities": [
+      "DAO",
+      "Labs",
+      "Parent / Holdings Co"
+     ],
+     "equityRevenueCapture": "PARTIAL",
+     "equityStatement": "Labs owns the interface and offchain revenue"
+    }
+   },
+   "symbol": "AAVE",
+   "address": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+   "currentChainTvls": {
+    "Ethereum-staking": 300390294,
+    "Ethereum-pool2": 1001784,
+    "Avalanche-borrowed": 230805193,
+    "Ethereum": 21541108640,
+    "Ethereum-borrowed": 13105470847,
+    "Polygon": 164069009,
+    "Avalanche": 425186004,
+    "Polygon-borrowed": 71777370,
+    "staking": 300390294,
+    "pool2": 1001784,
+    "borrowed": 16477546481,
+    "Base": 720897079,
+    "Base-borrowed": 539408955,
+    "Arbitrum": 710909114,
+    "Arbitrum-borrowed": 493502165,
+    "OP Mainnet": 53112825,
+    "OP Mainnet-borrowed": 30898499,
+    "Gnosis": 67454440,
+    "Gnosis-borrowed": 28683972,
+    "Mantle": 285136854,
+    "Mantle-borrowed": 186143806,
+    "Plasma": 1958242285,
+    "Plasma-borrowed": 1655750534,
+    "BSC": 174954075,
+    "BSC-borrowed": 70470380,
+    "Linea": 49717184,
+    "Linea-borrowed": 38569924,
+    "Sonic": 12939987,
+    "Sonic-borrowed": 5315322,
+    "Scroll": 6971724,
+    "Scroll-borrowed": 5290161,
+    "ZKsync Era": 2782917,
+    "ZKsync Era-borrowed": 1245328,
+    "Soneium": 2038301,
+    "Soneium-borrowed": 292179,
+    "Metis": 959354,
+    "Metis-borrowed": 159370,
+    "Celo": 13373563,
+    "Celo-borrowed": 4923675,
+    "MegaETH": 19380664,
+    "MegaETH-borrowed": 34443,
+    "Aptos": 18649107,
+    "Aptos-borrowed": 8493938,
+    "Fantom": 4575,
+    "Fantom-borrowed": 1034,
+    "Harmony": 0,
+    "Harmony-borrowed": 309375
+   },
+   "isParentProtocol": true,
+   "raises": [
+    {
+     "date": 1594771200,
+     "name": "Aave",
+     "round": "Private token sale",
+     "amount": 3,
+     "source": "https://www.dcforecasts.com/altcoin-news/aave-raises-3m-from-three-arrows-capital-and-framework-ventures/",
+     "leadInvestors": [
+      "Framework Ventures",
+      "3AC"
+     ],
+     "otherInvestors": [],
+     "valuation": null,
+     "defillamaId": "111"
+    },
+    {
+     "date": 1602460800,
+     "name": "Aave",
+     "round": "Strategic ",
+     "amount": 25,
+     "source": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions",
+     "leadInvestors": [
+      "Blockchain Capital",
+      "Blockchain.com Ventures",
+      "Standard Crypto"
+     ],
+     "otherInvestors": [],
+     "valuation": null,
+     "defillamaId": "111"
+    },
+    {
+     "date": 1594166400,
+     "name": "Aave",
+     "round": "Private token sale",
+     "amount": 4.5,
+     "source": "https://decrypt.co/34991/parafi-invests-defi-lending-protocol",
+     "leadInvestors": [
+      "ParaFi Capital"
+     ],
+     "otherInvestors": [],
+     "valuation": null,
+     "defillamaId": "111"
+    },
+    {
+     "date": 1512000000,
+     "name": "Aave",
+     "round": "ICO",
+     "amount": 16.2,
+     "source": "https://twitter.com/aaveaave/status/936247348816175104",
+     "leadInvestors": [],
+     "otherInvestors": [],
+     "valuation": null,
+     "defillamaId": "1838"
+    }
+   ],
+   "mcap": 1775192426.0010407,
+   "otherProtocols": [
+    "Aave",
+    "Aave V3",
+    "Aave Horizon RWA",
+    "Aave V2",
+    "Aave Aptos",
+    "Aave V1",
+    "Aave Arc"
+   ],
+   "hallmarks": [
+    [
+     1619395200,
+     "Start Ethereum V2 Rewards"
+    ],
+    [
+     1633305600,
+     "Start AVAX V2 Rewards"
+    ],
+    [
+     1635292800,
+     "Potential xSUSHI attack found"
+    ],
+    [
+     1650412800,
+     "Start AVAX Rewards"
+    ],
+    [
+     1651881600,
+     "UST depeg"
+    ],
+    [
+     1654819200,
+     "stETH depeg"
+    ],
+    [
+     1659571200,
+     "Start OP Rewards"
+    ]
+   ]
+  },
   "sample": {
    "id": "1",
    "name": "1",
@@ -2489,7 +3118,51 @@
      "level": "low"
     }
    ],
-   "tokenRights": {},
+   "tokenRights": {
+    "rights": [
+     {
+      "label": "Governance",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Treasury",
+      "hasRight": true,
+      "details": "AAVE"
+     },
+     {
+      "label": "Revenue",
+      "hasRight": true,
+      "details": "AAVE"
+     }
+    ],
+    "governanceData": {
+     "rights": "LIMITED",
+     "details": "Governance includes protocol parameters, treasury management, upgrades & onchain revenue",
+     "feeSwitchStatus": "ON",
+     "feeSwitchDetails": "$50m annual budget for token buybacks"
+    },
+    "holdersRevenueAndValueAccrual": {
+     "buybacks": "ACTIVE",
+     "dividends": "NONE",
+     "burns": "NONE",
+     "primaryValueAccrual": "Buybacks - $50M yearly budget for buybacks"
+    },
+    "tokenAlignment": {
+     "fundraising": "TOKEN",
+     "raiseDetailsLink": {
+      "label": "Strategic Round (Decrypt)",
+      "url": "https://decrypt.co/44653/aave-raises-25-million-to-bring-defi-to-institutions"
+     },
+     "associatedEntities": [
+      "DAO",
+      "Labs",
+      "Parent / Holdings Co"
+     ],
+     "equityRevenueCapture": "PARTIAL",
+     "equityStatement": "Labs owns the interface and offchain revenue"
+    }
+   },
    "wrongLiquidity": true,
    "tvlCodePath": "1"
   }
@@ -2795,7 +3468,74 @@
     "deposits": 1,
     "withdrawals": 1
    },
-   "chainBreakdown": {},
+   "chainBreakdown": {
+    "Polygon": {
+     "lastHourlyVolume": 118020.67633222912,
+     "currentDayVolume": 0,
+     "lastDailyVolume": 28740605.36474136,
+     "dayBeforeLastVolume": 17294645.046479236,
+     "weeklyVolume": 71188570.7201651,
+     "monthlyVolume": 490635601.59313035,
+     "last24hVolume": 34766385.06231544,
+     "lastHourlyTxs": {
+      "deposits": 10,
+      "withdrawals": 5
+     },
+     "currentDayTxs": {
+      "deposits": 0,
+      "withdrawals": 0
+     },
+     "prevDayTxs": {
+      "deposits": 153,
+      "withdrawals": 150
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 173,
+      "withdrawals": 195
+     },
+     "weeklyTxs": {
+      "deposits": 2095,
+      "withdrawals": 1752
+     },
+     "monthlyTxs": {
+      "deposits": 6945,
+      "withdrawals": 5537
+     }
+    },
+    "Ethereum": {
+     "lastHourlyVolume": 118020.67633222912,
+     "currentDayVolume": 0,
+     "lastDailyVolume": 28740605.36474136,
+     "dayBeforeLastVolume": 17294645.046479236,
+     "weeklyVolume": 71188570.7201651,
+     "monthlyVolume": 490635601.59313035,
+     "last24hVolume": 34766385.06231544,
+     "lastHourlyTxs": {
+      "deposits": 10,
+      "withdrawals": 5
+     },
+     "currentDayTxs": {
+      "deposits": 0,
+      "withdrawals": 0
+     },
+     "prevDayTxs": {
+      "deposits": 153,
+      "withdrawals": 150
+     },
+     "dayBeforeLastTxs": {
+      "deposits": 173,
+      "withdrawals": 195
+     },
+     "weeklyTxs": {
+      "deposits": 2095,
+      "withdrawals": 1752
+     },
+     "monthlyTxs": {
+      "deposits": 6945,
+      "withdrawals": 5537
+     }
+    }
+   },
    "destinationChain": "1"
   }
  },
@@ -3397,6 +4137,24 @@
  },
  "GET /equities/v1/companies-list": {
   "path": "/equities/v1/companies-list",
+  "example": [
+   {
+    "ticker": "NVDA",
+    "companyName": "NVIDIA Corporation",
+    "country": "US",
+    "countryName": "United States",
+    "sectorSlug": "technology",
+    "industrySlug": "semiconductors"
+   },
+   {
+    "ticker": "AAPL",
+    "companyName": "Apple Inc.",
+    "country": "US",
+    "countryName": "United States",
+    "sectorSlug": "technology",
+    "industrySlug": "consumer-electronics"
+   }
+  ],
   "sample": [
    {
     "ticker": "1",
@@ -3410,6 +4168,112 @@
  },
  "GET /equities/v1/dimensions": {
   "path": "/equities/v1/dimensions",
+  "example": {
+   "revenue": {
+    "annual": [
+     [
+      "2025-12-31",
+      7181325000
+     ],
+     [
+      "2024-12-31",
+      6564028000
+     ],
+     [
+      "2023-12-31",
+      3108383000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      1412982000
+     ],
+     [
+      "2025-12-31",
+      1781129000
+     ],
+     [
+      "2025-09-30",
+      1868693000
+     ]
+    ]
+   },
+   "holdersRevenue": {
+    "annual": [
+     [
+      "2025-12-31",
+      790195000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      1062234000
+     ]
+    ]
+   },
+   "earnings": {
+    "annual": [
+     [
+      "2025-12-31",
+      1260327000
+     ],
+     [
+      "2024-12-31",
+      2577755000
+     ],
+     [
+      "2023-12-31",
+      94752000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      -394117000
+     ],
+     [
+      "2025-12-31",
+      -666733000
+     ],
+     [
+      "2025-09-30",
+      432552000
+     ]
+    ]
+   },
+   "basicSharesOutstanding": {
+    "annual": [
+     [
+      "2025-12-31",
+      254730000
+     ],
+     [
+      "2024-12-31",
+      245186000
+     ],
+     [
+      "2023-12-31",
+      234258000
+     ]
+    ],
+    "quarterly": [
+     [
+      "2026-03-31",
+      258413000
+     ],
+     [
+      "2025-12-31",
+      256109000
+     ],
+     [
+      "2025-09-30",
+      254730000
+     ]
+    ]
+   }
+  },
   "sample": {
    "revenue": {
     "annual": [
@@ -3429,6 +4293,50 @@
  },
  "GET /equities/v1/earnings-calendar": {
   "path": "/equities/v1/earnings-calendar",
+  "example": [
+   {
+    "ticker": "AAPL",
+    "iso2_country_code": "US",
+    "cik": "320193",
+    "event_key": "2026-Q3",
+    "date_status": "reported",
+    "report_date": "2026-07-30",
+    "report_time": "amc",
+    "accepted_at": "2026-07-30T20:30:28.000Z",
+    "fiscal_year": 2026,
+    "fiscal_period": "Q3",
+    "period_end": "2026-06-27",
+    "source": "8k_item_202",
+    "source_form": "8-K",
+    "accession_number": "0000320193-26-000018",
+    "max_drift_days": null,
+    "first_published_at": "2026-09-21 12:47:28.451",
+    "revision_count": 0,
+    "previous_report_date": "",
+    "inserted_at": "2026-09-27 03:15:57.342"
+   },
+   {
+    "ticker": "AAPL",
+    "iso2_country_code": "US",
+    "cik": "320193",
+    "event_key": "2026-Q4",
+    "date_status": "estimated",
+    "report_date": "2026-10-29",
+    "report_time": "unknown",
+    "accepted_at": "",
+    "fiscal_year": 2026,
+    "fiscal_period": "Q4",
+    "period_end": "2026-09-26",
+    "source": "cadence_model",
+    "source_form": "",
+    "accession_number": "",
+    "max_drift_days": 7,
+    "first_published_at": "2026-09-21 12:47:28.451",
+    "revision_count": 0,
+    "previous_report_date": "",
+    "inserted_at": "2026-09-27 03:15:57.342"
+   }
+  ],
   "sample": [
    {
     "ticker": "1",
@@ -3467,6 +4375,84 @@
  },
  "GET /equities/v1/industries": {
   "path": "/equities/v1/industries",
+  "example": [
+   {
+    "industry": "Semiconductors",
+    "industrySlug": "semiconductors",
+    "sector": "Technology",
+    "sectorSlug": "technology",
+    "marketCap": 11449062913733.04,
+    "marketCapChange1d": 45052557957.41,
+    "dollarVolume24h": 91746535047,
+    "revenueTTM": 676181976411,
+    "earningsTTM": 281424204118,
+    "ebitdaTTM": 390274528397,
+    "enterpriseValue": 11425992099839.04,
+    "employeeCount": 527732,
+    "trailingPE": 40.51,
+    "earningsYield": 2.469,
+    "priceToRevenue": 16.86,
+    "priceToBook": 15.31,
+    "enterpriseValueToEbitda": 29.17,
+    "dividendYield": 0.2731,
+    "holdersYield": 0.9171,
+    "operatingProfitMarginTTM": 45.36,
+    "priceChangePercentage1d": 0.3951,
+    "priceChangePercentage7d": 3.745,
+    "priceChangePercentage1m": 10.31,
+    "priceChangePercentage3m": 7.26,
+    "priceChangePercentage6m": 55.79,
+    "priceChangePercentageYtd": 44.12,
+    "priceChangePercentage1y": 53.79,
+    "companyCount": 50,
+    "coverage": {
+     "priceChangePercentage1d": 1,
+     "priceChangePercentage7d": 1,
+     "priceChangePercentage1m": 1,
+     "priceChangePercentage3m": 1,
+     "priceChangePercentage6m": 0.9959,
+     "priceChangePercentageYtd": 0.9959,
+     "priceChangePercentage1y": 0.9958,
+     "trailingPE": 0.9957,
+     "earningsYield": 0.9957,
+     "priceToRevenue": 0.9957,
+     "priceToBook": 1,
+     "enterpriseValueToEbitda": 0.9957,
+     "dividendYield": 0.8788,
+     "holdersYield": 0.9821,
+     "operatingProfitMarginTTM": 0.9957
+    },
+    "weight": 13.8,
+    "sectorWeight": 38.83,
+    "dollarVolumeShare24h": 15.74,
+    "topHoldings": [
+     {
+      "ticker": "NVDA",
+      "name": "NVIDIA Corporation",
+      "marketCap": 5451313781934.43,
+      "sectorWeight": 47.61,
+      "priceChangePercentage1d": 0.2182
+     },
+     {
+      "ticker": "AVGO",
+      "name": "Broadcom Inc.",
+      "marketCap": 1684314940000,
+      "sectorWeight": 14.71,
+      "priceChangePercentage1d": 0.6993
+     },
+     {
+      "ticker": "MU",
+      "name": "Micron Technology Inc.",
+      "marketCap": 1222319653346.07,
+      "sectorWeight": 10.68,
+      "priceChangePercentage1d": 0.162
+     }
+    ],
+    "updatedAt": "2026-09-25T19:59:00Z",
+    "volumeAsOf": "2026-09-25T19:59:00Z",
+    "rank": 1
+   }
+  ],
   "sample": [
    {
     "industry": "1",
@@ -3551,6 +4537,32 @@
  },
  "GET /equities/v1/onchain": {
   "path": "/equities/v1/onchain",
+  "example": {
+   "perps": [
+    {
+     "pair": "AAPL-USDC",
+     "price": 307.86,
+     "volume24h": 1823545.15,
+     "openInterest": 24278916.49,
+     "annualizedFundingRate": -70.13,
+     "tradeUrl": "https://app.hyperliquid.xyz/trade/xyz:AAPL",
+     "contractSlug": "xyz:AAPL",
+     "exchangeProtocolSlug": "hyperliquid-perps",
+     "rwaPlatformSlug": "trade-xyz",
+     "exchangeType": "DEX",
+     "updatedAt": "2026-06-07T10:04:21Z"
+    }
+   ],
+   "tokens": [
+    {
+     "issuer": "Backed Assets (JE) Limited",
+     "issuerRwaPlatformSlug": "backed-finance",
+     "price": 308.7,
+     "assetSlug": "AAPLx",
+     "activeMarketcap": 30068771
+    }
+   ]
+  },
   "sample": {
    "perps": [
     {
@@ -3599,6 +4611,152 @@
  },
  "GET /equities/v1/sector": {
   "path": "/equities/v1/sector",
+  "example": {
+   "sector": "Technology",
+   "sectorSlug": "technology",
+   "marketCap": 29484487070530.91,
+   "marketCapChange1d": 251664986364.37,
+   "dollarVolume24h": 233706720783.08,
+   "revenueTTM": 3618619651351,
+   "earningsTTM": 729280268773,
+   "ebitdaTTM": 1159818834166,
+   "enterpriseValue": 30012989630394.37,
+   "employeeCount": 6808759,
+   "trailingPE": 40.3,
+   "earningsYield": 2.482,
+   "priceToRevenue": 8.121,
+   "priceToBook": 12.1,
+   "enterpriseValueToEbitda": 25.8,
+   "dividendYield": 0.5053,
+   "holdersYield": 1.719,
+   "operatingProfitMarginTTM": 24.65,
+   "priceChangePercentage1d": 0.861,
+   "priceChangePercentage7d": 2.951,
+   "priceChangePercentage1m": 6.681,
+   "priceChangePercentage3m": 11.65,
+   "priceChangePercentage6m": 45.56,
+   "priceChangePercentageYtd": 29.18,
+   "priceChangePercentage1y": 30.25,
+   "companyCount": 475,
+   "coverage": {
+    "priceChangePercentage1d": 1,
+    "priceChangePercentage7d": 1,
+    "priceChangePercentage1m": 1,
+    "priceChangePercentage3m": 0.9998,
+    "priceChangePercentage6m": 0.9979,
+    "priceChangePercentageYtd": 0.9976,
+    "priceChangePercentage1y": 0.9964,
+    "trailingPE": 0.9967,
+    "earningsYield": 0.9967,
+    "priceToRevenue": 0.9967,
+    "priceToBook": 1,
+    "enterpriseValueToEbitda": 0.9967,
+    "dividendYield": 0.8057,
+    "holdersYield": 0.9594,
+    "operatingProfitMarginTTM": 0.9967
+   },
+   "weight": 35.54,
+   "dollarVolumeShare24h": 40.1,
+   "industryCount": 12,
+   "topHoldings": [
+    {
+     "ticker": "NVDA",
+     "name": "NVIDIA Corporation",
+     "marketCap": 5451313781934.43,
+     "sectorWeight": 18.49,
+     "priceChangePercentage1d": 0.2182
+    },
+    {
+     "ticker": "AAPL",
+     "name": "Apple Inc.",
+     "marketCap": 5009416613731.49,
+     "sectorWeight": 16.99,
+     "priceChangePercentage1d": 1.533
+    },
+    {
+     "ticker": "MSFT",
+     "name": "Microsoft Corporation Common Stock",
+     "marketCap": 3833594441460,
+     "sectorWeight": 13,
+     "priceChangePercentage1d": 3.663
+    },
+    {
+     "ticker": "AVGO",
+     "name": "Broadcom Inc.",
+     "marketCap": 1684314940000,
+     "sectorWeight": 5.713,
+     "priceChangePercentage1d": 0.6993
+    },
+    {
+     "ticker": "MU",
+     "name": "Micron Technology Inc.",
+     "marketCap": 1222319653346.07,
+     "sectorWeight": 4.146,
+     "priceChangePercentage1d": 0.162
+    },
+    {
+     "ticker": "AMD",
+     "name": "Advanced Micro Devices Inc.",
+     "marketCap": 1029188160000,
+     "sectorWeight": 3.491,
+     "priceChangePercentage1d": 0.2177
+    },
+    {
+     "ticker": "INTC",
+     "name": "Intel Corporation",
+     "marketCap": 617829000000,
+     "sectorWeight": 2.095,
+     "priceChangePercentage1d": -3.446
+    },
+    {
+     "ticker": "PLTR",
+     "name": "Palantir Technologies Inc. Class A Common Stock",
+     "marketCap": 455757473990,
+     "sectorWeight": 1.546,
+     "priceChangePercentage1d": -1.516
+    },
+    {
+     "ticker": "CSCO",
+     "name": "Cisco Systems, Inc.",
+     "marketCap": 421038200000,
+     "sectorWeight": 1.428,
+     "priceChangePercentage1d": -0.2524
+    },
+    {
+     "ticker": "ORCL",
+     "name": "Oracle Corporation",
+     "marketCap": 394848028800,
+     "sectorWeight": 1.339,
+     "priceChangePercentage1d": -1.749
+    }
+   ],
+   "updatedAt": "2026-09-25T19:59:00Z",
+   "volumeAsOf": "2026-09-25T19:59:00Z",
+   "rank": 1,
+   "description": "Semiconductors, software, hardware and IT services.",
+   "valuation": {
+    "trailingPE": 40.3,
+    "earningsYield": 2.482,
+    "priceToRevenue": 8.121,
+    "priceToBook": 12.1,
+    "enterpriseValueToEbitda": 25.8,
+    "operatingProfitMarginTTM": 24.65,
+    "dividendYield": 0.5053,
+    "medianTrailingPE": 32.53,
+    "medianPriceToRevenue": 3.601,
+    "medianPriceToBook": 4.45,
+    "medianEnterpriseValueToEbitda": 18.73,
+    "medianOperatingProfitMarginTTM": 6.05,
+    "medianDividendYield": 0.9544
+   },
+   "concentration": {
+    "top10MarketCapShare": 68.24,
+    "hhi": 889,
+    "megaCapCount": 24,
+    "megaCapThreshold": 200000000000,
+    "medianMarketCap": 3171914000
+   }
+  },
   "sample": {
    "sector": "1",
    "sectorSlug": "1",
@@ -3671,6 +4829,82 @@
  },
  "GET /equities/v1/sectors": {
   "path": "/equities/v1/sectors",
+  "example": [
+   {
+    "sector": "Technology",
+    "sectorSlug": "technology",
+    "marketCap": 29484487070530.91,
+    "marketCapChange1d": 251664986364.37,
+    "dollarVolume24h": 233706720783.08,
+    "revenueTTM": 3618619651351,
+    "earningsTTM": 729280268773,
+    "ebitdaTTM": 1159818834166,
+    "enterpriseValue": 30012989630394.37,
+    "employeeCount": 6808759,
+    "trailingPE": 40.3,
+    "earningsYield": 2.482,
+    "priceToRevenue": 8.121,
+    "priceToBook": 12.1,
+    "enterpriseValueToEbitda": 25.8,
+    "dividendYield": 0.5053,
+    "holdersYield": 1.719,
+    "operatingProfitMarginTTM": 24.65,
+    "priceChangePercentage1d": 0.861,
+    "priceChangePercentage7d": 2.951,
+    "priceChangePercentage1m": 6.681,
+    "priceChangePercentage3m": 11.65,
+    "priceChangePercentage6m": 45.56,
+    "priceChangePercentageYtd": 29.18,
+    "priceChangePercentage1y": 30.25,
+    "companyCount": 475,
+    "coverage": {
+     "priceChangePercentage1d": 1,
+     "priceChangePercentage7d": 1,
+     "priceChangePercentage1m": 1,
+     "priceChangePercentage3m": 0.9998,
+     "priceChangePercentage6m": 0.9979,
+     "priceChangePercentageYtd": 0.9976,
+     "priceChangePercentage1y": 0.9964,
+     "trailingPE": 0.9967,
+     "earningsYield": 0.9967,
+     "priceToRevenue": 0.9967,
+     "priceToBook": 1,
+     "enterpriseValueToEbitda": 0.9967,
+     "dividendYield": 0.8057,
+     "holdersYield": 0.9594,
+     "operatingProfitMarginTTM": 0.9967
+    },
+    "weight": 35.54,
+    "dollarVolumeShare24h": 40.1,
+    "industryCount": 12,
+    "topHoldings": [
+     {
+      "ticker": "NVDA",
+      "name": "NVIDIA Corporation",
+      "marketCap": 5451313781934.43,
+      "sectorWeight": 18.49,
+      "priceChangePercentage1d": 0.2182
+     },
+     {
+      "ticker": "AAPL",
+      "name": "Apple Inc.",
+      "marketCap": 5009416613731.49,
+      "sectorWeight": 16.99,
+      "priceChangePercentage1d": 1.533
+     },
+     {
+      "ticker": "MSFT",
+      "name": "Microsoft Corporation Common Stock",
+      "marketCap": 3833594441460,
+      "sectorWeight": 13,
+      "priceChangePercentage1d": 3.663
+     }
+    ],
+    "updatedAt": "2026-09-25T19:59:00Z",
+    "volumeAsOf": "2026-09-25T19:59:00Z",
+    "rank": 1
+   }
+  ],
   "sample": [
    {
     "sector": "1",
@@ -3722,6 +4956,78 @@
  },
  "GET /equities/v1/sectors-overview": {
   "path": "/equities/v1/sectors-overview",
+  "example": {
+   "marketCap": 82964660714713.33,
+   "marketCapChange1d": 345803139721.38,
+   "dollarVolume24h": 582767711903.08,
+   "revenueTTM": 24757148479483,
+   "earningsTTM": 2642725287768,
+   "ebitdaTTM": 4436690488724,
+   "enterpriseValue": 100074056247123.19,
+   "employeeCount": 45614558,
+   "trailingPE": 30.43,
+   "earningsYield": 3.287,
+   "priceToRevenue": 3.247,
+   "priceToBook": 4.871,
+   "enterpriseValueToEbitda": 18.39,
+   "dividendYield": 1.344,
+   "holdersYield": 2.915,
+   "operatingProfitMarginTTM": 13.77,
+   "priceChangePercentage1d": 0.4196,
+   "priceChangePercentage7d": 0.8979,
+   "priceChangePercentage1m": 0.3504,
+   "priceChangePercentage3m": 3.812,
+   "priceChangePercentage6m": 20.51,
+   "priceChangePercentageYtd": 12.33,
+   "priceChangePercentage1y": 15,
+   "companyCount": 3196,
+   "coverage": {
+    "priceChangePercentage1d": 1,
+    "priceChangePercentage7d": 1,
+    "priceChangePercentage1m": 1,
+    "priceChangePercentage3m": 0.9997,
+    "priceChangePercentage6m": 0.9743,
+    "priceChangePercentageYtd": 0.9732,
+    "priceChangePercentage1y": 0.9718,
+    "trailingPE": 0.9692,
+    "earningsYield": 0.9692,
+    "priceToRevenue": 0.969,
+    "priceToBook": 0.9995,
+    "enterpriseValueToEbitda": 0.8866,
+    "dividendYield": 0.7692,
+    "holdersYield": 0.8687,
+    "operatingProfitMarginTTM": 0.8866
+   },
+   "medianTrailingPE": 20.12,
+   "medianPriceToRevenue": 2.656,
+   "medianPriceToBook": 2.226,
+   "medianEnterpriseValueToEbitda": 12.91,
+   "medianOperatingProfitMarginTTM": 8.51,
+   "medianDividendYield": 2.318,
+   "medianMarketCap": 2372244950.07,
+   "sectorCount": 11,
+   "industryCount": 144,
+   "bestSector1d": {
+    "sector": "Technology",
+    "sectorSlug": "technology",
+    "priceChangePercentage1d": 0.861,
+    "weight": 35.54
+   },
+   "worstSector1d": {
+    "sector": "Energy",
+    "sectorSlug": "energy",
+    "priceChangePercentage1d": -0.9536,
+    "weight": 3.368
+   },
+   "largestSector": {
+    "sector": "Technology",
+    "sectorSlug": "technology",
+    "priceChangePercentage1d": 0.861,
+    "weight": 35.54
+   },
+   "updatedAt": "2026-09-25T19:59:00Z",
+   "volumeAsOf": "2026-09-25T19:59:00Z"
+  },
   "sample": {
    "marketCap": 1,
    "marketCapChange1d": 1,

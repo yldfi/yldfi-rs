@@ -646,6 +646,7 @@
  },
  "GET /tvl/{protocol}": {
   "path": "/tvl/{protocol}",
+  "example": 4962012809.795062,
   "sample": 1
  },
  "GET /v2/chains": {
