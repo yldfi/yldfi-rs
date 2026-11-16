@@ -417,6 +417,7 @@
  },
  "getLatestBlockNumber": {
   "path": "/latestBlockNumber/{chain}",
+  "example": "15863321",
   "sample": "1"
  },
  "getMultipleNFTs": {
