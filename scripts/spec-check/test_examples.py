@@ -104,6 +104,29 @@ class SampleTest(unittest.TestCase):
             {"chart": {"path": "/chart/{pool}", "server": "https://yields.example", "sample": 1}},
         )
 
+    def test_extract_writes_no_sample_for_shapeless_schemas(self):
+        def op(schema):
+            return {"get": {"operationId": "x", "responses": {"200": {"content": {"application/json": {"schema": schema}}}}}}
+
+        # Still listed, so the coverage test sees it, but with nothing to check
+        self.assertEqual(extract({"paths": {"/a": op({"type": "object"})}}), {"x": {"path": "/a"}})
+        self.assertEqual(
+            extract({"paths": {"/a": op({"type": "string"})}}),
+            {"x": {"path": "/a", "sample": "1"}},
+        )
+
+    def test_extract_uses_schema_level_examples(self):
+        doc = {
+            "components": {"schemas": {"R": {"type": "object", "example": {"id": "a", "n": 2}}}},
+            "paths": {"/r": {"get": {"operationId": "r", "responses": {"200": {"content": {"application/json": {
+                "schema": {"oneOf": [{"$ref": "#/components/schemas/R"}]},
+            }}}}}}},
+        }
+        self.assertEqual(
+            extract(doc),
+            {"r": {"path": "/r", "example": {"id": "a", "n": 2}, "sample": {"id": "a", "n": 2}}},
+        )
+
     def test_extract_swagger2(self):
         doc = {
             "definitions": {"Thing": {"type": "object", "properties": {"id": {"type": "integer"}}}},
