@@ -35,8 +35,10 @@ pub struct EndpointWeight {
     /// Path
     pub path: Option<String>,
     /// Weight/cost
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub weight: Option<i32>,
     /// Rate limit per minute
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub rate_limit_per_minute: Option<i32>,
 }
 
@@ -66,6 +68,7 @@ pub struct ContractEvent {
     /// Block timestamp
     pub block_timestamp: Option<String>,
     /// Log index
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub log_index: Option<i32>,
     /// Decoded data
     pub data: Option<serde_json::Value>,
@@ -77,6 +80,7 @@ pub struct ContractEventsResponse {
     /// Cursor
     pub cursor: Option<String>,
     /// Page size
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page_size: Option<i32>,
     /// Results
     pub result: Vec<ContractEvent>,

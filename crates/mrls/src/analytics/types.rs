@@ -9,12 +9,16 @@ pub struct AnalyticsDataPoint {
     /// Timestamp
     pub timestamp: Option<String>,
     /// Buy volume (USD)
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub buy_volume: Option<f64>,
     /// Sell volume (USD)
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub sell_volume: Option<f64>,
     /// Liquidity (USD)
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub liquidity_usd: Option<f64>,
     /// Fully diluted valuation (USD)
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub fully_diluted_valuation: Option<f64>,
 }
 
