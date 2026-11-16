@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.29.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.3...ethcli-v0.29.4) (2026-11-16)
+
+
+### Bug Fixes
+
+* **ethcli:** describe llama coins chart --span as a point count ([#222](https://github.com/yldfi/yldfi-rs/issues/222)) ([f64a6a5](https://github.com/yldfi/yldfi-rs/commit/f64a6a5f658a878d5a58b919366617a18228a875))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * alcmy bumped from 0.4.0 to 0.4.1
+    * dllma bumped from 0.2.2 to 0.3.0
+    * mrls bumped from 0.3.2 to 0.3.3
+    * lfi bumped from 0.3.0 to 0.3.1
+    * ensof bumped from 0.2.1 to 0.2.2
+
 ## [0.29.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.2...ethcli-v0.29.3) (2026-11-14)
 
 

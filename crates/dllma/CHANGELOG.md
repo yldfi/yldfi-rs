@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/dllma-v0.2.2...dllma-v0.3.0) (2026-11-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **dllma:** `StablecoinDetail` has new public fields `current_chain_balances` and `chain_balances`, so struct literals that build it must set them.
+
+
+### Bug Fixes
+
+* **dllma:** read stablecoin detail balances and document chart span ([#223](https://github.com/yldfi/yldfi-rs/issues/223)) ([f26e5f9](https://github.com/yldfi/yldfi-rs/commit/f26e5f9f7a39bbb8d5e799c846442f0058200818))
+
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/dllma-v0.2.1...dllma-v0.2.2) (2026-11-09)
 
 
