@@ -626,6 +626,121 @@ pub struct TransactionResponse {
     pub gas: Option<String>,
 }
 
+/// Parameters for `GET /swap`: a market price route and its ready-to-send
+/// transaction in one call
+///
+/// Wraps the [`PriceRequest`] parameters (tokens, amount, side, version,
+/// DEX filters) with the transaction parameters. Compared with
+/// [`Client::get_price`](crate::Client::get_price) followed by
+/// [`Client::build_transaction`](crate::Client::build_transaction), Velora
+/// gives this endpoint lower rate limits and excludes RFQ liquidity.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct SwapRequest {
+    /// Tokens, amount, side, version and DEX filters
+    pub price: PriceRequest,
+    /// Wallet executing the swap (the transaction's `from`)
+    pub user_address: String,
+    /// Slippage tolerance in basis points (e.g., 100 = 1%)
+    pub slippage: Option<u32>,
+    /// Recipient of the output tokens, if not `user_address`
+    pub receiver: Option<String>,
+    /// Partner fee / surplus recipient address (`partnerAddress`)
+    pub partner_address: Option<String>,
+    /// Partner fee in basis points (`partnerFeeBps`)
+    pub partner_fee_bps: Option<u32>,
+    /// Bypass the API's price-impact check above this percentage
+    /// (`maxImpact`, API default 15)
+    pub max_impact: Option<f64>,
+    /// Collect positive slippage as surplus (`takeSurplus`)
+    pub take_surplus: Option<bool>,
+}
+
+impl SwapRequest {
+    /// A swap of `price` executed by `user_address`
+    #[must_use]
+    pub fn new(price: PriceRequest, user_address: impl Into<String>) -> Self {
+        Self {
+            price,
+            user_address: user_address.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Set slippage tolerance in basis points (100 = 1%)
+    #[must_use]
+    pub fn with_slippage(mut self, bps: u32) -> Self {
+        self.slippage = Some(bps);
+        self
+    }
+
+    /// Send the output tokens to `receiver`
+    #[must_use]
+    pub fn with_receiver(mut self, receiver: impl Into<String>) -> Self {
+        self.receiver = Some(receiver.into());
+        self
+    }
+
+    /// Charge a partner fee of `fee_bps` to `partner_address`
+    #[must_use]
+    pub fn with_partner_fee(mut self, partner_address: impl Into<String>, fee_bps: u32) -> Self {
+        self.partner_address = Some(partner_address.into());
+        self.partner_fee_bps = Some(fee_bps);
+        self
+    }
+
+    /// Allow a price impact up to `percent` (`maxImpact`)
+    #[must_use]
+    pub fn with_max_impact(mut self, percent: f64) -> Self {
+        self.max_impact = Some(percent);
+        self
+    }
+
+    /// Collect positive slippage as surplus (`takeSurplus`)
+    #[must_use]
+    pub fn with_take_surplus(mut self, take: bool) -> Self {
+        self.take_surplus = Some(take);
+        self
+    }
+
+    /// Convert to query parameters
+    #[must_use]
+    pub fn to_query_params(&self, network: u64) -> Vec<(String, String)> {
+        let mut params = self.price.to_query_params(network);
+        params.push(("userAddress".to_string(), self.user_address.clone()));
+        if let Some(slippage) = self.slippage {
+            params.push(("slippage".to_string(), slippage.to_string()));
+        }
+        if let Some(ref receiver) = self.receiver {
+            params.push(("receiver".to_string(), receiver.clone()));
+        }
+        if let Some(ref address) = self.partner_address {
+            params.push(("partnerAddress".to_string(), address.clone()));
+        }
+        if let Some(fee) = self.partner_fee_bps {
+            params.push(("partnerFeeBps".to_string(), fee.to_string()));
+        }
+        if let Some(impact) = self.max_impact {
+            params.push(("maxImpact".to_string(), impact.to_string()));
+        }
+        if let Some(take) = self.take_surplus {
+            params.push(("takeSurplus".to_string(), take.to_string()));
+        }
+        params
+    }
+}
+
+/// Response of `GET /swap`: the price route and its transaction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SwapResponse {
+    /// The route the transaction executes
+    pub price_route: PriceRoute,
+    /// The transaction to sign and send
+    pub tx_params: TransactionResponse,
+}
+
 /// Token information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

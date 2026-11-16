@@ -25,6 +25,7 @@ Velora (formerly ParaSwap) is a leading DEX aggregator that provides:
 
 - **Price API** - Get optimal swap prices and routing
 - **Transaction Builder** - Build executable swap transactions
+- **Swap API** - Price route and transaction in one call
 - **Token Lists** - Query supported tokens per chain
 - **Multi-chain** - Supports Ethereum, Polygon, BSC, Arbitrum, Optimism, Base, and more
 

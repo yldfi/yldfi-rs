@@ -11,9 +11,8 @@ yldfi_spec_test::spec_tests! {
     file: "spec_examples/velora.json",
     checks: {
         "marketPrices" => vlra::PriceResponse,
+        "marketSwap" => vlra::SwapResponse,
         "marketTransactions" => vlra::TransactionResponse,
     },
-    not_implemented: [
-        "marketSwap",
-    ],
+    not_implemented: [],
 }
