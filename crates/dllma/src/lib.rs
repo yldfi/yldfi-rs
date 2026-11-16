@@ -76,6 +76,8 @@ pub mod error;
 pub mod etf;
 pub mod fees;
 pub mod stablecoins;
+#[cfg(test)]
+mod test_server;
 pub mod tvl;
 pub mod volumes;
 pub mod yields;
