@@ -28,6 +28,15 @@ class SampleTest(unittest.TestCase):
             {"n": 1, "i": 1, "s": "1", "b": True, "e": "coin"},
         )
 
+    def test_all_of_a_scalar_is_that_scalar(self):
+        doc = {"components": {"schemas": {"Amount": {"type": "string"}}}}
+        schema = {"type": "object", "properties": {
+            "amount": {"description": "atoms", "allOf": [{"$ref": "#/components/schemas/Amount"}]},
+            "both": {"allOf": [{"type": "object", "properties": {"a": {"type": "integer"}}},
+                               {"type": "object", "properties": {"b": {"type": "boolean"}}}]},
+        }}
+        self.assertEqual(sample(doc, schema, first), {"amount": "1", "both": {"a": 1, "b": True}})
+
     def test_refs_and_one_of(self):
         doc = {"components": {"schemas": {"A": {"oneOf": [{"type": "integer"}, {"type": "string"}]}}}}
         ref = {"$ref": "#/components/schemas/A"}
