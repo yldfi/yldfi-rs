@@ -1,0 +1,152 @@
+{
+ "get-route": {
+  "path": "/{chain}/api/v1/routes",
+  "sample": {
+   "code": 1,
+   "message": "1",
+   "data": {
+    "routeSummary": {
+     "tokenIn": "1",
+     "amountIn": "1",
+     "amountInUsd": "1",
+     "tokenOut": "1",
+     "amountOut": "1",
+     "amountOutUsd": "1",
+     "gas": "1",
+     "gasPrice": "1",
+     "gasUsd": "1",
+     "l1FeeUsd": "1",
+     "extraFee": {
+      "feeAmount": "1",
+      "chargeFeeBy": "currency_in",
+      "isInBps": true,
+      "feeReceiver": "1"
+     },
+     "route": [
+      [
+       {
+        "pool": "1",
+        "tokenIn": "1",
+        "tokenOut": "1",
+        "swapAmount": "1",
+        "amountOut": "1",
+        "exchange": "1",
+        "poolType": "1"
+       }
+      ]
+     ],
+     "routeID": "1",
+     "checksum": "1",
+     "timestamp": "1"
+    },
+    "routerAddress": "1"
+   },
+   "requestId": "1"
+  }
+ },
+ "get-route-encode": {
+  "path": "/{chain}/route/encode",
+  "sample": {
+   "inputAmount": "1",
+   "outputAmount": "1",
+   "totalGas": 1,
+   "gasPriceGwei": "1",
+   "gasUsd": 1,
+   "amountInUsd": 1,
+   "amountOutUsd": 1,
+   "receivedUsd": 1,
+   "swaps": [
+    [
+     {
+      "pool": "1",
+      "tokenIn": "1",
+      "tokenOut": "1",
+      "swapAmount": "1",
+      "amountOut": "1",
+      "exchange": "1",
+      "poolType": "1"
+     }
+    ]
+   ],
+   "encodedSwapData": "1",
+   "routerAddress": "1"
+  }
+ },
+ "get-swap": {
+  "path": "/{chain}/api/v1/swap",
+  "sample": {
+   "code": 1,
+   "message": "1",
+   "data": {
+    "routeSummary": {
+     "tokenIn": "1",
+     "amountIn": "1",
+     "amountInUsd": "1",
+     "tokenOut": "1",
+     "amountOut": "1",
+     "amountOutUsd": "1",
+     "gas": "1",
+     "gasPrice": "1",
+     "gasUsd": "1",
+     "l1FeeUsd": "1",
+     "extraFee": {
+      "feeAmount": "1",
+      "chargeFeeBy": "currency_in",
+      "isInBps": true,
+      "feeReceiver": "1"
+     },
+     "route": [
+      [
+       {
+        "pool": "1",
+        "tokenIn": "1",
+        "tokenOut": "1",
+        "swapAmount": "1",
+        "amountOut": "1",
+        "exchange": "1",
+        "poolType": "1"
+       }
+      ]
+     ],
+     "routeID": "1",
+     "checksum": "1",
+     "timestamp": "1"
+    },
+    "routerAddress": "1",
+    "amountIn": "1",
+    "amountInUsd": "1",
+    "amountOut": "1",
+    "amountOutUsd": "1",
+    "gas": "1",
+    "gasUsd": "1",
+    "additionalCostUsd": "1",
+    "additionalCostMessage": "1",
+    "data": "1",
+    "transactionValue": "1"
+   },
+   "requestId": "1"
+  }
+ },
+ "post-route-encoded": {
+  "path": "/{chain}/api/v1/route/build",
+  "method": "POST",
+  "sample": {
+   "code": 1,
+   "message": "1",
+   "data": {
+    "amountIn": "1",
+    "amountInUsd": "1",
+    "amountOut": "1",
+    "amountOutUsd": "1",
+    "gas": "1",
+    "gasUsd": "1",
+    "additionalCostUsd": "1",
+    "additionalCostMessage": "1",
+    "data": "1",
+    "routerAddress": "1",
+    "transactionValue": "1"
+   },
+   "requestId": "1"
+  }
+ }
+}
