@@ -77,6 +77,9 @@ async fn main() -> pythc::Result<()> {
 |----------|--------|-------------|
 | `/v2/updates/price/latest` | `get_latest_prices()` | Get latest prices for multiple feeds |
 | `/v2/updates/price/latest` | `get_latest_price()` | Get latest price for a single feed |
+| `/v2/updates/price/{publish_time}` | `get_prices_at()` | Get historical prices at a unix timestamp |
+| `/v2/updates/price/{publish_time}` | `get_price_updates_at()` | Same, with the binary update data |
+| `/v2/updates/publisher_stake_caps/latest` | `get_latest_publisher_stake_caps()` | Get the latest publisher stake caps |
 | `/v2/price_feeds` | `get_price_feed_ids()` | List all available price feeds |
 | `/v2/price_feeds?query=` | `search_feeds()` | Search feeds by symbol/name |
 | `/v2/price_feeds?asset_type=` | `get_feeds_by_asset_type()` | Filter feeds by asset type |

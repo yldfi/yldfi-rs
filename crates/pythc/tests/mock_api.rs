@@ -593,3 +593,78 @@ async fn test_search_feeds_with_explicit_asset_type() {
         .await
         .unwrap();
 }
+
+#[tokio::test]
+async fn test_get_prices_at_timestamp() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
+        .and(path("/v2/updates/price/1704067200"))
+        .and(query_param(
+            "ids[]",
+            "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(latest_eth_body()))
+        .mount(&mock_server)
+        .await;
+
+    let client = mock_client(&mock_server);
+    // Upper-case and unprefixed IDs are normalized
+    let feeds = client
+        .get_prices_at(
+            &["FF61491A931112DDF1BD8147CD1B641375F79F5825126D665480874634FD0ACE"],
+            1_704_067_200,
+        )
+        .await
+        .unwrap();
+    assert_eq!(feeds.len(), 1);
+    assert_eq!(feeds[0].price.publish_time, 1_704_067_200);
+    assert!((feeds[0].price_f64().unwrap() - 3250.0).abs() < 0.001);
+
+    let updates = client
+        .get_price_updates_at(&[pythc::feed_ids::ETH_USD], 1_704_067_200)
+        .await
+        .unwrap();
+    assert_eq!(updates.binary.encoding, "hex");
+    assert_eq!(updates.parsed.len(), 1);
+}
+
+#[tokio::test]
+async fn test_get_prices_at_validates_input() {
+    let mock_server = MockServer::start().await;
+    let client = mock_client(&mock_server);
+
+    assert!(client.get_prices_at(&[], 1).await.unwrap().is_empty());
+    assert!(client.get_prices_at(&["0x1234"], 1).await.is_err());
+    assert!(mock_server.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_get_latest_publisher_stake_caps() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(header("authorization", "Bearer test-pyth-key-123"))
+        .and(path("/v2/updates/publisher_stake_caps/latest"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "binary": { "encoding": "hex", "data": ["504e4155"] },
+            "parsed": [{
+                "publisher_stake_caps": [
+                    { "publisher": "JTmFx5zX9mM94itfk2nQcJnQQDPjcv4UPD7SYj6xDCV", "cap": 12_345_678_901_u64 }
+                ]
+            }]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client = mock_client(&mock_server);
+    let caps = client.get_latest_publisher_stake_caps().await.unwrap();
+    assert_eq!(caps.binary.data, vec!["504e4155"]);
+    let parsed = caps.parsed.unwrap();
+    assert_eq!(parsed[0].publisher_stake_caps[0].cap, 12_345_678_901);
+    assert_eq!(
+        parsed[0].publisher_stake_caps[0].publisher,
+        "JTmFx5zX9mM94itfk2nQcJnQQDPjcv4UPD7SYj6xDCV"
+    );
+}

@@ -11,17 +11,19 @@ yldfi_spec_test::spec_tests! {
     file: "spec_examples/pyth-hermes.json",
     checks: {
         "latest_price_updates" => pythc::LatestPriceResponse,
+        "latest_publisher_stake_caps" => pythc::PublisherStakeCapsResponse,
         "price_feeds_metadata" => Vec<pythc::PriceFeedId>,
+        "timestamp_price_updates" => pythc::LatestPriceResponse,
     },
     not_implemented: [
+        // Deprecated v1 routes (/api/*), replaced by the /v2 ones
         "get_price_feed",
         "get_vaa",
         "get_vaa_ccip",
         "latest_price_feeds",
-        "latest_publisher_stake_caps",
         "latest_vaas",
         "price_feed_ids",
+        // Server-sent events stream, not a JSON response
         "price_stream_sse_handler",
-        "timestamp_price_updates",
     ],
 }
