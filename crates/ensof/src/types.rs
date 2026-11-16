@@ -5,6 +5,58 @@
 
 use serde::{Deserialize, Serialize};
 
+/// `amountOut` is a string for single-token routes, a list of strings when
+/// several `tokenOut` are requested, and null for async routes. Kept as one
+/// string: a list is joined with commas in `tokenOut` order, null is empty.
+fn amount_out<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(String::new()),
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        serde_json::Value::Array(items) => items
+            .into_iter()
+            .map(|v| match v {
+                serde_json::Value::String(s) => Ok(s),
+                serde_json::Value::Number(n) => Ok(n.to_string()),
+                other => Err(D::Error::custom(format!("expected an amount, got {other}"))),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(|amounts| amounts.join(",")),
+        other => Err(D::Error::custom(format!("expected an amount, got {other}"))),
+    }
+}
+
+/// [`amount_out`] for optional amounts, where null is `None`
+fn opt_amount_out<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match value {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(v) => amount_out(v).map(Some).map_err(serde::de::Error::custom),
+    }
+}
+
+/// A USD price Enso documents as a nullable string; numbers are accepted too
+fn opt_price<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Number(n) => Ok(n.as_f64()),
+        serde_json::Value::String(s) if s.trim().is_empty() => Ok(None),
+        serde_json::Value::String(s) => s.trim().parse().map(Some).map_err(D::Error::custom),
+        other => Err(D::Error::custom(format!("expected a price, got {other}"))),
+    }
+}
+
 /// Supported chains for Enso Finance API
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -250,10 +302,12 @@ impl RouteRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RouteResponse {
-    /// Estimated output amount
+    /// Estimated output amount. With several `tokenOut`, the amounts in
+    /// that order, comma-separated; empty for async routes (Enso sends null)
+    #[serde(deserialize_with = "amount_out")]
     pub amount_out: String,
     /// Minimum output amount after slippage
-    #[serde(default, alias = "amount_out_min")]
+    #[serde(default, alias = "amount_out_min", deserialize_with = "opt_amount_out")]
     pub min_amount_out: Option<String>,
     /// Transaction data
     pub tx: TransactionData,
@@ -574,7 +628,7 @@ pub struct TokenBalance {
     #[serde(default)]
     pub chain_id: Option<u64>,
     /// USD price of one whole token (not the value of the balance)
-    #[serde(default, alias = "usd_value")]
+    #[serde(default, alias = "usd_value", deserialize_with = "opt_price")]
     pub price: Option<f64>,
     /// Logo URI
     #[serde(default)]
@@ -594,6 +648,34 @@ pub struct ApiErrorResponse {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn route_amount_out_reads_string_list_and_null() {
+        #[derive(serde::Deserialize)]
+        struct A {
+            #[serde(deserialize_with = "super::amount_out")]
+            amount_out: String,
+        }
+        let a: A = serde_json::from_str(r#"{"amount_out":"100"}"#).unwrap();
+        assert_eq!(a.amount_out, "100");
+        let a: A = serde_json::from_str(r#"{"amount_out":["100","200"]}"#).unwrap();
+        assert_eq!(a.amount_out, "100,200");
+        let a: A = serde_json::from_str(r#"{"amount_out":null}"#).unwrap();
+        assert_eq!(a.amount_out, "");
+    }
+
+    #[test]
+    fn balance_price_reads_string_number_and_null() {
+        let b: TokenBalance =
+            serde_json::from_str(r#"{"token":"0x1","amount":"5","price":"1.25"}"#).unwrap();
+        assert_eq!(b.price, Some(1.25));
+        let b: TokenBalance =
+            serde_json::from_str(r#"{"token":"0x1","amount":"5","price":2}"#).unwrap();
+        assert_eq!(b.price, Some(2.0));
+        let b: TokenBalance =
+            serde_json::from_str(r#"{"token":"0x1","amount":"5","price":null}"#).unwrap();
+        assert_eq!(b.price, None);
+    }
+
     use super::*;
 
     #[test]
