@@ -742,6 +742,30 @@ ethcli gecko nft-collection boredapeyachtclub
 # Exchanges
 ethcli gecko exchanges
 ethcli gecko exchange binance
+
+# Tokenized real-world assets (list/markets/get/issuers work without a key)
+ethcli gecko rwas list --asset-type stock
+ethcli gecko rwas markets --asset-type etf
+ethcli gecko rwas get 1-800-flowers-com --full
+ethcli gecko rwas issuers
+ethcli gecko rwas chart <rwa-id> --days 90         # Basic plan or above
+
+# Onchain wallets (Analyst plan or above)
+ethcli gecko wallets balances 0x... --networks eth,base
+ethcli gecko wallets transfers eth 0x... --from 2026-11-01 --to 2026-11-07
+ethcli gecko wallets trades eth 0x...
+ethcli gecko wallets pnl 0x... --networks eth,base
+
+# News, insights, supply breakdown (Analyst plan or above)
+ethcli gecko news --coin bitcoin
+ethcli gecko insights
+ethcli gecko coins supply-breakdown uniswap
+
+# Onchain multi-network (Enterprise plan) and trade ranges (Analyst plan)
+ethcli gecko onchain token-price-multi eth:0x...,base:0x... --market-cap
+ethcli gecko onchain tokens-multi eth:0x... --top-pools
+ethcli gecko onchain pool-trades eth 0x... --from 2026-11-01 --to 2026-11-02
+ethcli gecko onchain token-trades eth 0x... --from 2026-11-01 --to 2026-11-02
 ```
 
 ### Llama - DefiLlama API
@@ -764,10 +788,23 @@ ethcli llama price-history ethereum:0x... --period 1d
 ethcli llama yields
 ethcli llama yields --chain ethereum --project aave
 
+# Yields v2 (Pro key required)
+ethcli llama yields earn --chain ethereum --protocol aave-v3 --stablecoin true --limit 50
+ethcli llama yields earn-history <pool-id> --range 30d
+ethcli llama yields verified
+ethcli llama yields verified-pool <pool-id>
+ethcli llama yields borrow-markets
+ethcli llama yields borrow-history <market-id> --range 90d
+ethcli llama yields borrow-routes
+ethcli llama yields loops
+
 # Stablecoins
 ethcli llama stablecoins
 ethcli llama stablecoin-history tether
 ```
+
+With a key, `pro_routes = true` under `[defillama]` (or `DEFILLAMA_PRO_ROUTES=1`)
+sends the free TVL, coins, volumes, fees and stablecoins endpoints to the Pro API.
 
 ### Moralis - Moralis API
 
@@ -798,6 +835,10 @@ ethcli moralis balance 0x...
 ethcli moralis tokens 0x...
 ethcli moralis transactions 0x...
 ethcli moralis transfers 0x...
+ethcli moralis wallet insight 0x... --chains eth,base --chain-breakdown
+
+# Token score history (1d, 7d, 30d)
+ethcli moralis discovery token-score-history 0x... --timeframe 30d
 
 # NFT data
 ethcli moralis nfts 0x...
@@ -1191,6 +1232,7 @@ ethcli config set-etherscan-key YOUR_KEY
 | `ALCHEMY_ACCESS_KEY` | `ethcli alchemy gas-manager` | Access key with Gas Manager (Gas Sponsorship) permissions (dashboard -> Security) |
 | `COINGECKO_API_KEY` | Optional | CoinGecko Pro API (higher rate limits) |
 | `DEFILLAMA_API_KEY` | Pro endpoints; DefiLlama yields from 2026-11-13 | DefiLlama API plan key; or `ethcli config set-defillama --stdin` |
+| `DEFILLAMA_PRO_ROUTES` | Optional | `1`/`true`: route `ethcli llama` free endpoints through the Pro API (needs a key) |
 | `MORALIS_API_KEY` | `ethcli moralis` | Moralis API access |
 | `DUNE_API_KEY` | `ethcli dune` | Dune Analytics queries |
 | `THEGRAPH_API_KEY` | Uniswap subgraph | The Graph API access |

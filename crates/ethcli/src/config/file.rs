@@ -378,6 +378,11 @@ pub struct LlamaConfig {
         deserialize_with = "deserialize_secret_option"
     )]
     pub api_key: Option<SecretString>,
+    /// Send `ethcli llama` TVL, fees, volumes, coins and stablecoins requests
+    /// to the Pro API (`pro-api.llama.fi`) instead of the free hosts. Only
+    /// takes effect with an API key. `DEFILLAMA_PRO_ROUTES=1` also enables it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pro_routes: bool,
 }
 
 /// Moralis API configuration

@@ -60,6 +60,244 @@ pub enum GeckoCommands {
         #[command(flatten)]
         args: GeckoArgs,
     },
+
+    /// Tokenized real-world assets (stocks, commodities, ETFs)
+    #[command(visible_alias = "rwa")]
+    Rwas {
+        #[command(subcommand)]
+        action: RwasCommands,
+
+        #[command(flatten)]
+        args: GeckoArgs,
+    },
+
+    /// Onchain wallet balances, transfers, trades and PnL (Analyst plan or above)
+    #[command(visible_alias = "wallet")]
+    Wallets {
+        #[command(subcommand)]
+        action: WalletsCommands,
+
+        #[command(flatten)]
+        args: GeckoArgs,
+    },
+
+    /// Latest crypto news and guides (Analyst plan or above)
+    News {
+        /// Only news about this coin ID (also returns guides)
+        #[arg(long)]
+        coin: Option<String>,
+        /// Language code, e.g. en (default), de, ja, zh-tw
+        #[arg(long)]
+        language: Option<String>,
+        /// all (default), news or guides (guides needs --coin)
+        #[arg(long = "type", value_name = "TYPE")]
+        news_type: Option<String>,
+        /// Page, 1 to 20
+        #[arg(long)]
+        page: Option<u32>,
+        /// Results per page, 1 to 20
+        #[arg(long)]
+        per_page: Option<u32>,
+
+        #[command(flatten)]
+        args: GeckoArgs,
+    },
+
+    /// Latest coin insights (Analyst plan or above)
+    Insights {
+        /// Only insights about this coin ID
+        #[arg(long)]
+        coin: Option<String>,
+        /// Start date (YYYY-MM-DD)
+        #[arg(long)]
+        from: Option<String>,
+        /// End date (YYYY-MM-DD)
+        #[arg(long)]
+        to: Option<String>,
+        /// Page, 1 to 20
+        #[arg(long)]
+        page: Option<u32>,
+        /// Results per page, 1 to 20
+        #[arg(long)]
+        per_page: Option<u32>,
+
+        #[command(flatten)]
+        args: GeckoArgs,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum RwasCommands {
+    /// List every RWA (ID, symbol, name, asset type)
+    List {
+        /// Filter: stock, commodity or etf
+        #[arg(long)]
+        asset_type: Option<String>,
+    },
+
+    /// RWAs with price, market cap, volume and price changes
+    Markets {
+        /// Filter: stock, commodity or etf
+        #[arg(long)]
+        asset_type: Option<String>,
+        /// RWA IDs (comma-separated)
+        #[arg(long)]
+        ids: Option<String>,
+        /// Issuer ID (see: gecko rwas issuers)
+        #[arg(long)]
+        issuer: Option<String>,
+        /// market_cap_desc (default), market_cap_asc, volume_desc, volume_asc, id_asc, id_desc
+        #[arg(long)]
+        order: Option<String>,
+        /// Results per page, 1 to 250 (default 100)
+        #[arg(long)]
+        per_page: Option<u32>,
+        /// Page number
+        #[arg(long)]
+        page: Option<u32>,
+    },
+
+    /// Get an RWA's metadata
+    Get {
+        /// RWA ID (e.g., "1-800-flowers-com")
+        id: String,
+        /// Also include its tokens, tokenized and perpetuals market data
+        #[arg(long)]
+        full: bool,
+    },
+
+    /// List RWA issuers (ID and name)
+    Issuers,
+
+    /// Get an issuer's market data and tokens
+    Issuer {
+        /// Issuer ID
+        id: String,
+    },
+
+    /// CEX and DEX tickers of the tokens tracking an RWA (Basic plan or above)
+    Tickers {
+        /// RWA ID
+        id: String,
+        /// Page number (100 tickers per page)
+        #[arg(long)]
+        page: Option<u32>,
+        /// volume_desc (default), volume_asc, last_traded_at_desc, last_traded_at_asc
+        #[arg(long)]
+        order: Option<String>,
+        /// Include 2% order book depth
+        #[arg(long)]
+        depth: bool,
+    },
+
+    /// Historical tokenized price, market cap and volume (Basic plan or above)
+    Chart {
+        /// RWA ID
+        id: String,
+        /// Days of data (number or "max")
+        #[arg(long, default_value = "30")]
+        days: String,
+        /// Data interval: 5m, hourly or daily (default: chosen from --days)
+        #[arg(long)]
+        interval: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum WalletsCommands {
+    /// Token balances across networks (Analyst plan or above)
+    Balances {
+        /// Wallet address
+        address: String,
+        /// Network IDs, comma-separated, all EVM or all non-EVM (e.g., "eth,base")
+        #[arg(long, required = true)]
+        networks: String,
+        /// value_usd_desc (default) or value_usd_asc
+        #[arg(long)]
+        sort: Option<String>,
+        /// native or non_native (both when omitted)
+        #[arg(long)]
+        token_type: Option<String>,
+        /// Minimum holding value in USD
+        #[arg(long)]
+        min_value_usd: Option<f64>,
+        /// Page number
+        #[arg(long)]
+        page: Option<u32>,
+        /// Results per page, 1 to 100 (default 50)
+        #[arg(long)]
+        per_page: Option<u32>,
+    },
+
+    /// Token transfers on one network, native transfers excluded (Analyst plan or above)
+    Transfers {
+        /// Network ID (e.g., "eth")
+        network: String,
+        /// Wallet address
+        address: String,
+        /// Only this token contract address
+        #[arg(long)]
+        token: Option<String>,
+        /// Window start: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (default: last 7 days)
+        #[arg(long, requires = "to")]
+        from: Option<String>,
+        /// Window end: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp
+        #[arg(long, requires = "from")]
+        to: Option<String>,
+        /// in (received) or out (sent); both when omitted
+        #[arg(long)]
+        direction: Option<String>,
+        /// meta.next_cursor from the previous page
+        #[arg(long)]
+        cursor: Option<String>,
+        /// Results per page, 1 to 300 (default 100)
+        #[arg(long)]
+        per_page: Option<u32>,
+    },
+
+    /// DEX trades on one network (Analyst plan or above)
+    Trades {
+        /// Network ID (e.g., "eth")
+        network: String,
+        /// Wallet address
+        address: String,
+        /// Only trades involving this token contract address
+        #[arg(long)]
+        token: Option<String>,
+        /// Window start: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (default: last 7 days)
+        #[arg(long, requires = "to")]
+        from: Option<String>,
+        /// Window end: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp
+        #[arg(long, requires = "from")]
+        to: Option<String>,
+        /// Include trades flagged as anomalous
+        #[arg(long)]
+        include_anomalous: bool,
+        /// meta.next_cursor from the previous page
+        #[arg(long)]
+        cursor: Option<String>,
+        /// Results per page, 1 to 300 (default 100)
+        #[arg(long)]
+        per_page: Option<u32>,
+    },
+
+    /// Realized and unrealized PnL across networks (Analyst plan or above)
+    Pnl {
+        /// Wallet address
+        address: String,
+        /// Network IDs, comma-separated, all EVM or all non-EVM (e.g., "eth,base")
+        #[arg(long, required = true)]
+        networks: String,
+        /// realized_pnl_usd_desc (default), unrealized_pnl_usd_desc, total_buy_usd_desc, total_sell_usd_desc
+        #[arg(long)]
+        sort: Option<String>,
+        /// Page number
+        #[arg(long)]
+        page: Option<u32>,
+        /// Results per page, 1 to 300 (default 100)
+        #[arg(long)]
+        per_page: Option<u32>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -167,6 +405,12 @@ pub enum CoinsCommands {
         platform: String,
         /// Contract address
         address: String,
+    },
+
+    /// Get circulating vs non-circulating supply and the wallets holding it (Analyst plan or above)
+    SupplyBreakdown {
+        /// Coin ID (e.g., "uniswap")
+        id: String,
     },
 }
 
@@ -304,6 +548,97 @@ pub enum OnchainCommands {
         /// Search query
         query: String,
     },
+
+    /// Get token prices across networks in one request (Enterprise plan)
+    TokenPriceMulti {
+        /// Up to 50 network:address pairs, comma-separated (e.g., "eth:0xc02a...,base:0x4200...")
+        tokens: String,
+        /// Include market cap
+        #[arg(long)]
+        market_cap: bool,
+        /// Include 24h volume
+        #[arg(long)]
+        volume: bool,
+        /// Include 24h price change
+        #[arg(long)]
+        price_change: bool,
+        /// Include total reserve in USD
+        #[arg(long)]
+        reserve: bool,
+    },
+
+    /// Get token data across networks in one request (Enterprise plan)
+    TokensMulti {
+        /// Up to 50 network:address pairs, comma-separated
+        tokens: String,
+        /// Include each token's top pools
+        #[arg(long)]
+        top_pools: bool,
+        /// Include pool composition (with --top-pools)
+        #[arg(long, requires = "top_pools")]
+        composition: bool,
+    },
+
+    /// Get pool trades; --from/--to selects a time range (Analyst plan or above)
+    PoolTrades {
+        /// Network ID
+        network: String,
+        /// Pool address
+        address: String,
+        /// Range start: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (at most 30 days before --to)
+        #[arg(long, requires = "to")]
+        from: Option<String>,
+        /// Range end: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp
+        #[arg(long, requires = "from")]
+        to: Option<String>,
+        /// Lookback period without a range: 1d (default), 7d, 30d (7d/30d: Analyst plan)
+        #[arg(long, conflicts_with = "from")]
+        period: Option<String>,
+        /// Trade side: base (default), quote or a token address
+        #[arg(long)]
+        token: Option<String>,
+        /// Only trades worth more than this many USD
+        #[arg(long)]
+        min_volume_usd: Option<f64>,
+        /// Include trades flagged as anomalous
+        #[arg(long)]
+        include_anomalous: bool,
+        /// meta.next_cursor from the previous page (Analyst plan)
+        #[arg(long)]
+        cursor: Option<String>,
+        /// Results per page, 1 to 300 (Analyst plan)
+        #[arg(long)]
+        per_page: Option<u32>,
+    },
+
+    /// Get token trades across all pools; --from/--to selects a time range (paid API; range: Analyst plan or above)
+    TokenTrades {
+        /// Network ID
+        network: String,
+        /// Token address
+        address: String,
+        /// Range start: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp (at most 30 days before --to)
+        #[arg(long, requires = "to")]
+        from: Option<String>,
+        /// Range end: YYYY-MM-DD, YYYY-MM-DDTHH:MM or Unix timestamp
+        #[arg(long, requires = "from")]
+        to: Option<String>,
+        /// Lookback period without a range: 1d (default), 7d, 30d (7d/30d: Analyst plan)
+        #[arg(long, conflicts_with = "from")]
+        period: Option<String>,
+        /// Only trades worth more than this many USD
+        #[arg(long)]
+        min_volume_usd: Option<f64>,
+        /// Include trades flagged as anomalous
+        #[arg(long)]
+        include_anomalous: bool,
+        /// meta.next_cursor from the previous page (Analyst plan)
+        #[arg(long)]
+        cursor: Option<String>,
+        /// Results per page, 1 to 300 (Analyst plan)
+        #[arg(long)]
+        per_page: Option<u32>,
+    },
 }
 
 /// Handle CoinGecko commands
@@ -350,7 +685,24 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
         (cgko::Client::new()?, GeckoTier::Public)
     };
 
-    let is_onchain = matches!(command, GeckoCommands::Onchain { .. });
+    if tier != GeckoTier::Pro {
+        if let Some(plan) = paid_plan_required(command) {
+            anyhow::bail!(
+                "This CoinGecko endpoint requires a paid plan ({plan} or above; current: {}). \
+                 {GECKO_KEY_HINT}",
+                match tier {
+                    GeckoTier::Public => "no API key",
+                    GeckoTier::Demo => "demo key",
+                    GeckoTier::Pro => "pro key",
+                }
+            );
+        }
+    }
+
+    let is_onchain = matches!(
+        command,
+        GeckoCommands::Onchain { .. } | GeckoCommands::Wallets { .. }
+    );
     let result = match command {
         GeckoCommands::Simple { action, args } => handle_simple(&client, action, args, quiet).await,
         GeckoCommands::Coins { action, args } => handle_coins(&client, action, args, quiet).await,
@@ -359,9 +711,97 @@ pub async fn handle(command: &GeckoCommands, quiet: bool) -> anyhow::Result<()> 
         GeckoCommands::Onchain { action, args } => {
             handle_onchain(&client, action, args, quiet).await
         }
+        GeckoCommands::Rwas { action, args } => handle_rwas(&client, action, args, quiet).await,
+        GeckoCommands::Wallets { action, args } => {
+            handle_wallets(&client, action, args, quiet).await
+        }
+        GeckoCommands::News {
+            coin,
+            language,
+            news_type,
+            page,
+            per_page,
+            args,
+        } => {
+            if !quiet {
+                eprintln!("Fetching news...");
+            }
+            let options = cgko::news::NewsOptions {
+                page: *page,
+                per_page: *per_page,
+                coin_id: coin.clone(),
+                language: language.clone(),
+                news_type: news_type.clone(),
+            };
+            match client.news().news(&options).await {
+                Ok(response) => print_output(&response, args.format),
+                Err(e) => Err(e.into()),
+            }
+        }
+        GeckoCommands::Insights {
+            coin,
+            from,
+            to,
+            page,
+            per_page,
+            args,
+        } => {
+            if !quiet {
+                eprintln!("Fetching insights...");
+            }
+            let options = cgko::news::InsightsOptions {
+                page: *page,
+                per_page: *per_page,
+                coin_id: coin.clone(),
+                from: from.clone(),
+                to: to.clone(),
+            };
+            match client.news().insights(&options).await {
+                Ok(response) => print_output(&response, args.format),
+                Err(e) => Err(e.into()),
+            }
+        }
     };
     // Apply plan/key-aware error explanations to *every* gecko command.
     result.map_err(|e| enhance_gecko_error(e, tier, is_onchain))
+}
+
+/// The paid CoinGecko plan a command needs, if any.
+///
+/// Keyless and Demo requests for these would fail upstream (keyless
+/// onchain paths even go to GeckoTerminal, which doesn't serve them), so
+/// they are refused before any request is sent.
+fn paid_plan_required(command: &GeckoCommands) -> Option<&'static str> {
+    match command {
+        GeckoCommands::Wallets { .. }
+        | GeckoCommands::News { .. }
+        | GeckoCommands::Insights { .. }
+        | GeckoCommands::Coins {
+            action: CoinsCommands::SupplyBreakdown { .. },
+            ..
+        } => Some("Analyst"),
+        GeckoCommands::Rwas {
+            action: RwasCommands::Tickers { .. } | RwasCommands::Chart { .. },
+            ..
+        } => Some("Basic"),
+        GeckoCommands::Onchain { action, .. } => match action {
+            OnchainCommands::TokenPriceMulti { .. } | OnchainCommands::TokensMulti { .. } => {
+                Some("Enterprise")
+            }
+            OnchainCommands::PoolTrades { from: Some(_), .. }
+            | OnchainCommands::TokenTrades { from: Some(_), .. } => Some("Analyst"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Split a comma-separated list, dropping empty entries
+fn split_list(s: &str) -> Vec<&str> {
+    s.split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 /// Which CoinGecko API tier the client is using
@@ -499,6 +939,13 @@ async fn handle_coins(
             let response = client.coins().by_contract(platform, address).await?;
             print_output(&response, args.format)?;
         }
+        CoinsCommands::SupplyBreakdown { id } => {
+            if !quiet {
+                eprintln!("Fetching supply breakdown for {}...", id);
+            }
+            let response = client.coins().supply_breakdown(id).await?;
+            print_output(&response, args.format)?;
+        }
     }
     Ok(())
 }
@@ -603,6 +1050,215 @@ async fn handle_nfts(
                 eprintln!("Fetching tickers for {}...", id);
             }
             let response = client.nfts().tickers(id).await?;
+            print_output(&response, args.format)?;
+        }
+    }
+    Ok(())
+}
+
+async fn handle_rwas(
+    client: &cgko::Client,
+    action: &RwasCommands,
+    args: &GeckoArgs,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    match action {
+        RwasCommands::List { asset_type } => {
+            if !quiet {
+                eprintln!("Fetching RWA list...");
+            }
+            let response = client.rwas().list(asset_type.as_deref()).await?;
+            print_output(&response, args.format)?;
+        }
+        RwasCommands::Markets {
+            asset_type,
+            ids,
+            issuer,
+            order,
+            per_page,
+            page,
+        } => {
+            if !quiet {
+                eprintln!("Fetching RWA markets...");
+            }
+            let options = cgko::rwas::RwaMarketsOptions {
+                asset_type: asset_type.clone(),
+                ids: ids
+                    .as_deref()
+                    .map(|ids| split_list(ids).into_iter().map(String::from).collect()),
+                issuer: issuer.clone(),
+                order: order.clone(),
+                per_page: *per_page,
+                page: *page,
+                ..Default::default()
+            };
+            let response = client.rwas().markets(&options).await?;
+            print_output(&response, args.format)?;
+        }
+        RwasCommands::Get { id, full } => {
+            if !quiet {
+                eprintln!("Fetching RWA {}...", id);
+            }
+            let response = if *full {
+                client
+                    .rwas()
+                    .get_with_options(id, &cgko::rwas::RwaDataOptions::all())
+                    .await?
+            } else {
+                client.rwas().get(id).await?
+            };
+            print_output(&response, args.format)?;
+        }
+        RwasCommands::Issuers => {
+            if !quiet {
+                eprintln!("Fetching RWA issuers...");
+            }
+            let response = client.rwas().issuers_list().await?;
+            print_output(&response, args.format)?;
+        }
+        RwasCommands::Issuer { id } => {
+            if !quiet {
+                eprintln!("Fetching RWA issuer {}...", id);
+            }
+            let response = client.rwas().issuer(id).await?;
+            print_output(&response, args.format)?;
+        }
+        RwasCommands::Tickers {
+            id,
+            page,
+            order,
+            depth,
+        } => {
+            if !quiet {
+                eprintln!("Fetching tickers for RWA {}...", id);
+            }
+            let options = cgko::rwas::RwaTickersOptions {
+                page: *page,
+                order: order.clone(),
+                depth: depth.then_some(true),
+                ..Default::default()
+            };
+            let response = client.rwas().tickers_with_options(id, &options).await?;
+            print_output(&response, args.format)?;
+        }
+        RwasCommands::Chart { id, days, interval } => {
+            if !quiet {
+                eprintln!("Fetching market chart for RWA {}...", id);
+            }
+            let options = cgko::rwas::RwaMarketChartOptions {
+                interval: interval.clone(),
+                ..Default::default()
+            };
+            let response = client.rwas().market_chart(id, days, &options).await?;
+            print_output(&response, args.format)?;
+        }
+    }
+    Ok(())
+}
+
+async fn handle_wallets(
+    client: &cgko::Client,
+    action: &WalletsCommands,
+    args: &GeckoArgs,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    match action {
+        WalletsCommands::Balances {
+            address,
+            networks,
+            sort,
+            token_type,
+            min_value_usd,
+            page,
+            per_page,
+        } => {
+            if !quiet {
+                eprintln!("Fetching balances for {}...", address);
+            }
+            let options = cgko::wallets::WalletBalancesOptions {
+                sort: sort.clone(),
+                token_type: token_type.clone(),
+                value_usd_min: *min_value_usd,
+                page: *page,
+                per_page: *per_page,
+                ..Default::default()
+            };
+            let response = client
+                .wallets()
+                .balances(address, &split_list(networks), &options)
+                .await?;
+            print_output(&response, args.format)?;
+        }
+        WalletsCommands::Transfers {
+            network,
+            address,
+            token,
+            from,
+            to,
+            direction,
+            cursor,
+            per_page,
+        } => {
+            if !quiet {
+                eprintln!("Fetching transfers for {} on {}...", address, network);
+            }
+            let options = cgko::wallets::WalletTransfersOptions {
+                token: token.clone(),
+                from: from.clone(),
+                to: to.clone(),
+                direction: direction.clone(),
+                cursor: cursor.clone(),
+                per_page: *per_page,
+            };
+            let response = client
+                .wallets()
+                .transfers(network, address, &options)
+                .await?;
+            print_output(&response, args.format)?;
+        }
+        WalletsCommands::Trades {
+            network,
+            address,
+            token,
+            from,
+            to,
+            include_anomalous,
+            cursor,
+            per_page,
+        } => {
+            if !quiet {
+                eprintln!("Fetching trades for {} on {}...", address, network);
+            }
+            let options = cgko::wallets::WalletTradesOptions {
+                token: token.clone(),
+                from: from.clone(),
+                to: to.clone(),
+                include_anomalous: include_anomalous.then_some(true),
+                cursor: cursor.clone(),
+                per_page: *per_page,
+            };
+            let response = client.wallets().trades(network, address, &options).await?;
+            print_output(&response, args.format)?;
+        }
+        WalletsCommands::Pnl {
+            address,
+            networks,
+            sort,
+            page,
+            per_page,
+        } => {
+            if !quiet {
+                eprintln!("Fetching PnL for {}...", address);
+            }
+            let options = cgko::wallets::WalletPnlOptions {
+                sort: sort.clone(),
+                page: *page,
+                per_page: *per_page,
+            };
+            let response = client
+                .wallets()
+                .pnl(address, &split_list(networks), &options)
+                .await?;
             print_output(&response, args.format)?;
         }
     }
@@ -799,6 +1455,127 @@ async fn handle_onchain(
             let response = client.onchain().search_pools(query).await?;
             print_output(&response, args.format)?;
         }
+        OnchainCommands::TokenPriceMulti {
+            tokens,
+            market_cap,
+            volume,
+            price_change,
+            reserve,
+        } => {
+            if !quiet {
+                eprintln!("Fetching token prices across networks...");
+            }
+            let token_list = split_list(tokens);
+            let options = cgko::onchain::TokenPriceOptions {
+                include_market_cap: market_cap.then_some(true),
+                include_24hr_vol: volume.then_some(true),
+                include_24hr_price_change: price_change.then_some(true),
+                include_total_reserve_in_usd: reserve.then_some(true),
+                ..Default::default()
+            };
+            let response = client
+                .onchain()
+                .token_price_multi_network(&token_list, &options)
+                .await?;
+            print_output(&response, args.format)?;
+        }
+        OnchainCommands::TokensMulti {
+            tokens,
+            top_pools,
+            composition,
+        } => {
+            if !quiet {
+                eprintln!("Fetching token data across networks...");
+            }
+            let token_list = split_list(tokens);
+            let options = cgko::onchain::TokensMultiNetworkOptions {
+                include: top_pools.then(|| "top_pools".to_string()),
+                include_composition: composition.then_some(true),
+                ..Default::default()
+            };
+            let response = client
+                .onchain()
+                .tokens_multi_network(&token_list, &options)
+                .await?;
+            print_output(&response, args.format)?;
+        }
+        OnchainCommands::PoolTrades {
+            network,
+            address,
+            from,
+            to,
+            period,
+            token,
+            min_volume_usd,
+            include_anomalous,
+            cursor,
+            per_page,
+        } => {
+            if !quiet {
+                eprintln!("Fetching trades for pool {} on {}...", address, network);
+            }
+            let options = cgko::onchain::TradesOptions {
+                trade_volume_in_usd_greater_than: *min_volume_usd,
+                token: token.clone(),
+                trading_period: period.clone(),
+                include_anomalous: include_anomalous.then_some(true),
+                cursor: cursor.clone(),
+                per_page: *per_page,
+            };
+            let response = match (from, to) {
+                (Some(from), Some(to)) => {
+                    client
+                        .onchain()
+                        .pool_trades_range(network, address, from, to, &options)
+                        .await?
+                }
+                _ => {
+                    client
+                        .onchain()
+                        .pool_trades_with_options(network, address, &options)
+                        .await?
+                }
+            };
+            print_output(&response, args.format)?;
+        }
+        OnchainCommands::TokenTrades {
+            network,
+            address,
+            from,
+            to,
+            period,
+            min_volume_usd,
+            include_anomalous,
+            cursor,
+            per_page,
+        } => {
+            if !quiet {
+                eprintln!("Fetching trades for token {} on {}...", address, network);
+            }
+            let options = cgko::onchain::TradesOptions {
+                trade_volume_in_usd_greater_than: *min_volume_usd,
+                token: None,
+                trading_period: period.clone(),
+                include_anomalous: include_anomalous.then_some(true),
+                cursor: cursor.clone(),
+                per_page: *per_page,
+            };
+            let response = match (from, to) {
+                (Some(from), Some(to)) => {
+                    client
+                        .onchain()
+                        .token_trades_range(network, address, from, to, &options)
+                        .await?
+                }
+                _ => {
+                    client
+                        .onchain()
+                        .token_trades_with_options(network, address, &options)
+                        .await?
+                }
+            };
+            print_output(&response, args.format)?;
+        }
     }
     Ok(())
 }
@@ -858,5 +1635,312 @@ mod error_tests {
         let err = anyhow::Error::from(Error::api(401, "Requests without API key are not allowed"));
         let out = enhance_gecko_error(err, GeckoTier::Public, true).to_string();
         assert!(out.contains("needs a CoinGecko key"), "{out}");
+    }
+}
+
+#[cfg(test)]
+mod parse_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct Cli {
+        #[command(subcommand)]
+        command: GeckoCommands,
+    }
+
+    fn try_parse(args: &[&str]) -> Result<GeckoCommands, clap::Error> {
+        let argv = std::iter::once("gecko").chain(args.iter().copied());
+        Cli::try_parse_from(argv).map(|cli| cli.command)
+    }
+
+    fn parse(args: &[&str]) -> GeckoCommands {
+        try_parse(args).unwrap()
+    }
+
+    fn fails(args: &[&str]) -> bool {
+        try_parse(args).is_err()
+    }
+
+    #[test]
+    fn rwas_subcommands_parse() {
+        assert!(matches!(
+            parse(&["rwas", "list", "--asset-type", "stock"]),
+            GeckoCommands::Rwas {
+                action: RwasCommands::List { asset_type: Some(t) },
+                ..
+            } if t == "stock"
+        ));
+        assert!(matches!(
+            parse(&["rwas", "markets", "--ids", "a,b", "--per-page", "10"]),
+            GeckoCommands::Rwas {
+                action: RwasCommands::Markets {
+                    ids: Some(_),
+                    per_page: Some(10),
+                    ..
+                },
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse(&["rwa", "get", "1-800-flowers-com", "--full"]),
+            GeckoCommands::Rwas {
+                action: RwasCommands::Get { full: true, .. },
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse(&["rwas", "-o", "ndjson", "issuers"]),
+            GeckoCommands::Rwas {
+                action: RwasCommands::Issuers,
+                args: GeckoArgs {
+                    format: OutputFormat::Ndjson
+                }
+            }
+        ));
+        assert!(matches!(
+            parse(&["rwas", "issuer", "some-issuer"]),
+            GeckoCommands::Rwas {
+                action: RwasCommands::Issuer { .. },
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse(&["rwas", "tickers", "x", "--depth"]),
+            GeckoCommands::Rwas {
+                action: RwasCommands::Tickers { depth: true, .. },
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse(&["rwas", "chart", "x", "--days", "max"]),
+            GeckoCommands::Rwas {
+                action: RwasCommands::Chart { days, .. },
+                ..
+            } if days == "max"
+        ));
+    }
+
+    #[test]
+    fn wallets_subcommands_parse() {
+        assert!(matches!(
+            parse(&["wallets", "balances", "0xabc", "--networks", "eth, base"]),
+            GeckoCommands::Wallets {
+                action: WalletsCommands::Balances { networks, .. },
+                ..
+            } if split_list(&networks) == ["eth", "base"]
+        ));
+        assert!(
+            fails(&["wallets", "balances", "0xabc"]),
+            "--networks is required"
+        );
+        assert!(matches!(
+            parse(&[
+                "wallets",
+                "transfers",
+                "eth",
+                "0xabc",
+                "--from",
+                "2026-11-01",
+                "--to",
+                "2026-11-07"
+            ]),
+            GeckoCommands::Wallets {
+                action: WalletsCommands::Transfers {
+                    from: Some(_),
+                    to: Some(_),
+                    ..
+                },
+                ..
+            }
+        ));
+        assert!(fails(&[
+            "wallets",
+            "transfers",
+            "eth",
+            "0xabc",
+            "--from",
+            "2026-11-01"
+        ]));
+        assert!(matches!(
+            parse(&["wallet", "trades", "eth", "0xabc", "--include-anomalous"]),
+            GeckoCommands::Wallets {
+                action: WalletsCommands::Trades {
+                    include_anomalous: true,
+                    ..
+                },
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse(&["wallets", "pnl", "0xabc", "--networks", "eth"]),
+            GeckoCommands::Wallets {
+                action: WalletsCommands::Pnl { .. },
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn news_insights_and_supply_breakdown_parse() {
+        assert!(matches!(
+            parse(&["news", "--coin", "bitcoin", "--type", "guides"]),
+            GeckoCommands::News { coin: Some(_), news_type: Some(t), .. } if t == "guides"
+        ));
+        assert!(matches!(
+            parse(&["insights", "--from", "2026-11-01"]),
+            GeckoCommands::Insights {
+                from: Some(_),
+                to: None,
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse(&["coins", "supply-breakdown", "uniswap"]),
+            GeckoCommands::Coins {
+                action: CoinsCommands::SupplyBreakdown { .. },
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn onchain_multi_and_trades_parse() {
+        assert!(matches!(
+            parse(&[
+                "onchain",
+                "token-price-multi",
+                "eth:0xa,base:0xb",
+                "--market-cap"
+            ]),
+            GeckoCommands::Onchain {
+                action: OnchainCommands::TokenPriceMulti {
+                    market_cap: true,
+                    volume: false,
+                    ..
+                },
+                ..
+            }
+        ));
+        assert!(matches!(
+            parse(&[
+                "onchain",
+                "tokens-multi",
+                "eth:0xa",
+                "--top-pools",
+                "--composition"
+            ]),
+            GeckoCommands::Onchain {
+                action: OnchainCommands::TokensMulti {
+                    top_pools: true,
+                    composition: true,
+                    ..
+                },
+                ..
+            }
+        ));
+        assert!(fails(&[
+            "onchain",
+            "tokens-multi",
+            "eth:0xa",
+            "--composition"
+        ]));
+        assert!(matches!(
+            parse(&[
+                "onchain",
+                "pool-trades",
+                "eth",
+                "0xp",
+                "--from",
+                "2026-11-01",
+                "--to",
+                "2026-11-02"
+            ]),
+            GeckoCommands::Onchain {
+                action: OnchainCommands::PoolTrades {
+                    from: Some(_),
+                    to: Some(_),
+                    ..
+                },
+                ..
+            }
+        ));
+        assert!(fails(&[
+            "onchain",
+            "pool-trades",
+            "eth",
+            "0xp",
+            "--to",
+            "b"
+        ]));
+        assert!(fails(&[
+            "onchain",
+            "pool-trades",
+            "eth",
+            "0xp",
+            "--from",
+            "a",
+            "--to",
+            "b",
+            "--period",
+            "7d"
+        ]));
+        assert!(matches!(
+            parse(&["onchain", "token-trades", "eth", "0xt", "--period", "7d"]),
+            GeckoCommands::Onchain {
+                action: OnchainCommands::TokenTrades {
+                    from: None,
+                    period: Some(_),
+                    ..
+                },
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn paid_endpoints_are_flagged() {
+        assert_eq!(paid_plan_required(&parse(&["news"])), Some("Analyst"));
+        assert_eq!(paid_plan_required(&parse(&["insights"])), Some("Analyst"));
+        assert_eq!(
+            paid_plan_required(&parse(&["wallets", "pnl", "0x", "--networks", "eth"])),
+            Some("Analyst")
+        );
+        assert_eq!(
+            paid_plan_required(&parse(&["coins", "supply-breakdown", "uniswap"])),
+            Some("Analyst")
+        );
+        assert_eq!(
+            paid_plan_required(&parse(&["onchain", "tokens-multi", "eth:0xa"])),
+            Some("Enterprise")
+        );
+        assert_eq!(
+            paid_plan_required(&parse(&["rwas", "chart", "x"])),
+            Some("Basic")
+        );
+        assert_eq!(
+            paid_plan_required(&parse(&[
+                "onchain",
+                "pool-trades",
+                "eth",
+                "0xp",
+                "--from",
+                "a",
+                "--to",
+                "b"
+            ])),
+            Some("Analyst")
+        );
+        // Endpoints on the keyless API stay available
+        assert_eq!(paid_plan_required(&parse(&["rwas", "list"])), None);
+        assert_eq!(paid_plan_required(&parse(&["rwas", "get", "x"])), None);
+        assert_eq!(
+            paid_plan_required(&parse(&["onchain", "pool-trades", "eth", "0xp"])),
+            None
+        );
+        assert_eq!(
+            paid_plan_required(&parse(&["coins", "get", "bitcoin"])),
+            None
+        );
     }
 }

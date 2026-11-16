@@ -2227,8 +2227,10 @@ async fn handle_config(action: &ConfigCommands) -> anyhow::Result<()> {
                 anyhow::bail!("API key must not be empty");
             }
             let mut cfg = ConfigFile::load_default()?.unwrap_or_default();
+            let pro_routes = cfg.defillama.as_ref().is_some_and(|l| l.pro_routes);
             cfg.defillama = Some(LlamaConfig {
                 api_key: Some(SecretString::new(api_key.into())),
+                pro_routes,
             });
             cfg.save_default()?;
             println!("DefiLlama API key saved to config file.");
