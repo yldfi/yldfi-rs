@@ -28,6 +28,41 @@ where
     }
 }
 
+/// Deserialize an integer that Moralis may send as a number or as a string
+/// containing one (an empty string or `"null"` reads as `None`).
+pub(crate) fn string_or_integer<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: std::str::FromStr + TryFrom<i64> + TryFrom<u64>,
+    <T as std::str::FromStr>::Err: std::fmt::Display,
+{
+    let out_of_range = || de::Error::custom("integer out of range");
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Number(number) => {
+            if let Some(v) = number.as_i64() {
+                T::try_from(v).map(Some).map_err(|_| out_of_range())
+            } else if let Some(v) = number.as_u64() {
+                T::try_from(v).map(Some).map_err(|_| out_of_range())
+            } else {
+                Err(de::Error::custom(format!(
+                    "expected an integer, got {number}"
+                )))
+            }
+        }
+        serde_json::Value::String(value) => {
+            if value.is_empty() || value == "null" {
+                Ok(None)
+            } else {
+                value.parse().map(Some).map_err(de::Error::custom)
+            }
+        }
+        value => Err(de::Error::custom(format!(
+            "expected an integer or a string containing one, got {value}"
+        ))),
+    }
+}
+
 /// Deserialize a value that could be either a string or an integer.
 /// Moralis API sometimes returns block numbers and similar fields as integers
 /// rather than strings.
@@ -88,4 +123,27 @@ where
     S: serde::Serializer,
 {
     serializer.serialize_str("internal_transactions")
+}
+
+#[cfg(test)]
+mod tests {
+    #[derive(serde::Deserialize)]
+    struct Ints {
+        #[serde(default, deserialize_with = "super::string_or_integer")]
+        a: Option<i32>,
+        #[serde(default, deserialize_with = "super::string_or_integer")]
+        b: Option<u64>,
+    }
+
+    #[test]
+    fn string_or_integer_reads_numbers_and_strings() {
+        let v: Ints = serde_json::from_str(r#"{"a": "42", "b": 7}"#).unwrap();
+        assert_eq!((v.a, v.b), (Some(42), Some(7)));
+        let v: Ints = serde_json::from_str(r#"{"a": "", "b": null}"#).unwrap();
+        assert_eq!((v.a, v.b), (None, None));
+        let v: Ints = serde_json::from_str("{}").unwrap();
+        assert_eq!((v.a, v.b), (None, None));
+        assert!(serde_json::from_str::<Ints>(r#"{"a": "x"}"#).is_err());
+        assert!(serde_json::from_str::<Ints>(r#"{"a": 3000000000}"#).is_err());
+    }
 }

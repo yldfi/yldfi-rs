@@ -47,7 +47,14 @@ where
             let mut total: Option<i64> = None;
             while let Some(key) = map.next_key::<String>()? {
                 if key == "total" {
-                    total = Some(map.next_value::<i64>()?);
+                    // Moralis sends the total as a number or a numeric string
+                    total = match map.next_value::<serde_json::Value>()? {
+                        serde_json::Value::Number(n) => n.as_i64(),
+                        serde_json::Value::String(s) if !s.is_empty() => {
+                            Some(s.parse().map_err(de::Error::custom)?)
+                        }
+                        _ => None,
+                    };
                 } else {
                     let _: serde_json::Value = map.next_value()?;
                 }
@@ -84,8 +91,10 @@ pub struct TokenBalance {
     /// Balance (raw)
     pub balance: String,
     /// USD price
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub usd_price: Option<f64>,
     /// USD value
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub usd_value: Option<f64>,
     /// Possible spam
     pub possible_spam: Option<bool>,
@@ -126,8 +135,10 @@ pub struct WalletTransaction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedResponse<T> {
     /// Current page
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page: Option<i32>,
     /// Page size
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub page_size: Option<i32>,
     /// Cursor for pagination
     pub cursor: Option<String>,
@@ -338,18 +349,23 @@ pub struct WalletStats {
 pub struct WalletProfitability {
     /// Total profit USD
     #[serde(alias = "total_realized_profit_usd")]
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub total_realized_profit_usd: Option<f64>,
     /// Total loss USD
     #[serde(alias = "total_realized_loss_usd")]
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub total_realized_loss_usd: Option<f64>,
     /// Total count profitable
     #[serde(alias = "total_count_of_profitable_trades")]
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub total_count_of_profitable_trades: Option<i64>,
     /// Total count losing
     #[serde(alias = "total_count_of_losing_trades")]
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub total_count_of_losing_trades: Option<i64>,
     /// Total count of trades
     #[serde(alias = "total_count_of_trades")]
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub total_count_of_trades: Option<i64>,
 }
 
@@ -371,12 +387,15 @@ pub struct TokenProfitability {
     pub token_logo: Option<String>,
     /// Realized profit USD
     #[serde(alias = "realized_profit_usd")]
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub realized_profit_usd: Option<f64>,
     /// Average buy price USD
     #[serde(alias = "avg_buy_price_usd")]
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub avg_buy_price_usd: Option<f64>,
     /// Average sell price USD
     #[serde(alias = "avg_sell_price_usd")]
+    #[serde(default, deserialize_with = "crate::de::string_or_f64")]
     pub avg_sell_price_usd: Option<f64>,
     /// Total tokens bought
     #[serde(alias = "total_tokens_bought")]
@@ -386,6 +405,7 @@ pub struct TokenProfitability {
     pub total_tokens_sold: Option<String>,
     /// Count of trades
     #[serde(alias = "count_of_trades")]
+    #[serde(default, deserialize_with = "crate::de::string_or_integer")]
     pub count_of_trades: Option<i64>,
 }
 
