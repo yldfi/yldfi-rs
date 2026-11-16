@@ -9,7 +9,8 @@ homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/tndrly"
 keywords = ["tenderly", "ethereum", "simulation", "blockchain", "web3"]
 categories = ["api-bindings", "web-programming"]
 readme = "README.md"
-exclude = [".env*"]
+# Spec test fixtures are large and only used by this repo's tests
+exclude = [".env*", "tests/spec_examples*"]
 
 [lib]
 name = "tndrly"
@@ -36,6 +37,7 @@ percent-encoding = "2"
 yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 
 [dev-dependencies]
+yldfi-spec-test = { path = "../spec-test" }
 tokio-test = "0.4"
 wiremock = "0.6"
 tempfile = "3"

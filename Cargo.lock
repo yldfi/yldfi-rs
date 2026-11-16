@@ -5140,6 +5140,7 @@ dependencies = [
  "url",
  "wiremock",
  "yldfi-common",
+ "yldfi-spec-test",
 ]
 
 [[package]]
