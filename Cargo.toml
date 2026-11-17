@@ -30,11 +30,6 @@ members = [
     "crates/cexm",
 ]
 
-[workspace.package]
-edition = "2021"
-license = "MIT"
-repository = "https://github.com/yldfi/yldfi-rs"
-
 [workspace.dependencies]
 # Async runtime
 tokio = { version = "1", features = ["time", "sync"] }
@@ -48,11 +43,6 @@ serde_json = "1"
 
 # Error handling
 thiserror = "2"
-anyhow = "1"
-
-# Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Security
 secrecy = "0.10"
@@ -86,3 +76,13 @@ codegen-units = 1
 panic = "abort"
 strip = true
 opt-level = "z"
+
+# Cargo's own manifest lints (Rust 1.100+). They only warn by default, and
+# `-D warnings` does not apply to them, so they are denied here: a dependency
+# nothing uses, or a workspace entry nothing inherits, fails the build.
+# Every crate opts in with `[lints] workspace = true`.
+[workspace.lints.cargo]
+unused_dependencies = "deny"
+unused_workspace_dependencies = "deny"
+unused_workspace_package_fields = "deny"
+missing_lints_inheritance = "deny"

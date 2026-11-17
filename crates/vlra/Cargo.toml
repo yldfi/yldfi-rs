@@ -24,3 +24,6 @@ yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 yldfi-spec-test = { path = "../spec-test" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 tokio-test = "0.4"
+
+[lints]
+workspace = true

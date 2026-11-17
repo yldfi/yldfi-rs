@@ -26,3 +26,6 @@ yldfi-spec-test = { path = "../spec-test" }
 http = "1"
 wiremock = "0.6"
 tokio = { version = "1", features = ["full", "macros"] }
+
+[lints]
+workspace = true

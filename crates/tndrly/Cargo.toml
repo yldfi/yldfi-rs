@@ -41,3 +41,6 @@ yldfi-spec-test = { path = "../spec-test" }
 tokio-test = "0.4"
 wiremock = "0.6"
 tempfile = "3"
+
+[lints]
+workspace = true

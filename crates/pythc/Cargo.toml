@@ -22,3 +22,6 @@ yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 yldfi-spec-test = { path = "../spec-test" }
 wiremock = "0.6"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

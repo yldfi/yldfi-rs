@@ -18,10 +18,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-secrecy = { workspace = true }
 yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 
 [dev-dependencies]
 yldfi-spec-test = { path = "../spec-test" }
 http = "1"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

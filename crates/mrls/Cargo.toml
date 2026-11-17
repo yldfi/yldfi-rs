@@ -33,3 +33,6 @@ yldfi-spec-test = { path = "../spec-test" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 wiremock = "0.6"
 tokio-test = "0.4"
+
+[lints]
+workspace = true
