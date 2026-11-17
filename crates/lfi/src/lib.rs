@@ -243,6 +243,7 @@ pub use types::{
     ContractCall,
     ContractCallsRequest,
     Estimate,
+    EstimateHop,
     ExchangeOptions,
     FailedRoute,
     FeeCost,
@@ -251,6 +252,7 @@ pub use types::{
     GasPrice,
     GasPricesResponse,
     GasStatusResponse,
+    HopToken,
     Insurance,
     // Quote types
     Quote,
