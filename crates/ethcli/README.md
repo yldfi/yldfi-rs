@@ -1284,6 +1284,7 @@ converted to wei (`gasPriceDecimals`).
 # Get swap quote
 ethcli open-ocean quote <in_token> <out_token> <amount> --chain ethereum
 ethcli open-ocean quote 0xEee...EEeE 0xA0b8... 1000000000000000000 --slippage 1 --gas-price 30
+ethcli open-ocean quote ETH USDC 1000000000000000000 --chain ethereum   # symbols resolve per chain
 
 # Get swap transaction data (/v4/{chain}/swap)
 ethcli open-ocean swap <in_token> <out_token> <amount> <account> --chain ethereum
