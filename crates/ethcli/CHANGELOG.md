@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.30.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.7...ethcli-v0.30.0) (2026-11-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **oinch:** `oinch::ProtocolInfo` lost its token address fields and the `protocols` response field changed type. Code that reads the route must use `RouteStep`/`RouteHop`, or `protocol_names()` for the names alone.
+
+### Features
+
+* **ethcli:** placeholder sender, outlier flags and Velora decimals for swap quotes ([#262](https://github.com/yldfi/yldfi-rs/issues/262)) ([3d1bd6f](https://github.com/yldfi/yldfi-rs/commit/3d1bd6f1499fec8e9a1e80c12d15bb751e10cebd))
+* **oinch:** use Swap API v6.1 ([#261](https://github.com/yldfi/yldfi-rs/issues/261)) ([89168a2](https://github.com/yldfi/yldfi-rs/commit/89168a2d8df9a496a85673eb03b0877c6bc5461c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * oinch bumped from 0.2.1 to 0.3.0
+
 ## [0.29.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.6...ethcli-v0.29.7) (2026-11-17)
 
 
