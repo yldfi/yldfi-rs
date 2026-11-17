@@ -423,6 +423,65 @@ impl Client {
         format!("{}{}", self.config.base_url(), path)
     }
 
+    /// The API root the spec's paths are relative to: the base URL without
+    /// its trailing `/v1` (`https://api.tenderly.co/api`)
+    fn api_root(&self) -> &str {
+        let base = self.config.base_url();
+        base.strip_suffix("/v1").unwrap_or(base)
+    }
+
+    /// Full URL for a path under the API root, e.g. `/v2/...` or `/public/v1/...`
+    pub(crate) fn root_url(&self, path: &str) -> String {
+        format!("{}{}", self.api_root(), path)
+    }
+
+    /// `/account/{account}/project/{project}` with both slugs encoded
+    pub(crate) fn project_segment(&self) -> String {
+        format!(
+            "/account/{}/project/{}",
+            encode_path_segment(&self.config.account),
+            encode_path_segment(&self.config.project),
+        )
+    }
+
+    /// GET a full URL
+    pub(crate) async fn get_url<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
+        let response = self.http.get(url).headers(self.headers()?).send().await?;
+        self.handle_response(response).await
+    }
+
+    /// GET a full URL with query parameters
+    pub(crate) async fn get_url_with_query<T: DeserializeOwned, Q: serde::Serialize + ?Sized>(
+        &self,
+        url: &str,
+        query: &Q,
+    ) -> Result<T> {
+        let response = self
+            .http
+            .get(url)
+            .headers(self.headers()?)
+            .query(query)
+            .send()
+            .await?;
+        self.handle_response(response).await
+    }
+
+    /// POST a JSON body to a full URL
+    pub(crate) async fn post_url<T: DeserializeOwned, B: serde::Serialize + ?Sized>(
+        &self,
+        url: &str,
+        body: &B,
+    ) -> Result<T> {
+        let response = self
+            .http
+            .post(url)
+            .headers(self.headers()?)
+            .json(body)
+            .send()
+            .await?;
+        self.handle_response(response).await
+    }
+
     /// Make a GET request to an account-level endpoint
     pub async fn get_account<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = self.account_url(path);
@@ -595,6 +654,18 @@ mod tests {
             client.url("/simulate"),
             "https://api.tenderly.co/api/v1/account/myaccount/project/myproject/simulate"
         );
+    }
+
+    #[test]
+    fn test_root_url_strips_v1() {
+        let client = Client::new(Config::new("k", "my acct", "proj")).unwrap();
+        assert_eq!(
+            client.root_url(&format!("/v2{}/x", client.project_segment())),
+            "https://api.tenderly.co/api/v2/account/my%20acct/project/proj/x"
+        );
+        let custom = Config::new("k", "a", "p").with_base_url("http://localhost:1234");
+        let client = Client::new(custom).unwrap();
+        assert_eq!(client.root_url("/v2/x"), "http://localhost:1234/v2/x");
     }
 
     #[test]

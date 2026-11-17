@@ -7,24 +7,35 @@
 //! https://docs.tenderly.co/api-reference/openapi.json
 //! crates/tndrly/tests/spec_examples/tenderly.json`.
 //!
-//! Not checked: `getSimulatedTransactionInfoById` (read as untyped JSON) and
-//! the environment endpoints (this crate's Virtual TestNet calls use the
-//! `/vnets` API instead).
+//! `getSimulatedTransactionInfoById` is checked against the type
+//! `SimulationApi::get_info` reads (`SimulationApi::info` returns untyped
+//! JSON), and `sendTestAlert` against the type `AlertsApi::send_test_alert`
+//! reads.
 
 yldfi_spec_test::spec_tests! {
     file: "spec_examples/tenderly.json",
     checks: {
         "addContractToProject" => tndrly::contracts::Contract,
         "addWalletsToProject" => tndrly::wallets::AddWalletResponse,
+        "bulkAddWalletsToProject" => tndrly::wallets::BulkAddWalletsResponse,
         "checkSupportedNetworks" => Vec<tndrly::networks::Network>,
         "createAlert" => tndrly::alerts::AlertResponse,
+        "createEnvironment" => tndrly::environments::Environment,
+        "createProject" => tndrly::projects::ProjectResponse,
+        "createSimulationDraft" => tndrly::simulation::SimulationDraftCreated,
         "createWeb3Action" => tndrly::actions::PublishActionResponse,
         "encodeContractStateOverrides" => tndrly::contracts::EncodeStateResponse,
         "getAlertHistory" => tndrly::alerts::AlertHistoryResponse,
         "getContractsForProject" => Vec<tndrly::contracts::Contract>,
         "getContractsForProject" => Vec<tndrly::wallets::WalletOnNetwork>,
+        "getEnvironment" => tndrly::environments::Environment,
+        "getEnvironmentInstanceTransaction" => tndrly::vnets::VNetTransaction,
+        "getEnvironmentInstanceTransactions" => Vec<tndrly::vnets::VNetTransaction>,
+        "getProject" => tndrly::projects::ProjectResponse,
         "getSimulatedTransactionById" => tndrly::simulation::SimulationResponse,
+        "getSimulatedTransactionInfoById" => tndrly::simulation::SimulationInfoResponse,
         "getSimulatedTransactions" => tndrly::simulation::SimulationListResponse,
+        "getSimulationDraftById" => tndrly::simulation::SimulationDraft,
         "getWalletForProject" => tndrly::wallets::WalletOnNetwork,
         "getWeb3ActionExecutionForProject" => tndrly::actions::ActionCall,
         "getWeb3ActionExecutionsForProject" => Option<Vec<tndrly::actions::ActionCall>>,
@@ -33,27 +44,16 @@ yldfi_spec_test::spec_tests! {
         "listAlerts" => tndrly::alerts::ListAlertsResponse,
         "listDeliveryChannels" => tndrly::delivery_channels::ListDeliveryChannelsResponse,
         "listDeliveryChannelsForProject" => tndrly::delivery_channels::ListDeliveryChannelsResponse,
+        "listEnvironments" => Vec<tndrly::environments::Environment>,
+        "listProjects" => tndrly::projects::ListProjectsResponse,
+        "sendEnvironmentVnetTransaction" => tndrly::vnets::VNetTransaction,
+        "sendTestAlert" => tndrly::alerts::TestAlertResponse,
+        "simulateEnvironmentVnetTransaction" => tndrly::environments::EnvironmentSimulation,
         "simulateTransaction" => tndrly::simulation::SimulationResponse,
         "simulateTransactionBundle" => tndrly::simulation::BundleSimulationResponse,
         "tagContracts" => tndrly::contracts::BulkTagResponse,
         "updateAlert" => tndrly::alerts::AlertResponse,
+        "updateProject" => tndrly::projects::ProjectResponse,
     },
-    not_implemented: [
-        "bulkAddWalletsToProject",
-        "createEnvironment",
-        "createProject",
-        "createSimulationDraft",
-        "getEnvironment",
-        "getEnvironmentInstanceTransaction",
-        "getEnvironmentInstanceTransactions",
-        "getProject",
-        "getSimulatedTransactionInfoById",
-        "getSimulationDraftById",
-        "listEnvironments",
-        "listProjects",
-        "sendEnvironmentVnetTransaction",
-        "sendTestAlert",
-        "simulateEnvironmentVnetTransaction",
-        "updateProject",
-    ],
+    not_implemented: [],
 }

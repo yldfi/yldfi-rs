@@ -1,5 +1,8 @@
 //! Simulation API operations
 
+use super::drafts::{
+    CreateSimulationDraftRequest, SimulationDraft, SimulationDraftCreated, SimulationInfoResponse,
+};
 use super::types::{
     BundleSimulationRequest, BundleSimulationResponse, SimulationListResponse, SimulationRequest,
     SimulationResponse,
@@ -91,6 +94,63 @@ impl<'a> SimulationApi<'a> {
             .await
     }
 
+    /// Get the quick details of a saved simulation, typed
+    ///
+    /// `GET /simulations/{id}/info`, the same call as [`info`](Self::info),
+    /// read into [`SimulationInfoResponse`]: the transaction, its block
+    /// header and the state overrides.
+    pub async fn get_info(&self, id: &str) -> Result<SimulationInfoResponse> {
+        self.client
+            .get(&format!("/simulations/{}/info", encode_path_segment(id)))
+            .await
+    }
+
+    /// Store a Simulator setup as a draft and get its ID
+    ///
+    /// `POST /v2/account/{account}/project/{project}/simulation-drafts`.
+    /// Nothing is simulated: the draft only prefills the dashboard's
+    /// Simulator form for whoever opens
+    /// [`SimulationDraftCreated::dashboard_url`].
+    ///
+    /// # Errors
+    /// An invalid-parameter error, without sending anything, if the payload
+    /// has no rows.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use tndrly::simulation::{CreateSimulationDraftRequest, SimulationDraftPayload, SimulationDraftRow};
+    ///
+    /// let row = SimulationDraftRow::new("0xdac17f958d2ee523a2206206994597c13d831ec7")
+    ///     .from("0xab5801a7d398351b8be11c439e05c5b3259aec9b")
+    ///     .raw_input("0xa9059cbb...");
+    /// let request = CreateSimulationDraftRequest::new(SimulationDraftPayload::new("1").row(row));
+    /// let draft = client.simulation().create_draft(&request).await?;
+    /// println!("{}", draft.dashboard_url());
+    /// ```
+    pub async fn create_draft(
+        &self,
+        request: &CreateSimulationDraftRequest,
+    ) -> Result<SimulationDraftCreated> {
+        request.validate().map_err(crate::error::invalid_param)?;
+        self.client.post_url(&self.drafts_url(""), request).await
+    }
+
+    /// Get a stored simulation draft
+    ///
+    /// `GET /v2/account/{account}/project/{project}/simulation-drafts/{id}`
+    pub async fn get_draft(&self, id: &str) -> Result<SimulationDraft> {
+        let url = self.drafts_url(&format!("/{}", encode_path_segment(id)));
+        self.client.get_url(&url).await
+    }
+
+    fn drafts_url(&self, path: &str) -> String {
+        self.client.root_url(&format!(
+            "/v2{}/simulation-drafts{path}",
+            self.client.project_segment()
+        ))
+    }
+
     /// Share a simulation publicly
     ///
     /// Returns the public URL for the shared simulation.
@@ -145,6 +205,132 @@ impl SimulationListQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::simulation::{SimulationDraftPayload, SimulationDraftRow};
+    use crate::test_util::mock_client;
+    use serde_json::json;
+    use wiremock::matchers::{body_json, method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
+    const DRAFTS: &str = "/api/v2/account/acct/project/proj/simulation-drafts";
+
+    #[tokio::test]
+    async fn test_create_draft() {
+        let (server, client) = mock_client().await;
+        Mock::given(method("POST"))
+            .and(path(DRAFTS))
+            .and(body_json(json!({
+                "payload": {
+                    "v": 2,
+                    "network": { "id": "1" },
+                    "rows": [{
+                        "contractAddress": "0xdac1",
+                        "inputDataType": "raw",
+                        "rawFunctionInput": "0xa9059cbb",
+                        "from": "0xab58",
+                        "gas": 100000
+                    }]
+                },
+                "shared": true
+            })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "resource_id": "draft 1" })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let row = SimulationDraftRow::new("0xdac1")
+            .from("0xab58")
+            .raw_input("0xa9059cbb")
+            .gas(100_000);
+        let request = CreateSimulationDraftRequest::new(SimulationDraftPayload::new("1").row(row))
+            .shared(true);
+        let created = client.simulation().create_draft(&request).await.unwrap();
+        assert_eq!(created.resource_id, "draft 1");
+        assert_eq!(
+            created.dashboard_url(),
+            "https://dashboard.tenderly.co/simulator/new?draftId=draft%201"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_create_draft_requires_a_row() {
+        let (server, client) = mock_client().await;
+        let request = CreateSimulationDraftRequest::new(SimulationDraftPayload::new("1"));
+        assert!(client.simulation().create_draft(&request).await.is_err());
+        assert!(server.received_requests().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_draft() {
+        let (server, client) = mock_client().await;
+        Mock::given(method("GET"))
+            .and(path(format!("{DRAFTS}/3f2a")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "payload": {
+                    "v": 2,
+                    "network": { "id": "1" },
+                    "rows": [{
+                        "contractAddress": "0xdac1",
+                        "inputDataType": "decoded",
+                        "functionInputs": ["0xab58", "1000000"],
+                        "gasPrice": 12_345_678_901_234_567_890_u64,
+                        "blockIndex": null
+                    }]
+                },
+                "account_id": "fa4a",
+                "project_id": "aaf3"
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let draft = client.simulation().get_draft("3f2a").await.unwrap();
+        assert_eq!(draft.payload.v, 2);
+        assert_eq!(draft.payload.network.as_ref().unwrap().id, "1");
+        let row = &draft.payload.rows[0];
+        assert_eq!(row.contract_address, "0xdac1");
+        assert_eq!(row.input_data_type.as_deref(), Some("decoded"));
+        assert_eq!(row.function_inputs.as_ref().unwrap()[1], "1000000");
+        assert_eq!(
+            row.gas_price.as_ref().unwrap().to_string(),
+            "12345678901234567890"
+        );
+        assert_eq!(draft.project_id.as_deref(), Some("aaf3"));
+    }
+
+    #[tokio::test]
+    async fn test_get_info() {
+        let (server, client) = mock_client().await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/api/v1/account/acct/project/proj/simulations/sim1/info",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "transaction_info": {
+                    "id": "sim1",
+                    "network_id": "1",
+                    "block_number": "17884583",
+                    "gas_used": "337375",
+                    "status": true,
+                    "decoded_info": { "method_name": "multiSwap" },
+                    "addresses": ["0x3f41"]
+                },
+                "block_header": { "number": "0x110ace7" },
+                "state_overrides": {},
+                "created_at": 1_702_050_051_710_u64
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let info = client.simulation().get_info("sim1").await.unwrap();
+        let tx = info.transaction_info.unwrap();
+        assert_eq!(tx.gas_used.as_deref(), Some("337375"));
+        assert_eq!(tx.status, Some(true));
+        assert_eq!(tx.addresses.unwrap(), vec!["0x3f41".to_string()]);
+        assert_eq!(info.block_header.unwrap()["number"], "0x110ace7");
+    }
 
     #[test]
     fn test_simulation_list_query_clamps() {
