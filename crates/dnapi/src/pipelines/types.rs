@@ -134,6 +134,87 @@ pub struct ExecutePipelineResponse {
     pub pipeline_execution_id: Option<String>,
 }
 
+/// A query's pipeline: the query and every materialized view it depends on
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
+pub struct QueryPipeline {
+    /// The pipeline definition, ready for
+    /// [`PipelinesApi::execute`](super::PipelinesApi::execute)
+    #[serde(default)]
+    pub pipeline: Pipeline,
+}
+
+/// Options for building a query's pipeline
+/// (`GET /v1/query/{query_id}/pipeline`)
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct QueryPipelineOptions {
+    /// Performance tier for the nodes (`small`, `medium` or `large`)
+    pub performance: Option<String>,
+    /// Query parameters for the query execution nodes
+    pub query_parameters: Option<HashMap<String, serde_json::Value>>,
+}
+
+impl QueryPipelineOptions {
+    /// Options with nothing set
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Query pairs for the request; the parameters go as one JSON object
+    #[must_use]
+    pub fn to_query_pairs(&self) -> Vec<(&'static str, String)> {
+        let mut params = Vec::new();
+        if let Some(ref performance) = self.performance {
+            params.push(("performance", performance.clone()));
+        }
+        if let Some(ref query_parameters) = self.query_parameters {
+            let object: serde_json::Map<String, serde_json::Value> = query_parameters
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            params.push((
+                "query_parameters",
+                serde_json::Value::Object(object).to_string(),
+            ));
+        }
+        params
+    }
+}
+
+/// Request to build and execute a query's pipeline
+/// (`POST /v1/query/{query_id}/pipeline/execute`)
+#[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
+pub struct ExecuteQueryPipelineRequest {
+    /// Performance tier (`small`, `medium` or `large`)
+    pub performance: String,
+    /// Query parameters as key-value pairs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_parameters: Option<HashMap<String, serde_json::Value>>,
+}
+
+impl ExecuteQueryPipelineRequest {
+    /// Execute at the `performance` tier
+    #[must_use]
+    pub fn new(performance: impl Into<String>) -> Self {
+        Self {
+            performance: performance.into(),
+            query_parameters: None,
+        }
+    }
+
+    /// Set a query parameter
+    #[must_use]
+    pub fn param(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
+        self.query_parameters
+            .get_or_insert_with(HashMap::new)
+            .insert(key.into(), value);
+        self
+    }
+}
+
 /// Pipeline execution status
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PipelineExecutionStatus {

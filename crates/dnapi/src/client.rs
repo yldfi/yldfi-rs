@@ -1,14 +1,22 @@
 //! HTTP client for the Dune API
 
+use crate::contracts::ContractsApi;
+use crate::dashboards::DashboardsApi;
+use crate::datasets::DatasetsApi;
+use crate::endpoints::EndpointsApi;
 use crate::error::{self, Error, Result};
 use crate::executions::ExecutionsApi;
+use crate::folders::FoldersApi;
 use crate::matviews::MatviewsApi;
 use crate::pipelines::PipelinesApi;
 use crate::queries::QueriesApi;
+use crate::schedules::SchedulesApi;
 use crate::tables::TablesApi;
 use crate::usage::UsageApi;
+use crate::visualizations::VisualizationsApi;
 use reqwest::header::{HeaderMap, HeaderValue};
 use secrecy::{ExposeSecret, SecretString};
+use serde::de::DeserializeOwned;
 use std::fmt;
 use std::time::Duration;
 use yldfi_common::http::HttpClientConfig;
@@ -142,6 +150,32 @@ impl Client {
         &self.base_url
     }
 
+    /// The full URL for an API path such as `/v1/folders`
+    pub(crate) fn url(&self, path: &str) -> String {
+        format!("{}{}", self.base_url, path)
+    }
+
+    /// Send a request and read its JSON response.
+    ///
+    /// A 404 becomes [`DomainError::NotFound`](crate::error::DomainError::NotFound)
+    /// naming `resource`, when given; other failures go through
+    /// [`error::handle_error_response`].
+    pub(crate) async fn send_json<T: DeserializeOwned>(
+        &self,
+        request: reqwest::RequestBuilder,
+        resource: Option<String>,
+    ) -> Result<T> {
+        let response = request.send().await?;
+        let status = response.status();
+        if status.is_success() {
+            Ok(response.json().await?)
+        } else if status == 404 && resource.is_some() {
+            Err(error::not_found(resource.unwrap_or_default()))
+        } else {
+            Err(error::handle_error_response(response).await)
+        }
+    }
+
     /// Access the Queries API
     #[must_use]
     pub fn queries(&self) -> QueriesApi<'_> {
@@ -176,5 +210,47 @@ impl Client {
     #[must_use]
     pub fn usage(&self) -> UsageApi<'_> {
         UsageApi::new(self)
+    }
+
+    /// Access the Dashboards API
+    #[must_use]
+    pub fn dashboards(&self) -> DashboardsApi<'_> {
+        DashboardsApi::new(self)
+    }
+
+    /// Access the Folders API (library folders and moving content)
+    #[must_use]
+    pub fn folders(&self) -> FoldersApi<'_> {
+        FoldersApi::new(self)
+    }
+
+    /// Access the Visualizations API
+    #[must_use]
+    pub fn visualizations(&self) -> VisualizationsApi<'_> {
+        VisualizationsApi::new(self)
+    }
+
+    /// Access the Schedules API (scheduled query runs and dashboard refreshes)
+    #[must_use]
+    pub fn schedules(&self) -> SchedulesApi<'_> {
+        SchedulesApi::new(self)
+    }
+
+    /// Access the Datasets API (catalog listing and search)
+    #[must_use]
+    pub fn datasets(&self) -> DatasetsApi<'_> {
+        DatasetsApi::new(self)
+    }
+
+    /// Access the Contracts API (decoding submissions)
+    #[must_use]
+    pub fn contracts(&self) -> ContractsApi<'_> {
+        ContractsApi::new(self)
+    }
+
+    /// Access the Custom Endpoints API
+    #[must_use]
+    pub fn endpoints(&self) -> EndpointsApi<'_> {
+        EndpointsApi::new(self)
     }
 }

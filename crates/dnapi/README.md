@@ -19,7 +19,14 @@
 - **Executions** - Execute queries, run raw SQL, get results
 - **Tables** - Manage custom tables, upload/insert data
 - **Materialized Views** - Create and manage materialized views
-- **Pipelines** - Set up data pipelines
+- **Pipelines** - Set up data pipelines, build and run a query's pipeline
+- **Dashboards** - Create, read, update and archive dashboards
+- **Visualizations** - Create, read, update and delete query visualizations
+- **Folders** - Organize queries and dashboards into library folders
+- **Schedules** - Run queries and refresh dashboards on a schedule
+- **Datasets** - List and search the Dune catalog
+- **Contracts** - Submit contracts for decoding and track submissions
+- **Endpoints** - Read the results of custom API endpoints
 - **Usage** - Get API usage statistics
 
 ## Installation
