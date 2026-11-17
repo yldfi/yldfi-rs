@@ -64,6 +64,15 @@
 //! - [`emissions`] - Token unlock schedules
 //! - [`etf`] - Bitcoin and Ethereum ETF data
 //! - [`dat`] - Digital Asset Treasury (institutional holdings)
+//!
+//! ### Pro Endpoints
+//!
+//! - [`metrics`] - v2 charts and summaries: fees, volumes and other
+//!   dimension metrics at any scope, protocol TVL, treasury, oracles, forks
+//!   and income statements
+//! - [`equities`] - Public companies: statements, prices, sectors, earnings
+//! - [`pre_ipo`] - Private companies: valuations, raises, tradeable markets
+//! - [`rwa`] - Real-world assets: AUM by chain, aggregates, charts
 
 pub mod bridges;
 pub mod client;
@@ -72,9 +81,13 @@ pub mod dat;
 mod de;
 pub mod ecosystem;
 pub mod emissions;
+pub mod equities;
 pub mod error;
 pub mod etf;
 pub mod fees;
+pub mod metrics;
+pub mod pre_ipo;
+pub mod rwa;
 pub mod stablecoins;
 #[cfg(test)]
 mod test_server;
@@ -301,5 +314,78 @@ impl Client {
     #[must_use]
     pub fn dat(&self) -> dat::DatApi<'_> {
         dat::DatApi::new(self)
+    }
+
+    /// Access v2 chart and metrics endpoints (Pro)
+    ///
+    /// **Requires Pro API key**
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// use dllma::metrics::{Dimension, Scope};
+    /// let client = dllma::Client::with_api_key("your-key")?;
+    /// let fees = client.metrics().chart(Dimension::Fees, &Scope::All, None).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn metrics(&self) -> metrics::MetricsApi<'_> {
+        metrics::MetricsApi::new(self)
+    }
+
+    /// Access public company (equities) endpoints (Pro)
+    ///
+    /// **Requires Pro API key**
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-key")?;
+    /// let summary = client.equities().summary("AAPL", "US").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn equities(&self) -> equities::EquitiesApi<'_> {
+        equities::EquitiesApi::new(self)
+    }
+
+    /// Access pre-IPO company endpoints (Pro)
+    ///
+    /// **Requires Pro API key**
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-key")?;
+    /// let companies = client.pre_ipo().companies().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn pre_ipo(&self) -> pre_ipo::PreIpoApi<'_> {
+        pre_ipo::PreIpoApi::new(self)
+    }
+
+    /// Access real-world asset (RWA) endpoints (Pro)
+    ///
+    /// **Requires Pro API key**
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # async fn example() -> dllma::error::Result<()> {
+    /// let client = dllma::Client::with_api_key("your-key")?;
+    /// let stats = client.rwa().stats().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn rwa(&self) -> rwa::RwaApi<'_> {
+        rwa::RwaApi::new(self)
     }
 }
