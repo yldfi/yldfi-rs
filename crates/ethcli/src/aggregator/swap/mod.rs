@@ -91,12 +91,85 @@ pub async fn fetch_quotes_parallel(
     AggregatedResult::new(aggregation, results, start.elapsed_ms())
 }
 
+/// Address sent to sources that cannot price without a sender, when the
+/// caller gave none. Nobody holds its key, the sources accept it (they reject
+/// the zero address), and quotes priced for it never carry transaction data.
+pub const PLACEHOLDER_SENDER: &str = "0x000000000000000000000000000000000000dEaD";
+
+const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
+
+/// Whether `source` refuses to quote without a sender address
+#[must_use]
+pub fn requires_sender(source: SwapSource) -> bool {
+    matches!(
+        source,
+        SwapSource::CowSwap | SwapSource::LiFi | SwapSource::Enso
+    )
+}
+
+/// Whether `address` may not be used as a real sender: the zero address or
+/// ethcli's own placeholder. Transaction data built for either would pay the
+/// swap output to an address nobody controls.
+#[must_use]
+pub fn is_reserved_sender(address: &str) -> bool {
+    address.eq_ignore_ascii_case(ZERO_ADDRESS) || address.eq_ignore_ascii_case(PLACEHOLDER_SENDER)
+}
+
+/// Turn a result fetched for the placeholder sender into a price-only quote.
+///
+/// This is the one place transaction data is removed, so a fetcher cannot
+/// leak calldata that pays the placeholder address.
+fn mark_placeholder(result: &mut SourceResult<NormalizedQuote>) {
+    if let Some(quote) = result.data.as_mut() {
+        quote.tx_data = None;
+        quote.tx_value = None;
+        quote.placeholder_sender = true;
+    }
+}
+
 /// Fetch quote from a single source
 ///
 /// `slippage_bps` is the slippage tolerance in basis points (50 = 0.5%). It is
 /// converted to each provider's unit (bps for 0x/Enso, fraction for LI.FI)
 /// for sources that return transaction data.
+///
+/// Without a `sender`, sources that need one (see [`requires_sender`]) are
+/// priced for [`PLACEHOLDER_SENDER`] and return no transaction data. Other
+/// sources are never sent the placeholder.
 pub async fn fetch_quote_from_source(
+    chain: u64,
+    token_in: &str,
+    token_out: &str,
+    amount_in: &str,
+    sender: Option<&str>,
+    slippage_bps: u32,
+    source: SwapSource,
+) -> SourceResult<NormalizedQuote> {
+    let sender = sender.filter(|s| !s.is_empty());
+    let placeholder = sender.is_none() && requires_sender(source);
+    let effective = if placeholder {
+        Some(PLACEHOLDER_SENDER)
+    } else {
+        sender
+    };
+
+    let mut result = fetch_for_sender(
+        chain,
+        token_in,
+        token_out,
+        amount_in,
+        effective,
+        slippage_bps,
+        source,
+    )
+    .await;
+    if placeholder {
+        mark_placeholder(&mut result);
+    }
+    result
+}
+
+async fn fetch_for_sender(
     chain: u64,
     token_in: &str,
     token_out: &str,
@@ -166,5 +239,65 @@ pub async fn fetch_quote_from_source(
         // A single-source call cannot represent "all"; callers should use
         // fetch_quotes_all (ethcli quote from all does this).
         SwapSource::All => SourceResult::error("all", "Use fetch_quotes_all for all sources", 0),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_three_sources_require_a_sender() {
+        for source in [SwapSource::CowSwap, SwapSource::LiFi, SwapSource::Enso] {
+            assert!(requires_sender(source), "{source}");
+        }
+        for source in [
+            SwapSource::OpenOcean,
+            SwapSource::KyberSwap,
+            SwapSource::Zerox,
+            SwapSource::OneInch,
+            SwapSource::Velora,
+            SwapSource::All,
+        ] {
+            assert!(!requires_sender(source), "{source}");
+        }
+    }
+
+    #[test]
+    fn zero_and_placeholder_addresses_are_reserved_in_any_case() {
+        assert!(is_reserved_sender(PLACEHOLDER_SENDER));
+        assert!(is_reserved_sender(&PLACEHOLDER_SENDER.to_lowercase()));
+        assert!(is_reserved_sender(
+            "0x0000000000000000000000000000000000000000"
+        ));
+        assert!(!is_reserved_sender(
+            "0x1111111111111111111111111111111111111111"
+        ));
+    }
+
+    #[test]
+    fn placeholder_quote_keeps_its_price_and_loses_transaction_data() {
+        let quote = NormalizedQuote::new("enso", "0xin", "0xout", "1", "1987")
+            .with_router("0xrouter")
+            .with_tx_data("0xb94c3609dead")
+            .with_tx_value("0");
+        let mut result = SourceResult::success("enso", quote, 1);
+        mark_placeholder(&mut result);
+
+        let quote = result.data.unwrap();
+        assert!(quote.placeholder_sender);
+        assert_eq!(quote.amount_out, "1987");
+        let json = serde_json::to_value(&quote).unwrap();
+        assert!(json.get("tx_data").is_none());
+        assert!(json.get("tx_value").is_none());
+        assert_eq!(json["placeholder_sender"], true);
+    }
+
+    #[test]
+    fn placeholder_marking_leaves_an_error_untouched() {
+        let mut result: SourceResult<NormalizedQuote> = SourceResult::error("enso", "boom", 1);
+        mark_placeholder(&mut result);
+        assert!(result.data.is_none());
+        assert_eq!(result.error.as_deref(), Some("boom"));
     }
 }

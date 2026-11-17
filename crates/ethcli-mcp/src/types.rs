@@ -542,11 +542,16 @@ pub struct QuoteBestInput {
     /// Number of decimals for input amount (converts human amount to raw).
     /// E.g., decimals=18 converts "1.5" to "1500000000000000000"
     pub decimals: Option<u8>,
-    /// Sender address (required by some aggregators for accurate quotes)
+    /// Wallet that will sign the swap. Transaction data is built for it and pays the output
+    /// to it, so only pass the user's own wallet, never an example address. Omit it for prices:
+    /// CowSwap, LI.FI and Enso are then priced for a placeholder (marked `placeholder_sender`)
+    /// and return no transaction data.
     pub sender: Option<String>,
     /// Slippage tolerance in basis points (e.g., 50 = 0.5%)
     pub slippage: Option<u32>,
-    /// Show transaction data in output
+    /// Show transaction data in the CLI's table output. It does not change the JSON this tool
+    /// returns: `quote_from` JSON carries transaction data whenever the source built it for a
+    /// real `sender`, and `quote_best`/`quote_compare` JSON never does.
     #[serde(default)]
     pub show_tx: bool,
 }
@@ -564,11 +569,16 @@ pub struct QuoteCompareInput {
     pub chain: String,
     /// Number of decimals for input amount (converts human amount to raw)
     pub decimals: Option<u8>,
-    /// Sender address (required by some aggregators for accurate quotes)
+    /// Wallet that will sign the swap. Transaction data is built for it and pays the output
+    /// to it, so only pass the user's own wallet, never an example address. Omit it for prices:
+    /// CowSwap, LI.FI and Enso are then priced for a placeholder (marked `placeholder_sender`)
+    /// and return no transaction data.
     pub sender: Option<String>,
     /// Slippage tolerance in basis points (e.g., 50 = 0.5%)
     pub slippage: Option<u32>,
-    /// Show transaction data in output
+    /// Show transaction data in the CLI's table output. It does not change the JSON this tool
+    /// returns: `quote_from` JSON carries transaction data whenever the source built it for a
+    /// real `sender`, and `quote_best`/`quote_compare` JSON never does.
     #[serde(default)]
     pub show_tx: bool,
 }
@@ -588,11 +598,16 @@ pub struct QuoteFromInput {
     pub chain: String,
     /// Number of decimals for input amount (converts human amount to raw)
     pub decimals: Option<u8>,
-    /// Sender address (required by some aggregators for accurate quotes)
+    /// Wallet that will sign the swap. Transaction data is built for it and pays the output
+    /// to it, so only pass the user's own wallet, never an example address. Omit it for prices:
+    /// CowSwap, LI.FI and Enso are then priced for a placeholder (marked `placeholder_sender`)
+    /// and return no transaction data.
     pub sender: Option<String>,
     /// Slippage tolerance in basis points (e.g., 50 = 0.5%)
     pub slippage: Option<u32>,
-    /// Show transaction data in output
+    /// Show transaction data in the CLI's table output. It does not change the JSON this tool
+    /// returns: `quote_from` JSON carries transaction data whenever the source built it for a
+    /// real `sender`, and `quote_best`/`quote_compare` JSON never does.
     #[serde(default)]
     pub show_tx: bool,
 }

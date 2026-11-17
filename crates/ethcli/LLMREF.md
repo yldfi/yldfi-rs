@@ -142,6 +142,11 @@ ethcli portfolio <wallet> --exclude-spam # Filter spam
 ethcli quote best ETH USDC <amount> # Best quote
 ethcli quote compare ETH USDC <amt> # Compare all
 ethcli quote from openocean ETH USDC <amt> # Specific source
+# No --sender: CowSwap, LI.FI and Enso are priced for a placeholder address
+#   (placeholder_sender in the output) and return no transaction data.
+# --sender <wallet that will sign>: needed for transaction data; never an example address.
+# aggregation.outliers = sources under half the median (ignored in avg/spread);
+#   aggregation.high_outliers = sources over twice the median (check before use).
 ```
 
 ### Yields
