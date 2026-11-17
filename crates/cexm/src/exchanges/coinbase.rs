@@ -23,9 +23,12 @@ async fn get(ctx: &Ctx<'_>, path: &str, query: &[(&str, String)]) -> Result<Valu
 
 /// RFC 3339 time (`2026-11-04T10:30:03.123456Z`) in milliseconds
 fn millis(v: Option<String>) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(v.as_deref()?)
-        .ok()
-        .map(|t| t.timestamp_millis())
+    let t = time::OffsetDateTime::parse(
+        v.as_deref()?,
+        &time::format_description::well_known::Rfc3339,
+    )
+    .ok()?;
+    i64::try_from(t.unix_timestamp_nanos() / 1_000_000).ok()
 }
 
 pub(super) async fn ticker(ctx: &Ctx<'_>, symbol: &Symbol) -> Result<Ticker> {
