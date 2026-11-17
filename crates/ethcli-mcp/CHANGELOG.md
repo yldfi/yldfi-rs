@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.1...ethcli-mcp-v0.6.2) (2026-11-17)
+
+
+### Features
+
+* **ethcli:** placeholder sender, outlier flags and Velora decimals for swap quotes ([#262](https://github.com/yldfi/yldfi-rs/issues/262)) ([3d1bd6f](https://github.com/yldfi/yldfi-rs/commit/3d1bd6f1499fec8e9a1e80c12d15bb751e10cebd))
+
 ## [0.6.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.0...ethcli-mcp-v0.6.1) (2026-11-16)
 
 

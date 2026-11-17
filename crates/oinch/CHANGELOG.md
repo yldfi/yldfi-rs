@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/yldfi/yldfi-rs/compare/oinch-v0.2.1...oinch-v0.3.0) (2026-11-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **oinch:** `oinch::ProtocolInfo` lost its token address fields and the `protocols` response field changed type. Code that reads the route must use `RouteStep`/`RouteHop`, or `protocol_names()` for the names alone.
+
+### Features
+
+* **oinch:** use Swap API v6.1 ([#261](https://github.com/yldfi/yldfi-rs/issues/261)) ([89168a2](https://github.com/yldfi/yldfi-rs/commit/89168a2d8df9a496a85673eb03b0877c6bc5461c))
+
 ## [0.2.1](https://github.com/yldfi/yldfi-rs/compare/oinch-v0.2.0...oinch-v0.2.1) (2026-11-09)
 
 
