@@ -757,8 +757,15 @@ fn redact_sensitive_urls(text: &str) -> String {
             .bytes()
             .position(is_url_delimiter)
             .unwrap_or(url_and_after.len());
-        let candidate = &url_and_after[..end];
+        // Inside a JSON string a URL is followed by an escape such as `\"`.
+        // The URL parser would rewrite that trailing backslash to `/`,
+        // leaving the quote unescaped and the document invalid, so it is set
+        // aside and put back. A backslash in the middle stays in the
+        // candidate: cutting the URL there would leave any credential after
+        // it unredacted.
+        let candidate = url_and_after[..end].trim_end_matches('\\');
         output.push_str(&redact_url_candidate(candidate));
+        output.push_str(&url_and_after[candidate.len()..end]);
         remaining = &url_and_after[end..];
     }
 
@@ -1823,6 +1830,59 @@ mod tests {
         let output = sanitize_success_output(&input);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("still valid JSON");
         assert_eq!(parsed["sources"][1]["error"], "<redacted>");
+    }
+
+    #[test]
+    fn test_success_output_stays_json_when_a_string_holds_an_escaped_url() {
+        // An upstream error body quoted inside a JSON string: the URL is
+        // followed by `\"`. Losing that backslash made the document invalid,
+        // so the line-based fallback turned the other error into a bare
+        // `<redacted>`.
+        let stdout = r#"{
+  "quotes": [
+    {
+      "source": "0x",
+      "error": "ZEROX_API_KEY not configured"
+    },
+    {
+      "source": "velora",
+      "error": "API error: 404 - {\"error\":\"Token not found. See https://developers.example/api/get-rate\"}"
+    }
+  ]
+}"#;
+        let out = sanitize_success_output(stdout);
+        assert_eq!(out, stdout);
+        assert!(serde_json::from_str::<serde_json::Value>(&out).is_ok());
+    }
+
+    #[test]
+    fn test_backslash_inside_a_url_does_not_expose_a_later_credential() {
+        // `\u0026` is a JSON-escaped `&`: the second credential sits after a
+        // backslash in the middle of the URL.
+        let json = r#"{"error":"failed: https://rpc.example/path?api_key=KEYONE\u0026token=KEYTWO\"quoted\""}"#;
+        let out = sanitize_success_output(json);
+        assert!(!out.contains("KEYONE"), "{out}");
+        assert!(!out.contains("KEYTWO"), "{out}");
+        assert!(
+            serde_json::from_str::<serde_json::Value>(&out).is_ok(),
+            "{out}"
+        );
+
+        let text = r"request to https://rpc.example/path?api_key=KEYONE\x26token=KEYTWO failed";
+        let out = sanitize_success_output(text);
+        assert!(!out.contains("KEYONE"), "{out}");
+        assert!(!out.contains("KEYTWO"), "{out}");
+    }
+
+    #[test]
+    fn test_escaped_url_in_json_still_has_its_key_redacted() {
+        let stdout = r#"{"error":"failed: {\"url\":\"https://rpc.example/path?api_key=abc123\"}"}"#;
+        let out = sanitize_success_output(stdout);
+        assert!(!out.contains("abc123"), "{out}");
+        assert!(
+            serde_json::from_str::<serde_json::Value>(&out).is_ok(),
+            "{out}"
+        );
     }
 
     #[test]
