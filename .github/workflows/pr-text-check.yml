@@ -35,7 +35,8 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          set -u
+          # The default shell runs with -e; a grep that finds nothing must not end the step.
+          set +e -u
           if [ -z "${RESTRICTED_TERMS:-}" ]; then
             echo "::notice::No restricted-terms list is available to this run (fork or bot pull request). Skipped."
             exit 0
@@ -47,8 +48,9 @@ jobs:
 
           # Never print a match, a term or grep's own messages.
           hit() { grep -Eiq -f "$terms" 2>/dev/null; }
-          printf '' | grep -Eq -f "$terms" 2>/dev/null
-          if [ "$?" -gt 1 ]; then
+          rc=0
+          printf '' | grep -Eq -f "$terms" 2>/dev/null || rc=$?
+          if [ "$rc" -gt 1 ]; then
             echo "::error::The restricted-terms list is not a valid set of expressions."
             exit 1
           fi
