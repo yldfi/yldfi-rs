@@ -1282,6 +1282,7 @@ pub struct Action {
 /// Estimate for a step
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Estimate {
     /// Tool used for this estimate
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1334,6 +1335,50 @@ pub struct Estimate {
     /// Whether to skip permit signing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skip_permit: Option<bool>,
+    /// The route's hops, each a trade through one venue and pool (empty
+    /// when LI.FI doesn't report them). Hops with the same `path` belong to
+    /// one split path and run in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hops: Vec<EstimateHop>,
+}
+
+/// One hop of a swap route: a trade through a single venue and pool
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct EstimateHop {
+    /// Display name of the venue, e.g. `Uniswap V3`
+    pub venue: String,
+    /// Pool id or address, when the venue has one
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool: Option<String>,
+    /// Split path index; hops with the same index run in order
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "opt_u64_rounded"
+    )]
+    pub path: Option<u64>,
+    /// Token the hop sells
+    pub from_token: HopToken,
+    /// Token the hop buys
+    pub to_token: HopToken,
+    /// Hop input in `from_token` base units (a quote-time estimate)
+    pub from_amount: String,
+    /// Hop output in `to_token` base units (a quote-time estimate; only the
+    /// step's `to_amount_min` is enforced on chain)
+    pub to_amount: String,
+}
+
+/// A token in a hop, identified by chain and address
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct HopToken {
+    /// Token address
+    pub address: String,
+    /// Chain ID
+    pub chain_id: u64,
 }
 
 /// Fee cost
@@ -2396,5 +2441,30 @@ mod tests {
     fn api_error_accepts_numeric_code() {
         let e: ApiError = serde_json::from_str(r#"{"message":"No routes","code":1001}"#).unwrap();
         assert_eq!(e.message, "No routes");
+    }
+
+    #[test]
+    fn estimate_reads_hops_and_defaults_to_none() {
+        let base = r#""fromAmount":"1","toAmount":"2","toAmountMin":"1""#;
+        let without: Estimate = serde_json::from_str(&format!("{{{base}}}")).unwrap();
+        assert!(without.hops.is_empty());
+        assert!(!serde_json::to_string(&without).unwrap().contains("hops"));
+
+        let json = format!(
+            r#"{{{base},"hops":[{{"venue":"Uniswap V3","pool":"0xpool","path":0,
+            "fromToken":{{"chainId":1,"address":"0xa"}},"toToken":{{"chainId":1,"address":"0xb"}},
+            "fromAmount":"1","toAmount":"2"}},{{"venue":"Curve","path":1.0,
+            "fromToken":{{"chainId":1201081091099710,"address":"0xa"}},
+            "toToken":{{"chainId":1,"address":"0xb"}},"fromAmount":"3","toAmount":"4"}}]}}"#
+        );
+        let est: Estimate = serde_json::from_str(&json).unwrap();
+        assert_eq!(est.hops.len(), 2);
+        assert_eq!(est.hops[0].venue, "Uniswap V3");
+        assert_eq!(est.hops[0].pool.as_deref(), Some("0xpool"));
+        assert_eq!(est.hops[0].path, Some(0));
+        assert_eq!(est.hops[1].pool, None);
+        assert_eq!(est.hops[1].path, Some(1));
+        assert_eq!(est.hops[1].from_token.chain_id, 1_201_081_091_099_710);
+        assert_eq!(est.hops[1].to_amount, "4");
     }
 }
