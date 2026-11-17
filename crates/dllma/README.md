@@ -24,6 +24,12 @@
 - **Bridges** - Cross-chain bridge data
 - **DAT** - Developer analytics tools (Pro)
 - **Emissions** - Token emission schedules (Pro)
+- **Metrics** - v2 charts and summaries for fees, volumes and other metrics at
+  any scope, plus protocol TVL, treasury, oracle, fork and income statement
+  data (Pro)
+- **Equities** - Public companies: statements, prices, sectors, earnings (Pro)
+- **Pre-IPO** - Private company valuations, raises and markets (Pro)
+- **RWA** - Real-world asset AUM, aggregates and charts (Pro)
 
 ## Installation
 
@@ -78,7 +84,22 @@ main-API endpoints are under `/api/...` (e.g. `/api/categories`,
 `/api/emissions`, `/api/overview/derivatives`), yields under `/yields/v1/...`
 (DefiLlama's frozen legacy format) and `/yields/v2/...` (`earn`, `earn_query`,
 `earn_verified`, `borrow_markets`, `borrow_routes`, `loops` and their history
-methods), and ETFs under `/etfs/snapshot` / `/etfs/flows`.
+methods), ETFs under `/etfs/snapshot` / `/etfs/flows`, v2 charts and
+metrics under `/api/v2/chart/...` and `/api/v2/metrics/...`
+(`client.metrics()`), and `/equities/v1/...`, `/pre-ipo/v1/...` and
+`/rwa/...` (`client.equities()`, `client.pre_ipo()`, `client.rwa()`).
+
+```rust
+use dllma::metrics::{Breakdown, Dimension, Scope};
+
+// Daily revenue of one protocol, then its fees split by chain
+let revenue = client.metrics()
+    .chart(Dimension::Fees, &Scope::protocol("aave"), Some("dailyRevenue"))
+    .await?;
+let by_chain = client.metrics()
+    .chart_breakdown(Dimension::Fees, &Scope::protocol("aave"), Breakdown::Chain, None)
+    .await?;
+```
 
 The TVL, fees, volumes, coins and stablecoins methods use the free hosts even
 with a key. `Config::with_api_key(key).pro_routes(true)` sends them to their

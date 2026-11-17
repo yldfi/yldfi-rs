@@ -33,6 +33,43 @@ fn strip_url(e: reqwest::Error) -> Error {
     Error::from(e.without_url())
 }
 
+/// Percent-encode one path segment (a chain, protocol or category name),
+/// so names with spaces or reserved characters (`/`, `?`, `#`) stay in
+/// their segment.
+pub(crate) fn path_segment(s: &str) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(char::from(b));
+        } else {
+            let _ = write!(out, "%{b:02X}");
+        }
+    }
+    out
+}
+
+/// `path` plus `?name=value&...` for the given pairs, or `path` alone when
+/// there are none
+pub(crate) fn with_query<'a>(
+    path: String,
+    pairs: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
+) -> String {
+    let mut q = url::form_urlencoded::Serializer::new(String::new());
+    let mut any = false;
+    for (name, value) in pairs {
+        if let Some(value) = value {
+            q.append_pair(name, value);
+            any = true;
+        }
+    }
+    if any {
+        format!("{path}?{}", q.finish())
+    } else {
+        path
+    }
+}
+
 /// Configuration for the `DefiLlama` API client
 ///
 /// Built on top of [`ApiConfig`] from `yldfi-common` for consistent
@@ -399,6 +436,26 @@ mod tests {
         let err = strip_url(err);
         assert!(!err.to_string().contains("FAKEKEY"), "{err}");
         assert!(!format!("{err:?}").contains("FAKEKEY"), "{err:?}");
+    }
+
+    #[test]
+    fn path_segment_escapes_reserved_characters() {
+        assert_eq!(path_segment("aave-v3"), "aave-v3");
+        assert_eq!(path_segment("OP Mainnet"), "OP%20Mainnet");
+        assert_eq!(path_segment("parent#a/b?c"), "parent%23a%2Fb%3Fc");
+        assert_eq!(path_segment("é"), "%C3%A9");
+    }
+
+    #[test]
+    fn with_query_skips_unset_values() {
+        assert_eq!(with_query("/p".into(), [("a", None)]), "/p");
+        assert_eq!(
+            with_query(
+                "/p".into(),
+                [("a", Some("x y")), ("b", None), ("c", Some("&"))]
+            ),
+            "/p?a=x+y&c=%26"
+        );
     }
 
     fn test_client(config: Config, server: &crate::test_server::TestServer) -> Client {

@@ -41,6 +41,29 @@ where
     }
 }
 
+/// Deserialize an optional `f64` sent as either a number or a numeric string
+pub(crate) fn opt_flex_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let v = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match v {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(v) => value_to_f64(&v)
+            .map(Some)
+            .ok_or_else(|| D::Error::custom(format!("expected number, got {v}"))),
+    }
+}
+
+/// Read a JSON string or number as a string
+pub(crate) fn value_to_string(v: &serde_json::Value) -> Option<String> {
+    match v {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
 /// Deserialize a value that may arrive either as JSON or as a string holding JSON
 pub(crate) fn json_or_json_string<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
