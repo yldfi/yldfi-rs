@@ -7,7 +7,11 @@
 //!
 //! Source: <https://docs.etherscan.io/changelog>
 
-use chrono::{NaiveDate, Utc};
+use time::{Date, OffsetDateTime};
+
+/// `YYYY-MM-DD`
+const DAY: &[time::format_description::BorrowedFormatItem<'_>] =
+    time::macros::format_description!("[year]-[month]-[day]");
 
 use crate::error::AbiError;
 
@@ -93,22 +97,22 @@ pub const ETHERSCAN_SUNSET_CHAINS: &[EtherscanSunset] = &[
 
 impl EtherscanSunset {
     /// Whether the sunset has taken effect on `today`.
-    pub fn is_effective(&self, today: NaiveDate) -> bool {
+    pub fn is_effective(&self, today: Date) -> bool {
         // Entries are compile-time constants covered by a test, so a parse
         // failure can only mean a typo; treat it as already effective.
-        NaiveDate::parse_from_str(self.effective, "%Y-%m-%d").map_or(true, |d| today >= d)
+        Date::parse(self.effective, DAY).map_or(true, |d| today >= d)
     }
 }
 
 /// Return the sunset entry for `chain_id` if the Etherscan API no longer
 /// supports it.
 pub fn etherscan_sunset(chain_id: u64) -> Option<&'static EtherscanSunset> {
-    etherscan_sunset_on(chain_id, Utc::now().date_naive())
+    etherscan_sunset_on(chain_id, OffsetDateTime::now_utc().date())
 }
 
 /// Like [`etherscan_sunset`], evaluated for a given (UTC) date. Announced
 /// sunsets with a future date are ignored until that date.
-pub fn etherscan_sunset_on(chain_id: u64, today: NaiveDate) -> Option<&'static EtherscanSunset> {
+pub fn etherscan_sunset_on(chain_id: u64, today: Date) -> Option<&'static EtherscanSunset> {
     ETHERSCAN_SUNSET_CHAINS
         .iter()
         .find(|c| c.chain_id == chain_id && c.is_effective(today))
@@ -176,14 +180,14 @@ mod tests {
     fn sunset_dates_parse_and_gate() {
         for c in ETHERSCAN_SUNSET_CHAINS {
             assert!(
-                NaiveDate::parse_from_str(c.effective, "%Y-%m-%d").is_ok(),
+                Date::parse(c.effective, DAY).is_ok(),
                 "bad date for {}: {}",
                 c.name,
                 c.effective
             );
         }
-        let before = NaiveDate::from_ymd_opt(2026, 10, 30).unwrap();
-        let on = NaiveDate::from_ymd_opt(2026, 10, 31).unwrap();
+        let before = Date::from_calendar_date(2026, time::Month::October, 30).unwrap();
+        let on = Date::from_calendar_date(2026, time::Month::October, 31).unwrap();
         assert!(etherscan_sunset_on(81_457, before).is_none());
         assert!(etherscan_sunset_on(81_457, on).is_some());
         assert!(etherscan_sunset_on(33_139, on).is_some());

@@ -304,7 +304,7 @@ pub async fn handle(command: &CexCommands, quiet: bool) -> anyhow::Result<()> {
                     for c in &output.candles {
                         println!(
                             "{:<20} {:>12} {:>12} {:>12} {:>12} {:>12}",
-                            format_time(c.timestamp, "%Y-%m-%d %H:%M"),
+                            format_time(c.timestamp, MINUTES),
                             truncate_num(&c.open, 12),
                             truncate_num(&c.high, 12),
                             truncate_num(&c.low, 12),
@@ -348,7 +348,7 @@ pub async fn handle(command: &CexCommands, quiet: bool) -> anyhow::Result<()> {
                     for t in &output.trades {
                         println!(
                             "{:<20} {:>8} {:>15} {:>15} {:>15}",
-                            format_time(t.timestamp, "%Y-%m-%d %H:%M:%S"),
+                            format_time(t.timestamp, SECONDS),
                             t.side,
                             truncate_num(&t.price, 15),
                             truncate_num(&t.amount, 15),
@@ -494,10 +494,18 @@ fn print_output<T: serde::Serialize>(data: &T, format: OutputFormat) -> anyhow::
     Ok(())
 }
 
+/// `2026-11-04 10:30`
+const MINUTES: &[time::format_description::BorrowedFormatItem<'_>] =
+    time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]");
+/// `2026-11-04 10:30:03`
+const SECONDS: &[time::format_description::BorrowedFormatItem<'_>] =
+    time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+
 /// Millisecond timestamp as UTC time, or the raw number if out of range
-fn format_time(millis: i64, fmt: &str) -> String {
-    chrono::DateTime::from_timestamp_millis(millis)
-        .map(|dt| dt.format(fmt).to_string())
+fn format_time(millis: i64, fmt: &[time::format_description::BorrowedFormatItem<'_>]) -> String {
+    time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(millis) * 1_000_000)
+        .ok()
+        .and_then(|dt| dt.format(fmt).ok())
         .unwrap_or_else(|| millis.to_string())
 }
 
@@ -514,6 +522,19 @@ fn truncate_num(s: &str, max_len: usize) -> String {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn format_time_matches_previous_output() {
+        // 2026-11-04T10:30:03.123Z
+        assert_eq!(format_time(1_793_788_203_123, MINUTES), "2026-11-04 10:30");
+        assert_eq!(
+            format_time(1_793_788_203_123, SECONDS),
+            "2026-11-04 10:30:03"
+        );
+        assert_eq!(format_time(0, SECONDS), "1970-01-01 00:00:00");
+        // Out of range falls back to the raw number
+        assert_eq!(format_time(i64::MAX, SECONDS), i64::MAX.to_string());
+    }
 
     #[derive(Parser)]
     struct Cli {
