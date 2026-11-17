@@ -22,3 +22,6 @@ yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 wiremock = "0.6"
 tokio-test = "0.4"
 tiny-keccak = { version = "2", features = ["keccak"] }
+
+[lints]
+workspace = true

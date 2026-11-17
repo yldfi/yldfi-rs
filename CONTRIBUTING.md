@@ -39,6 +39,7 @@ cargo test -p ethcli
 
 - Run `cargo fmt` before committing
 - Run `cargo clippy --workspace` and fix any warnings
+- Use Rust 1.100 or newer. The workspace denies cargo's manifest lints (`[workspace.lints.cargo]` in the root `Cargo.toml`): a dependency no code uses, or a workspace entry no crate inherits, fails the build. Remove the dependency, or declare it under `[target.'cfg(...)'.dependencies]` if only one platform uses it. A new crate needs `[lints] workspace = true`
 - Follow existing patterns in the codebase
 - Add doc comments for public items
 

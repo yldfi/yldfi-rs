@@ -84,7 +84,6 @@ sha2 = "0.11"
 serde_urlencoded = "0.7"
 secrecy = { workspace = true }
 semver = "1"
-fs2 = "0.4"  # MED-003 fix: File locking for config persistence
 time = { version = "0.3", features = ["formatting", "parsing", "macros"] }  # Dates and CEX timestamps
 
 # API clients
@@ -136,3 +135,6 @@ tempfile = "3"
 assert_cmd = "2"
 predicates = "3"
 wiremock = "0.6"
+
+[lints]
+workspace = true

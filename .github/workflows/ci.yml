@@ -126,6 +126,34 @@ jobs:
         with:
           package: ${{ steps.bumped.outputs.packages }}
 
+  # Release binaries are built for Windows and macOS only when a release is
+  # tagged. The workspace denies cargo's unused-dependency lints, and a
+  # dependency can be unused on one platform only, so check the released
+  # packages on those platforms here instead of finding out mid-release.
+  platform:
+    name: Platform check (${{ matrix.os }})
+    if: github.event_name != 'schedule'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          cache-on-failure: true
+          shared-key: platform-${{ matrix.os }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # Same packages as the release build
+      - name: Check
+        run: cargo check --locked --package ethcli --package ethcli-mcp
+
   # Main build and test - runs in parallel with lint (P2-4)
   test:
     name: Test

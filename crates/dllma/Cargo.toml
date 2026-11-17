@@ -17,7 +17,6 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-secrecy = { workspace = true }
 tokio = { version = "1", features = ["time"] }
 url = "2"
 yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
@@ -29,3 +28,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 # workspace-wide via foundry-block-explorers, and it changes how buffered
 # (flatten/untagged) numbers deserialize. Regression tests rely on it.
 serde_json = { version = "1", features = ["arbitrary_precision"] }
+
+[lints]
+workspace = true

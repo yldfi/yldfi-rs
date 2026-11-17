@@ -25,3 +25,6 @@ yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6"
+
+[lints]
+workspace = true
