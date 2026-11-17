@@ -289,7 +289,7 @@ ethcli blacklist check <token>      # Check if blacklisted
 
 ## DEX Aggregator Commands
 
-### 1inch (requires 1INCH_API_KEY)
+### 1inch (Swap API v6.1; requires 1INCH_API_KEY)
 ```bash
 ethcli 1inch quote <src> <dst> <amt>
 ethcli 1inch swap <src> <dst> <amt> <from>

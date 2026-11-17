@@ -1,4 +1,4 @@
-//! HTTP client for the 1inch Swap API v6.0
+//! HTTP client for the 1inch Swap API v6.1
 //!
 //! This module provides the client implementation for interacting with
 //! the 1inch DEX aggregator API.
@@ -23,11 +23,11 @@ pub const DEFAULT_BASE_URL: &str = "https://api.1inch.com";
 
 /// API version for the swap endpoint
 ///
-/// Pinned to v6.0: v6.1 changes the `protocols` response field from
-/// `[[[{name, part, fromTokenAddress, toTokenAddress}]]]` to
-/// `[{token, hops: [...]}]`, which is incompatible with
-/// [`crate::ProtocolInfo`].
-const SWAP_API_VERSION: &str = "v6.0";
+/// v6.1 changed the `protocols` response field of `/quote` and `/swap` from
+/// v6.0's `[[[{name, part, fromTokenAddress, toTokenAddress}]]]` to
+/// `[{token, hops: [...]}]` (see [`crate::RouteStep`]). Requests and all
+/// other responses are the same as v6.0.
+const SWAP_API_VERSION: &str = "v6.1";
 
 /// Configuration for the 1inch API client
 ///
@@ -102,7 +102,7 @@ impl Config {
     }
 }
 
-/// Client for the 1inch DEX Aggregator Swap API v6.0
+/// Client for the 1inch DEX Aggregator Swap API v6.1
 ///
 /// The client requires an API key for authentication. Get one at
 /// <https://business.1inch.com>.
@@ -553,13 +553,13 @@ mod tests {
         let client = Client::new("test-api-key").unwrap();
 
         let url = client.swap_url(Chain::Ethereum, "quote");
-        assert_eq!(url, "https://api.1inch.com/swap/v6.0/1/quote");
+        assert_eq!(url, "https://api.1inch.com/swap/v6.1/1/quote");
 
         let url = client.swap_url(Chain::Polygon, "swap");
-        assert_eq!(url, "https://api.1inch.com/swap/v6.0/137/swap");
+        assert_eq!(url, "https://api.1inch.com/swap/v6.1/137/swap");
 
         let url = client.swap_url(Chain::Arbitrum, "tokens");
-        assert_eq!(url, "https://api.1inch.com/swap/v6.0/42161/tokens");
+        assert_eq!(url, "https://api.1inch.com/swap/v6.1/42161/tokens");
     }
 
     #[test]
@@ -568,6 +568,6 @@ mod tests {
         let client = Client::with_config(config).unwrap();
 
         let url = client.swap_url(Chain::Ethereum, "quote");
-        assert_eq!(url, "https://custom.1inch.io/swap/v6.0/1/quote");
+        assert_eq!(url, "https://custom.1inch.io/swap/v6.1/1/quote");
     }
 }

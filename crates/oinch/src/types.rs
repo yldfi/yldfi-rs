@@ -1,4 +1,4 @@
-//! Types for the 1inch Swap API v6.0
+//! Types for the 1inch Swap API v6.1
 //!
 //! This module contains request and response types for interacting with
 //! the 1inch DEX aggregator API.
@@ -10,7 +10,7 @@ use std::fmt;
 /// Supported chains for 1inch API
 ///
 /// The 1inch API uses numeric chain IDs in the URL path. This list matches the
-/// chains the Swap API v6.0 reports as supported.
+/// chains the Swap API reports as supported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Chain {
@@ -387,23 +387,81 @@ pub struct QuoteResponse {
     /// Estimated gas for the swap
     #[serde(default)]
     pub gas: Option<u64>,
-    /// Routing protocols used
+    /// Route taken, one entry per token the swap passes through (returned
+    /// when `includeProtocols` is set)
     #[serde(default)]
-    pub protocols: Option<Vec<Vec<Vec<ProtocolInfo>>>>,
+    pub protocols: Option<Vec<RouteStep>>,
 }
 
-/// Protocol/DEX information in routing
+/// One token on the route and the hops that leave it (API v6.1)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RouteStep {
+    /// Token being sold at this step
+    pub token: String,
+    /// Hops from this token; their `part` values add up to 100
+    #[serde(default)]
+    pub hops: Vec<RouteHop>,
+}
+
+/// A hop from one token to the next, split across protocols
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RouteHop {
+    /// Percentage of the step's token sent through this hop (0-100)
+    pub part: f64,
+    /// Token received from this hop
+    pub dst: String,
+    /// Index of the source token among the route's tokens
+    #[serde(default)]
+    pub from_token_id: Option<u32>,
+    /// Index of the destination token among the route's tokens
+    #[serde(default)]
+    pub to_token_id: Option<u32>,
+    /// Protocols the hop is split across
+    #[serde(default)]
+    pub protocols: Vec<ProtocolInfo>,
+}
+
+/// Protocol/DEX share of a hop
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolInfo {
     /// Protocol name (e.g., "`UNISWAP_V3`")
     pub name: String,
-    /// Percentage of the swap going through this protocol (0-100)
+    /// Percentage of the hop going through this protocol (0-100)
     pub part: f64,
-    /// Source token address for this leg
-    pub from_token_address: String,
-    /// Destination token address for this leg
-    pub to_token_address: String,
+}
+
+impl QuoteResponse {
+    /// Names of the protocols on the route, in route order, without repeats
+    #[must_use]
+    pub fn protocol_names(&self) -> Vec<String> {
+        protocol_names(self.protocols.as_deref())
+    }
+}
+
+impl SwapResponse {
+    /// Names of the protocols on the route, in route order, without repeats
+    #[must_use]
+    pub fn protocol_names(&self) -> Vec<String> {
+        protocol_names(self.protocols.as_deref())
+    }
+}
+
+fn protocol_names(route: Option<&[RouteStep]>) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for protocol in route
+        .unwrap_or_default()
+        .iter()
+        .flat_map(|step| &step.hops)
+        .flat_map(|hop| &hop.protocols)
+    {
+        if !names.contains(&protocol.name) {
+            names.push(protocol.name.clone());
+        }
+    }
+    names
 }
 
 /// Swap request parameters for GET /swap
@@ -670,9 +728,10 @@ pub struct SwapResponse {
     pub to_amount: String,
     /// Transaction data for executing the swap
     pub tx: TransactionData,
-    /// Routing protocols used
+    /// Route taken, one entry per token the swap passes through (returned
+    /// when `includeProtocols` is set)
     #[serde(default)]
-    pub protocols: Option<Vec<Vec<Vec<ProtocolInfo>>>>,
+    pub protocols: Option<Vec<RouteStep>>,
 }
 
 /// Liquidity source (protocol) information
@@ -887,5 +946,48 @@ mod tests {
         assert_eq!(swap.slippage, 0.5);
         assert_eq!(swap.fee, Some(0.3));
         assert_eq!(swap.protocols, Some("UNISWAP_V3,SUSHISWAP".to_string()));
+    }
+
+    #[test]
+    fn test_quote_response_parses_v6_1_route() {
+        // Shape returned by /swap/v6.1/{chain}/quote with includeProtocols
+        let json = r#"{
+            "dstAmount": "90288881374",
+            "protocols": [
+                {"token": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "hops": [
+                    {"part": 16.517187500000002, "dst": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+                     "fromTokenId": 0, "toTokenId": 1,
+                     "protocols": [{"name": "UNISWAP_V3", "part": 2}, {"name": "UNISWAP_V4", "part": 98}]},
+                    {"part": 83.4828125, "dst": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                     "fromTokenId": 0, "toTokenId": 2,
+                     "protocols": [{"name": "UNISWAP_V4", "part": 25}, {"name": "FLUID_DEX_T1", "part": 75}]}
+                ]},
+                {"token": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", "hops": [
+                    {"part": 100, "dst": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                     "fromTokenId": 1, "toTokenId": 2,
+                     "protocols": [{"name": "METRIC", "part": 100}]}
+                ]}
+            ],
+            "gas": 415594
+        }"#;
+        let quote: QuoteResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(quote.to_amount, "90288881374");
+        let route = quote.protocols.as_ref().unwrap();
+        assert_eq!(route.len(), 2);
+        assert_eq!(route[0].hops.len(), 2);
+        assert_eq!(route[0].hops[0].to_token_id, Some(1));
+        assert!((route[0].hops[0].part - 16.517_187_5).abs() < 1e-9);
+        assert_eq!(route[1].hops[0].protocols[0].name, "METRIC");
+        assert_eq!(
+            quote.protocol_names(),
+            ["UNISWAP_V3", "UNISWAP_V4", "FLUID_DEX_T1", "METRIC"]
+        );
+    }
+
+    #[test]
+    fn test_quote_response_without_route() {
+        let quote: QuoteResponse = serde_json::from_str(r#"{"dstAmount": "1"}"#).unwrap();
+        assert!(quote.protocols.is_none());
+        assert!(quote.protocol_names().is_empty());
     }
 }
