@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.29.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.6...ethcli-v0.29.7) (2026-11-17)
+
+
+### Bug Fixes
+
+* **ethcli:** resolve token symbols in open-ocean commands ([#259](https://github.com/yldfi/yldfi-rs/issues/259)) ([0b8dd58](https://github.com/yldfi/yldfi-rs/commit/0b8dd5860a7ee042067753c856981e03851781da))
+* replace unmaintained chrono with time in cexm and ethcli ([#256](https://github.com/yldfi/yldfi-rs/issues/256)) ([113e640](https://github.com/yldfi/yldfi-rs/commit/113e64014957808f9fd4e6df612397553d3ab7ed))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * dllma bumped from 0.3.1 to 0.3.2
+    * dnapi bumped from 0.3.2 to 0.3.3
+    * tndrly bumped from 0.5.2 to 0.5.3
+    * lfi bumped from 0.3.2 to 0.4.0
+    * cexm bumped from 0.1.1 to 0.1.2
+
 ## [0.29.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.5...ethcli-v0.29.6) (2026-11-16)
 
 
