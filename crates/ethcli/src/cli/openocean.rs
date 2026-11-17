@@ -26,9 +26,10 @@ pub struct OpenOceanArgs {
 pub enum OpenOceanCommands {
     /// Get swap quote (price estimation)
     Quote {
-        /// Source token address (use 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE for native token)
+        /// Source token: address or symbol (e.g. ETH, USDC); the native
+        /// token is 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
         in_token: String,
-        /// Destination token address
+        /// Destination token: address or symbol
         out_token: String,
         /// Amount in smallest units (wei)
         amount: String,
@@ -45,9 +46,9 @@ pub enum OpenOceanCommands {
 
     /// Get swap transaction data
     Swap {
-        /// Source token address
+        /// Source token: address or symbol (e.g. ETH, USDC)
         in_token: String,
-        /// Destination token address
+        /// Destination token: address or symbol
         out_token: String,
         /// Amount in smallest units (wei)
         amount: String,
@@ -70,9 +71,9 @@ pub enum OpenOceanCommands {
     /// Get reverse quote: how much of in_token to sell to receive out_amount
     /// of out_token (reports requiredSellAmount in smallest units)
     ReverseQuote {
-        /// Token to sell (source)
+        /// Token to sell (source): address or symbol
         in_token: String,
-        /// Token to receive (destination)
+        /// Token to receive (destination): address or symbol
         out_token: String,
         /// Desired output amount, human-readable (e.g. "1" for 1 token; the
         /// /reverseQuote endpoint only documents the legacy `amount` param)
@@ -110,6 +111,7 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
             slippage,
         } => {
             let oo_chain = chain_name_to_openoc_chain(&chain)?;
+            let (in_token, out_token) = resolve_tokens(&in_token, &out_token, &chain)?;
             let mut request = QuoteRequest::new(&in_token, &out_token, &amount);
             request.slippage = Some(slippage);
             if let Some(gp) = gas_price {
@@ -131,6 +133,7 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
             referrer,
         } => {
             let oo_chain = chain_name_to_openoc_chain(&chain)?;
+            let (in_token, out_token) = resolve_tokens(&in_token, &out_token, &chain)?;
             let mut request = SwapRequest::new(&in_token, &out_token, &amount, &account);
             request.slippage = Some(slippage);
             if let Some(gp) = gas_price {
@@ -151,6 +154,7 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
             chain,
         } => {
             let oo_chain = chain_name_to_openoc_chain(&chain)?;
+            let (in_token, out_token) = resolve_tokens(&in_token, &out_token, &chain)?;
             let quote = client
                 .get_reverse_quote(oo_chain, &in_token, &out_token, &out_amount)
                 .await?;
@@ -182,6 +186,22 @@ pub async fn run(args: OpenOceanArgs, _chain: &str) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Resolve token arguments (addresses or symbols) for `chain`, so a symbol
+/// or a malformed address fails here with a clear message instead of
+/// reaching the API as a literal string. Symbols are only known for chains
+/// in ethcli's token table; elsewhere an address is required.
+fn resolve_tokens(
+    in_token: &str,
+    out_token: &str,
+    chain: &str,
+) -> anyhow::Result<(String, String)> {
+    let chain_id = yldfi_common::Chain::from_name(chain).map_or(0, |c| c.id());
+    Ok((
+        crate::aggregator::swap::tokens::resolve_token(in_token, chain_id)?,
+        crate::aggregator::swap::tokens::resolve_token(out_token, chain_id)?,
+    ))
 }
 
 fn chain_name_to_openoc_chain(name: &str) -> anyhow::Result<openoc::Chain> {
@@ -232,7 +252,20 @@ fn gwei_to_wei(gwei: &str) -> anyhow::Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::gwei_to_wei;
+    use super::{gwei_to_wei, resolve_tokens};
+
+    #[test]
+    fn resolves_symbols_and_rejects_junk() {
+        let (i, o) = resolve_tokens("ETH", "usdc", "ethereum").unwrap();
+        assert_eq!(i, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE");
+        assert_eq!(o, "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+        // Addresses pass through, on any chain
+        let addr = "0x1111111111111111111111111111111111111111";
+        assert_eq!(resolve_tokens(addr, addr, "sonic").unwrap().0, addr);
+        // Unknown symbols and malformed addresses fail before any request
+        assert!(resolve_tokens("NOTATOKEN", "USDC", "ethereum").is_err());
+        assert!(resolve_tokens("0x123", "USDC", "ethereum").is_err());
+    }
 
     #[test]
     fn converts_gwei_to_wei() {

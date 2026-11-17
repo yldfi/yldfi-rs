@@ -896,8 +896,9 @@ ethcli 1inch approve <token> --chain-id 1
 Direct access to the De¹ (formerly OpenOcean) DEX Aggregator API. No API key required.
 
 ```bash
-# Get swap quote
+# Get swap quote (tokens: address or symbol such as ETH/USDC; amount in wei)
 ethcli open-ocean quote <in_token> <out_token> <amount> --chain ethereum --slippage 1
+ethcli open-ocean quote ETH USDC 1000000000000000000 --chain ethereum
 
 # Get swap transaction
 ethcli open-ocean swap <in_token> <out_token> <amount> <account> --chain ethereum
