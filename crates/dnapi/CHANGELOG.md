@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/yldfi/yldfi-rs/compare/dnapi-v0.3.2...dnapi-v0.3.3) (2026-11-17)
+
+
+### Features
+
+* **dnapi:** add dashboards, folders, visualizations, schedules, datasets, contracts and endpoints APIs ([#254](https://github.com/yldfi/yldfi-rs/issues/254)) ([f303035](https://github.com/yldfi/yldfi-rs/commit/f303035e62442efbaddc724a6bd9c032a8720635))
+
 ## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/dnapi-v0.3.1...dnapi-v0.3.2) (2026-11-09)
 
 

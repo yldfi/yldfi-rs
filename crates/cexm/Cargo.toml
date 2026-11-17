@@ -1,6 +1,6 @@
 [package]
 name = "cexm"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Rust client for public market data on centralised exchanges (Binance, Bitget, OKX, Hyperliquid)"
 license = "MIT"

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.3.2...lfi-v0.4.0) (2026-11-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **lfi:** Estimate gained a public field and is #[non_exhaustive], so code that built it with a struct literal no longer compiles.
+
+### Features
+
+* **lfi:** expose route hops on Estimate ([#253](https://github.com/yldfi/yldfi-rs/issues/253)) ([f4037b6](https://github.com/yldfi/yldfi-rs/commit/f4037b68fd35e607c30615256288d4ff398db545))
+
 ## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/lfi-v0.3.1...lfi-v0.3.2) (2026-11-16)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/yldfi/yldfi-rs/compare/cexm-v0.1.1...cexm-v0.1.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* replace unmaintained chrono with time in cexm and ethcli ([#256](https://github.com/yldfi/yldfi-rs/issues/256)) ([113e640](https://github.com/yldfi/yldfi-rs/commit/113e64014957808f9fd4e6df612397553d3ab7ed))
+
 ## [0.1.1](https://github.com/yldfi/yldfi-rs/compare/cexm-v0.1.0...cexm-v0.1.1) (2026-11-09)
 
 

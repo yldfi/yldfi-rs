@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/yldfi/yldfi-rs/compare/dllma-v0.3.1...dllma-v0.3.2) (2026-11-17)
+
+
+### Features
+
+* **dllma:** add v2 chart/metrics, equities, pre-IPO and RWA Pro endpoints ([#257](https://github.com/yldfi/yldfi-rs/issues/257)) ([187295b](https://github.com/yldfi/yldfi-rs/commit/187295b094dc8f4fc09c672d5229a29ac2539b02))
+
 ## [0.3.1](https://github.com/yldfi/yldfi-rs/compare/dllma-v0.3.0...dllma-v0.3.1) (2026-11-16)
 
 
