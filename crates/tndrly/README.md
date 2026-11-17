@@ -17,7 +17,9 @@
 - **Alerts API** - Monitor on-chain activity with notifications
 - **Contract API** - Manage, rename and tag smart contracts; encode state overrides
 - **Web3 Actions API** - Deploy serverless functions
-- **Wallets API** - Track and monitor wallet addresses
+- **Wallets API** - Track and monitor wallet addresses, one at a time or in bulk
+- **Projects API** - List, create and update projects
+- **Environments API** - Multi-chain Virtual TestNet environments
 
 ## Installation
 
@@ -241,6 +243,35 @@ client.wallets()
 
 // Remove a wallet
 client.wallets().remove("0xd8dA...").await?;
+```
+
+### Projects
+
+```rust
+use tndrly::projects::{CreateProjectRequest, UpdateProjectRequest};
+
+let projects = client.projects().list().await?;
+let project = client.projects()
+    .create(&CreateProjectRequest::new("Mainnet Monitoring"))
+    .await?;
+client.projects()
+    .update(&project.slug, &UpdateProjectRequest::new().name("Mainnet Monitoring v2"))
+    .await?;
+```
+
+### Environments
+
+```rust
+use tndrly::environments::{BridgeConfig, CreateEnvironmentRequest, EnvironmentNetworkConfig};
+
+let env = client.environments()
+    .create(&CreateEnvironmentRequest::new("Multi-chain")
+        .network(EnvironmentNetworkConfig::new("1"))
+        .network(EnvironmentNetworkConfig::new("8453"))
+        .bridge_config(BridgeConfig::auto_relay()))
+    .await?;
+let instance = env.active_instance.as_ref().unwrap();
+let txs = client.environments().transactions(&env.id, &instance.id, None).await?;
 ```
 
 ## Terms of Service

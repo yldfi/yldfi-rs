@@ -9,6 +9,8 @@
 //! - **Contract API** - Manage and verify smart contracts
 //! - **Web3 Actions API** - Deploy serverless functions
 //! - **Wallets API** - Track and monitor wallet addresses
+//! - **Projects API** - List, create and update projects
+//! - **Environments API** - Multi-chain Virtual `TestNet` environments
 //!
 //! ## Quick Start
 //!
@@ -62,15 +64,21 @@
 //! - [`wallets`] - Wallet monitoring
 //! - [`delivery_channels`] - Notification delivery channels
 //! - [`networks`] - Supported networks
+//! - [`projects`] - Projects of the account
+//! - [`environments`] - Multi-chain environments
 
 mod client;
 mod error;
+#[cfg(test)]
+mod test_util;
 
 pub mod actions;
 pub mod alerts;
 pub mod contracts;
 pub mod delivery_channels;
+pub mod environments;
 pub mod networks;
+pub mod projects;
 pub mod simulation;
 pub mod utils;
 pub mod vnets;
@@ -183,5 +191,29 @@ impl Client {
     #[must_use]
     pub fn networks(&self) -> networks::NetworksApi<'_> {
         networks::NetworksApi::new(self)
+    }
+
+    /// Access the Projects API
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let projects = client.projects().list().await?;
+    /// ```
+    #[must_use]
+    pub fn projects(&self) -> projects::ProjectsApi<'_> {
+        projects::ProjectsApi::new(self)
+    }
+
+    /// Access the Environments API
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let environments = client.environments().list(None).await?;
+    /// ```
+    #[must_use]
+    pub fn environments(&self) -> environments::EnvironmentsApi<'_> {
+        environments::EnvironmentsApi::new(self)
     }
 }

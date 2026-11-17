@@ -793,3 +793,12 @@ pub struct TestAlertRequest {
     /// Transaction hash to use for the test
     pub tx_hash: String,
 }
+
+/// Result of testing an alert against a transaction
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct TestAlertResponse {
+    /// Whether the transaction matched the alert's trigger conditions
+    #[serde(default)]
+    pub matched: bool,
+}

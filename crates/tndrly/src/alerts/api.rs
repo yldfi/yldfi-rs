@@ -2,7 +2,8 @@
 
 use super::types::{
     Alert, AlertHistoryQuery, AlertHistoryResponse, AlertResponse, CreateAlertRequest,
-    CreateWebhookRequest, ListAlertsResponse, ListWebhooksResponse, TestAlertRequest, Webhook,
+    CreateWebhookRequest, ListAlertsResponse, ListWebhooksResponse, TestAlertRequest,
+    TestAlertResponse, Webhook,
 };
 use crate::client::{encode_path_segment, Client};
 use crate::error::Result;
@@ -173,6 +174,28 @@ impl<'a> AlertsApi<'a> {
     /// ```
     pub async fn test_alert(&self, request: &TestAlertRequest) -> Result<()> {
         self.client.post_no_response("/test-alerts", request).await
+    }
+
+    /// Test an alert against an existing transaction and report whether it
+    /// matched
+    ///
+    /// `POST /test-alerts`, the same call as [`test_alert`](Self::test_alert),
+    /// but reading the response: `matched` is `true` when the transaction
+    /// meets the alert's trigger conditions.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let request = TestAlertRequest {
+    ///     alert_id: "alert-123".into(),
+    ///     network_id: "1".into(),
+    ///     tx_hash: "0x...".into(),
+    /// };
+    /// let result = client.alerts().send_test_alert(&request).await?;
+    /// println!("matched: {}", result.matched);
+    /// ```
+    pub async fn send_test_alert(&self, request: &TestAlertRequest) -> Result<TestAlertResponse> {
+        self.client.post("/test-alerts", request).await
     }
 }
 
@@ -420,6 +443,36 @@ mod tests {
             json["tx_hash"],
             "0x0000000000000000000000000000000000000000000000000000000000000001"
         );
+    }
+
+    #[tokio::test]
+    async fn test_send_test_alert_reads_matched() {
+        use crate::test_util::mock_client;
+        use wiremock::matchers::{body_json, method, path};
+        use wiremock::{Mock, ResponseTemplate};
+
+        let (server, client) = mock_client().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/account/acct/project/proj/test-alerts"))
+            .and(body_json(serde_json::json!({
+                "alert_id": "alert-1",
+                "network_id": "1",
+                "tx_hash": "0xeb22"
+            })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "matched": true })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let request = TestAlertRequest {
+            alert_id: "alert-1".into(),
+            network_id: "1".into(),
+            tx_hash: "0xeb22".into(),
+        };
+        let result = client.alerts().send_test_alert(&request).await.unwrap();
+        assert!(result.matched);
     }
 
     #[test]

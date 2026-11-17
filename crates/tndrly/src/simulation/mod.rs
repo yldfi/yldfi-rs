@@ -28,7 +28,9 @@
 //! ```
 
 mod api;
+mod drafts;
 mod types;
 
 pub use api::SimulationApi;
+pub use drafts::*;
 pub use types::*;

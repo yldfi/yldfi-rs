@@ -1,10 +1,13 @@
 //! Wallet API operations
 //!
 //! Note: The Tenderly Wallets API has limited endpoints. Wallets can be added
-//! and queried on specific networks, but there is no list, update, or delete
-//! endpoint in the current API.
+//! (one at a time or in bulk) and queried on specific networks, but there is
+//! no list, update, or delete endpoint in the current API.
 
-use super::types::{AddWalletRequest, AddWalletResponse, WalletOnNetwork};
+use super::types::{
+    AddWalletRequest, AddWalletResponse, BulkAddWalletsRequest, BulkAddWalletsResponse,
+    WalletOnNetwork,
+};
 use crate::client::{encode_path_segment, Client};
 use crate::contracts::{AccountType, ListContractsQuery};
 use crate::error::Result;
@@ -66,6 +69,44 @@ impl<'a> WalletsApi<'a> {
         request.validate().map_err(crate::error::invalid_param)?;
 
         self.client.post("/wallet", request).await
+    }
+
+    /// Add many wallets to the project in one request
+    ///
+    /// `POST /v2/accounts/{account}/projects/{project}/wallets`. Adds every
+    /// address on each of its networks (at most 100 wallet-network pairs).
+    /// Addresses the project already has, as wallets or contracts, are left
+    /// unchanged and returned under `existing`, so resending the same list is
+    /// safe. If any network is unsupported, or the account's address limit
+    /// would be exceeded, nothing is added.
+    ///
+    /// # Errors
+    ///
+    /// An invalid-parameter error, without sending anything, if
+    /// [`BulkAddWalletsRequest::validate`] fails.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use tndrly::wallets::{BulkAddWalletsRequest, BulkWallet};
+    ///
+    /// let request = BulkAddWalletsRequest::new()
+    ///     .wallet(BulkWallet::new("0xe2e2...").network("1").network("8453").tag("treasury"))
+    ///     .wallet(BulkWallet::new("0xb0b0...").network("1"));
+    /// let result = client.wallets().add_many(&request).await?;
+    /// println!("added {}, already present {}", result.added.len(), result.existing.len());
+    /// ```
+    pub async fn add_many(
+        &self,
+        request: &BulkAddWalletsRequest,
+    ) -> Result<BulkAddWalletsResponse> {
+        request.validate().map_err(crate::error::invalid_param)?;
+        let url = self.client.root_url(&format!(
+            "/v2/accounts/{}/projects/{}/wallets",
+            encode_path_segment(self.client.account()),
+            encode_path_segment(self.client.project())
+        ));
+        self.client.post_url(&url, request).await
     }
 
     /// Get wallet details on a specific network
@@ -134,6 +175,78 @@ mod tests {
         assert!(json["network_ids"].is_array());
         assert_eq!(json["network_ids"][0], "1");
         assert_eq!(json["network_ids"][1], "137");
+    }
+
+    #[tokio::test]
+    async fn test_add_many_posts_to_v2_route() {
+        use crate::test_util::mock_client;
+        use crate::wallets::{BulkAddWalletsRequest, BulkWallet};
+        use serde_json::json;
+        use wiremock::matchers::{body_json, method, path};
+        use wiremock::{Mock, ResponseTemplate};
+
+        let (server, client) = mock_client().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v2/accounts/acct/projects/proj/wallets"))
+            .and(body_json(json!({
+                "wallets": [
+                    {
+                        "address": "0xe2",
+                        "network_ids": ["1", "8453"],
+                        "display_name": "Treasury",
+                        "tags": ["treasury"]
+                    },
+                    { "address": "0xb0", "network_ids": ["1"] }
+                ]
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "added": [{
+                    "id": "eth:1:0xe2",
+                    "account": { "address": "0xe2", "network_id": "1", "type": "wallet" },
+                    "display_name": "Treasury",
+                    "tags": [{ "tag": "treasury" }]
+                }],
+                "existing": null
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let request = BulkAddWalletsRequest::new()
+            .wallet(
+                BulkWallet::new("0xe2")
+                    .network("1")
+                    .network("8453")
+                    .display_name("Treasury")
+                    .tag("treasury"),
+            )
+            .wallet(BulkWallet::new("0xb0").network("1"));
+        let result = client.wallets().add_many(&request).await.unwrap();
+        assert_eq!(result.added.len(), 1);
+        assert_eq!(result.added[0].address(), Some("0xe2"));
+        assert!(result.added[0].is_wallet());
+        assert!(result.existing.is_empty());
+    }
+
+    #[test]
+    fn test_bulk_add_validation() {
+        use crate::wallets::{BulkAddWalletsRequest, BulkWallet};
+
+        assert!(BulkAddWalletsRequest::new().validate().is_err());
+        let no_network = BulkAddWalletsRequest::new().wallet(BulkWallet::new("0x1"));
+        assert!(no_network.validate().is_err());
+
+        // 101 distinct pairs is over the limit; repeating a pair counts once
+        let mut over = BulkAddWalletsRequest::new();
+        for i in 0..101 {
+            over = over.wallet(BulkWallet::new(format!("0x{i:x}")).network("1"));
+        }
+        assert!(over.validate().is_err());
+        let mut repeated = BulkAddWalletsRequest::new();
+        for _ in 0..150 {
+            repeated = repeated.wallet(BulkWallet::new("0xAB").network("1"));
+        }
+        assert!(repeated.validate().is_ok());
     }
 
     #[test]
