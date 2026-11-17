@@ -425,21 +425,9 @@ pub async fn fetch_oneinch_quote(
                 quote = quote.with_gas(gas);
             }
 
-            // Extract protocols from route (nested: route -> step -> part)
-            if let Some(ref protocols) = response.protocols {
-                let mut protocol_names = Vec::new();
-                for route in protocols {
-                    for step in route {
-                        for part in step {
-                            if !protocol_names.contains(&part.name) {
-                                protocol_names.push(part.name.clone());
-                            }
-                        }
-                    }
-                }
-                if !protocol_names.is_empty() {
-                    quote = quote.with_protocols(protocol_names);
-                }
+            let protocol_names = response.protocol_names();
+            if !protocol_names.is_empty() {
+                quote = quote.with_protocols(protocol_names);
             }
 
             SourceResult::success("1inch", quote, measure.elapsed_ms())

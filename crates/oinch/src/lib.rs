@@ -1,4 +1,4 @@
-//! Rust client for the 1inch DEX Aggregator Swap API v6.0
+//! Rust client for the 1inch DEX Aggregator Swap API v6.1
 //!
 //! 1inch is one of the most popular DEX aggregators, offering optimal swap routes
 //! across hundreds of liquidity sources on multiple chains. This crate provides
@@ -159,8 +159,9 @@ pub use client::{Client, Config, DEFAULT_BASE_URL};
 pub use error::{Error, Result};
 pub use types::{
     AllowanceResponse, ApiErrorResponse, ApprovalTransaction, Chain, LiquiditySource,
-    LiquiditySourcesResponse, ParseChainError, ProtocolInfo, QuoteRequest, QuoteResponse,
-    SpenderResponse, SwapRequest, SwapResponse, TokenInfo, TokenListResponse, TransactionData,
+    LiquiditySourcesResponse, ParseChainError, ProtocolInfo, QuoteRequest, QuoteResponse, RouteHop,
+    RouteStep, SpenderResponse, SwapRequest, SwapResponse, TokenInfo, TokenListResponse,
+    TransactionData,
 };
 
 // Re-export common utilities

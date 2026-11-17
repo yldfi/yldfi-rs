@@ -1254,7 +1254,7 @@ ethcli config set-etherscan-key YOUR_KEY
 
 ### 1inch - DEX Aggregator
 
-Direct access to 1inch API. Requires `ONEINCH_API_KEY` or `1INCH_API_KEY` environment variable.
+Direct access to the 1inch Swap API v6.1. Requires `ONEINCH_API_KEY` or `1INCH_API_KEY` environment variable.
 
 ```bash
 # Get swap quote (price estimation)

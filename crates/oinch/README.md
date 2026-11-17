@@ -5,7 +5,7 @@
 <h1 align="center">oinch</h1>
 
 <p align="center">
-  Unofficial Rust client for the <a href="https://1inch.io/">1inch</a> DEX Aggregator Swap API v6.0
+  Unofficial Rust client for the <a href="https://1inch.io/">1inch</a> DEX Aggregator Swap API v6.1
 </p>
 
 <p align="center">
@@ -21,6 +21,7 @@
 
 - Multi-chain support: Ethereum, BSC, Polygon, Optimism, Arbitrum, Gnosis, Avalanche, zkSync Era, Base, Linea, Sonic, Unichain, Robinhood Chain, Monad, Cronos, HyperEVM and Arc
 - Advanced Pathfinder algorithm for optimal routing
+- Swap API v6.1 route data: `protocols` is a list of `RouteStep { token, hops }`, each `RouteHop` split across `ProtocolInfo { name, part }`; `protocol_names()` lists the protocols on a route
 - Type-safe request/response handling
 - Automatic rate limiting awareness
 - Token approval helpers
