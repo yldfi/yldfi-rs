@@ -102,6 +102,11 @@ pub struct NormalizedQuote {
     /// Token the fee is denominated in
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fee_token: Option<String>,
+    /// No sender was given and this source needs one, so it was priced for
+    /// ethcli's placeholder address. The figure is a price only: transaction
+    /// data is never returned for it.
+    #[serde(default)]
+    pub placeholder_sender: bool,
 }
 
 impl NormalizedQuote {
@@ -131,6 +136,7 @@ impl NormalizedQuote {
             protocols: None,
             fee_amount: None,
             fee_token: None,
+            placeholder_sender: false,
         }
     }
 
@@ -204,19 +210,40 @@ impl NormalizedQuote {
     }
 }
 
+/// Minimum number of parsed quotes before any of them can be called an outlier.
+/// With fewer there is no majority to compare against.
+const OUTLIER_MIN_QUOTES: usize = 3;
+
+/// A quote is a low outlier when its output is below `median / OUTLIER_MEDIAN_DIVISOR`
+/// and a high outlier when it is above `median * OUTLIER_MEDIAN_DIVISOR`.
+/// Aggregators that only know a thin pool for a token return a real quote that
+/// is a small fraction of what the others offer; it must not shape the summary.
+/// A quote far above the rest is kept, because it can be the one good route,
+/// but it is reported so the caller can check it.
+const OUTLIER_MEDIAN_DIVISOR: u128 = 2;
+
 /// Aggregated quote result with best quote selection
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuoteAggregation {
     /// Best quote by output amount
     pub best_quote: Option<BestQuote>,
-    /// Number of sources that returned valid quotes
+    /// Number of sources that returned valid quotes (outliers included)
     pub valid_quotes: usize,
     /// Total sources queried
     pub total_sources: usize,
-    /// Average output across all valid quotes
+    /// Average output across valid quotes, excluding outliers
     pub avg_output: Option<String>,
-    /// Output spread percentage ((max-min)/max * 100)
+    /// Output spread percentage ((max-min)/max * 100), excluding outliers
     pub output_spread_pct: Option<f64>,
+    /// Sources whose output is less than half the median. They are left out of
+    /// `avg_output`, `output_spread_pct` and `improvement_pct`.
+    #[serde(default)]
+    pub outliers: Vec<String>,
+    /// Sources whose output is more than twice the median. They still count,
+    /// and one of them is the best quote, but a figure this far above the
+    /// others may be wrong (or the only good route): check it before use.
+    #[serde(default)]
+    pub high_outliers: Vec<String>,
 }
 
 /// Best quote summary
@@ -230,11 +257,37 @@ pub struct BestQuote {
     pub gas_usd: Option<f64>,
     /// Price impact (if available)
     pub price_impact: Option<f64>,
-    /// Improvement over worst quote (percentage)
+    /// Improvement over the worst quote that is not an outlier (percentage)
     pub improvement_pct: Option<f64>,
+    /// The best quote was priced for the placeholder sender (see
+    /// `NormalizedQuote::placeholder_sender`)
+    #[serde(default)]
+    pub placeholder_sender: bool,
+}
+
+/// Median of `values`; the mean of the two middle values for an even count.
+fn median(values: &[u128]) -> Option<u128> {
+    if values.is_empty() {
+        return None;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_unstable();
+    let mid = sorted.len() / 2;
+    Some(if sorted.len() % 2 == 1 {
+        sorted[mid]
+    } else {
+        // Halve before adding so two near-max values cannot overflow.
+        sorted[mid - 1] / 2 + sorted[mid] / 2 + (sorted[mid - 1] % 2 + sorted[mid] % 2) / 2
+    })
 }
 
 impl QuoteAggregation {
+    /// Whether `source` was flagged as an outlier
+    #[must_use]
+    pub fn is_outlier(&self, source: &str) -> bool {
+        self.outliers.iter().any(|s| s == source)
+    }
+
     /// Create aggregation from quote results
     pub fn from_quotes(results: &[SourceResult<NormalizedQuote>]) -> Self {
         let valid_quotes: Vec<&NormalizedQuote> =
@@ -243,16 +296,6 @@ impl QuoteAggregation {
         let total_sources = results.len();
         let valid_count = valid_quotes.len();
 
-        if valid_quotes.is_empty() {
-            return Self {
-                best_quote: None,
-                valid_quotes: 0,
-                total_sources,
-                avg_output: None,
-                output_spread_pct: None,
-            };
-        }
-
         // Parse outputs for comparison
         let outputs: Vec<(usize, u128)> = valid_quotes
             .iter()
@@ -260,36 +303,61 @@ impl QuoteAggregation {
             .filter_map(|(i, q)| q.amount_out_u128().map(|out| (i, out)))
             .collect();
 
-        if outputs.is_empty() {
+        // Find best (highest output)
+        let Some((best_idx, best_output)) = outputs.iter().max_by_key(|(_, out)| out) else {
             return Self {
                 best_quote: None,
                 valid_quotes: valid_count,
                 total_sources,
                 avg_output: None,
                 output_spread_pct: None,
+                outliers: Vec::new(),
+                high_outliers: Vec::new(),
             };
-        }
-
-        // Find best (highest output)
-        let (best_idx, best_output) = outputs.iter().max_by_key(|(_, out)| out).unwrap();
+        };
         let best = &valid_quotes[*best_idx];
 
-        // Find worst for improvement calculation
-        let (_, worst_output) = outputs.iter().min_by_key(|(_, out)| out).unwrap();
+        // Split off quotes far below the median. The best quote is the highest
+        // output, so it is never one of them.
+        let amounts: Vec<u128> = outputs.iter().map(|(_, out)| *out).collect();
+        let (floor, ceiling) = match median(&amounts) {
+            Some(m) if outputs.len() >= OUTLIER_MIN_QUOTES => (
+                m / OUTLIER_MEDIAN_DIVISOR,
+                m.saturating_mul(OUTLIER_MEDIAN_DIVISOR),
+            ),
+            _ => (0, u128::MAX),
+        };
+        let sources_where = |keep: &dyn Fn(u128) -> bool| -> Vec<String> {
+            outputs
+                .iter()
+                .filter(|(_, out)| keep(*out))
+                .map(|(i, _)| valid_quotes[*i].source.clone())
+                .collect()
+        };
+        let outliers = sources_where(&|out| out < floor);
+        let high_outliers = sources_where(&|out| out > ceiling);
+        let inliers: Vec<u128> = amounts
+            .iter()
+            .copied()
+            .filter(|out| *out >= floor)
+            .collect();
 
-        let improvement_pct = if *worst_output > 0 {
-            Some(((*best_output - *worst_output) as f64 / *worst_output as f64) * 100.0)
+        // Worst remaining quote, for the improvement and spread figures
+        let worst_output = inliers.iter().copied().min().unwrap_or(*best_output);
+
+        let improvement_pct = if worst_output > 0 {
+            Some(((*best_output - worst_output) as f64 / worst_output as f64) * 100.0)
         } else {
             None
         };
 
         // Calculate average
-        let sum: u128 = outputs.iter().map(|(_, out)| out).sum();
-        let avg = sum / outputs.len() as u128;
+        let sum: u128 = inliers.iter().sum();
+        let avg = sum / inliers.len().max(1) as u128;
 
         // Calculate spread
         let spread_pct = if *best_output > 0 {
-            Some(((*best_output - *worst_output) as f64 / *best_output as f64) * 100.0)
+            Some(((*best_output - worst_output) as f64 / *best_output as f64) * 100.0)
         } else {
             None
         };
@@ -301,11 +369,107 @@ impl QuoteAggregation {
                 gas_usd: best.gas_usd,
                 price_impact: best.price_impact,
                 improvement_pct,
+                placeholder_sender: best.placeholder_sender,
             }),
             valid_quotes: valid_count,
             total_sources,
             avg_output: Some(avg.to_string()),
             output_spread_pct: spread_pct,
+            outliers,
+            high_outliers,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ok(source: &'static str, amount_out: &str) -> SourceResult<NormalizedQuote> {
+        SourceResult::success(
+            source,
+            NormalizedQuote::new(source, "0xin", "0xout", "1", amount_out),
+            1,
+        )
+    }
+
+    #[test]
+    fn median_handles_odd_even_and_large_values() {
+        assert_eq!(median(&[]), None);
+        assert_eq!(median(&[7]), Some(7));
+        assert_eq!(median(&[3, 1, 2]), Some(2));
+        assert_eq!(median(&[4, 1, 3, 2]), Some(2));
+        assert_eq!(median(&[3, 5]), Some(4));
+        assert_eq!(median(&[u128::MAX, u128::MAX]), Some(u128::MAX));
+    }
+
+    #[test]
+    fn thin_pool_quote_is_flagged_and_left_out_of_the_summary() {
+        // Figures from a live stablecoin comparison: one source routed
+        // through a nearly empty pool.
+        let results = vec![
+            ok("openocean", "4869286"),
+            ok("kyberswap", "1987004936"),
+            ok("1inch", "1981044220"),
+            SourceResult::error("0x", "no key", 0),
+        ];
+        let agg = QuoteAggregation::from_quotes(&results);
+
+        assert_eq!(agg.outliers, vec!["openocean".to_string()]);
+        assert!(agg.high_outliers.is_empty());
+        assert!(agg.is_outlier("openocean"));
+        assert!(!agg.is_outlier("kyberswap"));
+        assert_eq!(agg.valid_quotes, 3);
+        assert_eq!(agg.total_sources, 4);
+        assert_eq!(agg.avg_output.as_deref(), Some("1984024578"));
+        let best = agg.best_quote.unwrap();
+        assert_eq!(best.source, "kyberswap");
+        assert!(best.improvement_pct.unwrap() < 1.0);
+        assert!(agg.output_spread_pct.unwrap() < 1.0);
+    }
+
+    #[test]
+    fn half_of_the_quotes_being_low_still_flags_them() {
+        let results = vec![ok("a", "5"), ok("b", "6"), ok("c", "1987"), ok("d", "1990")];
+        let agg = QuoteAggregation::from_quotes(&results);
+        assert_eq!(agg.outliers, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(agg.best_quote.unwrap().source, "d");
+    }
+
+    #[test]
+    fn quote_far_above_the_others_is_best_but_reported() {
+        let results = vec![ok("a", "1980"), ok("b", "1987"), ok("c", "1987000")];
+        let agg = QuoteAggregation::from_quotes(&results);
+        assert_eq!(agg.high_outliers, vec!["c".to_string()]);
+        assert!(agg.outliers.is_empty());
+        assert_eq!(agg.best_quote.unwrap().source, "c");
+    }
+
+    #[test]
+    fn two_quotes_are_never_outliers() {
+        let results = vec![ok("a", "5"), ok("b", "1987")];
+        let agg = QuoteAggregation::from_quotes(&results);
+        assert!(agg.outliers.is_empty());
+        assert!(agg.high_outliers.is_empty());
+        assert_eq!(agg.avg_output.as_deref(), Some("996"));
+        assert!(agg.output_spread_pct.unwrap() > 99.0);
+    }
+
+    #[test]
+    fn close_quotes_are_all_kept() {
+        let results = vec![ok("a", "1000"), ok("b", "700"), ok("c", "990")];
+        let agg = QuoteAggregation::from_quotes(&results);
+        assert!(agg.outliers.is_empty());
+        assert_eq!(agg.avg_output.as_deref(), Some("896"));
+    }
+
+    #[test]
+    fn no_parsed_quotes_gives_no_best_quote() {
+        let results = vec![SourceResult::error("a", "boom", 0), ok("b", "not-a-number")];
+        let agg = QuoteAggregation::from_quotes(&results);
+        assert!(agg.best_quote.is_none());
+        assert_eq!(agg.valid_quotes, 1);
+        assert_eq!(agg.total_sources, 2);
+        assert!(agg.outliers.is_empty());
     }
 }

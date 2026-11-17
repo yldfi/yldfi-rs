@@ -474,7 +474,9 @@ ethcli quote best ETH USDC 1000000000000000000 --slippage 100
 
 # `quote from all` behaves like `quote compare`
 
-# Provide sender address for more accurate quotes
+# Pass the wallet that will sign: transaction data is built for it and pays the
+# output to it. Without --sender, CowSwap, LI.FI and Enso are priced for a
+# placeholder address (marked in the output) and return no transaction data
 ethcli quote best ETH USDC 1000000000000000000 --sender 0xYourAddress
 
 # JSON output
@@ -499,6 +501,8 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 - **No API keys required** for basic usage (some sources may have higher rate limits with keys)
 - **MEV protection**: CowSwap uses batch auctions to protect against MEV
 - **Amount format**: Pass raw amounts (wei) or use `--decimals` for human-readable input
+- **Outliers**: with three or more quotes, a source under half the median is listed in `aggregation.outliers` (table: `LOW`) and left out of the average, spread and improvement; a source above twice the median is listed in `high_outliers` (table: `HIGH`) with a warning but still counts
+- **Sender**: CowSwap, LI.FI and Enso need a sender. Without `--sender` they are priced for a placeholder address (`placeholder_sender` in the output) and return no transaction data; the zero address and the placeholder are rejected as `--sender`
 - **Symbols**: ETH (native), WETH, USDC, USDT, DAI, WBTC, ... resolve per chain (ethereum, optimism, bsc, polygon, base, arbitrum, avalanche); otherwise pass addresses
 - **Chains**: Supports Ethereum, Polygon, Arbitrum, Optimism, Base, and more
 
@@ -1060,7 +1064,7 @@ Direct access to ParaSwap API. Optional `PARASWAP_API_KEY` or `VELORA_API_KEY` f
 ethcli velora price <src_token> <dest_token> <amount> --chain ethereum --side SELL
 
 # Build swap transaction (--price-route: full `price` output or its priceRoute, sent unmodified;
-# non-mainnet token decimals are auto-detected via RPC)
+# token decimals are auto-detected via RPC when omitted)
 ethcli velora transaction <user_address> --chain ethereum --slippage 100 --price-route '<json>'
 
 # Price route + transaction in one call (GET /swap; lower rate limits, no RFQ).

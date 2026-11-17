@@ -38,10 +38,10 @@ pub enum VeloraCommands {
         /// Side: SELL or BUY
         #[arg(long, default_value = "SELL", value_parser = ["SELL", "BUY", "sell", "buy"])]
         side: String,
-        /// Source token decimals (auto-detected via RPC on non-mainnet chains)
+        /// Source token decimals (auto-detected via RPC when omitted)
         #[arg(long)]
         src_decimals: Option<u8>,
-        /// Destination token decimals (auto-detected via RPC on non-mainnet chains)
+        /// Destination token decimals (auto-detected via RPC when omitted)
         #[arg(long)]
         dest_decimals: Option<u8>,
         /// User address
@@ -91,10 +91,10 @@ pub enum VeloraCommands {
         /// Side: SELL or BUY
         #[arg(long, default_value = "SELL", value_parser = ["SELL", "BUY", "sell", "buy"])]
         side: String,
-        /// Source token decimals (auto-detected via RPC on non-mainnet chains)
+        /// Source token decimals (auto-detected via RPC when omitted)
         #[arg(long)]
         src_decimals: Option<u8>,
-        /// Destination token decimals (auto-detected via RPC on non-mainnet chains)
+        /// Destination token decimals (auto-detected via RPC when omitted)
         #[arg(long)]
         dest_decimals: Option<u8>,
         /// Exclude DEXs (comma-separated)
@@ -277,7 +277,7 @@ fn extract_price_route(json: &str) -> anyhow::Result<serde_json::Value> {
 }
 
 /// Velora requires `srcDecimals`/`destDecimals` for tokens outside its list,
-/// which is common off mainnet. Auto-fill missing values from RPC there.
+/// on mainnet as well as other chains. Auto-fill missing values from RPC.
 async fn resolve_decimals(
     chain: vlra::Chain,
     src_token: &str,
@@ -285,9 +285,6 @@ async fn resolve_decimals(
     src_decimals: Option<u8>,
     dest_decimals: Option<u8>,
 ) -> (Option<u8>, Option<u8>) {
-    if chain == vlra::Chain::Ethereum {
-        return (src_decimals, dest_decimals);
-    }
     let chain_id = chain.chain_id();
     let lookup = |token: String| async move {
         match crate::utils::token_meta::fetch_token_decimals(chain_id, &token).await {
@@ -404,8 +401,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mainnet_decimals_are_left_untouched() {
-        let (s, d) = resolve_decimals(vlra::Chain::Ethereum, "0xa", "0xb", None, Some(6)).await;
-        assert_eq!((s, d), (None, Some(6)));
+    async fn supplied_decimals_are_kept_without_a_lookup() {
+        // Both values given: no RPC call is made, on mainnet or elsewhere.
+        for chain in [vlra::Chain::Ethereum, vlra::Chain::Arbitrum] {
+            let (s, d) = resolve_decimals(chain, "0xa", "0xb", Some(18), Some(6)).await;
+            assert_eq!((s, d), (Some(18), Some(6)));
+        }
+    }
+
+    #[tokio::test]
+    async fn mainnet_native_token_decimals_are_filled_in() {
+        // The native placeholder resolves to 18 without an RPC call; before
+        // this, mainnet lookups were skipped and the value stayed None.
+        let native = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+        let (s, d) = resolve_decimals(vlra::Chain::Ethereum, native, "0xb", None, Some(6)).await;
+        assert_eq!((s, d), (Some(18), Some(6)));
     }
 }

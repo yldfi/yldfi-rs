@@ -3,8 +3,8 @@
 //! Fetches swap quotes from multiple DEX aggregators in parallel and finds the best quote.
 
 use crate::aggregator::swap::{
-    fetch_quote_from_source, fetch_quotes_all, tokens::resolve_token, NormalizedQuote,
-    QuoteAggregation, SwapSource,
+    fetch_quote_from_source, fetch_quotes_all, is_reserved_sender, tokens::resolve_token,
+    NormalizedQuote, QuoteAggregation, SwapSource, PLACEHOLDER_SENDER,
 };
 use crate::cli::OutputFormat;
 use crate::utils::format::truncate_str;
@@ -109,7 +109,10 @@ pub struct QuoteArgs {
     #[arg(long, short, default_value = "ethereum")]
     pub chain: String,
 
-    /// Sender address (required by some aggregators for accurate quotes)
+    /// Wallet that will sign the swap. Transaction data is built for this
+    /// address and pays the output to it, so never pass an example address.
+    /// Without it, CowSwap, LI.FI and Enso are priced for a placeholder
+    /// address and return no transaction data; 0x gives an indicative price.
     #[arg(long, short)]
     pub sender: Option<String>,
 
@@ -127,7 +130,8 @@ pub struct QuoteArgs {
     #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
     pub format: OutputFormat,
 
-    /// Show transaction data in output
+    /// Show transaction data in table output (needs --sender for CowSwap,
+    /// LI.FI and Enso)
     #[arg(long)]
     pub show_tx: bool,
 }
@@ -140,10 +144,39 @@ pub struct QuoteOutput {
     pub amount_in: String,
     pub chain: String,
     pub chain_id: u64,
+    /// The `--sender` given, if any
+    pub sender: Option<String>,
+    /// Set when no sender was given and some sources were priced for a
+    /// placeholder address instead
+    pub placeholder_sender: Option<PlaceholderSender>,
     pub aggregation: QuoteAggregation,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quotes: Option<Vec<QuoteSummary>>,
     pub total_latency_ms: u64,
+}
+
+/// Which sources were priced for the placeholder sender
+#[derive(Debug, Serialize)]
+pub struct PlaceholderSender {
+    pub address: &'static str,
+    pub sources: Vec<String>,
+    pub note: &'static str,
+}
+
+const PLACEHOLDER_NOTE: &str =
+    "No --sender was given. These sources were priced for a placeholder \
+    address and return no transaction data. For transaction data pass --sender with the wallet \
+    that will sign: the swap output is paid to it.";
+
+/// Reject a `--sender` that nobody controls
+fn check_sender(args: &QuoteArgs) -> anyhow::Result<()> {
+    match args.sender.as_deref() {
+        Some(sender) if is_reserved_sender(sender) => anyhow::bail!(
+            "--sender {sender} is not a wallet: transaction data would pay the swap output to it. \
+             Pass the wallet that will sign, or leave --sender out for prices only"
+        ),
+        _ => Ok(()),
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -154,6 +187,10 @@ pub struct QuoteSummary {
     pub price_impact: Option<f64>,
     pub protocols: Option<Vec<String>>,
     pub error: Option<String>,
+    /// Output is under half the median of the other quotes (see `aggregation.outliers`)
+    pub outlier: bool,
+    /// Priced for the placeholder sender (see the top-level `placeholder_sender`)
+    pub placeholder_sender: bool,
     pub latency_ms: u64,
 }
 
@@ -175,6 +212,7 @@ fn resolve_tokens(args: &QuoteArgs, chain_id: u64) -> anyhow::Result<(String, St
 }
 
 async fn execute_best(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
+    check_sender(args)?;
     let (chain_id, chain_name) = resolve_chain(&args.chain)?;
     let amount = resolve_amount(&args.amount, args.decimals)?;
     let (token_in, token_out) = resolve_tokens(args, chain_id)?;
@@ -218,6 +256,7 @@ async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> a
     if source == SwapSourceArg::All {
         return execute_compare(args, quiet).await;
     }
+    check_sender(args)?;
 
     let (chain_id, chain_name) = resolve_chain(&args.chain)?;
     let amount = resolve_amount(&args.amount, args.decimals)?;
@@ -300,6 +339,9 @@ async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> a
                 if let Some(protocols) = &quote.protocols {
                     println!("  Protocols:   {}", protocols.join(", "));
                 }
+                if quote.placeholder_sender {
+                    println!("  Note:        priced for a placeholder sender: no transaction data. Pass --sender (the wallet that will sign) for it");
+                }
 
                 if args.show_tx {
                     if let Some(router) = &quote.router_address {
@@ -333,6 +375,7 @@ async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> a
 }
 
 async fn execute_compare(args: &QuoteArgs, quiet: bool) -> anyhow::Result<()> {
+    check_sender(args)?;
     let (chain_id, chain_name) = resolve_chain(&args.chain)?;
     let amount = resolve_amount(&args.amount, args.decimals)?;
     let (token_in, token_out) = resolve_tokens(args, chain_id)?;
@@ -464,6 +507,8 @@ fn build_output(
                     price_impact: s.data.as_ref().and_then(|q| q.price_impact),
                     protocols: s.data.as_ref().and_then(|q| q.protocols.clone()),
                     error: s.error.clone(),
+                    outlier: result.aggregated.is_outlier(&s.source),
+                    placeholder_sender: s.data.as_ref().is_some_and(|q| q.placeholder_sender),
                     latency_ms: s.latency_ms,
                 })
                 .collect(),
@@ -472,7 +517,21 @@ fn build_output(
         None
     };
 
+    let placeholder_sources: Vec<String> = result
+        .sources
+        .iter()
+        .filter(|s| s.data.as_ref().is_some_and(|q| q.placeholder_sender))
+        .map(|s| s.source.to_string())
+        .collect();
+    let placeholder_sender = (!placeholder_sources.is_empty()).then_some(PlaceholderSender {
+        address: PLACEHOLDER_SENDER,
+        sources: placeholder_sources,
+        note: PLACEHOLDER_NOTE,
+    });
+
     QuoteOutput {
+        sender: args.sender.clone(),
+        placeholder_sender,
         token_in: args.token_in.clone(),
         token_out: args.token_out.clone(),
         amount_in: amount.to_string(),
@@ -510,6 +569,21 @@ fn print_best_output(
         }
         if let Some(improvement) = best.improvement_pct {
             println!("  vs Worst:    +{:.2}% better", improvement);
+        }
+        if best.placeholder_sender {
+            println!("  Note:        priced for a placeholder sender: no transaction data. Pass --sender (the wallet that will sign) for it");
+        }
+        if !output.aggregation.outliers.is_empty() {
+            println!(
+                "  Outliers:    {} (under half the median, ignored)",
+                output.aggregation.outliers.join(", ")
+            );
+        }
+        if !output.aggregation.high_outliers.is_empty() {
+            println!(
+                "  Warning:     {} quoted more than twice the median; check before using",
+                output.aggregation.high_outliers.join(", ")
+            );
         }
 
         // Find the best quote source for tx data
@@ -562,6 +636,25 @@ fn print_compare_output(
         if let Some(spread) = output.aggregation.output_spread_pct {
             println!("  Spread:     {:.2}%", spread);
         }
+        if !output.aggregation.outliers.is_empty() {
+            println!(
+                "  Outliers:   {} (under half the median, left out of the spread)",
+                output.aggregation.outliers.join(", ")
+            );
+        }
+        if !output.aggregation.high_outliers.is_empty() {
+            println!(
+                "  Warning:    {} quoted more than twice the median; check before using",
+                output.aggregation.high_outliers.join(", ")
+            );
+        }
+    }
+
+    if let Some(placeholder) = &output.placeholder_sender {
+        println!(
+            "  Note:       {} priced for a placeholder sender: no transaction data. Pass --sender (the wallet that will sign) for it",
+            placeholder.sources.join(", ")
+        );
     }
 
     println!();
@@ -589,7 +682,19 @@ fn print_compare_output(
     });
 
     for (i, source) in sorted_sources.iter().enumerate() {
-        let status = if source.is_success() { "OK" } else { "ERR" };
+        let status = if !source.is_success() {
+            "ERR"
+        } else if output.aggregation.is_outlier(&source.source) {
+            "LOW"
+        } else if output
+            .aggregation
+            .high_outliers
+            .contains(&source.source.to_string())
+        {
+            "HIGH"
+        } else {
+            "OK"
+        };
         let rank = if source.is_success() {
             format!("#{}", i + 1)
         } else {

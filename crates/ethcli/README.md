@@ -638,7 +638,9 @@ ethcli quote best ETH USDC 1000000000000000000 --show-tx
 # Set slippage tolerance (basis points, default 50 = 0.5%)
 ethcli quote best ETH USDC 1000000000000000000 --slippage 100
 
-# Provide sender address for more accurate quotes
+# Pass the wallet that will sign: transaction data is built for it and pays the
+# output to it. Without --sender, CowSwap, LI.FI and Enso are priced for a
+# placeholder address (marked in the output) and return no transaction data
 ethcli quote best ETH USDC 1000000000000000000 --sender 0xYourAddress
 
 # JSON output
@@ -657,6 +659,13 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 | `li.fi`, `lifi` | LI.FI | Cross-chain aggregator |
 | `velora`, `paraswap` | Velora/ParaSwap | Multi-protocol routing |
 | `enso`, `ensofi` | Enso Finance | DeFi shortcuts |
+
+**Reading the result**:
+
+- **Outliers**: with three or more quotes, a source whose output is under half the median is listed in `aggregation.outliers` (shown as `LOW` in the table, `outlier: true` per quote) and left out of the average, spread and improvement figures. This catches an aggregator that only knows a thin pool for the token.
+- **High quotes**: a source above twice the median is listed in `aggregation.high_outliers` (`HIGH` in the table) with a warning. It is still the best quote and still counts in the figures, so check it before using it.
+- **Sender**: CowSwap, LI.FI and Enso cannot price without a sender. With no `--sender` they are priced for a placeholder address: `placeholder_sender` at the top level lists them, each such quote and the best quote carry `placeholder_sender: true`, and they never return transaction data. Pass `--sender` with the wallet that will sign to get transaction data; the zero address and the placeholder itself are rejected.
+- **Velora**: token decimals are looked up over RPC and sent with every request, so tokens outside Velora's own list are quoted on mainnet too.
 
 ---
 
@@ -1479,6 +1488,8 @@ Direct access to the Velora (formerly ParaSwap) API at `api.velora.xyz`; prices 
 # Get swap price/route
 ethcli velora price <src_token> <dest_token> <amount> --chain ethereum --side SELL
 ethcli velora price 0xC02...Cc2 0xA0b8... 1000000000000000000 --src-decimals 18 --dest-decimals 6
+# --src-decimals/--dest-decimals are looked up over RPC when omitted (every chain),
+# so tokens outside Velora's list work without them
 
 # Build swap transaction
 ethcli velora transaction <user_address> --chain ethereum --slippage 100 --price-route '<json>'
