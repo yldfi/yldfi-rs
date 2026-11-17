@@ -1,0 +1,91 @@
+name: PR text check
+
+# Fails a pull request whose title, description or commit messages contain a
+# term from the maintainers' restricted list (details that must not appear in
+# this public repository). The list is a repository secret, so it is not shown
+# here or in the logs: a failure names only where a match was found.
+#
+# Pull requests from forks and from bots do not receive the secret; the check
+# is skipped for them. Keep this on `pull_request` only: with the secret
+# available, a pass/fail result on outside input would let anyone probe the list.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-text-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  restricted-terms:
+    name: Restricted terms
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check title, description and commit messages
+        env:
+          # One extended regular expression per line, matched case-insensitively.
+          RESTRICTED_TERMS: ${{ secrets.RESTRICTED_TERMS }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # The default shell runs with -e; a grep that finds nothing must not end the step.
+          set +e -u
+          if [ -z "${RESTRICTED_TERMS:-}" ]; then
+            echo "::notice::No restricted-terms list is available to this run (fork or bot pull request). Skipped."
+            exit 0
+          fi
+
+          terms=$(mktemp)
+          printf '%s\n' "$RESTRICTED_TERMS" | grep -v '^[[:space:]]*$' > "$terms"
+          unset RESTRICTED_TERMS
+
+          # Never print a match, a term or grep's own messages.
+          hit() { grep -Eiq -f "$terms" 2>/dev/null; }
+          rc=0
+          printf '' | grep -Eq -f "$terms" 2>/dev/null || rc=$?
+          if [ "$rc" -gt 1 ]; then
+            echo "::error::The restricted-terms list is not a valid set of expressions."
+            exit 1
+          fi
+
+          fail=0
+          if ! pr=$(gh api "repos/$REPO/pulls/$PR" 2>/dev/null); then
+            echo "::error::Could not read the pull request."
+            exit 1
+          fi
+          if printf '%s' "$pr" | jq -r '.title // ""' | hit; then
+            echo "::error::Restricted term in the pull request title."
+            fail=1
+          fi
+          if printf '%s' "$pr" | jq -r '.body // ""' | hit; then
+            echo "::error::Restricted term in the pull request description."
+            fail=1
+          fi
+
+          if ! commits=$(gh api --paginate "repos/$REPO/pulls/$PR/commits" \
+              --jq '.[] | [.sha[0:7], (.commit.message | @base64)] | @tsv' 2>/dev/null); then
+            echo "::error::Could not read the pull request's commits."
+            exit 1
+          fi
+          while IFS=$'\t' read -r sha message; do
+            [ -n "$sha" ] || continue
+            if printf '%s' "$message" | base64 -d 2>/dev/null | hit; then
+              echo "::error::Restricted term in the message of commit $sha."
+              fail=1
+            fi
+          done <<< "$commits"
+
+          if [ "$fail" = "1" ]; then
+            echo "Reword it in a generic form. For a title or description, also delete the"
+            echo "old revision from its edit history; for a commit, rewrite the message and"
+            echo "force-push the branch. The matching term is deliberately not shown."
+            exit 1
+          fi
+          echo "No restricted terms found."
