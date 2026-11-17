@@ -73,6 +73,14 @@ pub struct UpdateQueryResponse {
     pub query_id: i64,
 }
 
+/// Response from archiving, unarchiving, privating or unprivating a query
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
+pub struct QueryIdResponse {
+    /// ID of the query that was updated
+    pub query_id: Option<i64>,
+}
+
 /// Request to create a query
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateQueryRequest {
