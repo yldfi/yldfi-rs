@@ -193,12 +193,42 @@ that day; for an end-of-day figure pass the next day's date or a full time. A re
 object; its `source` field is `signature_database` when the error name is a
 guess from the public signature list.
 
+## Choosing which tools to offer
+
+The server offers every tool by default (about 590). Some clients load every
+tool definition into the model's context, and model providers advise keeping
+the number of tools small, so `ETHCLI_MCP_TOOLSETS` limits what is offered. It
+takes a comma-separated list:
+
+| Entry | Offers |
+|-------|--------|
+| `core` | About 20 tools that answer most questions in one call: `contract_inspect`, `contract_call`, `tx_analyze`, `rpc_multicall`, `rpc_call`, `rpc_balance`, `rpc_block_at`, `logs`, `token_info`, `account_txs`, `simulate_call`, `price`, `quote_best`, `sig_error` and a few more |
+| a group (`curve`, `tenderly`, `rpc`, `account`, ...) | Every tool whose name starts with that group |
+| a tool name (`uniswap_pool`) | That tool |
+| `all`, or unset | Every tool |
+
+```json
+{
+  "mcpServers": {
+    "ethcli": {
+      "command": "ethcli-mcp",
+      "env": { "ETHCLI_MCP_TOOLSETS": "core,curve" }
+    }
+  }
+}
+```
+
+Clients that load tools on demand (Claude Code's tool search, for example) do
+not need this. Entries that match no tool are logged and ignored. Write tools
+still need `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1`.
+
 ## Environment Variables
 
 | Variable | Required For |
 |----------|-------------|
 | `ETHCLI_PATH` | Absolute custom ethcli binary path |
 | `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1` | Opt in to MCP tools that mutate local/remote state |
+| `ETHCLI_MCP_TOOLSETS` | Offer only some tools, e.g. `core,curve` (see above) |
 | `ETHERSCAN_API_KEY` | Higher rate limits (optional) |
 | `ALCHEMY_API_KEY` | `alchemy_*` tools |
 | `TENDERLY_ACCESS_KEY` | `tenderly_*` tools |

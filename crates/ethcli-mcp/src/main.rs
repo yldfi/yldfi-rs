@@ -39,11 +39,101 @@ pub struct EthcliMcpServer {
     tool_router: ToolRouter<Self>,
 }
 
+/// Environment variable that limits which tools the server offers
+const TOOLSETS_ENV: &str = "ETHCLI_MCP_TOOLSETS";
+
+/// The tools in the `core` toolset: the ones that answer most questions in
+/// one call. Names not in this build are ignored.
+const CORE_TOOLS: &[&str] = &[
+    "contract_inspect",
+    "contract_call",
+    "contract_abi",
+    "contract_source",
+    "tx_analyze",
+    "rpc_multicall",
+    "rpc_call",
+    "rpc_balance",
+    "rpc_block_at",
+    "rpc_code_summary",
+    "logs",
+    "token_info",
+    "account_txs",
+    "account_funded_by",
+    "sig_lookup",
+    "sig_error",
+    "simulate_call",
+    "simulate_tx",
+    "price",
+    "quote_best",
+    "gas_oracle",
+];
+
+/// Which tools to offer for a `ETHCLI_MCP_TOOLSETS` value.
+///
+/// Unset, empty or `all` keeps every tool. Otherwise the value is a
+/// comma-separated list of entries, each one of:
+/// - `core`: the tools in [`CORE_TOOLS`];
+/// - a group, the part of a tool name before its first `_` (`curve`,
+///   `tenderly`, `account`, ...), which keeps every tool in that group;
+/// - a full tool name.
+///
+/// Returns the tools to keep and the entries that matched nothing.
+fn select_tools(all: &[String], spec: Option<&str>) -> (Vec<String>, Vec<String>) {
+    let entries: Vec<&str> = spec
+        .unwrap_or("")
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .collect();
+    if entries.is_empty() || entries.iter().any(|e| e.eq_ignore_ascii_case("all")) {
+        return (all.to_vec(), Vec::new());
+    }
+    let matches = |entry: &str, tool: &str| {
+        let entry = entry.to_ascii_lowercase();
+        (entry == "core" && CORE_TOOLS.contains(&tool))
+            || tool == entry
+            || tool.split('_').next() == Some(entry.as_str())
+    };
+    let keep = all
+        .iter()
+        .filter(|tool| entries.iter().any(|e| matches(e, tool)))
+        .cloned()
+        .collect();
+    let unknown = entries
+        .iter()
+        .filter(|e| !all.iter().any(|tool| matches(e, tool)))
+        .map(|e| e.to_string())
+        .collect();
+    (keep, unknown)
+}
+
 impl EthcliMcpServer {
     pub fn new() -> Self {
-        Self {
-            tool_router: Self::tool_router(),
+        let mut tool_router = Self::tool_router();
+        let spec = std::env::var(TOOLSETS_ENV).ok();
+        let all: Vec<String> = tool_router
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.to_string())
+            .collect();
+        let (keep, unknown) = select_tools(&all, spec.as_deref());
+        if !unknown.is_empty() {
+            tracing::warn!(
+                entries = ?unknown,
+                "{TOOLSETS_ENV} entries that match no tool were ignored"
+            );
         }
+        if keep.len() < all.len() {
+            for name in all.iter().filter(|name| !keep.contains(name)) {
+                tool_router.remove_route(name);
+            }
+            tracing::info!(
+                offered = keep.len(),
+                of = all.len(),
+                "tools limited by {TOOLSETS_ENV}"
+            );
+        }
+        Self { tool_router }
     }
 }
 
@@ -8750,7 +8840,9 @@ impl ServerHandler for EthcliMcpServer {
                  Supports multiple chains: ethereum, polygon, arbitrum, optimism, base, etc. \
                  Also supports gnosis, fantom, linea, zksync, scroll, blast, mantle, and any chain by ID. \
                  Tools that change local config or remote state (annotated readOnlyHint=false) \
-                 are disabled unless the server runs with ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+                 are disabled unless the server runs with ETHCLI_MCP_ENABLE_WRITE_TOOLS=1. \
+                 For an unknown address start with contract_inspect; for a transaction use \
+                 tx_analyze with full=true; for several contract reads use rpc_multicall.",
             )
     }
 }
@@ -8842,10 +8934,7 @@ async fn main() -> anyhow::Result<()> {
     let server = EthcliMcpServer::new();
     let service = server.serve(stdio()).await?;
 
-    tracing::info!(
-        tools = EthcliMcpServer::tool_router().list_all().len(),
-        "ethcli-mcp server ready"
-    );
+    tracing::info!("ethcli-mcp server ready");
 
     // Wait for completion
     service.waiting().await?;
@@ -9088,5 +9177,60 @@ mod annotation_tests {
             serde_json::from_value(serde_json::json!({"symbols": "ETH/USD", "at": 1704067200}))
                 .unwrap();
         assert_eq!(pyth.at, Some(1_704_067_200));
+    }
+}
+
+#[cfg(test)]
+mod toolset_tests {
+    use super::*;
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn all_by_default_and_groups_core_and_names_select() {
+        let all = names(&[
+            "contract_inspect",
+            "contract_abi",
+            "curve_pools",
+            "curve_router_route",
+            "tenderly_vnets",
+            "tx_analyze",
+        ]);
+        assert_eq!(select_tools(&all, None).0, all);
+        assert_eq!(select_tools(&all, Some("")).0, all);
+        assert_eq!(select_tools(&all, Some("core,ALL")).0, all);
+
+        let (keep, unknown) = select_tools(&all, Some("core"));
+        assert_eq!(
+            keep,
+            names(&["contract_inspect", "contract_abi", "tx_analyze"])
+        );
+        assert!(unknown.is_empty());
+
+        let (keep, unknown) = select_tools(&all, Some(" curve , tenderly_vnets, nope "));
+        assert_eq!(
+            keep,
+            names(&["curve_pools", "curve_router_route", "tenderly_vnets"])
+        );
+        assert_eq!(unknown, names(&["nope"]));
+    }
+
+    #[test]
+    fn every_core_tool_exists_in_this_build() {
+        let all: Vec<String> = EthcliMcpServer::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.to_string())
+            .collect();
+        let missing: Vec<&&str> = CORE_TOOLS
+            .iter()
+            .filter(|name| !all.iter().any(|tool| tool == *name))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "core tools missing from this build: {missing:?}"
+        );
     }
 }
