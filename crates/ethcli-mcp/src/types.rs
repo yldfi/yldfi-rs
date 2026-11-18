@@ -114,7 +114,9 @@ pub struct AccountTxsInput {
     /// Last block to include (inclusive; default: latest)
     pub end_block: Option<u64>,
     /// Fetch every page (1,000 rows per request), walking past the
-    /// explorer's 10,000-row window. Ignores page and limit
+    /// explorer's 10,000-row window. Ignores page and limit. The result is
+    /// then {"complete", "requests", "stopped", "count", "rows"}: check
+    /// "complete" before treating the rows as the whole history
     #[serde(default)]
     pub all: bool,
     /// With all, stop after this many requests (default 10). Tool output over
@@ -155,7 +157,9 @@ pub struct AccountErc20Input {
     /// Number of results per page (default: 50)
     pub limit: Option<u32>,
     /// Fetch every page (1,000 rows per request), walking past the
-    /// explorer's 10,000-row window. Ignores page and limit
+    /// explorer's 10,000-row window. Ignores page and limit. The result is
+    /// then {"complete", "requests", "stopped", "count", "rows"}: check
+    /// "complete" before treating the rows as the whole history
     #[serde(default)]
     pub all: bool,
     /// With all, stop after this many requests (default 10). Tool output over
@@ -215,7 +219,9 @@ pub struct AccountInternalTxsInput {
     /// Number of results per page (default: 50)
     pub limit: Option<u32>,
     /// Fetch every page (1,000 rows per request), walking past the
-    /// explorer's 10,000-row window. Ignores page and limit
+    /// explorer's 10,000-row window. Ignores page and limit. The result is
+    /// then {"complete", "requests", "stopped", "count", "rows"}: check
+    /// "complete" before treating the rows as the whole history
     #[serde(default)]
     pub all: bool,
     /// With all, stop after this many requests (default 10). Tool output over

@@ -122,6 +122,9 @@ pub enum AccountCommands {
         ///
         /// Walks past the explorer's 10,000-row window by moving the block
         /// range, so the full history can be read. Ignores --page and --limit.
+        /// The JSON output becomes {"complete", "requests", "stopped",
+        /// "count", "rows"}; check "complete" before treating it as the
+        /// whole history.
         #[arg(long)]
         all: bool,
 
@@ -157,6 +160,9 @@ pub enum AccountCommands {
         ///
         /// Walks past the explorer's 10,000-row window by moving the block
         /// range, so the full history can be read. Ignores --page and --limit.
+        /// The JSON output becomes {"complete", "requests", "stopped",
+        /// "count", "rows"}; check "complete" before treating it as the
+        /// whole history.
         #[arg(long)]
         all: bool,
 
@@ -196,6 +202,9 @@ pub enum AccountCommands {
         ///
         /// Walks past the explorer's 10,000-row window by moving the block
         /// range, so the full history can be read. Ignores --page and --limit.
+        /// The JSON output becomes {"complete", "requests", "stopped",
+        /// "count", "rows"}; check "complete" before treating it as the
+        /// whole history.
         #[arg(long)]
         all: bool,
 
