@@ -681,6 +681,7 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 - **Velora Delta**: a second Velora source. Delta is an order the user signs and solvers fill, so its output already has the gas fee taken out and it returns no transaction data; the other sources report output before gas. On larger trades in thinner pools it can beat Velora's Market route
 - **Outliers**: with three or more quotes, a source under half the median is listed in `aggregation.outliers` (table: `LOW`) and left out of the average, spread and improvement; a source above twice the median is listed in `high_outliers` (table: `HIGH`) with a warning but still counts
 - **Sender**: CowSwap, LI.FI and Enso need a sender. Without `--sender` they are priced for a placeholder address (`placeholder_sender` in the output) and return no transaction data; the zero address and the placeholder are rejected as `--sender`
+- **Not applicable**: prop AMMs are only asked on Ethereum mainnet; a pair no maker quotes is listed in `not_applicable`, not `failed_sources`, and is not counted in `total_sources`
 - **Failed sources**: `failed_sources` in the output lists each source that returned no quote and why; `quote best` prints them too
 - **LI.FI fee**: LI.FI's output is net of its own fixed fee, reported as `fee_amount`/`fee_token`
 - **Symbols**: ETH (native), WETH, USDC, USDT, DAI, WBTC, ... resolve per chain (ethereum, optimism, bsc, polygon, base, arbitrum, avalanche); otherwise pass addresses

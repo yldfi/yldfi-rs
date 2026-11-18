@@ -1,6 +1,6 @@
 //! Fetchers for each DEX aggregator source
 
-use super::types::NormalizedQuote;
+use super::types::{NormalizedQuote, NO_PROPAMM_PAIR};
 use crate::aggregator::{get_cached_config, LatencyMeasure, SourceResult};
 use secrecy::ExposeSecret;
 
@@ -981,7 +981,7 @@ pub async fn fetch_propamm_quote(
             )
         }
         Err(pamm::Error::Domain(pamm::DomainError::UnknownPair)) => {
-            SourceResult::error(SOURCE, "No prop AMM quotes this pair", measure.elapsed_ms())
+            SourceResult::error(SOURCE, NO_PROPAMM_PAIR, measure.elapsed_ms())
         }
         Err(e) => SourceResult::error(SOURCE, api_error(&e), measure.elapsed_ms()),
     }

@@ -3,8 +3,8 @@
 //! Fetches swap quotes from multiple DEX aggregators in parallel and finds the best quote.
 
 use crate::aggregator::swap::{
-    fetch_quote_from_source, fetch_quotes_all, is_reserved_sender, tokens::resolve_token,
-    NormalizedQuote, QuoteAggregation, SwapSource, PLACEHOLDER_SENDER,
+    fetch_quote_from_source, fetch_quotes_all, is_not_applicable, is_reserved_sender,
+    tokens::resolve_token, NormalizedQuote, QuoteAggregation, SwapSource, PLACEHOLDER_SENDER,
 };
 use crate::cli::OutputFormat;
 use crate::utils::format::truncate_str;
@@ -163,6 +163,9 @@ pub struct QuoteOutput {
     pub aggregation: QuoteAggregation,
     /// Sources that returned no quote, with the reason
     pub failed_sources: Vec<FailedSource>,
+    /// Sources that do not cover this swap (for example a pair no prop AMM
+    /// quotes). Not failures, and not counted in `aggregation.total_sources`.
+    pub not_applicable: Vec<NotApplicable>,
     /// Quotes that only hold under a condition the caller does not control.
     /// They are never the best quote; compare them with it yourself.
     pub conditional_quotes: Vec<ConditionalQuote>,
@@ -178,6 +181,13 @@ pub struct ConditionalQuote {
     pub amount_out: String,
     /// The venue and the condition the price depends on
     pub protocols: Option<Vec<String>>,
+}
+
+/// A source that does not cover this swap
+#[derive(Debug, Serialize)]
+pub struct NotApplicable {
+    pub source: String,
+    pub reason: String,
 }
 
 /// A source that returned no quote
@@ -567,10 +577,20 @@ fn build_output(
         note: PLACEHOLDER_NOTE,
     });
 
+    let not_applicable = result
+        .sources
+        .iter()
+        .filter(|s| is_not_applicable(s))
+        .map(|s| NotApplicable {
+            source: s.source.to_string(),
+            reason: s.error.clone().unwrap_or_default(),
+        })
+        .collect();
+
     let failed_sources = result
         .sources
         .iter()
-        .filter(|s| s.data.is_none())
+        .filter(|s| s.data.is_none() && !is_not_applicable(s))
         .map(|s| FailedSource {
             source: s.source.to_string(),
             error: s
@@ -594,6 +614,7 @@ fn build_output(
 
     QuoteOutput {
         failed_sources,
+        not_applicable,
         conditional_quotes,
         sender: args.sender.clone(),
         placeholder_sender,
@@ -605,6 +626,13 @@ fn build_output(
         aggregation: result.aggregated.clone(),
         quotes,
         total_latency_ms: result.total_latency_ms,
+    }
+}
+
+/// One line per source that does not cover this swap, for the table outputs
+fn print_not_applicable(output: &QuoteOutput) {
+    for source in &output.not_applicable {
+        println!("  Not applicable: {} ({})", source.source, source.reason);
     }
 }
 
@@ -709,6 +737,7 @@ fn print_best_output(
             truncate_str(&failed.error, 80)
         );
     }
+    print_not_applicable(output);
     println!("Total time: {}ms (parallel)", output.total_latency_ms);
     println!();
 }
@@ -780,7 +809,9 @@ fn print_compare_output(
 
     let mut firm_rank = 0usize;
     for source in &sorted_sources {
-        let status = if !source.is_success() {
+        let status = if is_not_applicable(source) {
+            "N/A"
+        } else if !source.is_success() {
             "ERR"
         } else if output.aggregation.is_conditional(&source.source) {
             "COND"
@@ -832,7 +863,12 @@ fn print_compare_output(
 
         // Show error if any
         if let Some(err) = &source.error {
-            println!("{:>12} Error: {}", "", truncate_str(err, 60));
+            let label = if is_not_applicable(source) {
+                "Note"
+            } else {
+                "Error"
+            };
+            println!("{:>12} {label}: {}", "", truncate_str(err, 60));
         }
 
         // Show protocols if available
@@ -869,6 +905,7 @@ fn print_compare_output(
         "Queried {} sources, {} succeeded",
         output.aggregation.total_sources, output.aggregation.valid_quotes
     );
+    print_not_applicable(output);
     println!("Total time: {}ms (parallel)", output.total_latency_ms);
     println!();
 }
