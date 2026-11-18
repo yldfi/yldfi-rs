@@ -180,12 +180,14 @@ pub async fn tx_analyze(
     chain: Option<&str>,
     block: Option<u64>,
     full: bool,
+    graph: bool,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("tx")
         .arg(hash)
         .chain(chain)
         .format_json()
-        .opt_flag("--full", full);
+        .opt_flag("--full", full)
+        .opt_flag("--graph", graph);
 
     if let Some(b) = block {
         builder = builder.opt("-b", Some(&b.to_string()));

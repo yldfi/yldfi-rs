@@ -67,11 +67,17 @@ pub struct TxAnalyzeInput {
     /// position in the block and balance_changes are always returned, but
     /// native-token entries carry "partial": true without the trace and may be
     /// wrong for contracts or accounts paid inside the call. Set this when the
-    /// native-token amounts matter. For a failed transaction, check
+    /// native-token amounts matter. With full, the result also lists every
+    /// native transfer from the trace (native_transfer_list). For a failed transaction, check
     /// revert_from: "trace" is the real reason; "replay" is from re-running the
     /// call on the parent block and can differ from it.
     #[serde(default)]
     pub full: bool,
+    /// Return a Mermaid flowchart of the value moved (one node per address,
+    /// one edge per transfer) instead of the JSON analysis. Combine with full
+    /// to include native transfers made inside the call
+    #[serde(default)]
+    pub graph: bool,
 }
 
 // --- Account ---

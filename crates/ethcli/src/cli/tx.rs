@@ -57,6 +57,15 @@ pub struct TxArgs {
     #[arg(long)]
     pub full: bool,
 
+    /// Print the value moved as a Mermaid flowchart instead of the analysis
+    ///
+    /// One node per address and one edge per transfer: token transfers,
+    /// wrapped-native deposits and withdrawals, and native-token transfers.
+    /// With --full the native transfers come from a call trace and include
+    /// those made inside the call.
+    #[arg(long)]
+    pub graph: bool,
+
     /// Use only this RPC endpoint, not the configured pool (e.g. a local fork)
     #[arg(long, visible_alias = "rpc", value_name = "URL")]
     pub rpc_url: Option<String>,

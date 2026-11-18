@@ -77,6 +77,23 @@ pub struct TransactionAnalysis {
     /// (`None` until a trace has been fetched)
     #[serde(skip)]
     pub(crate) native_transfers: Option<Vec<(Address, Address, U256)>>,
+    /// Every native-token transfer made in the transaction, top-level call
+    /// included, from a call trace (with `--full`, when tracing works)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub native_transfer_list: Vec<NativeTransfer>,
+}
+
+/// A native-token transfer found in a call trace
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeTransfer {
+    /// Sender
+    pub from: Address,
+    /// Recipient
+    pub to: Address,
+    /// Amount in wei
+    pub value_wei: String,
+    /// Amount in the native token
+    pub value: String,
 }
 
 /// A deposit into (wrap) or withdrawal from (unwrap) a wrapped native token.
@@ -298,6 +315,7 @@ impl TransactionAnalysis {
             gas_limit: tx.inner.gas_limit(),
             wraps: Vec::new(),
             native_transfers: None,
+            native_transfer_list: Vec::new(),
         }
     }
 }
