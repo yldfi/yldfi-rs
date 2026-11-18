@@ -31,6 +31,64 @@ pub struct TransactionAnalysis {
     pub token_flows: Vec<TokenFlow>,
     /// Decoded function call (if available)
     pub function_call: Option<FunctionCall>,
+    /// Position of the transaction in its block
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transaction_index: Option<u64>,
+    /// Price paid per unit of gas, in wei
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_gas_price: Option<String>,
+    /// Fee paid by the sender in wei: gas used times the effective gas price
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee_wei: Option<String>,
+    /// The fee in the chain's native token
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee: Option<String>,
+    /// Net change per address and token over the whole transaction, from
+    /// its token transfers, the top-level value and the fee
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub balance_changes: Vec<BalanceChange>,
+    /// Block timestamp in seconds since the Unix epoch (with `--full`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<u64>,
+    /// Block time as RFC 3339 in UTC (with `--full`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<String>,
+    /// Why a failed transaction reverted (with `--full`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revert: Option<crate::abi::revert::DecodedRevert>,
+    /// Things the reader should know about how complete the analysis is
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
+    /// Calldata, kept to replay a failed transaction
+    #[serde(skip)]
+    pub(crate) input: alloy::primitives::Bytes,
+    /// Gas limit, kept to replay a failed transaction
+    #[serde(skip)]
+    pub(crate) gas_limit: u64,
+}
+
+/// Net change in one address's balance of one token
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BalanceChange {
+    /// Address whose balance changed
+    pub address: Address,
+    /// Known label for the address
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Token contract, or `None` for the chain's native token
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<Address>,
+    /// Token symbol or label, when known
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
+    /// Token decimals, when known (18 for the native token)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decimals: Option<u8>,
+    /// Signed change in the token's smallest unit, e.g. "-1500000"
+    pub raw: String,
+    /// Signed change scaled by the decimals, when they are known
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatted: Option<String>,
 }
 
 /// Information about a contract involved in the transaction
@@ -181,6 +239,7 @@ impl TransactionAnalysis {
     pub fn new(data: &RawTxData) -> Self {
         let tx = &data.tx;
         let receipt = &data.receipt;
+        let fee = U256::from(receipt.gas_used) * U256::from(receipt.effective_gas_price);
 
         Self {
             hash: *tx.inner.tx_hash(),
@@ -194,6 +253,17 @@ impl TransactionAnalysis {
             events: Vec::new(),
             token_flows: Vec::new(),
             function_call: None,
+            transaction_index: receipt.transaction_index,
+            effective_gas_price: Some(receipt.effective_gas_price.to_string()),
+            fee_wei: Some(fee.to_string()),
+            fee: alloy::primitives::utils::format_units(fee, 18).ok(),
+            balance_changes: Vec::new(),
+            timestamp: None,
+            time: None,
+            revert: None,
+            notes: Vec::new(),
+            input: tx.inner.input().clone(),
+            gas_limit: tx.inner.gas_limit(),
         }
     }
 }

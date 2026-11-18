@@ -9,8 +9,8 @@ use crate::rpc::RpcPool;
 use crate::tx::addresses::{events, get_contract_info, get_label};
 use crate::tx::flow::parse_transfers;
 use crate::tx::types::{
-    AnalyzedEvent, ContractCategory, ContractInfo, EventParam, FunctionCall, FunctionParam,
-    RawTxData, TransactionAnalysis,
+    AnalyzedEvent, BalanceChange, ContractCategory, ContractInfo, EventParam, FunctionCall,
+    FunctionParam, RawTxData, TransactionAnalysis,
 };
 use alloy::consensus::Transaction as TxTrait;
 use alloy::primitives::U256;
@@ -102,6 +102,88 @@ fn format_flow_amount(amount: &str, decimals: Option<u8>) -> String {
         Some(d) => format_token_amount(amount, d as usize),
         None => format!("{amount} (raw units)"),
     }
+}
+
+/// Net change per address and token over a transaction.
+///
+/// Built from the decoded token transfers, the top-level native value and the
+/// fee the sender paid. Native transfers made inside the call are not visible
+/// without a trace and are not included. NFT transfers and the zero address
+/// (mints and burns) are left out, as are positions that net to zero.
+pub fn net_balance_changes(analysis: &TransactionAnalysis) -> Vec<BalanceChange> {
+    use std::collections::BTreeMap;
+
+    // (address, token) -> (received, sent); None is the native token
+    let mut totals: BTreeMap<(Address, Option<Address>), (U256, U256)> = BTreeMap::new();
+    let mut token_info: HashMap<Address, (Option<String>, Option<u8>)> = HashMap::new();
+
+    for flow in &analysis.token_flows {
+        if flow.token_id.is_some() {
+            continue;
+        }
+        let Ok(amount) = U256::from_str(&flow.amount) else {
+            continue;
+        };
+        let info = token_info.entry(flow.token).or_default();
+        if info.0.is_none() {
+            info.0 = flow.token_label.clone();
+        }
+        if info.1.is_none() {
+            info.1 = flow.decimals;
+        }
+        let sent = &mut totals.entry((flow.from, Some(flow.token))).or_default().1;
+        *sent = sent.saturating_add(amount);
+        let received = &mut totals.entry((flow.to, Some(flow.token))).or_default().0;
+        *received = received.saturating_add(amount);
+    }
+
+    // The native token: value moved by the transaction itself, and the fee
+    if analysis.status && !analysis.value.is_zero() {
+        if let Some(to) = analysis.to {
+            let sent = &mut totals.entry((analysis.from, None)).or_default().1;
+            *sent = sent.saturating_add(analysis.value);
+            let received = &mut totals.entry((to, None)).or_default().0;
+            *received = received.saturating_add(analysis.value);
+        }
+    }
+    if let Some(fee) = analysis
+        .fee_wei
+        .as_deref()
+        .and_then(|f| U256::from_str(f).ok())
+    {
+        let sent = &mut totals.entry((analysis.from, None)).or_default().1;
+        *sent = sent.saturating_add(fee);
+    }
+
+    totals
+        .into_iter()
+        .filter(|((address, _), (received, sent))| !address.is_zero() && received != sent)
+        .map(|((address, token), (received, sent))| {
+            let (sign, magnitude) = if received > sent {
+                ("+", received - sent)
+            } else {
+                ("-", sent - received)
+            };
+            let (symbol, decimals) = match token {
+                Some(token) => token_info.get(&token).cloned().unwrap_or_default(),
+                None => (None, Some(18)),
+            };
+            let formatted = decimals.and_then(|d| {
+                alloy::primitives::utils::format_units(magnitude, d)
+                    .ok()
+                    .map(|text| format!("{sign}{text}"))
+            });
+            BalanceChange {
+                address,
+                label: get_label(&address).map(String::from),
+                token,
+                symbol,
+                decimals,
+                raw: format!("{sign}{magnitude}"),
+                formatted,
+            }
+        })
+        .collect()
 }
 
 /// Transaction analyzer
@@ -229,6 +311,96 @@ impl TxAnalyzer {
         }
     }
 
+    /// Add what needs extra requests: the block's time, and for a failed
+    /// transaction the reason it reverted.
+    ///
+    /// The revert reason comes from replaying the call against the state at
+    /// the end of the parent block. That is the state the block started
+    /// from, not the exact state the transaction ran in, so a transaction
+    /// that failed because of an earlier one in the same block may not
+    /// reproduce; a note says so when that happens.
+    pub async fn add_full_details(
+        &self,
+        analysis: &mut TransactionAnalysis,
+        rpc_url: Option<&str>,
+    ) {
+        use alloy::providers::Provider;
+
+        let endpoint = match rpc_url {
+            Some(url) => crate::rpc::Endpoint::new(
+                crate::config::EndpointConfig::new(url.to_string()),
+                30,
+                None,
+            )
+            .map_err(|e| e.to_string()),
+            None => crate::rpc::get_rpc_endpoint_for_block(self.chain, analysis.block_number)
+                .map_err(|e| e.to_string()),
+        };
+        let endpoint = match endpoint {
+            Ok(endpoint) => endpoint,
+            Err(e) => {
+                analysis
+                    .notes
+                    .push(format!("Block time and revert reason not fetched: {e}"));
+                return;
+            }
+        };
+        let provider = endpoint.provider();
+
+        match provider.get_block(analysis.block_number.into()).await {
+            Ok(Some(block)) => {
+                analysis.timestamp = Some(block.header.timestamp);
+                analysis.time = Some(crate::rpc::block_time::format_timestamp(
+                    block.header.timestamp,
+                ));
+            }
+            Ok(None) => analysis
+                .notes
+                .push("Block time not fetched: block not found".to_string()),
+            Err(e) => analysis.notes.push(format!("Block time not fetched: {e}")),
+        }
+
+        if analysis.status || analysis.block_number == 0 {
+            return;
+        }
+        let mut call = alloy::rpc::types::TransactionRequest::default()
+            .from(analysis.from)
+            .value(analysis.value)
+            .gas_limit(analysis.gas_limit)
+            .input(analysis.input.clone().into());
+        if let Some(to) = analysis.to {
+            call = call.to(to);
+        }
+        let parent: alloy::eips::BlockId = (analysis.block_number - 1).into();
+        match provider.call(call).block(parent).await {
+            Ok(_) => analysis.notes.push(
+                "Revert reason not found: the call succeeds against the parent block's state, \
+                 so the failure depended on an earlier transaction in the same block or on gas"
+                    .to_string(),
+            ),
+            Err(e) => match crate::abi::revert::revert_data_of(&e) {
+                Some(data) => {
+                    // The target's ABI names its own errors with certainty
+                    let abi = match analysis.to {
+                        Some(to) => crate::etherscan::Client::new(self.chain, None)
+                            .ok()
+                            .and_then(|client| client.cached_abi(&format!("{to:#x}"))),
+                        None => None,
+                    };
+                    analysis.revert =
+                        Some(crate::abi::revert::describe(&data, abi.as_ref(), self.chain).await);
+                    analysis.notes.push(
+                        "revert was found by replaying the call against the parent block's state"
+                            .to_string(),
+                    );
+                }
+                None => analysis
+                    .notes
+                    .push(format!("Revert reason not fetched: {e}")),
+            },
+        }
+    }
+
     /// Internal analyze method
     async fn analyze_internal(
         &self,
@@ -289,6 +461,15 @@ impl TxAnalyzer {
         if enrich {
             self.enrich_contracts(&mut analysis.contracts).await;
             self.enrich_token_flows(&mut analysis.token_flows).await;
+        }
+
+        analysis.balance_changes = net_balance_changes(&analysis);
+        if !analysis.balance_changes.is_empty() {
+            analysis.notes.push(
+                "balance_changes covers token transfers, the top-level value and the fee; \
+                 native-token transfers made inside the call (internal transfers) are not included"
+                    .to_string(),
+            );
         }
 
         Ok(analysis)
@@ -710,7 +891,13 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
 
     // Header
     output.push_str(&format!("Transaction: {:#x}\n", analysis.hash));
-    output.push_str(&format!("Block: {}\n", analysis.block_number));
+    match &analysis.time {
+        Some(time) => output.push_str(&format!("Block: {} ({})\n", analysis.block_number, time)),
+        None => output.push_str(&format!("Block: {}\n", analysis.block_number)),
+    }
+    if let Some(index) = analysis.transaction_index {
+        output.push_str(&format!("Index in block: {}\n", index));
+    }
     output.push_str(&format!("From: {:#x}\n", analysis.from));
 
     if let Some(to) = analysis.to {
@@ -729,10 +916,16 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
         u256_to_eth_f64(&analysis.value)
     ));
     output.push_str(&format!("Gas Used: {}\n", analysis.gas_used));
+    if let (Some(fee), Some(price)) = (&analysis.fee, &analysis.effective_gas_price) {
+        output.push_str(&format!("Fee: {} (gas price {} wei)\n", fee, price));
+    }
     output.push_str(&format!(
         "Status: {}\n",
         if analysis.status { "Success" } else { "Failed" }
     ));
+    if let Some(revert) = &analysis.revert {
+        output.push_str(&format!("Reverted: {}\n", revert.message));
+    }
 
     // Contracts
     output.push_str("\nContracts Involved:\n");
@@ -797,6 +990,36 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
         }
     }
 
+    // Net balance changes
+    if !analysis.balance_changes.is_empty() {
+        output.push_str(&format!(
+            "\nNet Balance Changes ({}):\n",
+            analysis.balance_changes.len()
+        ));
+        for change in analysis.balance_changes.iter().take(30) {
+            let who = match &change.label {
+                Some(label) => format!("{:#x} ({})", change.address, label),
+                None => format!("{:#x}", change.address),
+            };
+            let amount = change
+                .formatted
+                .clone()
+                .unwrap_or_else(|| format!("{} (raw units)", change.raw));
+            let token = match (&change.symbol, change.token) {
+                (Some(symbol), _) => crate::abi::revert::safe_text(symbol),
+                (None, Some(token)) => format!("{token:#x}"),
+                (None, None) => "native".to_string(),
+            };
+            output.push_str(&format!("  {who}  {amount} {token}\n"));
+        }
+        if analysis.balance_changes.len() > 30 {
+            output.push_str(&format!(
+                "  ... and {} more\n",
+                analysis.balance_changes.len() - 30
+            ));
+        }
+    }
+
     // Function call
     if let Some(func) = &analysis.function_call {
         output.push_str("\nFunction Call:\n");
@@ -817,6 +1040,10 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
                 output.push_str(&format!("    ... and {} more\n", func.params.len() - 10));
             }
         }
+    }
+
+    for note in &analysis.notes {
+        output.push_str(&format!("\nNote: {note}\n"));
     }
 
     output
@@ -866,6 +1093,17 @@ mod tests {
             events: vec![],
             token_flows: vec![],
             function_call: None,
+            transaction_index: Some(3),
+            effective_gas_price: Some("20000000000".to_string()),
+            fee_wei: Some("420000000000000".to_string()),
+            fee: Some("0.000420000000000000".to_string()),
+            balance_changes: vec![],
+            timestamp: None,
+            time: None,
+            revert: None,
+            notes: vec![],
+            input: Default::default(),
+            gas_limit: 21000,
         }
     }
 
@@ -878,6 +1116,100 @@ mod tests {
         assert!(output.contains("Block: 18500000"));
         assert!(output.contains("Status: Success"));
         assert!(output.contains("WETH"));
+    }
+
+    #[test]
+    fn net_balance_changes_sum_flows_value_and_fee() {
+        use crate::tx::types::TokenFlow;
+        let sender = address!("d8da6bf26964af9d7eed9e03e53415d37aa96045");
+        let pool = address!("1111111111111111111111111111111111111111");
+        let usdc = address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+        let flow = |from, to, amount: &str, log_index| TokenFlow {
+            token: usdc,
+            token_label: Some("USDC".to_string()),
+            from,
+            from_label: None,
+            to,
+            to_label: None,
+            amount: amount.to_string(),
+            decimals: Some(6),
+            token_id: None,
+            log_index,
+        };
+        let mut analysis = make_test_analysis();
+        analysis.to = Some(pool);
+        analysis.token_flows = vec![
+            // The sender pays 5 USDC in and gets 2 back; a mint to the pool
+            flow(sender, pool, "5000000", 0),
+            flow(pool, sender, "2000000", 1),
+            flow(Address::ZERO, pool, "1000000", 2),
+        ];
+
+        let changes = net_balance_changes(&analysis);
+        let find = |address: Address, token: Option<Address>| {
+            changes
+                .iter()
+                .find(|c| c.address == address && c.token == token)
+                .unwrap_or_else(|| panic!("no change for {address} {token:?} in {changes:?}"))
+        };
+        // Sender: -3 USDC, and 1 ETH of value plus the 0.00042 ETH fee
+        assert_eq!(find(sender, Some(usdc)).raw, "-3000000");
+        assert_eq!(
+            find(sender, Some(usdc)).formatted.as_deref(),
+            Some("-3.000000")
+        );
+        assert_eq!(find(sender, None).raw, "-1000420000000000000");
+        // Pool: +3 from the sender net, +1 minted, and the 1 ETH of value
+        assert_eq!(find(pool, Some(usdc)).raw, "+4000000");
+        assert_eq!(
+            find(pool, None).formatted.as_deref(),
+            Some("+1.000000000000000000")
+        );
+        // The zero address is not reported
+        assert!(changes.iter().all(|c| !c.address.is_zero()));
+        assert_eq!(changes.len(), 4);
+
+        // A failed transaction moves no value, but the fee is still paid
+        analysis.status = false;
+        analysis.token_flows.clear();
+        let failed = net_balance_changes(&analysis);
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0].raw, "-420000000000000");
+
+        // Flows that cancel out, and NFTs, are left out
+        analysis.status = true;
+        analysis.value = U256::ZERO;
+        analysis.fee_wei = None;
+        let mut nft = flow(sender, pool, "1", 0);
+        nft.token_id = Some("7".to_string());
+        analysis.token_flows = vec![
+            flow(sender, pool, "10", 0),
+            flow(pool, sender, "10", 1),
+            nft,
+        ];
+        assert!(net_balance_changes(&analysis).is_empty());
+    }
+
+    #[test]
+    fn format_analysis_shows_time_fee_revert_and_net_changes() {
+        let mut analysis = make_test_analysis();
+        analysis.time = Some("2024-01-01T00:00:11Z".to_string());
+        analysis.status = false;
+        analysis.revert = Some(crate::abi::revert::unknown(&[0xde, 0xad, 0xbe, 0xef]));
+        analysis.balance_changes = net_balance_changes(&analysis);
+        analysis.notes = vec!["a note".to_string()];
+        let out = format_analysis(&analysis);
+        for expected in [
+            "Block: 18500000 (2024-01-01T00:00:11Z)",
+            "Index in block: 3",
+            "Fee: 0.000420000000000000 (gas price 20000000000 wei)",
+            "Reverted: custom error 0xdeadbeef (signature not found)",
+            "Net Balance Changes (1):",
+            "-0.000420000000000000 native",
+            "Note: a note",
+        ] {
+            assert!(out.contains(expected), "missing {expected:?} in:\n{out}");
+        }
     }
 
     #[test]

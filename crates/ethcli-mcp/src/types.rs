@@ -62,6 +62,11 @@ pub struct TxAnalyzeInput {
     /// the transaction will be looked up by matching the prefix within this block.
     #[serde(default)]
     pub block: Option<u64>,
+    /// Also fetch the block's time and, for a failed transaction, the reason it
+    /// reverted (two more requests). The fee, the position in the block and the
+    /// net balance change per address are always returned.
+    #[serde(default)]
+    pub full: bool,
 }
 
 // --- Account ---

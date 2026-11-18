@@ -20,6 +20,8 @@ account history, gas) fail fast there; RPC commands still work.
 ```bash
 ethcli tx <hash>                    # Analyze transaction
 ethcli tx <hash> --enrich           # With Etherscan enrichment
+ethcli tx <hash> --full --json      # + block time and, if it failed, the decoded revert reason
+                                    # (fee, index in block and net balance_changes are always there)
 ethcli tx <hash> --rpc-url <url>    # Against one endpoint (e.g. a local fork)
 ethcli tx -f hashes.txt             # From file
 ethcli tx --stdin                   # From stdin

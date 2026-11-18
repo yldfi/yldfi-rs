@@ -132,6 +132,31 @@ ethcli rpc balance <addr> --block 2024-01-31
 ethcli contract call <addr> totalSupply --block 7d
 ```
 
+### `tx`: one call for a transaction
+
+`ethcli tx <hash>` returns the decoded call, events and token transfers, and also:
+
+- `transaction_index`, `effective_gas_price`, `fee_wei` and `fee`;
+- `balance_changes`: the net change per address and token over the whole
+  transaction, signed, in raw units and scaled by decimals. It is built from
+  the token transfers, the top-level value and the fee. Native-token transfers
+  made inside the call are not visible without a trace and are not included; a
+  note in the output says so. NFT transfers and the zero address are left out.
+
+`--full` adds, for two more requests:
+
+- `timestamp` and `time`, the block's time;
+- `revert`, for a failed transaction: the decoded reason, found by replaying the
+  call against the parent block's state. A transaction that failed because of
+  an earlier one in the same block may not reproduce; a note says when.
+
+```bash
+ethcli tx <hash> --full
+ethcli tx <hash> --full --json
+```
+
+This replaces `tx` followed by `rpc receipt` and `rpc block`.
+
 ### `contract inspect`
 
 One call that answers "what is this address":

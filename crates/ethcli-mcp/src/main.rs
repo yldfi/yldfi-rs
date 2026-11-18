@@ -81,11 +81,11 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Analyze an Ethereum transaction including decoded events, token transfers, and method calls. Supports partial tx hashes when block number is provided.",
+        description = "Analyze an Ethereum transaction in one call: decoded events, token transfers, the method call, the fee, the position in the block, and the net balance change per address and token (balance_changes). With full=true it also returns the block time and, for a failed transaction, the decoded revert reason, so rpc_receipt and rpc_block are not needed afterwards. Supports partial tx hashes when block number is provided.",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn tx_analyze(&self, Parameters(input): Parameters<TxAnalyzeInput>) -> CallToolResult {
-        tools::tx_analyze(&input.hash, Some(&input.chain), input.block)
+        tools::tx_analyze(&input.hash, Some(&input.chain), input.block, input.full)
             .await
             .to_response()
     }

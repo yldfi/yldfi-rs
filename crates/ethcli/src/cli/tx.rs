@@ -43,6 +43,15 @@ pub struct TxArgs {
     #[arg(long)]
     pub enrich: bool,
 
+    /// Also fetch the block's time and, for a failed transaction, the reason
+    /// it reverted (two more requests per transaction)
+    ///
+    /// The fee, the position in the block and the net balance change per
+    /// address are always included. The revert reason comes from replaying
+    /// the call against the parent block's state.
+    #[arg(long)]
+    pub full: bool,
+
     /// Use only this RPC endpoint, not the configured pool (e.g. a local fork)
     #[arg(long, visible_alias = "rpc", value_name = "URL")]
     pub rpc_url: Option<String>,
