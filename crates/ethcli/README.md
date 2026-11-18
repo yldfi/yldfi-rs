@@ -111,7 +111,7 @@ ethcli-mcp
 ```
 
 **Features:**
-- 230+ typed tools covering read-oriented ethcli workflows
+- 594 typed tools covering read-oriented ethcli workflows
 - JSON Schema validation for all inputs
 - Read-only default for local/remote state changes
 - Rate limiting, timeout protection, and process cleanup
@@ -131,6 +131,15 @@ ethcli-mcp
 Use `ETHCLI_MCP_ENABLE_WRITE_TOOLS=1` only for trusted MCP clients that need mutating tools. If `ethcli` is not installed next to `ethcli-mcp`, set `ETHCLI_PATH` to an absolute binary path.
 
 See [ethcli-mcp](https://crates.io/crates/ethcli-mcp) for full documentation.
+
+### Agent skill
+
+[`skills/ethcli/SKILL.md`](https://github.com/yldfi/yldfi-rs/blob/main/skills/ethcli/SKILL.md)
+tells a coding agent (Claude Code, Codex and others that read skills) which
+ethcli command answers which question, and which output fields to check
+before trusting a result: partial balance changes, guessed error names,
+incomplete histories. Copy the `skills/ethcli` folder into your agent's skills
+directory, for example `~/.claude/skills/ethcli/` for Claude Code.
 
 ## Quick Start
 

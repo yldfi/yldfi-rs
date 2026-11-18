@@ -1,0 +1,20 @@
+# yldfi-rs
+
+> Rust workspace for ethcli, a read-only Ethereum and EVM command line tool, its MCP server ethcli-mcp, and API client crates for DEX aggregators, price feeds and data providers. ethcli returns decoded, already-computed answers (address overviews, transaction summaries with net balance changes, batched contract reads, decoded revert reasons) as JSON.
+
+## Start here
+
+- [Agent skill](skills/ethcli/SKILL.md): which ethcli command to use for each question, and which output fields to check before reporting a result
+- [LLM reference](crates/ethcli/LLMREF.md): compact command reference
+- [Crate reference](crates/ethcli/CLAUDE.md): every command family in detail
+- [ethcli README](crates/ethcli/README.md): installation and examples
+
+## MCP server
+
+- [ethcli-mcp README](crates/ethcli-mcp/README.md): setup, tool categories, and the read tools that save calls
+- [ethcli-mcp reference](crates/ethcli-mcp/CLAUDE.md): how tools map to CLI commands
+
+## Optional
+
+- [Contributing](CONTRIBUTING.md): building, testing and adding commands
+- [Changelog](crates/ethcli/CHANGELOG.md)

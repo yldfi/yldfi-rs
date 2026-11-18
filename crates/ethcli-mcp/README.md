@@ -59,6 +59,15 @@ Built on [rmcp](https://crates.io/crates/rmcp) 3.x over stdio. It negotiates the
 cargo install --locked ethcli-mcp
 ```
 
+### Agent skill
+
+[`skills/ethcli/SKILL.md`](https://github.com/yldfi/yldfi-rs/blob/main/skills/ethcli/SKILL.md)
+tells a coding agent (Claude Code, Codex and others that read skills) which
+ethcli command answers which question, and which output fields to check
+before trusting a result: partial balance changes, guessed error names,
+incomplete histories. Copy the `skills/ethcli` folder into your agent's skills
+directory, for example `~/.claude/skills/ethcli/` for Claude Code.
+
 ## Quick Start
 
 ### Claude Desktop
