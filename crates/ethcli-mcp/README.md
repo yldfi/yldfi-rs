@@ -100,11 +100,11 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 | Category | Count | Examples |
 |----------|-------|----------|
-| `cast_*` | 14 | Unit conversions, hashing, ABI encoding |
+| `cast_*` | 15 | Unit conversions, hashing, ABI encoding |
 | `lifi_*` | 19 | Cross-chain quotes, bridges, chains, transfers |
 | `curve_*` | 10 | Pools, routing, lending |
 | `uniswap_*` | 9 | V2/V3/V4 pool queries |
-| `rpc_*` | 9 | Direct blockchain calls |
+| `rpc_*` | 12 | Direct blockchain calls |
 | `tenderly_*` | 34 | Simulation, VNets (CRUD + Admin RPC + RPC Simulation) |
 | `cowswap_*` | 16 | MEV-protected trading |
 | `account_*` | 8 | Balance, transactions |
@@ -140,7 +140,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | moralis_* | 82 |
 | kong_* | 5 |
 | gecko_* | 54 |
-| sig_* | 4 |
+| sig_* | 5 |
 | pyth_* | 5 |
 | ens_* | 4 |
 | contract_* | 8 |

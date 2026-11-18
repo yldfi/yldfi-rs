@@ -33,6 +33,7 @@ pub enum CastCommands {
     },
 
     /// Convert hex to decimal
+    #[command(visible_alias = "from-hex")]
     ToDec {
         /// Hex number (with or without 0x prefix)
         value: String,
@@ -45,6 +46,7 @@ pub enum CastCommands {
     },
 
     /// Get 4-byte function selector from signature
+    #[command(visible_alias = "selector")]
     Sig {
         /// Function signature (e.g., "transfer(address,uint256)")
         signature: String,
@@ -93,13 +95,28 @@ pub enum CastCommands {
         value: String,
     },
 
-    /// ABI-encode function call
+    /// ABI-encode function call (selector followed by the encoded arguments)
+    #[command(visible_alias = "calldata")]
     AbiEncode {
         /// Function signature (e.g., "transfer(address,uint256)")
         signature: String,
         /// Arguments
         #[arg(required = false, num_args = 0..)]
         args: Vec<String>,
+    },
+
+    /// Compute the storage slot of a mapping entry
+    ///
+    /// `keccak256(abi.encode(key, slot))`, as Solidity lays out `mapping(K => V)`
+    /// declared at `slot`. For a nested mapping, pass the result as the slot of
+    /// the next key.
+    Index {
+        /// Solidity type of the key (e.g., "address", "uint256", "bytes32")
+        key_type: String,
+        /// Key value
+        key: String,
+        /// Slot of the mapping (decimal or 0x hex)
+        slot: String,
     },
 
     /// ABI-decode data
@@ -211,6 +228,14 @@ pub fn handle(action: &CastCommands) -> anyhow::Result<()> {
             let result = abi_decode(signature, data)?;
             println!("{}", result);
         }
+
+        CastCommands::Index {
+            key_type,
+            key,
+            slot,
+        } => {
+            println!("{:#x}", mapping_slot(key_type, key, slot)?);
+        }
     }
 
     Ok(())
@@ -251,7 +276,7 @@ fn to_wei(value: &str, unit: &str) -> anyhow::Result<String> {
     Ok(wei.to_string())
 }
 
-fn from_wei(value: &str, unit: &str) -> anyhow::Result<String> {
+pub(crate) fn from_wei(value: &str, unit: &str) -> anyhow::Result<String> {
     let wei = U256::from_str(value).map_err(|e| anyhow::anyhow!("Invalid wei value: {}", e))?;
 
     let (divisor, decimals) = match unit.to_lowercase().as_str() {
@@ -283,6 +308,34 @@ fn from_wei(value: &str, unit: &str) -> anyhow::Result<String> {
 }
 
 /// Encode a function call with signature and arguments
+/// Storage slot of `mapping[key]` for a mapping declared at `slot`
+pub fn mapping_slot(key_type: &str, key: &str, slot: &str) -> anyhow::Result<B256> {
+    use alloy::dyn_abi::{DynSolType, DynSolValue};
+
+    let ty = DynSolType::parse(key_type.trim())
+        .map_err(|e| anyhow::anyhow!("Invalid key type '{key_type}': {e}"))?;
+    if matches!(
+        ty,
+        DynSolType::Array(_) | DynSolType::FixedArray(..) | DynSolType::Tuple(_)
+    ) {
+        anyhow::bail!("A mapping key must be a value type, string or bytes, not '{key_type}'");
+    }
+    let key_value = ty
+        .coerce_str(key)
+        .map_err(|e| anyhow::anyhow!("Invalid key '{key}' for type {key_type}: {e}"))?;
+    let slot_value =
+        U256::from_str(slot).map_err(|e| anyhow::anyhow!("Invalid slot '{slot}': {e}"))?;
+
+    // string and bytes keys are hashed unpadded; value types are padded to 32 bytes
+    let mut preimage = match &key_value {
+        DynSolValue::String(s) => s.as_bytes().to_vec(),
+        DynSolValue::Bytes(b) => b.clone(),
+        other => other.abi_encode(),
+    };
+    preimage.extend_from_slice(&slot_value.to_be_bytes::<32>());
+    Ok(keccak256(&preimage))
+}
+
 pub fn abi_encode(signature: &str, args: &[String]) -> anyhow::Result<String> {
     use alloy::dyn_abi::{DynSolType, DynSolValue};
 
@@ -487,6 +540,31 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn mapping_slot_matches_known_values() {
+        // keccak256(abi.encode(address(0x...01), uint256(0)))
+        let slot =
+            mapping_slot("address", "0x0000000000000000000000000000000000000001", "0").unwrap();
+        assert_eq!(
+            format!("{slot:#x}"),
+            "0xada5013122d395ba3c54772283fb069b10426056ef8ca54750cb9bb552a59e7d"
+        );
+        // keccak256(abi.encode(uint256(1), uint256(1)))
+        let slot = mapping_slot("uint256", "1", "0x1").unwrap();
+        assert_eq!(
+            format!("{slot:#x}"),
+            "0xcc69885fda6bcc1a4ace058b4a62bf5e179ea78fd58a1ccd71c22cc9b688792f"
+        );
+        // string keys are hashed unpadded: keccak256("hello" ++ uint256(2))
+        let slot = mapping_slot("string", "hello", "2").unwrap();
+        assert_eq!(
+            format!("{slot:#x}"),
+            "0x98cc3604479d1233834ea19a78b22cff641ec62dc88921ba3f1f66a37957a4f8"
+        );
+        assert!(mapping_slot("uint256[]", "1", "0").is_err());
+        assert!(mapping_slot("address", "nope", "0").is_err());
+    }
 
     #[test]
     fn canonical_signature_normalizes_types() {

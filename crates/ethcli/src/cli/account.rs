@@ -92,6 +92,7 @@ pub enum AccountCommands {
     },
 
     /// Get transaction history for an address
+    #[command(visible_alias = "transactions", alias = "txlist")]
     Txs {
         /// Address to query (hex, ENS name, or address book label)
         #[arg(value_name = "ADDRESS")]

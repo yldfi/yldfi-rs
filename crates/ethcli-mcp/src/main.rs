@@ -422,6 +422,14 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Lookup a signature from a 4-byte function selector or a 32-byte event topic; the kind is picked from the length",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn sig_lookup(&self, Parameters(input): Parameters<SigLookupInput>) -> CallToolResult {
+        tools::sig_lookup(&input.selector).await.to_response()
+    }
+
+    #[tool(
         description = "Lookup event signature from topic hash",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
@@ -478,6 +486,16 @@ impl EthcliMcpServer {
     )]
     async fn cast_keccak(&self, Parameters(input): Parameters<CastValueInput>) -> CallToolResult {
         tools::cast_keccak(&input.value).await.to_response()
+    }
+
+    #[tool(
+        description = "Compute the storage slot of a mapping entry: keccak256(abi.encode(key, slot))",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
+    async fn cast_index(&self, Parameters(input): Parameters<CastIndexInput>) -> CallToolResult {
+        tools::cast_index(&input.key_type, &input.key, &input.slot)
+            .await
+            .to_response()
     }
 
     #[tool(
@@ -600,6 +618,39 @@ impl EthcliMcpServer {
     )]
     async fn rpc_receipt(&self, Parameters(input): Parameters<RpcHashInput>) -> CallToolResult {
         tools::rpc_receipt(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Size and code hash of an address without returning the bytecode: whether it has code, how many bytes, and the EIP-7702 delegate if it is a delegated EOA. Use this instead of rpc_code to test whether an address is a contract or whether its code changed",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn rpc_code_summary(
+        &self,
+        Parameters(input): Parameters<RpcAddressInput>,
+    ) -> CallToolResult {
+        tools::rpc_code_summary(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get a transaction by hash (eth_getTransactionByHash): sender, recipient, value, nonce, gas and input as the node returns them",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn rpc_tx(&self, Parameters(input): Parameters<RpcHashInput>) -> CallToolResult {
+        tools::rpc_tx(&input.hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get the native token balance of an address at a block, in wei and in ether",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn rpc_balance(&self, Parameters(input): Parameters<RpcBalanceInput>) -> CallToolResult {
+        tools::rpc_balance(&input.address, input.block.as_deref(), Some(&input.chain))
             .await
             .to_response()
     }

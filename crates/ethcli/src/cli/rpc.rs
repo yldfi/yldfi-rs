@@ -26,7 +26,13 @@ use std::str::FromStr;
   ethcli rpc storage 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 0
 
   # Get transaction receipt
-  ethcli rpc receipt 0x123abc..."#)]
+  ethcli rpc receipt 0x123abc...
+
+  # Get a transaction by hash
+  ethcli rpc tx 0x123abc... -o json
+
+  # Get native balance at a block
+  ethcli rpc balance 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --block 21000000 -o json"#)]
 pub enum RpcCommands {
     /// Call a contract (eth_call) - read-only, no transaction
     ///
@@ -34,6 +40,7 @@ pub enum RpcCommands {
     ///   ethcli rpc call 0x... 0xa9059cbb...              # Raw calldata
     ///   ethcli rpc call 0x... -s "balanceOf(address)" -a 0xabc...  # With signature
     ///   ethcli rpc call 0x... -s "totalSupply()" -d uint256        # With decode
+    #[command(alias = "eth_call")]
     Call {
         /// Contract address
         #[arg(value_name = "ADDRESS")]
@@ -58,9 +65,14 @@ pub enum RpcCommands {
         /// Decode output as type (e.g., "uint256", "(address,uint256)")
         #[arg(long, short, value_name = "TYPE")]
         decode: Option<String>,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Get block information
+    #[command(alias = "eth_getBlockByNumber", alias = "getBlockByNumber")]
     Block {
         /// Block number, hash, or "latest"
         #[arg(value_name = "BLOCK")]
@@ -76,6 +88,7 @@ pub enum RpcCommands {
     },
 
     /// Read storage slot
+    #[command(alias = "eth_getStorageAt")]
     Storage {
         /// Contract address
         #[arg(value_name = "ADDRESS")]
@@ -88,9 +101,14 @@ pub enum RpcCommands {
         /// Block number or "latest" (default: latest)
         #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Get contract bytecode
+    #[command(alias = "eth_getCode")]
     Code {
         /// Contract address
         #[arg(value_name = "ADDRESS")]
@@ -99,9 +117,21 @@ pub enum RpcCommands {
         /// Block number or "latest" (default: latest)
         #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
+
+        /// Print only the size and code hash, not the bytecode
+        ///
+        /// Answers "is this a contract" and "did the code change" without
+        /// returning the bytecode itself.
+        #[arg(long, short)]
+        summary: bool,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Get account nonce
+    #[command(alias = "eth_getTransactionCount")]
     Nonce {
         /// Account address
         #[arg(value_name = "ADDRESS")]
@@ -110,9 +140,14 @@ pub enum RpcCommands {
         /// Block number or "latest" (default: latest)
         #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Get transaction receipt
+    #[command(alias = "eth_getTransactionReceipt")]
     Receipt {
         /// Transaction hash
         #[arg(value_name = "TX_HASH")]
@@ -123,14 +158,60 @@ pub enum RpcCommands {
         format: OutputFormat,
     },
 
+    /// Get a transaction by hash (eth_getTransactionByHash)
+    #[command(visible_alias = "transaction", alias = "eth_getTransactionByHash")]
+    Tx {
+        /// Transaction hash
+        #[arg(value_name = "TX_HASH")]
+        hash: String,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
+
+    /// Get native token balance (eth_getBalance)
+    ///
+    /// Prints the balance in wei. With `-o json` the output also carries the
+    /// balance in ether and the block that was queried.
+    #[command(visible_alias = "bal", alias = "eth_getBalance")]
+    Balance {
+        /// Account address
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Block number or "latest" (default: latest)
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
+        block: String,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
+
     /// Get current chain ID
-    ChainId,
+    #[command(alias = "eth_chainId")]
+    ChainId {
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
 
     /// Get current block number
-    BlockNumber,
+    #[command(alias = "eth_blockNumber")]
+    BlockNumber {
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
 
     /// Get current gas price
-    GasPrice,
+    #[command(alias = "eth_gasPrice")]
+    GasPrice {
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
 }
 
 pub async fn handle(
@@ -191,7 +272,8 @@ fn action_block_number(action: &RpcCommands) -> Option<u64> {
         | RpcCommands::Block { block, .. }
         | RpcCommands::Storage { block, .. }
         | RpcCommands::Code { block, .. }
-        | RpcCommands::Nonce { block, .. } => block,
+        | RpcCommands::Nonce { block, .. }
+        | RpcCommands::Balance { block, .. } => block,
         _ => return None,
     };
     crate::utils::parse_block_number(block).ok()
@@ -209,6 +291,7 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
             args,
             block,
             decode,
+            format,
         } => {
             let to_addr =
                 Address::from_str(to).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
@@ -242,7 +325,18 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
                 .await
                 .map_err(|e| anyhow::anyhow!("Call failed: {}", e))?;
 
-            if let Some(type_sig) = decode {
+            if !format.is_table() {
+                let mut out = serde_json::json!({
+                    "to": to_addr.to_checksum(None),
+                    "block": block,
+                    "raw": format!("0x{}", hex::encode(&result)),
+                });
+                if let Some(type_sig) = decode {
+                    out["type"] = serde_json::json!(type_sig);
+                    out["decoded"] = decode_output_json(&result, type_sig)?;
+                }
+                print_json(&out, *format)?;
+            } else if let Some(type_sig) = decode {
                 let decoded = decode_output(&result, type_sig)?;
                 println!("{}", decoded);
             } else {
@@ -302,6 +396,7 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
             address,
             slot,
             block,
+            format,
         } => {
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
@@ -320,10 +415,26 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to read storage: {}", e))?;
 
-            println!("{:#x}", value);
+            if format.is_table() {
+                println!("{:#x}", value);
+            } else {
+                let out = serde_json::json!({
+                    "address": addr.to_checksum(None),
+                    "slot": format!("{slot_val:#x}"),
+                    "block": block,
+                    "value": format!("{:#066x}", value),
+                    "decimal": value.to_string(),
+                });
+                print_json(&out, *format)?;
+            }
         }
 
-        RpcCommands::Code { address, block } => {
+        RpcCommands::Code {
+            address,
+            block,
+            summary,
+            format,
+        } => {
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
@@ -335,7 +446,34 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get code: {}", e))?;
 
-            if code.is_empty() {
+            let code_hash = alloy::primitives::keccak256(&code);
+            if !format.is_table() {
+                let mut out = serde_json::json!({
+                    "address": addr.to_checksum(None),
+                    "block": block,
+                    "has_code": !code.is_empty(),
+                    "bytes": code.len(),
+                    "code_hash": format!("{code_hash:#x}"),
+                });
+                if let Some(delegate) = eip7702_delegate(&code) {
+                    out["eip7702_delegate"] = serde_json::json!(delegate.to_checksum(None));
+                }
+                if !*summary {
+                    out["code"] = serde_json::json!(format!("0x{}", hex::encode(&code)));
+                }
+                print_json(&out, *format)?;
+            } else if *summary {
+                if code.is_empty() {
+                    println!("no code (EOA or empty contract)");
+                } else if let Some(delegate) = eip7702_delegate(&code) {
+                    println!(
+                        "EOA delegated to {} (EIP-7702), code hash {code_hash:#x}",
+                        delegate.to_checksum(None)
+                    );
+                } else {
+                    println!("{} bytes, code hash {code_hash:#x}", code.len());
+                }
+            } else if code.is_empty() {
                 println!("0x (no code - EOA or empty contract)");
             } else {
                 println!("0x{}", hex::encode(&code));
@@ -345,7 +483,11 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
             }
         }
 
-        RpcCommands::Nonce { address, block } => {
+        RpcCommands::Nonce {
+            address,
+            block,
+            format,
+        } => {
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
@@ -357,7 +499,16 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get nonce: {}", e))?;
 
-            println!("{}", nonce);
+            if format.is_table() {
+                println!("{}", nonce);
+            } else {
+                let out = serde_json::json!({
+                    "address": addr.to_checksum(None),
+                    "block": block,
+                    "nonce": nonce,
+                });
+                print_json(&out, *format)?;
+            }
         }
 
         RpcCommands::Receipt { hash, format } => {
@@ -398,28 +549,101 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
             }
         }
 
-        RpcCommands::ChainId => {
+        RpcCommands::Tx { hash, format } => {
+            let tx_hash =
+                B256::from_str(hash).map_err(|e| anyhow::anyhow!("Invalid tx hash: {}", e))?;
+
+            let tx = provider
+                .get_transaction_by_hash(tx_hash)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to get transaction: {}", e))?;
+
+            match tx {
+                Some(t) => {
+                    if matches!(format, OutputFormat::Json) {
+                        println!("{}", serde_json::to_string_pretty(&t)?);
+                    } else if matches!(format, OutputFormat::Ndjson) {
+                        println!("{}", serde_json::to_string(&t)?);
+                    } else {
+                        print!("{}", format_tx_table(&serde_json::to_value(&t)?));
+                    }
+                }
+                None => return Err(NotFound("Transaction not found").into()),
+            }
+        }
+
+        RpcCommands::Balance {
+            address,
+            block,
+            format,
+        } => {
+            let addr = Address::from_str(address)
+                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+
+            let block_id = parse_block_id(block)?;
+
+            let balance = provider
+                .get_balance(addr)
+                .block_id(block_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to get balance: {}", e))?;
+
+            if matches!(format, OutputFormat::Table) {
+                println!("{}", balance);
+            } else {
+                // Amounts are strings: a wei balance does not fit a JSON number
+                let out = serde_json::json!({
+                    "address": addr.to_checksum(None),
+                    "block": block,
+                    "wei": balance.to_string(),
+                    "ether": super::cast::from_wei(&balance.to_string(), "eth")?,
+                });
+                if matches!(format, OutputFormat::Ndjson) {
+                    println!("{}", serde_json::to_string(&out)?);
+                } else {
+                    println!("{}", serde_json::to_string_pretty(&out)?);
+                }
+            }
+        }
+
+        RpcCommands::ChainId { format } => {
             let chain_id = provider
                 .get_chain_id()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get chain ID: {}", e))?;
-            println!("{}", chain_id);
+            if format.is_table() {
+                println!("{}", chain_id);
+            } else {
+                print_json(&serde_json::json!({ "chain_id": chain_id }), *format)?;
+            }
         }
 
-        RpcCommands::BlockNumber => {
+        RpcCommands::BlockNumber { format } => {
             let block_num = provider
                 .get_block_number()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get block number: {}", e))?;
-            println!("{}", block_num);
+            if format.is_table() {
+                println!("{}", block_num);
+            } else {
+                print_json(&serde_json::json!({ "block_number": block_num }), *format)?;
+            }
         }
 
-        RpcCommands::GasPrice => {
+        RpcCommands::GasPrice { format } => {
             let gas_price = provider
                 .get_gas_price()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get gas price: {}", e))?;
-            println!("{} gwei", format_gwei(gas_price));
+            if format.is_table() {
+                println!("{} gwei", format_gwei(gas_price));
+            } else {
+                let out = serde_json::json!({
+                    "wei": gas_price.to_string(),
+                    "gwei": format_gwei(gas_price),
+                });
+                print_json(&out, *format)?;
+            }
         }
     }
 
@@ -459,6 +683,88 @@ pub fn parse_block_id(block: &str) -> anyhow::Result<alloy::eips::BlockId> {
             }
         }
     }
+}
+
+/// The address an EOA delegates to under EIP-7702, read from its code
+/// (`0xef0100` followed by the 20-byte address)
+fn eip7702_delegate(code: &[u8]) -> Option<Address> {
+    (code.len() == 23 && code[..3] == [0xef, 0x01, 0x00]).then(|| Address::from_slice(&code[3..]))
+}
+
+/// A hex quantity from a JSON-RPC object as a decimal string
+fn hex_field_to_dec(value: &serde_json::Value, key: &str) -> Option<String> {
+    let raw = value.get(key)?.as_str()?;
+    U256::from_str(raw).ok().map(|n| n.to_string())
+}
+
+/// Human-readable summary of a transaction object as returned by the node
+fn format_tx_table(tx: &serde_json::Value) -> String {
+    use std::fmt::Write;
+
+    let text = |key: &str| tx.get(key).and_then(|v| v.as_str()).map(str::to_string);
+    let mut out = String::new();
+    let _ = writeln!(out, "Transaction");
+    let _ = writeln!(out, "{}", "─".repeat(50));
+    let _ = writeln!(out, "Hash:        {}", text("hash").unwrap_or_default());
+    match hex_field_to_dec(tx, "blockNumber") {
+        Some(block) => {
+            let _ = writeln!(out, "Block:       {block}");
+        }
+        None => {
+            let _ = writeln!(out, "Block:       pending");
+        }
+    }
+    if let Some(index) = hex_field_to_dec(tx, "transactionIndex") {
+        let _ = writeln!(out, "Index:       {index}");
+    }
+    let _ = writeln!(out, "From:        {}", text("from").unwrap_or_default());
+    match text("to") {
+        Some(to) => {
+            let _ = writeln!(out, "To:          {to}");
+        }
+        None => {
+            let _ = writeln!(out, "To:          (contract creation)");
+        }
+    }
+    if let Some(wei) = hex_field_to_dec(tx, "value") {
+        let ether = super::cast::from_wei(&wei, "eth").unwrap_or_default();
+        let _ = writeln!(out, "Value:       {wei} wei ({ether} ETH)");
+    }
+    if let Some(nonce) = hex_field_to_dec(tx, "nonce") {
+        let _ = writeln!(out, "Nonce:       {nonce}");
+    }
+    if let Some(gas) = hex_field_to_dec(tx, "gas") {
+        let _ = writeln!(out, "Gas Limit:   {gas}");
+    }
+    let input = text("input").unwrap_or_default();
+    let bytes = input.len().saturating_sub(2) / 2;
+    if bytes >= 4 {
+        let _ = writeln!(out, "Input:       {} ({bytes} bytes)", &input[..10]);
+    } else {
+        let _ = writeln!(out, "Input:       {input} ({bytes} bytes)");
+    }
+    out
+}
+
+/// Print a JSON value pretty (json) or on one line (ndjson)
+fn print_json(value: &serde_json::Value, format: OutputFormat) -> anyhow::Result<()> {
+    if format.is_ndjson() {
+        println!("{}", serde_json::to_string(value)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    }
+    Ok(())
+}
+
+/// Decode return data as JSON: a tuple type gives an array of its members
+fn decode_output_json(data: &[u8], type_sig: &str) -> anyhow::Result<serde_json::Value> {
+    use alloy::dyn_abi::DynSolType;
+
+    let ty = DynSolType::parse(type_sig).map_err(|e| anyhow::anyhow!("Invalid type: {}", e))?;
+    let decoded = ty
+        .abi_decode_params(data)
+        .map_err(|e| anyhow::anyhow!("Failed to decode: {}", e))?;
+    Ok(super::contract::dyn_value_to_json(&decoded))
 }
 
 fn decode_output(data: &[u8], type_sig: &str) -> anyhow::Result<String> {
@@ -510,6 +816,71 @@ mod tests {
 
     use super::*;
     use alloy::eips::{BlockId, BlockNumberOrTag};
+
+    #[test]
+    fn decode_output_json_keeps_big_integers_as_strings() {
+        use alloy::dyn_abi::DynSolValue;
+        use alloy::primitives::U256;
+
+        let data = DynSolValue::Tuple(vec![
+            DynSolValue::Uint(U256::MAX, 256),
+            DynSolValue::Bool(true),
+            DynSolValue::String("hi".to_string()),
+        ])
+        .abi_encode_params();
+        let out = decode_output_json(&data, "(uint256,bool,string)").unwrap();
+        assert_eq!(out, serde_json::json!([U256::MAX.to_string(), true, "hi"]));
+
+        let one = DynSolValue::Uint(U256::from(7), 256).abi_encode();
+        assert_eq!(
+            decode_output_json(&one, "uint256").unwrap(),
+            serde_json::json!("7")
+        );
+    }
+
+    #[test]
+    fn test_format_tx_table() {
+        let tx = serde_json::json!({
+            "hash": "0xabc",
+            "blockNumber": "0x10",
+            "transactionIndex": "0x2",
+            "from": "0x1111111111111111111111111111111111111111",
+            "to": null,
+            "value": "0xde0b6b3a7640000",
+            "nonce": "0x5",
+            "gas": "0x5208",
+            "input": "0xa9059cbb00"
+        });
+        let out = format_tx_table(&tx);
+        assert!(out.contains("Block:       16"), "{out}");
+        assert!(out.contains("(contract creation)"), "{out}");
+        assert!(out.contains("1000000000000000000 wei"), "{out}");
+        assert!(out.contains("Nonce:       5"), "{out}");
+        assert!(out.contains("0xa9059cbb (5 bytes)"), "{out}");
+
+        let pending = serde_json::json!({"hash": "0xabc", "input": "0x"});
+        assert!(format_tx_table(&pending).contains("pending"));
+    }
+
+    #[test]
+    fn test_method_name_aliases_parse() {
+        use clap::Parser;
+        for args in [
+            vec!["ethcli", "rpc", "tx", "0x00"],
+            vec!["ethcli", "rpc", "transaction", "0x00"],
+            vec!["ethcli", "rpc", "eth_getTransactionByHash", "0x00"],
+            vec![
+                "ethcli", "rpc", "balance", "0x00", "--block", "5", "-o", "json",
+            ],
+            vec!["ethcli", "rpc", "eth_getTransactionReceipt", "0x00"],
+            vec!["ethcli", "rpc", "eth_blockNumber"],
+        ] {
+            assert!(
+                crate::cli::Cli::try_parse_from(&args).is_ok(),
+                "failed to parse {args:?}"
+            );
+        }
+    }
 
     #[test]
     fn test_format_gwei() {
