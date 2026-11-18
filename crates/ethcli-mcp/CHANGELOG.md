@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.8](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.7...ethcli-mcp-v0.6.8) (2026-11-18)
+
+
+### Features
+
+* **ethcli-mcp:** ETHCLI_MCP_TOOLSETS limits the tools the server offers ([#288](https://github.com/yldfi/yldfi-rs/issues/288)) ([1d27fb3](https://github.com/yldfi/yldfi-rs/commit/1d27fb316948d915bd1cb575b526e0a8b4e67c91))
+* **ethcli:** account --all paging, funded-by and labels ([#285](https://github.com/yldfi/yldfi-rs/issues/285)) ([8b6468f](https://github.com/yldfi/yldfi-rs/commit/8b6468fab3c500609ddc8b3e3ea5b79d75cd22b4))
+* **ethcli:** tx --graph draws who paid whom as a Mermaid flowchart ([#287](https://github.com/yldfi/yldfi-rs/issues/287)) ([2ba2cec](https://github.com/yldfi/yldfi-rs/commit/2ba2cec3a7379ab04703205a7e7f894aa76a390b))
+
 ## [0.6.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.6...ethcli-mcp-v0.6.7) (2026-11-18)
 
 
