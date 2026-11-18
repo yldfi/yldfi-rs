@@ -221,6 +221,18 @@ ethcli account txs 0x... --start-block 25893052 --end-block 26108081 --page 1 --
 # List token transfers
 ethcli account erc20 0x...
 ethcli account erc20 0x... -o ndjson     # one JSON object per line (all account subcommands)
+
+# Whole history in one command: 1,000 rows per request, walking past the
+# explorer's 10,000-row window (also on internal-txs and erc20)
+ethcli account txs 0x... --all --max-pages 50 -o json
+
+# Who first funded an address. Uses Etherscan's funded-by endpoint on a paid
+# plan; otherwise the earliest incoming native-token transfer
+ethcli account funded-by 0x...
+
+# Names and labels: Etherscan name tags (Pro Plus plan), the address book and
+# ethcli's built-in labels
+ethcli account labels 0x... 0x...
 ```
 
 ### Contract - ABI, Source Code, and Bytecode Analysis

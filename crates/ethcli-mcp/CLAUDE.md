@@ -142,7 +142,7 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 | `cast_*` | 15 | Unit conversions, hashing, mapping slots |
 | `rpc_*` | 14 | Direct RPC calls, batch reads, block by time |
 | `contract_*` | 9 | Address overview, ABI, source, bytecode analysis, security |
-| `account_*` | 8 | Balance, transactions |
+| `account_*` | 10 | Balance, transactions, first funder, labels |
 | `lifi_*` | 19 | Cross-chain aggregator |
 | `cowswap_*` | 16 | MEV-protected swaps |
 | `tenderly_*` | 34 | VNets, wallets, contracts, alerts, simulation |

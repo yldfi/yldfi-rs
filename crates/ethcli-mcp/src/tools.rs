@@ -228,6 +228,7 @@ pub async fn account_balance(
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)] // one per CLI option, like the other wrappers
 pub async fn account_txs(
     address: &str,
     chain: Option<&str>,
@@ -236,6 +237,8 @@ pub async fn account_txs(
     sort: Option<&str>,
     start_block: Option<u64>,
     end_block: Option<u64>,
+    all: bool,
+    max_pages: Option<u32>,
 ) -> Result<String, ToolError> {
     if start_block.unwrap_or(0) > end_block.unwrap_or(u64::MAX) {
         return Err(ToolError::InvalidInput(
@@ -264,6 +267,44 @@ pub async fn account_txs(
         builder = builder.opt("--end-block", Some(&block.to_string()));
     }
 
+    if all {
+        builder = builder.opt_flag("--all", true);
+        if let Some(n) = max_pages {
+            builder = builder.opt("--max-pages", Some(&n.to_string()));
+        }
+    }
+
+    builder.execute().await.map_err(ToolError::from)
+}
+
+pub async fn account_funded_by(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("account")
+        .subcommand("funded-by")
+        .arg(address)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn account_labels(
+    addresses: &[String],
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    if addresses.is_empty() || addresses.len() > 100 {
+        return Err(ToolError::InvalidInput(
+            "give between 1 and 100 addresses".to_string(),
+        ));
+    }
+    let mut builder = ArgsBuilder::new("account")
+        .subcommand("labels")
+        .chain(chain)
+        .format_json()
+        .end_of_options();
+    for address in addresses {
+        builder = builder.arg(address);
+    }
     builder.execute().await.map_err(ToolError::from)
 }
 
@@ -272,6 +313,8 @@ pub async fn account_internal_txs(
     chain: Option<&str>,
     page: Option<u32>,
     limit: Option<u32>,
+    all: bool,
+    max_pages: Option<u32>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("account")
         .subcommand("internal-txs")
@@ -286,6 +329,13 @@ pub async fn account_internal_txs(
         builder = builder.opt("--limit", Some(&l.to_string()));
     }
 
+    if all {
+        builder = builder.opt_flag("--all", true);
+        if let Some(n) = max_pages {
+            builder = builder.opt("--max-pages", Some(&n.to_string()));
+        }
+    }
+
     builder.execute().await.map_err(ToolError::from)
 }
 
@@ -295,6 +345,8 @@ pub async fn account_erc20(
     token: Option<&str>,
     page: Option<u32>,
     limit: Option<u32>,
+    all: bool,
+    max_pages: Option<u32>,
 ) -> Result<String, ToolError> {
     let mut builder = ArgsBuilder::new("account")
         .subcommand("erc20")
@@ -308,6 +360,13 @@ pub async fn account_erc20(
     }
     if let Some(l) = limit {
         builder = builder.opt("--limit", Some(&l.to_string()));
+    }
+
+    if all {
+        builder = builder.opt_flag("--all", true);
+        if let Some(n) = max_pages {
+            builder = builder.opt("--max-pages", Some(&n.to_string()));
+        }
     }
 
     builder.execute().await.map_err(ToolError::from)

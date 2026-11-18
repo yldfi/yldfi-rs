@@ -113,6 +113,16 @@ pub struct AccountTxsInput {
     pub start_block: Option<u64>,
     /// Last block to include (inclusive; default: latest)
     pub end_block: Option<u64>,
+    /// Fetch every page (1,000 rows per request), walking past the
+    /// explorer's 10,000-row window. Ignores page and limit. The result is
+    /// then {"complete", "requests", "stopped", "count", "rows"}: check
+    /// "complete" before treating the rows as the whole history
+    #[serde(default)]
+    pub all: bool,
+    /// With all, stop after this many requests (default 10). Tool output over
+    /// 1 MB is cut off, so 1-2 pages is the useful range here
+    #[serde(default)]
+    pub max_pages: Option<u32>,
 }
 
 #[cfg(test)]
@@ -146,6 +156,25 @@ pub struct AccountErc20Input {
     pub page: Option<u32>,
     /// Number of results per page (default: 50)
     pub limit: Option<u32>,
+    /// Fetch every page (1,000 rows per request), walking past the
+    /// explorer's 10,000-row window. Ignores page and limit. The result is
+    /// then {"complete", "requests", "stopped", "count", "rows"}: check
+    /// "complete" before treating the rows as the whole history
+    #[serde(default)]
+    pub all: bool,
+    /// With all, stop after this many requests (default 10). Tool output over
+    /// 1 MB is cut off, so 1-2 pages is the useful range here
+    #[serde(default)]
+    pub max_pages: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AccountLabelsInput {
+    /// Addresses to look up (up to 100)
+    pub addresses: Vec<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -189,6 +218,16 @@ pub struct AccountInternalTxsInput {
     pub page: Option<u32>,
     /// Number of results per page (default: 50)
     pub limit: Option<u32>,
+    /// Fetch every page (1,000 rows per request), walking past the
+    /// explorer's 10,000-row window. Ignores page and limit. The result is
+    /// then {"complete", "requests", "stopped", "count", "rows"}: check
+    /// "complete" before treating the rows as the whole history
+    #[serde(default)]
+    pub all: bool,
+    /// With all, stop after this many requests (default 10). Tool output over
+    /// 1 MB is cut off, so 1-2 pages is the useful range here
+    #[serde(default)]
+    pub max_pages: Option<u32>,
 }
 
 // --- Contract ---
