@@ -563,6 +563,22 @@ pub async fn fetch_cowswap_quote(
     }
 }
 
+/// Total of the fees LI.FI has already taken out of the quoted amounts, as
+/// `(amount, token address)`. Fees in a different token from the first
+/// included one are left out rather than added to it.
+fn lifi_included_fee(fee_costs: Option<&[lfi::FeeCost]>) -> Option<(String, String)> {
+    let mut included = fee_costs?.iter().filter(|fee| fee.included);
+    let first = included.next()?;
+    let token = first.token.address.clone();
+    let mut total: u128 = first.amount.parse().ok()?;
+    for fee in included {
+        if fee.token.address.eq_ignore_ascii_case(&token) {
+            total = total.checked_add(fee.amount.parse().ok()?)?;
+        }
+    }
+    (total > 0).then(|| (total.to_string(), token))
+}
+
 /// Fetch quote from LI.FI (cross-chain capable)
 pub async fn fetch_lifi_quote(
     chain_id: u64,
@@ -647,6 +663,13 @@ pub async fn fetch_lifi_quote(
                         }
                     }
                 }
+            }
+
+            // LI.FI takes its own fee out of the input before swapping, so
+            // `to_amount` is already net of it. Report it so the lower figure
+            // is explained.
+            if let Some((amount, token)) = lifi_included_fee(estimate.fee_costs.as_deref()) {
+                quote = quote.with_fee(amount, token);
             }
 
             // Extract tool names (protocols)
@@ -1010,5 +1033,54 @@ mod velora_delta_tests {
         assert!(quote.estimated_gas.is_none());
         assert!(quote.gas_usd.is_none());
         assert!(quote.tx_data.is_none());
+    }
+}
+
+#[cfg(test)]
+mod lifi_fee_tests {
+    use super::lifi_included_fee;
+
+    fn fee(amount: &str, token: &str, included: bool) -> lfi::FeeCost {
+        serde_json::from_value(serde_json::json!({
+            "name": "LIFI Fixed Fee",
+            "token": {
+                "address": token, "chainId": 1, "symbol": "TKN", "decimals": 18,
+                "name": "Token", "priceUSD": "1"
+            },
+            "amount": amount,
+            "percentage": "0.0025",
+            "included": included
+        }))
+        .expect("valid fee cost")
+    }
+
+    #[test]
+    fn included_fees_in_one_token_are_added_up() {
+        let fees = [fee("5", "0xAAA", true), fee("2", "0xaaa", true)];
+        assert_eq!(
+            lifi_included_fee(Some(&fees)),
+            Some(("7".to_string(), "0xAAA".to_string()))
+        );
+    }
+
+    #[test]
+    fn fees_not_included_or_in_another_token_are_left_out() {
+        let fees = [
+            fee("9", "0xBBB", false),
+            fee("5", "0xAAA", true),
+            fee("3", "0xCCC", true),
+        ];
+        assert_eq!(
+            lifi_included_fee(Some(&fees)),
+            Some(("5".to_string(), "0xAAA".to_string()))
+        );
+    }
+
+    #[test]
+    fn no_included_fee_gives_none() {
+        assert_eq!(lifi_included_fee(None), None);
+        assert_eq!(lifi_included_fee(Some(&[])), None);
+        assert_eq!(lifi_included_fee(Some(&[fee("9", "0xBBB", false)])), None);
+        assert_eq!(lifi_included_fee(Some(&[fee("0", "0xAAA", true)])), None);
     }
 }
