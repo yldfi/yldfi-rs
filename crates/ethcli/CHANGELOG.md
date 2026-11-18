@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.6...ethcli-v0.30.7) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** --csv on account txs, internal-txs, erc20 and rpc multicall ([#290](https://github.com/yldfi/yldfi-rs/issues/290)) ([8bd0928](https://github.com/yldfi/yldfi-rs/commit/8bd0928ac894dec728b634f443c09b16b8cd289b))
+
 ## [0.30.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.5...ethcli-v0.30.6) (2026-11-18)
 
 
