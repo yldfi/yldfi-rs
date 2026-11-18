@@ -447,6 +447,54 @@ where
     }
 }
 
+/// How an `--all` walk ended, for the JSON output
+#[derive(serde::Serialize)]
+struct AllPagesStatus {
+    complete: bool,
+    requests: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stopped: Option<String>,
+}
+
+impl<T> AllPages<T> {
+    fn status(&self) -> AllPagesStatus {
+        AllPagesStatus {
+            complete: self.complete,
+            requests: self.requests,
+            stopped: self.stopped.clone(),
+        }
+    }
+}
+
+/// Print a listing. After `--all` the JSON is an object that says whether
+/// the history is complete (`{"complete", "requests", "stopped", "rows"}`);
+/// NDJSON gets the rows and then one `{"summary": true, ...}` line. Without
+/// `--all` the output is the plain array as before.
+fn print_listing<T: serde::Serialize>(
+    rows: &[T],
+    output: OutputFormat,
+    status: Option<&AllPagesStatus>,
+) -> anyhow::Result<()> {
+    let Some(status) = status else {
+        return print_rows(rows, output);
+    };
+    if output.is_ndjson() {
+        for row in rows {
+            println!("{}", serde_json::to_string(row)?);
+        }
+        let mut summary = serde_json::to_value(status)?;
+        summary["summary"] = serde_json::json!(true);
+        summary["count"] = serde_json::json!(rows.len());
+        println!("{}", serde_json::to_string(&summary)?);
+    } else {
+        let mut out = serde_json::to_value(status)?;
+        out["count"] = serde_json::json!(rows.len());
+        out["rows"] = serde_json::to_value(rows)?;
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    }
+    Ok(())
+}
+
 /// Tell the user how an `--all` walk went
 fn report_all_pages<T>(fetched: &AllPages<T>, max_pages: u64, quiet: bool) {
     match (fetched.complete, &fetched.stopped) {
@@ -846,6 +894,29 @@ mod all_pages_tests {
     }
 
     #[test]
+    fn status_reports_whether_the_history_is_complete() {
+        let fetched = AllPages {
+            rows: vec![1u8, 2],
+            complete: false,
+            requests: 10,
+            stopped: Some("reached --max-pages".to_string()),
+        };
+        let status = serde_json::to_value(fetched.status()).unwrap();
+        assert_eq!(status["complete"], false);
+        assert_eq!(status["requests"], 10);
+        assert_eq!(status["stopped"], "reached --max-pages");
+        let done = AllPages {
+            rows: vec![1u8],
+            complete: true,
+            requests: 1,
+            stopped: None,
+        };
+        let status = serde_json::to_value(done.status()).unwrap();
+        assert_eq!(status["complete"], true);
+        assert!(status.get("stopped").is_none());
+    }
+
+    #[test]
     fn earliest_incoming_skips_outgoing_failed_and_zero_value_rows() {
         let me: Address = "0x00000000000000000000000000000000000000aa"
             .parse()
@@ -1213,6 +1284,7 @@ pub async fn handle(
                 },
             };
 
+            let mut all_status = None;
             let txs = if *all {
                 let ascending = sort == "asc";
                 let client = &client;
@@ -1249,6 +1321,7 @@ pub async fn handle(
                 )
                 .await?;
                 report_all_pages(&fetched, *max_pages, quiet);
+                all_status = Some(fetched.status());
                 fetched.rows
             } else {
                 client.get_transactions(&addr, Some(params)).await?
@@ -1282,7 +1355,7 @@ pub async fn handle(
                         })
                     })
                     .collect();
-                print_rows(&json_txs, *output)?;
+                print_listing(&json_txs, *output, all_status.as_ref())?;
             } else {
                 println!("Transactions for {}", address);
                 println!("{}", "─".repeat(80));
@@ -1342,6 +1415,7 @@ pub async fn handle(
                 offset: *limit,
                 sort: foundry_block_explorers::account::Sort::Desc,
             };
+            let mut all_status = None;
             let txs = if *all {
                 let client = &client;
                 let fetched = fetch_all_pages(
@@ -1375,6 +1449,7 @@ pub async fn handle(
                 )
                 .await?;
                 report_all_pages(&fetched, *max_pages, quiet);
+                all_status = Some(fetched.status());
                 fetched.rows
             } else {
                 client
@@ -1383,7 +1458,7 @@ pub async fn handle(
             };
 
             if !output.is_table() {
-                print_rows(&txs, *output)?;
+                print_listing(&txs, *output, all_status.as_ref())?;
             } else {
                 println!("Internal Transactions for {}", address);
                 println!("{}", "─".repeat(80));
@@ -1453,6 +1528,7 @@ pub async fn handle(
                 sort: foundry_block_explorers::account::Sort::Desc,
             };
 
+            let mut all_status = None;
             let transfers = if *all {
                 let client = &client;
                 let fetched = fetch_all_pages(
@@ -1484,6 +1560,7 @@ pub async fn handle(
                 )
                 .await?;
                 report_all_pages(&fetched, *max_pages, quiet);
+                all_status = Some(fetched.status());
                 fetched.rows
             } else {
                 client
@@ -1492,7 +1569,7 @@ pub async fn handle(
             };
 
             if !output.is_table() {
-                print_rows(&transfers, *output)?;
+                print_listing(&transfers, *output, all_status.as_ref())?;
             } else {
                 println!("ERC20 Transfers for {}", address);
                 println!("{}", "─".repeat(80));

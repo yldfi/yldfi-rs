@@ -185,8 +185,12 @@ ethcli account labels <addr> <addr> ...         # up to 100
 
 - `--all` reads 1,000 rows per request and walks past the explorer's
   10,000-row window by moving the block range, re-reading the boundary block
-  so nothing is missed or repeated. It stops early at `--max-pages` or when a
-  single block holds more than 10,000 rows, and says so on stderr.
+  so nothing is missed or repeated. It stops early at `--max-pages` (default
+  10, so 10,000 rows) or when a single block holds more than 10,000 rows.
+- With `--all` the JSON is an object, not a bare array:
+  `{"complete": bool, "requests": n, "stopped": "...", "count": n, "rows": [...]}`.
+  Check `complete` before treating the rows as the whole history; with
+  `-o ndjson` the last line is `{"summary": true, "complete": ...}`.
 - `funded-by` uses Etherscan's `fundedby` endpoint (paid plan, EOAs only). On
   a free plan, or when that fails, it reports the earliest incoming
   native-token transfer among the first 100 normal and 100 internal
