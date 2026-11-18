@@ -472,8 +472,8 @@ pub struct RpcMulticallCall {
 pub struct RpcMulticallInput {
     /// Calls to run. All are read at the same block
     pub calls: Vec<RpcMulticallCall>,
-    /// Block number or tag, or a comma-separated list of block numbers to
-    /// repeat the calls at (default: latest)
+    /// Block number, tag or a time ("2024-01-31", "@1706700000", "7d"), or a
+    /// comma-separated list of block numbers to repeat the calls at (default: latest)
     #[serde(default)]
     pub block: Option<String>,
     /// Repeat the calls every STEP blocks: "FROM:TO:STEP" (inclusive). Use instead of `block`
@@ -485,10 +485,20 @@ pub struct RpcMulticallInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcBlockAtInput {
+    /// A date ("2024-01-31", "2024-01-31T12:00:00Z"), a Unix timestamp
+    /// written as "@1706700000", or an age ("7d", "12h", "30m")
+    pub time: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RpcBalanceInput {
     /// Account address
     pub address: String,
-    /// Block number or "latest" (default: latest)
+    /// Block number, "latest", or a time ("2024-01-31", "@1706700000", "7d") (default: latest)
     #[serde(default)]
     pub block: Option<String>,
     /// Chain name

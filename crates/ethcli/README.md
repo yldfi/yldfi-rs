@@ -298,6 +298,11 @@ ethcli rpc receipt 0x...
 ethcli rpc tx 0x... -o json
 ethcli rpc balance 0x... --block 21000000 -o json
 
+# A date, a Unix timestamp (@1706700000) or an age (7d) works wherever --block is accepted
+ethcli rpc balance 0x... --block 2024-01-31
+ethcli contract call 0x... totalSupply --block 7d
+ethcli rpc block-at 2024-01-31T12:00:00Z    # the latest block at or before that time
+
 # Size and code hash only (is it a contract? did the code change?)
 ethcli rpc code 0x... --summary
 

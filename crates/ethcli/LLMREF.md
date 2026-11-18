@@ -116,6 +116,8 @@ ethcli rpc storage <addr> <slot>    # Storage slot
 ethcli rpc receipt <hash>           # Transaction receipt
 ethcli rpc tx <hash>                # Transaction by hash (eth_getTransactionByHash)
 ethcli rpc balance <addr> -b <block> --json   # Native balance in wei and ether
+ethcli rpc block-at 2024-01-31      # Block for a time (date, @unix timestamp, or age like 7d)
+ethcli rpc call <to> -s "totalSupply()" -d uint256 -b 2024-01-31   # --block also takes a time
 ethcli rpc nonce <addr>             # Account nonce
 
 # Many calls at one block in one request (Multicall3), decoded, in input order.
