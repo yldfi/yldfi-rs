@@ -497,7 +497,9 @@ pub enum ContractCommands {
         args: Vec<String>,
 
         /// Block number, "latest", or a time (2024-01-31, @1706700000, 7d).
-        /// A time selects the latest block at or before it
+        /// A time selects the latest block at or before it. A plain date is
+        /// 00:00 UTC at the start of that day; for an end-of-day figure use
+        /// the next day's date or a full time (2024-01-31T23:59:59Z)
         #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
 

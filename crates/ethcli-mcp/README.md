@@ -163,6 +163,26 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 </details>
 
+### Read tools that save calls
+
+| Tool | Use it for |
+|------|------------|
+| `rpc_multicall` | Many contract reads at one block in one request, decoded, in input order. Also a time series with `block_range`. Replaces repeated `contract_call` / `rpc_call` |
+| `contract_call` | One read by function name, using the contract's ABI |
+| `rpc_balance` | Native balance in wei and ether at a block or time |
+| `rpc_tx` | A transaction by hash |
+| `rpc_code_summary` | Whether an address has code, its size and code hash, and any EIP-7702 delegate, without the bytecode |
+| `rpc_block_at` | The block for a date, Unix timestamp (`@1706700000`) or age (`7d`) |
+| `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
+| `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
+| `cast_index` | The storage slot of a mapping entry |
+
+The `block` input of `rpc_balance`, `rpc_multicall` and `contract_call` also
+accepts a date, `@timestamp` or age. A plain date is 00:00 UTC at the start of
+that day; for an end-of-day figure pass the next day's date or a full time. A reverted call's result carries a `revert`
+object; its `source` field is `signature_database` when the error name is a
+guess from the public signature list.
+
 ## Environment Variables
 
 | Variable | Required For |

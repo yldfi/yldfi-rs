@@ -13,7 +13,9 @@ use std::str::FromStr;
 /// Help text shared by every `--block` that also accepts a time
 const BLOCK_OR_TIME_HELP: &str = "Block number, tag (\"latest\"), or a time: a date \
     (2024-01-31, 2024-01-31T12:00:00Z), a Unix timestamp (@1706700000) or an age (7d, 12h). \
-    A time selects the latest block at or before it";
+    A time selects the latest block at or before it. A plain date is 00:00 UTC at the start of \
+    that day, so it reads the state before anything on that date; for an end-of-day figure use \
+    the next day's date or a full time (2024-01-31T23:59:59Z)";
 
 #[derive(Subcommand, Clone)]
 #[command(after_help = r#"Examples:
@@ -215,6 +217,10 @@ pub enum RpcCommands {
     /// TIME is a date (2024-01-31 or 2024-01-31T12:00:00Z), a Unix timestamp
     /// written as @1706700000, or an age such as 7d, 12h or 30m. The block is
     /// found by binary search over block headers, so it is exact.
+    ///
+    /// A plain date is 00:00 UTC at the start of that day, so 2024-01-31
+    /// gives the last block of 30 January. For the end of a day, pass the
+    /// next day's date or a full time such as 2024-01-31T23:59:59Z.
     #[command(visible_alias = "find-block")]
     BlockAt {
         /// Date, @timestamp or age

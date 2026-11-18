@@ -20,6 +20,7 @@ account history, gas) fail fast there; RPC commands still work.
 ```bash
 ethcli tx <hash>                    # Analyze transaction
 ethcli tx <hash> --enrich           # With Etherscan enrichment
+ethcli tx <hash> --rpc-url <url>    # Against one endpoint (e.g. a local fork)
 ethcli tx -f hashes.txt             # From file
 ethcli tx --stdin                   # From stdin
 ethcli tx <h1> <h2> --batch-size 10 # Parallel batch
@@ -31,6 +32,7 @@ ethcli account balance <addr>       # ETH balance (supports ENS)
 ethcli account balance <a1> <a2>    # Multiple (uses multicall)
 ethcli account txs <addr>           # Transaction history
 ethcli account erc20 <addr>         # ERC20 transfers
+ethcli account erc20 <addr> -o ndjson   # One JSON object per line (also txs, internal-txs, ...)
 ethcli account erc721 <addr>        # NFT transfers
 ethcli account info <addr>          # Comprehensive info
 ```
@@ -123,6 +125,8 @@ ethcli rpc tx <hash>                # Transaction by hash (eth_getTransactionByH
 ethcli rpc balance <addr> -b <block> --json   # Native balance in wei and ether
 ethcli rpc block-at 2024-01-31      # Block for a time (date, @unix timestamp, or age like 7d)
 ethcli rpc call <to> -s "totalSupply()" -d uint256 -b 2024-01-31   # --block also takes a time
+# A plain date = 00:00 UTC at the START of that day (state before anything on that date).
+# End of day: use the next day's date or 2024-01-31T23:59:59Z. Times are UTC.
 ethcli rpc nonce <addr>             # Account nonce
 
 # Many calls at one block in one request (Multicall3), decoded, in input order.

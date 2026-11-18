@@ -493,7 +493,9 @@ pub struct RpcMulticallInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RpcBlockAtInput {
     /// A date ("2024-01-31", "2024-01-31T12:00:00Z"), a Unix timestamp
-    /// written as "@1706700000", or an age ("7d", "12h", "30m")
+    /// written as "@1706700000", or an age ("7d", "12h", "30m"). A plain
+    /// date is 00:00 UTC at the start of that day: for the end of a day pass
+    /// the next day's date or a full time ("2024-01-31T23:59:59Z")
     pub time: String,
     /// Chain name
     #[serde(default = "default_chain")]
@@ -504,7 +506,9 @@ pub struct RpcBlockAtInput {
 pub struct RpcBalanceInput {
     /// Account address
     pub address: String,
-    /// Block number, "latest", or a time ("2024-01-31", "@1706700000", "7d") (default: latest)
+    /// Block number, "latest", or a time ("2024-01-31", "@1706700000", "7d") (default: latest).
+    /// A plain date is 00:00 UTC at the start of that day, i.e. the state before anything on
+    /// that date; for an end-of-day balance pass the next day's date or "2024-01-31T23:59:59Z"
     #[serde(default)]
     pub block: Option<String>,
     /// Chain name

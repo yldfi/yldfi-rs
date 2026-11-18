@@ -189,6 +189,9 @@ ethcli tx 0x1234567890abcdef...
 # Enrich with Etherscan data (contract names, token symbols, function decoding)
 ethcli tx 0x... --enrich
 
+# Analyze against a single endpoint (for example a local fork)
+ethcli tx 0x... --rpc-url http://localhost:8545
+
 # Output as JSON
 ethcli tx 0x... -o json
 ```
@@ -210,6 +213,7 @@ ethcli account txs 0x... --start-block 25893052 --end-block 26108081 --page 1 --
 
 # List token transfers
 ethcli account erc20 0x...
+ethcli account erc20 0x... -o ndjson     # one JSON object per line (all account subcommands)
 ```
 
 ### Contract - ABI, Source Code, and Bytecode Analysis
@@ -302,6 +306,8 @@ ethcli rpc balance 0x... --block 21000000 -o json
 ethcli rpc balance 0x... --block 2024-01-31
 ethcli contract call 0x... totalSupply --block 7d
 ethcli rpc block-at 2024-01-31T12:00:00Z    # the latest block at or before that time
+# A plain date is 00:00 UTC at the start of that day: 2024-01-31 is the close of 30 January.
+# For an end-of-day figure use the next day's date or a full time (2024-01-31T23:59:59Z).
 
 # Size and code hash only (is it a contract? did the code change?)
 ethcli rpc code 0x... --summary
