@@ -2074,7 +2074,7 @@ dependencies = [
 
 [[package]]
 name = "ethcli"
-version = "0.30.6"
+version = "0.30.7"
 dependencies = [
  "alcmy",
  "alloy",
