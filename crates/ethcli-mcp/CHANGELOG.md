@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.2...ethcli-mcp-v0.6.3) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** add Velora Delta as a quote source ([#269](https://github.com/yldfi/yldfi-rs/issues/269)) ([e7b3503](https://github.com/yldfi/yldfi-rs/commit/e7b35037f964c8484086feee7a4ef038993153eb))
+* **ethcli:** JSON output for rpc and contract call, rpc tx and balance, --json on every command ([#266](https://github.com/yldfi/yldfi-rs/issues/266)) ([bae900c](https://github.com/yldfi/yldfi-rs/commit/bae900ca806c2387b029f6368091bc329dbf6d42))
+* **ethcli:** rpc multicall for batched and time-series reads ([#267](https://github.com/yldfi/yldfi-rs/issues/267)) ([7970e18](https://github.com/yldfi/yldfi-rs/commit/7970e182bb714474f8754d6879b50b1be12d3e2b))
+
 ## [0.6.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.1...ethcli-mcp-v0.6.2) (2026-11-17)
 
 
