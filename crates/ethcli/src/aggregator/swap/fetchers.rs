@@ -32,6 +32,42 @@ fn get_weth_address(chain_id: u64) -> Option<&'static str> {
     }
 }
 
+/// Format a source's API error for the quote output.
+///
+/// A service that blocks the caller's address (bot protection in front of
+/// the API) answers with a whole web page. The page says nothing useful and
+/// floods the output, so it is replaced by its title and a plain reason.
+fn api_error(error: &impl std::fmt::Display) -> String {
+    format!("API error: {}", summarize_html_error(&error.to_string()))
+}
+
+fn summarize_html_error(message: &str) -> String {
+    let lower = message.to_ascii_lowercase();
+    let Some(start) = lower.find("<!doctype html").or_else(|| lower.find("<html")) else {
+        return message.to_string();
+    };
+    // to_ascii_lowercase keeps byte offsets, so `lower` indexes `message` too
+    let title = lower[start..].find("<title>").and_then(|open| {
+        let from = start + open + "<title>".len();
+        let len = lower[from..].find("</title>")?;
+        let title = message[from..from + len].trim();
+        (!title.is_empty()).then(|| title.to_string())
+    });
+    let prefix = message[..start].trim_end().trim_end_matches('-').trim_end();
+    let page = match title {
+        Some(title) => format!("a web page (\"{title}\")"),
+        None => "a web page".to_string(),
+    };
+    let reason = format!(
+        "the service returned {page}, not an API response; it may be blocking this host's address"
+    );
+    if prefix.is_empty() {
+        reason
+    } else {
+        format!("{prefix}: {reason}")
+    }
+}
+
 /// Fetch quote from OpenOcean
 ///
 /// `amount_in` is in smallest units (wei); openoc forwards it as the v4
@@ -113,11 +149,7 @@ pub async fn fetch_openocean_quote(
 
             SourceResult::success("openocean", quote, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error(
-            "openocean",
-            format!("API error: {}", e),
-            measure.elapsed_ms(),
-        ),
+        Err(e) => SourceResult::error("openocean", api_error(&e), measure.elapsed_ms()),
     }
 }
 
@@ -201,11 +233,7 @@ pub async fn fetch_kyber_quote(
 
             SourceResult::success("kyberswap", quote, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error(
-            "kyberswap",
-            format!("API error: {}", e),
-            measure.elapsed_ms(),
-        ),
+        Err(e) => SourceResult::error("kyberswap", api_error(&e), measure.elapsed_ms()),
     }
 }
 
@@ -294,7 +322,7 @@ pub async fn fetch_zerox_quote(
 
                 SourceResult::success("0x", quote, measure.elapsed_ms())
             }
-            Err(e) => SourceResult::error("0x", format!("API error: {}", e), measure.elapsed_ms()),
+            Err(e) => SourceResult::error("0x", api_error(&e), measure.elapsed_ms()),
         }
     } else {
         // Indicative price only (no transaction data)
@@ -332,7 +360,7 @@ pub async fn fetch_zerox_quote(
 
                 SourceResult::success("0x", quote, measure.elapsed_ms())
             }
-            Err(e) => SourceResult::error("0x", format!("API error: {}", e), measure.elapsed_ms()),
+            Err(e) => SourceResult::error("0x", api_error(&e), measure.elapsed_ms()),
         }
     }
 }
@@ -432,7 +460,7 @@ pub async fn fetch_oneinch_quote(
 
             SourceResult::success("1inch", quote, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error("1inch", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("1inch", api_error(&e), measure.elapsed_ms()),
     }
 }
 
@@ -559,7 +587,7 @@ pub async fn fetch_cowswap_quote(
 
             SourceResult::success("cowswap", quote, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error("cowswap", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("cowswap", api_error(&e), measure.elapsed_ms()),
     }
 }
 
@@ -691,7 +719,7 @@ pub async fn fetch_lifi_quote(
 
             SourceResult::success("lifi", quote, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error("lifi", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("lifi", api_error(&e), measure.elapsed_ms()),
     }
 }
 
@@ -786,7 +814,7 @@ pub async fn fetch_velora_quote(
 
             SourceResult::success("velora", quote, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error("velora", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("velora", api_error(&e), measure.elapsed_ms()),
     }
 }
 
@@ -855,7 +883,7 @@ pub async fn fetch_velora_delta_quote(
                 measure.elapsed_ms(),
             ),
         },
-        Err(e) => SourceResult::error(SOURCE, format!("API error: {e}"), measure.elapsed_ms()),
+        Err(e) => SourceResult::error(SOURCE, api_error(&e), measure.elapsed_ms()),
     }
 }
 
@@ -972,7 +1000,7 @@ pub async fn fetch_enso_quote(
 
             SourceResult::success("enso", quote, measure.elapsed_ms())
         }
-        Err(e) => SourceResult::error("enso", format!("API error: {}", e), measure.elapsed_ms()),
+        Err(e) => SourceResult::error("enso", api_error(&e), measure.elapsed_ms()),
     }
 }
 
@@ -1082,5 +1110,43 @@ mod lifi_fee_tests {
         assert_eq!(lifi_included_fee(Some(&[])), None);
         assert_eq!(lifi_included_fee(Some(&[fee("9", "0xBBB", false)])), None);
         assert_eq!(lifi_included_fee(Some(&[fee("0", "0xAAA", true)])), None);
+    }
+}
+
+#[cfg(test)]
+mod api_error_tests {
+    use super::{api_error, summarize_html_error};
+
+    #[test]
+    fn html_page_is_replaced_by_its_title_and_a_reason() {
+        let raw = "API error: 403 - <!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js\"> <![endif]-->\n<head>\n<title>Attention Required! | Cloudflare</title>\n<meta charset=\"UTF-8\" />... (truncated)";
+        assert_eq!(
+            summarize_html_error(raw),
+            "API error: 403: the service returned a web page (\"Attention Required! | Cloudflare\"), \
+             not an API response; it may be blocking this host's address"
+        );
+    }
+
+    #[test]
+    fn html_page_without_a_title_still_gets_a_reason() {
+        assert_eq!(
+            summarize_html_error("<html><body>blocked</body></html>"),
+            "the service returned a web page, not an API response; it may be blocking this \
+             host's address"
+        );
+        // A page cut off before its title closes has no usable title
+        assert!(summarize_html_error("502 - <HTML><title>Bad gate").contains("a web page,"));
+    }
+
+    #[test]
+    fn ordinary_errors_are_left_alone() {
+        for message in [
+            "Rate limited (retry after 60s)",
+            "API error: 404 - {\"error\":\"Token not found\"}",
+            "value < 5 and <b>bold</b>",
+        ] {
+            assert_eq!(summarize_html_error(message), message);
+        }
+        assert_eq!(api_error(&"boom"), "API error: boom");
     }
 }

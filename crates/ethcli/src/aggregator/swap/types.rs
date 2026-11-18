@@ -306,8 +306,14 @@ impl QuoteAggregation {
             .filter_map(|(i, q)| q.amount_out_u128().map(|out| (i, out)))
             .collect();
 
-        // Find best (highest output)
-        let Some((best_idx, best_output)) = outputs.iter().max_by_key(|(_, out)| out) else {
+        // Find best (highest output). On an exact tie a quote priced for the
+        // caller beats one priced for the placeholder sender, and otherwise
+        // the first source listed wins.
+        let Some((best_idx, best_output)) = outputs
+            .iter()
+            .rev()
+            .max_by_key(|(i, out)| (*out, !valid_quotes[*i].placeholder_sender))
+        else {
             return Self {
                 best_quote: None,
                 valid_quotes: valid_count,
@@ -446,6 +452,46 @@ mod tests {
         assert_eq!(agg.high_outliers, vec!["c".to_string()]);
         assert!(agg.outliers.is_empty());
         assert_eq!(agg.best_quote.unwrap().source, "c");
+    }
+
+    #[test]
+    fn exact_tie_prefers_a_quote_not_priced_for_the_placeholder() {
+        let mut placeholder = ok("enso", "1988");
+        placeholder.data.as_mut().unwrap().placeholder_sender = true;
+        // Whichever side the placeholder quote is on, the firm quote wins
+        for results in [
+            vec![
+                ok("kyberswap", "1988"),
+                placeholder.clone(),
+                ok("1inch", "1980"),
+            ],
+            vec![
+                placeholder.clone(),
+                ok("kyberswap", "1988"),
+                ok("1inch", "1980"),
+            ],
+        ] {
+            let best = QuoteAggregation::from_quotes(&results).best_quote.unwrap();
+            assert_eq!(best.source, "kyberswap");
+            assert!(!best.placeholder_sender);
+        }
+    }
+
+    #[test]
+    fn tie_between_firm_quotes_goes_to_the_first_source() {
+        let results = vec![ok("kyberswap", "1988"), ok("velora", "1988")];
+        let best = QuoteAggregation::from_quotes(&results).best_quote.unwrap();
+        assert_eq!(best.source, "kyberswap");
+    }
+
+    #[test]
+    fn higher_placeholder_quote_still_wins() {
+        let mut placeholder = ok("enso", "1989");
+        placeholder.data.as_mut().unwrap().placeholder_sender = true;
+        let results = vec![ok("kyberswap", "1988"), placeholder];
+        let best = QuoteAggregation::from_quotes(&results).best_quote.unwrap();
+        assert_eq!(best.source, "enso");
+        assert!(best.placeholder_sender);
     }
 
     #[test]
