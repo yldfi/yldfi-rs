@@ -9228,9 +9228,8 @@ mod toolset_tests {
             .iter()
             .filter(|name| !all.iter().any(|tool| tool == *name))
             .collect();
-        // account_funded_by arrives with a separate change; nothing else may be missing
         assert!(
-            missing.iter().all(|name| **name == "account_funded_by"),
+            missing.is_empty(),
             "core tools missing from this build: {missing:?}"
         );
     }
