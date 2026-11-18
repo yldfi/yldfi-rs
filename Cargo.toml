@@ -28,6 +28,7 @@ members = [
     "crates/gplus",
     "crates/sldt",
     "crates/cexm",
+    "crates/pamm",
 ]
 
 [workspace.dependencies]

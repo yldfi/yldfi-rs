@@ -1,0 +1,23 @@
+[package]
+name = "pamm"
+version = "0.1.0"
+edition = "2021"
+description = "Unofficial Rust client for prop AMM (proprietary AMM) quotes, venues and price levels on Ethereum, as published by block builders (pamm)"
+license = "MIT"
+repository = "https://github.com/yldfi/yldfi-rs"
+homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/pamm"
+keywords = ["propamm", "amm", "ethereum", "defi", "mev"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+readme = "README.md"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+yldfi-common = { version = "0.1.7", path = "../yldfi-common" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+
+[lints]
+workspace = true

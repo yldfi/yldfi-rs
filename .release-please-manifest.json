@@ -22,5 +22,6 @@
   "crates/vlra": "0.2.3",
   "crates/ykong": "0.1.7",
   "crates/yldfi-common": "0.1.7",
-  "crates/zrxswap": "0.2.2"
+  "crates/zrxswap": "0.2.2",
+  "crates/pamm": "0.0.0"
 }
