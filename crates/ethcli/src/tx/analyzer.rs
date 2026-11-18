@@ -570,7 +570,18 @@ impl TxAnalyzer {
                 Ok(trace) => return Ok(trace),
                 // Keep the reason short and free of the endpoint's address
                 Err(e) => {
-                    last_error = crate::utils::url::redact_url(&e.to_string())
+                    last_error = e
+                        .to_string()
+                        .split_whitespace()
+                        .map(|word| {
+                            if word.contains("://") {
+                                "<endpoint>"
+                            } else {
+                                word
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
                         .chars()
                         .take(160)
                         .collect();
