@@ -1074,6 +1074,26 @@ pub async fn rpc_code_summary(address: &str, chain: Option<&str>) -> Result<Stri
         .map_err(ToolError::from)
 }
 
+/// `calls` is one "<address> <signature> [args...]" line per call
+pub async fn rpc_multicall(
+    calls: &str,
+    block: Option<&str>,
+    block_range: Option<&str>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("rpc")
+        .subcommand("multicall")
+        .opt("--file", Some("-"))
+        .stdin(calls)
+        .opt("--block", block)
+        .opt("--block-range", block_range)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn rpc_tx(hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("rpc")
         .subcommand("tx")

@@ -158,6 +158,46 @@ pub enum RpcCommands {
         format: OutputFormat,
     },
 
+    /// Run many read-only calls at one block in a single request (Multicall3)
+    ///
+    /// Each call is one argument or one line: `<address> <signature> [args...]`.
+    /// Give the return types in the signature to have results decoded, e.g.
+    /// `balanceOf(address)(uint256)`. Arguments are split on whitespace.
+    ///
+    /// "latest" is resolved to a block number once, so every call reads the
+    /// same state. With several blocks (`--block a,b,c` or `--block-range`),
+    /// the same calls are repeated at each block.
+    ///
+    /// Calls go through the Multicall3 contract, so `msg.sender` is that
+    /// contract. Where Multicall3 is not available (a block before it was
+    /// deployed, or a chain without it) each call is sent separately.
+    ///
+    /// Examples:
+    ///   ethcli rpc multicall "0xA0b8... totalSupply()(uint256)" "0xA0b8... balanceOf(address)(uint256) 0xd8dA..."
+    ///   ethcli rpc multicall -f calls.txt --block-range 21000000:21070000:7200 -o json
+    #[command(visible_alias = "call-many", alias = "batch")]
+    Multicall {
+        /// Calls, each as "<address> <signature> [args...]"
+        #[arg(value_name = "CALL")]
+        calls: Vec<String>,
+
+        /// Read calls from a file, one per line ("-" for stdin; # starts a comment)
+        #[arg(long, short = 'f', value_name = "FILE")]
+        file: Option<String>,
+
+        /// Block number, tag, or a comma-separated list of block numbers
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
+        block: String,
+
+        /// Repeat at every STEP blocks from FROM to TO inclusive (FROM:TO:STEP)
+        #[arg(long, value_name = "FROM:TO:STEP", conflicts_with = "block")]
+        block_range: Option<String>,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
+
     /// Get a transaction by hash (eth_getTransactionByHash)
     #[command(visible_alias = "transaction", alias = "eth_getTransactionByHash")]
     Tx {
@@ -267,6 +307,17 @@ impl std::error::Error for NotFound {}
 
 /// The numeric block an action reads at, if any (tags: None)
 fn action_block_number(action: &RpcCommands) -> Option<u64> {
+    if let RpcCommands::Multicall {
+        block, block_range, ..
+    } = action
+    {
+        // The earliest block decides whether an archive node is needed
+        return multicall_blocks(block, block_range.as_deref())
+            .ok()?
+            .into_iter()
+            .filter_map(|b| crate::utils::parse_block_number(&b).ok())
+            .min();
+    }
     let block = match action {
         RpcCommands::Call { block, .. }
         | RpcCommands::Block { block, .. }
@@ -549,6 +600,51 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
             }
         }
 
+        RpcCommands::Multicall {
+            calls,
+            file,
+            block,
+            block_range,
+            format,
+        } => {
+            let specs = multicall_specs(calls, file.as_deref())?;
+            let mut blocks = multicall_blocks(block, block_range.as_deref())?;
+            // Pin a moving tag to a number so every call reads the same state
+            for b in &mut blocks {
+                if matches!(b.to_lowercase().as_str(), "latest" | "safe" | "finalized") {
+                    let id = parse_block_id(b)?;
+                    let header = provider
+                        .get_block(id)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to resolve block '{b}': {e}"))?
+                        .ok_or(NotFound("Block not found"))?;
+                    *b = header.header.number.to_string();
+                }
+            }
+
+            let mut reports = Vec::with_capacity(blocks.len());
+            for b in &blocks {
+                reports.push(run_multicall(provider, &specs, b).await?);
+            }
+
+            if format.is_table() {
+                for (i, report) in reports.iter().enumerate() {
+                    if i > 0 {
+                        println!();
+                    }
+                    print!("{}", format_multicall_table(report));
+                }
+            } else if format.is_ndjson() {
+                for report in &reports {
+                    println!("{}", serde_json::to_string(report)?);
+                }
+            } else if reports.len() == 1 {
+                println!("{}", serde_json::to_string_pretty(&reports[0])?);
+            } else {
+                println!("{}", serde_json::to_string_pretty(&reports)?);
+            }
+        }
+
         RpcCommands::Tx { hash, format } => {
             let tx_hash =
                 B256::from_str(hash).map_err(|e| anyhow::anyhow!("Invalid tx hash: {}", e))?;
@@ -689,6 +785,270 @@ pub fn parse_block_id(block: &str) -> anyhow::Result<alloy::eips::BlockId> {
 /// (`0xef0100` followed by the 20-byte address)
 fn eip7702_delegate(code: &[u8]) -> Option<Address> {
     (code.len() == 23 && code[..3] == [0xef, 0x01, 0x00]).then(|| Address::from_slice(&code[3..]))
+}
+
+/// Most calls sent in one Multicall3 request
+const MULTICALL_CHUNK: usize = 200;
+/// Most blocks one `rpc multicall` will visit
+const MULTICALL_MAX_BLOCKS: usize = 1000;
+
+/// One parsed `<address> <signature> [args...]` line
+struct CallSpec {
+    address: Address,
+    args: Vec<String>,
+    function: alloy::json_abi::Function,
+    calldata: Vec<u8>,
+}
+
+fn parse_call_spec(line: &str) -> anyhow::Result<CallSpec> {
+    let mut parts = line.split_whitespace();
+    let (Some(address), Some(signature)) = (parts.next(), parts.next()) else {
+        anyhow::bail!("Call '{line}' must be \"<address> <signature> [args...]\"");
+    };
+    let address = Address::from_str(address)
+        .map_err(|e| anyhow::anyhow!("Invalid address in call '{line}': {e}"))?;
+    let args: Vec<String> = parts.map(str::to_string).collect();
+    let (function, calldata) = super::contract::encode_signature_call(signature, &args)
+        .map_err(|e| anyhow::anyhow!("Call '{line}': {e}"))?;
+    Ok(CallSpec {
+        address,
+        args,
+        function,
+        calldata,
+    })
+}
+
+/// Calls from the command line followed by those in `--file`
+fn multicall_specs(calls: &[String], file: Option<&str>) -> anyhow::Result<Vec<CallSpec>> {
+    let mut lines: Vec<String> = calls.to_vec();
+    if let Some(path) = file {
+        let text = if path == "-" {
+            std::io::read_to_string(std::io::stdin())?
+        } else {
+            std::fs::read_to_string(path).map_err(|e| anyhow::anyhow!("Cannot read {path}: {e}"))?
+        };
+        lines.extend(
+            text.lines()
+                .map(|l| l.split('#').next().unwrap_or("").trim().to_string())
+                .filter(|l| !l.is_empty()),
+        );
+    }
+    if lines.is_empty() {
+        anyhow::bail!("No calls given. Pass \"<address> <signature> [args...]\" or --file");
+    }
+    lines.iter().map(|l| parse_call_spec(l)).collect()
+}
+
+/// The blocks to read at: `--block` (one, or a comma-separated list) or
+/// `--block-range FROM:TO:STEP`
+fn multicall_blocks(block: &str, range: Option<&str>) -> anyhow::Result<Vec<String>> {
+    let blocks: Vec<String> = match range {
+        Some(range) => {
+            let parts: Vec<&str> = range.split(':').collect();
+            let [from, to, step] = parts.as_slice() else {
+                anyhow::bail!("--block-range must be FROM:TO:STEP, got '{range}'");
+            };
+            let parse = |s: &str| {
+                crate::utils::parse_block_number(s)
+                    .map_err(|e| anyhow::anyhow!("Invalid block '{s}' in --block-range: {e}"))
+            };
+            let (from, to, step) = (parse(from)?, parse(to)?, parse(step)?);
+            if step == 0 || from > to {
+                anyhow::bail!("--block-range needs FROM <= TO and STEP > 0, got '{range}'");
+            }
+            (from..=to)
+                .step_by(step as usize)
+                .map(|n| n.to_string())
+                .collect()
+        }
+        None => block
+            .split(',')
+            .map(|b| b.trim().to_string())
+            .filter(|b| !b.is_empty())
+            .collect(),
+    };
+    if blocks.is_empty() {
+        anyhow::bail!("No block given");
+    }
+    if blocks.len() > MULTICALL_MAX_BLOCKS {
+        anyhow::bail!(
+            "{} blocks requested; the limit is {MULTICALL_MAX_BLOCKS}. Use a larger step",
+            blocks.len()
+        );
+    }
+    Ok(blocks)
+}
+
+/// Text of a standard `Error(string)` revert, if the data is one
+fn revert_reason(data: &[u8]) -> Option<String> {
+    use alloy::dyn_abi::DynSolType;
+    if data.len() < 4 || data[..4] != [0x08, 0xc3, 0x79, 0xa0] {
+        return None;
+    }
+    match DynSolType::String.abi_decode(&data[4..]).ok()? {
+        alloy::dyn_abi::DynSolValue::String(s) => Some(s),
+        _ => None,
+    }
+}
+
+/// Run every call at one block and describe the results as JSON
+async fn run_multicall<P: Provider>(
+    provider: &P,
+    specs: &[CallSpec],
+    block: &str,
+) -> anyhow::Result<serde_json::Value> {
+    use crate::rpc::{MulticallBuilder, MulticallResult};
+    use alloy::dyn_abi::FunctionExt;
+
+    let block_id = parse_block_id(block)?;
+
+    // Multicall3 first; a failure there (not deployed at this block, or on
+    // this chain) falls back to one eth_call per entry
+    let mut results: Vec<MulticallResult> = Vec::with_capacity(specs.len());
+    let mut via = "multicall3";
+    for chunk in specs.chunks(MULTICALL_CHUNK) {
+        let builder = chunk.iter().fold(MulticallBuilder::new(), |b, spec| {
+            b.add_call(spec.address, spec.calldata.clone().into(), true)
+        });
+        match builder.execute_at(provider, block_id).await {
+            Ok(mut chunk_results) if chunk_results.len() == chunk.len() => {
+                results.append(&mut chunk_results)
+            }
+            _ => {
+                via = "eth_call";
+                results.clear();
+                break;
+            }
+        }
+    }
+    if via == "eth_call" {
+        let calls = specs.iter().map(|spec| async move {
+            let tx = alloy::rpc::types::TransactionRequest::default()
+                .to(spec.address)
+                .input(spec.calldata.clone().into());
+            match provider.call(tx).block(block_id).await {
+                Ok(data) => Ok(MulticallResult {
+                    success: true,
+                    data,
+                }),
+                Err(e) => {
+                    let msg = e.to_string();
+                    // A revert is a result; a transport failure is not
+                    if msg.to_lowercase().contains("revert") {
+                        Ok(MulticallResult {
+                            success: false,
+                            data: Default::default(),
+                        })
+                    } else {
+                        Err(anyhow::anyhow!("Call failed: {msg}"))
+                    }
+                }
+            }
+        });
+        results = futures::future::try_join_all(calls).await?;
+    }
+
+    let entries: Vec<serde_json::Value> = specs
+        .iter()
+        .zip(&results)
+        .enumerate()
+        .map(|(index, (spec, result))| {
+            let mut entry = serde_json::json!({
+                "index": index,
+                "address": spec.address.to_checksum(None),
+                "function": spec.function.signature(),
+                "args": spec.args,
+                "success": result.success,
+                "raw": format!("0x{}", hex::encode(&result.data)),
+            });
+            if !result.success {
+                if let Some(reason) = revert_reason(&result.data) {
+                    entry["revert_reason"] = serde_json::json!(reason);
+                }
+            } else if !spec.function.outputs.is_empty() {
+                match spec.function.abi_decode_output(&result.data) {
+                    Ok(values) => {
+                        entry["outputs"] = serde_json::Value::Array(
+                            values
+                                .iter()
+                                .map(super::contract::dyn_value_to_json)
+                                .collect(),
+                        );
+                    }
+                    Err(e) => {
+                        // No code at the address returns empty data, which
+                        // cannot be the declared types
+                        entry["success"] = serde_json::json!(false);
+                        entry["decode_error"] = serde_json::json!(e.to_string());
+                    }
+                }
+            }
+            entry
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "block": block,
+        "via": via,
+        "results": entries,
+    }))
+}
+
+/// One line per call: `[index] address function(args) = values`
+fn format_multicall_table(report: &serde_json::Value) -> String {
+    use std::fmt::Write;
+
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "Block {}",
+        report["block"].as_str().unwrap_or_default()
+    );
+    for entry in report["results"].as_array().into_iter().flatten() {
+        let args: Vec<&str> = entry["args"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|a| a.as_str())
+            .collect();
+        let name = entry["function"]
+            .as_str()
+            .unwrap_or_default()
+            .split('(')
+            .next()
+            .unwrap_or_default();
+        let value = if entry["success"].as_bool() != Some(true) {
+            match (
+                entry["revert_reason"].as_str(),
+                entry["decode_error"].as_str(),
+            ) {
+                (Some(reason), _) => format!("REVERT: {reason}"),
+                (None, Some(_)) => "FAILED: no data returned for the declared types".to_string(),
+                (None, None) => "REVERT".to_string(),
+            }
+        } else if let Some(outputs) = entry["outputs"].as_array() {
+            outputs
+                .iter()
+                .map(|v| match v {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        } else {
+            entry["raw"].as_str().unwrap_or_default().to_string()
+        };
+        let _ = writeln!(
+            out,
+            "[{}] {} {}({}) = {}",
+            entry["index"],
+            entry["address"].as_str().unwrap_or_default(),
+            name,
+            args.join(", "),
+            value
+        );
+    }
+    out
 }
 
 /// A hex quantity from a JSON-RPC object as a decimal string
@@ -836,6 +1196,71 @@ mod tests {
             decode_output_json(&one, "uint256").unwrap(),
             serde_json::json!("7")
         );
+    }
+
+    #[test]
+    fn multicall_blocks_from_list_and_range() {
+        assert_eq!(multicall_blocks("latest", None).unwrap(), ["latest"]);
+        assert_eq!(
+            multicall_blocks("10, 20,30", None).unwrap(),
+            ["10", "20", "30"]
+        );
+        assert_eq!(
+            multicall_blocks("latest", Some("100:130:10")).unwrap(),
+            ["100", "110", "120", "130"]
+        );
+        assert!(multicall_blocks("latest", Some("100:90:10")).is_err());
+        assert!(multicall_blocks("latest", Some("100:200:0")).is_err());
+        assert!(multicall_blocks("latest", Some("100:200")).is_err());
+        assert!(multicall_blocks("latest", Some("0:1000000:1")).is_err());
+    }
+
+    #[test]
+    fn call_spec_parses_address_signature_and_args() {
+        let spec = parse_call_spec(
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 balanceOf(address)(uint256) 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+        )
+        .unwrap();
+        assert_eq!(hex::encode(&spec.calldata[..4]), "70a08231");
+        assert_eq!(spec.calldata.len(), 36);
+        assert_eq!(spec.function.outputs.len(), 1);
+        assert_eq!(spec.args.len(), 1);
+
+        assert!(parse_call_spec("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48").is_err());
+        assert!(parse_call_spec("nope totalSupply()(uint256)").is_err());
+        // A bare name has no types to encode with
+        assert!(parse_call_spec("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 totalSupply").is_err());
+    }
+
+    #[test]
+    fn revert_reason_and_delegate_decoding() {
+        use alloy::dyn_abi::DynSolValue;
+        let mut data = vec![0x08, 0xc3, 0x79, 0xa0];
+        data.extend(DynSolValue::String("nope".into()).abi_encode());
+        assert_eq!(revert_reason(&data).as_deref(), Some("nope"));
+        assert_eq!(revert_reason(&[1, 2, 3, 4, 5]), None);
+
+        let mut code = vec![0xef, 0x01, 0x00];
+        code.extend([0x11u8; 20]);
+        assert!(eip7702_delegate(&code).is_some());
+        assert!(eip7702_delegate(&[0x60, 0x80]).is_none());
+    }
+
+    #[test]
+    fn multicall_table_lines() {
+        let report = serde_json::json!({
+            "block": "100",
+            "via": "multicall3",
+            "results": [
+                {"index": 0, "address": "0xA", "function": "balanceOf(address)", "args": ["0xB"],
+                 "success": true, "raw": "0x01", "outputs": ["1", true]},
+                {"index": 1, "address": "0xA", "function": "f()", "args": [],
+                 "success": false, "raw": "0x", "revert_reason": "nope"}
+            ]
+        });
+        let out = format_multicall_table(&report);
+        assert!(out.contains("[0] 0xA balanceOf(0xB) = 1, true"), "{out}");
+        assert!(out.contains("[1] 0xA f() = REVERT: nope"), "{out}");
     }
 
     #[test]

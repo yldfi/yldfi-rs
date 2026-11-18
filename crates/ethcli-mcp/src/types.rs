@@ -457,6 +457,34 @@ pub struct RpcHashInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcMulticallCall {
+    /// Contract address
+    pub address: String,
+    /// Full signature with return types, e.g. "balanceOf(address)(uint256)".
+    /// Results are decoded only when return types are given
+    pub sig: String,
+    /// Arguments, one string each (no spaces inside an argument)
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcMulticallInput {
+    /// Calls to run. All are read at the same block
+    pub calls: Vec<RpcMulticallCall>,
+    /// Block number or tag, or a comma-separated list of block numbers to
+    /// repeat the calls at (default: latest)
+    #[serde(default)]
+    pub block: Option<String>,
+    /// Repeat the calls every STEP blocks: "FROM:TO:STEP" (inclusive). Use instead of `block`
+    #[serde(default)]
+    pub block_range: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RpcBalanceInput {
     /// Account address
     pub address: String,

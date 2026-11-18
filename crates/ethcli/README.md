@@ -301,6 +301,14 @@ ethcli rpc balance 0x... --block 21000000 -o json
 # Size and code hash only (is it a contract? did the code change?)
 ethcli rpc code 0x... --summary
 
+# Many calls at one block in a single request (Multicall3)
+ethcli rpc multicall \
+  "0xA0b8... totalSupply()(uint256)" \
+  "0xA0b8... balanceOf(address)(uint256) 0xd8dA..."
+
+# The same calls sampled across blocks (FROM:TO:STEP), as JSON
+ethcli rpc multicall -f calls.txt --block-range 21000000:21070000:7200 -o json
+
 # JSON from any command: --json selects the command's JSON output
 ethcli rpc call 0x... -s "totalSupply()" -d uint256 --json
 
