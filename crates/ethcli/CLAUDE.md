@@ -60,7 +60,7 @@ ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Ch
 ethcli portfolio  # Portfolio balances from Alchemy, Moralis
 ethcli nfts       # NFT holdings from Alchemy, CoinGecko, Moralis
 ethcli yields     # DeFi yields from DefiLlama and Curve
-ethcli quote      # Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora (Market and Delta), Enso
+ethcli quote      # Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora (Market and Delta), Enso, prop AMMs
 ```
 
 ### Direct API Access Commands
@@ -496,12 +496,14 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 | `velora`, `paraswap` | Velora/ParaSwap | Multi-protocol routing |
 | `velora-delta`, `delta` | Velora Delta | Gasless order filled by solvers; output is net of gas, no transaction data |
 | `enso`, `ensofi` | Enso Finance | DeFi shortcuts |
+| `propamm`, `pamm` | Prop AMMs | Market-maker pools re-priced every block; Ethereum mainnet, major pairs. Conditional: shown but never the best quote |
 
 ### Notes
 
 - **No API keys required** for basic usage (some sources may have higher rate limits with keys)
 - **MEV protection**: CowSwap uses batch auctions to protect against MEV
 - **Amount format**: Pass raw amounts (wei) or use `--decimals` for human-readable input
+- **Prop AMMs**: `propamm` reports the best price from the market-maker pools that block builders re-price each block. The figure comes from a builder's snapshot and only holds if the trade lands in a block from a builder carrying that maker's update, so it is conditional: it appears in `conditional_quotes` (table: `COND`, unranked) and is never `best_quote` or part of the summary figures. Mainnet only, wrapped tokens (ETH is quoted as WETH), no sender needed. `PROPAMM_DATA_URL` overrides the data endpoint
 - **Velora Delta**: a second Velora source. Delta is an order the user signs and solvers fill, so its output already has the gas fee taken out and it returns no transaction data; the other sources report output before gas. On larger trades in thinner pools it can beat Velora's Market route
 - **Outliers**: with three or more quotes, a source under half the median is listed in `aggregation.outliers` (table: `LOW`) and left out of the average, spread and improvement; a source above twice the median is listed in `high_outliers` (table: `HIGH`) with a warning but still counts
 - **Sender**: CowSwap, LI.FI and Enso need a sender. Without `--sender` they are priced for a placeholder address (`placeholder_sender` in the output) and return no transaction data; the zero address and the placeholder are rejected as `--sender`
@@ -1423,6 +1425,7 @@ ethcli chainlink oracles --chain arbitrum
 | `LIFI_API_KEY` | Optional | LI.FI API key (`x-lifi-api-key`; without it limits are per IP) |
 | `PARASWAP_API_KEY` / `VELORA_API_KEY` | Optional | Velora/ParaSwap (higher rate limits) |
 | `ENSO_API_KEY` | `ethcli enso` | Enso Finance (required) |
+| `PROPAMM_DATA_URL` | Optional | Data endpoint for the `propamm` quote source (default: Titan Builder, EU) |
 
 ## Release Process
 

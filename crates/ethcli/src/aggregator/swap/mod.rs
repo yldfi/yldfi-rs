@@ -32,6 +32,7 @@ pub async fn fetch_quotes_all(
         SwapSource::Velora,
         SwapSource::VeloraDelta,
         SwapSource::Enso,
+        SwapSource::PropAmm,
     ];
 
     fetch_quotes_parallel(
@@ -243,6 +244,9 @@ async fn fetch_for_sender(
             )
             .await
         }
+        SwapSource::PropAmm => {
+            fetchers::fetch_propamm_quote(chain, token_in, token_out, amount_in, measure).await
+        }
         // A single-source call cannot represent "all"; callers should use
         // fetch_quotes_all (ethcli quote from all does this).
         SwapSource::All => SourceResult::error("all", "Use fetch_quotes_all for all sources", 0),
@@ -265,6 +269,7 @@ mod tests {
             SwapSource::OneInch,
             SwapSource::Velora,
             SwapSource::VeloraDelta,
+            SwapSource::PropAmm,
             SwapSource::All,
         ] {
             assert!(!requires_sender(source), "{source}");

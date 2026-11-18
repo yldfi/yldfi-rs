@@ -842,7 +842,7 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get best swap quote across DEX aggregators. Supports human-readable amounts with decimals param.",
+        description = "Get best swap quote across DEX aggregators. Supports human-readable amounts with decimals param. Prop AMM prices are conditional: they are returned in conditional_quotes and are never best_quote.",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn quote_best(&self, Parameters(input): Parameters<QuoteBestInput>) -> CallToolResult {
@@ -861,7 +861,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Compare quotes across DEX aggregators side-by-side",
+        description = "Compare quotes across DEX aggregators side-by-side. Quotes marked conditional (prop AMMs) are listed but not ranked; see conditional_quotes.",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn quote_compare(
@@ -6925,7 +6925,7 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get quote from a specific aggregator (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, velora-delta, enso)",
+        description = "Get quote from a specific aggregator (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, velora-delta, enso, propamm)",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn quote_from(&self, Parameters(input): Parameters<QuoteFromInput>) -> CallToolResult {

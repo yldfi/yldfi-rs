@@ -44,6 +44,10 @@ pub enum SwapSourceArg {
     /// Enso Finance
     #[value(alias = "ensofi")]
     Enso,
+    /// Prop AMMs: market-maker pools priced each block (Ethereum mainnet).
+    /// The price holds only in blocks from builders carrying the maker's update
+    #[value(name = "propamm", aliases = ["prop-amm", "pamm"])]
+    PropAmm,
 }
 
 impl From<SwapSourceArg> for SwapSource {
@@ -59,6 +63,7 @@ impl From<SwapSourceArg> for SwapSource {
             SwapSourceArg::Velora => SwapSource::Velora,
             SwapSourceArg::VeloraDelta => SwapSource::VeloraDelta,
             SwapSourceArg::Enso => SwapSource::Enso,
+            SwapSourceArg::PropAmm => SwapSource::PropAmm,
         }
     }
 }
@@ -76,6 +81,7 @@ impl std::fmt::Display for SwapSourceArg {
             SwapSourceArg::Velora => write!(f, "Velora"),
             SwapSourceArg::VeloraDelta => write!(f, "Velora Delta"),
             SwapSourceArg::Enso => write!(f, "Enso"),
+            SwapSourceArg::PropAmm => write!(f, "prop AMMs"),
         }
     }
 }
@@ -157,9 +163,21 @@ pub struct QuoteOutput {
     pub aggregation: QuoteAggregation,
     /// Sources that returned no quote, with the reason
     pub failed_sources: Vec<FailedSource>,
+    /// Quotes that only hold under a condition the caller does not control.
+    /// They are never the best quote; compare them with it yourself.
+    pub conditional_quotes: Vec<ConditionalQuote>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quotes: Option<Vec<QuoteSummary>>,
     pub total_latency_ms: u64,
+}
+
+/// A conditional quote, reported outside the comparison
+#[derive(Debug, Serialize)]
+pub struct ConditionalQuote {
+    pub source: String,
+    pub amount_out: String,
+    /// The venue and the condition the price depends on
+    pub protocols: Option<Vec<String>>,
 }
 
 /// A source that returned no quote
@@ -205,6 +223,8 @@ pub struct QuoteSummary {
     pub outlier: bool,
     /// Priced for the placeholder sender (see the top-level `placeholder_sender`)
     pub placeholder_sender: bool,
+    /// Conditional quote: shown, but never the best quote (see `aggregation.conditional`)
+    pub conditional: bool,
     pub latency_ms: u64,
 }
 
@@ -526,6 +546,7 @@ fn build_output(
                     error: s.error.clone(),
                     outlier: result.aggregated.is_outlier(&s.source),
                     placeholder_sender: s.data.as_ref().is_some_and(|q| q.placeholder_sender),
+                    conditional: s.data.as_ref().is_some_and(|q| q.conditional),
                     latency_ms: s.latency_ms,
                 })
                 .collect(),
@@ -559,8 +580,21 @@ fn build_output(
         })
         .collect();
 
+    let conditional_quotes = result
+        .sources
+        .iter()
+        .filter_map(|s| s.data.as_ref())
+        .filter(|q| q.conditional)
+        .map(|q| ConditionalQuote {
+            source: q.source.clone(),
+            amount_out: q.amount_out.clone(),
+            protocols: q.protocols.clone(),
+        })
+        .collect();
+
     QuoteOutput {
         failed_sources,
+        conditional_quotes,
         sender: args.sender.clone(),
         placeholder_sender,
         token_in: args.token_in.clone(),
@@ -571,6 +605,29 @@ fn build_output(
         aggregation: result.aggregated.clone(),
         quotes,
         total_latency_ms: result.total_latency_ms,
+    }
+}
+
+/// One line per conditional quote, for the table outputs
+fn print_conditional_quotes(output: &QuoteOutput, indent: &str) {
+    for quote in &output.conditional_quotes {
+        let versus = output
+            .aggregation
+            .best_quote
+            .as_ref()
+            .and_then(|best| {
+                let best: f64 = best.amount_out.parse().ok()?;
+                let this: f64 = quote.amount_out.parse().ok()?;
+                (best > 0.0).then(|| format!(" ({:+.1} bps vs best)", (this - best) / best * 1e4))
+            })
+            .unwrap_or_default();
+        println!(
+            "{indent}{} quoted {}{versus}: conditional, not ranked",
+            quote.source, quote.amount_out
+        );
+        if let Some(protocols) = &quote.protocols {
+            println!("{indent}  {}", protocols.join(", "));
+        }
     }
 }
 
@@ -616,6 +673,7 @@ fn print_best_output(
                 output.aggregation.high_outliers.join(", ")
             );
         }
+        print_conditional_quotes(output, "  Also:        ");
 
         // Find the best quote source for tx data
         if show_tx {
@@ -686,6 +744,7 @@ fn print_compare_output(
                 output.aggregation.high_outliers.join(", ")
             );
         }
+        print_conditional_quotes(output, "  Also:       ");
     }
 
     if let Some(placeholder) = &output.placeholder_sender {
@@ -719,9 +778,12 @@ fn print_compare_output(
         b_out.cmp(&a_out)
     });
 
-    for (i, source) in sorted_sources.iter().enumerate() {
+    let mut firm_rank = 0usize;
+    for source in &sorted_sources {
         let status = if !source.is_success() {
             "ERR"
+        } else if output.aggregation.is_conditional(&source.source) {
+            "COND"
         } else if output.aggregation.is_outlier(&source.source) {
             "LOW"
         } else if output
@@ -733,8 +795,10 @@ fn print_compare_output(
         } else {
             "OK"
         };
-        let rank = if source.is_success() {
-            format!("#{}", i + 1)
+        // Conditional quotes are listed in order of output but not ranked
+        let rank = if source.is_success() && status != "COND" {
+            firm_rank += 1;
+            format!("#{firm_rank}")
         } else {
             "-".to_string()
         };
@@ -840,6 +904,9 @@ mod tests {
             ("velora", SwapSourceArg::Velora),
             ("velora-delta", SwapSourceArg::VeloraDelta),
             ("delta", SwapSourceArg::VeloraDelta),
+            ("propamm", SwapSourceArg::PropAmm),
+            ("prop-amm", SwapSourceArg::PropAmm),
+            ("pamm", SwapSourceArg::PropAmm),
         ] {
             assert_eq!(
                 SwapSourceArg::from_str(name, true).unwrap(),

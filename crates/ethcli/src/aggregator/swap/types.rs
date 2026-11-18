@@ -17,6 +17,7 @@ pub enum SwapSource {
     Velora,
     VeloraDelta,
     Enso,
+    PropAmm,
 }
 
 impl std::str::FromStr for SwapSource {
@@ -34,6 +35,7 @@ impl std::str::FromStr for SwapSource {
             "velora" | "paraswap" | "para" => Ok(SwapSource::Velora),
             "velora-delta" | "veloradelta" | "delta" => Ok(SwapSource::VeloraDelta),
             "enso" | "ensofi" => Ok(SwapSource::Enso),
+            "propamm" | "prop-amm" | "pamm" => Ok(SwapSource::PropAmm),
             _ => Err(format!("Unknown swap source: {}", s)),
         }
     }
@@ -52,6 +54,7 @@ impl std::fmt::Display for SwapSource {
             SwapSource::Velora => write!(f, "velora"),
             SwapSource::VeloraDelta => write!(f, "velora-delta"),
             SwapSource::Enso => write!(f, "enso"),
+            SwapSource::PropAmm => write!(f, "propamm"),
         }
     }
 }
@@ -110,6 +113,12 @@ pub struct NormalizedQuote {
     /// data is never returned for it.
     #[serde(default)]
     pub placeholder_sender: bool,
+    /// The figure only holds under a condition the caller does not control
+    /// (for a prop AMM: the trade landing in a block from a builder that
+    /// carries the maker's price update). Conditional quotes are shown but
+    /// are never picked as the best quote or counted in the summary figures.
+    #[serde(default)]
+    pub conditional: bool,
 }
 
 impl NormalizedQuote {
@@ -140,7 +149,15 @@ impl NormalizedQuote {
             fee_amount: None,
             fee_token: None,
             placeholder_sender: false,
+            conditional: false,
         }
+    }
+
+    /// Mark the quote as conditional (see [`NormalizedQuote::conditional`])
+    #[must_use]
+    pub fn conditional(mut self) -> Self {
+        self.conditional = true;
+        self
     }
 
     pub fn with_min_out(mut self, min: impl Into<String>) -> Self {
@@ -247,6 +264,10 @@ pub struct QuoteAggregation {
     /// others may be wrong (or the only good route): check it before use.
     #[serde(default)]
     pub high_outliers: Vec<String>,
+    /// Sources whose quote is conditional. They are left out of `best_quote`
+    /// and of every summary figure, however high their output.
+    #[serde(default)]
+    pub conditional: Vec<String>,
 }
 
 /// Best quote summary
@@ -291,6 +312,12 @@ impl QuoteAggregation {
         self.outliers.iter().any(|s| s == source)
     }
 
+    /// Whether `source` returned a conditional quote
+    #[must_use]
+    pub fn is_conditional(&self, source: &str) -> bool {
+        self.conditional.iter().any(|s| s == source)
+    }
+
     /// Create aggregation from quote results
     pub fn from_quotes(results: &[SourceResult<NormalizedQuote>]) -> Self {
         let valid_quotes: Vec<&NormalizedQuote> =
@@ -299,10 +326,18 @@ impl QuoteAggregation {
         let total_sources = results.len();
         let valid_count = valid_quotes.len();
 
+        // Conditional quotes are reported, not compared
+        let conditional: Vec<String> = valid_quotes
+            .iter()
+            .filter(|q| q.conditional)
+            .map(|q| q.source.clone())
+            .collect();
+
         // Parse outputs for comparison
         let outputs: Vec<(usize, u128)> = valid_quotes
             .iter()
             .enumerate()
+            .filter(|(_, q)| !q.conditional)
             .filter_map(|(i, q)| q.amount_out_u128().map(|out| (i, out)))
             .collect();
 
@@ -322,6 +357,7 @@ impl QuoteAggregation {
                 output_spread_pct: None,
                 outliers: Vec::new(),
                 high_outliers: Vec::new(),
+                conditional,
             };
         };
         let best = &valid_quotes[*best_idx];
@@ -386,6 +422,7 @@ impl QuoteAggregation {
             output_spread_pct: spread_pct,
             outliers,
             high_outliers,
+            conditional,
         }
     }
 }
@@ -492,6 +529,41 @@ mod tests {
         let best = QuoteAggregation::from_quotes(&results).best_quote.unwrap();
         assert_eq!(best.source, "enso");
         assert!(best.placeholder_sender);
+    }
+
+    #[test]
+    fn conditional_quote_is_listed_but_never_best_or_counted() {
+        let results = vec![
+            ok("kyberswap", "1000"),
+            SourceResult::success(
+                "propamm",
+                NormalizedQuote::new("propamm", "0xin", "0xout", "1", "5000").conditional(),
+                1,
+            ),
+            ok("velora", "990"),
+        ];
+        let agg = QuoteAggregation::from_quotes(&results);
+        assert_eq!(agg.conditional, vec!["propamm".to_string()]);
+        assert!(agg.is_conditional("propamm"));
+        assert_eq!(agg.valid_quotes, 3);
+        // Not the best, not an outlier, not in the average or spread
+        assert_eq!(agg.best_quote.as_ref().unwrap().source, "kyberswap");
+        assert!(agg.high_outliers.is_empty());
+        assert_eq!(agg.avg_output.as_deref(), Some("995"));
+        assert!(agg.output_spread_pct.unwrap() < 2.0);
+    }
+
+    #[test]
+    fn only_conditional_quotes_gives_no_best_quote() {
+        let results = vec![SourceResult::success(
+            "propamm",
+            NormalizedQuote::new("propamm", "0xin", "0xout", "1", "5000").conditional(),
+            1,
+        )];
+        let agg = QuoteAggregation::from_quotes(&results);
+        assert!(agg.best_quote.is_none());
+        assert_eq!(agg.conditional, vec!["propamm".to_string()]);
+        assert_eq!(agg.valid_quotes, 1);
     }
 
     #[test]
