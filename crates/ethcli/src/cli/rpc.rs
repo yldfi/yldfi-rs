@@ -333,10 +333,11 @@ pub async fn handle(
     let total = candidates.len();
     let mut last_err = None;
     for (i, endpoint) in candidates.into_iter().enumerate() {
-        match run_action(action, &endpoint, quiet).await {
+        match run_action(action, &endpoint, chain, quiet).await {
             Ok(()) => return Ok(()),
             Err(e) => {
-                let retry = e.is::<NotFound>() || crate::rpc::is_failover_error(&format!("{e:#}"));
+                let retry = !e.is::<Reverted>()
+                    && (e.is::<NotFound>() || crate::rpc::is_failover_error(&format!("{e:#}")));
                 if i + 1 < total && retry {
                     last_err = Some(e);
                     continue;
@@ -347,6 +348,18 @@ pub async fn handle(
     }
     Err(last_err.unwrap_or_else(|| anyhow::anyhow!("No RPC endpoints available")))
 }
+
+/// The contract reverted; the text says why
+#[derive(Debug)]
+struct Reverted(String);
+
+impl std::fmt::Display for Reverted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Call reverted: {}", self.0)
+    }
+}
+
+impl std::error::Error for Reverted {}
 
 /// Nothing at that block/hash on this endpoint
 #[derive(Debug)]
@@ -419,7 +432,12 @@ fn action_block_number(action: &RpcCommands) -> Option<u64> {
 }
 
 /// Execute a (read-only) RPC command against a single endpoint
-async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> anyhow::Result<()> {
+async fn run_action(
+    action: &RpcCommands,
+    endpoint: &Endpoint,
+    chain: Chain,
+    quiet: bool,
+) -> anyhow::Result<()> {
     let provider = endpoint.provider();
 
     match action {
@@ -458,11 +476,27 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
                 .to(to_addr)
                 .input(calldata.into());
 
-            let result = provider
-                .call(tx)
-                .block(block_id)
-                .await
-                .map_err(|e| anyhow::anyhow!("Call failed: {}", e))?;
+            let result = match provider.call(tx).block(block_id).await {
+                Ok(result) => result,
+                Err(e) => {
+                    // A revert is an answer from the contract, not a failed
+                    // request: say why, and do not try another endpoint
+                    let Some(data) = crate::abi::revert::revert_data_of(&e) else {
+                        return Err(anyhow::anyhow!("Call failed: {}", e));
+                    };
+                    let revert = crate::abi::revert::describe(&data, None, chain).await;
+                    if !format.is_table() {
+                        let out = serde_json::json!({
+                            "to": to_addr.to_checksum(None),
+                            "block": block,
+                            "reverted": true,
+                            "revert": revert,
+                        });
+                        print_json(&out, *format)?;
+                    }
+                    return Err(Reverted(revert.message).into());
+                }
+            };
 
             if !format.is_table() {
                 let mut out = serde_json::json!({
@@ -712,7 +746,7 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
 
             let mut reports = Vec::with_capacity(blocks.len());
             for b in &blocks {
-                reports.push(run_multicall(provider, &specs, b).await?);
+                reports.push(run_multicall(provider, &specs, b, chain).await?);
             }
 
             if format.is_table() {
@@ -1014,6 +1048,7 @@ async fn run_multicall<P: Provider>(
     provider: &P,
     specs: &[CallSpec],
     block: &str,
+    chain: Chain,
 ) -> anyhow::Result<serde_json::Value> {
     use crate::rpc::{MulticallBuilder, MulticallResult};
     use alloy::dyn_abi::FunctionExt;
@@ -1049,24 +1084,20 @@ async fn run_multicall<P: Provider>(
                     success: true,
                     data,
                 }),
-                Err(e) => {
-                    let msg = e.to_string();
-                    // A revert is a result; a transport failure is not
-                    if msg.to_lowercase().contains("revert") {
-                        Ok(MulticallResult {
-                            success: false,
-                            data: Default::default(),
-                        })
-                    } else {
-                        Err(anyhow::anyhow!("Call failed: {msg}"))
-                    }
-                }
+                // A revert is a result; a transport failure is not
+                Err(e) => match crate::abi::revert::revert_data_of(&e) {
+                    Some(data) => Ok(MulticallResult {
+                        success: false,
+                        data,
+                    }),
+                    None => Err(anyhow::anyhow!("Call failed: {e}")),
+                },
             }
         });
         results = futures::future::try_join_all(calls).await?;
     }
 
-    let entries: Vec<serde_json::Value> = specs
+    let mut entries: Vec<serde_json::Value> = specs
         .iter()
         .zip(&results)
         .enumerate()
@@ -1105,6 +1136,14 @@ async fn run_multicall<P: Provider>(
         })
         .collect();
 
+    // Name the errors of the calls that reverted
+    for (entry, result) in entries.iter_mut().zip(&results) {
+        if !result.success {
+            let revert = crate::abi::revert::describe(&result.data, None, chain).await;
+            entry["revert"] = serde_json::to_value(&revert)?;
+        }
+    }
+
     Ok(serde_json::json!({
         "block": block,
         "via": via,
@@ -1137,7 +1176,7 @@ fn format_multicall_table(report: &serde_json::Value) -> String {
             .unwrap_or_default();
         let value = if entry["success"].as_bool() != Some(true) {
             match (
-                entry["revert_reason"].as_str(),
+                entry["revert"]["message"].as_str(),
                 entry["decode_error"].as_str(),
             ) {
                 (Some(reason), _) => format!("REVERT: {reason}"),
@@ -1381,12 +1420,12 @@ mod tests {
                 {"index": 0, "address": "0xA", "function": "balanceOf(address)", "args": ["0xB"],
                  "success": true, "raw": "0x01", "outputs": ["1", true]},
                 {"index": 1, "address": "0xA", "function": "f()", "args": [],
-                 "success": false, "raw": "0x", "revert_reason": "nope"}
+                 "success": false, "raw": "0x", "revert": {"message": "\"nope\""}}
             ]
         });
         let out = format_multicall_table(&report);
         assert!(out.contains("[0] 0xA balanceOf(0xB) = 1, true"), "{out}");
-        assert!(out.contains("[1] 0xA f() = REVERT: nope"), "{out}");
+        assert!(out.contains("[1] 0xA f() = REVERT: \"nope\""), "{out}");
     }
 
     #[test]

@@ -140,7 +140,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | moralis_* | 82 |
 | kong_* | 5 |
 | gecko_* | 54 |
-| sig_* | 5 |
+| sig_* | 6 |
 | pyth_* | 5 |
 | ens_* | 4 |
 | contract_* | 8 |

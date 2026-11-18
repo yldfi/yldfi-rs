@@ -800,6 +800,16 @@ pub async fn sig_lookup(value: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
+pub async fn sig_error(data: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("sig")
+        .subcommand("error")
+        .arg(data)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn sig_event(topic: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("sig")
         .subcommand("event")

@@ -365,6 +365,7 @@ ethcli token holders 0x...
 # Lookup function by selector
 ethcli sig fn 0xa9059cbb
 ethcli sig lookup 0xa9059cbb         # selector or topic, picked by length
+ethcli sig error 0x08c379a0...       # decode revert data (Error, Panic or a custom error)
 
 # Lookup event by topic
 ethcli sig event 0xddf252ad...
