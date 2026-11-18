@@ -111,7 +111,7 @@ ethcli-mcp
 ```
 
 **Features:**
-- 230+ typed tools covering read-oriented ethcli workflows
+- 594 typed tools covering read-oriented ethcli workflows
 - JSON Schema validation for all inputs
 - Read-only default for local/remote state changes
 - Rate limiting, timeout protection, and process cleanup
