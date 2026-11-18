@@ -856,15 +856,21 @@ fn multicall_blocks(block: &str, range: Option<&str>) -> anyhow::Result<Vec<Stri
             if step == 0 || from > to {
                 anyhow::bail!("--block-range needs FROM <= TO and STEP > 0, got '{range}'");
             }
-            (from..=to)
-                .step_by(step as usize)
-                .map(|n| n.to_string())
-                .collect()
+            // Check the count before building the list: the range is caller
+            // input and may span the whole chain
+            let count = ((to - from) / step).saturating_add(1);
+            if count > MULTICALL_MAX_BLOCKS as u64 {
+                anyhow::bail!(
+                    "{count} blocks requested; the limit is {MULTICALL_MAX_BLOCKS}. Use a larger step"
+                );
+            }
+            (0..count).map(|i| (from + i * step).to_string()).collect()
         }
         None => block
             .split(',')
             .map(|b| b.trim().to_string())
             .filter(|b| !b.is_empty())
+            .take(MULTICALL_MAX_BLOCKS + 1)
             .collect(),
     };
     if blocks.is_empty() {
@@ -1213,6 +1219,14 @@ mod tests {
         assert!(multicall_blocks("latest", Some("100:200:0")).is_err());
         assert!(multicall_blocks("latest", Some("100:200")).is_err());
         assert!(multicall_blocks("latest", Some("0:1000000:1")).is_err());
+        // Rejected from the count alone, without building the list
+        assert!(multicall_blocks("latest", Some("0:18446744073709551615:1")).is_err());
+        assert_eq!(
+            multicall_blocks("latest", Some("0:999:1")).unwrap().len(),
+            1000
+        );
+        let long_list = vec!["1"; 1001].join(",");
+        assert!(multicall_blocks(&long_list, None).is_err());
     }
 
     #[test]
