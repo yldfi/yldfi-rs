@@ -71,6 +71,35 @@ impl MulticallBuilder {
         self.calls.is_empty()
     }
 
+    /// Execute the multicall against the state at `block`
+    pub async fn execute_at<P: Provider>(
+        self,
+        provider: &P,
+        block: alloy::eips::BlockId,
+    ) -> anyhow::Result<Vec<MulticallResult>> {
+        if self.calls.is_empty() {
+            return Ok(Vec::new());
+        }
+        let calldata = aggregate3Call { calls: self.calls }.abi_encode();
+        let tx = alloy::rpc::types::TransactionRequest::default()
+            .to(MULTICALL3_ADDRESS)
+            .input(calldata.into());
+        let result = provider
+            .call(tx)
+            .block(block)
+            .await
+            .map_err(|e| anyhow::anyhow!("Multicall failed: {}", e))?;
+        let decoded: Vec<Result> = aggregate3Call::abi_decode_returns(&result)
+            .map_err(|e| anyhow::anyhow!("Failed to decode multicall result: {}", e))?;
+        Ok(decoded
+            .into_iter()
+            .map(|r| MulticallResult {
+                success: r.success,
+                data: r.returnData,
+            })
+            .collect())
+    }
+
     /// Execute the multicall and return results
     pub async fn execute<P: Provider>(self, provider: &P) -> anyhow::Result<Vec<MulticallResult>> {
         self.execute_with_retry(provider, 0).await

@@ -373,6 +373,16 @@ pub struct CastSigInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CastIndexInput {
+    /// Solidity type of the mapping key (e.g., "address", "uint256", "bytes32")
+    pub key_type: String,
+    /// Key value
+    pub key: String,
+    /// Slot of the mapping (decimal or 0x hex). For a nested mapping, pass the previous result
+    pub slot: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CastAbiEncodeInput {
     /// Function signature
     pub sig: String,
@@ -441,6 +451,46 @@ pub struct RpcAddressInput {
 pub struct RpcHashInput {
     /// Transaction hash
     pub hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcMulticallCall {
+    /// Contract address
+    pub address: String,
+    /// Full signature with return types, e.g. "balanceOf(address)(uint256)".
+    /// Results are decoded only when return types are given
+    pub sig: String,
+    /// Arguments, one string each (no spaces inside an argument)
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcMulticallInput {
+    /// Calls to run. All are read at the same block
+    pub calls: Vec<RpcMulticallCall>,
+    /// Block number or tag, or a comma-separated list of block numbers to
+    /// repeat the calls at (default: latest)
+    #[serde(default)]
+    pub block: Option<String>,
+    /// Repeat the calls every STEP blocks: "FROM:TO:STEP" (inclusive). Use instead of `block`
+    #[serde(default)]
+    pub block_range: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcBalanceInput {
+    /// Account address
+    pub address: String,
+    /// Block number or "latest" (default: latest)
+    #[serde(default)]
+    pub block: Option<String>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,

@@ -83,6 +83,7 @@ ethcli gas history                  # Historical gas
 ### Signature Lookup
 ```bash
 ethcli sig fn <selector>            # Function by 4-byte selector
+ethcli sig lookup <hex>             # Selector or topic: picks fn or event by length
 ethcli sig event <topic>            # Event by topic hash
 ethcli sig encode "transfer(address,uint256)" # Get selector
 ```
@@ -94,6 +95,7 @@ ethcli cast from-wei <wei> eth      # Wei to ETH
 ethcli cast to-hex 255              # Decimal to hex
 ethcli cast from-hex 0xff           # Hex to decimal
 ethcli cast keccak "text"           # Keccak256 hash
+ethcli cast index <key_type> <key> <slot>   # Storage slot of a mapping entry
 ethcli cast sig "fn(type,type)"     # Function selector
 ethcli cast abi-encode "fn(t,t)" v1 v2  # ABI encode
 ethcli cast abi-decode "fn(t,t)" <data> # ABI decode
@@ -107,11 +109,28 @@ ethcli rpc block latest             # Get latest block
 ethcli rpc block <num>              # Get block by number (decimal or hex)
 ethcli rpc block 0x1406f40          # Hex block numbers supported
 ethcli rpc call <to> <data>         # eth_call
+ethcli rpc call <to> -s "balanceOf(address)" -a <addr> -d uint256 -b <block> --json
 ethcli rpc code <addr>              # Contract bytecode
+ethcli rpc code <addr> --summary    # Size, code hash, EIP-7702 delegate (no bytecode)
 ethcli rpc storage <addr> <slot>    # Storage slot
 ethcli rpc receipt <hash>           # Transaction receipt
+ethcli rpc tx <hash>                # Transaction by hash (eth_getTransactionByHash)
+ethcli rpc balance <addr> -b <block> --json   # Native balance in wei and ether
 ethcli rpc nonce <addr>             # Account nonce
+
+# Many calls at one block in one request (Multicall3), decoded, in input order.
+# Use this instead of looping `rpc call` / `contract call`.
+ethcli rpc multicall "<addr> totalSupply()(uint256)" "<addr> balanceOf(address)(uint256) <holder>"
+ethcli rpc multicall -f calls.txt --block 21000000 --json      # one call per line; "-" reads stdin
+ethcli rpc multicall "<addr> pricePerShare()(uint256)" --block-range 21000000:21070000:7200   # time series
 ```
+
+`--json` works on every command: it selects JSON on commands that have an
+output option (`-o json`) and is ignored, with a note, on those that do not.
+No `--rpc-url` is needed for past blocks or traces: an archive or
+debug-capable endpoint is chosen automatically. The JSON-RPC method names
+(`eth_getTransactionReceipt`, `eth_getBalance`, ...) are accepted as aliases
+of the `rpc` subcommands.
 
 ### Event Logs
 ```bash

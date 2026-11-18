@@ -791,6 +791,15 @@ pub async fn sig_fn(selector: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
+pub async fn sig_lookup(value: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("sig")
+        .subcommand("lookup")
+        .arg(value)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn sig_event(topic: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("sig")
         .subcommand("event")
@@ -860,6 +869,17 @@ pub async fn cast_keccak(data: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("cast")
         .subcommand("keccak")
         .arg(data)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn cast_index(key_type: &str, key: &str, slot: &str) -> Result<String, ToolError> {
+    ArgsBuilder::new("cast")
+        .subcommand("index")
+        .arg(key_type)
+        .arg(key)
+        .arg(slot)
         .execute()
         .await
         .map_err(ToolError::from)
@@ -1035,6 +1055,65 @@ pub async fn rpc_receipt(hash: &str, chain: Option<&str>) -> Result<String, Tool
     ArgsBuilder::new("rpc")
         .subcommand("receipt")
         .arg(hash)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn rpc_code_summary(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("rpc")
+        .subcommand("code")
+        .arg(address)
+        .opt_flag("--summary", true)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+/// `calls` is one "<address> <signature> [args...]" line per call
+pub async fn rpc_multicall(
+    calls: &str,
+    block: Option<&str>,
+    block_range: Option<&str>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("rpc")
+        .subcommand("multicall")
+        .opt("--file", Some("-"))
+        .stdin(calls)
+        .opt("--block", block)
+        .opt("--block-range", block_range)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn rpc_tx(hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("rpc")
+        .subcommand("tx")
+        .arg(hash)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn rpc_balance(
+    address: &str,
+    block: Option<&str>,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("rpc")
+        .subcommand("balance")
+        .arg(address)
+        .opt("--block", block)
         .chain(chain)
         .format_json()
         .execute()

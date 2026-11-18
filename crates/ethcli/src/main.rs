@@ -144,7 +144,7 @@ async fn run() -> anyhow::Result<()> {
         return handle_help_json(&args);
     }
 
-    let cli = Cli::parse();
+    let cli = Cli::parse_from(ethcli::cli::expand_json_flag(args));
 
     // Set up logging
     let filter = match cli.verbose {

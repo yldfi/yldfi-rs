@@ -170,6 +170,197 @@ pub fn resolve_chain_id(explicit: Option<u64>, global_chain: &str) -> anyhow::Re
         .map_err(|e| anyhow::anyhow!("Invalid --chain '{global_chain}': {e}"))
 }
 
+/// Does `token` (e.g. `--block` or `-b`) name this argument?
+fn arg_named(arg: &clap::Arg, token: &str) -> bool {
+    if let Some(long) = token.strip_prefix("--") {
+        let long = long.split('=').next().unwrap_or(long);
+        arg.get_long() == Some(long)
+            || arg
+                .get_all_aliases()
+                .is_some_and(|aliases| aliases.contains(&long))
+    } else if let Some(short) = token.strip_prefix('-') {
+        let mut chars = short.chars();
+        matches!((chars.next(), chars.next()), (Some(c), None) if arg.get_short() == Some(c))
+    } else {
+        false
+    }
+}
+
+/// Expand a `--json` given anywhere on the command line into the output
+/// option of the command being run.
+///
+/// Commands spell their output option differently (`--format`, `--output`,
+/// both with `-o`), and a few have their own `--json`. This lets a caller
+/// write `--json` on any of them:
+///
+/// - the command has its own `--json`: left as it is;
+/// - the command has a format option that accepts `json`: `--json` becomes
+///   that option, unless the option was also given explicitly;
+/// - the command has no output option: `--json` is dropped with a note on
+///   stderr, so a command that already prints JSON still runs.
+///
+/// Everything after a bare `--` is left untouched.
+pub fn expand_json_flag(args: Vec<String>) -> Vec<String> {
+    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    if !args[..end].iter().skip(1).any(|a| a == "--json") {
+        return args;
+    }
+
+    let root = Cli::command();
+    let mut chain: Vec<&clap::Command> = vec![&root];
+    let mut i = 1;
+    while i < end {
+        let token = &args[i];
+        if token.starts_with('-') {
+            // Step over the value of an option written as two tokens
+            let leaf = chain[chain.len() - 1];
+            let takes_value = !token.contains('=')
+                && leaf
+                    .get_arguments()
+                    .chain(
+                        chain[..chain.len() - 1]
+                            .iter()
+                            .flat_map(|c| c.get_arguments().filter(|a| a.is_global_set())),
+                    )
+                    .any(|a| arg_named(a, token) && a.get_action().takes_values());
+            if takes_value {
+                i += 1;
+            }
+        } else if let Some(sub) = chain[chain.len() - 1].find_subcommand(token) {
+            chain.push(sub);
+        }
+        i += 1;
+    }
+    let leaf = chain[chain.len() - 1];
+
+    if leaf.get_arguments().any(|a| a.get_long() == Some("json")) {
+        return args;
+    }
+
+    let format_arg = leaf.get_arguments().find(|a| {
+        (arg_named(a, "--format") || arg_named(a, "--output"))
+            && a.get_possible_values()
+                .iter()
+                .any(|v| v.get_name() == "json")
+    });
+
+    let mut out = Vec::with_capacity(args.len() + 1);
+    match format_arg {
+        Some(arg) => {
+            let explicit = args[1..end].iter().any(|t| arg_named(arg, t));
+            let long = arg.get_long().unwrap_or("format");
+            // The option belongs to the leaf command, so it goes after it
+            // (at the end, or just before a bare `--`), wherever --json was
+            for (idx, token) in args.iter().enumerate() {
+                if idx == end && !explicit {
+                    out.push(format!("--{long}"));
+                    out.push("json".to_string());
+                }
+                if !(idx < end && idx > 0 && token == "--json") {
+                    out.push(token.clone());
+                }
+            }
+            if end == args.len() && !explicit {
+                out.push(format!("--{long}"));
+                out.push("json".to_string());
+            }
+        }
+        None => {
+            let path: Vec<&str> = chain.iter().map(|c| c.get_name()).collect();
+            eprintln!(
+                "note: `{}` has no output format option; --json ignored",
+                path.join(" ")
+            );
+            for (idx, token) in args.iter().enumerate() {
+                if !(idx < end && idx > 0 && token == "--json") {
+                    out.push(token.clone());
+                }
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod json_flag_tests {
+    use super::expand_json_flag;
+
+    fn expand(args: &[&str]) -> Vec<String> {
+        expand_json_flag(args.iter().map(|s| s.to_string()).collect())
+    }
+
+    #[test]
+    fn becomes_the_commands_own_format_option() {
+        assert_eq!(
+            expand(&["ethcli", "rpc", "block", "latest", "--json"]),
+            ["ethcli", "rpc", "block", "latest", "--format", "json"]
+        );
+        // `tx` spells it --output
+        assert_eq!(
+            expand(&["ethcli", "--json", "tx", "0xabc"]),
+            ["ethcli", "tx", "0xabc", "--output", "json"]
+        );
+        // An alias and a global option with a value before the subcommand
+        assert_eq!(
+            expand(&["ethcli", "--chain", "base", "acc", "txs", "0x1", "--json"]),
+            ["ethcli", "--chain", "base", "acc", "txs", "0x1", "--output", "json"]
+        );
+    }
+
+    #[test]
+    fn explicit_format_wins_and_own_json_is_kept() {
+        assert_eq!(
+            expand(&["ethcli", "rpc", "block", "1", "-o", "table", "--json"]),
+            ["ethcli", "rpc", "block", "1", "-o", "table"]
+        );
+        let health = ["ethcli", "endpoints", "health", "--json"];
+        assert_eq!(expand(&health), health);
+    }
+
+    #[test]
+    fn dropped_where_there_is_no_format_and_untouched_after_double_dash() {
+        assert_eq!(
+            expand(&["ethcli", "cast", "keccak", "x", "--json"]),
+            ["ethcli", "cast", "keccak", "x"]
+        );
+        let passthrough = ["ethcli", "cast", "keccak", "--", "--json"];
+        assert_eq!(expand(&passthrough), passthrough);
+        let none = ["ethcli", "rpc", "block", "latest"];
+        assert_eq!(expand(&none), none);
+    }
+
+    #[test]
+    fn rewritten_lines_still_parse() {
+        use clap::Parser;
+        for args in [
+            vec!["ethcli", "rpc", "call", "0x00", "0x", "--json"],
+            vec!["ethcli", "rpc", "code", "0x00", "--summary", "--json"],
+            vec![
+                "ethcli",
+                "contract",
+                "call",
+                "0x00",
+                "totalSupply",
+                "--json",
+            ],
+            vec!["ethcli", "rpc", "chain-id", "--json"],
+            vec!["ethcli", "--json", "tx", "0xabc"],
+        ] {
+            let expanded = expand(&args);
+            assert!(
+                super::Cli::try_parse_from(&expanded).is_ok(),
+                "failed to parse {expanded:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn command_tree_is_consistent() {
+        use clap::CommandFactory;
+        super::Cli::command().debug_assert();
+    }
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
     /// Fetch historical logs from contracts

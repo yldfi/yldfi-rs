@@ -258,6 +258,7 @@ ethcli cast to-dec 0xff         # 255
 
 # Hashing
 ethcli cast keccak "hello"      # 0x1c8aff950...
+ethcli cast index address 0x123... 0    # storage slot of mapping[key] at slot 0
 ethcli cast sig "transfer(address,uint256)"  # 0xa9059cbb
 ethcli cast topic "Transfer(address,address,uint256)"
 
@@ -292,6 +293,24 @@ ethcli rpc nonce 0x...
 
 # Get transaction receipt
 ethcli rpc receipt 0x...
+
+# Get a transaction by hash, or a native balance at a block
+ethcli rpc tx 0x... -o json
+ethcli rpc balance 0x... --block 21000000 -o json
+
+# Size and code hash only (is it a contract? did the code change?)
+ethcli rpc code 0x... --summary
+
+# Many calls at one block in a single request (Multicall3)
+ethcli rpc multicall \
+  "0xA0b8... totalSupply()(uint256)" \
+  "0xA0b8... balanceOf(address)(uint256) 0xd8dA..."
+
+# The same calls sampled across blocks (FROM:TO:STEP), as JSON
+ethcli rpc multicall -f calls.txt --block-range 21000000:21070000:7200 -o json
+
+# JSON from any command: --json selects the command's JSON output
+ethcli rpc call 0x... -s "totalSupply()" -d uint256 --json
 
 # Chain info
 ethcli rpc chain-id
@@ -340,6 +359,7 @@ ethcli token holders 0x...
 ```bash
 # Lookup function by selector
 ethcli sig fn 0xa9059cbb
+ethcli sig lookup 0xa9059cbb         # selector or topic, picked by length
 
 # Lookup event by topic
 ethcli sig event 0xddf252ad...
