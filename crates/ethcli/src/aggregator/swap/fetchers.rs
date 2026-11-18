@@ -905,6 +905,107 @@ fn velora_delta_to_quote(delta: &vlra::DeltaQuote) -> NormalizedQuote {
     quote
 }
 
+/// Environment variable that overrides the prop AMM data endpoint, for a
+/// builder other than the default that serves the same methods
+pub const PROPAMM_DATA_URL_ENV: &str = "PROPAMM_DATA_URL";
+
+/// Label put in `protocols` for a prop AMM quote. The figure is conditional,
+/// unlike the other sources', so the quote says so.
+pub const PROPAMM_LABEL: &str =
+    "builder snapshot (price holds only in blocks from builders carrying the maker's update)";
+
+/// Fetch the best prop AMM quote
+///
+/// Prop AMMs are market-maker pools re-priced every block; a block builder
+/// applies the maker's latest price just before the trade. The quote is the
+/// price in the builder's latest snapshot, so it is conditional on the trade
+/// landing in a block from a builder that carries that update. Ethereum
+/// mainnet only, wrapped tokens only (native ETH is quoted as WETH), no
+/// sender needed and no transaction data.
+pub async fn fetch_propamm_quote(
+    chain_id: u64,
+    token_in: &str,
+    token_out: &str,
+    amount_in: &str,
+    measure: LatencyMeasure,
+) -> SourceResult<NormalizedQuote> {
+    const SOURCE: &str = "propamm";
+
+    if chain_id != 1 {
+        return SourceResult::error(
+            SOURCE,
+            "Prop AMM quotes are available on Ethereum mainnet only",
+            measure.elapsed_ms(),
+        );
+    }
+
+    // The makers quote wrapped tokens
+    let weth = get_weth_address(chain_id).unwrap_or(NATIVE_TOKEN);
+    let wrapped = |token: &str| -> String {
+        if is_native_token(token) {
+            weth.to_string()
+        } else {
+            token.to_string()
+        }
+    };
+    let (token_in, token_out) = (wrapped(token_in), wrapped(token_out));
+
+    let config = get_cached_config();
+    let proxy = config.as_ref().and_then(|c| c.proxy_for_source(SOURCE));
+    let base = match std::env::var(PROPAMM_DATA_URL_ENV) {
+        Ok(url) if !url.trim().is_empty() => pamm::ApiConfig::new(url.trim()),
+        _ => pamm::default_config(),
+    };
+    let client = match pamm::Client::with_config(base.optional_proxy(proxy)) {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error(SOURCE, format!("Client error: {e}"), measure.elapsed_ms())
+        }
+    };
+
+    // The venue list names the maker behind the quoted pool. It is only used
+    // for the label, so its failure does not fail the quote.
+    let (quote, venues) = futures::join!(
+        client.quote(&token_in, &token_out, amount_in),
+        client.venues()
+    );
+    match quote {
+        Ok(quote) => {
+            let maker = venues
+                .ok()
+                .and_then(|v| v.maker_of(&quote.pamm).map(str::to_string));
+            SourceResult::success(
+                SOURCE,
+                propamm_to_quote(&quote, maker.as_deref()),
+                measure.elapsed_ms(),
+            )
+        }
+        Err(pamm::Error::Domain(pamm::DomainError::UnknownPair)) => {
+            SourceResult::error(SOURCE, "No prop AMM quotes this pair", measure.elapsed_ms())
+        }
+        Err(e) => SourceResult::error(SOURCE, api_error(&e), measure.elapsed_ms()),
+    }
+}
+
+/// Normalize a prop AMM quote: the maker (or the pool address when the maker
+/// is not known) and the conditional-price label go in `protocols`
+fn propamm_to_quote(quote: &pamm::Quote, maker: Option<&str>) -> NormalizedQuote {
+    let venue = match maker {
+        Some(maker) => format!("{maker} prop AMM"),
+        None => format!("prop AMM {}", quote.pamm),
+    };
+    NormalizedQuote::new(
+        "propamm",
+        &quote.token_in,
+        &quote.token_out,
+        &quote.amount_in,
+        &quote.amount_out,
+    )
+    .with_router(&quote.router)
+    .with_protocols(vec![venue, PROPAMM_LABEL.to_string()])
+    .conditional()
+}
+
 /// Fetch quote from Enso Finance
 ///
 /// NOTE: Enso requires an API key and a valid sender address.
@@ -1148,5 +1249,52 @@ mod api_error_tests {
             assert_eq!(summarize_html_error(message), message);
         }
         assert_eq!(api_error(&"boom"), "API error: boom");
+    }
+}
+
+#[cfg(test)]
+mod propamm_tests {
+    use super::{propamm_to_quote, PROPAMM_LABEL};
+
+    fn quote() -> pamm::Quote {
+        serde_json::from_value(serde_json::json!({
+            "tokenIn": "0xin", "tokenOut": "0xout",
+            "amountIn": "0xde0b6b3a7640000", "amountOut": "0x6be1c920",
+            "pamm": "0x00000003f1ec2379e79f58e12ec6c4f51ee92149",
+            "router": "0x4ddf368080cd7946db5b459ad591c350158175e1",
+            "blockNumber": 1, "slot": 2, "timestamp": 3
+        }))
+        .expect("valid prop AMM quote")
+    }
+
+    #[test]
+    fn quote_names_the_maker_and_says_the_price_is_conditional() {
+        let normalized = propamm_to_quote(&quote(), Some("Tempest"));
+        assert_eq!(normalized.source, "propamm");
+        assert_eq!(normalized.amount_in, "1000000000000000000");
+        assert_eq!(normalized.amount_out, "1809959200");
+        assert_eq!(
+            normalized.protocols,
+            Some(vec![
+                "Tempest prop AMM".to_string(),
+                PROPAMM_LABEL.to_string()
+            ])
+        );
+        assert_eq!(
+            normalized.router_address.as_deref(),
+            Some("0x4ddf368080cd7946db5b459ad591c350158175e1")
+        );
+        assert!(normalized.tx_data.is_none());
+        assert!(!normalized.placeholder_sender);
+        assert!(normalized.conditional);
+    }
+
+    #[test]
+    fn unknown_maker_falls_back_to_the_pool_address() {
+        let normalized = propamm_to_quote(&quote(), None);
+        assert_eq!(
+            normalized.protocols.unwrap()[0],
+            "prop AMM 0x00000003f1ec2379e79f58e12ec6c4f51ee92149"
+        );
     }
 }

@@ -38,7 +38,7 @@
 - **Portfolio Aggregation**: Balance data from Alchemy, Moralis
 - **NFT Aggregation**: Holdings from Alchemy, CoinGecko, Moralis
 - **Yield Aggregation**: DeFi yields from DefiLlama and Curve
-- **Quote Aggregation**: Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora (Market and Delta), Enso
+- **Quote Aggregation**: Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora (Market and Delta), Enso, prop AMMs
 
 ### Direct API Access
 - **Alchemy**: NFTs, prices, portfolio, transfers, debug traces
@@ -685,6 +685,7 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 | `velora`, `paraswap` | Velora/ParaSwap | Multi-protocol routing |
 | `velora-delta`, `delta` | Velora Delta | Gasless order filled by solvers; output is net of gas, no transaction data |
 | `enso`, `ensofi` | Enso Finance | DeFi shortcuts |
+| `propamm`, `pamm` | Prop AMMs | Market-maker pools re-priced every block; Ethereum mainnet, major pairs. Conditional: shown but never the best quote |
 
 **Reading the result**:
 
@@ -692,6 +693,7 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 - **High quotes**: a source above twice the median is listed in `aggregation.high_outliers` (`HIGH` in the table) with a warning. It is still the best quote and still counts in the figures, so check it before using it.
 - **Sender**: CowSwap, LI.FI and Enso cannot price without a sender. With no `--sender` they are priced for a placeholder address: `placeholder_sender` at the top level lists them, each such quote and the best quote carry `placeholder_sender: true`, and they never return transaction data. Pass `--sender` with the wallet that will sign to get transaction data; the zero address and the placeholder itself are rejected.
 - **Velora**: token decimals are looked up over RPC and sent with every request, so tokens outside Velora's own list are quoted on mainnet too.
+- **Prop AMMs**: `propamm` reports the best price from the market-maker pools that block builders re-price each block. The figure comes from a builder's snapshot and only holds if the trade lands in a block from a builder carrying that maker's update, so it is conditional: it is listed in `conditional_quotes` (`COND` in the table, unranked) and is never `best_quote` or part of the summary figures. Ethereum mainnet only, wrapped tokens (ETH is quoted as WETH), no sender needed.
 - **Velora Delta**: a second Velora source. Delta is an order the user signs and solvers fill, so its output already has the gas fee taken out and it returns no transaction data; the other sources report output before gas. On larger trades in thinner pools it can beat Velora's Market route
 - **Ties**: when sources return exactly the same output, a quote priced for your sender (or needing none) is preferred over one priced for the placeholder; otherwise the first source listed wins.
 - **Failed sources**: `failed_sources` lists each source that returned no quote and why (a missing API key, an upstream error). `quote best` prints them under the summary line.
@@ -1277,6 +1279,7 @@ ethcli config set-etherscan-key YOUR_KEY
 | `LIFI_API_KEY` | `ethcli lifi`, `quote` | LI.FI API key (optional; without it limits are per IP) |
 | `PARASWAP_API_KEY` / `VELORA_API_KEY` | `ethcli velora` | ParaSwap (optional, higher limits) |
 | `ENSO_API_KEY` | `ethcli enso` | Enso Finance (required) |
+| `PROPAMM_DATA_URL` | Optional | Data endpoint for the `propamm` quote source (default: Titan Builder, EU) |
 
 ---
 
