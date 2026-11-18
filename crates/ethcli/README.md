@@ -190,7 +190,9 @@ ethcli tx 0x1234567890abcdef...
 ethcli tx 0x... --enrich
 
 # The fee, the position in the block and the net balance change per address are
-# always included. --full adds the block time and, for a failed transaction, why it reverted
+# always included. Native-token changes are marked "partial" unless traced.
+# --full adds a call trace (exact native-token changes, including internal transfers),
+# the block time and, for a failed transaction, why it reverted
 ethcli tx 0x... --full
 ethcli tx 0x... --full -o json
 

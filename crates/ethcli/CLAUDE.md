@@ -138,13 +138,23 @@ ethcli contract call <addr> totalSupply --block 7d
 
 - `transaction_index`, `effective_gas_price`, `fee_wei` and `fee`;
 - `balance_changes`: the net change per address and token over the whole
-  transaction, signed, in raw units and scaled by decimals. It is built from
-  the token transfers, the top-level value and the fee. Native-token transfers
-  made inside the call are not visible without a trace and are not included; a
-  note in the output says so. NFT transfers and the zero address are left out.
+  transaction, signed, in raw units and scaled by decimals.
+  - Token lines come from Transfer events, plus deposits into and withdrawals
+    from the chain's wrapped native token (which mint and burn it without a
+    Transfer event). They are complete.
+  - Native-token lines are exact only with a call trace (`--full`). Without
+    one they are built from the top-level value, wrapped-native deposits and
+    withdrawals, and the fee, and each carries `"partial": true`: a transfer
+    made inside the call, such as a router paying out ETH, is not seen, so a
+    contract or the sender can be wrong. Do not treat a partial line as final.
+  - NFT transfers and the zero address are left out.
 
-`--full` adds, for two more requests:
+`--full` adds, for up to three more requests:
 
+- a call trace (`debug_traceTransaction`), when a configured endpoint supports
+  tracing. Native-token lines then include transfers made inside the call and
+  lose the `partial` flag. If no trace is available a note says so and the
+  lines stay partial;
 - `timestamp` and `time`, the block's time;
 - `revert`, for a failed transaction: the decoded reason, found by replaying the
   call against the parent block's state. A transaction that failed because of
