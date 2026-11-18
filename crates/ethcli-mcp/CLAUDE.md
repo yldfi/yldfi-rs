@@ -133,6 +133,7 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 |----------|---------|
 | `ETHCLI_PATH` | Absolute path to ethcli binary when it is not next to ethcli-mcp |
 | `ETHCLI_MCP_ENABLE_WRITE_TOOLS` | Set to `1` to enable mutating MCP tools for trusted clients |
+| `ETHCLI_MCP_TOOLSETS` | Comma-separated `core`, group prefixes or tool names to offer; unset or `all` offers every tool. `CORE_TOOLS` in `main.rs` lists the core set |
 | `RUST_LOG` | Logging level (debug, info, warn, error) |
 
 ## Tool Categories
