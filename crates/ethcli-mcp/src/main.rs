@@ -636,6 +636,45 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Run many read-only contract calls at one block in a single request (Multicall3), decoded, in input order. Use this instead of repeating contract_call or rpc_call. With several blocks or a block range the same calls are repeated at each block, which gives a time series. msg.sender is the Multicall3 contract",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn rpc_multicall(
+        &self,
+        Parameters(input): Parameters<RpcMulticallInput>,
+    ) -> CallToolResult {
+        let mut lines = String::new();
+        for call in &input.calls {
+            let parts = std::iter::once(&call.address)
+                .chain(std::iter::once(&call.sig))
+                .chain(call.args.iter());
+            for (i, part) in parts.enumerate() {
+                if part.is_empty() || part.chars().any(|c| c.is_whitespace() || c == '#') {
+                    return Err::<String, tools::ToolError>(tools::ToolError::InvalidInput(
+                        format!(
+                            "address, sig and args must be non-empty and contain no whitespace or '#': {part:?}"
+                        ),
+                    ))
+                    .to_response();
+                }
+                if i > 0 {
+                    lines.push(' ');
+                }
+                lines.push_str(part);
+            }
+            lines.push('\n');
+        }
+        tools::rpc_multicall(
+            &lines,
+            input.block.as_deref(),
+            input.block_range.as_deref(),
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
         description = "Get a transaction by hash (eth_getTransactionByHash): sender, recipient, value, nonce, gas and input as the node returns them",
         annotations(read_only_hint = true, open_world_hint = true)
     )]

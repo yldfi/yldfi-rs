@@ -231,6 +231,26 @@ fn function_from_query(query: &FunctionQuery) -> anyhow::Result<Option<alloy::js
         .map_err(|e| anyhow::anyhow!("Invalid function signature '{}': {}", query.original, e))
 }
 
+/// Build a call from a full signature such as `balanceOf(address)(uint256)`
+/// and its arguments, with no ABI lookup. Returns the function (with its
+/// return types, if the signature gave any) and the encoded calldata.
+pub(crate) fn encode_signature_call(
+    signature: &str,
+    args: &[String],
+) -> anyhow::Result<(alloy::json_abi::Function, Vec<u8>)> {
+    let query = parse_function_query(signature)?;
+    let function = function_from_query(&query)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "'{signature}' needs its argument types, e.g. \"balanceOf(address)(uint256)\""
+        )
+    })?;
+    let (func, values) = select_contract_function(&query, std::slice::from_ref(&function), args)?;
+    let calldata = func
+        .abi_encode_input(&values)
+        .map_err(|e| anyhow::anyhow!("Failed to encode arguments: {}", e))?;
+    Ok((function.clone(), calldata))
+}
+
 fn select_contract_function<'a>(
     query: &FunctionQuery,
     funcs: &'a [alloy::json_abi::Function],

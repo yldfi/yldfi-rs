@@ -117,6 +117,12 @@ ethcli rpc receipt <hash>           # Transaction receipt
 ethcli rpc tx <hash>                # Transaction by hash (eth_getTransactionByHash)
 ethcli rpc balance <addr> -b <block> --json   # Native balance in wei and ether
 ethcli rpc nonce <addr>             # Account nonce
+
+# Many calls at one block in one request (Multicall3), decoded, in input order.
+# Use this instead of looping `rpc call` / `contract call`.
+ethcli rpc multicall "<addr> totalSupply()(uint256)" "<addr> balanceOf(address)(uint256) <holder>"
+ethcli rpc multicall -f calls.txt --block 21000000 --json      # one call per line; "-" reads stdin
+ethcli rpc multicall "<addr> pricePerShare()(uint256)" --block-range 21000000:21070000:7200   # time series
 ```
 
 `--json` works on every command: it selects JSON on commands that have an
