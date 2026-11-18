@@ -139,14 +139,33 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 
 | Prefix | Count | Description |
 |--------|-------|-------------|
-| `cast_*` | 14 | Unit conversions, hashing |
-| `rpc_*` | 9 | Direct RPC calls |
+| `cast_*` | 15 | Unit conversions, hashing, mapping slots |
+| `rpc_*` | 14 | Direct RPC calls, batch reads, block by time |
 | `contract_*` | 8 | ABI, source, bytecode analysis, security |
 | `account_*` | 8 | Balance, transactions |
 | `lifi_*` | 19 | Cross-chain aggregator |
 | `cowswap_*` | 16 | MEV-protected swaps |
 | `tenderly_*` | 34 | VNets, wallets, contracts, alerts, simulation |
 | ... | ... | See README for full list |
+
+### Read tools that save calls
+
+| Tool | Use it for |
+|------|------------|
+| `rpc_multicall` | Many contract reads at one block in one request, decoded, in input order. Also a time series with `block_range`. Replaces repeated `contract_call` / `rpc_call` |
+| `contract_call` | One read by function name, using the contract's ABI |
+| `rpc_balance` | Native balance in wei and ether at a block or time |
+| `rpc_tx` | A transaction by hash |
+| `rpc_code_summary` | Whether an address has code, its size and code hash, and any EIP-7702 delegate, without the bytecode |
+| `rpc_block_at` | The block for a date, Unix timestamp (`@1706700000`) or age (`7d`) |
+| `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
+| `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
+| `cast_index` | The storage slot of a mapping entry |
+
+The `block` input of `rpc_balance`, `rpc_multicall` and `contract_call` also
+accepts a date, `@timestamp` or age. A reverted call's result carries a `revert`
+object; its `source` field is `signature_database` when the error name is a
+guess from the public signature list.
 
 ## Important Notes
 

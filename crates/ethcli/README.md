@@ -189,6 +189,9 @@ ethcli tx 0x1234567890abcdef...
 # Enrich with Etherscan data (contract names, token symbols, function decoding)
 ethcli tx 0x... --enrich
 
+# Analyze against a single endpoint (for example a local fork)
+ethcli tx 0x... --rpc-url http://localhost:8545
+
 # Output as JSON
 ethcli tx 0x... -o json
 ```
@@ -210,6 +213,7 @@ ethcli account txs 0x... --start-block 25893052 --end-block 26108081 --page 1 --
 
 # List token transfers
 ethcli account erc20 0x...
+ethcli account erc20 0x... -o ndjson     # one JSON object per line (all account subcommands)
 ```
 
 ### Contract - ABI, Source Code, and Bytecode Analysis

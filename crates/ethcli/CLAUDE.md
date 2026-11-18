@@ -98,6 +98,122 @@ ethcli pyth       # Pyth Network API (price feeds incl. historical, search, know
 ethcli blacklist  # Token blacklist management (spam/scam filtering)
 ```
 
+## RPC Read Commands
+
+Direct chain reads. These are the commands to reach for when a value is needed
+from a contract or an account; they return decoded, machine-readable output so
+nothing has to be converted or re-parsed afterwards.
+
+```bash
+# One call, decoded. Give the return type with -d
+ethcli rpc call <addr> -s "balanceOf(address)" -a <holder> -d uint256
+ethcli rpc call <addr> -s "totalSupply()" -d uint256 --block 21000000 --json
+
+# Call by function name using the contract's ABI (fetched automatically)
+ethcli contract call <addr> totalSupply
+ethcli contract call <token> balanceOf <holder> --json   # adds decimals and the scaled amount
+
+# Many calls at one block in a single request (Multicall3), in input order
+ethcli rpc multicall "<addr> totalSupply()(uint256)" "<addr> balanceOf(address)(uint256) <holder>"
+ethcli rpc multicall -f calls.txt --block 21000000 --json      # one call per line; "-" reads stdin
+ethcli rpc multicall "<vault> pricePerShare()(uint256)" --block-range 21000000:21070000:7200
+
+# Transaction, balance, nonce, storage, code
+ethcli rpc tx <hash> --json
+ethcli rpc receipt <hash> -o json
+ethcli rpc balance <addr> --block 21000000 --json     # wei and ether
+ethcli rpc nonce <addr>
+ethcli rpc storage <addr> <slot> --json                # value as hex and decimal
+ethcli rpc code <addr> --summary --json                # size, code hash, EIP-7702 delegate; no bytecode
+
+# Block for a time, and a time in place of a block
+ethcli rpc block-at 2024-01-31                          # latest block at or before that time
+ethcli rpc balance <addr> --block 2024-01-31
+ethcli contract call <addr> totalSupply --block 7d
+```
+
+### `rpc multicall`
+
+- Each call is `<address> <signature> [args...]`. Return types in the signature
+  (`balanceOf(address)(uint256)`) are what get decoded; without them the raw
+  data is returned. Arguments are split on whitespace.
+- `latest`, `safe` and `finalized` are resolved to a block number once, so every
+  call reads the same state.
+- `--block a,b,c` or `--block-range FROM:TO:STEP` repeats the same calls at each
+  block (at most 1,000 blocks).
+- Calls go through Multicall3, so `msg.sender` is that contract. Where
+  Multicall3 is not available (a block before its deployment, or a chain
+  without it) each call is sent separately; the output's `via` field says which.
+- Each result has `success`, `raw`, decoded `outputs`, and a `revert` object when
+  the call reverted.
+
+### JSON output
+
+- `--json` works on every command. It selects the command's own JSON output
+  (`-o json`); on a command with no output option it is ignored with a note on
+  stderr.
+- Integers are decimal strings, since a uint256 does not fit a JSON number.
+- `account` subcommands accept `-o ndjson` for one object per line.
+
+### Times in place of blocks
+
+`--block` on `rpc call`, `storage`, `code`, `nonce`, `balance`, `block`,
+`multicall` and on `contract call` accepts:
+
+| Form | Example |
+|---|---|
+| Date (midnight UTC) | `2024-01-31` |
+| RFC 3339 | `2024-01-31T12:00:00Z` |
+| Date and time (UTC) | `2024-01-31 12:00` |
+| Unix timestamp | `@1706700000` |
+| Age | `90s`, `30m`, `12h`, `7d`, `2w` |
+
+The block used is the latest one at or before that time, found by binary search
+over block headers, so it is exact. A bare number is still a block number.
+
+### Reverts
+
+A reverted `rpc call`, `contract call` or `rpc multicall` entry reports why:
+
+```
+Error: Call reverted: "ERC20: transfer amount exceeds balance"
+Error: Call reverted: AllowanceExpired(deadline=0)
+Error: Call reverted: AllowanceExpired(0) (name from the signature database, not the contract)
+```
+
+With `--json` the output has `"reverted": true` and a `revert` object with
+`kind`, `source`, `selector`, `signature`, `args`, `message` and `raw`.
+
+- `source` says where the name came from: `builtin` (`Error(string)`,
+  `Panic(uint256)`, no data), `abi` (the contract's own ABI, used by
+  `contract call`), `signature_database`, or `none`.
+- A `signature_database` name is a best guess. Selectors collide and the
+  database holds junk entries; `other_candidates` lists other signatures whose
+  types also decode the data.
+- `ethcli sig error <data>` decodes revert data given on the command line.
+
+### Endpoints
+
+No `--rpc-url` is needed for past blocks or traces: an archive or debug-capable
+endpoint is chosen automatically, in priority order from the config.
+`--rpc-url` (on `rpc`, `contract call`, `tx`, `logs`, `simulate`) is for a local
+fork or another specific endpoint. `ethcli endpoints list` shows hostnames and
+capabilities; it does not print credentials, so a URL copied from it may not
+work.
+
+### Small helpers
+
+```bash
+ethcli sig lookup <hex>                       # 4-byte selector or 32-byte topic, picked by length
+ethcli sig error <revert data>                # decode Error, Panic or a custom error
+ethcli cast index <key_type> <key> <slot>     # storage slot of a mapping entry
+ethcli tx <hash> --rpc-url <url>              # analyze against one endpoint
+```
+
+The JSON-RPC method names are accepted as aliases of the `rpc` subcommands
+(`rpc eth_getTransactionReceipt <hash>`), as are `cast selector`, `cast
+from-hex`, `cast calldata`, `account transactions` and `address lookup`.
+
 ## Bytecode Analysis Commands
 
 Analyze contract bytecode without requiring source code or ABI. Uses evmole for function extraction and evm-disassembler for opcode analysis. This does not reconstruct Solidity source.

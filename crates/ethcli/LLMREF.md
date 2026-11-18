@@ -20,6 +20,7 @@ account history, gas) fail fast there; RPC commands still work.
 ```bash
 ethcli tx <hash>                    # Analyze transaction
 ethcli tx <hash> --enrich           # With Etherscan enrichment
+ethcli tx <hash> --rpc-url <url>    # Against one endpoint (e.g. a local fork)
 ethcli tx -f hashes.txt             # From file
 ethcli tx --stdin                   # From stdin
 ethcli tx <h1> <h2> --batch-size 10 # Parallel batch
@@ -31,6 +32,7 @@ ethcli account balance <addr>       # ETH balance (supports ENS)
 ethcli account balance <a1> <a2>    # Multiple (uses multicall)
 ethcli account txs <addr>           # Transaction history
 ethcli account erc20 <addr>         # ERC20 transfers
+ethcli account erc20 <addr> -o ndjson   # One JSON object per line (also txs, internal-txs, ...)
 ethcli account erc721 <addr>        # NFT transfers
 ethcli account info <addr>          # Comprehensive info
 ```
