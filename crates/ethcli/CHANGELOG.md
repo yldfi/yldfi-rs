@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.30.2](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.1...ethcli-v0.30.2) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** accept a date, timestamp or age for --block, and add rpc block-at ([#272](https://github.com/yldfi/yldfi-rs/issues/272)) ([8c33565](https://github.com/yldfi/yldfi-rs/commit/8c33565e56b3e2f0264e59886711f228c6660bdc))
+
+
+### Bug Fixes
+
+* **ethcli:** honour -o ndjson in account commands and add tx --rpc-url ([#270](https://github.com/yldfi/yldfi-rs/issues/270)) ([c6c21a1](https://github.com/yldfi/yldfi-rs/commit/c6c21a1f2aa7825e9c3b6fb16b5f78f03737603e))
+* **ethcli:** prefer a firm quote on an exact tie; summarise web-page errors ([#271](https://github.com/yldfi/yldfi-rs/issues/271)) ([c3722eb](https://github.com/yldfi/yldfi-rs/commit/c3722eb9441f8dadd46480e10d86e02eea3ee5b1))
+
 ## [0.30.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.0...ethcli-v0.30.1) (2026-11-18)
 
 

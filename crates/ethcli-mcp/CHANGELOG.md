@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.3...ethcli-mcp-v0.6.4) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** accept a date, timestamp or age for --block, and add rpc block-at ([#272](https://github.com/yldfi/yldfi-rs/issues/272)) ([8c33565](https://github.com/yldfi/yldfi-rs/commit/8c33565e56b3e2f0264e59886711f228c6660bdc))
+
 ## [0.6.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.2...ethcli-mcp-v0.6.3) (2026-11-18)
 
 
