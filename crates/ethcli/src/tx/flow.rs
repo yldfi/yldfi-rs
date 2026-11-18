@@ -91,6 +91,16 @@ pub fn native_transfers_from_trace(root: &serde_json::Value) -> Vec<(Address, Ad
     out
 }
 
+/// The revert data of a failed transaction, from the root frame of its
+/// `callTracer` trace. `Some(empty)` means it failed without revert data
+/// (out of gas, or a bare `revert()`); `None` means the trace shows no
+/// failure at the top level.
+pub fn revert_data_from_trace(root: &serde_json::Value) -> Option<Vec<u8>> {
+    root.get("error").filter(|e| !e.is_null())?;
+    let output = root["output"].as_str().unwrap_or("0x");
+    Some(hex::decode(output.strip_prefix("0x").unwrap_or(output)).unwrap_or_default())
+}
+
 /// Parse Transfer events from logs
 pub fn parse_transfers(logs: &[Log]) -> Vec<TokenFlow> {
     let mut flows = Vec::new();
@@ -359,6 +369,26 @@ mod wrap_and_trace_tests {
             "type": "CALL", "from": a, "to": b, "value": "0x64", "error": "execution reverted"
         });
         assert!(native_transfers_from_trace(&failed).is_empty());
+    }
+
+    #[test]
+    fn revert_data_is_read_from_the_root_frame() {
+        let reverted = serde_json::json!({
+            "type": "CALL", "error": "execution reverted", "output": "0x08c379a0ff"
+        });
+        assert_eq!(
+            revert_data_from_trace(&reverted),
+            Some(vec![0x08, 0xc3, 0x79, 0xa0, 0xff])
+        );
+        // Failed with no data, e.g. out of gas
+        let out_of_gas = serde_json::json!({"type": "CALL", "error": "out of gas"});
+        assert_eq!(revert_data_from_trace(&out_of_gas), Some(vec![]));
+        // A successful transaction, even with a failed inner call
+        let ok = serde_json::json!({
+            "type": "CALL", "output": "0x01",
+            "calls": [{"type": "CALL", "error": "execution reverted", "output": "0xdead"}]
+        });
+        assert_eq!(revert_data_from_trace(&ok), None);
     }
 
     #[test]

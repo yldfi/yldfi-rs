@@ -56,6 +56,11 @@ pub struct TransactionAnalysis {
     /// Why a failed transaction reverted (with `--full`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revert: Option<crate::abi::revert::DecodedRevert>,
+    /// Where `revert` came from: "trace" is the revert data of the
+    /// transaction as it ran; "replay" is from re-running the call against
+    /// the parent block's state, which can fail for a different reason
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revert_from: Option<String>,
     /// Things the reader should know about how complete the analysis is
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
@@ -287,6 +292,7 @@ impl TransactionAnalysis {
             timestamp: None,
             time: None,
             revert: None,
+            revert_from: None,
             notes: Vec::new(),
             input: tx.inner.input().clone(),
             gas_limit: tx.inner.gas_limit(),

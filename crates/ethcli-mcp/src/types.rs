@@ -67,7 +67,9 @@ pub struct TxAnalyzeInput {
     /// position in the block and balance_changes are always returned, but
     /// native-token entries carry "partial": true without the trace and may be
     /// wrong for contracts or accounts paid inside the call. Set this when the
-    /// native-token amounts matter.
+    /// native-token amounts matter. For a failed transaction, check
+    /// revert_from: "trace" is the real reason; "replay" is from re-running the
+    /// call on the parent block and can differ from it.
     #[serde(default)]
     pub full: bool,
 }

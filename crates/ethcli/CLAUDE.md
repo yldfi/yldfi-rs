@@ -156,9 +156,15 @@ ethcli contract call <addr> totalSupply --block 7d
   lose the `partial` flag. If no trace is available a note says so and the
   lines stay partial;
 - `timestamp` and `time`, the block's time;
-- `revert`, for a failed transaction: the decoded reason, found by replaying the
-  call against the parent block's state. A transaction that failed because of
-  an earlier one in the same block may not reproduce; a note says when.
+- `revert`, for a failed transaction: the decoded reason, with `revert_from`
+  saying where it came from.
+  - `"trace"`: the revert data of the transaction as it actually ran, read
+    from the call trace. This is the real reason.
+  - `"replay"`: used only when no trace is available. The call is re-run
+    against the parent block's state, which is not the state the transaction
+    ran in. If the failure depended on an earlier transaction in the same
+    block (someone else taking an auction first) or on the block's time, the
+    replay can fail for a different reason. Treat it as a lead, not the answer.
 
 ```bash
 ethcli tx <hash> --full

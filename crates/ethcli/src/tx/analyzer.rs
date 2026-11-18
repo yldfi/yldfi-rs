@@ -8,7 +8,8 @@ use crate::error::Result;
 use crate::rpc::RpcPool;
 use crate::tx::addresses::{events, get_contract_info, get_label};
 use crate::tx::flow::{
-    native_transfers_from_trace, parse_transfers, parse_wraps, wrapped_native_token,
+    native_transfers_from_trace, parse_transfers, parse_wraps, revert_data_from_trace,
+    wrapped_native_token,
 };
 use crate::tx::types::{
     AnalyzedEvent, BalanceChange, ContractCategory, ContractInfo, EventParam, FunctionCall,
@@ -444,12 +445,15 @@ impl TxAnalyzer {
             Err(e) => analysis.notes.push(format!("Block time not fetched: {e}")),
         }
 
-        // Native transfers made inside the call, from a call trace. With them
-        // the native-token balance changes are exact.
-        match self.trace_native_transfers(analysis.hash, rpc_url).await {
-            Ok(transfers) => {
-                analysis.native_transfers = Some(transfers);
+        // A call trace gives two things exactly: every native transfer made
+        // inside the call, and for a failed transaction the revert data of
+        // the transaction as it actually ran
+        let mut traced_revert: Option<Vec<u8>> = None;
+        match self.fetch_call_trace(analysis.hash, rpc_url).await {
+            Ok(trace) => {
+                analysis.native_transfers = Some(native_transfers_from_trace(&trace));
                 refresh_balance_changes(analysis);
+                traced_revert = revert_data_from_trace(&trace);
             }
             Err(reason) => analysis.notes.push(format!(
                 "No call trace: {reason}. Native-token balance changes stay partial"
@@ -459,6 +463,23 @@ impl TxAnalyzer {
         if analysis.status || analysis.block_number == 0 {
             return;
         }
+        // The target's ABI names its own errors with certainty
+        let abi = match analysis.to {
+            Some(to) => crate::etherscan::Client::new(self.chain, None)
+                .ok()
+                .and_then(|client| client.cached_abi(&format!("{to:#x}"))),
+            None => None,
+        };
+        if let Some(data) = traced_revert {
+            analysis.revert =
+                Some(crate::abi::revert::describe(&data, abi.as_ref(), self.chain).await);
+            analysis.revert_from = Some("trace".to_string());
+            return;
+        }
+
+        // No trace: re-run the call against the state at the end of the
+        // parent block. That is not the state the transaction ran in, so the
+        // reason found this way can differ from the real one.
         let mut call = alloy::rpc::types::TransactionRequest::default()
             .from(analysis.from)
             .value(analysis.value)
@@ -470,23 +491,21 @@ impl TxAnalyzer {
         let parent: alloy::eips::BlockId = (analysis.block_number - 1).into();
         match provider.call(call).block(parent).await {
             Ok(_) => analysis.notes.push(
-                "Revert reason not found: the call succeeds against the parent block's state, \
-                 so the failure depended on an earlier transaction in the same block or on gas"
+                "Revert reason not found: no call trace was available, and the call succeeds \
+                 against the parent block's state, so the failure depended on an earlier \
+                 transaction in the same block, on the block's time, or on gas"
                     .to_string(),
             ),
             Err(e) => match crate::abi::revert::revert_data_of(&e) {
                 Some(data) => {
-                    // The target's ABI names its own errors with certainty
-                    let abi = match analysis.to {
-                        Some(to) => crate::etherscan::Client::new(self.chain, None)
-                            .ok()
-                            .and_then(|client| client.cached_abi(&format!("{to:#x}"))),
-                        None => None,
-                    };
                     analysis.revert =
                         Some(crate::abi::revert::describe(&data, abi.as_ref(), self.chain).await);
+                    analysis.revert_from = Some("replay".to_string());
                     analysis.notes.push(
-                        "revert was found by replaying the call against the parent block's state"
+                        "revert comes from re-running the call against the parent block's state, \
+                         not from the transaction as it ran. If the failure depended on an earlier \
+                         transaction in the same block or on the block's time, the real reason may \
+                         differ. A tracing endpoint gives the actual reason"
                             .to_string(),
                     );
                 }
@@ -497,14 +516,14 @@ impl TxAnalyzer {
         }
     }
 
-    /// Native-token transfers of a transaction from `debug_traceTransaction`
-    /// with the call tracer, tried on up to three debug-capable endpoints
-    /// (or only on `rpc_url` when one is given).
-    async fn trace_native_transfers(
+    /// A transaction's `debug_traceTransaction` call trace (call tracer),
+    /// tried on up to three debug-capable endpoints, or only on `rpc_url`
+    /// when one is given.
+    async fn fetch_call_trace(
         &self,
         hash: B256,
         rpc_url: Option<&str>,
-    ) -> std::result::Result<Vec<(Address, Address, U256)>, String> {
+    ) -> std::result::Result<serde_json::Value, String> {
         use alloy::providers::Provider;
 
         let configs: Vec<crate::config::EndpointConfig> = match rpc_url {
@@ -548,7 +567,7 @@ impl TxAnalyzer {
                 .request::<_, serde_json::Value>("debug_traceTransaction", params)
                 .await
             {
-                Ok(trace) => return Ok(native_transfers_from_trace(&trace)),
+                Ok(trace) => return Ok(trace),
                 // Keep the reason short and free of the endpoint's address
                 Err(e) => {
                     last_error = crate::utils::url::redact_url(&e.to_string())
@@ -1080,7 +1099,14 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
         if analysis.status { "Success" } else { "Failed" }
     ));
     if let Some(revert) = &analysis.revert {
-        output.push_str(&format!("Reverted: {}\n", revert.message));
+        let how = match analysis.revert_from.as_deref() {
+            Some("trace") => " (from the call trace)",
+            Some("replay") => {
+                " (from a replay on the parent block; may differ from the real reason)"
+            }
+            _ => "",
+        };
+        output.push_str(&format!("Reverted: {}{}\n", revert.message, how));
     }
 
     // Contracts
@@ -1258,6 +1284,7 @@ mod tests {
             timestamp: None,
             time: None,
             revert: None,
+            revert_from: None,
             notes: vec![],
             input: Default::default(),
             gas_limit: 21000,

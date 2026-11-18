@@ -49,8 +49,11 @@ pub struct TxArgs {
     /// The fee, the position in the block and the net balance change per
     /// address are always included, but native-token changes are marked
     /// partial without a trace, because transfers made inside the call are
-    /// not seen. With the trace they are exact. The revert reason comes from
-    /// replaying the call against the parent block's state.
+    /// not seen. With the trace they are exact, and the revert reason is the
+    /// one from the transaction as it ran (`revert_from: "trace"`). Without a
+    /// trace the reason comes from re-running the call against the parent
+    /// block's state (`revert_from: "replay"`), which can differ from the
+    /// real one.
     #[arg(long)]
     pub full: bool,
 
