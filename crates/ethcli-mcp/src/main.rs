@@ -246,6 +246,19 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Everything about an address in one call: EOA, contract or EIP-7702 delegated EOA; proxy kind, implementation and admin; verified name and creator; token name, symbol, decimals and supply; Safe owners and threshold; owner; ERC-4626 asset; and the function list (from the verified ABI of the code that runs, or recovered from bytecode with guessed names when unverified). Use this first for an unknown address instead of chaining rpc_code, contract_selectors, contract_abi, contract_creation and token_info. Parts that could not be fetched are listed under notes",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_inspect(
+        &self,
+        Parameters(input): Parameters<ContractAddressInput>,
+    ) -> CallToolResult {
+        tools::contract_inspect(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
         description = "Get contract creation transaction and creator address",
         annotations(read_only_hint = true, open_world_hint = true)
     )]

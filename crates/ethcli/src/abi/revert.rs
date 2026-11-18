@@ -116,7 +116,7 @@ fn value_to_json(value: &DynSolValue) -> serde_json::Value {
 /// characters and invisible or direction-changing ones are written as
 /// `\u{..}` escapes, so they cannot move the cursor, recolour the terminal or
 /// reorder what a reader sees.
-fn safe_text(text: &str) -> String {
+pub(crate) fn safe_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
         let hidden = c.is_control()

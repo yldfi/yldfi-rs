@@ -575,6 +575,17 @@ pub async fn contract_source(
         .map_err(ToolError::from)
 }
 
+pub async fn contract_inspect(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("contract")
+        .subcommand("inspect")
+        .arg(address)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn contract_creation(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("contract")
         .subcommand("creation")

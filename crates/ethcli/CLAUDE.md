@@ -132,6 +132,31 @@ ethcli rpc balance <addr> --block 2024-01-31
 ethcli contract call <addr> totalSupply --block 7d
 ```
 
+### `contract inspect`
+
+One call that answers "what is this address":
+
+```bash
+ethcli contract inspect <addr>
+ethcli contract inspect <addr> --json
+```
+
+- **Kind:** EOA, contract, or an EOA that delegates its code under EIP-7702.
+- **Proxy:** kind (EIP-1167, EIP-1967, beacon, OpenZeppelin legacy, Safe proxy, or
+  an `implementation()` getter), implementation, admin and beacon.
+- **Explorer facts:** verified name and creator.
+- **Standard getters,** read together at one block: token name, symbol, decimals
+  and supply; `owner()`; Safe owners and threshold; ERC-4626 `asset()`.
+- **Functions:** from the verified ABI of the code that runs (the implementation,
+  for a proxy). When there is no verified ABI the selectors are recovered from
+  bytecode and named from the signature database; those names are guesses, and
+  `interface.source` is `bytecode`.
+- Anything that could not be fetched is listed under `notes`; the command does
+  not fail because one part is missing.
+
+It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
+`contract creation` and `token info`.
+
 ### `rpc multicall`
 
 - Each call is `<address> <signature> [args...]`. Return types in the signature

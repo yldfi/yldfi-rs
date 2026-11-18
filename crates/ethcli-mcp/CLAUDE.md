@@ -141,7 +141,7 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 |--------|-------|-------------|
 | `cast_*` | 15 | Unit conversions, hashing, mapping slots |
 | `rpc_*` | 14 | Direct RPC calls, batch reads, block by time |
-| `contract_*` | 8 | ABI, source, bytecode analysis, security |
+| `contract_*` | 9 | Address overview, ABI, source, bytecode analysis, security |
 | `account_*` | 8 | Balance, transactions |
 | `lifi_*` | 19 | Cross-chain aggregator |
 | `cowswap_*` | 16 | MEV-protected swaps |
@@ -153,6 +153,7 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 | Tool | Use it for |
 |------|------------|
 | `rpc_multicall` | Many contract reads at one block in one request, decoded, in input order. Also a time series with `block_range`. Replaces repeated `contract_call` / `rpc_call` |
+| `contract_inspect` | Everything about an address in one call: account kind, proxy and implementation, verified name, creator, token details, Safe owners, and the function list. Use it first for an unknown address |
 | `contract_call` | One read by function name, using the contract's ABI |
 | `rpc_balance` | Native balance in wei and ether at a block or time |
 | `rpc_tx` | A transaction by hash |
