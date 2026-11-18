@@ -230,6 +230,18 @@ impl NormalizedQuote {
     }
 }
 
+/// Error a source returns when it has nothing to say about this particular
+/// swap (as opposed to failing). Prop AMMs only quote a set of major pairs.
+pub const NO_PROPAMM_PAIR: &str = "No prop AMM quotes this pair";
+
+/// Whether `result` is a source saying the swap is outside what it covers.
+/// Such a source did not fail: it is reported separately and not counted
+/// among the sources queried.
+#[must_use]
+pub fn is_not_applicable(result: &SourceResult<NormalizedQuote>) -> bool {
+    result.data.is_none() && result.error.as_deref() == Some(NO_PROPAMM_PAIR)
+}
+
 /// Minimum number of parsed quotes before any of them can be called an outlier.
 /// With fewer there is no majority to compare against.
 const OUTLIER_MIN_QUOTES: usize = 3;
@@ -249,7 +261,8 @@ pub struct QuoteAggregation {
     pub best_quote: Option<BestQuote>,
     /// Number of sources that returned valid quotes (outliers included)
     pub valid_quotes: usize,
-    /// Total sources queried
+    /// Sources queried that could have quoted this swap. A source that does
+    /// not cover the pair is not counted.
     pub total_sources: usize,
     /// Average output across valid quotes, excluding outliers
     pub avg_output: Option<String>,
@@ -323,7 +336,7 @@ impl QuoteAggregation {
         let valid_quotes: Vec<&NormalizedQuote> =
             results.iter().filter_map(|r| r.data.as_ref()).collect();
 
-        let total_sources = results.len();
+        let total_sources = results.iter().filter(|r| !is_not_applicable(r)).count();
         let valid_count = valid_quotes.len();
 
         // Conditional quotes are reported, not compared
@@ -563,6 +576,21 @@ mod tests {
         let agg = QuoteAggregation::from_quotes(&results);
         assert!(agg.best_quote.is_none());
         assert_eq!(agg.conditional, vec!["propamm".to_string()]);
+        assert_eq!(agg.valid_quotes, 1);
+    }
+
+    #[test]
+    fn source_that_does_not_cover_the_pair_is_not_counted() {
+        let results = vec![
+            ok("kyberswap", "1000"),
+            SourceResult::error("0x", "no key", 0),
+            SourceResult::error("propamm", NO_PROPAMM_PAIR, 0),
+        ];
+        assert!(!is_not_applicable(&results[0]));
+        assert!(!is_not_applicable(&results[1]));
+        assert!(is_not_applicable(&results[2]));
+        let agg = QuoteAggregation::from_quotes(&results);
+        assert_eq!(agg.total_sources, 2);
         assert_eq!(agg.valid_quotes, 1);
     }
 

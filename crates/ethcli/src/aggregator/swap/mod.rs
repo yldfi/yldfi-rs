@@ -33,7 +33,10 @@ pub async fn fetch_quotes_all(
         SwapSource::VeloraDelta,
         SwapSource::Enso,
         SwapSource::PropAmm,
-    ];
+    ]
+    .into_iter()
+    .filter(|source| source_supports_chain(*source, chain))
+    .collect::<Vec<_>>();
 
     fetch_quotes_parallel(
         chain,
@@ -45,6 +48,19 @@ pub async fn fetch_quotes_all(
         &sources,
     )
     .await
+}
+
+/// Whether `source` can quote on `chain_id` at all. A source that cannot is
+/// left out of an all-sources comparison, not reported as a failure. Only
+/// sources known to be limited to certain chains are listed here; the rest
+/// report an unsupported chain themselves.
+#[must_use]
+pub fn source_supports_chain(source: SwapSource, chain_id: u64) -> bool {
+    match source {
+        // Prop AMMs exist on Ethereum mainnet only
+        SwapSource::PropAmm => chain_id == 1,
+        _ => true,
+    }
 }
 
 /// Fetch quotes from specified sources in parallel
@@ -256,6 +272,22 @@ async fn fetch_for_sender(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prop_amms_are_only_asked_on_mainnet() {
+        assert!(source_supports_chain(SwapSource::PropAmm, 1));
+        for chain in [10, 137, 8453, 42161] {
+            assert!(
+                !source_supports_chain(SwapSource::PropAmm, chain),
+                "{chain}"
+            );
+            assert!(
+                source_supports_chain(SwapSource::KyberSwap, chain),
+                "{chain}"
+            );
+            assert!(source_supports_chain(SwapSource::Velora, chain), "{chain}");
+        }
+    }
 
     #[test]
     fn only_three_sources_require_a_sender() {
