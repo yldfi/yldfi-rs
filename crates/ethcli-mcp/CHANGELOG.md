@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.5...ethcli-mcp-v0.6.6) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** add contract inspect, a one-call overview of an address ([#279](https://github.com/yldfi/yldfi-rs/issues/279)) ([1739375](https://github.com/yldfi/yldfi-rs/commit/1739375828f12fb07eb89fb9fd072733c1ec0613))
+
 ## [0.6.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.4...ethcli-mcp-v0.6.5) (2026-11-18)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.3...ethcli-v0.30.4) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** add contract inspect, a one-call overview of an address ([#279](https://github.com/yldfi/yldfi-rs/issues/279)) ([1739375](https://github.com/yldfi/yldfi-rs/commit/1739375828f12fb07eb89fb9fd072733c1ec0613))
+
 ## [0.30.3](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.2...ethcli-v0.30.3) (2026-11-18)
 
 
