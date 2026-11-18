@@ -104,7 +104,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `lifi_*` | 19 | Cross-chain quotes, bridges, chains, transfers |
 | `curve_*` | 10 | Pools, routing, lending |
 | `uniswap_*` | 9 | V2/V3/V4 pool queries |
-| `rpc_*` | 13 | Direct blockchain calls |
+| `rpc_*` | 14 | Direct blockchain calls |
 | `tenderly_*` | 34 | Simulation, VNets (CRUD + Admin RPC + RPC Simulation) |
 | `cowswap_*` | 16 | MEV-protected trading |
 | `account_*` | 8 | Balance, transactions |

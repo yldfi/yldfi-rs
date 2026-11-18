@@ -675,6 +675,16 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Find the block for a time: the latest block at or before a date, Unix timestamp (@1706700000) or age (7d). Exact, by binary search over block headers. The same time forms are also accepted directly as the `block` of rpc_balance, rpc_multicall and contract_call",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn rpc_block_at(&self, Parameters(input): Parameters<RpcBlockAtInput>) -> CallToolResult {
+        tools::rpc_block_at(&input.time, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
         description = "Get a transaction by hash (eth_getTransactionByHash): sender, recipient, value, nonce, gas and input as the node returns them",
         annotations(read_only_hint = true, open_world_hint = true)
     )]

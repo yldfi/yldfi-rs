@@ -1,5 +1,6 @@
 //! RPC endpoint management and parallel request handling
 
+pub mod block_time;
 mod endpoint;
 mod health;
 pub mod multicall;

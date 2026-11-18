@@ -496,7 +496,8 @@ pub enum ContractCommands {
         #[arg(value_name = "ARG", allow_negative_numbers = true)]
         args: Vec<String>,
 
-        /// Block number or "latest" (default: latest)
+        /// Block number, "latest", or a time (2024-01-31, @1706700000, 7d).
+        /// A time selects the latest block at or before it
         #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
         block: String,
 
@@ -879,6 +880,32 @@ pub async fn handle(
             let client = etherscan()?;
             let addr = Address::from_str(address)
                 .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+
+            // A --block written as a time (a date, @timestamp or age) is
+            // turned into a block number first
+            let resolved_block;
+            let block: &String = if crate::rpc::block_time::parse_time_spec(block, u64::MAX)
+                .is_some()
+            {
+                let probe = match rpc_url {
+                    Some(url) => Endpoint::new(EndpointConfig::new(url.clone()), 30, None)?,
+                    None => crate::rpc::get_rpc_endpoint(chain)?,
+                };
+                let resolved = crate::rpc::block_time::resolve_time_spec(probe.provider(), block)
+                    .await?
+                    .ok_or_else(|| anyhow::anyhow!("'{block}' could not be resolved to a block"))?;
+                if !quiet {
+                    eprintln!(
+                        "Resolved --block {block} to block {} ({})",
+                        resolved.number,
+                        resolved.iso_time()
+                    );
+                }
+                resolved_block = resolved.number.to_string();
+                &resolved_block
+            } else {
+                block
+            };
 
             // Get RPC endpoint first (needed for proxy detection). A historical
             // --block needs an archive-capable endpoint.

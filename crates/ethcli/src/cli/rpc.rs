@@ -10,7 +10,12 @@ use alloy::providers::Provider;
 use clap::Subcommand;
 use std::str::FromStr;
 
-#[derive(Subcommand)]
+/// Help text shared by every `--block` that also accepts a time
+const BLOCK_OR_TIME_HELP: &str = "Block number, tag (\"latest\"), or a time: a date \
+    (2024-01-31, 2024-01-31T12:00:00Z), a Unix timestamp (@1706700000) or an age (7d, 12h). \
+    A time selects the latest block at or before it";
+
+#[derive(Subcommand, Clone)]
 #[command(after_help = r#"Examples:
   # Call a contract with function signature
   ethcli rpc call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 -s "totalSupply()" -d uint256
@@ -32,7 +37,14 @@ use std::str::FromStr;
   ethcli rpc tx 0x123abc... -o json
 
   # Get native balance at a block
-  ethcli rpc balance 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --block 21000000 -o json"#)]
+  ethcli rpc balance 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --block 21000000 -o json
+
+  # A date, a Unix timestamp or an age works wherever --block is accepted
+  ethcli rpc balance 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --block 2024-01-01
+  ethcli rpc call 0x... -s "totalSupply()" -d uint256 --block 7d
+
+  # Find the block for a time
+  ethcli rpc block-at 2024-01-01T12:00:00Z"#)]
 pub enum RpcCommands {
     /// Call a contract (eth_call) - read-only, no transaction
     ///
@@ -58,8 +70,8 @@ pub enum RpcCommands {
         #[arg(long, short = 'a', num_args = 1.., value_delimiter = ' ', value_name = "ARG")]
         args: Option<Vec<String>>,
 
-        /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
+        /// Block number, "latest", or a time (2024-01-31, @1706700000, 7d)
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK", long_help = BLOCK_OR_TIME_HELP)]
         block: String,
 
         /// Decode output as type (e.g., "uint256", "(address,uint256)")
@@ -98,8 +110,8 @@ pub enum RpcCommands {
         #[arg(value_name = "SLOT")]
         slot: String,
 
-        /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
+        /// Block number, "latest", or a time (2024-01-31, @1706700000, 7d)
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK", long_help = BLOCK_OR_TIME_HELP)]
         block: String,
 
         /// Output format
@@ -114,8 +126,8 @@ pub enum RpcCommands {
         #[arg(value_name = "ADDRESS")]
         address: String,
 
-        /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
+        /// Block number, "latest", or a time (2024-01-31, @1706700000, 7d)
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK", long_help = BLOCK_OR_TIME_HELP)]
         block: String,
 
         /// Print only the size and code hash, not the bytecode
@@ -137,8 +149,8 @@ pub enum RpcCommands {
         #[arg(value_name = "ADDRESS")]
         address: String,
 
-        /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
+        /// Block number, "latest", or a time (2024-01-31, @1706700000, 7d)
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK", long_help = BLOCK_OR_TIME_HELP)]
         block: String,
 
         /// Output format
@@ -198,6 +210,22 @@ pub enum RpcCommands {
         format: OutputFormat,
     },
 
+    /// Find the block for a time: the latest block at or before it
+    ///
+    /// TIME is a date (2024-01-31 or 2024-01-31T12:00:00Z), a Unix timestamp
+    /// written as @1706700000, or an age such as 7d, 12h or 30m. The block is
+    /// found by binary search over block headers, so it is exact.
+    #[command(visible_alias = "find-block")]
+    BlockAt {
+        /// Date, @timestamp or age
+        #[arg(value_name = "TIME")]
+        time: String,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
+
     /// Get a transaction by hash (eth_getTransactionByHash)
     #[command(visible_alias = "transaction", alias = "eth_getTransactionByHash")]
     Tx {
@@ -220,8 +248,8 @@ pub enum RpcCommands {
         #[arg(value_name = "ADDRESS")]
         address: String,
 
-        /// Block number or "latest" (default: latest)
-        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
+        /// Block number, "latest", or a time (2024-01-31, @1706700000, 7d)
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK", long_help = BLOCK_OR_TIME_HELP)]
         block: String,
 
         /// Output format
@@ -260,6 +288,33 @@ pub async fn handle(
     rpc_url: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
+    // A --block written as a time is turned into a block number first, so
+    // endpoint selection and the command itself both see a plain number
+    let resolved_action;
+    let action = match action_block(action) {
+        Some(block) if crate::rpc::block_time::parse_time_spec(block, u64::MAX).is_some() => {
+            let endpoint = match &rpc_url {
+                Some(url) => Endpoint::new(EndpointConfig::new(url.clone()), 30, None)?,
+                None => crate::rpc::get_rpc_endpoint(chain)?,
+            };
+            let resolved = crate::rpc::block_time::resolve_time_spec(endpoint.provider(), block)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("'{block}' could not be resolved to a block"))?;
+            if !quiet {
+                eprintln!(
+                    "Resolved --block {block} to block {} ({})",
+                    resolved.number,
+                    resolved.iso_time()
+                );
+            }
+            let mut owned = action.clone();
+            set_action_block(&mut owned, resolved.number.to_string());
+            resolved_action = owned;
+            &resolved_action
+        }
+        _ => action,
+    };
+
     // Explicit --rpc-url: use it alone. Otherwise try ranked configured
     // endpoints, failing over on rate limits / transport errors.
     let candidates = if let Some(url) = rpc_url {
@@ -304,6 +359,39 @@ impl std::fmt::Display for NotFound {
 }
 
 impl std::error::Error for NotFound {}
+
+/// The `--block` value of an action that takes a single block
+fn action_block(action: &RpcCommands) -> Option<&str> {
+    match action {
+        RpcCommands::Call { block, .. }
+        | RpcCommands::Storage { block, .. }
+        | RpcCommands::Code { block, .. }
+        | RpcCommands::Nonce { block, .. }
+        | RpcCommands::Balance { block, .. }
+        | RpcCommands::Block { block, .. } => Some(block),
+        // A comma-separated list of block numbers is not a time
+        RpcCommands::Multicall {
+            block,
+            block_range: None,
+            ..
+        } if !block.contains(',') => Some(block),
+        _ => None,
+    }
+}
+
+/// Replace the `--block` value of an action (see [`action_block`])
+fn set_action_block(action: &mut RpcCommands, value: String) {
+    match action {
+        RpcCommands::Call { block, .. }
+        | RpcCommands::Storage { block, .. }
+        | RpcCommands::Code { block, .. }
+        | RpcCommands::Nonce { block, .. }
+        | RpcCommands::Balance { block, .. }
+        | RpcCommands::Block { block, .. }
+        | RpcCommands::Multicall { block, .. } => *block = value,
+        _ => {}
+    }
+}
 
 /// The numeric block an action reads at, if any (tags: None)
 fn action_block_number(action: &RpcCommands) -> Option<u64> {
@@ -642,6 +730,30 @@ async fn run_action(action: &RpcCommands, endpoint: &Endpoint, quiet: bool) -> a
                 println!("{}", serde_json::to_string_pretty(&reports[0])?);
             } else {
                 println!("{}", serde_json::to_string_pretty(&reports)?);
+            }
+        }
+
+        RpcCommands::BlockAt { time, format } => {
+            let resolved = crate::rpc::block_time::resolve_time_spec(provider, time)
+                .await?
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "'{time}' is not a time. Use a date (2024-01-31), @<unix timestamp> or an age (7d)"
+                    )
+                })?;
+            if format.is_table() {
+                println!("{}", resolved.number);
+                if !quiet {
+                    eprintln!("Block time: {}", resolved.iso_time());
+                }
+            } else {
+                let out = serde_json::json!({
+                    "requested": time,
+                    "block": resolved.number,
+                    "timestamp": resolved.timestamp,
+                    "time": resolved.iso_time(),
+                });
+                print_json(&out, *format)?;
             }
         }
 
@@ -1275,6 +1387,44 @@ mod tests {
         let out = format_multicall_table(&report);
         assert!(out.contains("[0] 0xA balanceOf(0xB) = 1, true"), "{out}");
         assert!(out.contains("[1] 0xA f() = REVERT: nope"), "{out}");
+    }
+
+    #[test]
+    fn time_given_as_block_is_recognised_and_replaced() {
+        use clap::Parser;
+        let cli = crate::cli::Cli::try_parse_from([
+            "ethcli",
+            "rpc",
+            "balance",
+            "0x00",
+            "--block",
+            "2024-01-01",
+        ])
+        .unwrap();
+        let crate::cli::Commands::Rpc { mut action, .. } = cli.command else {
+            panic!("expected rpc");
+        };
+        assert_eq!(action_block(&action), Some("2024-01-01"));
+        set_action_block(&mut action, "18908895".to_string());
+        assert_eq!(action_block(&action), Some("18908895"));
+        assert_eq!(action_block_number(&action), Some(18_908_895));
+
+        // A list of blocks and a block range are left alone
+        let cli = crate::cli::Cli::try_parse_from([
+            "ethcli",
+            "rpc",
+            "multicall",
+            "0x00 f()",
+            "--block",
+            "1,2",
+        ])
+        .unwrap();
+        let crate::cli::Commands::Rpc { action, .. } = cli.command else {
+            panic!("expected rpc");
+        };
+        assert_eq!(action_block(&action), None);
+        assert!(crate::cli::Cli::try_parse_from(["ethcli", "rpc", "block-at", "7d"]).is_ok());
+        assert!(crate::cli::Cli::try_parse_from(["ethcli", "rpc", "find-block", "@1"]).is_ok());
     }
 
     #[test]

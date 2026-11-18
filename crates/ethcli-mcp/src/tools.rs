@@ -1094,6 +1094,18 @@ pub async fn rpc_multicall(
         .map_err(ToolError::from)
 }
 
+pub async fn rpc_block_at(time: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("rpc")
+        .subcommand("block-at")
+        .chain(chain)
+        .format_json()
+        .end_of_options()
+        .arg(time)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn rpc_tx(hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("rpc")
         .subcommand("tx")
