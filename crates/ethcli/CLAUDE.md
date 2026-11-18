@@ -173,6 +173,12 @@ ethcli tx <hash> --full --json
 
 This replaces `tx` followed by `rpc receipt` and `rpc block`.
 
+With a trace, `native_transfer_list` lists every native-token transfer in the
+transaction. `--graph` prints a Mermaid flowchart instead of the analysis: one
+node per address (the sender first), one edge per token transfer, wrap or
+unwrap, and native transfer. Without a trace, native transfers made inside the
+call are missing and a comment in the diagram says so.
+
 ### Account history and identity
 
 ```bash

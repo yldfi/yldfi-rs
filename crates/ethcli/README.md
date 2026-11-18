@@ -205,6 +205,9 @@ ethcli tx 0x... --enrich
 ethcli tx 0x... --full
 ethcli tx 0x... --full -o json
 
+# Who paid whom, as a Mermaid flowchart (renders on GitHub and in most chat UIs)
+ethcli tx 0x... --full --graph
+
 # Analyze against a single endpoint (for example a local fork)
 ethcli tx 0x... --rpc-url http://localhost:8545
 

@@ -81,13 +81,19 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Analyze an Ethereum transaction in one call: decoded events, token transfers, the method call, the fee, the position in the block, and the net balance change per address and token (balance_changes). Native-token entries marked partial are incomplete: transfers made inside the call are not seen without a trace. With full=true it traces the call so those are exact, and also returns the block time and, for a failed transaction, the decoded revert reason, so rpc_receipt and rpc_block are not needed afterwards. Supports partial tx hashes when block number is provided.",
+        description = "Analyze an Ethereum transaction in one call: decoded events, token transfers, the method call, the fee, the position in the block, and the net balance change per address and token (balance_changes). Native-token entries marked partial are incomplete: transfers made inside the call are not seen without a trace. With full=true it traces the call so those are exact, and also returns the block time and, for a failed transaction, the decoded revert reason, so rpc_receipt and rpc_block are not needed afterwards. graph=true returns a Mermaid flowchart of who paid whom instead. Supports partial tx hashes when block number is provided.",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn tx_analyze(&self, Parameters(input): Parameters<TxAnalyzeInput>) -> CallToolResult {
-        tools::tx_analyze(&input.hash, Some(&input.chain), input.block, input.full)
-            .await
-            .to_response()
+        tools::tx_analyze(
+            &input.hash,
+            Some(&input.chain),
+            input.block,
+            input.full,
+            input.graph,
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================

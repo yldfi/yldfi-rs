@@ -271,6 +271,127 @@ pub fn net_balance_changes(analysis: &TransactionAnalysis) -> Vec<BalanceChange>
         .collect()
 }
 
+/// The value moved by a transaction as a Mermaid flowchart: one node per
+/// address, one edge per transfer, labelled with the amount and token.
+///
+/// Edges are the token transfers, wrapped-native deposits and withdrawals,
+/// and the native-token transfers: from the call trace when there is one,
+/// otherwise only the top-level value. Labels and symbols are escaped, since
+/// they can come from the contracts themselves.
+pub fn flow_mermaid(analysis: &TransactionAnalysis) -> String {
+    use crate::abi::revert::safe_text;
+    use std::fmt::Write;
+
+    // The sender is always the first node, so diagrams read from it
+    let mut nodes: Vec<Address> = vec![analysis.from];
+    let mut node = |address: Address| match nodes.iter().position(|a| *a == address) {
+        Some(index) => index,
+        None => {
+            nodes.push(address);
+            nodes.len() - 1
+        }
+    };
+    let amount = |raw: &str, decimals: Option<u8>| match (raw.parse::<U256>(), decimals) {
+        (Ok(value), Some(d)) => alloy::primitives::utils::format_units(value, d)
+            .map(|text| {
+                let trimmed = text.trim_end_matches('0').trim_end_matches('.');
+                if trimmed.is_empty() {
+                    "0".to_string()
+                } else {
+                    trimmed.to_string()
+                }
+            })
+            .unwrap_or_else(|_| raw.to_string()),
+        _ => raw.to_string(),
+    };
+
+    let mut edges: Vec<(usize, usize, String)> = Vec::new();
+    for flow in &analysis.token_flows {
+        let symbol = flow
+            .token_label
+            .as_deref()
+            .map(safe_text)
+            .unwrap_or_else(|| short_address(&flow.token));
+        let label = match &flow.token_id {
+            Some(id) => format!("{symbol} #{}", safe_text(id)),
+            None => format!("{} {symbol}", amount(&flow.amount, flow.decimals)),
+        };
+        edges.push((node(flow.from), node(flow.to), label));
+    }
+    for wrap in &analysis.wraps {
+        let symbol = get_label(&wrap.token)
+            .map(String::from)
+            .unwrap_or_else(|| short_address(&wrap.token));
+        let value = amount(&wrap.amount.to_string(), Some(18));
+        let (from, to, what) = if wrap.deposit {
+            (
+                wrap.account,
+                wrap.token,
+                format!("{value} native, wrapped to {symbol}"),
+            )
+        } else {
+            (
+                wrap.token,
+                wrap.account,
+                format!("{value} native, unwrapped from {symbol}"),
+            )
+        };
+        // A trace already contains these native transfers
+        if analysis.native_transfers.is_none() {
+            edges.push((node(from), node(to), what));
+        }
+    }
+    match &analysis.native_transfers {
+        Some(transfers) => {
+            for (from, to, value) in transfers {
+                let label = format!("{} native", amount(&value.to_string(), Some(18)));
+                edges.push((node(*from), node(*to), label));
+            }
+        }
+        None => {
+            if let Some(to) = analysis.to.filter(|_| !analysis.value.is_zero()) {
+                let label = format!("{} native", amount(&analysis.value.to_string(), Some(18)));
+                edges.push((node(analysis.from), node(to), label));
+            }
+        }
+    }
+
+    let mut out = String::from("flowchart LR\n");
+    for (index, address) in nodes.iter().enumerate() {
+        let mut name = get_label(address).map(String::from).unwrap_or_default();
+        if *address == analysis.from {
+            name = if name.is_empty() {
+                "sender".to_string()
+            } else {
+                format!("sender, {name}")
+            };
+        }
+        let text = if name.is_empty() {
+            short_address(address)
+        } else {
+            format!("{name}<br/>{}", short_address(address))
+        };
+        let _ = writeln!(out, "  n{index}[\"{}\"]", text.replace('"', "#quot;"));
+    }
+    for (from, to, label) in edges {
+        let _ = writeln!(
+            out,
+            "  n{from} -->|\"{}\"| n{to}",
+            label.replace('"', "#quot;").replace('|', "#124;")
+        );
+    }
+    if analysis.native_transfers.is_none() {
+        out.push_str("  %% No call trace: native transfers made inside the call are missing\n");
+    }
+    out
+}
+
+/// `0x1234…abcd`
+fn short_address(address: &Address) -> String {
+    let full = format!("{address:#x}");
+    format!("{}…{}", &full[..6], &full[full.len() - 4..])
+}
+
 /// Transaction analyzer
 pub struct TxAnalyzer {
     /// RPC pool
@@ -451,7 +572,18 @@ impl TxAnalyzer {
         let mut traced_revert: Option<Vec<u8>> = None;
         match self.fetch_call_trace(analysis.hash, rpc_url).await {
             Ok(trace) => {
-                analysis.native_transfers = Some(native_transfers_from_trace(&trace));
+                let transfers = native_transfers_from_trace(&trace);
+                analysis.native_transfer_list = transfers
+                    .iter()
+                    .map(|(from, to, value)| crate::tx::types::NativeTransfer {
+                        from: *from,
+                        to: *to,
+                        value_wei: value.to_string(),
+                        value: alloy::primitives::utils::format_units(*value, 18)
+                            .unwrap_or_else(|_| value.to_string()),
+                    })
+                    .collect();
+                analysis.native_transfers = Some(transfers);
                 refresh_balance_changes(analysis);
                 traced_revert = revert_data_from_trace(&trace);
             }
@@ -1301,6 +1433,7 @@ mod tests {
             gas_limit: 21000,
             wraps: vec![],
             native_transfers: None,
+            native_transfer_list: vec![],
         }
     }
 
@@ -1527,6 +1660,58 @@ mod tests {
         refresh_balance_changes(&mut analysis);
         assert_eq!(analysis.notes, vec![TRACED_NATIVE_NOTE.to_string()]);
         assert!(analysis.balance_changes.iter().all(|c| !c.partial));
+    }
+
+    #[test]
+    fn flow_mermaid_draws_tokens_wraps_and_native_transfers() {
+        use crate::tx::types::{TokenFlow, WrapEvent};
+        let sender = address!("d8da6bf26964af9d7eed9e03e53415d37aa96045");
+        let router = address!("7a250d5630b4cf539739df2c5dacb4c659f2488d");
+        let weth = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+        let one_eth = U256::from(1_000_000_000_000_000_000u128);
+        let mut analysis = make_test_analysis();
+        analysis.to = Some(router);
+        analysis.value = one_eth;
+        analysis.wraps = vec![WrapEvent {
+            token: weth,
+            account: router,
+            amount: one_eth,
+            deposit: true,
+        }];
+        analysis.token_flows = vec![TokenFlow {
+            token: weth,
+            token_label: Some("WE\"TH|x".to_string()),
+            from: router,
+            from_label: None,
+            to: sender,
+            to_label: None,
+            amount: "1500000000000000000".to_string(),
+            decimals: Some(18),
+            token_id: None,
+            log_index: 0,
+        }];
+
+        let untraced = flow_mermaid(&analysis);
+        assert!(untraced.starts_with("flowchart LR\n"), "{untraced}");
+        assert!(
+            untraced.contains("n0[\"sender<br/>0xd8da…6045\"]"),
+            "{untraced}"
+        );
+        assert!(
+            untraced.contains("Uniswap V2 Router<br/>0x7a25…488d"),
+            "{untraced}"
+        );
+        // Quotes and pipes from a token symbol cannot break the diagram
+        assert!(untraced.contains("1.5 WE#quot;TH#124;x"), "{untraced}");
+        assert!(untraced.contains("1 native, wrapped to WETH"), "{untraced}");
+        assert!(untraced.contains("-->|\"1 native\"|"), "{untraced}");
+        assert!(untraced.contains("No call trace"), "{untraced}");
+
+        analysis.native_transfers = Some(vec![(sender, router, one_eth), (router, weth, one_eth)]);
+        let traced = flow_mermaid(&analysis);
+        assert!(!traced.contains("wrapped to"), "{traced}");
+        assert!(!traced.contains("No call trace"), "{traced}");
+        assert_eq!(traced.matches("1 native").count(), 2, "{traced}");
     }
 
     #[test]

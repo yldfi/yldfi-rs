@@ -2782,7 +2782,14 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
     let elapsed = start.elapsed();
 
     // Output
-    if args.output.is_json() {
+    if args.graph {
+        for analysis in &analyses {
+            if analyses.len() > 1 {
+                println!("%% {:#x}", analysis.hash);
+            }
+            print!("{}", ethcli::tx::analyzer::flow_mermaid(analysis));
+        }
+    } else if args.output.is_json() {
         if analyses.len() == 1 {
             let json = serde_json::to_string_pretty(&analyses[0])?;
             println!("{json}");

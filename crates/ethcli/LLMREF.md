@@ -24,6 +24,7 @@ ethcli tx <hash> --full --json      # + call trace, block time and, if it failed
                                     # (fee, index in block and net balance_changes are always there)
                                     # balance_changes: native lines with "partial": true are NOT final
                                     # (internal ETH transfers unseen); --full traces and makes them exact
+ethcli tx <hash> --full --graph     # Mermaid flowchart: one node per address, one edge per transfer
 ethcli tx <hash> --rpc-url <url>    # Against one endpoint (e.g. a local fork)
 ethcli tx -f hashes.txt             # From file
 ethcli tx --stdin                   # From stdin
