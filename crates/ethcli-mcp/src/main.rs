@@ -128,7 +128,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "List transactions for an address with pagination and inclusive block bounds. Narrow the block range when the explorer result-window limit is reached.",
+        description = "List transactions for an address with pagination and inclusive block bounds. Set all=true to read the whole history in one call (1,000 rows per request, walking past the explorer's 10,000-row window; max_pages caps the requests). Tool output over 1 MB is cut off, which is roughly 2,000 transactions, so keep max_pages small here or use the CLI with -o ndjson for full histories.",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn account_txs(&self, Parameters(input): Parameters<AccountTxsInput>) -> CallToolResult {
@@ -140,26 +140,61 @@ impl EthcliMcpServer {
             input.sort.as_deref(),
             input.start_block,
             input.end_block,
+            input.all,
+            input.max_pages,
         )
         .await
         .to_response()
     }
 
     #[tool(
-        description = "Get internal transactions for an address with pagination",
+        description = "Get internal transactions for an address with pagination; all=true reads the whole history",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn account_internal_txs(
         &self,
         Parameters(input): Parameters<AccountInternalTxsInput>,
     ) -> CallToolResult {
-        tools::account_internal_txs(&input.address, Some(&input.chain), input.page, input.limit)
+        tools::account_internal_txs(
+            &input.address,
+            Some(&input.chain),
+            input.page,
+            input.limit,
+            input.all,
+            input.max_pages,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Who first funded an address: funder, amount, block, time and transaction. Uses the explorer's paid funded-by endpoint when the key's plan allows; otherwise the earliest incoming native-token transfer (source: first_incoming_transfer, token transfers not considered)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn account_funded_by(
+        &self,
+        Parameters(input): Parameters<ContractAddressInput>,
+    ) -> CallToolResult {
+        tools::account_funded_by(&input.address, Some(&input.chain))
             .await
             .to_response()
     }
 
     #[tool(
-        description = "Get ERC20 token transfers for an address with optional token filter and pagination",
+        description = "Names and labels for up to 100 addresses: explorer name tags and labels (needs an Etherscan Pro Plus plan; otherwise a note says so), the local address book, and ethcli's built-in labels",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn account_labels(
+        &self,
+        Parameters(input): Parameters<AccountLabelsInput>,
+    ) -> CallToolResult {
+        tools::account_labels(&input.addresses, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Get ERC20 token transfers for an address with optional token filter and pagination; all=true reads the whole history",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn account_erc20(
@@ -172,6 +207,8 @@ impl EthcliMcpServer {
             input.token.as_deref(),
             input.page,
             input.limit,
+            input.all,
+            input.max_pages,
         )
         .await
         .to_response()

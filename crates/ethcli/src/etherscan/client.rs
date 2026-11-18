@@ -591,6 +591,37 @@ impl Client {
         })
     }
 
+    /// Call an Etherscan v2 API endpoint the explorer library does not cover
+    /// and return its `result`.
+    ///
+    /// `params` are the query parameters besides `chainid` and `apikey`
+    /// (e.g. `module` and `action`). "No transactions/records found" is an
+    /// empty result, not an error. Errors never contain the API key.
+    pub async fn explorer_get(
+        &self,
+        params: &[(&str, String)],
+    ) -> std::result::Result<serde_json::Value, String> {
+        let chain_id = self.chain.chain_id();
+        super::support::ensure_etherscan_supported(chain_id).map_err(|e| e.to_string())?;
+
+        let mut request = self
+            .http
+            .get(ETHERSCAN_V2_API_URL)
+            .query(&[("chainid", chain_id.to_string())])
+            .query(params);
+        if let Some(key) = &self.api_key {
+            request = request.query(&[("apikey", key.as_str())]);
+        }
+        let response = request.send().await.map_err(|e| {
+            crate::error::sanitize_error_message(&format!("request failed: {e}")).into_owned()
+        })?;
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("could not read the response: {e}"))?;
+        parse_explorer_response(json)
+    }
+
     /// Make an eth_call via Etherscan proxy
     async fn eth_call(&self, chain_id: u64, to: &str, data: &str) -> Result<String> {
         super::support::ensure_etherscan_supported(chain_id)?;
@@ -631,6 +662,59 @@ impl Client {
         }
 
         Ok(result.to_string())
+    }
+}
+
+/// The `result` of an Etherscan API response, or its error message.
+fn parse_explorer_response(
+    json: serde_json::Value,
+) -> std::result::Result<serde_json::Value, String> {
+    let status = json["status"].as_str().unwrap_or_default();
+    let message = json["message"].as_str().unwrap_or_default();
+    if status == "1" {
+        return Ok(json["result"].clone());
+    }
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("no transactions found") || lower.contains("no records found") {
+        return Ok(serde_json::Value::Array(Vec::new()));
+    }
+    let detail = match &json["result"] {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    };
+    let text = match (message.is_empty(), detail.is_empty()) {
+        (false, false) => format!("{message}: {detail}"),
+        (false, true) => message.to_string(),
+        (true, false) => detail,
+        (true, true) => "the explorer returned an error with no message".to_string(),
+    };
+    Err(crate::error::sanitize_error_message(&text).into_owned())
+}
+
+#[cfg(test)]
+mod explorer_response_tests {
+    use super::parse_explorer_response;
+    use serde_json::json;
+
+    #[test]
+    fn results_empty_lists_and_errors() {
+        assert_eq!(
+            parse_explorer_response(json!({"status": "1", "message": "OK", "result": [1]})),
+            Ok(json!([1]))
+        );
+        assert_eq!(
+            parse_explorer_response(
+                json!({"status": "0", "message": "No transactions found", "result": []})
+            ),
+            Ok(json!([]))
+        );
+        let error = parse_explorer_response(json!({
+            "status": "0", "message": "NOTOK",
+            "result": "Sorry, it looks like you are trying to access an API Pro endpoint"
+        }))
+        .unwrap_err();
+        assert!(error.starts_with("NOTOK: Sorry"), "{error}");
     }
 }
 

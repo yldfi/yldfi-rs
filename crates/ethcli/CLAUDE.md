@@ -173,6 +173,29 @@ ethcli tx <hash> --full --json
 
 This replaces `tx` followed by `rpc receipt` and `rpc block`.
 
+### Account history and identity
+
+```bash
+ethcli account txs <addr> --all --json          # whole history; --max-pages N caps requests (default 10)
+ethcli account internal-txs <addr> --all --json
+ethcli account erc20 <addr> --all --json
+ethcli account funded-by <addr>                 # first funder
+ethcli account labels <addr> <addr> ...         # up to 100
+```
+
+- `--all` reads 1,000 rows per request and walks past the explorer's
+  10,000-row window by moving the block range, re-reading the boundary block
+  so nothing is missed or repeated. It stops early at `--max-pages` or when a
+  single block holds more than 10,000 rows, and says so on stderr.
+- `funded-by` uses Etherscan's `fundedby` endpoint (paid plan, EOAs only). On
+  a free plan, or when that fails, it reports the earliest incoming
+  native-token transfer among the first 100 normal and 100 internal
+  transactions (`source: first_incoming_transfer`); token transfers are not
+  considered.
+- `labels` combines Etherscan name tags and labels (`getaddresstag`, Pro Plus
+  plan) with the address book and ethcli's built-in labels. Without that plan
+  a note says why the explorer part is missing.
+
 ### `contract inspect`
 
 One call that answers "what is this address":
