@@ -3,10 +3,103 @@
 //! Parses Transfer events to construct a token flow graph and compute net flows.
 
 use crate::tx::addresses::{events, get_label};
-use crate::tx::types::{NetTokenFlow, TokenFlow};
+use crate::tx::types::{NetTokenFlow, TokenFlow, WrapEvent};
 use alloy::primitives::{Address, U256};
 use alloy::rpc::types::Log;
 use std::collections::HashMap;
+
+/// The wrapped native token of a chain (WETH, WXDAI, WMATIC, WBNB)
+pub fn wrapped_native_token(chain_id: u64) -> Option<Address> {
+    let address = match chain_id {
+        1 => "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        10 | 8453 => "0x4200000000000000000000000000000000000006",
+        56 => "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+        100 => "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
+        137 => "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+        42161 => "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+        11155111 => "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+        _ => return None,
+    };
+    address.parse().ok()
+}
+
+/// Deposits into and withdrawals from `token`, the chain's wrapped native
+/// token: `Deposit(address indexed dst, uint256 wad)` and
+/// `Withdrawal(address indexed src, uint256 wad)`. Other contracts emit
+/// events with the same signatures, so only `token`'s own logs count.
+pub fn parse_wraps(logs: &[Log], token: Address) -> Vec<WrapEvent> {
+    use alloy::primitives::keccak256;
+    let deposit = keccak256(b"Deposit(address,uint256)");
+    let withdrawal = keccak256(b"Withdrawal(address,uint256)");
+
+    logs.iter()
+        .filter(|log| log.address() == token)
+        .filter_map(|log| {
+            let topics = log.topics();
+            let is_deposit = match topics.first() {
+                Some(topic) if *topic == deposit => true,
+                Some(topic) if *topic == withdrawal => false,
+                _ => return None,
+            };
+            let account = Address::from_slice(&topics.get(1)?[12..]);
+            let data = log.data().data.as_ref();
+            (data.len() == 32).then(|| WrapEvent {
+                token,
+                account,
+                amount: U256::from_be_slice(data),
+                deposit: is_deposit,
+            })
+        })
+        .collect()
+}
+
+/// Every native-token transfer in a `callTracer` trace, top-level call
+/// included, as (from, to, amount). A frame that reverted moved nothing, and
+/// neither did anything below it. DELEGATECALL and CALLCODE frames repeat
+/// their parent's value without moving it, and STATICCALL cannot move any.
+pub fn native_transfers_from_trace(root: &serde_json::Value) -> Vec<(Address, Address, U256)> {
+    fn walk(frame: &serde_json::Value, out: &mut Vec<(Address, Address, U256)>) {
+        if frame.get("error").is_some_and(|e| !e.is_null()) {
+            return;
+        }
+        let kind = frame["type"]
+            .as_str()
+            .unwrap_or("CALL")
+            .to_ascii_uppercase();
+        if !matches!(kind.as_str(), "DELEGATECALL" | "CALLCODE" | "STATICCALL") {
+            let field = |key: &str| frame[key].as_str();
+            if let (Some(from), Some(to), Some(value)) =
+                (field("from"), field("to"), field("value"))
+            {
+                if let (Ok(from), Ok(to), Ok(value)) = (
+                    from.parse::<Address>(),
+                    to.parse::<Address>(),
+                    value.parse::<U256>(),
+                ) {
+                    if !value.is_zero() {
+                        out.push((from, to, value));
+                    }
+                }
+            }
+        }
+        for child in frame["calls"].as_array().into_iter().flatten() {
+            walk(child, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, &mut out);
+    out
+}
+
+/// The revert data of a failed transaction, from the root frame of its
+/// `callTracer` trace. `Some(empty)` means it failed without revert data
+/// (out of gas, or a bare `revert()`); `None` means the trace shows no
+/// failure at the top level.
+pub fn revert_data_from_trace(root: &serde_json::Value) -> Option<Vec<u8>> {
+    root.get("error").filter(|e| !e.is_null())?;
+    let output = root["output"].as_str().unwrap_or("0x");
+    Some(hex::decode(output.strip_prefix("0x").unwrap_or(output)).unwrap_or_default())
+}
 
 /// Parse Transfer events from logs
 pub fn parse_transfers(logs: &[Log]) -> Vec<TokenFlow> {
@@ -239,5 +332,69 @@ mod tests {
         assert_eq!(net.len(), 1);
         assert!(net[0].is_inflow);
         assert_eq!(net[0].net_change, "+600");
+    }
+}
+
+#[cfg(test)]
+mod wrap_and_trace_tests {
+    use super::*;
+
+    #[test]
+    fn trace_walk_skips_reverted_frames_and_calls_that_move_no_value() {
+        let a = "0x00000000000000000000000000000000000000aa";
+        let b = "0x00000000000000000000000000000000000000bb";
+        let c = "0x00000000000000000000000000000000000000cc";
+        let trace = serde_json::json!({
+            "type": "CALL", "from": a, "to": b, "value": "0xde0b6b3a7640000",
+            "calls": [
+                {"type": "CALL", "from": b, "to": c, "value": "0x64"},
+                // Repeats the parent's value without moving it
+                {"type": "DELEGATECALL", "from": b, "to": c, "value": "0xde0b6b3a7640000",
+                 "calls": [{"type": "CALL", "from": b, "to": a, "value": "0x1"}]},
+                {"type": "STATICCALL", "from": b, "to": c},
+                {"type": "CALL", "from": b, "to": c, "value": "0x0"},
+                // Reverted: neither it nor its children moved anything
+                {"type": "CALL", "from": b, "to": c, "value": "0x5", "error": "execution reverted",
+                 "calls": [{"type": "CALL", "from": c, "to": a, "value": "0x5"}]}
+            ]
+        });
+        let transfers = native_transfers_from_trace(&trace);
+        let amounts: Vec<u64> = transfers.iter().map(|t| t.2.to::<u128>() as u64).collect();
+        assert_eq!(amounts, vec![1_000_000_000_000_000_000, 100, 1]);
+        assert_eq!(transfers[1].0, b.parse::<Address>().unwrap());
+        assert_eq!(transfers[1].1, c.parse::<Address>().unwrap());
+
+        // A transaction that failed at the top level moved nothing
+        let failed = serde_json::json!({
+            "type": "CALL", "from": a, "to": b, "value": "0x64", "error": "execution reverted"
+        });
+        assert!(native_transfers_from_trace(&failed).is_empty());
+    }
+
+    #[test]
+    fn revert_data_is_read_from_the_root_frame() {
+        let reverted = serde_json::json!({
+            "type": "CALL", "error": "execution reverted", "output": "0x08c379a0ff"
+        });
+        assert_eq!(
+            revert_data_from_trace(&reverted),
+            Some(vec![0x08, 0xc3, 0x79, 0xa0, 0xff])
+        );
+        // Failed with no data, e.g. out of gas
+        let out_of_gas = serde_json::json!({"type": "CALL", "error": "out of gas"});
+        assert_eq!(revert_data_from_trace(&out_of_gas), Some(vec![]));
+        // A successful transaction, even with a failed inner call
+        let ok = serde_json::json!({
+            "type": "CALL", "output": "0x01",
+            "calls": [{"type": "CALL", "error": "execution reverted", "output": "0xdead"}]
+        });
+        assert_eq!(revert_data_from_trace(&ok), None);
+    }
+
+    #[test]
+    fn wrapped_native_token_is_known_for_the_main_chains() {
+        assert!(wrapped_native_token(1).is_some());
+        assert_eq!(wrapped_native_token(10), wrapped_native_token(8453));
+        assert!(wrapped_native_token(999_999).is_none());
     }
 }

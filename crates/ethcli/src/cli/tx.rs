@@ -43,12 +43,17 @@ pub struct TxArgs {
     #[arg(long)]
     pub enrich: bool,
 
-    /// Also fetch the block's time and, for a failed transaction, the reason
-    /// it reverted (two more requests per transaction)
+    /// Also fetch a call trace, the block's time and, for a failed
+    /// transaction, the reason it reverted (up to three more requests)
     ///
     /// The fee, the position in the block and the net balance change per
-    /// address are always included. The revert reason comes from replaying
-    /// the call against the parent block's state.
+    /// address are always included, but native-token changes are marked
+    /// partial without a trace, because transfers made inside the call are
+    /// not seen. With the trace they are exact, and the revert reason is the
+    /// one from the transaction as it ran (`revert_from: "trace"`). Without a
+    /// trace the reason comes from re-running the call against the parent
+    /// block's state (`revert_from: "replay"`), which can differ from the
+    /// real one.
     #[arg(long)]
     pub full: bool,
 

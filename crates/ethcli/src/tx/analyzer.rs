@@ -7,7 +7,10 @@ use crate::config::Chain;
 use crate::error::Result;
 use crate::rpc::RpcPool;
 use crate::tx::addresses::{events, get_contract_info, get_label};
-use crate::tx::flow::parse_transfers;
+use crate::tx::flow::{
+    native_transfers_from_trace, parse_transfers, parse_wraps, revert_data_from_trace,
+    wrapped_native_token,
+};
 use crate::tx::types::{
     AnalyzedEvent, BalanceChange, ContractCategory, ContractInfo, EventParam, FunctionCall,
     FunctionParam, RawTxData, TransactionAnalysis,
@@ -104,18 +107,50 @@ fn format_flow_amount(amount: &str, decimals: Option<u8>) -> String {
     }
 }
 
+/// Note attached when native-token figures were worked out without a trace
+const PARTIAL_NATIVE_NOTE: &str =
+    "balance_changes: native-token lines are marked partial. Without a \
+    call trace, transfers made inside the call are known only for wrapped-native deposits and \
+    withdrawals, so a contract or account that received the native token internally can be wrong. \
+    Run with --full on an endpoint that supports tracing for exact figures";
+/// Note attached when a call trace supplied the native-token transfers
+const TRACED_NATIVE_NOTE: &str =
+    "balance_changes: native-token lines include transfers made inside the call (from a call trace)";
+
+/// Recompute `balance_changes` and its note from the analysis as it stands
+fn refresh_balance_changes(analysis: &mut TransactionAnalysis) {
+    analysis.balance_changes = net_balance_changes(analysis);
+    analysis
+        .notes
+        .retain(|note| note != PARTIAL_NATIVE_NOTE && note != TRACED_NATIVE_NOTE);
+    if analysis.native_transfers.is_some() {
+        analysis.notes.push(TRACED_NATIVE_NOTE.to_string());
+    } else if analysis.balance_changes.iter().any(|c| c.partial) {
+        analysis.notes.push(PARTIAL_NATIVE_NOTE.to_string());
+    }
+}
+
 /// Net change per address and token over a transaction.
 ///
-/// Built from the decoded token transfers, the top-level native value and the
-/// fee the sender paid. Native transfers made inside the call are not visible
-/// without a trace and are not included. NFT transfers and the zero address
-/// (mints and burns) are left out, as are positions that net to zero.
+/// Token changes come from the decoded Transfer events, plus deposits into
+/// and withdrawals from the chain's wrapped native token, which mint and
+/// burn it without a Transfer event.
+///
+/// Native-token changes come from a call trace when the analysis has one
+/// (`native_transfers`), and are then exact. Without a trace they are built
+/// from the top-level value and the native side of wrapped-native deposits
+/// and withdrawals; other transfers made inside the call are unknown, so
+/// those lines are marked `partial`. The fee is always charged to the sender.
+///
+/// NFT transfers and the zero address (mints and burns) are left out, as are
+/// positions that net to zero.
 pub fn net_balance_changes(analysis: &TransactionAnalysis) -> Vec<BalanceChange> {
     use std::collections::BTreeMap;
 
     // (address, token) -> (received, sent); None is the native token
     let mut totals: BTreeMap<(Address, Option<Address>), (U256, U256)> = BTreeMap::new();
     let mut token_info: HashMap<Address, (Option<String>, Option<u8>)> = HashMap::new();
+    let mut flows: Vec<(Address, Address, Option<Address>, U256)> = Vec::new();
 
     for flow in &analysis.token_flows {
         if flow.token_id.is_some() {
@@ -131,20 +166,69 @@ pub fn net_balance_changes(analysis: &TransactionAnalysis) -> Vec<BalanceChange>
         if info.1.is_none() {
             info.1 = flow.decimals;
         }
-        let sent = &mut totals.entry((flow.from, Some(flow.token))).or_default().1;
-        *sent = sent.saturating_add(amount);
-        let received = &mut totals.entry((flow.to, Some(flow.token))).or_default().0;
-        *received = received.saturating_add(amount);
+        flows.push((flow.from, flow.to, Some(flow.token), amount));
     }
 
-    // The native token: value moved by the transaction itself, and the fee
-    if analysis.status && !analysis.value.is_zero() {
-        if let Some(to) = analysis.to {
-            let sent = &mut totals.entry((analysis.from, None)).or_default().1;
-            *sent = sent.saturating_add(analysis.value);
-            let received = &mut totals.entry((to, None)).or_default().0;
-            *received = received.saturating_add(analysis.value);
+    let traced = analysis.native_transfers.is_some();
+    for wrap in &analysis.wraps {
+        // A wrapped token that also logs the mint or burn as a Transfer has
+        // already been counted above
+        let logged_as_transfer = analysis.token_flows.iter().any(|flow| {
+            flow.token == wrap.token
+                && flow.amount == wrap.amount.to_string()
+                && if wrap.deposit {
+                    flow.from.is_zero() && flow.to == wrap.account
+                } else {
+                    flow.to.is_zero() && flow.from == wrap.account
+                }
+        });
+        let info = token_info.entry(wrap.token).or_default();
+        if info.0.is_none() {
+            info.0 = get_label(&wrap.token).map(String::from);
         }
+        if info.1.is_none() {
+            info.1 = Some(18);
+        }
+        let (token_from, token_to) = if wrap.deposit {
+            (Address::ZERO, wrap.account)
+        } else {
+            (wrap.account, Address::ZERO)
+        };
+        if !logged_as_transfer {
+            flows.push((token_from, token_to, Some(wrap.token), wrap.amount));
+        }
+        // The native side: into the token contract on a deposit, out of it
+        // on a withdrawal. A trace already contains these transfers.
+        if !traced {
+            let (native_from, native_to) = if wrap.deposit {
+                (wrap.account, wrap.token)
+            } else {
+                (wrap.token, wrap.account)
+            };
+            flows.push((native_from, native_to, None, wrap.amount));
+        }
+    }
+
+    match &analysis.native_transfers {
+        Some(transfers) => {
+            for (from, to, amount) in transfers {
+                flows.push((*from, *to, None, *amount));
+            }
+        }
+        None => {
+            if analysis.status && !analysis.value.is_zero() {
+                if let Some(to) = analysis.to {
+                    flows.push((analysis.from, to, None, analysis.value));
+                }
+            }
+        }
+    }
+
+    for (from, to, token, amount) in flows {
+        let received = &mut totals.entry((to, token)).or_default().0;
+        *received = received.saturating_add(amount);
+        let sent = &mut totals.entry((from, token)).or_default().1;
+        *sent = sent.saturating_add(amount);
     }
     if let Some(fee) = analysis
         .fee_wei
@@ -181,6 +265,7 @@ pub fn net_balance_changes(analysis: &TransactionAnalysis) -> Vec<BalanceChange>
                 decimals,
                 raw: format!("{sign}{magnitude}"),
                 formatted,
+                partial: token.is_none() && !traced,
             }
         })
         .collect()
@@ -360,9 +445,41 @@ impl TxAnalyzer {
             Err(e) => analysis.notes.push(format!("Block time not fetched: {e}")),
         }
 
+        // A call trace gives two things exactly: every native transfer made
+        // inside the call, and for a failed transaction the revert data of
+        // the transaction as it actually ran
+        let mut traced_revert: Option<Vec<u8>> = None;
+        match self.fetch_call_trace(analysis.hash, rpc_url).await {
+            Ok(trace) => {
+                analysis.native_transfers = Some(native_transfers_from_trace(&trace));
+                refresh_balance_changes(analysis);
+                traced_revert = revert_data_from_trace(&trace);
+            }
+            Err(reason) => analysis.notes.push(format!(
+                "No call trace: {reason}. Native-token balance changes stay partial"
+            )),
+        }
+
         if analysis.status || analysis.block_number == 0 {
             return;
         }
+        // The target's ABI names its own errors with certainty
+        let abi = match analysis.to {
+            Some(to) => crate::etherscan::Client::new(self.chain, None)
+                .ok()
+                .and_then(|client| client.cached_abi(&format!("{to:#x}"))),
+            None => None,
+        };
+        if let Some(data) = traced_revert {
+            analysis.revert =
+                Some(crate::abi::revert::describe(&data, abi.as_ref(), self.chain).await);
+            analysis.revert_from = Some("trace".to_string());
+            return;
+        }
+
+        // No trace: re-run the call against the state at the end of the
+        // parent block. That is not the state the transaction ran in, so the
+        // reason found this way can differ from the real one.
         let mut call = alloy::rpc::types::TransactionRequest::default()
             .from(analysis.from)
             .value(analysis.value)
@@ -374,23 +491,21 @@ impl TxAnalyzer {
         let parent: alloy::eips::BlockId = (analysis.block_number - 1).into();
         match provider.call(call).block(parent).await {
             Ok(_) => analysis.notes.push(
-                "Revert reason not found: the call succeeds against the parent block's state, \
-                 so the failure depended on an earlier transaction in the same block or on gas"
+                "Revert reason not found: no call trace was available, and the call succeeds \
+                 against the parent block's state, so the failure depended on an earlier \
+                 transaction in the same block, on the block's time, or on gas"
                     .to_string(),
             ),
             Err(e) => match crate::abi::revert::revert_data_of(&e) {
                 Some(data) => {
-                    // The target's ABI names its own errors with certainty
-                    let abi = match analysis.to {
-                        Some(to) => crate::etherscan::Client::new(self.chain, None)
-                            .ok()
-                            .and_then(|client| client.cached_abi(&format!("{to:#x}"))),
-                        None => None,
-                    };
                     analysis.revert =
                         Some(crate::abi::revert::describe(&data, abi.as_ref(), self.chain).await);
+                    analysis.revert_from = Some("replay".to_string());
                     analysis.notes.push(
-                        "revert was found by replaying the call against the parent block's state"
+                        "revert comes from re-running the call against the parent block's state, \
+                         not from the transaction as it ran. If the failure depended on an earlier \
+                         transaction in the same block or on the block's time, the real reason may \
+                         differ. A tracing endpoint gives the actual reason"
                             .to_string(),
                     );
                 }
@@ -399,6 +514,81 @@ impl TxAnalyzer {
                     .push(format!("Revert reason not fetched: {e}")),
             },
         }
+    }
+
+    /// A transaction's `debug_traceTransaction` call trace (call tracer),
+    /// tried on up to three debug-capable endpoints, or only on `rpc_url`
+    /// when one is given.
+    async fn fetch_call_trace(
+        &self,
+        hash: B256,
+        rpc_url: Option<&str>,
+    ) -> std::result::Result<serde_json::Value, String> {
+        use alloy::providers::Provider;
+
+        let configs: Vec<crate::config::EndpointConfig> = match rpc_url {
+            Some(url) => vec![crate::config::EndpointConfig::new(url.to_string())],
+            None => {
+                let config = crate::config::ConfigFile::load_default()
+                    .map_err(|e| e.to_string())?
+                    .unwrap_or_default();
+                crate::rpc::ranked_endpoint_configs(
+                    &config,
+                    self.chain,
+                    &crate::rpc::SelectionOptions::default(),
+                )
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .filter(|endpoint| endpoint.has_debug)
+                .take(3)
+                .collect()
+            }
+        };
+        if configs.is_empty() {
+            return Err("no configured endpoint supports tracing".to_string());
+        }
+
+        let mut last_error = String::new();
+        for config in configs {
+            let endpoint = match crate::rpc::Endpoint::new(config, 60, None) {
+                Ok(endpoint) => endpoint,
+                Err(e) => {
+                    last_error = e.to_string();
+                    continue;
+                }
+            };
+            let params = (
+                format!("{hash:#x}"),
+                serde_json::json!({ "tracer": "callTracer" }),
+            );
+            match endpoint
+                .provider()
+                .client()
+                .request::<_, serde_json::Value>("debug_traceTransaction", params)
+                .await
+            {
+                Ok(trace) => return Ok(trace),
+                // Keep the reason short and free of the endpoint's address
+                Err(e) => {
+                    last_error = e
+                        .to_string()
+                        .split_whitespace()
+                        .map(|word| {
+                            if word.contains("://") {
+                                "<endpoint>"
+                            } else {
+                                word
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .chars()
+                        .take(160)
+                        .collect();
+                }
+            }
+        }
+        Err(format!("the trace request failed ({last_error})"))
     }
 
     /// Internal analyze method
@@ -432,6 +622,9 @@ impl TxAnalyzer {
 
         // Parse token flows
         analysis.token_flows = parse_transfers(&raw.logs);
+        if let Some(wrapped) = wrapped_native_token(self.chain.chain_id()) {
+            analysis.wraps = parse_wraps(&raw.logs, wrapped);
+        }
 
         // Label token flows
         for flow in &mut analysis.token_flows {
@@ -463,14 +656,7 @@ impl TxAnalyzer {
             self.enrich_token_flows(&mut analysis.token_flows).await;
         }
 
-        analysis.balance_changes = net_balance_changes(&analysis);
-        if !analysis.balance_changes.is_empty() {
-            analysis.notes.push(
-                "balance_changes covers token transfers, the top-level value and the fee; \
-                 native-token transfers made inside the call (internal transfers) are not included"
-                    .to_string(),
-            );
-        }
+        refresh_balance_changes(&mut analysis);
 
         Ok(analysis)
     }
@@ -924,7 +1110,14 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
         if analysis.status { "Success" } else { "Failed" }
     ));
     if let Some(revert) = &analysis.revert {
-        output.push_str(&format!("Reverted: {}\n", revert.message));
+        let how = match analysis.revert_from.as_deref() {
+            Some("trace") => " (from the call trace)",
+            Some("replay") => {
+                " (from a replay on the parent block; may differ from the real reason)"
+            }
+            _ => "",
+        };
+        output.push_str(&format!("Reverted: {}{}\n", revert.message, how));
     }
 
     // Contracts
@@ -1010,7 +1203,8 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
                 (None, Some(token)) => format!("{token:#x}"),
                 (None, None) => "native".to_string(),
             };
-            output.push_str(&format!("  {who}  {amount} {token}\n"));
+            let partial = if change.partial { " (partial)" } else { "" };
+            output.push_str(&format!("  {who}  {amount} {token}{partial}\n"));
         }
         if analysis.balance_changes.len() > 30 {
             output.push_str(&format!(
@@ -1101,9 +1295,12 @@ mod tests {
             timestamp: None,
             time: None,
             revert: None,
+            revert_from: None,
             notes: vec![],
             input: Default::default(),
             gas_limit: 21000,
+            wraps: vec![],
+            native_transfers: None,
         }
     }
 
@@ -1168,6 +1365,8 @@ mod tests {
         // The zero address is not reported
         assert!(changes.iter().all(|c| !c.address.is_zero()));
         assert_eq!(changes.len(), 4);
+        // Without a trace, native lines are partial and token lines are not
+        assert!(changes.iter().all(|c| c.partial == c.token.is_none()));
 
         // A failed transaction moves no value, but the fee is still paid
         analysis.status = false;
@@ -1190,6 +1389,146 @@ mod tests {
         assert!(net_balance_changes(&analysis).is_empty());
     }
 
+    /// A swap of ETH for a token through a router that wraps the ETH, and
+    /// the reverse swap, where the router unwraps and pays the sender.
+    #[test]
+    fn wraps_and_traces_keep_routers_at_zero() {
+        use crate::tx::types::{TokenFlow, WrapEvent};
+        let sender = address!("d8da6bf26964af9d7eed9e03e53415d37aa96045");
+        let router = address!("7a250d5630b4cf539739df2c5dacb4c659f2488d");
+        let pair = address!("2222222222222222222222222222222222222222");
+        let weth = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+        let token = address!("3333333333333333333333333333333333333333");
+        let one_eth = U256::from(1_000_000_000_000_000_000u128);
+        let flow = |token, from, to, amount: U256, log_index| TokenFlow {
+            token,
+            token_label: None,
+            from,
+            from_label: None,
+            to,
+            to_label: None,
+            amount: amount.to_string(),
+            decimals: Some(18),
+            token_id: None,
+            log_index,
+        };
+        let net = |changes: &[BalanceChange], address: Address, token: Option<Address>| {
+            changes
+                .iter()
+                .find(|c| c.address == address && c.token == token)
+                .map(|c| c.raw.clone())
+        };
+
+        // ETH -> token: 1 ETH sent to the router, wrapped, paid to the pair
+        let mut buy = make_test_analysis();
+        buy.to = Some(router);
+        buy.value = one_eth;
+        buy.wraps = vec![WrapEvent {
+            token: weth,
+            account: router,
+            amount: one_eth,
+            deposit: true,
+        }];
+        buy.token_flows = vec![
+            flow(weth, router, pair, one_eth, 1),
+            flow(token, pair, sender, U256::from(500u64), 2),
+        ];
+        let changes = net_balance_changes(&buy);
+        // The router ends with nothing in either asset
+        assert_eq!(net(&changes, router, None), None);
+        assert_eq!(net(&changes, router, Some(weth)), None);
+        assert_eq!(
+            net(&changes, pair, Some(weth)).as_deref(),
+            Some("+1000000000000000000")
+        );
+        assert_eq!(
+            net(&changes, weth, None).as_deref(),
+            Some("+1000000000000000000")
+        );
+        assert_eq!(net(&changes, sender, Some(token)).as_deref(), Some("+500"));
+        assert_eq!(
+            net(&changes, sender, None).as_deref(),
+            Some("-1000420000000000000")
+        );
+
+        // The same from a trace: same figures, and no longer partial
+        buy.native_transfers = Some(vec![(sender, router, one_eth), (router, weth, one_eth)]);
+        let traced = net_balance_changes(&buy);
+        assert_eq!(net(&traced, router, None), None);
+        assert_eq!(
+            net(&traced, sender, None).as_deref(),
+            Some("-1000420000000000000")
+        );
+        assert!(traced.iter().all(|c| !c.partial));
+
+        // token -> ETH: the router unwraps and pays the sender internally
+        let mut sell = make_test_analysis();
+        sell.to = Some(router);
+        sell.value = U256::ZERO;
+        sell.wraps = vec![WrapEvent {
+            token: weth,
+            account: router,
+            amount: one_eth,
+            deposit: false,
+        }];
+        sell.token_flows = vec![
+            flow(token, sender, pair, U256::from(500u64), 0),
+            flow(weth, pair, router, one_eth, 1),
+        ];
+        // Without a trace the payout to the sender is unknown: the router
+        // appears to keep the ETH, and that line is flagged partial
+        let untraced = net_balance_changes(&sell);
+        assert_eq!(net(&untraced, router, Some(weth)), None);
+        assert_eq!(
+            net(&untraced, router, None).as_deref(),
+            Some("+1000000000000000000")
+        );
+        assert!(untraced
+            .iter()
+            .filter(|c| c.token.is_none())
+            .all(|c| c.partial));
+        // With the trace the sender gets the ETH less the fee, the router nothing
+        sell.native_transfers = Some(vec![(weth, router, one_eth), (router, sender, one_eth)]);
+        let traced = net_balance_changes(&sell);
+        assert_eq!(net(&traced, router, None), None);
+        assert_eq!(
+            net(&traced, sender, None).as_deref(),
+            Some("+999580000000000000")
+        );
+        assert_eq!(
+            net(&traced, weth, None).as_deref(),
+            Some("-1000000000000000000")
+        );
+
+        // A wrapped token that also logs its mint as a Transfer is counted once
+        let mut both = make_test_analysis();
+        both.to = Some(weth);
+        both.value = one_eth;
+        both.wraps = vec![WrapEvent {
+            token: weth,
+            account: sender,
+            amount: one_eth,
+            deposit: true,
+        }];
+        both.token_flows = vec![flow(weth, Address::ZERO, sender, one_eth, 0)];
+        let changes = net_balance_changes(&both);
+        assert_eq!(
+            net(&changes, sender, Some(weth)).as_deref(),
+            Some("+1000000000000000000")
+        );
+    }
+
+    #[test]
+    fn refresh_sets_the_note_that_matches_how_native_was_worked_out() {
+        let mut analysis = make_test_analysis();
+        refresh_balance_changes(&mut analysis);
+        assert_eq!(analysis.notes, vec![PARTIAL_NATIVE_NOTE.to_string()]);
+        analysis.native_transfers = Some(vec![]);
+        refresh_balance_changes(&mut analysis);
+        assert_eq!(analysis.notes, vec![TRACED_NATIVE_NOTE.to_string()]);
+        assert!(analysis.balance_changes.iter().all(|c| !c.partial));
+    }
+
     #[test]
     fn format_analysis_shows_time_fee_revert_and_net_changes() {
         let mut analysis = make_test_analysis();
@@ -1205,7 +1544,7 @@ mod tests {
             "Fee: 0.000420000000000000 (gas price 20000000000 wei)",
             "Reverted: custom error 0xdeadbeef (signature not found)",
             "Net Balance Changes (1):",
-            "-0.000420000000000000 native",
+            "-0.000420000000000000 native (partial)",
             "Note: a note",
         ] {
             assert!(out.contains(expected), "missing {expected:?} in:\n{out}");

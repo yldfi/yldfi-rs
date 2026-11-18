@@ -56,6 +56,11 @@ pub struct TransactionAnalysis {
     /// Why a failed transaction reverted (with `--full`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revert: Option<crate::abi::revert::DecodedRevert>,
+    /// Where `revert` came from: "trace" is the revert data of the
+    /// transaction as it ran; "replay" is from re-running the call against
+    /// the parent block's state, which can fail for a different reason
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revert_from: Option<String>,
     /// Things the reader should know about how complete the analysis is
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
@@ -65,6 +70,27 @@ pub struct TransactionAnalysis {
     /// Gas limit, kept to replay a failed transaction
     #[serde(skip)]
     pub(crate) gas_limit: u64,
+    /// Deposits into and withdrawals from the chain's wrapped native token
+    #[serde(skip)]
+    pub(crate) wraps: Vec<WrapEvent>,
+    /// Every native-token transfer in the transaction, from a call trace
+    /// (`None` until a trace has been fetched)
+    #[serde(skip)]
+    pub(crate) native_transfers: Option<Vec<(Address, Address, U256)>>,
+}
+
+/// A deposit into (wrap) or withdrawal from (unwrap) a wrapped native token.
+/// These mint and burn the token without a Transfer event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WrapEvent {
+    /// The wrapped native token
+    pub token: Address,
+    /// Account that wrapped or unwrapped
+    pub account: Address,
+    /// Amount, the same in native and wrapped units
+    pub amount: U256,
+    /// true for a deposit (native in, wrapped out), false for a withdrawal
+    pub deposit: bool,
 }
 
 /// Net change in one address's balance of one token
@@ -89,6 +115,11 @@ pub struct BalanceChange {
     /// Signed change scaled by the decimals, when they are known
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub formatted: Option<String>,
+    /// true when the figure may be incomplete: a native-token change worked
+    /// out without a call trace, so transfers made inside the call are only
+    /// known for wrapped-native deposits and withdrawals
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub partial: bool,
 }
 
 /// Information about a contract involved in the transaction
@@ -261,9 +292,12 @@ impl TransactionAnalysis {
             timestamp: None,
             time: None,
             revert: None,
+            revert_from: None,
             notes: Vec::new(),
             input: tx.inner.input().clone(),
             gas_limit: tx.inner.gas_limit(),
+            wraps: Vec::new(),
+            native_transfers: None,
         }
     }
 }

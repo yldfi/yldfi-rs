@@ -62,9 +62,14 @@ pub struct TxAnalyzeInput {
     /// the transaction will be looked up by matching the prefix within this block.
     #[serde(default)]
     pub block: Option<u64>,
-    /// Also fetch the block's time and, for a failed transaction, the reason it
-    /// reverted (two more requests). The fee, the position in the block and the
-    /// net balance change per address are always returned.
+    /// Also fetch a call trace, the block's time and, for a failed transaction,
+    /// the reason it reverted (up to three more requests). The fee, the
+    /// position in the block and balance_changes are always returned, but
+    /// native-token entries carry "partial": true without the trace and may be
+    /// wrong for contracts or accounts paid inside the call. Set this when the
+    /// native-token amounts matter. For a failed transaction, check
+    /// revert_from: "trace" is the real reason; "replay" is from re-running the
+    /// call on the parent block and can differ from it.
     #[serde(default)]
     pub full: bool,
 }
