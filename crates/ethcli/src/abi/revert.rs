@@ -29,11 +29,34 @@ pub enum RevertKind {
     Unknown,
 }
 
+/// Where an error's name and argument types came from
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RevertSource {
+    /// A form fixed by the language: no data, `Error(string)`, `Panic(uint256)`
+    Builtin,
+    /// The error is declared in the contract's ABI
+    Abi,
+    /// A public signature database, matched by 4-byte selector. Selectors
+    /// collide and the database holds junk entries, so this is a best guess:
+    /// the first candidate whose types decode the data.
+    SignatureDatabase,
+    /// A signature the caller supplied
+    Given,
+    /// Nothing named the selector
+    None,
+}
+
 /// A decoded revert
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct DecodedRevert {
     /// Kind of revert
     pub kind: RevertKind,
+    /// Where the name came from. `signature_database` is a guess
+    pub source: RevertSource,
+    /// Other signatures from the database whose types also decode the data
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub other_candidates: Vec<String>,
     /// 4-byte selector, when there is one
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selector: Option<String>,
@@ -89,14 +112,61 @@ fn value_to_json(value: &DynSolValue) -> serde_json::Value {
     }
 }
 
-fn args_text(args: &[serde_json::Value]) -> String {
-    args.iter()
-        .map(|a| match a {
-            serde_json::Value::String(s) => s.clone(),
-            other => other.to_string(),
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
+/// Text from a contract or a signature database, made safe to print: control
+/// characters and invisible or direction-changing ones are written as
+/// `\u{..}` escapes, so they cannot move the cursor, recolour the terminal or
+/// reorder what a reader sees.
+fn safe_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        let hidden = c.is_control()
+            || matches!(
+                c,
+                '\u{00ad}'
+                    | '\u{061c}'
+                    | '\u{180e}'
+                    | '\u{200b}'..='\u{200f}'
+                    | '\u{2028}'..='\u{202e}'
+                    | '\u{2060}'..='\u{206f}'
+                    | '\u{feff}'
+                    | '\u{fff9}'..='\u{fffb}'
+                    | '\u{e0000}'..='\u{e007f}'
+            );
+        if hidden {
+            out.push_str(&format!("\\u{{{:x}}}", c as u32));
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// A string value in quotes, safe to print
+fn quoted(text: &str) -> String {
+    // Escape the text's own backslashes and quotes first, so the escapes
+    // `safe_text` adds stay readable
+    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{}\"", safe_text(&escaped))
+}
+
+/// A decoded value as text for the one-line message. Strings are quoted and
+/// escaped; every other kind is digits, hex or a checksummed address.
+fn value_text(value: &DynSolValue) -> String {
+    match value {
+        DynSolValue::String(s) => quoted(s),
+        DynSolValue::Array(items) | DynSolValue::FixedArray(items) => format!(
+            "[{}]",
+            items.iter().map(value_text).collect::<Vec<_>>().join(", ")
+        ),
+        DynSolValue::Tuple(items) => format!(
+            "({})",
+            items.iter().map(value_text).collect::<Vec<_>>().join(", ")
+        ),
+        other => match value_to_json(other) {
+            serde_json::Value::String(s) => s,
+            json => json.to_string(),
+        },
+    }
 }
 
 /// Decode the forms that need no ABI: empty data, `Error(string)` and
@@ -105,6 +175,8 @@ pub fn decode_builtin(data: &[u8]) -> Option<DecodedRevert> {
     if data.is_empty() {
         return Some(DecodedRevert {
             kind: RevertKind::Empty,
+            source: RevertSource::Builtin,
+            other_candidates: Vec::new(),
             selector: None,
             signature: None,
             args: Vec::new(),
@@ -119,9 +191,11 @@ pub fn decode_builtin(data: &[u8]) -> Option<DecodedRevert> {
         if let Ok(DynSolValue::String(reason)) = DynSolType::String.abi_decode(&data[4..]) {
             return Some(DecodedRevert {
                 kind: RevertKind::ErrorString,
+                source: RevertSource::Builtin,
+                other_candidates: Vec::new(),
                 selector: Some(hex_of(&data[..4])),
                 signature: Some("Error(string)".to_string()),
-                message: format!("{reason:?}"),
+                message: quoted(&reason),
                 args: vec![serde_json::Value::String(reason)],
                 raw: hex_of(data),
             });
@@ -131,6 +205,8 @@ pub fn decode_builtin(data: &[u8]) -> Option<DecodedRevert> {
         if let Ok(DynSolValue::Uint(code, _)) = DynSolType::Uint(256).abi_decode(&data[4..]) {
             return Some(DecodedRevert {
                 kind: RevertKind::Panic,
+                source: RevertSource::Builtin,
+                other_candidates: Vec::new(),
                 selector: Some(hex_of(&data[..4])),
                 signature: Some("Panic(uint256)".to_string()),
                 message: format!("Panic({code:#x}): {}", panic_meaning(code)),
@@ -155,25 +231,24 @@ pub fn decode_with_abi(data: &[u8], abi: &JsonAbi) -> Option<DecodedRevert> {
     let named = error
         .inputs
         .iter()
-        .zip(&args)
-        .map(|(input, arg)| {
-            let text = match arg {
-                serde_json::Value::String(s) => s.clone(),
-                other => other.to_string(),
-            };
+        .zip(&values)
+        .map(|(input, value)| {
+            let text = value_text(value);
             if input.name.is_empty() {
                 text
             } else {
-                format!("{}={text}", input.name)
+                format!("{}={text}", safe_text(&input.name))
             }
         })
         .collect::<Vec<_>>()
         .join(", ");
     Some(DecodedRevert {
         kind: RevertKind::Custom,
+        source: RevertSource::Abi,
+        other_candidates: Vec::new(),
         selector: Some(hex_of(&data[..4])),
-        signature: Some(error.signature()),
-        message: format!("{}({named})", error.name),
+        signature: Some(safe_text(&error.signature())),
+        message: format!("{}({named})", safe_text(&error.name)),
         args,
         raw: hex_of(data),
     })
@@ -199,22 +274,26 @@ pub fn decode_with_signature(data: &[u8], signature: &str) -> Option<DecodedReve
     if selector[..4] != data[..4] {
         return None;
     }
-    let args: Vec<serde_json::Value> = match signature_types(signature)? {
+    let values: Vec<DynSolValue> = match signature_types(signature)? {
         DynSolType::Tuple(types) if types.is_empty() => {
             // No arguments: the data must be the selector alone
             (data.len() == 4).then(Vec::new)?
         }
         ty => match ty.abi_decode_params(&data[4..]).ok()? {
-            DynSolValue::Tuple(values) => values.iter().map(value_to_json).collect(),
-            single => vec![value_to_json(&single)],
+            DynSolValue::Tuple(values) => values,
+            single => vec![single],
         },
     };
+    let args: Vec<serde_json::Value> = values.iter().map(value_to_json).collect();
+    let texts: Vec<String> = values.iter().map(value_text).collect();
     let name = signature.split('(').next().unwrap_or(signature);
     Some(DecodedRevert {
         kind: RevertKind::Custom,
+        source: RevertSource::Given,
+        other_candidates: Vec::new(),
         selector: Some(hex_of(&data[..4])),
-        signature: Some(signature.to_string()),
-        message: format!("{name}({})", args_text(&args)),
+        signature: Some(safe_text(signature)),
+        message: format!("{}({})", safe_text(name), texts.join(", ")),
         args,
         raw: hex_of(data),
     })
@@ -225,6 +304,8 @@ pub fn unknown(data: &[u8]) -> DecodedRevert {
     let selector = (data.len() >= 4).then(|| hex_of(&data[..4]));
     DecodedRevert {
         kind: RevertKind::Unknown,
+        source: RevertSource::None,
+        other_candidates: Vec::new(),
         message: match &selector {
             Some(s) => format!("custom error {s} (signature not found)"),
             None => "revert data too short to hold a selector".to_string(),
@@ -255,10 +336,22 @@ where
     }
     if data.len() >= 4 {
         if let Some(candidates) = lookup(hex_of(&data[..4])).await {
-            if let Some(decoded) = candidates
+            let mut fitting = candidates
                 .iter()
-                .find_map(|signature| decode_with_signature(data, signature))
-            {
+                .filter_map(|signature| decode_with_signature(data, signature));
+            if let Some(mut decoded) = fitting.next() {
+                // The name is a guess: say so, and say what else it could be
+                decoded.source = RevertSource::SignatureDatabase;
+                decoded.other_candidates = fitting.filter_map(|d| d.signature).collect();
+                decoded
+                    .message
+                    .push_str(" (name from the signature database, not the contract)");
+                if !decoded.other_candidates.is_empty() {
+                    decoded.message.push_str(&format!(
+                        "; also fits {}",
+                        decoded.other_candidates.join(", ")
+                    ));
+                }
                 return decoded;
             }
         }
@@ -390,6 +483,37 @@ mod tests {
         assert!(decode_with_abi(&[9, 9, 9, 9], &abi).is_none());
     }
 
+    #[test]
+    fn strings_from_the_contract_cannot_carry_terminal_or_bidi_controls() {
+        let hostile = "ok\u{1b}[31mred\u{202e}txet\nnew\"quote";
+        let expected = "\"ok\\u{1b}[31mred\\u{202e}txet\\u{a}new\\\"quote\"";
+
+        // Error(string)
+        let mut data = ERROR_STRING_SELECTOR.to_vec();
+        data.extend(DynSolValue::String(hostile.into()).abi_encode());
+        let error = decode_builtin(&data).unwrap();
+        assert_eq!(error.message, expected);
+        // The JSON argument keeps the exact text; serde escapes it on output
+        assert_eq!(error.args, vec![serde_json::json!(hostile)]);
+
+        // A custom error's string argument, alone and inside an array
+        let data = custom(
+            "Bad(string,string[])",
+            vec![
+                DynSolValue::String(hostile.into()),
+                DynSolValue::Array(vec![DynSolValue::String("a\u{7}".into())]),
+            ],
+        );
+        let decoded = decode_with_signature(&data, "Bad(string,string[])").unwrap();
+        assert_eq!(decoded.message, format!("Bad({expected}, [\"a\\u{{7}}\"])"));
+        for text in [&decoded.message, decoded.signature.as_ref().unwrap()] {
+            assert!(!text.chars().any(|c| c.is_control() || c == '\u{202e}'));
+        }
+
+        // A name from an ABI is escaped too
+        assert_eq!(safe_text("Na\u{1b}me"), "Na\\u{1b}me");
+    }
+
     #[tokio::test]
     async fn tries_builtin_then_abi_then_lookup_then_gives_up() {
         let signature = "Nope(uint8)";
@@ -401,7 +525,34 @@ mod tests {
             Some(vec!["Wrong(string)".to_string(), "Nope(uint8)".to_string()])
         })
         .await;
-        assert_eq!(decoded.message, "Nope(3)");
+        assert_eq!(
+            decoded.message,
+            "Nope(3) (name from the signature database, not the contract)"
+        );
+        assert_eq!(decoded.source, RevertSource::SignatureDatabase);
+        assert!(decoded.other_candidates.is_empty());
+
+        // Two database entries with the same selector and fitting types
+        // cannot be told apart: the first is used and the other is listed
+        let ambiguous = keccak256(b"A()")[..4].to_vec();
+        let both = decode_revert(&ambiguous, None, |_| async {
+            Some(vec!["A()".to_string(), "A()".to_string()])
+        })
+        .await;
+        assert_eq!(both.other_candidates, vec!["A()".to_string()]);
+        assert!(both.message.contains("also fits A()"), "{}", both.message);
+
+        // An ABI answer is not a guess
+        let abi: JsonAbi = serde_json::from_str(
+            r#"[{"type":"error","name":"Nope","inputs":[{"name":"n","type":"uint8"}]}]"#,
+        )
+        .unwrap();
+        let from_abi = decode_revert(&data, Some(&abi), |_| async {
+            panic!("no lookup when the ABI names the error")
+        })
+        .await;
+        assert_eq!(from_abi.source, RevertSource::Abi);
+        assert_eq!(from_abi.message, "Nope(n=3)");
 
         let unknown = decode_revert(&data, None, |_| async { None }).await;
         assert_eq!(unknown.kind, RevertKind::Unknown);
