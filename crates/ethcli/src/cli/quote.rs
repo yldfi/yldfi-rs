@@ -150,9 +150,18 @@ pub struct QuoteOutput {
     /// placeholder address instead
     pub placeholder_sender: Option<PlaceholderSender>,
     pub aggregation: QuoteAggregation,
+    /// Sources that returned no quote, with the reason
+    pub failed_sources: Vec<FailedSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quotes: Option<Vec<QuoteSummary>>,
     pub total_latency_ms: u64,
+}
+
+/// A source that returned no quote
+#[derive(Debug, Serialize)]
+pub struct FailedSource {
+    pub source: String,
+    pub error: String,
 }
 
 /// Which sources were priced for the placeholder sender
@@ -338,6 +347,9 @@ async fn execute_from(source: SwapSourceArg, args: &QuoteArgs, quiet: bool) -> a
                 }
                 if let Some(protocols) = &quote.protocols {
                     println!("  Protocols:   {}", protocols.join(", "));
+                }
+                if let (Some(fee), Some(token)) = (&quote.fee_amount, &quote.fee_token) {
+                    println!("  Fee:         {} of {} (already deducted)", fee, token);
                 }
                 if quote.placeholder_sender {
                     println!("  Note:        priced for a placeholder sender: no transaction data. Pass --sender (the wallet that will sign) for it");
@@ -529,7 +541,21 @@ fn build_output(
         note: PLACEHOLDER_NOTE,
     });
 
+    let failed_sources = result
+        .sources
+        .iter()
+        .filter(|s| s.data.is_none())
+        .map(|s| FailedSource {
+            source: s.source.to_string(),
+            error: s
+                .error
+                .clone()
+                .unwrap_or_else(|| "no quote returned".to_string()),
+        })
+        .collect();
+
     QuoteOutput {
+        failed_sources,
         sender: args.sender.clone(),
         placeholder_sender,
         token_in: args.token_in.clone(),
@@ -613,6 +639,13 @@ fn print_best_output(
         "Queried {} sources, {} succeeded",
         output.aggregation.total_sources, output.aggregation.valid_quotes
     );
+    for failed in &output.failed_sources {
+        println!(
+            "  No quote from {}: {}",
+            failed.source,
+            truncate_str(&failed.error, 80)
+        );
+    }
     println!("Total time: {}ms (parallel)", output.total_latency_ms);
     println!();
 }
