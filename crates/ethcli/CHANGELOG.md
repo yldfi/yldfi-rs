@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.5...ethcli-v0.30.6) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** account --all paging, funded-by and labels ([#285](https://github.com/yldfi/yldfi-rs/issues/285)) ([8b6468f](https://github.com/yldfi/yldfi-rs/commit/8b6468fab3c500609ddc8b3e3ea5b79d75cd22b4))
+* **ethcli:** tx --graph draws who paid whom as a Mermaid flowchart ([#287](https://github.com/yldfi/yldfi-rs/issues/287)) ([2ba2cec](https://github.com/yldfi/yldfi-rs/commit/2ba2cec3a7379ab04703205a7e7f894aa76a390b))
+
 ## [0.30.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.4...ethcli-v0.30.5) (2026-11-18)
 
 
