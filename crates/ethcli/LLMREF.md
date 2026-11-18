@@ -125,6 +125,8 @@ ethcli rpc tx <hash>                # Transaction by hash (eth_getTransactionByH
 ethcli rpc balance <addr> -b <block> --json   # Native balance in wei and ether
 ethcli rpc block-at 2024-01-31      # Block for a time (date, @unix timestamp, or age like 7d)
 ethcli rpc call <to> -s "totalSupply()" -d uint256 -b 2024-01-31   # --block also takes a time
+# A plain date = 00:00 UTC at the START of that day (state before anything on that date).
+# End of day: use the next day's date or 2024-01-31T23:59:59Z. Times are UTC.
 ethcli rpc nonce <addr>             # Account nonce
 
 # Many calls at one block in one request (Multicall3), decoded, in input order.

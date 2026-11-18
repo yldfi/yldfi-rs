@@ -306,6 +306,8 @@ ethcli rpc balance 0x... --block 21000000 -o json
 ethcli rpc balance 0x... --block 2024-01-31
 ethcli contract call 0x... totalSupply --block 7d
 ethcli rpc block-at 2024-01-31T12:00:00Z    # the latest block at or before that time
+# A plain date is 00:00 UTC at the start of that day: 2024-01-31 is the close of 30 January.
+# For an end-of-day figure use the next day's date or a full time (2024-01-31T23:59:59Z).
 
 # Size and code hash only (is it a contract? did the code change?)
 ethcli rpc code 0x... --summary

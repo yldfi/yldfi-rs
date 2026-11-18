@@ -171,6 +171,14 @@ ethcli contract call <addr> totalSupply --block 7d
 The block used is the latest one at or before that time, found by binary search
 over block headers, so it is exact. A bare number is still a block number.
 
+A plain date is the **start** of that day in UTC. `--block 2024-04-05` reads the
+state before anything that happened on 5 April, so it is the close of 4 April.
+For an end-of-day or year-end figure, pass the next day's date or a full time
+such as `2024-04-05T23:59:59Z`. All times are UTC: local midnight in a zone one
+hour ahead is `23:00:00Z` on the previous day. The resolved block and its time
+are printed on stderr (and `rpc block-at --json` returns them), so the choice
+can be checked.
+
 ### Reverts
 
 A reverted `rpc call`, `contract call` or `rpc multicall` entry reports why:

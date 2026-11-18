@@ -178,7 +178,8 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `cast_index` | The storage slot of a mapping entry |
 
 The `block` input of `rpc_balance`, `rpc_multicall` and `contract_call` also
-accepts a date, `@timestamp` or age. A reverted call's result carries a `revert`
+accepts a date, `@timestamp` or age. A plain date is 00:00 UTC at the start of
+that day; for an end-of-day figure pass the next day's date or a full time. A reverted call's result carries a `revert`
 object; its `source` field is `signature_database` when the error name is a
 guess from the public signature list.
 
