@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.6...ethcli-mcp-v0.6.7) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** fee, net balance changes, block time and revert reason in tx ([#282](https://github.com/yldfi/yldfi-rs/issues/282)) ([5405361](https://github.com/yldfi/yldfi-rs/commit/54053612b2d9ad97c7a91f467c177e4725e5e5fc))
+
+
+### Bug Fixes
+
+* **ethcli:** make tx balance changes right for native-token swaps ([#284](https://github.com/yldfi/yldfi-rs/issues/284)) ([081bb0e](https://github.com/yldfi/yldfi-rs/commit/081bb0ebd3313dab61ebaf4382fb285ed92c711c))
+
 ## [0.6.6](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.5...ethcli-mcp-v0.6.6) (2026-11-18)
 
 

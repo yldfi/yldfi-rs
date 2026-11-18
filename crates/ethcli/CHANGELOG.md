@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.30.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.4...ethcli-v0.30.5) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** fee, net balance changes, block time and revert reason in tx ([#282](https://github.com/yldfi/yldfi-rs/issues/282)) ([5405361](https://github.com/yldfi/yldfi-rs/commit/54053612b2d9ad97c7a91f467c177e4725e5e5fc))
+
+
+### Bug Fixes
+
+* **ethcli:** a quote source that does not cover a swap is not a failure ([#281](https://github.com/yldfi/yldfi-rs/issues/281)) ([d55b577](https://github.com/yldfi/yldfi-rs/commit/d55b5770bae073244ccb356ef93786585b87ff3d))
+* **ethcli:** make tx balance changes right for native-token swaps ([#284](https://github.com/yldfi/yldfi-rs/issues/284)) ([081bb0e](https://github.com/yldfi/yldfi-rs/commit/081bb0ebd3313dab61ebaf4382fb285ed92c711c))
+
 ## [0.30.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.3...ethcli-v0.30.4) (2026-11-18)
 
 
