@@ -262,6 +262,28 @@ pub enum AccountCommands {
     },
 }
 
+/// Print rows as a JSON array, or one object per line for NDJSON
+fn print_rows<T: serde::Serialize>(rows: &[T], output: OutputFormat) -> anyhow::Result<()> {
+    if output.is_ndjson() {
+        for row in rows {
+            println!("{}", serde_json::to_string(row)?);
+        }
+    } else {
+        println!("{}", serde_json::to_string_pretty(rows)?);
+    }
+    Ok(())
+}
+
+/// Print one value as pretty JSON, or on a single line for NDJSON
+fn print_value<T: serde::Serialize>(value: &T, output: OutputFormat) -> anyhow::Result<()> {
+    if output.is_ndjson() {
+        println!("{}", serde_json::to_string(value)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    }
+    Ok(())
+}
+
 pub async fn handle(
     action: &AccountCommands,
     chain: Chain,
@@ -311,7 +333,7 @@ pub async fn handle(
                 .await
                 .ok();
 
-            if output.is_json() {
+            if !output.is_table() {
                 let json = serde_json::json!({
                     "address": format!("{:#x}", addr),
                     "balance": balance_eth,
@@ -337,7 +359,7 @@ pub async fn handle(
                         })
                     }).collect::<Vec<_>>()),
                 });
-                println!("{}", serde_json::to_string_pretty(&json)?);
+                print_value(&json, *output)?;
             } else {
                 println!("Account: {}", address);
                 println!("{}", "═".repeat(60));
@@ -432,7 +454,7 @@ pub async fn handle(
                     .map_err(|e| anyhow::anyhow!("Balance failed: {}", e))?;
                 let balance_eth = format_wei_to_eth(&balance.to_string());
 
-                if output.is_json() {
+                if !output.is_table() {
                     let mut json = serde_json::json!({
                         "address": format!("{:#x}", addr),
                         "balance_wei": balance.to_string(),
@@ -476,7 +498,7 @@ pub async fn handle(
                     results.push((*addr, label.clone(), balance));
                 }
 
-                if output.is_json() {
+                if !output.is_table() {
                     let json_results: Vec<serde_json::Value> = results
                         .iter()
                         .map(|(addr, label, bal)| {
@@ -492,7 +514,7 @@ pub async fn handle(
                             json
                         })
                         .collect();
-                    println!("{}", serde_json::to_string_pretty(&json_results)?);
+                    print_rows(&json_results, *output)?;
                 } else {
                     for (addr, label, bal) in &results {
                         let eth = format_wei_to_eth(&bal.to_string());
@@ -547,7 +569,7 @@ pub async fn handle(
 
             let txs = client.get_transactions(&addr, Some(params)).await?;
 
-            if output.is_json() {
+            if !output.is_table() {
                 // Manually construct JSON to avoid GenesisOption serialization issues
                 let json_txs: Vec<serde_json::Value> = txs
                     .iter()
@@ -575,7 +597,7 @@ pub async fn handle(
                         })
                     })
                     .collect();
-                println!("{}", serde_json::to_string_pretty(&json_txs)?);
+                print_rows(&json_txs, *output)?;
             } else {
                 println!("Transactions for {}", address);
                 println!("{}", "─".repeat(80));
@@ -637,8 +659,8 @@ pub async fn handle(
                 .get_internal_transactions(query, Some(params))
                 .await?;
 
-            if output.is_json() {
-                println!("{}", serde_json::to_string_pretty(&txs)?);
+            if !output.is_table() {
+                print_rows(&txs, *output)?;
             } else {
                 println!("Internal Transactions for {}", address);
                 println!("{}", "─".repeat(80));
@@ -705,8 +727,8 @@ pub async fn handle(
                 .get_erc20_token_transfer_events(query, Some(params))
                 .await?;
 
-            if output.is_json() {
-                println!("{}", serde_json::to_string_pretty(&transfers)?);
+            if !output.is_table() {
+                print_rows(&transfers, *output)?;
             } else {
                 println!("ERC20 Transfers for {}", address);
                 println!("{}", "─".repeat(80));
@@ -781,8 +803,8 @@ pub async fn handle(
                 .get_erc721_token_transfer_events(query, Some(params))
                 .await?;
 
-            if output.is_json() {
-                println!("{}", serde_json::to_string_pretty(&transfers)?);
+            if !output.is_table() {
+                print_rows(&transfers, *output)?;
             } else {
                 println!("ERC721 Transfers for {}", address);
                 println!("{}", "─".repeat(80));
@@ -849,8 +871,8 @@ pub async fn handle(
                 .get_erc1155_token_transfer_events(query, Some(params))
                 .await?;
 
-            if output.is_json() {
-                println!("{}", serde_json::to_string_pretty(&transfers)?);
+            if !output.is_table() {
+                print_rows(&transfers, *output)?;
             } else {
                 println!("ERC1155 Transfers for {}", address);
                 println!("{}", "─".repeat(80));
@@ -897,8 +919,8 @@ pub async fn handle(
                 .get_mined_blocks(&addr, None, Some((*page, *limit)))
                 .await?;
 
-            if output.is_json() {
-                println!("{}", serde_json::to_string_pretty(&blocks)?);
+            if !output.is_table() {
+                print_rows(&blocks, *output)?;
             } else {
                 println!("Blocks Mined by {}", address);
                 println!("{}", "─".repeat(60));
