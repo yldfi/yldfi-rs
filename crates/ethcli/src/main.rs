@@ -2654,7 +2654,13 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
     let config_file = load_config_with_warning();
 
     // Build RPC config with defaults
-    let rpc_config = build_default_rpc_config(&config_file)?;
+    let mut rpc_config = build_default_rpc_config(&config_file)?;
+    if let Some(url) = &args.rpc_url {
+        // Replace the pool. The URL goes in `add_endpoints` because the pool
+        // gives those the requested chain and doesn't apply its config filters.
+        rpc_config.endpoints.clear();
+        rpc_config.add_endpoints = vec![url.clone()];
+    }
 
     // Create RPC pool
     let pool = RpcPool::new(chain, &rpc_config)?;

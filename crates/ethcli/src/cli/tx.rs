@@ -42,4 +42,8 @@ pub struct TxArgs {
     /// Enrich with Etherscan data (contract names, token symbols, function decoding)
     #[arg(long)]
     pub enrich: bool,
+
+    /// Use only this RPC endpoint, not the configured pool (e.g. a local fork)
+    #[arg(long, visible_alias = "rpc", value_name = "URL")]
+    pub rpc_url: Option<String>,
 }
