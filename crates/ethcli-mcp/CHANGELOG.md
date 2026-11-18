@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.5](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.4...ethcli-mcp-v0.6.5) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** add prop AMM quotes as a conditional quote source (new pamm crate) ([#275](https://github.com/yldfi/yldfi-rs/issues/275)) ([e4cddba](https://github.com/yldfi/yldfi-rs/commit/e4cddba7811ab8355c31b4e18c4504bc9249fd75))
+* **ethcli:** decode revert reasons in rpc call, contract call and rpc multicall ([#274](https://github.com/yldfi/yldfi-rs/issues/274)) ([4f20ec8](https://github.com/yldfi/yldfi-rs/commit/4f20ec8e5c8a77b72bc39331243269f5e8834956))
+
 ## [0.6.4](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.3...ethcli-mcp-v0.6.4) (2026-11-18)
 
 
