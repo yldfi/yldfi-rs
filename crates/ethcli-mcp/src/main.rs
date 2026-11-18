@@ -6907,7 +6907,7 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get quote from a specific aggregator (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, enso)",
+        description = "Get quote from a specific aggregator (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, velora-delta, enso)",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn quote_from(&self, Parameters(input): Parameters<QuoteFromInput>) -> CallToolResult {

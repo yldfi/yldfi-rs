@@ -15,6 +15,7 @@ pub enum SwapSource {
     CowSwap,
     LiFi,
     Velora,
+    VeloraDelta,
     Enso,
 }
 
@@ -31,6 +32,7 @@ impl std::str::FromStr for SwapSource {
             "cowswap" | "cow" => Ok(SwapSource::CowSwap),
             "lifi" | "li.fi" => Ok(SwapSource::LiFi),
             "velora" | "paraswap" | "para" => Ok(SwapSource::Velora),
+            "velora-delta" | "veloradelta" | "delta" => Ok(SwapSource::VeloraDelta),
             "enso" | "ensofi" => Ok(SwapSource::Enso),
             _ => Err(format!("Unknown swap source: {}", s)),
         }
@@ -48,6 +50,7 @@ impl std::fmt::Display for SwapSource {
             SwapSource::CowSwap => write!(f, "cowswap"),
             SwapSource::LiFi => write!(f, "lifi"),
             SwapSource::Velora => write!(f, "velora"),
+            SwapSource::VeloraDelta => write!(f, "velora-delta"),
             SwapSource::Enso => write!(f, "enso"),
         }
     }

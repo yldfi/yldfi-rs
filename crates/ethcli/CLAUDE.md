@@ -60,7 +60,7 @@ ethcli price      # Token prices from CoinGecko, DefiLlama, Alchemy, Moralis, Ch
 ethcli portfolio  # Portfolio balances from Alchemy, Moralis
 ethcli nfts       # NFT holdings from Alchemy, CoinGecko, Moralis
 ethcli yields     # DeFi yields from DefiLlama and Curve
-ethcli quote      # Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora, Enso
+ethcli quote      # Swap quotes from OpenOcean, KyberSwap, 0x, 1inch, CowSwap, LI.FI, Velora (Market and Delta), Enso
 ```
 
 ### Direct API Access Commands
@@ -494,6 +494,7 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 | `cowswap`, `cow` | CowSwap | MEV-protected trades |
 | `li.fi`, `lifi` | LI.FI | Cross-chain aggregator |
 | `velora`, `paraswap` | Velora/ParaSwap | Multi-protocol routing |
+| `velora-delta`, `delta` | Velora Delta | Gasless order filled by solvers; output is net of gas, no transaction data |
 | `enso`, `ensofi` | Enso Finance | DeFi shortcuts |
 
 ### Notes
@@ -501,6 +502,7 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 - **No API keys required** for basic usage (some sources may have higher rate limits with keys)
 - **MEV protection**: CowSwap uses batch auctions to protect against MEV
 - **Amount format**: Pass raw amounts (wei) or use `--decimals` for human-readable input
+- **Velora Delta**: a second Velora source. Delta is an order the user signs and solvers fill, so its output already has the gas fee taken out and it returns no transaction data; the other sources report output before gas. On larger trades in thinner pools it can beat Velora's Market route
 - **Outliers**: with three or more quotes, a source under half the median is listed in `aggregation.outliers` (table: `LOW`) and left out of the average, spread and improvement; a source above twice the median is listed in `high_outliers` (table: `HIGH`) with a warning but still counts
 - **Sender**: CowSwap, LI.FI and Enso need a sender. Without `--sender` they are priced for a placeholder address (`placeholder_sender` in the output) and return no transaction data; the zero address and the placeholder are rejected as `--sender`
 - **Failed sources**: `failed_sources` in the output lists each source that returned no quote and why; `quote best` prints them too

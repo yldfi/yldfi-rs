@@ -38,6 +38,9 @@ pub enum SwapSourceArg {
     /// Velora (ParaSwap)
     #[value(alias = "paraswap")]
     Velora,
+    /// Velora Delta: a gasless order filled by solvers; its output is net of gas
+    #[value(name = "velora-delta", aliases = ["delta", "veloradelta"])]
+    VeloraDelta,
     /// Enso Finance
     #[value(alias = "ensofi")]
     Enso,
@@ -54,6 +57,7 @@ impl From<SwapSourceArg> for SwapSource {
             SwapSourceArg::CowSwap => SwapSource::CowSwap,
             SwapSourceArg::LiFi => SwapSource::LiFi,
             SwapSourceArg::Velora => SwapSource::Velora,
+            SwapSourceArg::VeloraDelta => SwapSource::VeloraDelta,
             SwapSourceArg::Enso => SwapSource::Enso,
         }
     }
@@ -70,6 +74,7 @@ impl std::fmt::Display for SwapSourceArg {
             SwapSourceArg::CowSwap => write!(f, "CowSwap"),
             SwapSourceArg::LiFi => write!(f, "LI.FI"),
             SwapSourceArg::Velora => write!(f, "Velora"),
+            SwapSourceArg::VeloraDelta => write!(f, "Velora Delta"),
             SwapSourceArg::Enso => write!(f, "Enso"),
         }
     }
@@ -832,6 +837,9 @@ mod tests {
             ("lifi", SwapSourceArg::LiFi),
             ("li.fi", SwapSourceArg::LiFi),
             ("open-ocean", SwapSourceArg::OpenOcean),
+            ("velora", SwapSourceArg::Velora),
+            ("velora-delta", SwapSourceArg::VeloraDelta),
+            ("delta", SwapSourceArg::VeloraDelta),
         ] {
             assert_eq!(
                 SwapSourceArg::from_str(name, true).unwrap(),

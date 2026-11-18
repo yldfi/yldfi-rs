@@ -635,7 +635,8 @@ pub struct QuoteCompareInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct QuoteFromInput {
-    /// The aggregator to use (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora, enso)
+    /// The aggregator to use (openocean, kyberswap, 0x, 1inch, cowswap, lifi, velora,
+    /// velora-delta, enso). velora-delta is a gasless order: its output is net of gas.
     pub source: String,
     /// Source token address (or symbol like ETH, USDC)
     pub from_token: String,

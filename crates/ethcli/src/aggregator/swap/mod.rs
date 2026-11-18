@@ -30,6 +30,7 @@ pub async fn fetch_quotes_all(
         SwapSource::CowSwap,
         SwapSource::LiFi,
         SwapSource::Velora,
+        SwapSource::VeloraDelta,
         SwapSource::Enso,
     ];
 
@@ -224,6 +225,12 @@ async fn fetch_for_sender(
             fetchers::fetch_velora_quote(chain, token_in, token_out, amount_in, sender, measure)
                 .await
         }
+        SwapSource::VeloraDelta => {
+            fetchers::fetch_velora_delta_quote(
+                chain, token_in, token_out, amount_in, sender, measure,
+            )
+            .await
+        }
         SwapSource::Enso => {
             fetchers::fetch_enso_quote(
                 chain,
@@ -257,6 +264,7 @@ mod tests {
             SwapSource::Zerox,
             SwapSource::OneInch,
             SwapSource::Velora,
+            SwapSource::VeloraDelta,
             SwapSource::All,
         ] {
             assert!(!requires_sender(source), "{source}");
