@@ -143,7 +143,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | sig_* | 6 |
 | pyth_* | 5 |
 | ens_* | 4 |
-| contract_* | 8 |
+| contract_* | 9 |
 | chainlink_* | 4 |
 | zerox_* | 7 |
 | velora_* | 4 |
@@ -168,6 +168,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | Tool | Use it for |
 |------|------------|
 | `rpc_multicall` | Many contract reads at one block in one request, decoded, in input order. Also a time series with `block_range`. Replaces repeated `contract_call` / `rpc_call` |
+| `contract_inspect` | Everything about an address in one call: account kind, proxy and implementation, verified name, creator, token details, Safe owners, and the function list. Use it first for an unknown address |
 | `contract_call` | One read by function name, using the contract's ABI |
 | `rpc_balance` | Native balance in wei and ether at a block or time |
 | `rpc_tx` | A transaction by hash |

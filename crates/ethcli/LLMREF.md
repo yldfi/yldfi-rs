@@ -41,6 +41,7 @@ ethcli account info <addr>          # Comprehensive info
 ```bash
 ethcli contract abi <addr>          # Download ABI (JSON)
 ethcli contract source <addr>       # Download source code
+ethcli contract inspect <addr>      # Everything in one call: kind, proxy, name, creator, token, Safe, functions
 ethcli contract creation <addr>     # Creation tx & deployer
 ethcli contract verify-status <addr> # Verification status
 ```

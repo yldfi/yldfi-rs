@@ -516,6 +516,38 @@ pub enum ContractCommands {
         format: OutputFormat,
     },
 
+    /// Everything about an address in one call
+    ///
+    /// Reports whether the address is an EOA, a contract or a delegated EOA
+    /// (EIP-7702); for a contract, its proxy kind and implementation, its
+    /// verified name and creator, token details if it is a token, Safe owners
+    /// if it is a Safe, and its functions. Functions come from the verified
+    /// ABI (of the implementation, for a proxy); when the contract is not
+    /// verified they are recovered from bytecode and named from the signature
+    /// database, which is a guess.
+    ///
+    /// Replaces the usual chain of `rpc code`, `contract selectors`,
+    /// `contract abi`, `contract creation` and `token info`. Parts that cannot
+    /// be fetched are listed under "notes" instead of failing the command.
+    ///
+    /// Examples:
+    ///   ethcli contract inspect 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    ///   ethcli contract inspect 0x... --json
+    #[command(visible_alias = "overview")]
+    Inspect {
+        /// Address to inspect
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Custom RPC URL (overrides config)
+        #[arg(long, value_name = "URL")]
+        rpc_url: Option<String>,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
+
     /// Extract function selectors from bytecode (uses evmole)
     ///
     /// Extracts function selectors, arguments, and state mutability
@@ -1122,6 +1154,26 @@ pub async fn handle(
                         }
                     }
                 }
+            }
+        }
+
+        ContractCommands::Inspect {
+            address,
+            rpc_url,
+            format,
+        } => {
+            let addr = Address::from_str(address)
+                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            if !quiet {
+                eprintln!("Inspecting {}...", address);
+            }
+            let report = inspect_address(chain, api_key.clone(), addr, rpc_url.as_deref()).await?;
+            if format.is_table() {
+                print!("{}", format_inspect_table(&report));
+            } else if format.is_ndjson() {
+                println!("{}", serde_json::to_string(&report)?);
+            } else {
+                println!("{}", serde_json::to_string_pretty(&report)?);
             }
         }
 
@@ -1806,6 +1858,513 @@ async fn get_token_decimals<P: Provider>(provider: &P, address: Address) -> Opti
 }
 
 /// Format a DynSolValue for display
+/// EIP-1967 admin slot: keccak256("eip1967.proxy.admin") - 1
+fn eip1967_admin_slot() -> B256 {
+    static SLOT: OnceLock<B256> = OnceLock::new();
+    *SLOT.get_or_init(|| {
+        "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"
+            .parse()
+            .expect("valid slot")
+    })
+}
+
+/// The address held in a storage slot, if the slot is not empty
+async fn storage_address<P: Provider>(
+    provider: &P,
+    address: Address,
+    slot: B256,
+    block: alloy::eips::BlockId,
+) -> Option<Address> {
+    let word = provider
+        .get_storage_at(address, slot.into())
+        .block_id(block)
+        .await
+        .ok()?;
+    let found = Address::from_slice(&word.to_be_bytes::<32>()[12..]);
+    (!found.is_zero()).then_some(found)
+}
+
+/// How a proxy's implementation was found
+async fn find_implementation<P: Provider>(
+    provider: &P,
+    address: Address,
+    code: &[u8],
+    block: alloy::eips::BlockId,
+) -> Option<(&'static str, Address)> {
+    if let Some(found) = crate::bytecode::detect_proxy(code).implementation {
+        return Some(("EIP-1167 minimal proxy", found));
+    }
+    if let Some(found) = storage_address(provider, address, eip1967_impl_slot(), block).await {
+        return Some(("EIP-1967 proxy", found));
+    }
+    if let Some(found) = storage_address(provider, address, oz_impl_slot(), block).await {
+        return Some(("OpenZeppelin legacy proxy", found));
+    }
+    if let Some(beacon) = storage_address(provider, address, eip1967_beacon_slot(), block).await {
+        if let Some(found) = call_implementation_function(provider, beacon).await {
+            return Some(("EIP-1967 beacon proxy", found));
+        }
+    }
+    // Safe proxies keep their singleton in slot 0 and answer masterCopy()
+    // themselves (selector 0xa619486e)
+    let master_copy = alloy::rpc::types::TransactionRequest::default()
+        .to(address)
+        .input(vec![0xa6, 0x19, 0x48, 0x6e].into());
+    if let Ok(result) = provider.call(master_copy).block(block).await {
+        if let Some(found) = address_from_word(&result).filter(|a| !a.is_zero()) {
+            return Some(("Safe proxy", found));
+        }
+    }
+    // A contract can expose implementation() without delegating to it
+    call_implementation_function(provider, address)
+        .await
+        .map(|found| ("implementation() getter (may not be a proxy)", found))
+}
+
+/// Everything `contract inspect` reports about an address, as JSON
+async fn inspect_address(
+    chain: Chain,
+    api_key: Option<String>,
+    address: Address,
+    rpc_url: Option<&str>,
+) -> anyhow::Result<serde_json::Value> {
+    use crate::rpc::MulticallBuilder;
+    use alloy::primitives::keccak256;
+
+    let endpoint = match rpc_url {
+        Some(url) => Endpoint::new(EndpointConfig::new(url.to_string()), 30, None)?,
+        None => crate::rpc::get_rpc_endpoint(chain)?,
+    };
+    let provider = endpoint.provider();
+    let mut notes: Vec<String> = Vec::new();
+
+    // Pin one block so every part describes the same state
+    let block_number = provider
+        .get_block_number()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get the latest block: {}", e))?;
+    let block: alloy::eips::BlockId = block_number.into();
+
+    let code = provider
+        .get_code_at(address)
+        .block_id(block)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get code: {}", e))?;
+    let balance = provider
+        .get_balance(address)
+        .block_id(block)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get balance: {}", e))?;
+
+    let mut out = serde_json::json!({
+        "address": address.to_checksum(None),
+        "chain": chain.display_name(),
+        "block": block_number,
+        "balance": {
+            "wei": balance.to_string(),
+            "formatted": super::cast::from_wei(&balance.to_string(), "eth")?,
+            "symbol": chain.native_symbol(),
+        },
+    });
+
+    let book = crate::config::AddressBook::load_default();
+    let wanted = format!("{address:#x}");
+    if let Some((label, entry)) = book
+        .list(None)
+        .into_iter()
+        .find(|(_, entry)| entry.address.eq_ignore_ascii_case(&wanted))
+    {
+        out["label"] = serde_json::json!(label);
+        if let Some(description) = &entry.description {
+            out["label_description"] = serde_json::json!(description);
+        }
+    }
+
+    // Not a contract
+    let delegate = (code.len() == 23 && code[..3] == [0xef, 0x01, 0x00])
+        .then(|| Address::from_slice(&code[3..]));
+    if code.is_empty() || delegate.is_some() {
+        let nonce = provider
+            .get_transaction_count(address)
+            .block_id(block)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get nonce: {}", e))?;
+        out["nonce"] = serde_json::json!(nonce);
+        match delegate {
+            Some(delegate) => {
+                out["kind"] = serde_json::json!("eoa_delegated");
+                out["eip7702_delegate"] = serde_json::json!(delegate.to_checksum(None));
+                notes.push(
+                    "An EOA that delegates its code under EIP-7702; inspect the delegate for its functions"
+                        .to_string(),
+                );
+            }
+            None => out["kind"] = serde_json::json!("eoa"),
+        }
+        out["notes"] = serde_json::json!(notes);
+        return Ok(out);
+    }
+
+    out["kind"] = serde_json::json!("contract");
+    out["code"] = serde_json::json!({
+        "bytes": code.len(),
+        "hash": format!("{:#x}", keccak256(&code)),
+    });
+
+    // Proxy
+    let implementation = find_implementation(provider, address, &code, block).await;
+    if let Some((kind, target)) = implementation {
+        let mut proxy = serde_json::json!({
+            "kind": kind,
+            "implementation": target.to_checksum(None),
+        });
+        if let Some(admin) = storage_address(provider, address, eip1967_admin_slot(), block).await {
+            proxy["admin"] = serde_json::json!(admin.to_checksum(None));
+        }
+        if let Some(beacon) = storage_address(provider, address, eip1967_beacon_slot(), block).await
+        {
+            proxy["beacon"] = serde_json::json!(beacon.to_checksum(None));
+        }
+        out["proxy"] = proxy;
+    }
+    let interface_target = implementation.map(|(_, target)| target).unwrap_or(address);
+
+    // Standard getters, read together at the pinned block. Each may fail.
+    let probe = |signature: &str| keccak256(signature.as_bytes())[..4].to_vec();
+    let probes = [
+        "name()",
+        "symbol()",
+        "decimals()",
+        "totalSupply()",
+        "owner()",
+        "getOwners()",
+        "getThreshold()",
+        "asset()",
+    ];
+    let batch = probes.iter().fold(MulticallBuilder::new(), |b, signature| {
+        b.add_call(address, probe(signature).into(), true)
+    });
+    match batch.execute_at(provider, block).await {
+        Ok(results) if results.len() == probes.len() => {
+            let ok = |i: usize| results[i].success && !results[i].data.is_empty();
+            let text = |i: usize| ok(i).then(|| results[i].decode_string()).flatten();
+            let number = |i: usize| ok(i).then(|| results[i].decode_uint256()).flatten();
+            let account = |i: usize| ok(i).then(|| address_from_word(&results[i].data)).flatten();
+
+            let decimals = ok(2).then(|| results[2].decode_uint8()).flatten();
+            if let (Some(symbol), Some(decimals)) = (text(1), decimals) {
+                let mut token = serde_json::json!({
+                    "symbol": symbol,
+                    "decimals": decimals,
+                });
+                if let Some(name) = text(0) {
+                    token["name"] = serde_json::json!(name);
+                }
+                if let Some(supply) = number(3) {
+                    token["total_supply"] = serde_json::json!(supply.to_string());
+                    if let Ok(formatted) = alloy::primitives::utils::format_units(supply, decimals)
+                    {
+                        token["total_supply_formatted"] = serde_json::json!(formatted);
+                    }
+                }
+                out["token"] = token;
+            }
+            if let Some(owner) = account(4) {
+                out["owner"] = serde_json::json!(owner.to_checksum(None));
+            }
+            let owners = ok(5)
+                .then(|| {
+                    DynSolType::Array(Box::new(DynSolType::Address))
+                        .abi_decode(&results[5].data)
+                        .ok()
+                })
+                .flatten();
+            if let (Some(DynSolValue::Array(owners)), Some(threshold)) = (owners, number(6)) {
+                out["safe"] = serde_json::json!({
+                    "threshold": threshold.to_string(),
+                    "owners": owners.iter().map(dyn_value_to_json).collect::<Vec<_>>(),
+                });
+            }
+            if let Some(asset) = account(7) {
+                out["erc4626_asset"] = serde_json::json!(asset.to_checksum(None));
+            }
+        }
+        _ => notes.push(
+            "Standard getters (token, owner, Safe) were not read: Multicall3 is not available here"
+                .to_string(),
+        ),
+    }
+
+    // Explorer: verified name, creator, and the ABI of the code that runs
+    let address_text = format!("{address:#x}");
+    let target_text = format!("{interface_target:#x}");
+    let explorer = Client::new(chain, api_key.clone()).and_then(|client| {
+        client.ensure_api_supported()?;
+        Ok(client)
+    });
+    let mut abi: Option<alloy::json_abi::JsonAbi> = None;
+    match &explorer {
+        Ok(client) => {
+            let metadata = async {
+                crate::abi::AbiFetcher::new(api_key.clone())?
+                    .get_contract_metadata(chain, &address_text)
+                    .await
+            };
+            let fetched_abi = async {
+                match client.cached_abi(&target_text) {
+                    Some(abi) => Ok(abi),
+                    None => client.fetch_abi(&target_text).await,
+                }
+            };
+            // One at a time: explorers rate-limit to a few calls a second
+            let metadata = metadata.await;
+            let creation = client.creation_data(&address_text).await;
+            let fetched_abi = fetched_abi.await;
+            match metadata {
+                Ok(metadata) => {
+                    out["verified"] = serde_json::json!(metadata.is_verified);
+                    if let Some(name) = metadata.name {
+                        out["name"] = serde_json::json!(name);
+                    }
+                }
+                Err(e) => notes.push(format!("Verification status not fetched: {e}")),
+            }
+            match creation {
+                Ok(creation) => {
+                    out["creation"] = serde_json::json!({
+                        "creator": creation.contract_creator.to_checksum(None),
+                        "tx_hash": format!("{:#x}", creation.transaction_hash),
+                    });
+                }
+                Err(e) => notes.push(format!("Creation info not fetched: {e}")),
+            }
+            // A proxy's own ABI can verify with no functions at all; that
+            // tells the reader nothing, so fall back to the bytecode
+            abi = fetched_abi
+                .ok()
+                .filter(|abi| abi.functions().next().is_some());
+        }
+        Err(e) => notes.push(format!("No block explorer for this chain: {e}")),
+    }
+
+    // Interface: the verified ABI when there is one, bytecode otherwise
+    match abi {
+        Some(abi) => {
+            let mut functions: Vec<serde_json::Value> = abi
+                .functions()
+                .map(|f| {
+                    serde_json::json!({
+                        "signature": f.signature(),
+                        "mutability": format!("{:?}", f.state_mutability).to_lowercase(),
+                    })
+                })
+                .collect();
+            functions.sort_by(|a, b| a["signature"].as_str().cmp(&b["signature"].as_str()));
+            let mut events: Vec<String> = abi.events().map(|e| e.signature()).collect();
+            let mut errors: Vec<String> = abi.errors().map(|e| e.signature()).collect();
+            events.sort();
+            errors.sort();
+            out["interface"] = serde_json::json!({
+                "source": "abi",
+                "of": interface_target.to_checksum(None),
+                "functions": functions,
+                "events": events,
+                "errors": errors,
+            });
+        }
+        None => {
+            let target_code = if interface_target == address {
+                code.clone()
+            } else {
+                provider
+                    .get_code_at(interface_target)
+                    .block_id(block)
+                    .await
+                    .unwrap_or_default()
+            };
+            let mut functions = extract_selectors(&target_code);
+            if let Ok(client) =
+                Client::new(chain, api_key.clone()).or_else(|_| Client::new(Chain::Ethereum, None))
+            {
+                lookup_signatures(&client, &mut functions).await;
+            }
+            out["interface"] = serde_json::json!({
+                "source": "bytecode",
+                "of": interface_target.to_checksum(None),
+                "functions": functions,
+            });
+            notes.push(
+                "No verified ABI: selectors were recovered from bytecode, and any function names \
+                 are guesses from the signature database"
+                    .to_string(),
+            );
+        }
+    }
+
+    out["notes"] = serde_json::json!(notes);
+    Ok(out)
+}
+
+/// Human-readable form of an `inspect_address` report
+fn format_inspect_table(report: &serde_json::Value) -> String {
+    use crate::abi::revert::safe_text;
+    use std::fmt::Write;
+
+    let text = |value: &serde_json::Value| value.as_str().map(safe_text);
+    let mut out = String::new();
+    let line = |out: &mut String, key: &str, value: String| {
+        let _ = writeln!(out, "{:<16}{}", format!("{key}:"), value);
+    };
+
+    line(
+        &mut out,
+        "Address",
+        text(&report["address"]).unwrap_or_default(),
+    );
+    if let Some(label) = text(&report["label"]) {
+        line(&mut out, "Label", label);
+    }
+    let kind = match report["kind"].as_str() {
+        Some("eoa") => "EOA (no code)".to_string(),
+        Some("eoa_delegated") => format!(
+            "EOA delegated to {} (EIP-7702)",
+            text(&report["eip7702_delegate"]).unwrap_or_default()
+        ),
+        _ => match (text(&report["name"]), report["verified"].as_bool()) {
+            (Some(name), _) => format!("contract {name} (verified)"),
+            (None, Some(false)) => "contract (not verified)".to_string(),
+            _ => "contract".to_string(),
+        },
+    };
+    line(&mut out, "Kind", kind);
+    line(
+        &mut out,
+        "Chain",
+        format!(
+            "{} at block {}",
+            text(&report["chain"]).unwrap_or_default(),
+            report["block"]
+        ),
+    );
+    line(
+        &mut out,
+        "Balance",
+        format!(
+            "{} {}",
+            text(&report["balance"]["formatted"]).unwrap_or_default(),
+            text(&report["balance"]["symbol"]).unwrap_or_default()
+        ),
+    );
+    if let Some(nonce) = report.get("nonce") {
+        line(&mut out, "Nonce", nonce.to_string());
+    }
+    if let Some(bytes) = report["code"]["bytes"].as_u64() {
+        line(
+            &mut out,
+            "Code",
+            format!(
+                "{bytes} bytes, hash {}",
+                text(&report["code"]["hash"]).unwrap_or_default()
+            ),
+        );
+    }
+    if let Some(implementation) = text(&report["proxy"]["implementation"]) {
+        line(
+            &mut out,
+            "Proxy",
+            format!(
+                "{} -> {implementation}",
+                text(&report["proxy"]["kind"]).unwrap_or_default()
+            ),
+        );
+        if let Some(admin) = text(&report["proxy"]["admin"]) {
+            line(&mut out, "Proxy admin", admin);
+        }
+    }
+    if let Some(creator) = text(&report["creation"]["creator"]) {
+        line(
+            &mut out,
+            "Created by",
+            format!(
+                "{creator} in {}",
+                text(&report["creation"]["tx_hash"]).unwrap_or_default()
+            ),
+        );
+    }
+    if let Some(symbol) = text(&report["token"]["symbol"]) {
+        let name = text(&report["token"]["name"]).unwrap_or_default();
+        let supply = text(&report["token"]["total_supply_formatted"])
+            .map(|s| format!(", total supply {s}"))
+            .unwrap_or_default();
+        line(
+            &mut out,
+            "Token",
+            format!(
+                "{name} ({symbol}), {} decimals{supply}",
+                report["token"]["decimals"]
+            ),
+        );
+    }
+    if let Some(asset) = text(&report["erc4626_asset"]) {
+        line(&mut out, "Vault asset", asset);
+    }
+    if let Some(owner) = text(&report["owner"]) {
+        line(&mut out, "Owner", owner);
+    }
+    if let Some(owners) = report["safe"]["owners"].as_array() {
+        line(
+            &mut out,
+            "Safe",
+            format!(
+                "{} of {} owners",
+                text(&report["safe"]["threshold"]).unwrap_or_default(),
+                owners.len()
+            ),
+        );
+        for owner in owners {
+            let _ = writeln!(out, "{:<16}{}", "", text(owner).unwrap_or_default());
+        }
+    }
+    if let Some(functions) = report["interface"]["functions"].as_array() {
+        let from_abi = report["interface"]["source"].as_str() == Some("abi");
+        line(
+            &mut out,
+            "Functions",
+            format!(
+                "{} ({} {}{})",
+                functions.len(),
+                if from_abi {
+                    "verified ABI of"
+                } else {
+                    "recovered from the bytecode of"
+                },
+                text(&report["interface"]["of"]).unwrap_or_default(),
+                if from_abi { "" } else { "; names are guesses" }
+            ),
+        );
+        for function in functions {
+            let (name, mutability) = if from_abi {
+                (
+                    text(&function["signature"]).unwrap_or_default(),
+                    text(&function["mutability"]).unwrap_or_default(),
+                )
+            } else {
+                (
+                    text(&function["signature"])
+                        .or_else(|| text(&function["selector"]))
+                        .unwrap_or_default(),
+                    text(&function["state_mutability"]).unwrap_or_default(),
+                )
+            };
+            let _ = writeln!(out, "  {name}  [{mutability}]");
+        }
+    }
+    for note in report["notes"].as_array().into_iter().flatten() {
+        let _ = writeln!(out, "Note: {}", text(note).unwrap_or_default());
+    }
+    out
+}
+
 /// A decoded ABI value as JSON. Integers are decimal strings (a uint256 does
 /// not fit a JSON number), addresses are checksummed, byte values are 0x hex,
 /// and arrays and tuples become JSON arrays.
@@ -1971,6 +2530,92 @@ fn format_with_decimals(value: &alloy::primitives::U256, decimals: u8) -> String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inspect_table_shows_each_part_and_escapes_contract_text() {
+        let report = serde_json::json!({
+            "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "chain": "Ethereum",
+            "block": 100,
+            "kind": "contract",
+            "verified": true,
+            "name": "FiatTokenProxy",
+            "balance": {"wei": "0", "formatted": "0.0", "symbol": "ETH"},
+            "code": {"bytes": 2186, "hash": "0xabc"},
+            "proxy": {"kind": "EIP-1967 proxy", "implementation": "0x1111", "admin": "0x2222"},
+            "creation": {"creator": "0x3333", "tx_hash": "0x4444"},
+            "token": {"name": "Evil\u{1b}[31m", "symbol": "E\u{202e}VIL", "decimals": 6,
+                      "total_supply_formatted": "1.5"},
+            "owner": "0x5555",
+            "safe": {"threshold": "2", "owners": ["0x6666", "0x7777"]},
+            "interface": {"source": "abi", "of": "0x1111",
+                          "functions": [{"signature": "transfer(address,uint256)", "mutability": "nonpayable"}]},
+            "notes": ["something was skipped"]
+        });
+        let out = format_inspect_table(&report);
+        for expected in [
+            "Kind:           contract FiatTokenProxy (verified)",
+            "Chain:          Ethereum at block 100",
+            "Proxy:          EIP-1967 proxy -> 0x1111",
+            "Proxy admin:    0x2222",
+            "Created by:     0x3333 in 0x4444",
+            "6 decimals, total supply 1.5",
+            "Safe:           2 of 2 owners",
+            "Functions:      1 (verified ABI of 0x1111)",
+            "  transfer(address,uint256)  [nonpayable]",
+            "Note: something was skipped",
+        ] {
+            assert!(out.contains(expected), "missing {expected:?} in:\n{out}");
+        }
+        // The token's own name and symbol cannot carry control characters
+        assert!(out.contains("Evil\\u{1b}[31m (E\\u{202e}VIL)"), "{out}");
+        assert!(!out.chars().any(|c| c == '\u{1b}' || c == '\u{202e}'));
+
+        let eoa = serde_json::json!({
+            "address": "0x01", "chain": "Ethereum", "block": 1, "kind": "eoa", "nonce": 7,
+            "balance": {"wei": "1", "formatted": "0.000000000000000001", "symbol": "ETH"},
+            "notes": []
+        });
+        let out = format_inspect_table(&eoa);
+        assert!(out.contains("Kind:           EOA (no code)"), "{out}");
+        assert!(out.contains("Nonce:          7"), "{out}");
+
+        let unverified = serde_json::json!({
+            "address": "0x02", "chain": "Ethereum", "block": 1, "kind": "contract", "verified": false,
+            "balance": {"wei": "0", "formatted": "0.0", "symbol": "ETH"},
+            "interface": {"source": "bytecode", "of": "0x02",
+                          "functions": [{"selector": "0xa9059cbb", "state_mutability": "nonpayable"}]},
+            "notes": []
+        });
+        let out = format_inspect_table(&unverified);
+        assert!(out.contains("contract (not verified)"), "{out}");
+        assert!(
+            out.contains("1 (recovered from the bytecode of 0x02; names are guesses)"),
+            "{out}"
+        );
+        assert!(out.contains("  0xa9059cbb  [nonpayable]"), "{out}");
+    }
+
+    #[test]
+    fn inspect_parses_with_its_alias_and_json_flag() {
+        use clap::Parser;
+        for args in [
+            vec!["ethcli", "contract", "inspect", "0x00"],
+            vec!["ethcli", "contract", "overview", "0x00", "-o", "json"],
+        ] {
+            assert!(crate::cli::Cli::try_parse_from(&args).is_ok(), "{args:?}");
+        }
+        let expanded = crate::cli::expand_json_flag(
+            ["ethcli", "contract", "inspect", "0x00", "--json"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        );
+        assert!(
+            crate::cli::Cli::try_parse_from(&expanded).is_ok(),
+            "{expanded:?}"
+        );
+    }
     use alloy::json_abi::JsonAbi;
 
     #[test]
