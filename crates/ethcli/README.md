@@ -666,6 +666,8 @@ ethcli quote compare ETH USDC 1000000000000000000 --format json
 - **High quotes**: a source above twice the median is listed in `aggregation.high_outliers` (`HIGH` in the table) with a warning. It is still the best quote and still counts in the figures, so check it before using it.
 - **Sender**: CowSwap, LI.FI and Enso cannot price without a sender. With no `--sender` they are priced for a placeholder address: `placeholder_sender` at the top level lists them, each such quote and the best quote carry `placeholder_sender: true`, and they never return transaction data. Pass `--sender` with the wallet that will sign to get transaction data; the zero address and the placeholder itself are rejected.
 - **Velora**: token decimals are looked up over RPC and sent with every request, so tokens outside Velora's own list are quoted on mainnet too.
+- **Failed sources**: `failed_sources` lists each source that returned no quote and why (a missing API key, an upstream error). `quote best` prints them under the summary line.
+- **LI.FI fee**: LI.FI takes a fixed fee out of the input before swapping, so its output is already net of it. The quote reports it as `fee_amount`/`fee_token`.
 
 ---
 
