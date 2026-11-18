@@ -341,6 +341,12 @@ pub struct SigLookupInput {
     pub selector: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SigErrorInput {
+    /// Revert data as 0x hex (selector plus encoded arguments), or a bare 4-byte error selector
+    pub data: String,
+}
+
 // --- Cast (Conversions) ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CastToWeiInput {

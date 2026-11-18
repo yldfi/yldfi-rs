@@ -430,6 +430,14 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Decode revert data into its error name and arguments: Error(string), Panic(uint256) with its meaning, or a custom error looked up by selector. Reverted contract_call, rpc_call and rpc_multicall results already include this",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn sig_error(&self, Parameters(input): Parameters<SigErrorInput>) -> CallToolResult {
+        tools::sig_error(&input.data).await.to_response()
+    }
+
+    #[tool(
         description = "Lookup event signature from topic hash",
         annotations(read_only_hint = true, open_world_hint = true)
     )]

@@ -84,6 +84,11 @@ ethcli gas history                  # Historical gas
 ```bash
 ethcli sig fn <selector>            # Function by 4-byte selector
 ethcli sig lookup <hex>             # Selector or topic: picks fn or event by length
+ethcli sig error <revert data>      # Error(string), Panic(uint256) or custom error, decoded
+
+# A reverted `rpc call`, `contract call` or `rpc multicall` entry reports the
+# decoded error itself ("Call reverted: InsufficientBalance(5, 10)"); with
+# --json the output has "reverted": true and a "revert" object.
 ethcli sig event <topic>            # Event by topic hash
 ethcli sig encode "transfer(address,uint256)" # Get selector
 ```

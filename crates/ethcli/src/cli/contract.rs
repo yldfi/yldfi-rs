@@ -1000,11 +1000,33 @@ pub async fn handle(
                 .to(addr)
                 .input(calldata.into());
 
-            let result = provider
-                .call(tx)
-                .block(block_id)
-                .await
-                .map_err(|e| anyhow::anyhow!("Call failed: {}", e))?;
+            let result = match provider.call(tx).block(block_id).await {
+                Ok(result) => result,
+                Err(e) => {
+                    // A revert is an answer from the contract: say why, using
+                    // the contract's own error definitions when we have them
+                    let Some(data) = crate::abi::revert::revert_data_of(&e) else {
+                        return Err(anyhow::anyhow!("Call failed: {}", e));
+                    };
+                    let revert =
+                        crate::abi::revert::describe(&data, abi_result.as_ref().ok(), chain).await;
+                    if !format.is_table() {
+                        let out = serde_json::json!({
+                            "address": addr.to_checksum(None),
+                            "function": func.signature(),
+                            "block": block,
+                            "reverted": true,
+                            "revert": revert,
+                        });
+                        if format.is_ndjson() {
+                            println!("{}", serde_json::to_string(&out)?);
+                        } else {
+                            println!("{}", serde_json::to_string_pretty(&out)?);
+                        }
+                    }
+                    return Err(anyhow::anyhow!("Call reverted: {}", revert.message));
+                }
+            };
 
             // Decode the result
             if !format.is_table() {

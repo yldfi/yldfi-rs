@@ -34,6 +34,22 @@ pub enum SigCommands {
         value: String,
     },
 
+    /// Decode revert data: Error(string), Panic(uint256) or a custom error
+    ///
+    /// Pass the data a reverted call returned. A custom error's selector is
+    /// looked up in the signature database and its arguments are decoded.
+    /// With a bare 4-byte selector, the matching signatures are listed.
+    #[command(visible_alias = "decode-error")]
+    Error {
+        /// Revert data (0x hex), or a 4-byte error selector
+        #[arg(value_name = "DATA")]
+        data: String,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: crate::cli::OutputFormat,
+    },
+
     /// Show signature cache statistics
     CacheStats,
 
@@ -57,6 +73,42 @@ pub async fn handle(
 
     match action {
         SigCommands::Lookup { .. } => unreachable!("lookup is resolved to fn or event above"),
+
+        SigCommands::Error { data, format } => {
+            let bytes = hex::decode(data.strip_prefix("0x").unwrap_or(data))
+                .map_err(|e| anyhow::anyhow!("Invalid hex data: {e}"))?;
+            let mut revert = crate::abi::revert::describe(&bytes, None, chain).await;
+
+            // A bare selector has no arguments to decode against: list the
+            // signatures it could be
+            let mut candidates = Vec::new();
+            if bytes.len() == 4 && revert.kind == crate::abi::revert::RevertKind::Unknown {
+                let client = Client::new(chain, api_key)?;
+                candidates = client.lookup_selector_all(data).await.unwrap_or_default();
+                if !candidates.is_empty() {
+                    revert.message = format!("selector of {}", candidates.join(" or "));
+                }
+            }
+
+            if format.is_table() {
+                println!("{}", revert.message);
+                if let Some(signature) = &revert.signature {
+                    if !quiet {
+                        eprintln!("Signature: {signature}");
+                    }
+                }
+            } else {
+                let mut out = serde_json::to_value(&revert)?;
+                if !candidates.is_empty() {
+                    out["candidates"] = serde_json::json!(candidates);
+                }
+                if format.is_ndjson() {
+                    println!("{}", serde_json::to_string(&out)?);
+                } else {
+                    println!("{}", serde_json::to_string_pretty(&out)?);
+                }
+            }
+        }
 
         SigCommands::Function { selector } => {
             let client = Client::new(chain, api_key)?;
