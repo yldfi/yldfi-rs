@@ -776,6 +776,227 @@ pub struct ApiErrorResponse {
     pub error: String,
 }
 
+/// Which kind of quote `GET /v2/quote` returns
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuoteMode {
+    /// Velora picks: a Delta intent, or a Market route as fallback
+    #[default]
+    All,
+    /// A Market route only (same shape as `GET /prices`)
+    Market,
+    /// A Delta intent only; an error if Delta cannot quote the pair
+    Delta,
+}
+
+impl QuoteMode {
+    /// The value of the `mode` query parameter
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::All => "ALL",
+            Self::Market => "MARKET",
+            Self::Delta => "DELTA",
+        }
+    }
+}
+
+/// Request for `GET /v2/quote`
+///
+/// Unlike `/prices`, this endpoint takes the chain as `chainId` and requires
+/// both token decimals.
+#[derive(Debug, Clone)]
+pub struct QuoteRequest {
+    /// Address of the source token
+    pub src_token: String,
+    /// Address of the destination token
+    pub dest_token: String,
+    /// Amount in the smallest units of the source token (sell) or the
+    /// destination token (buy)
+    pub amount: String,
+    /// Decimals of the source token
+    pub src_decimals: u8,
+    /// Decimals of the destination token
+    pub dest_decimals: u8,
+    /// Sell a fixed input or buy a fixed output
+    pub side: Side,
+    /// Kind of quote wanted
+    pub mode: QuoteMode,
+    /// Wallet the order would be placed for
+    pub user_address: Option<String>,
+}
+
+impl QuoteRequest {
+    /// Quote for selling `amount` of `src_token`
+    #[must_use]
+    pub fn sell(
+        src_token: impl Into<String>,
+        dest_token: impl Into<String>,
+        amount: impl Into<String>,
+        src_decimals: u8,
+        dest_decimals: u8,
+    ) -> Self {
+        Self {
+            src_token: src_token.into(),
+            dest_token: dest_token.into(),
+            amount: amount.into(),
+            src_decimals,
+            dest_decimals,
+            side: Side::Sell,
+            mode: QuoteMode::default(),
+            user_address: None,
+        }
+    }
+
+    /// Set the kind of quote wanted
+    #[must_use]
+    pub fn with_mode(mut self, mode: QuoteMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Set the wallet the order would be placed for
+    #[must_use]
+    pub fn with_user_address(mut self, address: impl Into<String>) -> Self {
+        self.user_address = Some(address.into());
+        self
+    }
+
+    /// Query parameters for the request on `chain_id`
+    #[must_use]
+    pub fn to_query_params(&self, chain_id: u64) -> Vec<(String, String)> {
+        let side = match self.side {
+            Side::Sell => "SELL",
+            Side::Buy => "BUY",
+        };
+        let mut params = vec![
+            ("srcToken".to_string(), self.src_token.clone()),
+            ("destToken".to_string(), self.dest_token.clone()),
+            ("amount".to_string(), self.amount.clone()),
+            ("srcDecimals".to_string(), self.src_decimals.to_string()),
+            ("destDecimals".to_string(), self.dest_decimals.to_string()),
+            ("side".to_string(), side.to_string()),
+            ("chainId".to_string(), chain_id.to_string()),
+            ("mode".to_string(), self.mode.as_str().to_string()),
+        ];
+        if let Some(address) = &self.user_address {
+            params.push(("userAddress".to_string(), address.clone()));
+        }
+        params
+    }
+}
+
+/// Response of `GET /v2/quote`: a Delta intent, a Market route, or both
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuoteResponse {
+    /// Delta intent quote (modes `ALL` and `DELTA`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delta: Option<DeltaQuote>,
+    /// Market route, same shape as the `priceRoute` of `GET /prices`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub market: Option<PriceRoute>,
+    /// Why mode `ALL` fell back to a Market route
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_reason: Option<String>,
+}
+
+/// A Delta quote: an order for solvers to fill, not a transaction.
+///
+/// The user signs it and pays no gas directly; the gas fee is already taken
+/// out of the output amount.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaQuote {
+    /// Quote id
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// `SELL` or `BUY`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side: Option<String>,
+    /// Amounts in and out, and the fees taken
+    pub route: DeltaRoute,
+    /// Contract to approve for the input token
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spender: Option<String>,
+    /// Partner the quote was priced for
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub partner: Option<DeltaPartner>,
+}
+
+/// Route of a Delta quote
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaRoute {
+    /// Swap on the source chain
+    pub origin: DeltaLeg,
+    /// What arrives on the destination chain; equal to `origin` output for a
+    /// same-chain order
+    pub destination: DeltaLeg,
+    /// Bridge used for a cross-chain order
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bridge: Option<serde_json::Value>,
+    /// Fees already deducted from the amounts
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fees: Option<DeltaFees>,
+}
+
+/// Input and output of one leg of a Delta route
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaLeg {
+    /// What goes in
+    pub input: DeltaAmount,
+    /// What comes out
+    pub output: DeltaAmount,
+}
+
+/// A token amount in a Delta quote
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaAmount {
+    /// The token
+    pub token: DeltaToken,
+    /// Amount in the token's smallest units (gas units for the gas fee)
+    pub amount: String,
+    /// Value in USD
+    #[serde(default, rename = "amountUSD", skip_serializing_if = "Option::is_none")]
+    pub amount_usd: Option<String>,
+}
+
+/// A token in a Delta quote
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaToken {
+    /// Chain the token is on
+    pub chain_id: u64,
+    /// Token address
+    pub address: String,
+}
+
+/// Fees of a Delta quote
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaFees {
+    /// Gas the solver pays, charged to the order
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas: Option<DeltaAmount>,
+    /// Bridge fees of a cross-chain order
+    #[serde(default)]
+    pub bridge: Vec<serde_json::Value>,
+}
+
+/// Partner a Delta quote was priced for
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaPartner {
+    /// Partner name (`anon` without a partner key)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Partner fee in percent
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee_percent: Option<f64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -901,6 +1122,70 @@ mod tests {
                 ("ignoreGasEstimate".to_string(), "true".to_string()),
                 ("ignoreChecks".to_string(), "true".to_string()),
             ]
+        );
+    }
+
+    #[test]
+    fn test_quote_request_params() {
+        let request = QuoteRequest::sell("0xsrc", "0xdest", "1000", 18, 6)
+            .with_mode(QuoteMode::Delta)
+            .with_user_address("0xuser");
+        let params: std::collections::HashMap<_, _> =
+            request.to_query_params(42161).into_iter().collect();
+        assert_eq!(params["srcToken"], "0xsrc");
+        assert_eq!(params["destToken"], "0xdest");
+        assert_eq!(params["amount"], "1000");
+        assert_eq!(params["srcDecimals"], "18");
+        assert_eq!(params["destDecimals"], "6");
+        assert_eq!(params["side"], "SELL");
+        assert_eq!(params["chainId"], "42161");
+        assert_eq!(params["mode"], "DELTA");
+        assert_eq!(params["userAddress"], "0xuser");
+        assert!(!params.contains_key("network"));
+
+        let plain = QuoteRequest::sell("0xsrc", "0xdest", "1000", 18, 6);
+        let params: std::collections::HashMap<_, _> =
+            plain.to_query_params(1).into_iter().collect();
+        assert_eq!(params["mode"], "ALL");
+        assert!(!params.contains_key("userAddress"));
+    }
+
+    #[test]
+    fn test_quote_response_parses_delta() {
+        let json = r#"{"delta":{"id":"de1876b1","side":"SELL",
+            "inputToken":{"chainId":1,"address":"0xc02a"},
+            "outputToken":{"chainId":1,"address":"0xa0b8"},
+            "route":{
+              "origin":{"input":{"token":{"chainId":1,"address":"0xc02a"},"amount":"10000000000000000000","amountUSD":"18097.9"},
+                        "output":{"token":{"chainId":1,"address":"0xa0b8"},"amount":"18097897181","amountUSD":"18088.99"}},
+              "destination":{"input":{"token":{"chainId":1,"address":"0xa0b8"},"amount":"18097897181"},
+                             "output":{"token":{"chainId":1,"address":"0xa0b8"},"amount":"18097897181"}},
+              "bridge":null,
+              "fees":{"gas":{"token":{"chainId":1,"address":"0xeeee"},"amount":"716170","amountUSD":"0.132183"},"bridge":[]}},
+            "partner":{"name":"anon","feePercent":0.01},
+            "spender":"0x0000000000bb","alternatives":[]}}"#;
+        let response: QuoteResponse = serde_json::from_str(json).unwrap();
+        assert!(response.market.is_none());
+        let delta = response.delta.unwrap();
+        assert_eq!(delta.route.origin.input.amount, "10000000000000000000");
+        assert_eq!(delta.route.destination.output.amount, "18097897181");
+        assert_eq!(delta.route.destination.output.token.address, "0xa0b8");
+        let gas = delta.route.fees.unwrap().gas.unwrap();
+        assert_eq!(gas.amount, "716170");
+        assert_eq!(gas.amount_usd.as_deref(), Some("0.132183"));
+        assert_eq!(delta.partner.unwrap().fee_percent, Some(0.01));
+        assert_eq!(delta.spender.as_deref(), Some("0x0000000000bb"));
+    }
+
+    #[test]
+    fn test_quote_response_without_delta() {
+        let response: QuoteResponse =
+            serde_json::from_str(r#"{"fallbackReason":"no delta liquidity"}"#).unwrap();
+        assert!(response.delta.is_none());
+        assert!(response.market.is_none());
+        assert_eq!(
+            response.fallback_reason.as_deref(),
+            Some("no delta liquidity")
         );
     }
 }

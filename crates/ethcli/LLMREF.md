@@ -161,6 +161,7 @@ ethcli portfolio <wallet> --exclude-spam # Filter spam
 ethcli quote best ETH USDC <amount> # Best quote
 ethcli quote compare ETH USDC <amt> # Compare all
 ethcli quote from openocean ETH USDC <amt> # Specific source
+# velora-delta is a second Velora source: a gasless order, output already net of gas, no tx data.
 # No --sender: CowSwap, LI.FI and Enso are priced for a placeholder address
 #   (placeholder_sender in the output) and return no transaction data.
 # --sender <wallet that will sign>: needed for transaction data; never an example address.

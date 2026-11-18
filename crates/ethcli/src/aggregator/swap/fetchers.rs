@@ -767,6 +767,93 @@ pub async fn fetch_velora_quote(
     }
 }
 
+/// Label put in `protocols` for a Velora Delta quote, so its figure is not
+/// read like the others: it is an order to sign, and gas is already paid.
+pub const VELORA_DELTA_LABEL: &str = "Delta intent (gasless order, gas fee already deducted)";
+
+/// Fetch a Velora Delta quote
+///
+/// Delta is Velora's intent protocol: the user signs an order and solvers
+/// fill it, paying the gas and taking it out of the output. The amount
+/// returned is therefore net of gas, unlike the Market quote from
+/// [`fetch_velora_quote`], and there is no transaction to send.
+pub async fn fetch_velora_delta_quote(
+    chain_id: u64,
+    token_in: &str,
+    token_out: &str,
+    amount_in: &str,
+    sender: Option<&str>,
+    measure: LatencyMeasure,
+) -> SourceResult<NormalizedQuote> {
+    const SOURCE: &str = "velora-delta";
+
+    // The endpoint rejects a request without both decimals
+    let (src, dest) = futures::join!(
+        crate::utils::token_meta::fetch_token_decimals(chain_id, token_in),
+        crate::utils::token_meta::fetch_token_decimals(chain_id, token_out)
+    );
+    let (src_decimals, dest_decimals) = match (src, dest) {
+        (Ok(src), Ok(dest)) => (src, dest),
+        (Err(e), _) | (_, Err(e)) => {
+            return SourceResult::error(
+                SOURCE,
+                format!("Token decimals lookup failed: {e}"),
+                measure.elapsed_ms(),
+            )
+        }
+    };
+
+    let config = get_cached_config();
+    let proxy = config.as_ref().and_then(|c| c.proxy_for_source("velora"));
+    let client = match vlra::Client::with_config(vlra::default_config().optional_proxy(proxy)) {
+        Ok(c) => c,
+        Err(e) => {
+            return SourceResult::error(SOURCE, format!("Client error: {e}"), measure.elapsed_ms())
+        }
+    };
+
+    let mut request =
+        vlra::QuoteRequest::sell(token_in, token_out, amount_in, src_decimals, dest_decimals)
+            .with_mode(vlra::QuoteMode::Delta);
+    if let Some(addr) = sender {
+        request = request.with_user_address(addr);
+    }
+
+    match client.get_quote(chain_id, &request).await {
+        Ok(response) => match response.delta {
+            Some(delta) => {
+                SourceResult::success(SOURCE, velora_delta_to_quote(&delta), measure.elapsed_ms())
+            }
+            None => SourceResult::error(
+                SOURCE,
+                response
+                    .fallback_reason
+                    .unwrap_or_else(|| "No Delta quote returned".to_string()),
+                measure.elapsed_ms(),
+            ),
+        },
+        Err(e) => SourceResult::error(SOURCE, format!("API error: {e}"), measure.elapsed_ms()),
+    }
+}
+
+/// Normalize a Delta quote. Gas is not set on the quote: the fee is already
+/// out of `amount_out`, and showing it as a gas cost would count it twice.
+fn velora_delta_to_quote(delta: &vlra::DeltaQuote) -> NormalizedQuote {
+    let route = &delta.route;
+    let mut quote = NormalizedQuote::new(
+        "velora-delta",
+        &route.origin.input.token.address,
+        &route.destination.output.token.address,
+        &route.origin.input.amount,
+        &route.destination.output.amount,
+    )
+    .with_protocols(vec![VELORA_DELTA_LABEL.to_string()]);
+    if let Some(spender) = &delta.spender {
+        quote = quote.with_router(spender);
+    }
+    quote
+}
+
 /// Fetch quote from Enso Finance
 ///
 /// NOTE: Enso requires an API key and a valid sender address.
@@ -883,5 +970,45 @@ mod tests {
     fn bps_convert_to_fraction() {
         assert!((bps_to_fraction(50) - 0.005).abs() < 1e-12);
         assert!((bps_to_fraction(100) - 0.01).abs() < 1e-12);
+    }
+}
+
+#[cfg(test)]
+mod velora_delta_tests {
+    use super::{velora_delta_to_quote, VELORA_DELTA_LABEL};
+
+    #[test]
+    fn delta_quote_reports_net_output_and_no_gas_or_transaction() {
+        let delta: vlra::DeltaQuote = serde_json::from_value(serde_json::json!({
+            "route": {
+                "origin": {
+                    "input": {"token": {"chainId": 1, "address": "0xin"}, "amount": "1000"},
+                    "output": {"token": {"chainId": 1, "address": "0xout"}, "amount": "990"}
+                },
+                "destination": {
+                    "input": {"token": {"chainId": 1, "address": "0xout"}, "amount": "990"},
+                    "output": {"token": {"chainId": 1, "address": "0xout"}, "amount": "990"}
+                },
+                "fees": {"gas": {"token": {"chainId": 1, "address": "0xeeee"}, "amount": "716170",
+                                 "amountUSD": "0.13"}}
+            },
+            "spender": "0xspender"
+        }))
+        .expect("valid delta quote");
+
+        let quote = velora_delta_to_quote(&delta);
+        assert_eq!(quote.source, "velora-delta");
+        assert_eq!(quote.token_in, "0xin");
+        assert_eq!(quote.token_out, "0xout");
+        assert_eq!(quote.amount_in, "1000");
+        assert_eq!(quote.amount_out, "990");
+        assert_eq!(
+            quote.protocols.as_deref(),
+            Some(&[VELORA_DELTA_LABEL.to_string()][..])
+        );
+        assert_eq!(quote.router_address.as_deref(), Some("0xspender"));
+        assert!(quote.estimated_gas.is_none());
+        assert!(quote.gas_usd.is_none());
+        assert!(quote.tx_data.is_none());
     }
 }

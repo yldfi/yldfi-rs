@@ -40,9 +40,10 @@ pub mod types;
 
 pub use error::{Error, Result};
 pub use types::{
-    ApiErrorResponse, Chain, PriceRequest, PriceResponse, PriceRoute, Route, Side, Swap,
-    SwapExchange, SwapRequest, SwapResponse, Token, TokenListResponse, TransactionRequest,
-    TransactionResponse, DEFAULT_PRICE_VERSION,
+    ApiErrorResponse, Chain, DeltaAmount, DeltaFees, DeltaLeg, DeltaPartner, DeltaQuote,
+    DeltaRoute, DeltaToken, PriceRequest, PriceResponse, PriceRoute, QuoteMode, QuoteRequest,
+    QuoteResponse, Route, Side, Swap, SwapExchange, SwapRequest, SwapResponse, Token,
+    TokenListResponse, TransactionRequest, TransactionResponse, DEFAULT_PRICE_VERSION,
 };
 
 // Re-export common utilities
@@ -165,6 +166,49 @@ impl Client {
 
         self.base
             .get_with_headers("/prices", &params_refs, self.build_headers())
+            .await
+    }
+
+    /// Get a quote from `GET /v2/quote`: a Delta intent, a Market route, or
+    /// whichever Velora picks, depending on [`QuoteMode`].
+    ///
+    /// A Delta quote is an order for solvers to fill, not a transaction: its
+    /// output amount is already net of the gas fee. `chain_id` is passed as
+    /// given, so chains Delta supports that [`Chain`] does not list work too.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use vlra::{Client, QuoteMode, QuoteRequest};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), vlra::Error> {
+    ///     let client = Client::new()?;
+    ///     let request = QuoteRequest::sell(
+    ///         "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    ///         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    ///         "1000000000000000000",
+    ///         18,
+    ///         6,
+    ///     )
+    ///     .with_mode(QuoteMode::Delta);
+    ///
+    ///     let quote = client.get_quote(1, &request).await?;
+    ///     if let Some(delta) = quote.delta {
+    ///         println!("Output: {}", delta.route.destination.output.amount);
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_quote(&self, chain_id: u64, request: &QuoteRequest) -> Result<QuoteResponse> {
+        let params = request.to_query_params(chain_id);
+        let params_refs: Vec<(&str, &str)> = params
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+
+        self.base
+            .get_with_headers("/v2/quote", &params_refs, self.build_headers())
             .await
     }
 
