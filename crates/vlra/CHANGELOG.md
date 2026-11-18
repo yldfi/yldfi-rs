@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.2.2...vlra-v0.2.3) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** add Velora Delta as a quote source ([#269](https://github.com/yldfi/yldfi-rs/issues/269)) ([e7b3503](https://github.com/yldfi/yldfi-rs/commit/e7b35037f964c8484086feee7a4ef038993153eb))
+
 ## [0.2.2](https://github.com/yldfi/yldfi-rs/compare/vlra-v0.2.1...vlra-v0.2.2) (2026-11-16)
 
 

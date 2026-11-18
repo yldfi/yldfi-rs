@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.30.1](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.0...ethcli-v0.30.1) (2026-11-18)
+
+
+### Features
+
+* **ethcli:** add Velora Delta as a quote source ([#269](https://github.com/yldfi/yldfi-rs/issues/269)) ([e7b3503](https://github.com/yldfi/yldfi-rs/commit/e7b35037f964c8484086feee7a4ef038993153eb))
+* **ethcli:** JSON output for rpc and contract call, rpc tx and balance, --json on every command ([#266](https://github.com/yldfi/yldfi-rs/issues/266)) ([bae900c](https://github.com/yldfi/yldfi-rs/commit/bae900ca806c2387b029f6368091bc329dbf6d42))
+* **ethcli:** rpc multicall for batched and time-series reads ([#267](https://github.com/yldfi/yldfi-rs/issues/267)) ([7970e18](https://github.com/yldfi/yldfi-rs/commit/7970e182bb714474f8754d6879b50b1be12d3e2b))
+* **ethcli:** say why a source returned no quote, and report LI.FI's fee ([#265](https://github.com/yldfi/yldfi-rs/issues/265)) ([0bbd22e](https://github.com/yldfi/yldfi-rs/commit/0bbd22eb6ffc8f4c49ad352716fc86502012789f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * vlra bumped from 0.2.2 to 0.2.3
+
 ## [0.30.0](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.29.7...ethcli-v0.30.0) (2026-11-17)
 
 
