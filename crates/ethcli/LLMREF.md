@@ -40,6 +40,7 @@ ethcli account erc20 <addr>         # ERC20 transfers
 ethcli account erc20 <addr> -o ndjson   # One JSON object per line (also txs, internal-txs, ...)
 ethcli account txs <addr> --all --json  # Whole history (1,000 rows/request, past the 10k window; --max-pages N, default 10)
                                     # -> {"complete": bool, "count", "rows": [...]}; check complete before totals
+ethcli account txs <addr> --all --csv   # CSV with a header line (also internal-txs, erc20, rpc multicall)
 ethcli account funded-by <addr>     # First funder (paid explorer endpoint, else earliest incoming transfer)
 ethcli account labels <addr>...     # Explorer name tags (Pro Plus), address book and built-in labels
 ethcli account erc721 <addr>        # NFT transfers

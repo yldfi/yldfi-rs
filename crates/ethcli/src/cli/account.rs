@@ -132,6 +132,11 @@ pub enum AccountCommands {
         #[arg(long, default_value = "10", requires = "all")]
         max_pages: u64,
 
+        /// Print CSV (one row per item, a header line first) instead of the
+        /// table or JSON; nested fields become `parent.child` columns
+        #[arg(long, conflicts_with = "output")]
+        csv: bool,
+
         /// Output format (json, table/pretty)
         #[arg(
             long,
@@ -169,6 +174,11 @@ pub enum AccountCommands {
         /// With --all, stop after this many requests
         #[arg(long, default_value = "10", requires = "all")]
         max_pages: u64,
+
+        /// Print CSV (one row per item, a header line first) instead of the
+        /// table or JSON; nested fields become `parent.child` columns
+        #[arg(long, conflicts_with = "output")]
+        csv: bool,
 
         /// Output format (json, table/pretty)
         #[arg(
@@ -211,6 +221,11 @@ pub enum AccountCommands {
         /// With --all, stop after this many requests
         #[arg(long, default_value = "10", requires = "all")]
         max_pages: u64,
+
+        /// Print CSV (one row per item, a header line first) instead of the
+        /// table or JSON; nested fields become `parent.child` columns
+        #[arg(long, conflicts_with = "output")]
+        csv: bool,
 
         /// Output format (json, table/pretty)
         #[arg(
@@ -501,6 +516,45 @@ fn print_listing<T: serde::Serialize>(
         out["rows"] = serde_json::to_value(rows)?;
         println!("{}", serde_json::to_string_pretty(&out)?);
     }
+    Ok(())
+}
+
+/// Columns put first in account CSV output; other fields follow
+const ACCOUNT_CSV_COLUMNS: &[&str] = &[
+    "hash",
+    "blockNumber",
+    "dateTime",
+    "timeStamp",
+    "from",
+    "to",
+    "value",
+    "valueEth",
+    "tokenSymbol",
+    "tokenDecimal",
+    "contractAddress",
+    "isError",
+    "functionName",
+];
+
+/// [`print_listing`], or CSV when `csv` is set. CSV cannot say whether an
+/// `--all` walk was complete; that goes to stderr as a warning.
+fn print_listing_or_csv<T: serde::Serialize>(
+    rows: &[T],
+    output: OutputFormat,
+    csv: bool,
+    status: Option<&AllPagesStatus>,
+) -> anyhow::Result<()> {
+    if !csv {
+        return print_listing(rows, output, status);
+    }
+    let values = rows
+        .iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    print!(
+        "{}",
+        crate::utils::csv_rows::json_rows_to_csv(&values, ACCOUNT_CSV_COLUMNS)?
+    );
     Ok(())
 }
 
@@ -1267,6 +1321,7 @@ pub async fn handle(
             sort,
             all,
             max_pages,
+            csv,
             output,
         } => {
             let end_block = end_block.unwrap_or(LATEST_BLOCK);
@@ -1336,7 +1391,7 @@ pub async fn handle(
                 client.get_transactions(&addr, Some(params)).await?
             };
 
-            if !output.is_table() {
+            if *csv || !output.is_table() {
                 // Manually construct JSON to avoid GenesisOption serialization issues
                 let json_txs: Vec<serde_json::Value> = txs
                     .iter()
@@ -1364,7 +1419,7 @@ pub async fn handle(
                         })
                     })
                     .collect();
-                print_listing(&json_txs, *output, all_status.as_ref())?;
+                print_listing_or_csv(&json_txs, *output, *csv, all_status.as_ref())?;
             } else {
                 println!("Transactions for {}", address);
                 println!("{}", "─".repeat(80));
@@ -1407,6 +1462,7 @@ pub async fn handle(
             limit,
             all,
             max_pages,
+            csv,
             output,
         } => {
             let (addr, _) = resolve_address(address, chain, quiet).await?;
@@ -1466,8 +1522,8 @@ pub async fn handle(
                     .await?
             };
 
-            if !output.is_table() {
-                print_listing(&txs, *output, all_status.as_ref())?;
+            if *csv || !output.is_table() {
+                print_listing_or_csv(&txs, *output, *csv, all_status.as_ref())?;
             } else {
                 println!("Internal Transactions for {}", address);
                 println!("{}", "─".repeat(80));
@@ -1505,6 +1561,7 @@ pub async fn handle(
             limit,
             all,
             max_pages,
+            csv,
             output,
         } => {
             let (addr, _) = resolve_address(address, chain, quiet).await?;
@@ -1577,8 +1634,8 @@ pub async fn handle(
                     .await?
             };
 
-            if !output.is_table() {
-                print_listing(&transfers, *output, all_status.as_ref())?;
+            if *csv || !output.is_table() {
+                print_listing_or_csv(&transfers, *output, *csv, all_status.as_ref())?;
             } else {
                 println!("ERC20 Transfers for {}", address);
                 println!("{}", "─".repeat(80));
