@@ -189,6 +189,11 @@ ethcli tx 0x1234567890abcdef...
 # Enrich with Etherscan data (contract names, token symbols, function decoding)
 ethcli tx 0x... --enrich
 
+# The fee, the position in the block and the net balance change per address are
+# always included. --full adds the block time and, for a failed transaction, why it reverted
+ethcli tx 0x... --full
+ethcli tx 0x... --full -o json
+
 # Analyze against a single endpoint (for example a local fork)
 ethcli tx 0x... --rpc-url http://localhost:8545
 

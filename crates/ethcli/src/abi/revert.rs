@@ -14,7 +14,7 @@ const ERROR_STRING_SELECTOR: [u8; 4] = [0x08, 0xc3, 0x79, 0xa0];
 const PANIC_SELECTOR: [u8; 4] = [0x4e, 0x48, 0x7b, 0x71];
 
 /// What kind of revert the data describes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RevertKind {
     /// No revert data at all (`revert()` or `require(cond)` with no message)
@@ -30,7 +30,7 @@ pub enum RevertKind {
 }
 
 /// Where an error's name and argument types came from
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RevertSource {
     /// A form fixed by the language: no data, `Error(string)`, `Panic(uint256)`
@@ -48,23 +48,23 @@ pub enum RevertSource {
 }
 
 /// A decoded revert
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DecodedRevert {
     /// Kind of revert
     pub kind: RevertKind,
     /// Where the name came from. `signature_database` is a guess
     pub source: RevertSource,
     /// Other signatures from the database whose types also decode the data
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub other_candidates: Vec<String>,
     /// 4-byte selector, when there is one
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selector: Option<String>,
     /// Error signature, e.g. `InsufficientBalance(uint256,uint256)`
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
     /// Decoded arguments (integers as decimal strings)
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<serde_json::Value>,
     /// One-line description for people
     pub message: String,

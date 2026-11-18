@@ -2703,11 +2703,13 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
         // Process batch in parallel
         let enrich = args.enrich;
         let block_number = args.block;
+        let full = args.full;
         let futures: Vec<_> = batch
             .iter()
             .enumerate()
             .map(|(i, hash)| {
                 let analyzer = analyzer.clone();
+                let rpc_url = args.rpc_url.clone();
                 let hash = if hash.starts_with("0x") || hash.starts_with("0X") {
                     hash.clone()
                 } else {
@@ -2722,6 +2724,15 @@ async fn handle_tx(args: &TxArgs, cli: &Cli) -> anyhow::Result<()> {
                             .await
                     } else {
                         analyzer.analyze_with_block(&hash, block_number).await
+                    };
+                    let result = match result {
+                        Ok(mut analysis) if full => {
+                            analyzer
+                                .add_full_details(&mut analysis, rpc_url.as_deref())
+                                .await;
+                            Ok(analysis)
+                        }
+                        other => other,
                     };
                     (idx, hash.clone(), result)
                 }

@@ -179,8 +179,13 @@ pub async fn tx_analyze(
     hash: &str,
     chain: Option<&str>,
     block: Option<u64>,
+    full: bool,
 ) -> Result<String, ToolError> {
-    let mut builder = ArgsBuilder::new("tx").arg(hash).chain(chain).format_json();
+    let mut builder = ArgsBuilder::new("tx")
+        .arg(hash)
+        .chain(chain)
+        .format_json()
+        .opt_flag("--full", full);
 
     if let Some(b) = block {
         builder = builder.opt("-b", Some(&b.to_string()));
