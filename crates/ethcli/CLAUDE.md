@@ -197,6 +197,15 @@ ethcli account labels <addr> <addr> ...         # up to 100
   `{"complete": bool, "requests": n, "stopped": "...", "count": n, "rows": [...]}`.
   Check `complete` before treating the rows as the whole history; with
   `-o ndjson` the last line is `{"summary": true, "complete": ...}`.
+- `--csv` on `txs`, `internal-txs` and `erc20` prints CSV with a header line;
+  nested fields become `parent.child` columns. CSV cannot carry the `--all`
+  completeness flag, so an incomplete walk is reported on stderr only; use
+  `-o json` when completeness matters. `rpc multicall --csv` prints one row
+  per call and block with each decoded output in its own column
+  (`output_0`, `output_1`, ...).
+- Cells a spreadsheet would run as a formula (starting `=`, `+`, `-`, `@`)
+  get a leading `'`, except plain numbers, since values can come from
+  contracts.
 - `funded-by` uses Etherscan's `fundedby` endpoint (paid plan, EOAs only). On
   a free plan, or when that fails, it reports the earliest incoming
   native-token transfer among the first 100 normal and 100 internal

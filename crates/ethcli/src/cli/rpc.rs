@@ -207,6 +207,11 @@ pub enum RpcCommands {
         #[arg(long, value_name = "FROM:TO:STEP", conflicts_with = "block")]
         block_range: Option<String>,
 
+        /// Print CSV: one row per call and block, with each decoded output in
+        /// its own column (`output_0`, `output_1`, ...)
+        #[arg(long, conflicts_with = "format")]
+        csv: bool,
+
         /// Output format
         #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
         format: OutputFormat,
@@ -733,6 +738,7 @@ async fn run_action(
             file,
             block,
             block_range,
+            csv,
             format,
         } => {
             let specs = multicall_specs(calls, file.as_deref())?;
@@ -755,7 +761,15 @@ async fn run_action(
                 reports.push(run_multicall(provider, &specs, b, chain).await?);
             }
 
-            if format.is_table() {
+            if *csv {
+                print!(
+                    "{}",
+                    crate::utils::csv_rows::json_rows_to_csv(
+                        &multicall_csv_rows(&reports),
+                        MULTICALL_CSV_COLUMNS
+                    )?
+                );
+            } else if format.is_table() {
                 for (i, report) in reports.iter().enumerate() {
                     if i > 0 {
                         println!();
@@ -1157,6 +1171,60 @@ async fn run_multicall<P: Provider>(
     }))
 }
 
+/// Column order for `rpc multicall --csv` (outputs follow, then the rest)
+const MULTICALL_CSV_COLUMNS: &[&str] = &[
+    "block", "index", "address", "function", "args", "success", "output_0", "output_1", "output_2",
+    "output_3", "output_4", "output_5", "output_6", "output_7", "output_8", "output_9",
+];
+
+/// One flat row per call and block, for CSV: the decoded outputs each get a
+/// column, the revert reason replaces the nested revert object
+fn multicall_csv_rows(reports: &[serde_json::Value]) -> Vec<serde_json::Value> {
+    let mut rows = Vec::new();
+    for report in reports {
+        for entry in report["results"].as_array().into_iter().flatten() {
+            let args: Vec<String> = entry["args"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|a| {
+                    a.as_str()
+                        .map(str::to_string)
+                        .unwrap_or_else(|| a.to_string())
+                })
+                .collect();
+            let mut row = serde_json::json!({
+                "block": report["block"],
+                "index": entry["index"],
+                "address": entry["address"],
+                "function": entry["function"],
+                "args": args.join(" "),
+                "success": entry["success"],
+            });
+            for (i, output) in entry["outputs"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .enumerate()
+            {
+                row[format!("output_{i}")] = match output {
+                    serde_json::Value::String(text) => serde_json::json!(text),
+                    other => serde_json::json!(other.to_string()),
+                };
+            }
+            if let Some(message) = entry["revert"]["message"].as_str() {
+                row["revert"] = serde_json::json!(message);
+            }
+            if let Some(error) = entry["decode_error"].as_str() {
+                row["decode_error"] = serde_json::json!(error);
+            }
+            row["raw"] = entry["raw"].clone();
+            rows.push(row);
+        }
+    }
+    rows
+}
+
 /// One line per call: `[index] address function(args) = values`
 fn format_multicall_table(report: &serde_json::Value) -> String {
     use std::fmt::Write;
@@ -1415,6 +1483,35 @@ mod tests {
         code.extend([0x11u8; 20]);
         assert!(eip7702_delegate(&code).is_some());
         assert!(eip7702_delegate(&[0x60, 0x80]).is_none());
+    }
+
+    #[test]
+    fn multicall_csv_has_one_column_per_output() {
+        let reports = vec![serde_json::json!({
+            "block": "100",
+            "via": "multicall3",
+            "results": [
+                {"index": 0, "address": "0xA", "function": "getReserves()", "args": [],
+                 "success": true, "raw": "0x01", "outputs": ["5", "7", "123"]},
+                {"index": 1, "address": "0xA", "function": "f(uint256)", "args": ["9"],
+                 "success": false, "raw": "0x", "revert": {"message": "\"nope\""}}
+            ]
+        })];
+        let csv = crate::utils::csv_rows::json_rows_to_csv(
+            &multicall_csv_rows(&reports),
+            MULTICALL_CSV_COLUMNS,
+        )
+        .unwrap();
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(
+            lines[0],
+            "block,index,address,function,args,success,output_0,output_1,output_2,raw,revert"
+        );
+        assert_eq!(lines[1], "100,0,0xA,getReserves(),,true,5,7,123,0x01,");
+        assert_eq!(
+            lines[2],
+            "100,1,0xA,f(uint256),9,false,,,,0x,\"\"\"nope\"\"\""
+        );
     }
 
     #[test]

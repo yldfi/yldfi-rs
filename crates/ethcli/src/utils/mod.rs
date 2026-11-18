@@ -3,6 +3,7 @@
 //! Common helpers used across multiple modules.
 
 pub mod address;
+pub mod csv_rows;
 pub mod format;
 pub mod locked_file;
 pub mod progress;

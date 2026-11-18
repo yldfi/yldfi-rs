@@ -238,6 +238,10 @@ ethcli account erc20 0x... -o ndjson     # one JSON object per line (all account
 # explorer's 10,000-row window (also on internal-txs and erc20)
 ethcli account txs 0x... --all --max-pages 50 -o json
 
+# CSV for spreadsheets (account txs, internal-txs, erc20, rpc multicall)
+ethcli account txs 0x... --all --csv > history.csv
+ethcli rpc multicall "0xB4e1... getReserves()(uint112,uint112,uint32)" --block-range 21000000:21070000:7200 --csv
+
 # Who first funded an address. Uses Etherscan's funded-by endpoint on a paid
 # plan; otherwise the earliest incoming native-token transfer
 ethcli account funded-by 0x...

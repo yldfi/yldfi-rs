@@ -35,7 +35,9 @@ single facts.
 
 ## Rules
 
-- **Ask for JSON.** Add `--json` to any command. Integers are decimal strings,
+- **Ask for JSON.** Add `--json` to any command. (`--csv` exists on
+  `account txs`, `internal-txs`, `erc20` and `rpc multicall` for
+  spreadsheets, but it cannot say whether an `--all` history is complete.) Integers are decimal strings,
   because a uint256 does not fit a JSON number. Do not pipe text output
   through `tail`, `sed`, `awk` or `grep`.
 - **Give return types to `rpc multicall` and `rpc call`.** Write
