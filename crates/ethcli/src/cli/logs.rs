@@ -99,7 +99,7 @@ pub struct LogsArgs {
 #[derive(Args)]
 pub struct RpcArgs {
     /// Use only this RPC endpoint, not the config's (can be repeated)
-    #[arg(long = "rpc", action = clap::ArgAction::Append, value_name = "URL")]
+    #[arg(long = "rpc", visible_alias = "rpc-url", action = clap::ArgAction::Append, value_name = "URL")]
     pub rpc_urls: Vec<String>,
 
     /// Add RPC to default pool (can be repeated)

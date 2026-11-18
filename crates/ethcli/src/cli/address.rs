@@ -73,6 +73,7 @@ pub enum AddressCommands {
     },
 
     /// Search addresses by partial match
+    #[command(visible_alias = "lookup")]
     Search {
         /// Search query (matches label, address, description, or tags)
         #[arg(value_name = "QUERY")]

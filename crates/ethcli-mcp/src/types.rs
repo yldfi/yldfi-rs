@@ -373,6 +373,16 @@ pub struct CastSigInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CastIndexInput {
+    /// Solidity type of the mapping key (e.g., "address", "uint256", "bytes32")
+    pub key_type: String,
+    /// Key value
+    pub key: String,
+    /// Slot of the mapping (decimal or 0x hex). For a nested mapping, pass the previous result
+    pub slot: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CastAbiEncodeInput {
     /// Function signature
     pub sig: String,
@@ -441,6 +451,18 @@ pub struct RpcAddressInput {
 pub struct RpcHashInput {
     /// Transaction hash
     pub hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcBalanceInput {
+    /// Account address
+    pub address: String,
+    /// Block number or "latest" (default: latest)
+    #[serde(default)]
+    pub block: Option<String>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,

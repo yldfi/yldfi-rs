@@ -487,6 +487,10 @@ pub enum ContractCommands {
         /// Format output for human readability (commas in numbers, token decimals)
         #[arg(long, short = 'H')]
         human: bool,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Extract function selectors from bytecode (uses evmole)
@@ -850,6 +854,7 @@ pub async fn handle(
             block,
             rpc_url,
             human,
+            format,
         } => {
             let client = etherscan()?;
             let addr = Address::from_str(address)
@@ -955,7 +960,55 @@ pub async fn handle(
                 .map_err(|e| anyhow::anyhow!("Call failed: {}", e))?;
 
             // Decode the result
-            if func.outputs.is_empty() {
+            if !format.is_table() {
+                let decoded = if func.outputs.is_empty() {
+                    None
+                } else {
+                    Some(
+                        func.abi_decode_output(&result)
+                            .map_err(|e| anyhow::anyhow!("Failed to decode output: {}", e))?,
+                    )
+                };
+                let mut out = serde_json::json!({
+                    "address": addr.to_checksum(None),
+                    "function": func.signature(),
+                    "block": block,
+                    "raw": result.to_string(),
+                });
+                if let Some(decoded) = &decoded {
+                    let outputs: Vec<serde_json::Value> = func
+                        .outputs
+                        .iter()
+                        .zip(decoded)
+                        .map(|(output, value)| {
+                            serde_json::json!({
+                                "name": output.name,
+                                "type": output.ty,
+                                "value": dyn_value_to_json(value),
+                            })
+                        })
+                        .collect();
+                    out["outputs"] = serde_json::Value::Array(outputs);
+                    // Token amounts also come scaled, so the caller need not
+                    // fetch decimals and divide
+                    if decoded.len() == 1 && is_amount_getter(&func.name) {
+                        if let (DynSolValue::Uint(amount, _), Some(decimals)) =
+                            (&decoded[0], get_token_decimals(provider, addr).await)
+                        {
+                            out["decimals"] = serde_json::json!(decimals);
+                            out["formatted"] = serde_json::json!(
+                                alloy::primitives::utils::format_units(*amount, decimals)
+                                    .map_err(|e| anyhow::anyhow!("Failed to scale amount: {e}"))?
+                            );
+                        }
+                    }
+                }
+                if format.is_ndjson() {
+                    println!("{}", serde_json::to_string(&out)?);
+                } else {
+                    println!("{}", serde_json::to_string_pretty(&out)?);
+                }
+            } else if func.outputs.is_empty() {
                 // With no ABI and no return spec, the types are unknown: show the data
                 if result.is_empty() {
                     println!("(no return value)");
@@ -1682,6 +1735,28 @@ async fn get_token_decimals<P: Provider>(provider: &P, address: Address) -> Opti
 }
 
 /// Format a DynSolValue for display
+/// A decoded ABI value as JSON. Integers are decimal strings (a uint256 does
+/// not fit a JSON number), addresses are checksummed, byte values are 0x hex,
+/// and arrays and tuples become JSON arrays.
+pub(crate) fn dyn_value_to_json(value: &DynSolValue) -> serde_json::Value {
+    use serde_json::Value;
+    match value {
+        DynSolValue::Bool(b) => Value::Bool(*b),
+        DynSolValue::Int(i, _) => Value::String(i.to_string()),
+        DynSolValue::Uint(u, _) => Value::String(u.to_string()),
+        DynSolValue::Address(a) => Value::String(a.to_checksum(None)),
+        DynSolValue::String(s) => Value::String(s.clone()),
+        DynSolValue::Bytes(b) => Value::String(format!("0x{}", hex::encode(b))),
+        DynSolValue::FixedBytes(word, size) => {
+            Value::String(format!("0x{}", hex::encode(&word[..*size])))
+        }
+        DynSolValue::Function(f) => Value::String(format!("0x{}", hex::encode(f.as_slice()))),
+        DynSolValue::Array(items) | DynSolValue::FixedArray(items) | DynSolValue::Tuple(items) => {
+            Value::Array(items.iter().map(dyn_value_to_json).collect())
+        }
+    }
+}
+
 pub(crate) fn format_value(value: &DynSolValue) -> String {
     format_value_internal(value, false, None)
 }

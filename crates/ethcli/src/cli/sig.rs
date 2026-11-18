@@ -24,6 +24,16 @@ pub enum SigCommands {
         topic: String,
     },
 
+    /// Lookup a selector or topic, picking function or event by its length
+    ///
+    /// A 4-byte value is looked up as a function selector and a 32-byte value
+    /// as an event topic.
+    Lookup {
+        /// 4-byte selector or 32-byte topic0 hash
+        #[arg(value_name = "HEX")]
+        value: String,
+    },
+
     /// Show signature cache statistics
     CacheStats,
 
@@ -37,7 +47,17 @@ pub async fn handle(
     api_key: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
+    let resolved;
+    let action = if let SigCommands::Lookup { value } = action {
+        resolved = classify_lookup(value)?;
+        &resolved
+    } else {
+        action
+    };
+
     match action {
+        SigCommands::Lookup { .. } => unreachable!("lookup is resolved to fn or event above"),
+
         SigCommands::Function { selector } => {
             let client = Client::new(chain, api_key)?;
 
@@ -123,4 +143,48 @@ pub async fn handle(
     }
 
     Ok(())
+}
+
+/// Turn `sig lookup <hex>` into the function or event lookup its length implies
+fn classify_lookup(value: &str) -> anyhow::Result<SigCommands> {
+    let hex_part = value.strip_prefix("0x").unwrap_or(value);
+    if !hex_part.chars().all(|c| c.is_ascii_hexdigit()) {
+        anyhow::bail!("'{value}' is not hex. Pass a 4-byte selector or a 32-byte topic0 hash");
+    }
+    match hex_part.len() {
+        8 => Ok(SigCommands::Function {
+            selector: value.to_string(),
+        }),
+        64 => Ok(SigCommands::Event {
+            topic: value.to_string(),
+        }),
+        n => anyhow::bail!(
+            "'{value}' is {} bytes. A function selector is 4 bytes and an event topic is 32 bytes",
+            n.div_ceil(2)
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lookup_picks_function_or_event_by_length() {
+        assert!(matches!(
+            classify_lookup("0xa9059cbb").unwrap(),
+            SigCommands::Function { .. }
+        ));
+        assert!(matches!(
+            classify_lookup("a9059cbb").unwrap(),
+            SigCommands::Function { .. }
+        ));
+        let topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+        assert!(matches!(
+            classify_lookup(topic).unwrap(),
+            SigCommands::Event { .. }
+        ));
+        assert!(classify_lookup("0x1234").is_err());
+        assert!(classify_lookup("transfer").is_err());
+    }
 }
