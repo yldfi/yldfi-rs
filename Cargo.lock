@@ -34,7 +34,6 @@ name = "alcmy"
 version = "0.2.0"
 dependencies = [
  "reqwest 0.12.28",
- "secrecy",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -1795,7 +1794,6 @@ name = "cgko"
 version = "0.1.5"
 dependencies = [
  "reqwest 0.12.28",
- "secrecy",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -2407,7 +2405,6 @@ name = "dllma"
 version = "0.1.5"
 dependencies = [
  "reqwest 0.12.28",
- "secrecy",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -5493,7 +5490,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "url",
- "urlencoding",
  "wiremock",
 ]
 
