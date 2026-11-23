@@ -608,3 +608,72 @@ fn checker_detects_parent_flags_ignored_chain_and_bad_positionals() {
     assert!(global_chain_commands(&root).iter().any(|c| c == "tx"));
     assert!(!global_chain_commands(&root).iter().any(|c| c == "curve"));
 }
+
+/// The ethcli command paths a tool function runs (`None` when a subcommand
+/// is chosen at run time).
+fn tool_paths(body: &str) -> Option<Vec<Vec<String>>> {
+    let mut paths: Vec<Vec<String>> = Vec::new();
+    for step in tokenize(body) {
+        match step {
+            Step::New(cmd) => paths.push(cmd.split_whitespace().map(String::from).collect()),
+            Step::Sub(sub) => paths
+                .last_mut()?
+                .extend(sub.split_whitespace().map(String::from)),
+            Step::DynamicSub => return None,
+            _ => {}
+        }
+    }
+    Some(paths)
+}
+
+/// Tool functions whose every ethcli command has no JSON output
+fn computed_text_tools(src: &str) -> Vec<String> {
+    let mut out: Vec<String> = split_functions(src)
+        .into_iter()
+        .filter(|(_, body)| match tool_paths(body) {
+            Some(paths) if !paths.is_empty() => paths.iter().all(|path| {
+                let argv: Vec<String> = std::iter::once("ethcli".to_string())
+                    .chain(path.iter().cloned())
+                    .collect();
+                !ethcli::cli::supports_json_output(&argv)
+            }),
+            _ => false,
+        })
+        .map(|(name, _)| name)
+        .collect();
+    out.sort();
+    out
+}
+
+/// ethcli-mcp's `TEXT_TOOLS` (tools that do not take `fields`) must match
+/// the tools whose ethcli command has no JSON output.
+#[test]
+fn mcp_text_tools_match_commands_without_json_output() {
+    let main_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../ethcli-mcp/src/main.rs");
+    let (Some(tools), Ok(main)) = (tools_source(), std::fs::read_to_string(main_path)) else {
+        eprintln!("ethcli-mcp sources not found; skipping");
+        return;
+    };
+    let tools = tools.split("#[cfg(test)]").next().unwrap_or(&tools);
+    let start = main
+        .find("const TEXT_TOOLS")
+        .expect("TEXT_TOOLS in main.rs");
+    let end = start + main[start..].find("];").expect("end of TEXT_TOOLS");
+    let mut listed: Vec<String> = Regex::new(r#""(\w+)""#)
+        .unwrap()
+        .captures_iter(&main[start..end])
+        .map(|c| c[1].to_string())
+        .collect();
+    listed.sort();
+    let expected = computed_text_tools(tools);
+    assert_eq!(
+        listed,
+        expected,
+        "TEXT_TOOLS in crates/ethcli-mcp/src/main.rs is out of date; expected:\n{}",
+        expected
+            .iter()
+            .map(|n| format!("    \"{n}\","))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}

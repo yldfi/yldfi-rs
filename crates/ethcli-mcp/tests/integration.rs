@@ -343,23 +343,35 @@ fn test_invalid_tool_name() {
 }
 
 #[test]
-fn test_every_tool_lists_fields_and_text_tools_reject_it() {
+fn test_fields_is_offered_only_where_it_applies() {
     let mut client = McpClient::new();
     assert!(client.initialize());
 
     let tools = client.list_tools();
     let tools = tools["result"]["tools"].as_array().expect("tools");
-    assert!(tools
-        .iter()
-        .all(|t| t["inputSchema"]["properties"]["fields"]["type"] == "string"));
+    let has_fields = |name: &str| {
+        tools.iter().any(|t| {
+            t["name"] == name && t["inputSchema"]["properties"]["fields"]["type"] == "string"
+        })
+    };
+    assert!(has_fields("account_txs") && has_fields("contract_inspect"));
+    // Text output, the health probe, and tools that write
+    for name in ["cast_keccak", "health", "address_add"] {
+        assert!(!has_fields(name), "{name}");
+    }
 
-    // `fields` is taken out before the input struct is parsed and reaches
-    // ethcli as --fields; keccak prints text, so ethcli refuses it
+    // Given anyway, it is refused before anything runs
     let response = client.call_tool("cast_keccak", json!({"value": "hello", "fields": "hash"}));
-    let result = &response["result"];
-    assert_eq!(result["isError"], true, "{response}");
     assert!(
-        result.to_string().contains("invalid_argument"),
+        response["error"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("`fields` is not available")),
+        "{response}"
+    );
+    // And the health tool still reports a working ethcli
+    let response = client.call_tool("health", json!({}));
+    assert!(
+        !response.to_string().contains("ethcli: FAILED"),
         "{response}"
     );
 }

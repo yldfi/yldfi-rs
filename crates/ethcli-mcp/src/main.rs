@@ -37,6 +37,8 @@ use types::*;
 #[derive(Clone)]
 pub struct EthcliMcpServer {
     tool_router: ToolRouter<Self>,
+    /// Tools that take the `fields` input
+    fields_tools: std::sync::Arc<std::collections::HashSet<String>>,
 }
 
 /// Environment variable that limits which tools the server offers
@@ -133,20 +135,176 @@ impl EthcliMcpServer {
                 "tools limited by {TOOLSETS_ENV}"
             );
         }
-        add_fields_parameter(&mut tool_router);
-        Self { tool_router }
+        let fields_tools = std::sync::Arc::new(add_fields_parameter(&mut tool_router));
+        Self {
+            tool_router,
+            fields_tools,
+        }
     }
 }
 
 /// Name of the input every tool accepts for trimming its JSON result.
 const FIELDS_PARAM: &str = "fields";
 
-/// Add the optional `fields` input to every tool's published schema, in one
-/// place rather than in each input struct. `call_tool` takes it out of the
-/// arguments before they reach the tool, so strict input structs
-/// (`deny_unknown_fields`) never see it.
-fn add_fields_parameter(router: &mut ToolRouter<EthcliMcpServer>) {
+/// Tools whose ethcli command has no JSON output, so `fields` cannot apply.
+/// `crates/ethcli/tests/mcp_tool_paths.rs` checks this list against the
+/// ethcli command definitions and prints the expected list when it drifts.
+const TEXT_TOOLS: &[&str] = &[
+    "address_add",
+    "address_export",
+    "address_import",
+    "address_remove",
+    "blacklist_add",
+    "blacklist_check",
+    "blacklist_path",
+    "blacklist_remove",
+    "blacklist_scan",
+    "blacklist_scan_portfolio",
+    "cast_abi_decode",
+    "cast_abi_encode",
+    "cast_checksum",
+    "cast_compute_address",
+    "cast_concat",
+    "cast_create2",
+    "cast_from_wei",
+    "cast_index",
+    "cast_keccak",
+    "cast_sig",
+    "cast_to_bytes32",
+    "cast_to_dec",
+    "cast_to_hex",
+    "cast_to_wei",
+    "cast_topic",
+    "chainlist_add",
+    "chainlist_list",
+    "chainlist_rpcs",
+    "chainlist_search",
+    "config_add_debug_rpc",
+    "config_init",
+    "config_path",
+    "config_remove_debug_rpc",
+    "config_set_alchemy",
+    "config_set_chainlink",
+    "config_set_defillama",
+    "config_set_dune",
+    "config_set_etherscan_key",
+    "config_set_moralis",
+    "config_set_pyth",
+    "config_set_solodit",
+    "config_set_tenderly",
+    "config_validate",
+    "contract_abi",
+    "doctor",
+    "endpoints_add",
+    "endpoints_disable",
+    "endpoints_enable",
+    "endpoints_list",
+    "endpoints_optimize",
+    "endpoints_remove",
+    "endpoints_test",
+    "ens_lookup",
+    "ens_namehash",
+    "ens_resolve",
+    "ens_resolver",
+    "gas_estimate",
+    "goplus_chains",
+    "logs",
+    "sig_cache_clear",
+    "sig_cache_stats",
+    "sig_event",
+    "sig_fn",
+    "sig_lookup",
+    "simulate_bundle",
+    "simulate_call",
+    "simulate_get",
+    "simulate_info",
+    "simulate_list",
+    "simulate_share",
+    "simulate_tx",
+    "simulate_unshare",
+    "solodit_firms",
+    "solodit_rate_limit",
+    "solodit_tags",
+    "tenderly_actions",
+    "tenderly_actions_get_call",
+    "tenderly_actions_resume_many",
+    "tenderly_actions_stop_many",
+    "tenderly_alerts",
+    "tenderly_alerts_update",
+    "tenderly_channels",
+    "tenderly_contracts",
+    "tenderly_contracts_bulk_tag",
+    "tenderly_contracts_encode_state",
+    "tenderly_contracts_remove_tag",
+    "tenderly_networks",
+    "tenderly_simulate",
+    "tenderly_vnets",
+    "tenderly_vnets_admin_add_balance",
+    "tenderly_vnets_admin_add_balances",
+    "tenderly_vnets_admin_create_access_list",
+    "tenderly_vnets_admin_get_latest",
+    "tenderly_vnets_admin_increase_blocks",
+    "tenderly_vnets_admin_increase_time",
+    "tenderly_vnets_admin_revert",
+    "tenderly_vnets_admin_send_tx",
+    "tenderly_vnets_admin_set_balance",
+    "tenderly_vnets_admin_set_balances",
+    "tenderly_vnets_admin_set_code",
+    "tenderly_vnets_admin_set_erc20_balance",
+    "tenderly_vnets_admin_set_max_erc20_balance",
+    "tenderly_vnets_admin_set_storage",
+    "tenderly_vnets_admin_set_timestamp",
+    "tenderly_vnets_admin_set_timestamp_no_mine",
+    "tenderly_vnets_admin_simulate_bundle",
+    "tenderly_vnets_admin_simulate_tx",
+    "tenderly_vnets_admin_snapshot",
+    "tenderly_vnets_create",
+    "tenderly_vnets_delete",
+    "tenderly_vnets_fork",
+    "tenderly_vnets_get",
+    "tenderly_vnets_get_transaction",
+    "tenderly_vnets_rpc",
+    "tenderly_vnets_send",
+    "tenderly_vnets_simulate",
+    "tenderly_vnets_transactions",
+    "tenderly_vnets_update",
+    "tenderly_wallets",
+    "uniswap_addresses",
+    "uniswap_balance",
+    "uniswap_day_data",
+    "uniswap_eth_price",
+    "uniswap_liquidity",
+    "uniswap_pool",
+    "uniswap_swaps",
+    "uniswap_top_pools",
+];
+
+/// Can `fields` be offered on this tool? Only read-only tools (a write must
+/// never run and then report a `fields` failure) whose command prints JSON,
+/// and not `health`, whose probe runs `ethcli --version`.
+fn accepts_fields(tool: &rmcp::model::Tool) -> bool {
+    let read_only = tool
+        .annotations
+        .as_ref()
+        .and_then(|a| a.read_only_hint)
+        .unwrap_or(false);
+    read_only && tool.name != "health" && !TEXT_TOOLS.contains(&tool.name.as_ref())
+}
+
+/// Add the optional `fields` input to the published schema of every tool that
+/// can take it (see [`accepts_fields`]), in one place rather than in each
+/// input struct. `call_tool` takes it out of the arguments before they reach
+/// the tool, so strict input structs (`deny_unknown_fields`) never see it.
+/// Returns the names of those tools.
+fn add_fields_parameter(
+    router: &mut ToolRouter<EthcliMcpServer>,
+) -> std::collections::HashSet<String> {
+    let mut names = std::collections::HashSet::new();
     for route in router.map.values_mut() {
+        if !accepts_fields(&route.attr) {
+            continue;
+        }
+        names.insert(route.attr.name.to_string());
         let mut schema = (*route.attr.input_schema).clone();
         let properties = schema
             .entry("properties")
@@ -163,6 +321,7 @@ fn add_fields_parameter(router: &mut ToolRouter<EthcliMcpServer>) {
         }
         route.attr.input_schema = std::sync::Arc::new(schema);
     }
+    names
 }
 
 /// Take the `fields` input out of a tool call's arguments.
@@ -8889,6 +9048,15 @@ impl ServerHandler for EthcliMcpServer {
         context: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
         let fields = take_fields_argument(request.arguments.as_mut())?;
+        if fields.is_some() && !self.fields_tools.contains(request.name.as_ref()) {
+            return Err(rmcp::ErrorData::invalid_params(
+                format!(
+                    "`fields` is not available on {}: it writes, or its result is not JSON",
+                    request.name
+                ),
+                None,
+            ));
+        }
         let tcc = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
         executor::FIELDS
             .scope(fields, self.tool_router.call(tcc))
@@ -9305,13 +9473,29 @@ mod fields_tests {
     use super::*;
 
     #[test]
-    fn every_tool_publishes_the_fields_input() {
+    fn fields_is_published_only_on_read_only_json_tools() {
         let server = EthcliMcpServer::new();
         let tools = server.tool_router.list_all();
-        assert!(!tools.is_empty());
-        for tool in tools {
-            let prop = &tool.input_schema["properties"][FIELDS_PARAM];
-            assert_eq!(prop["type"], "string", "{}", tool.name);
+        let mut with = 0;
+        for tool in &tools {
+            let has = tool.input_schema["properties"].get(FIELDS_PARAM).is_some();
+            let read_only = tool
+                .annotations
+                .as_ref()
+                .and_then(|a| a.read_only_hint)
+                .unwrap_or(false);
+            let expected =
+                read_only && tool.name != "health" && !TEXT_TOOLS.contains(&tool.name.as_ref());
+            assert_eq!(has, expected, "{}", tool.name);
+            assert_eq!(server.fields_tools.contains(tool.name.as_ref()), expected);
+            with += usize::from(has);
+        }
+        assert!(with > 100, "only {with} tools take fields");
+        for name in ["health", "address_add", "config_set_alchemy"] {
+            assert!(!server.fields_tools.contains(name), "{name}");
+        }
+        for name in TEXT_TOOLS {
+            assert!(!server.fields_tools.contains(*name), "{name}");
         }
     }
 

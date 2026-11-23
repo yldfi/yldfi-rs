@@ -264,8 +264,13 @@ It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 - `account` subcommands accept `-o ndjson` for one object per line.
 - `--fields a,b.c` (global) keeps only those fields of JSON / NDJSON output:
   dot paths into nested objects, applied to each element of an array, missing
-  fields left out. It implies `--json`; if the command still prints text
-  (no JSON output, or an explicit `-o table`) it fails with `invalid_argument`.
+  fields left out. It implies `--json`. Before anything runs it fails with
+  `invalid_argument` when the command has no JSON output (no `--json` or
+  output option accepting `json`, per `cli::supports_json_output`, so also
+  commands that print JSON without such an option) or an explicit non-JSON
+  format such as `-o table` was given; output that is not a JSON object or
+  array (a bare `255`) also fails. `--help`/`--version` with `--fields` print
+  as usual.
   Mechanism (`src/agent_output.rs`, `main.rs`): `main` re-runs the binary
   without `--fields` and with `--json` (env `ETHCLI_FIELDS_INNER=1`), captures
   its stdout and projects it, so no command needs changes. Scalars are
@@ -285,8 +290,12 @@ It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
   walks the anyhow chain and uses the first error with a known type:
   `code()` on `error::{Error, RpcError, AbiError, ConfigError, OutputError}`
   and `ChainlinkError`, plus clap, reqwest and I/O errors. Only foreign errors
-  fall back to matching the message text. Give new error types a `code()`
-  and add them to `typed_code`.
+  fall back to matching the message text, and that matching takes HTTP
+  statuses only in status form (`status 429`, `HTTP 401`, `(503)`,
+  `429 Too Many Requests`), never bare digits, which addresses and hashes
+  contain. Give new error types a `code()` and add them to `typed_code`.
+  A clap error keeps clap's whole message; a missing subcommand includes the
+  help with the subcommand list.
 
 ### Times in place of blocks
 

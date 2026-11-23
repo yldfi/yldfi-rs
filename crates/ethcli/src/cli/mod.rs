@@ -193,30 +193,12 @@ fn arg_named(arg: &clap::Arg, token: &str) -> bool {
     }
 }
 
-/// Expand a `--json` given anywhere on the command line into the output
-/// option of the command being run.
-///
-/// Commands spell their output option differently (`--format`, `--output`,
-/// both with `-o`), and a few have their own `--json`. This lets a caller
-/// write `--json` on any of them:
-///
-/// - the command has its own `--json`: left as it is;
-/// - the command has a format option that accepts `json`: `--json` becomes
-///   that option, unless the option was also given explicitly;
-/// - the command has no output option: `--json` is dropped with a note on
-///   stderr, so a command that already prints JSON still runs.
-///
-/// Everything after a bare `--` is left untouched.
-pub fn expand_json_flag(args: Vec<String>) -> Vec<String> {
-    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
-    if !args[..end].iter().skip(1).any(|a| a == "--json") {
-        return args;
-    }
-
-    let root = Cli::command();
-    let mut chain: Vec<&clap::Command> = vec![&root];
+/// The commands named on a command line, from the root to the leaf
+/// subcommand. `args[0]` is the program name.
+fn command_chain<'a>(root: &'a clap::Command, args: &[String]) -> Vec<&'a clap::Command> {
+    let mut chain: Vec<&clap::Command> = vec![root];
     let mut i = 1;
-    while i < end {
+    while i < args.len() {
         let token = &args[i];
         if token.starts_with('-') {
             // Step over the value of an option written as two tokens
@@ -238,18 +220,66 @@ pub fn expand_json_flag(args: Vec<String>) -> Vec<String> {
         }
         i += 1;
     }
+    chain
+}
+
+/// The command's `--format`/`--output` option, if it accepts `json`.
+fn json_format_arg(cmd: &clap::Command) -> Option<&clap::Arg> {
+    cmd.get_arguments().find(|a| {
+        (arg_named(a, "--format") || arg_named(a, "--output"))
+            && a.get_possible_values()
+                .iter()
+                .any(|v| v.get_name() == "json")
+    })
+}
+
+/// Can the command on this command line print JSON? True when the leaf
+/// subcommand (or a group above it) has its own `--json` or an output option
+/// that accepts `json`. Decided from the command definition, before anything
+/// runs, so `--fields` can refuse a command (possibly one that writes) that
+/// would print text.
+pub fn supports_json_output(args: &[String]) -> bool {
+    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    let root = Cli::command();
+    let chain = command_chain(&root, &args[..end]);
+    // A group without its subcommand runs nothing; let clap report it
+    if chain[chain.len() - 1].has_subcommands() {
+        return true;
+    }
+    chain.iter().skip(1).any(|c| {
+        c.get_arguments().any(|a| a.get_long() == Some("json")) || json_format_arg(c).is_some()
+    })
+}
+
+/// Expand a `--json` given anywhere on the command line into the output
+/// option of the command being run.
+///
+/// Commands spell their output option differently (`--format`, `--output`,
+/// both with `-o`), and a few have their own `--json`. This lets a caller
+/// write `--json` on any of them:
+///
+/// - the command has its own `--json`: left as it is;
+/// - the command has a format option that accepts `json`: `--json` becomes
+///   that option, unless the option was also given explicitly;
+/// - the command has no output option: `--json` is dropped with a note on
+///   stderr, so a command that already prints JSON still runs.
+///
+/// Everything after a bare `--` is left untouched.
+pub fn expand_json_flag(args: Vec<String>) -> Vec<String> {
+    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    if !args[..end].iter().skip(1).any(|a| a == "--json") {
+        return args;
+    }
+
+    let root = Cli::command();
+    let chain = command_chain(&root, &args[..end]);
     let leaf = chain[chain.len() - 1];
 
     if leaf.get_arguments().any(|a| a.get_long() == Some("json")) {
         return args;
     }
 
-    let format_arg = leaf.get_arguments().find(|a| {
-        (arg_named(a, "--format") || arg_named(a, "--output"))
-            && a.get_possible_values()
-                .iter()
-                .any(|v| v.get_name() == "json")
-    });
+    let format_arg = json_format_arg(leaf);
 
     let mut out = Vec::with_capacity(args.len() + 1);
     match format_arg {
@@ -294,6 +324,27 @@ mod json_flag_tests {
 
     fn expand(args: &[&str]) -> Vec<String> {
         expand_json_flag(args.iter().map(|s| s.to_string()).collect())
+    }
+
+    #[test]
+    fn json_support_is_decided_from_the_command_definition() {
+        let s = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        for args in [
+            s(&["ethcli", "account", "txs", "0x1"]),
+            s(&["ethcli", "--chain", "base", "rpc", "block", "latest"]),
+            s(&["ethcli", "contract", "inspect", "0x1"]),
+            // A group without its subcommand: clap reports it
+            s(&["ethcli", "rpc"]),
+        ] {
+            assert!(super::supports_json_output(&args), "{args:?}");
+        }
+        for args in [
+            s(&["ethcli", "address", "add", "x", "0x1"]),
+            s(&["ethcli", "cast", "keccak", "hello"]),
+            s(&["ethcli", "cast", "to-dec", "0xff"]),
+        ] {
+            assert!(!super::supports_json_output(&args), "{args:?}");
+        }
     }
 
     #[test]

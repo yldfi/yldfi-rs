@@ -161,7 +161,12 @@ impl Serialize for Node {
 fn project_document(text: &str, paths: &[FieldPath], pretty: bool) -> Option<String> {
     let raw: Box<RawValue> = serde_json::from_str(text).ok()?;
     let refs: Vec<&[String]> = paths.iter().map(Vec::as_slice).collect();
-    let node = Node::parse(&raw).ok()?.project(&refs);
+    let node = Node::parse(&raw).ok()?;
+    // A bare number, string, bool or null (text such as `255`) has no fields
+    if matches!(node, Node::Scalar(_)) {
+        return None;
+    }
+    let node = node.project(&refs);
     if pretty {
         serde_json::to_string_pretty(&node).ok()
     } else {
@@ -228,6 +233,58 @@ pub fn take_fields_arg(args: Vec<String>) -> (Vec<String>, Option<String>) {
         }
     }
     (out, spec)
+}
+
+/// Does the command line ask for help or the version (`-h`, `--help`, `-V`,
+/// `--version`, `--help-json`)? Those print as usual even with `--fields`.
+pub fn asks_for_help_or_version(args: &[String]) -> bool {
+    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    args[..end].iter().skip(1).any(|a| {
+        matches!(
+            a.as_str(),
+            "-h" | "--help" | "-V" | "--version" | "--help-json"
+        )
+    })
+}
+
+/// An output format given explicitly that is not JSON (`-o table`,
+/// `--format=csv`), if any.
+pub fn explicit_non_json_format(args: &[String]) -> Option<String> {
+    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    let args = &args[..end];
+    let is_json = |v: &str| matches!(v, "json" | "ndjson" | "jsonl");
+    for (i, a) in args.iter().enumerate().skip(1) {
+        let value = if matches!(a.as_str(), "--format" | "--output" | "-o") {
+            args.get(i + 1).cloned()
+        } else if let Some(v) = a
+            .strip_prefix("--format=")
+            .or_else(|| a.strip_prefix("--output="))
+        {
+            Some(v.to_string())
+        } else {
+            a.strip_prefix("-o")
+                .filter(|v| !v.is_empty())
+                .map(|v| v.trim_start_matches('=').to_string())
+        };
+        if let Some(v) = value.filter(|v| !is_json(v)) {
+            return Some(v);
+        }
+    }
+    None
+}
+
+/// The whole message of a clap error, for the JSON error object: every line
+/// (argument names, possible values, usage), and for a missing subcommand
+/// the help with the list of subcommands.
+pub fn clap_error_message(e: &clap::Error) -> String {
+    let text = e.render().to_string();
+    let text = text.trim();
+    let text = text.strip_prefix("error: ").unwrap_or(text);
+    if e.kind() == clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand {
+        format!("a subcommand is required\n\n{text}")
+    } else {
+        text.to_string()
+    }
 }
 
 /// Add `--json` (before any bare `--`), so `--fields` implies JSON output.
@@ -585,17 +642,13 @@ pub fn classify_message(msg: &str) -> ErrorCode {
         "unauthorized",
         "invalid api key",
         "bad api key",
-        "401",
-        "403 forbidden",
-    ]) {
+        "forbidden",
+    ]) || matches!(http_status(&m), Some(401 | 403))
+    {
         ErrorCode::Unauthorized
-    } else if any(&[
-        "rate limit",
-        "rate-limit",
-        "429",
-        "too many requests",
-        "max rate",
-    ]) {
+    } else if any(&["rate limit", "rate-limit", "too many requests", "max rate"])
+        || http_status(&m) == Some(429)
+    {
         ErrorCode::RateLimited
     } else if any(&[
         "unsupported chain",
@@ -614,24 +667,61 @@ pub fn classify_message(msg: &str) -> ErrorCode {
         "cannot be empty",
         "must not be empty",
         "unknown argument",
+        " required",
+        "usage:",
     ]) {
         ErrorCode::InvalidArgument
     } else if any(&[
-        "rpc",
+        "rpc error",
+        "rpc request",
+        "rpc endpoint",
+        "rpc endpoints",
+        "json-rpc",
         "timed out",
         "timeout",
-        "connection",
+        "connection refused",
+        "connection reset",
+        "connection closed",
+        "failed to connect",
         "error sending request",
         "all endpoints",
-        "502",
-        "503",
-        "504",
-        "network",
-    ]) {
+        "no endpoints",
+        "network error",
+        "dns error",
+        "bad gateway",
+        "service unavailable",
+        "gateway timeout",
+    ]) || matches!(http_status(&m), Some(500..=599))
+    {
         ErrorCode::RpcError
     } else {
         ErrorCode::Internal
     }
+}
+
+/// An HTTP status written as a status, not any three digits in the text
+/// (addresses, hashes and names contain them): `status 429`, `status code:
+/// 401`, `HTTP 503`, `HTTP/1.1 502`, `error code 429`, `(429)`, `429 Too Many
+/// Requests`. `msg` is lowercase.
+fn http_status(msg: &str) -> Option<u16> {
+    use regex::Regex;
+    use std::sync::LazyLock;
+    static PREFIXED: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"\b(?:status(?: code)?|http(?:/[\d.]+)?|error code|response code)[\s:=]*\(?([1-5]\d\d)\b")
+            .expect("valid status regex")
+    });
+    static PHRASE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"\b([45]\d\d)\s+(?:unauthorized|forbidden|not found|too many requests|bad gateway|service unavailable|gateway timeout|internal server error|bad request)\b",
+        )
+        .expect("valid status phrase regex")
+    });
+    static PAREN: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\(([45]\d\d)\)").expect("valid status paren regex"));
+    [&*PREFIXED, &*PHRASE, &*PAREN]
+        .iter()
+        .find_map(|re| re.captures(msg))
+        .and_then(|c| c[1].parse().ok())
 }
 
 /// The JSON error object for `err`, on one line. The message has URLs and
@@ -685,6 +775,93 @@ mod tests {
             project_output(pretty, &fields("x")).unwrap(),
             "{\n  \"x\": {\n    \"n\": 18446744073709551616\n  }\n}\n"
         );
+    }
+
+    #[test]
+    fn digits_in_names_addresses_and_hex_are_not_status_codes() {
+        for msg in [
+            "No resolver set for fable-nonexistent-401-zz.eth",
+            "No TVL data for 0x0000000000000000000000000000000000429001 on chain 1",
+            "Call reverted: 0x08c379a0000000000000000000000000000000000000000000000000646401780000",
+            "Name 0x403a5029... has no record",
+            "block 5021 has no receipts",
+        ] {
+            let code = classify_message(msg);
+            assert!(
+                !matches!(
+                    code,
+                    ErrorCode::Unauthorized | ErrorCode::RateLimited | ErrorCode::RpcError
+                ),
+                "{msg} -> {code:?}"
+            );
+        }
+        assert_eq!(
+            classify_message("Calldata or --sig required. Use: rpc call <addr> --sig ..."),
+            ErrorCode::InvalidArgument
+        );
+        for (msg, code) in [
+            ("request failed with status 429", ErrorCode::RateLimited),
+            ("HTTP 401 from upstream", ErrorCode::Unauthorized),
+            ("HTTP status client error (403 Forbidden) for url", ErrorCode::Unauthorized),
+            ("server said 429 Too Many Requests", ErrorCode::RateLimited),
+            (
+                "server returned an error response: error code 429: Monthly capacity limit exceeded",
+                ErrorCode::RateLimited,
+            ),
+            ("status code: 503", ErrorCode::RpcError),
+            ("upstream answered (502)", ErrorCode::RpcError),
+        ] {
+            assert_eq!(classify_message(msg), code, "{msg}");
+        }
+    }
+
+    #[test]
+    fn bare_scalars_are_not_projectable() {
+        assert!(project_output("255\n", &fields("a")).is_err());
+        assert!(project_output("\"text\"\n", &fields("a")).is_err());
+        assert!(project_output("1\n2\n", &fields("a")).is_err());
+    }
+
+    #[test]
+    fn help_version_and_explicit_formats() {
+        assert!(asks_for_help_or_version(&strings(&[
+            "ethcli", "rpc", "block", "--help"
+        ])));
+        assert!(asks_for_help_or_version(&strings(&["ethcli", "-V"])));
+        assert!(!asks_for_help_or_version(&strings(&[
+            "ethcli", "x", "--", "--help"
+        ])));
+        assert_eq!(
+            explicit_non_json_format(&strings(&["ethcli", "rpc", "block", "1", "-o", "table"])),
+            Some("table".into())
+        );
+        assert_eq!(
+            explicit_non_json_format(&strings(&["ethcli", "x", "--format=csv"])),
+            Some("csv".into())
+        );
+        assert_eq!(
+            explicit_non_json_format(&strings(&["ethcli", "x", "-o", "ndjson"])),
+            None
+        );
+    }
+
+    #[test]
+    fn clap_errors_keep_the_whole_message() {
+        use clap::Parser;
+        let err = |args: &[&str]| match crate::cli::Cli::try_parse_from(args) {
+            Ok(_) => panic!("{args:?} parsed"),
+            Err(e) => e,
+        };
+        // Missing subcommand: the list of subcommands is in the message
+        let msg = clap_error_message(&err(&["ethcli", "rpc"]));
+        assert!(msg.starts_with("a subcommand is required"), "{msg}");
+        assert!(msg.contains("balance") && msg.contains("block"), "{msg}");
+        // Missing argument: its name is kept
+        let msg = clap_error_message(&err(&["ethcli", "rpc", "balance"]));
+        assert!(msg.contains("<ADDRESS>"), "{msg}");
+        // Invalid value: the possible values are kept
+        let msg = clap_error_message(&err(&["ethcli", "account", "txs", "0x1", "-o", "xml"]));
+        assert!(msg.contains("xml") && msg.contains("json"), "{msg}");
     }
 
     #[test]
@@ -943,8 +1120,9 @@ mod tests {
         let line = error_json(&err);
         assert!(!line.contains("abcdefghijklmnopqrstuvwxyz123"), "{line}");
         assert!(!line.contains('\n'));
+        // "rpc" in a host name is not an RPC error
         let v: Value = serde_json::from_str(&line).unwrap();
-        assert!(v["error"].get("hint").is_some());
+        assert_eq!(v["error"]["code"], "internal");
         let err = anyhow::anyhow!("odd");
         let v: Value = serde_json::from_str(&error_json(&err)).unwrap();
         assert!(v["error"].get("hint").is_none());
