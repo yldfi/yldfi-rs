@@ -10,6 +10,8 @@ homepage = "https://github.com/yldfi/yldfi-rs/tree/main/crates/ethcli"
 keywords = ["ethereum", "cli", "etherscan", "blockchain", "web3"]
 categories = ["command-line-utilities", "web-programming"]
 readme = "README.md"
+# Mainnet bytecode fixtures for tests; not needed to build the crate
+exclude = ["tests/fixtures/"]
 
 [[bin]]
 name = "ethcli"
@@ -123,7 +125,7 @@ gplus = { version = "0.2.1", path = "../gplus" }
 sldt = { version = "0.2.1", path = "../sldt" }
 
 # Bytecode analysis
-evmole = { version = "0.9", features = ["serde"] }
+evmole = { version = "0.10.1", features = ["serde"] }
 evm-disassembler = "0.6"
 
 # Chainlink Data Streams

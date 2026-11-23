@@ -24,8 +24,10 @@
 //! ```
 
 mod analyze;
+pub mod calls;
 mod checks;
 mod disassemble;
+pub mod inference;
 pub mod matcher;
 pub mod metadata;
 mod proxy;
@@ -34,10 +36,18 @@ mod selectors;
 mod types;
 
 pub use analyze::{analyze_bytecode, AnalysisError};
+pub use calls::{
+    analyze_calls, analyze_calls_with, CallSite, CallsBudget, CallsReport, Coverage, FunctionFacts,
+    Guard, OpcodeSite, Provenance,
+};
 pub use checks::{analyze_handler_checks, infer_dispatcher};
 pub use disassemble::{
     disassemble_bytecode, disassemble_raw, opcode_stats, opcode_stats_from_operations,
     DisassemblyError,
+};
+pub use inference::{
+    compiler_metadata, control_flow_summary, infer_facts, CompilerMetadata, ControlFlowSummary,
+    InferredFacts, InferredStorage, InferredStorageSlot,
 };
 pub use proxy::{
     address_from_storage, detect_eip1167, detect_proxy, slots as proxy_slots, u256_to_b256,

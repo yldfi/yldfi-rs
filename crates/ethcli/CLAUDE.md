@@ -645,6 +645,73 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   effectful opcode and the code has computed jumps, so entry cannot be ruled
   out by the static CFG (constant pushes only). TODO: use #312's CFG.
 - Fixture: `tests/fixtures/match/` (a small forge build and a one-line variant).
+### `contract calls`, inferred facts, twins
+
+```bash
+ethcli contract calls <addr> [--block N] [--follow-proxy] [--lookup] [--json]
+ethcli contract twins <addr> [--json]          # read-only
+ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
+```
+
+- `src/bytecode/calls.rs`: bounded abstract interpretation from pc 0. Values
+  carry provenance (`constant`, `code_constant` (PUSH20/PUSH32 or codecopy;
+  an immutable is indistinguishable from a literal), `storage` slot,
+  `storage_computed` (mapping), `calldata` offset (also `shr(96, ...)`
+  packed), `msg_sender`, `tx_origin`, `address_this`, `call_return`,
+  `keccak`, `computed`, `unresolved`). Memory is keyed by symbolic base +
+  constant offset; `calldatacopy`, constant `codecopy` and return data are
+  modelled, and EXTCODECOPY makes its range unknown. Addresses are sums
+  of symbolic terms (taken as unsigned) plus a constant, with a proven
+  lower bound (`x - (len & 31)` and `x & ~31` keep x's bound) and a
+  symbolic floor. A write drops same-base entries it fully covers and any
+  other entry it may overlap; a read takes the newest entry that may
+  overlap it, and is a value only when that entry has the same base and
+  covers the bytes. One assumption: a write at the end of a copy
+  of symbolic length L (`p + L`, or `p + round32(L)`, plus anything) does
+  not reach back into bytes read from inside that copy (it would only if
+  L were smaller than the read offset). An ADD chain counts as one depth
+  level (the free memory pointer grows by such sums after every call).
+  Precompile calls (0x01-0x11, 0x100) and hash-valued first words report no
+  selector. Values are capped at depth 8 and 64
+  nodes (cached per node, so checks are O(1)); larger values are
+  unresolved. Functions come from
+  `selector == PUSH4` branches, evmole entry offsets, or a byte-bounded
+  calldata jump table (`jump_table[i]`, every JUMPDEST enumerated). Guards:
+  EQ of msg.sender/tx.origin/address(this) (masks of 160 bits or more
+  only) anywhere in a JUMPI condition, and SUB / XOR (solc's `==`/`!=`
+  peephole) only as the condition itself, under ISZERO or as
+  `eq(_, 0)`; mapping lookups keyed by msg.sender. Budgets: steps (4M),
+  time (15 s; 10 s in analyze), distinct states per (pc, function) (24
+  distinct stacks, plus up to 4 memory/last-call variants per stack,
+  explored after every other path so they never crowd one out; all drops
+  counted in `states_pruned`). `tests/calls_corpus.rs` (ignored) writes
+  every fact for a directory of bytecode, for A/B runs between builds.
+  `coverage` gives evmole
+  CFG blocks analysed / reachable, unresolved jumps and call sites, prunes,
+  `invalid_opcodes` (unknown opcodes stop a path) and `complete`.
+  `calls::opcode_sites(code, metadata_offset)` is a public linear sweep of
+  the whole code (it does not stop at the metadata offset, which the
+  deployer controls); sites in a trailing metadata region with no JUMPDEST
+  get `in_metadata: true`. `inference::compiler_metadata` is the CBOR
+  parser to reuse; both are meant as the crate's single source for these
+  facts.
+- `src/bytecode/inference.rs`: evmole 0.10 `with_storage`,
+  `with_control_flow_graph`, `with_metadata` wrapped in ethcli types
+  (`InferredFacts`), all marked inferred. `contract analyze` adds
+  `inferred` and `calls` (summary); `contract inspect` adds `inferred` (of
+  the implementation for a proxy), `verification` (Sourcify `match`/
+  `runtimeMatch`/`creationMatch`, Blockscout fully/partially verified ->
+  `exact`/`partial`/`unknown`) and `twins`.
+- Twins: Etherscan `getsourcecode` `SimilarMatch`, Blockscout
+  `verified_twin_address_hash`; each candidate's code hash is compared
+  (`exact_runtime_code` / `similar_runtime_code`). Sourcify has no public
+  code-hash lookup. `--submit-similarity` POSTs
+  `/v2/verify/similarity/{chain}/{address}` and polls 60 s; it is in
+  `MUTATING_COMMANDS` as `contract twins --submit-similarity` (entries may
+  name a flag). `SOURCIFY_SERVER_URL` / `BLOCKSCOUT_BASE_URL` override the
+  hosts (tests).
+- Fixtures: `tests/fixtures/bytecode/*.hex` (mainnet runtime code),
+  `tests/bytecode_calls.rs` asserts facts with a step budget only.
 
 ### Proxy Detection
 

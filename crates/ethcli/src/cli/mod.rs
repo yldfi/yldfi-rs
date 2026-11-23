@@ -239,7 +239,8 @@ fn json_format_arg(cmd: &clap::Command) -> Option<&clap::Arg> {
 }
 
 /// Commands that change state (local files, remote services, orders), by
-/// canonical command path. A listed path covers its subcommands.
+/// canonical command path. A listed path covers its subcommands. A `--flag`
+/// in an entry limits it to command lines that give that flag.
 ///
 /// `--fields` refuses these before running: projection happens after the
 /// command ran, so a write that prints text would succeed and still be
@@ -266,6 +267,7 @@ pub const MUTATING_COMMANDS: &[&str] = &[
     "config set-pyth",
     "config set-solodit",
     "config set-tenderly",
+    "contract twins --submit-similarity",
     "cow-swap cancel-order",
     "cow-swap cancel-orders",
     "cow-swap create-order",
@@ -332,10 +334,21 @@ pub const MUTATING_COMMANDS: &[&str] = &[
 ];
 
 /// Is this command path (`["address", "add"]`) one of [`MUTATING_COMMANDS`]?
+/// Entries that also name a flag (`contract twins --submit-similarity`)
+/// need the flag, so a bare path never matches them; see
+/// [`is_mutating_command`].
 pub fn is_mutating_path(path: &[String]) -> bool {
+    is_mutating_with_flags(path, &[])
+}
+
+fn is_mutating_with_flags(path: &[String], flags: &[&str]) -> bool {
     MUTATING_COMMANDS.iter().any(|listed| {
-        let listed: Vec<&str> = listed.split_whitespace().collect();
-        path.len() >= listed.len() && listed.iter().zip(path).all(|(a, b)| *a == b.as_str())
+        let (words, needed): (Vec<&str>, Vec<&str>) = listed
+            .split_whitespace()
+            .partition(|token| !token.starts_with("--"));
+        path.len() >= words.len()
+            && words.iter().zip(path).all(|(a, b)| *a == b.as_str())
+            && needed.iter().all(|flag| flags.contains(flag))
     })
 }
 
@@ -349,7 +362,12 @@ pub fn is_mutating_command(args: &[String]) -> bool {
         .skip(1)
         .map(|c| c.get_name().to_string())
         .collect();
-    is_mutating_path(&path)
+    let flags: Vec<&str> = args[..end]
+        .iter()
+        .filter(|a| a.starts_with("--"))
+        .map(|a| a.split('=').next().unwrap_or(a))
+        .collect();
+    is_mutating_with_flags(&path, &flags)
 }
 
 /// Expand a `--json` given anywhere on the command line into the output
@@ -452,12 +470,30 @@ mod json_flag_tests {
         for listed in super::MUTATING_COMMANDS {
             let mut cmd = &root;
             for seg in listed.split_whitespace() {
+                if let Some(flag) = seg.strip_prefix("--") {
+                    assert!(
+                        cmd.get_arguments().any(|a| a.get_long() == Some(flag)),
+                        "MUTATING_COMMANDS: `{listed}` has no flag --{flag}"
+                    );
+                    continue;
+                }
                 cmd = cmd
                     .get_subcommands()
                     .find(|c| c.get_name() == seg)
                     .unwrap_or_else(|| panic!("MUTATING_COMMANDS: no command `{listed}`"));
             }
         }
+        // A flag-qualified entry applies only with the flag
+        assert!(super::is_mutating_command(&s(&[
+            "ethcli",
+            "contract",
+            "twins",
+            "0x1",
+            "--submit-similarity"
+        ])));
+        assert!(!super::is_mutating_command(&s(&[
+            "ethcli", "contract", "twins", "0x1"
+        ])));
     }
 
     #[test]

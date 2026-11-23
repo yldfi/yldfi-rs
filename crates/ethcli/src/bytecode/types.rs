@@ -279,4 +279,11 @@ pub struct BytecodeAnalysis {
     /// Handler guard/check heuristics (optional, included when requested)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checks: Option<BytecodeCheckSummary>,
+    /// evmole's inferred storage layout, control-flow summary and CBOR
+    /// metadata ([`super::InferredFacts`])
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inferred: Option<serde_json::Value>,
+    /// Call-site and access-control summary ([`super::CallsReport::summary`])
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calls: Option<serde_json::Value>,
 }
