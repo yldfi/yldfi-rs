@@ -266,6 +266,15 @@ pub struct ContractSourceInput {
     pub chain: String,
     /// Disabled over MCP; omit to return source data in the tool response
     pub output: Option<String>,
+    /// List the source files with line counts instead of returning the source
+    #[serde(default)]
+    pub list: bool,
+    /// Return only this file (its path, or a file name such as "Vault.sol")
+    pub file: Option<String>,
+    /// Return only this function, modifier or constructor, with its NatSpec
+    pub function: Option<String>,
+    /// Return only lines matching this regular expression, as path:line: text
+    pub grep: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -456,6 +456,29 @@ pub enum ContractCommands {
         /// Save to directory instead of stdout
         #[arg(long, short, value_name = "DIR")]
         output: Option<PathBuf>,
+
+        /// List the source files with their line counts instead of printing
+        /// the source
+        #[arg(long, conflicts_with_all = ["output", "file", "function", "grep"])]
+        list: bool,
+
+        /// Print only this file: its path, or a file name such as `Vault.sol`
+        #[arg(long, value_name = "PATH", conflicts_with = "output")]
+        file: Option<String>,
+
+        /// Print only this function, modifier or constructor, with its
+        /// NatSpec comment and file and line (every definition with that name)
+        #[arg(long, value_name = "NAME", conflicts_with_all = ["output", "grep"])]
+        function: Option<String>,
+
+        /// Print only the lines matching this regular expression, as
+        /// `path:line: text`
+        #[arg(long, value_name = "REGEX", conflicts_with = "output")]
+        grep: Option<String>,
+
+        /// Output format for --list, --file, --function and --grep
+        #[arg(long, value_enum, default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Get contract creation info (deployer, tx hash)
@@ -756,7 +779,15 @@ pub async fn handle(
             }
         }
 
-        ContractCommands::Source { address, output } => {
+        ContractCommands::Source {
+            address,
+            output,
+            list,
+            file,
+            function,
+            grep,
+            format,
+        } => {
             let client = etherscan()?;
             Address::from_str(address).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
 
@@ -768,6 +799,23 @@ pub async fn handle(
                 .source_code(address)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to fetch source: {}", e))?;
+
+            if *list || file.is_some() || function.is_some() || grep.is_some() {
+                let files = source_files(&metadata.items);
+                if files.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "No source code found (contract may not be verified)"
+                    ));
+                }
+                return print_source_slice(
+                    &files,
+                    *list,
+                    file.as_deref(),
+                    function.as_deref(),
+                    grep.as_deref(),
+                    *format,
+                );
+            }
 
             if let Some(dir) = output {
                 // Create directory and save files
@@ -2525,6 +2573,144 @@ fn format_with_decimals(value: &alloy::primitives::U256, decimals: u8) -> String
     } else {
         format!("{}.{}", with_thousands_sep(integer), fraction_trimmed)
     }
+}
+
+/// The verified source as separate files, sorted by path. A single-file
+/// verification is named after the contract.
+fn source_files(
+    items: &[foundry_block_explorers::contract::Metadata],
+) -> Vec<super::source_view::SourceFile> {
+    use foundry_block_explorers::contract::SourceCodeMetadata;
+    let mut files = Vec::new();
+    for item in items {
+        match &item.source_code {
+            SourceCodeMetadata::SourceCode(text) => {
+                let extension = if item.compiler_version.to_ascii_lowercase().contains("vyper") {
+                    "vy"
+                } else {
+                    "sol"
+                };
+                files.push(super::source_view::SourceFile {
+                    path: format!("{}.{extension}", item.contract_name),
+                    content: text.clone(),
+                });
+            }
+            other => {
+                for (path, entry) in other.sources() {
+                    files.push(super::source_view::SourceFile {
+                        path,
+                        content: entry.content,
+                    });
+                }
+            }
+        }
+    }
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    files.dedup_by(|a, b| a.path == b.path);
+    super::source_view::strip_common_absolute_prefix(&mut files);
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    files
+}
+
+/// Print the part of the source that `--list`, `--file`, `--function` or
+/// `--grep` asked for. `--file` narrows `--function` and `--grep` to the
+/// matching files.
+fn print_source_slice(
+    files: &[super::source_view::SourceFile],
+    list: bool,
+    file: Option<&str>,
+    function: Option<&str>,
+    grep: Option<&str>,
+    format: OutputFormat,
+) -> anyhow::Result<()> {
+    use super::source_view;
+
+    if list {
+        let listed = source_view::list(files);
+        if format.is_table() {
+            for entry in &listed {
+                println!(
+                    "{:>6} lines  {}",
+                    entry["lines"].as_u64().unwrap_or(0),
+                    entry["path"].as_str().unwrap_or("")
+                );
+            }
+        } else {
+            println!("{}", serde_json::to_string_pretty(&listed)?);
+        }
+        return Ok(());
+    }
+
+    let selected: Vec<source_view::SourceFile> = match file {
+        Some(name) => {
+            let found = source_view::find_files(files, name);
+            if found.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "No source file matches '{name}' ({} files; see them with --list)",
+                    files.len()
+                ));
+            }
+            found.into_iter().cloned().collect()
+        }
+        None => files.to_vec(),
+    };
+
+    if let Some(name) = function {
+        let found = source_view::functions(&selected, name)?;
+        if found.is_empty() {
+            return Err(anyhow::anyhow!(
+                "No function, modifier or constructor named '{name}' in the verified source \
+                 (search it with --grep)"
+            ));
+        }
+        if format.is_table() {
+            for (i, f) in found.iter().enumerate() {
+                if i > 0 {
+                    println!();
+                }
+                println!("// {}:{}", f.path, f.line);
+                println!("{}", f.text);
+            }
+        } else {
+            println!("{}", serde_json::to_string_pretty(&found)?);
+        }
+        return Ok(());
+    }
+
+    if let Some(pattern) = grep {
+        let hits = source_view::grep(&selected, pattern)?;
+        if format.is_table() {
+            for hit in &hits {
+                println!("{}:{}: {}", hit.path, hit.line, hit.text);
+            }
+            if hits.is_empty() {
+                eprintln!("No lines match '{pattern}'");
+            }
+        } else {
+            println!("{}", serde_json::to_string_pretty(&hits)?);
+        }
+        return Ok(());
+    }
+
+    // --file alone
+    if format.is_table() {
+        for (i, f) in selected.iter().enumerate() {
+            if selected.len() > 1 {
+                if i > 0 {
+                    println!();
+                }
+                println!("// File: {}", f.path);
+            }
+            println!("{}", f.content);
+        }
+    } else {
+        let out: Vec<serde_json::Value> = selected
+            .iter()
+            .map(|f| serde_json::json!({"path": f.path, "content": f.content}))
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

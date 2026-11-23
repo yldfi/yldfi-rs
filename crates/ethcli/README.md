@@ -259,6 +259,10 @@ ethcli contract abi 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 
 # Get source code
 ethcli contract source 0x...
+ethcli contract source 0x... --list                      # files and line counts
+ethcli contract source 0x... --function withdraw         # one function, with NatSpec and file:line
+ethcli contract source 0x... --grep "onlyOwner"          # matching lines as path:line: text
+ethcli contract source 0x... --file Vault.sol            # one file
 
 # Get creation transaction
 ethcli contract creation 0x...
