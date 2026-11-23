@@ -142,7 +142,12 @@ fn describe(cbor: &Cbor, start: usize, end: usize, trailing: bool) -> Option<Met
     };
     let version_from = |value: &Cbor| match value {
         Cbor::Bytes(b) if b.len() == 3 => Some(format!("{}.{}.{}", b[0], b[1], b[2])),
-        Cbor::Text(t) => Some(t.clone()),
+        // Untrusted text from the chain: a strict charset only
+        Cbor::Text(t) => (!t.is_empty()
+            && t.len() <= 40
+            && t.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-')))
+        .then(|| t.clone()),
         Cbor::Array(parts) => {
             let nums: Vec<String> = parts
                 .iter()
@@ -464,7 +469,14 @@ pub fn fingerprint(code: &[u8]) -> Fingerprint {
 
     let blocks = find_metadata_blocks(code);
     let view = CodeView::new(code);
-    let ops: Vec<(usize, u8)> = view.code_ops().map(|(pc, op, _)| (*pc, *op)).collect();
+    // Only code reachable by fallthrough from pc 0 or a valid JUMPDEST:
+    // data after a halt (and bytes after the metadata, such as vyper's
+    // immutables) must not decide the EVM version
+    let ops: Vec<(usize, u8)> = view
+        .code_ops()
+        .filter(|(_, _, live)| *live)
+        .map(|(pc, op, _)| (*pc, *op))
+        .collect();
 
     let mut counts: BTreeMap<u8, usize> = BTreeMap::new();
     let mut address_like = BTreeSet::new();
@@ -538,11 +550,25 @@ pub fn fingerprint(code: &[u8]) -> Fingerprint {
         )
     };
 
-    let trailing = blocks.iter().find(|b| b.trailing).cloned();
+    let mut trailing = blocks.iter().find(|b| b.trailing).cloned();
+    let mut extra_notes = Vec::new();
+    if trailing.is_none() {
+        // vyper appends immutables after its metadata, so the block is not
+        // at the very end; take the last vyper block followed only by data
+        if let Some(last) = blocks.last().filter(|b| b.compiler == "vyper") {
+            extra_notes.push(format!(
+                "vyper metadata at {:#x}, followed by {} bytes of immutables",
+                last.start,
+                code.len() - last.end
+            ));
+            trailing = Some(last.clone());
+        }
+    }
     let mut notes = vec![
         "Opcodes come from the EVM linear sweep; data stored inside code is counted too, so counts are upper bounds".to_string(),
         "The pipeline guess is a heuristic; confirm by compiling".to_string(),
     ];
+    notes.extend(extra_notes);
     if trailing.is_none() {
         notes.push("No compiler metadata at the end of the code: compiled with metadata disabled, or not by solc/vyper".to_string());
     } else if let Some(t) = &trailing {
@@ -553,8 +579,11 @@ pub fn fingerprint(code: &[u8]) -> Fingerprint {
     Fingerprint {
         code_size: code.len(),
         code_hash: format!("{:#x}", alloy::primitives::keccak256(code)),
-        metadata: trailing,
-        embedded_metadata: blocks.into_iter().filter(|b| !b.trailing).collect(),
+        metadata: trailing.clone(),
+        embedded_metadata: blocks
+            .into_iter()
+            .filter(|b| !b.trailing && trailing.as_ref().is_none_or(|t| t.start != b.start))
+            .collect(),
         min_evm_version: min_evm,
         evm_evidence: evidence,
         pipeline_guess: pipeline.to_string(),
@@ -698,5 +727,46 @@ mod tests {
         code.extend(&cbor);
         code.extend(len.to_be_bytes());
         assert!(trailing_metadata(&code).is_none());
+    }
+
+    #[test]
+    fn min_evm_ignores_unreachable_data() {
+        // PUSH1 0 ; STOP ; TLOAD (data after a halt)
+        let fp = fingerprint(&hex::decode("6000005c").unwrap());
+        assert!(
+            !fp.min_evm_version.starts_with("cancun"),
+            "{}",
+            fp.min_evm_version
+        );
+        // A reachable TLOAD does count
+        let fp = fingerprint(&hex::decode("60005c00").unwrap());
+        assert!(fp.min_evm_version.starts_with("cancun"));
+    }
+
+    #[test]
+    fn vyper_metadata_followed_by_immutables() {
+        let mut code = hex::decode("600000").unwrap();
+        // {"vyper": [0, 3, 7]} and its length, then 64 bytes of immutables
+        code.extend(hex::decode("a165767970657283000307000b").unwrap());
+        code.extend([0x11; 64]);
+        let fp = fingerprint(&code);
+        let m = fp.metadata.expect("vyper metadata");
+        assert_eq!(m.compiler, "vyper");
+        assert_eq!(m.version.as_deref(), Some("0.3.7"));
+        assert!(fp.embedded_metadata.is_empty());
+    }
+
+    #[test]
+    fn version_text_is_sanitised() {
+        let mut cbor = hex::decode("a164736f6c63").unwrap();
+        let text = b"0.8.21\nVerified\x1b[31m";
+        cbor.push(0x60 + text.len() as u8);
+        cbor.extend(text);
+        let mut code = vec![0x00];
+        let len = cbor.len() as u16;
+        code.extend(&cbor);
+        code.extend(len.to_be_bytes());
+        let m = trailing_metadata(&code).unwrap();
+        assert!(m.version.is_none());
     }
 }

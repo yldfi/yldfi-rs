@@ -810,6 +810,7 @@ pub async fn contract_match(
     artifact: &str,
     contract: Option<&str>,
     creation_tx: Option<&str>,
+    build_info: Option<&str>,
     chain: Option<&str>,
     block: Option<&str>,
     no_follow_proxy: bool,
@@ -819,12 +820,23 @@ pub async fn contract_match(
     let artifact = artifact
         .to_str()
         .ok_or_else(|| ToolError::InvalidInput("artifact path is not valid UTF-8".into()))?;
+    let build_info = build_info
+        .map(|b| validate_artifact_path(b, &root))
+        .transpose()?;
+    let build_info = build_info
+        .as_deref()
+        .map(|b| {
+            b.to_str()
+                .ok_or_else(|| ToolError::InvalidInput("build_info path is not valid UTF-8".into()))
+        })
+        .transpose()?;
     ArgsBuilder::new("contract")
         .subcommand("match")
         .arg(address)
         .opt("--artifact", Some(artifact))
         .opt("--contract", contract)
         .opt("--creation-tx", creation_tx)
+        .opt("--build-info", build_info)
         .chain(chain)
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)

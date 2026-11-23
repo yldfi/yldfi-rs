@@ -574,6 +574,7 @@ impl EthcliMcpServer {
             &input.artifact,
             input.contract.as_deref(),
             input.creation_tx.as_deref(),
+            input.build_info.as_deref(),
             Some(&input.chain),
             input.block.as_deref(),
             input.no_follow_proxy,

@@ -602,6 +602,30 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   mismatches are compared per instruction; size changes are aligned by common
   prefix/suffix with PUSH2/PUSH3 operands ignored. Function mapping uses the
   source map + AST (`forge build --ast`), else approximate dispatcher ranges.
+- Proxies are followed only when the address's own code acts as that proxy:
+  a reachable DELEGATECALL and the slot constant it reads (PUSH32 of the
+  EIP-1967 / beacon / OZ slot), an EIP-1167 clone, or a small Safe proxy.
+  A slot set on any other contract is reported and its own code analysed.
+  When code is substituted, the address's own code is censused too
+  (`target.own_code`).
+- `--block` takes a decimal or hex number, a tag or a time; anything else is
+  an error.
+- `match --creation-tx` must be the transaction that created the analysed
+  code (receipt `contractAddress`), else it errors.
+- `match --build-info <file>` (or a forge `out/build-info/*.json` next to the
+  artifact that lists the contract) supplies every source's AST, so base
+  contracts and modifiers in other files are named. Without it, code from
+  other sources is labelled `(source N: no AST ...)` and the "only shared
+  code differs" hint is not given.
+- Artifact `start`/`length` values are checked (no overflow, inside the
+  code). Deployed metadata-looking bytes holding executable sensitive
+  opcodes are compared as code, so the verdict cannot be `partial`.
+- `min_evm_version` uses only reachable code. Vyper metadata followed by
+  immutables is recognised. CBOR version text is limited to `[0-9A-Za-z.+-]`.
+- The decompile cross-check counts sites: fewer `tx.origin` / `msg.sender` /
+  `create(` ... occurrences than opcode sites (whole words, calls only for
+  create/delegatecall/selfdestruct), or a missing `effects` flag, is a
+  warning.
 - Fixture: `tests/fixtures/match/` (a small forge build and a one-line variant).
 
 ### Proxy Detection

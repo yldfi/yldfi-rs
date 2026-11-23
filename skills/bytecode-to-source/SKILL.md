@@ -37,8 +37,9 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    fingerprint and disassembly show the original used it, and then keep it to
    the smallest block and say so. Assembly can copy bytecode without
    explaining it, so a match reached through assembly proves little.
-5. **Build.** `forge build --ast` (the AST lets `contract match` name
-   functions and measure the inline-assembly share).
+5. **Build.** `forge build --ast --build-info` (the ASTs of every source
+   let `contract match` name functions, including inherited modifiers in
+   other files, and measure the inline-assembly share).
 6. **Match.** `ethcli contract match <addr> --artifact out/<File>.sol/<Name>.json --json`.
    - `mismatch`: read `match.mismatch.function`, the bytes around
      `first_difference_offset` and the per-function table. Fix only the

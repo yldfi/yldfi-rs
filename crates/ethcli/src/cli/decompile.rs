@@ -103,6 +103,13 @@ pub struct MatchArgs {
     /// constructor arguments (top-level deployments only)
     #[arg(long, value_name = "TX_HASH")]
     pub creation_tx: Option<String>,
+
+    /// forge build-info (out/build-info/<id>.json, from `forge build
+    /// --build-info`) or standard-JSON output holding every source's AST, so
+    /// code from base contracts and other files is attributed. Without it,
+    /// a matching file next to a forge artifact is used when present
+    #[arg(long, value_name = "PATH")]
+    pub build_info: Option<PathBuf>,
 }
 
 /// Code fetched for one address
@@ -112,8 +119,64 @@ struct Target {
     resolved_via: Option<String>,
     block: u64,
     code: Vec<u8>,
+    /// The address's own code, when another code was substituted for it
+    /// (proxy or EIP-7702 delegate); it runs on every call too
+    own_code: Option<Vec<u8>>,
     notes: Vec<String>,
     endpoint: Endpoint,
+}
+
+/// Parse a resolved `--block` value: a decimal or hex number, or a tag
+fn parse_block(value: &str) -> anyhow::Result<alloy::eips::BlockNumberOrTag> {
+    use alloy::eips::BlockNumberOrTag;
+    if let Ok(n) = value.parse::<u64>() {
+        return Ok(BlockNumberOrTag::Number(n));
+    }
+    BlockNumberOrTag::from_str(value).map_err(|_| {
+        anyhow::anyhow!(
+            "--block '{value}' is not a block number, a tag (latest, earliest, safe, finalized, pending) or a time"
+        )
+    })
+}
+
+/// Does this code delegate (a reachable DELEGATECALL)?
+/// Does this code act as the proxy `kind` says? A slot alone proves
+/// nothing (any contract can write to it), and a DELEGATECALL alone proves
+/// nothing either (a contract can delegate to an argument). The code must
+/// delegate and read the slot it names: the slot constant appears as a
+/// PUSH32. EIP-1167 clones are recognised from their exact code; Safe
+/// proxies are small and read slot 0
+fn acts_as_proxy(kind: &str, code: &[u8]) -> bool {
+    const EIP1967_IMPL: &str = "360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+    const EIP1967_BEACON: &str = "a3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50";
+    const OZ_LEGACY: &str = "7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3";
+    if kind.starts_with("EIP-1167") {
+        return true;
+    }
+    if !code_delegates(code) {
+        return false;
+    }
+    let pushes = |slot: &str| {
+        let Ok(slot) = hex::decode(slot) else {
+            return false;
+        };
+        crate::bytecode::metadata::linear_sweep(code)
+            .iter()
+            .any(|(pc, op)| *op == 0x7f && code.get(pc + 1..pc + 33) == Some(slot.as_slice()))
+    };
+    match kind {
+        "EIP-1967 proxy" => pushes(EIP1967_IMPL),
+        "EIP-1967 beacon proxy" => pushes(EIP1967_BEACON),
+        "OpenZeppelin legacy proxy" => pushes(OZ_LEGACY),
+        "Safe proxy" => code.len() <= 1024,
+        _ => false,
+    }
+}
+
+fn code_delegates(code: &[u8]) -> bool {
+    let census = sensitive_census(code);
+    census.positions.contains_key("DELEGATECALL")
+        || census.inside_metadata.contains_key("DELEGATECALL")
 }
 
 async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::Result<Target> {
@@ -125,18 +188,30 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         ),
         None => None,
     };
-    let block_number_arg = block_arg.as_deref().and_then(|b| b.parse::<u64>().ok());
+    let tag = block_arg.as_deref().map(parse_block).transpose()?;
+    let block_number_arg = tag.and_then(|t| t.as_number());
     let endpoint = match &args.rpc_url {
         Some(url) => Endpoint::new(EndpointConfig::new(url.to_string()), 30, None)?,
         None => crate::rpc::selector::get_rpc_endpoint_at(chain, block_number_arg)?,
     };
     let provider = endpoint.provider();
-    let block = match block_number_arg {
-        Some(n) => n,
-        None => provider
+    use alloy::eips::BlockNumberOrTag as Tag;
+    let block = match tag {
+        Some(Tag::Number(n)) => n,
+        Some(Tag::Earliest) => 0,
+        None | Some(Tag::Latest) | Some(Tag::Pending) => provider
             .get_block_number()
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get the latest block: {e}"))?,
+        Some(t) => {
+            provider
+                .get_block_by_number(t)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to resolve --block {t}: {e}"))?
+                .ok_or_else(|| anyhow::anyhow!("--block {t}: no such block"))?
+                .header
+                .number
+        }
     };
     let block_id: alloy::eips::BlockId = block.into();
     let get_code = |a: Address| async move {
@@ -150,6 +225,7 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
     let mut code = get_code(address).await?;
     let mut code_address = address;
     let mut resolved_via = None;
+    let mut own_code = None;
     let mut notes = Vec::new();
 
     if code.len() == 23 && code[..3] == [0xef, 0x01, 0x00] {
@@ -159,7 +235,8 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
             address.to_checksum(None),
             delegate.to_checksum(None)
         ));
-        code = get_code(delegate).await?;
+        let delegate_code = get_code(delegate).await?;
+        own_code = Some(std::mem::replace(&mut code, delegate_code));
         code_address = delegate;
         resolved_via = Some("EIP-7702 delegation".to_string());
     } else if !code.is_empty() && !args.no_follow_proxy {
@@ -171,6 +248,15 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
                     "answers implementation() with {}, but that alone does not make it a proxy; using its own code",
                     implementation.to_checksum(None)
                 ));
+            } else if !acts_as_proxy(kind, &code) {
+                let warning = format!(
+                    "{kind} slot points to {}, but this address's own code does not delegate through that slot (no reachable DELEGATECALL with the slot read), so it does not run that code; analysing its own code",
+                    implementation.to_checksum(None)
+                );
+                if !quiet {
+                    eprintln!("Warning: {warning}");
+                }
+                notes.push(warning);
             } else {
                 let impl_code = get_code(implementation).await?;
                 if impl_code.is_empty() {
@@ -185,7 +271,7 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
                             implementation.to_checksum(None)
                         );
                     }
-                    code = impl_code;
+                    own_code = Some(std::mem::replace(&mut code, impl_code));
                     code_address = implementation;
                     resolved_via = Some(kind.to_string());
                 }
@@ -204,12 +290,57 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         resolved_via,
         block,
         code,
+        own_code,
         notes,
         endpoint,
     })
 }
 
+/// Facts about the address's own code when another code was analysed: a
+/// proxy's own code runs on every call and can hold its own checks
+fn own_code_json(t: &Target) -> Value {
+    match &t.own_code {
+        Some(code) => json!({
+            "address": t.address.to_checksum(None),
+            "code_size": code.len(),
+            "note": "the address's own code, which runs on every call before delegating",
+            "sensitive_opcodes": sensitive_census(code),
+        }),
+        None => Value::Null,
+    }
+}
+
+fn print_own_code(out: &Value) {
+    let own = &out["own_code"];
+    if own.is_null() {
+        return;
+    }
+    let positions = own["sensitive_opcodes"]["positions"]
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let list: Vec<String> = positions
+        .iter()
+        .map(|(k, v)| format!("{k} x{}", v.as_array().map(Vec::len).unwrap_or(0)))
+        .collect();
+    println!(
+        "Address's own code ({} bytes, runs on every call): {}",
+        own["code_size"],
+        if list.is_empty() {
+            "no sensitive opcodes".to_string()
+        } else {
+            list.join(", ")
+        }
+    );
+}
+
 fn target_json(chain: Chain, t: &Target) -> Value {
+    let mut v = target_json_inner(chain, t);
+    v["own_code"] = own_code_json(t);
+    v
+}
+
+fn target_json_inner(chain: Chain, t: &Target) -> Value {
     json!({
         "address": t.address.to_checksum(None),
         "code_address": t.code_address.to_checksum(None),
@@ -382,23 +513,87 @@ fn own_facts(code: &[u8]) -> (Vec<ExtractedFunction>, OpcodeCensus) {
 }
 
 /// How each sensitive opcode shows in evmdec's output
-const TEXT_EVIDENCE: &[(&str, &[&str], &str)] = &[
+/// How each sensitive opcode shows in evmdec's output: the text forms to
+/// count, whether they must be called (`name(` / `name{`), and the
+/// structured `effects` flag that also shows it
+type Evidence = (
+    &'static str,
+    &'static [&'static str],
+    bool,
+    Option<&'static str>,
+    &'static str,
+);
+const TEXT_EVIDENCE: &[Evidence] = &[
     (
         "ORIGIN",
         &["tx.origin"],
-        "tx.origin checks; treat access-control conclusions as incomplete",
+        false,
+        None,
+        "tx.origin checks may be missing; treat access-control conclusions as incomplete",
     ),
     (
         "CALLER",
         &["msg.sender"],
-        "msg.sender use; treat access-control conclusions as incomplete",
+        false,
+        None,
+        "msg.sender checks may be missing; treat access-control conclusions as incomplete",
     ),
-    ("DELEGATECALL", &["delegatecall"], "delegatecalls"),
-    ("CALLCODE", &["callcode"], "callcodes"),
-    ("SELFDESTRUCT", &["selfdestruct("], "selfdestruct"),
-    ("CREATE", &["create"], "contract creation"),
-    ("CREATE2", &["create2"], "CREATE2 deployments"),
+    (
+        "DELEGATECALL",
+        &["delegatecall"],
+        true,
+        Some("delegatecall"),
+        "delegatecalls may be missing",
+    ),
+    (
+        "CALLCODE",
+        &["callcode"],
+        true,
+        None,
+        "callcodes may be missing",
+    ),
+    (
+        "SELFDESTRUCT",
+        &["selfdestruct"],
+        true,
+        Some("selfdestruct"),
+        "selfdestruct may be missing",
+    ),
+    (
+        "CREATE",
+        &["create"],
+        true,
+        Some("creates"),
+        "contract creations may be missing",
+    ),
+    (
+        "CREATE2",
+        &["create2"],
+        true,
+        Some("creates"),
+        "CREATE2 deployments may be missing",
+    ),
 ];
+
+/// Occurrences of `token` as a whole word; with `call`, only when followed
+/// by `(` or `{` (so `createPair` or `create2` never count as `create`)
+fn count_word(source: &str, token: &str, call: bool) -> usize {
+    let bytes = source.as_bytes();
+    let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    source
+        .match_indices(token)
+        .filter(|(i, _)| {
+            let before_ok = *i == 0 || !word(bytes[i - 1]);
+            let next = bytes.get(i + token.len()).copied();
+            let after_ok = if call {
+                matches!(next, Some(b'(') | Some(b'{'))
+            } else {
+                next.is_none_or(|c| !word(c))
+            };
+            before_ok && after_ok
+        })
+        .count()
+}
 
 fn pcs(list: &[usize]) -> String {
     let shown: Vec<String> = list.iter().take(8).map(|p| format!("{p:#x}")).collect();
@@ -447,27 +642,32 @@ pub fn cross_check(
     for (k, v) in &census.inside_metadata {
         all.entry(k.clone()).or_default().extend(v);
     }
-    for (name, tokens, what) in TEXT_EVIDENCE {
+    let effect_set = |flag: &str| {
+        evmdec["functions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|f| f["effects"][flag].as_bool() == Some(true))
+    };
+    for (name, tokens, call, effect, what) in TEXT_EVIDENCE {
         let Some(at) = all.get(*name) else {
             continue;
         };
-        let shown = tokens.iter().any(|t| {
-            if *t == "create" {
-                // `create2` alone must not count as CREATE
-                source
-                    .match_indices("create")
-                    .any(|(i, _)| !source[i..].starts_with("create2"))
-            } else {
-                source.contains(t)
-            }
-        });
-        if !shown {
+        let shown: usize = tokens.iter().map(|t| count_word(source, t, *call)).sum();
+        let effect_missing = effect.is_some_and(|e| !effect_set(e));
+        if shown < at.len() || effect_missing {
             warnings.push(format!(
-                "{} {name} use{} at pc {} not reflected in decompiled output ({}); {what}",
+                "{} {name} site{} at pc {}, but evmdec's text shows {} ({}){}; {what}",
                 at.len(),
                 if at.len() == 1 { "" } else { "s" },
                 pcs(at),
-                tokens.join("/")
+                shown,
+                tokens.join("/"),
+                if effect_missing {
+                    format!(" and no function has the `{}` effect", effect.unwrap_or(""))
+                } else {
+                    String::new()
+                }
             ));
         }
     }
@@ -733,6 +933,8 @@ fn print_target_table(out: &Value) {
     for n in out["notes"].as_array().into_iter().flatten() {
         println!("Note: {}", n.as_str().unwrap_or(""));
     }
+    let wrapped = json!({"own_code": out["target"]["own_code"].clone()});
+    print_own_code(&wrapped);
 }
 
 fn print_decompile_table(out: &Value) {
@@ -902,12 +1104,60 @@ fn read_artifact(path: &Path) -> anyhow::Result<Value> {
     })
 }
 
+/// Load all source ASTs from a build-info file: the one given, or a forge
+/// build-info next to the artifact (`out/build-info/*.json`) that lists the
+/// same contract. Returns the file name used.
+fn attach_build_info(
+    artifact: &mut crate::bytecode::matcher::Artifact,
+    artifact_path: &Path,
+    given: Option<&Path>,
+) -> anyhow::Result<Option<String>> {
+    if artifact.format != "forge" && given.is_none() {
+        return Ok(None);
+    }
+    let name = |p: &Path| p.file_name().map(|f| f.to_string_lossy().to_string());
+    if let Some(path) = given {
+        let json = read_artifact(path)?;
+        if !artifact.build_info_matches(&json) {
+            anyhow::bail!("--build-info does not contain this artifact's contract");
+        }
+        artifact.attach_build_info(&json)?;
+        return Ok(name(path));
+    }
+    let Some(dir) = artifact_path
+        .parent()
+        .and_then(Path::parent)
+        .map(|out| out.join("build-info"))
+    else {
+        return Ok(None);
+    };
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Ok(None);
+    };
+    let mut candidates: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .collect();
+    candidates.sort();
+    for path in candidates.into_iter().take(64) {
+        let Ok(json) = read_artifact(&path) else {
+            continue;
+        };
+        if artifact.build_info_matches(&json) && artifact.attach_build_info(&json).is_ok() {
+            return Ok(name(&path));
+        }
+    }
+    Ok(None)
+}
+
 pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::Result<()> {
     let json_artifact = read_artifact(&args.artifact)?;
-    let artifact = parse_artifact(&json_artifact, args.contract.as_deref())?;
+    let mut artifact = parse_artifact(&json_artifact, args.contract.as_deref())?;
     if artifact.runtime.is_empty() {
         anyhow::bail!("the artifact has no deployed bytecode (an interface or abstract contract?)");
     }
+    let build_info_used =
+        attach_build_info(&mut artifact, &args.artifact, args.build_info.as_deref())?;
     let target = fetch_target(chain, &args.target, quiet).await?;
     let report = match_code(&artifact, &target.code);
 
@@ -944,6 +1194,21 @@ pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::R
                     "--creation-tx is a call, not a top-level deployment; contracts created by a factory are not supported"
                 );
             }
+            let receipt = target
+                .endpoint
+                .get_transaction_receipt(hash)
+                .await
+                .map_err(|e| anyhow::anyhow!("cannot fetch the creation receipt: {e}"))?
+                .ok_or_else(|| anyhow::anyhow!("creation receipt not found"))?;
+            match receipt.contract_address {
+                Some(created) if created == target.code_address => {}
+                Some(created) => anyhow::bail!(
+                    "--creation-tx created {}, not {}",
+                    created.to_checksum(None),
+                    target.code_address.to_checksum(None)
+                ),
+                None => anyhow::bail!("--creation-tx created no contract"),
+            }
             Some(
                 match_creation(&artifact, tx.inner.input())
                     .ok_or_else(|| anyhow::anyhow!("the artifact has no creation bytecode"))?,
@@ -975,6 +1240,7 @@ pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::R
             "source": artifact.source_path,
             "compiler": artifact.compiler_version,
             "has_ast": !artifact.asts.is_empty(),
+            "build_info": build_info_used,
             "has_source_map": artifact.source_map.is_some(),
         },
         "match": report,
@@ -1140,7 +1406,7 @@ mod tests {
             .collect();
         assert!(w
             .iter()
-            .any(|s| s.starts_with("3 ORIGIN uses at pc 0x3430, 0x350e, 0x359b not reflected")));
+            .any(|s| s.starts_with("3 ORIGIN sites at pc 0x3430, 0x350e, 0x359b")));
         assert!(w.iter().any(|s| s.contains("120 of 163")));
     }
 
@@ -1235,5 +1501,55 @@ mod tests {
         let err = read_artifact(&p).unwrap_err().to_string();
         assert!(!err.contains("secret"), "{err}");
         assert!(read_artifact(&dir.path().join("missing.json")).is_err());
+    }
+
+    #[test]
+    fn block_values_parse_or_error() {
+        use alloy::eips::BlockNumberOrTag as T;
+        assert_eq!(parse_block("123").unwrap(), T::Number(123));
+        assert_eq!(parse_block("0x10").unwrap(), T::Number(16));
+        assert_eq!(parse_block("earliest").unwrap(), T::Earliest);
+        assert_eq!(parse_block("finalized").unwrap(), T::Finalized);
+        assert!(parse_block("foo").is_err());
+    }
+
+    #[test]
+    fn delegatecall_without_the_slot_is_not_a_proxy() {
+        // DELEGATECALL present but no EIP-1967 slot constant
+        let code = hex::decode("6000600060006000355af400").unwrap();
+        assert!(code_delegates(&code));
+        assert!(!acts_as_proxy("EIP-1967 proxy", &code));
+        // PUSH32 <slot> SLOAD ... DELEGATECALL
+        let code = hex::decode("7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc546000600060006000855af400").unwrap();
+        assert!(acts_as_proxy("EIP-1967 proxy", &code));
+    }
+
+    #[test]
+    fn slot_alone_does_not_make_a_proxy() {
+        // CALLER ORIGIN EQ ... no DELEGATECALL: not a proxy, whatever the slot says
+        assert!(!code_delegates(&hex::decode("333214600057").unwrap()));
+        // EIP-1167-like body with a DELEGATECALL
+        assert!(code_delegates(&hex::decode("363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3").unwrap()));
+    }
+
+    #[test]
+    fn counts_sites_not_token_presence() {
+        let census = census_with("CREATE", vec![1, 2]);
+        // `createPair` must not count, and one create( is fewer than two sites
+        let dec = json!({"source": "createPair(a, b); x = create(0, 0, 0);", "functions": [{"effects": {"creates": true}}], "storage": [], "stats": {}});
+        let cc = cross_check(&[], &census, &dec);
+        assert!(cc["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|w| w.as_str().unwrap().starts_with("2 CREATE sites")));
+        let census = census_with("ORIGIN", vec![1, 2, 3]);
+        let dec = json!({"source": "require(tx.origin == a);", "functions": [], "storage": [], "stats": {}});
+        let cc = cross_check(&[], &census, &dec);
+        assert!(cc["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|w| w.as_str().unwrap().contains("shows 1")));
     }
 }

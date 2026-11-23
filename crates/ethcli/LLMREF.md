@@ -86,7 +86,7 @@ ethcli contract analyze <addr> --follow-proxy --lookup --dispatcher --checks
                                       # Unverified/proxy review: handler map + guard heuristics
 ethcli contract fingerprint <addr>  # Compiler + version, metadata hash, min EVM version, pipeline guess
 ethcli contract decompile <addr>    # Optional evmdec, cross-checked first (see below)
-ethcli contract match <addr> --artifact out/X.sol/X.json [--contract X] [--creation-tx <hash>]
+ethcli contract match <addr> --artifact out/X.sol/X.json [--contract X] [--creation-tx <hash>] [--build-info out/build-info/<id>.json]
                                      # exact / partial (ignoring metadata, NOT verified) / mismatch
 ```
 

@@ -37,45 +37,68 @@ pub struct Artifact {
     pub asts: Vec<(Option<u64>, Value)>,
     /// selector (hex, no 0x) -> signature
     pub methods: BTreeMap<String, String>,
+    /// Number of user sources, when known (from standard JSON or build-info)
+    pub source_count: Option<usize>,
 }
 
-fn link_ranges(refs: Option<&Value>) -> BTreeMap<String, Vec<Range<usize>>> {
+/// Largest offset an artifact range may name; deployed code is far smaller
+const MAX_RANGE_END: u64 = 1 << 20;
+
+/// A `start`/`length` pair from an artifact, checked for overflow
+fn checked_range(p: &Value, what: &str) -> anyhow::Result<Option<Range<usize>>> {
+    let (Some(start), Some(len)) = (p["start"].as_u64(), p["length"].as_u64()) else {
+        return Ok(None);
+    };
+    let end = start
+        .checked_add(len)
+        .filter(|e| *e <= MAX_RANGE_END && len <= 64)
+        .ok_or_else(|| anyhow::anyhow!("{what} has an out-of-range start/length"))?;
+    Ok(Some(start as usize..end as usize))
+}
+
+/// Every range must lie inside code of `len` bytes
+fn check_within(
+    ranges: &BTreeMap<String, Vec<Range<usize>>>,
+    len: usize,
+    what: &str,
+) -> anyhow::Result<()> {
+    if ranges.values().flatten().any(|r| r.end > len) {
+        anyhow::bail!("{what} points past the end of the bytecode");
+    }
+    Ok(())
+}
+
+fn link_ranges(refs: Option<&Value>) -> anyhow::Result<BTreeMap<String, Vec<Range<usize>>>> {
     let mut out: BTreeMap<String, Vec<Range<usize>>> = BTreeMap::new();
     let Some(Value::Object(files)) = refs else {
-        return out;
+        return Ok(out);
     };
     for (file, libs) in files {
         let Value::Object(libs) = libs else { continue };
         for (lib, positions) in libs {
             for p in positions.as_array().into_iter().flatten() {
-                let (Some(start), Some(len)) = (p["start"].as_u64(), p["length"].as_u64()) else {
-                    continue;
-                };
-                out.entry(format!("{file}:{lib}"))
-                    .or_default()
-                    .push(start as usize..(start + len) as usize);
+                if let Some(r) = checked_range(p, "linkReferences")? {
+                    out.entry(format!("{file}:{lib}")).or_default().push(r);
+                }
             }
         }
     }
-    out
+    Ok(out)
 }
 
-fn immutable_ranges(refs: Option<&Value>) -> BTreeMap<String, Vec<Range<usize>>> {
+fn immutable_ranges(refs: Option<&Value>) -> anyhow::Result<BTreeMap<String, Vec<Range<usize>>>> {
     let mut out: BTreeMap<String, Vec<Range<usize>>> = BTreeMap::new();
     let Some(Value::Object(ids)) = refs else {
-        return out;
+        return Ok(out);
     };
     for (id, positions) in ids {
         for p in positions.as_array().into_iter().flatten() {
-            let (Some(start), Some(len)) = (p["start"].as_u64(), p["length"].as_u64()) else {
-                continue;
-            };
-            out.entry(id.clone())
-                .or_default()
-                .push(start as usize..(start + len) as usize);
+            if let Some(r) = checked_range(p, "immutableReferences")? {
+                out.entry(id.clone()).or_default().push(r);
+            }
         }
     }
-    out
+    Ok(out)
 }
 
 /// Decode bytecode hex, writing zeros over library placeholders first
@@ -86,9 +109,10 @@ fn decode_object(
     let mut hex_text: Vec<u8> = object.trim().trim_start_matches("0x").as_bytes().to_vec();
     for range in links.values().flatten() {
         let (a, b) = (range.start * 2, range.end * 2);
-        if b <= hex_text.len() {
-            hex_text[a..b].fill(b'0');
+        if b > hex_text.len() || a > b {
+            anyhow::bail!("linkReferences points past the end of the bytecode");
         }
+        hex_text[a..b].fill(b'0');
     }
     if let Some(pos) = hex_text.windows(2).position(|w| w == b"__") {
         anyhow::bail!(
@@ -123,9 +147,9 @@ pub fn parse_artifact(json: &Value, contract: Option<&str>) -> anyhow::Result<Ar
     if let Some(deployed) = json.get("deployedBytecode") {
         let object = bytecode_object(deployed)
             .ok_or_else(|| anyhow::anyhow!("deployedBytecode.object missing"))?;
-        let libraries = link_ranges(deployed.get("linkReferences"));
+        let libraries = link_ranges(deployed.get("linkReferences"))?;
         let runtime = decode_object(object, &libraries)?;
-        let creation_libraries = link_ranges(json["bytecode"].get("linkReferences"));
+        let creation_libraries = link_ranges(json["bytecode"].get("linkReferences"))?;
         let creation = bytecode_object(&json["bytecode"])
             .map(|o| decode_object(o, &creation_libraries))
             .transpose()?
@@ -144,7 +168,10 @@ pub fn parse_artifact(json: &Value, contract: Option<&str>) -> anyhow::Result<Ar
         if let Some(ast) = json.get("ast").filter(|a| a.is_object()) {
             asts.push((json["id"].as_u64(), ast.clone()));
         }
+        let immutables = immutable_ranges(deployed.get("immutableReferences"))?;
+        check_within(&immutables, runtime.len(), "immutableReferences")?;
         return Ok(Artifact {
+            source_count: None,
             format: "forge".into(),
             contract_name: name.or_else(|| contract.map(String::from)),
             source_path,
@@ -153,7 +180,7 @@ pub fn parse_artifact(json: &Value, contract: Option<&str>) -> anyhow::Result<Ar
                 .map(String::from),
             runtime,
             creation,
-            immutables: immutable_ranges(deployed.get("immutableReferences")),
+            immutables,
             libraries,
             creation_libraries,
             source_map: deployed["sourceMap"].as_str().map(String::from),
@@ -162,6 +189,10 @@ pub fn parse_artifact(json: &Value, contract: Option<&str>) -> anyhow::Result<Ar
         });
     }
 
+    // forge build-info wraps the standard-JSON output in `output`
+    if json.get("contracts").is_none() && json["output"].get("contracts").is_some() {
+        return parse_artifact(&json["output"], contract);
+    }
     // solc standard JSON: contracts[file][name].evm
     let contracts = json
         .get("contracts")
@@ -198,36 +229,81 @@ pub fn parse_artifact(json: &Value, contract: Option<&str>) -> anyhow::Result<Ar
     };
     let evm = &entry["evm"];
     let deployed = &evm["deployedBytecode"];
-    let libraries = link_ranges(deployed.get("linkReferences"));
-    let creation_libraries = link_ranges(evm["bytecode"].get("linkReferences"));
+    let libraries = link_ranges(deployed.get("linkReferences"))?;
+    let creation_libraries = link_ranges(evm["bytecode"].get("linkReferences"))?;
     let metadata: Option<Value> = entry["metadata"]
         .as_str()
         .and_then(|m| serde_json::from_str(m).ok());
-    let asts = json["sources"]
-        .as_object()
-        .into_iter()
-        .flatten()
-        .filter_map(|(_, s)| s.get("ast").map(|a| (s["id"].as_u64(), a.clone())))
-        .collect();
+    let (asts, source_count) = asts_from_output(json);
+    let runtime = decode_object(bytecode_object(deployed).unwrap_or_default(), &libraries)?;
+    let immutables = immutable_ranges(deployed.get("immutableReferences"))?;
+    check_within(&immutables, runtime.len(), "immutableReferences")?;
     Ok(Artifact {
+        source_count,
         format: "solc-standard-json".into(),
         contract_name: Some(name),
         source_path: Some(file),
         compiler_version: metadata
             .as_ref()
             .and_then(|m| m["compiler"]["version"].as_str().map(String::from)),
-        runtime: decode_object(bytecode_object(deployed).unwrap_or_default(), &libraries)?,
+        runtime,
         creation: bytecode_object(&evm["bytecode"])
             .map(|o| decode_object(o, &creation_libraries))
             .transpose()?
             .filter(|c| !c.is_empty()),
-        immutables: immutable_ranges(deployed.get("immutableReferences")),
+        immutables,
         libraries,
         creation_libraries,
         source_map: deployed["sourceMap"].as_str().map(String::from),
         asts,
         methods: methods_from(evm.get("methodIdentifiers")),
     })
+}
+
+/// All source ASTs of a standard-JSON output (or forge build-info), and the
+/// number of user sources; source-map indexes at or above it are
+/// compiler-generated
+fn asts_from_output(json: &Value) -> (Vec<(Option<u64>, Value)>, Option<usize>) {
+    let json = if json.get("sources").is_none() && json["output"].get("sources").is_some() {
+        &json["output"]
+    } else {
+        json
+    };
+    let sources = json["sources"].as_object();
+    let asts = sources
+        .into_iter()
+        .flatten()
+        .filter_map(|(_, s)| s.get("ast").map(|a| (s["id"].as_u64(), a.clone())))
+        .collect();
+    (asts, sources.map(|s| s.len()))
+}
+
+impl Artifact {
+    /// Replace the ASTs with every source's AST from a forge build-info or
+    /// standard-JSON output, so code from base contracts and other files can
+    /// be named
+    pub fn attach_build_info(&mut self, json: &Value) -> anyhow::Result<()> {
+        let (asts, count) = asts_from_output(json);
+        if asts.is_empty() {
+            anyhow::bail!("the build-info has no source ASTs");
+        }
+        self.asts = asts;
+        self.source_count = count;
+        Ok(())
+    }
+
+    /// True when the build-info lists this artifact's contract
+    pub fn build_info_matches(&self, json: &Value) -> bool {
+        let out = if json.get("contracts").is_some() {
+            json
+        } else {
+            &json["output"]
+        };
+        match (&self.source_path, &self.contract_name) {
+            (Some(p), Some(n)) => out["contracts"][p].get(n).is_some(),
+            _ => false,
+        }
+    }
 }
 
 /// A function's source range, from the AST
@@ -330,6 +406,8 @@ fn decode_source_map(map: &str) -> Vec<Option<(u64, u64, i64)>> {
 pub struct FunctionMapper {
     /// "source map + AST", "dispatcher ranges (approximate)" or "none"
     pub method: String,
+    /// Every source-map file index resolved to an AST or to generated code
+    pub complete: bool,
     /// artifact instruction pc -> function label
     labels: BTreeMap<usize, String>,
 }
@@ -354,21 +432,36 @@ pub fn function_mapper(artifact: &Artifact, exec_end: usize) -> FunctionMapper {
             collect_functions(ast, None, &mut spans, &mut asm);
         }
         let entries = decode_source_map(map);
+        let covered: std::collections::BTreeSet<u64> =
+            artifact.asts.iter().filter_map(|(id, _)| *id).collect();
+        let mut complete = true;
         let mut labels = BTreeMap::new();
         for (i, (pc, _)) in instructions.iter().enumerate() {
             let label = match entries.get(i).copied().flatten() {
-                Some((s, l, f)) if f >= 0 => spans
+                Some((s, l, f)) if f >= 0 && covered.contains(&(f as u64)) => spans
                     .iter()
                     .filter(|sp| sp.file == f as u64 && sp.start <= s && s + l <= sp.end)
                     .min_by_key(|sp| sp.end - sp.start)
                     .map(|sp| sp.name.clone())
                     .unwrap_or_else(|| "(contract-level code)".into()),
+                Some((_, _, f)) if f >= 0 => match artifact.source_count {
+                    Some(n) if f as usize >= n => "(compiler-generated)".into(),
+                    _ => {
+                        complete = false;
+                        format!("(source {f}: no AST; pass --build-info to name it)")
+                    }
+                },
                 _ => "(compiler-generated)".into(),
             };
             labels.insert(*pc, label);
         }
         return FunctionMapper {
-            method: "source map + AST".into(),
+            method: if complete {
+                "source map + AST".into()
+            } else {
+                "source map + AST (partial: some sources have no AST)".into()
+            },
+            complete,
             labels,
         };
     }
@@ -389,6 +482,7 @@ pub fn function_mapper(artifact: &Artifact, exec_end: usize) -> FunctionMapper {
         }
     }
     FunctionMapper {
+        complete: false,
         method: if labels.len() > 1 {
             "dispatcher ranges (approximate: code after a handler is counted to it, shared internal code included)".into()
         } else {
@@ -602,6 +696,37 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
     };
     let mapper = function_mapper(artifact, art_exec);
 
+    // Deployed bytes shaped like metadata but executable (a valid JUMPDEST
+    // inside, or reachable by fallthrough) cannot be ignored as metadata
+    let chain_view = super::metadata::CodeView::new(onchain);
+    let executable_metadata: Vec<&MetadataBlock> = chain_view
+        .suspicious
+        .iter()
+        .filter(|b| {
+            chain_trailing.as_ref().is_some_and(|t| t.start == b.start)
+                || art_blocks.iter().any(|a| !a.trailing && a.start == b.start)
+        })
+        // A hash byte that happens to be 0x5b is common; only flag the
+        // block when executable sensitive opcodes sit in it
+        .filter(|b| {
+            chain_view.instructions.iter().any(|(pc, op, live)| {
+                *live
+                    && *pc >= b.start
+                    && *pc < b.end
+                    && super::metadata::SENSITIVE_OPCODES
+                        .iter()
+                        .any(|(o, _)| o == op)
+            })
+        })
+        .collect();
+    for b in &executable_metadata {
+        warnings.push(format!(
+            "deployed bytes {:#x}..{:#x} look like compiler metadata but hold sensitive opcodes that can execute (after a valid JUMPDEST or reachable code); they are compared as code",
+            b.start, b.end
+        ));
+    }
+    let exec_equal = exec_equal && executable_metadata.is_empty();
+
     let (verdict, summary) = if exact {
         (
             "exact",
@@ -685,8 +810,8 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
         let function = mapper.label(first);
         let user_changed = functions
             .iter()
-            .any(|f| f.status == "different" && !f.function.starts_with('('));
-        let hint = (!user_changed).then(|| {
+            .any(|f| f.status == "different" && (!f.function.starts_with('(') || f.function.starts_with("(source ")));
+        let hint = (!user_changed && mapper.complete).then(|| {
             "the difference is only in code shared between functions (ABI coders, string and error helpers, checked arithmetic, the dispatcher); look for the constant or text shown here in the sources".to_string()
         });
         Mismatch {
@@ -858,7 +983,15 @@ mod tests {
         let other_meta = META.replace("8b5d96ae", "00000000");
         let partial = hex::decode(&with_meta(code, &other_meta)[2..]).unwrap();
         let report = match_code(&art, &partial);
-        assert_eq!(report.verdict, "partial");
+        assert_eq!(
+            report.verdict,
+            "partial",
+            "{:?} {:?} {:?} {:?}",
+            report.warnings,
+            report.metadata_onchain,
+            report.executable_size_onchain,
+            report.mismatch.as_ref().map(|m| m.first_difference_offset)
+        );
         assert!(!report.metadata_equal);
         // Never call a partial match verified
         let lower = report.summary.to_lowercase();
@@ -978,13 +1111,23 @@ mod tests {
         let report = match_code(&art, &exact);
         assert_eq!(report.verdict, "exact");
         assert!(report.immutables[0].consistent);
-        assert_eq!(report.function_mapping, "source map + AST");
+        // A forge artifact alone cannot tell generated code from other files
+        assert!(report.function_mapping.starts_with("source map + AST"));
 
         let mut partial = exact.clone();
         let meta = report.metadata_artifact.clone().unwrap();
-        partial[meta.start + 10] ^= 0xff;
+        // Change a hash byte without creating a JUMPDEST or a PUSH, which
+        // would make the metadata executable (and the verdict not partial)
+        let at = meta.start + 10;
+        partial[at] = if partial[at] == 0x01 { 0x02 } else { 0x01 };
         let report = match_code(&art, &partial);
-        assert_eq!(report.verdict, "partial");
+        assert_eq!(
+            report.verdict,
+            "partial",
+            "{:?} {:?}",
+            report.warnings,
+            report.mismatch.as_ref().map(|m| m.first_difference_offset)
+        );
         let text = serde_json::to_string(&report).unwrap().to_lowercase();
         for (i, _) in text.match_indices("verified") {
             assert!(
@@ -1006,5 +1149,38 @@ mod tests {
             .collect();
         assert_eq!(different, vec!["Vault.sweep"]);
         assert_eq!(assembly_share(&art).unwrap().blocks, 0);
+    }
+
+    #[test]
+    fn hostile_ranges_error_instead_of_panicking() {
+        for (start, len) in [
+            (10u64, u64::MAX),
+            (0, 9_000_000_000_000_000_000),
+            (u64::MAX, 1),
+            (4000, 20),
+        ] {
+            let imm = serde_json::json!({"1": [{"start": start, "length": len}]});
+            let a = forge_artifact("0x600160015500", imm, Value::Null);
+            assert!(parse_artifact(&a, None).is_err(), "immutable {start}/{len}");
+            let links = serde_json::json!({"a.sol": {"L": [{"start": start, "length": len}]}});
+            let a = forge_artifact("0x600160015500", Value::Null, links);
+            assert!(parse_artifact(&a, None).is_err(), "link {start}/{len}");
+        }
+    }
+
+    #[test]
+    fn executable_metadata_is_not_partial() {
+        let code = "6080604052600436106000575b00";
+        let art = parse_artifact(
+            &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        // Same-length metadata whose hash starts JUMPDEST CALLER SELFDESTRUCT
+        let evil = META.replacen("8b5d96ae", "5b33ff00", 1);
+        let deployed = hex::decode(&with_meta(code, &evil)[2..]).unwrap();
+        let report = match_code(&art, &deployed);
+        assert_ne!(report.verdict, "partial");
+        assert!(report.warnings.iter().any(|w| w.contains("can execute")));
     }
 }
