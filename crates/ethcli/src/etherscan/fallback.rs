@@ -18,8 +18,26 @@ pub enum Origin {
     Etherscan,
     /// Sourcify, with its match kind (`exact_match` or `match`)
     Sourcify(String),
-    /// Blockscout, with the host used
-    Blockscout(String),
+    /// Blockscout, with the host used and the match type
+    /// (`exact`/`partial`/`unknown`)
+    Blockscout(String, String),
+}
+
+impl Origin {
+    /// How the verified source matches the deployed code: `exact` (code and
+    /// metadata hash), `partial` (code only), `unknown`, or `not_reported`
+    /// (Etherscan does not say)
+    pub fn match_type(&self) -> &str {
+        match self {
+            Origin::Etherscan => "not_reported",
+            Origin::Sourcify(kind) => match kind.as_str() {
+                "exact_match" => "exact",
+                "match" => "partial",
+                _ => "unknown",
+            },
+            Origin::Blockscout(_, kind) => kind,
+        }
+    }
 }
 
 impl std::fmt::Display for Origin {
@@ -27,7 +45,7 @@ impl std::fmt::Display for Origin {
         match self {
             Origin::Etherscan => write!(f, "Etherscan"),
             Origin::Sourcify(kind) => write!(f, "Sourcify ({kind})"),
-            Origin::Blockscout(host) => write!(f, "Blockscout ({host})"),
+            Origin::Blockscout(host, kind) => write!(f, "Blockscout ({host}, {kind} match)"),
         }
     }
 }
@@ -147,7 +165,7 @@ pub fn parse_blockscout(value: &serde_json::Value, host: &str) -> Option<Verifie
         }
     }
     Some(Verified {
-        origin: Origin::Blockscout(host.to_string()),
+        origin: Origin::Blockscout(host.to_string(), blockscout_match_type(value).match_type),
         abi,
         name,
         compiler_version: value["compiler_version"]
@@ -217,10 +235,194 @@ pub async fn storage_layout(http: &reqwest::Client, chain_id: u64, address: &str
     }
 }
 
+/// Sourcify server base URL (`SOURCIFY_SERVER_URL` overrides it, for tests
+/// against a mock server)
+pub fn sourcify_base() -> String {
+    std::env::var("SOURCIFY_SERVER_URL")
+        .ok()
+        .filter(|u| !u.is_empty())
+        .map(|u| u.trim_end_matches('/').to_string())
+        .unwrap_or_else(|| "https://sourcify.dev/server".to_string())
+}
+
+/// Blockscout base URL for a chain (`BLOCKSCOUT_BASE_URL` overrides it, for
+/// tests)
+fn blockscout_base(chain_id: u64) -> Option<String> {
+    if let Ok(url) = std::env::var("BLOCKSCOUT_BASE_URL") {
+        if !url.is_empty() {
+            return Some(url.trim_end_matches('/').to_string());
+        }
+    }
+    blockscout_host(chain_id).map(|h| format!("https://{h}"))
+}
+
+/// How a verified contract matched its source, from one verifier
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct VerificationMatch {
+    /// `sourcify` or `blockscout`
+    pub source: String,
+    /// `exact` (bytecode and metadata hash match), `partial` (bytecode
+    /// matches, metadata differs), `not_verified` or `unknown`
+    pub match_type: String,
+    /// The verifier's own fields, unchanged
+    pub detail: serde_json::Value,
+}
+
+/// Classify a Sourcify v2 `contract` response (`match`, `runtimeMatch`,
+/// `creationMatch`)
+pub fn sourcify_match_type(value: &serde_json::Value) -> VerificationMatch {
+    let kind = match value["match"].as_str() {
+        Some("exact_match") => "exact",
+        Some("match") => "partial",
+        Some(_) => "unknown",
+        None => "not_verified",
+    };
+    VerificationMatch {
+        source: "sourcify".into(),
+        match_type: kind.into(),
+        detail: serde_json::json!({
+            "match": value["match"],
+            "runtimeMatch": value["runtimeMatch"],
+            "creationMatch": value["creationMatch"],
+        }),
+    }
+}
+
+/// Classify a Blockscout v2 `smart-contracts` response. Blockscout leaves
+/// the verification keys out for unverified contracts, so missing is
+/// `unknown`, not `not_verified`.
+pub fn blockscout_match_type(value: &serde_json::Value) -> VerificationMatch {
+    let kind = match (
+        value["is_verified"].as_bool(),
+        value["is_fully_verified"].as_bool(),
+        value["is_partially_verified"].as_bool(),
+    ) {
+        (Some(true), Some(true), _) => "exact",
+        (Some(true), _, Some(true)) => "partial",
+        (Some(true), _, _) => "unknown",
+        (Some(false), _, _) => "not_verified",
+        (None, ..) => "unknown",
+    };
+    VerificationMatch {
+        source: "blockscout".into(),
+        match_type: kind.into(),
+        detail: serde_json::json!({
+            "is_verified": value["is_verified"],
+            "is_fully_verified": value["is_fully_verified"],
+            "is_partially_verified": value["is_partially_verified"],
+            "is_verified_via_eth_bytecode_db": value["is_verified_via_eth_bytecode_db"],
+            "is_verified_via_sourcify": value["is_verified_via_sourcify"],
+            "verified_twin_address_hash": value["verified_twin_address_hash"],
+        }),
+    }
+}
+
+/// Sourcify's verdict for an address (`None` when Sourcify did not answer)
+pub async fn sourcify_lookup(
+    http: &reqwest::Client,
+    chain_id: u64,
+    address: &str,
+) -> Option<VerificationMatch> {
+    let url = format!("{}/v2/contract/{chain_id}/{address}", sourcify_base());
+    let response = http
+        .get(&url)
+        .timeout(Duration::from_secs(20))
+        .send()
+        .await
+        .ok()?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Some(sourcify_match_type(&serde_json::Value::Null));
+    }
+    if !response.status().is_success() {
+        return None;
+    }
+    let value: serde_json::Value = response.json().await.ok()?;
+    Some(sourcify_match_type(&value))
+}
+
+/// Blockscout's `smart-contracts` record, with the base URL used (`None` on
+/// a chain without a usable Blockscout, or when it did not answer)
+pub async fn blockscout_lookup(
+    http: &reqwest::Client,
+    chain_id: u64,
+    address: &str,
+) -> Option<(String, serde_json::Value)> {
+    let base = blockscout_base(chain_id)?;
+    let url = format!("{base}/api/v2/smart-contracts/{address}");
+    let value = get_json(http, &url).await?;
+    Some((base, value))
+}
+
+/// Ask Sourcify to verify `address` against contracts whose runtime code is
+/// similar. This WRITES: on success Sourcify publishes a verified match for
+/// the address. Returns the job, polled for up to `wait`.
+pub async fn sourcify_submit_similarity(
+    http: &reqwest::Client,
+    chain_id: u64,
+    address: &str,
+    wait: Duration,
+) -> Result<serde_json::Value, String> {
+    let base = sourcify_base();
+    let url = format!("{base}/v2/verify/similarity/{chain_id}/{address}");
+    let response = http
+        .post(&url)
+        .json(&serde_json::json!({}))
+        .timeout(Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    let status = response.status();
+    let body: serde_json::Value = response.json().await.unwrap_or(serde_json::Value::Null);
+    if !status.is_success() {
+        let message = body["message"]
+            .as_str()
+            .or(body["customCode"].as_str())
+            .unwrap_or("no message");
+        return Err(format!("Sourcify answered HTTP {status}: {message}"));
+    }
+    let Some(id) = body["verificationId"].as_str().map(str::to_string) else {
+        return Ok(body);
+    };
+    let deadline = std::time::Instant::now() + wait;
+    let mut job = body;
+    while std::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        let Some(v) = get_json(http, &format!("{base}/v2/verify/{id}")).await else {
+            continue;
+        };
+        job = v;
+        if job["isJobCompleted"].as_bool() == Some(true) {
+            break;
+        }
+    }
+    job["verificationId"] = serde_json::json!(id);
+    Ok(job)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn match_types() {
+        let m =
+            sourcify_match_type(&json!({"match": "exact_match", "runtimeMatch": "exact_match"}));
+        assert_eq!(m.match_type, "exact");
+        assert_eq!(
+            sourcify_match_type(&json!({"match": "match"})).match_type,
+            "partial"
+        );
+        assert_eq!(sourcify_match_type(&json!({})).match_type, "not_verified");
+        let b = blockscout_match_type(
+            &json!({"is_verified": true, "is_fully_verified": false, "is_partially_verified": true}),
+        );
+        assert_eq!(b.match_type, "partial");
+        assert_eq!(
+            blockscout_match_type(&json!({"creation_bytecode": "0x"})).match_type,
+            "unknown"
+        );
+    }
 
     const ABI: &str = r#"[{"type":"function","name":"owner","inputs":[],"outputs":[{"name":"","type":"address"}],"stateMutability":"view"}]"#;
 
@@ -258,7 +460,10 @@ mod tests {
         });
         let found = parse_blockscout(&value, "eth.blockscout.com").unwrap();
         assert_eq!(found.sources.len(), 2);
-        assert_eq!(found.origin.to_string(), "Blockscout (eth.blockscout.com)");
+        assert_eq!(
+            found.origin.to_string(),
+            "Blockscout (eth.blockscout.com, unknown match)"
+        );
         assert!(parse_blockscout(&json!({"is_verified": false}), "h").is_none());
     }
 }

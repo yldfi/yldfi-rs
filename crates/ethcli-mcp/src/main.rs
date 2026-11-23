@@ -567,9 +567,62 @@ impl EthcliMcpServer {
             follow_proxy: input.follow_proxy,
             dispatcher: input.dispatcher,
             checks: input.checks,
+            no_inference: input.no_inference,
         })
         .await
         .to_response()
+    }
+
+    #[tool(
+        description = "Call sites and access control recovered from bytecode (inferred, works on unverified contracts). For every CALL/DELEGATECALL/STATICCALL/CALLCODE/CREATE/CREATE2: pc, containing function, and where the target, outgoing selector, value and arguments come from (constant, storage slot, calldata offset, msg_sender, call_return, keccak, unresolved). Per function: ORIGIN/CALLER pcs, guards (msg.sender/tx.origin/address(this) compared with a constant, slot or mapping), DELEGATECALL, SELFDESTRUCT, CREATE, SSTORE. Always check `coverage`: unresolved means unknown, not safe. Prefer these facts over decompiler text for access control and call targets.",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_calls(
+        &self,
+        Parameters(input): Parameters<ContractCallsInput>,
+    ) -> CallToolResult {
+        tools::contract_calls(tools::ContractCallsArgs {
+            address: &input.address,
+            chain: Some(&input.chain),
+            block: input.block.as_deref(),
+            follow_proxy: input.follow_proxy,
+            lookup: input.lookup,
+            max_steps: input.max_steps,
+            timeout: input.timeout,
+        })
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Verified contracts with the same or similar runtime code (Etherscan similar match, Blockscout verified twin), each checked by comparing code hashes, plus how the address itself is verified on Sourcify and Blockscout (exact or partial match). Read-only.",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_twins(
+        &self,
+        Parameters(input): Parameters<ContractTwinsInput>,
+    ) -> CallToolResult {
+        tools::contract_twins(&input.address, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Ask Sourcify to verify an unverified contract against similar verified code. This publishes a verified match on Sourcify when it succeeds. Requires ETHCLI_MCP_ENABLE_WRITE_TOOLS=1.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn contract_twins_submit_similarity(
+        &self,
+        Parameters(input): Parameters<ContractTwinsInput>,
+    ) -> CallToolResult {
+        tools::contract_twins_submit_similarity(&input.address, Some(&input.chain))
+            .await
+            .to_response()
     }
 
     // =========================================================================

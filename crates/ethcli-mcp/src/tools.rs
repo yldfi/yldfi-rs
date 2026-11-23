@@ -812,6 +812,7 @@ pub struct ContractAnalyzeArgs<'a> {
     pub follow_proxy: bool,
     pub dispatcher: bool,
     pub checks: bool,
+    pub no_inference: bool,
 }
 
 pub async fn contract_analyze(args: ContractAnalyzeArgs<'_>) -> Result<String, ToolError> {
@@ -824,6 +825,7 @@ pub async fn contract_analyze(args: ContractAnalyzeArgs<'_>) -> Result<String, T
         .opt_flag("--follow-proxy", args.follow_proxy)
         .opt_flag("--dispatcher", args.dispatcher)
         .opt_flag("--checks", args.checks)
+        .opt_flag("--no-inference", args.no_inference)
         .format_json();
 
     if let Some(l) = args.limit {
@@ -831,6 +833,67 @@ pub async fn contract_analyze(args: ContractAnalyzeArgs<'_>) -> Result<String, T
     }
 
     builder.execute().await.map_err(ToolError::from)
+}
+
+pub struct ContractCallsArgs<'a> {
+    pub address: &'a str,
+    pub chain: Option<&'a str>,
+    pub block: Option<&'a str>,
+    pub follow_proxy: bool,
+    pub lookup: bool,
+    pub max_steps: Option<u64>,
+    pub timeout: Option<u64>,
+}
+
+/// Call sites, guards and sensitive opcodes recovered from bytecode
+pub async fn contract_calls(args: ContractCallsArgs<'_>) -> Result<String, ToolError> {
+    // Stay inside the subprocess limit: evmole and the RPC read need a few
+    // seconds besides the interpreter's own budget
+    let timeout = args.timeout.unwrap_or(15).clamp(1, 20).to_string();
+    let max_steps = args.max_steps.map(|n| n.to_string());
+    ArgsBuilder::new("contract")
+        .subcommand("calls")
+        .arg(args.address)
+        .chain(args.chain)
+        .opt("--block", args.block)
+        .opt_flag("--follow-proxy", args.follow_proxy)
+        .opt_flag("--lookup", args.lookup)
+        .opt("--max-steps", max_steps.as_deref())
+        .opt("--timeout", Some(&timeout))
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+/// Verified contracts with the same or similar runtime code (read-only)
+pub async fn contract_twins(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("contract")
+        .subcommand("twins")
+        .arg(address)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+/// Ask Sourcify to verify an address against similar verified code. Writes:
+/// a successful match is published on Sourcify.
+pub async fn contract_twins_submit_similarity(
+    address: &str,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    require_write_tools_enabled("contract_twins_submit_similarity")?;
+    ArgsBuilder::new("contract")
+        .subcommand("twins")
+        .arg(address)
+        .chain(chain)
+        .opt_flag("--submit-similarity", true)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
 }
 
 // =============================================================================

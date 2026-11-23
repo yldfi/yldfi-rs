@@ -628,6 +628,13 @@ fn tool_paths(body: &str) -> Vec<Vec<String>> {
                     last.1 = true;
                 }
             }
+            // Flags are kept: a MUTATING_COMMANDS entry can name one
+            // (`contract twins --submit-similarity`)
+            Step::Flag(flag) => {
+                if let Some((path, _)) = paths.last_mut() {
+                    path.push(flag);
+                }
+            }
             _ => {}
         }
     }

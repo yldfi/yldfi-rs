@@ -52,6 +52,8 @@ pub fn analyze_bytecode(
         proxy_info: None, // Set by caller if proxy detected
         dispatcher: None,
         checks: None,
+        inferred: None,
+        calls: None,
     }
 }
 

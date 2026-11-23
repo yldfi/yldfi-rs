@@ -30,6 +30,8 @@ ethcli does not sign or send transactions.
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
 | Cost of a transaction (incl. L1 data fee) | `ethcli gas cost <to> [data] -s <sig> -a "<args>" --from <addr> --chain base --json` | `gas_cost` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |
+| Who can call what on an unverified contract; where its calls go | `ethcli contract calls <addr> --lookup --json` (summary also in `contract analyze`) | `contract_calls` |
+| Verified copy of the same code? | `ethcli contract twins <addr> --json` | `contract_twins` |
 | Open approvals and amount at risk | `ethcli account approvals <addr> --json` | `account_approvals` |
 | Value a Uniswap LP position | `ethcli uniswap position <id> [--version v4] --json`, or `--v2 <pair> --owner <addr>` | `uniswap_position_value` |
 | All v3 LP positions of an address | `ethcli uniswap lp-positions --owner <addr> --json` | `uniswap_lp_positions` |
@@ -84,6 +86,25 @@ single facts.
   `signature_database` is a guess by 4-byte selector, and `other_candidates`
   lists alternatives. The same applies to function names from
   `interface.source: "bytecode"` in `contract inspect`.
+- **Unverified contracts:** for access control and call targets, use the
+  facts from `contract calls` (and the `calls` summary in `contract
+  analyze`): each call site's target, selector and value with its
+  provenance (`constant`, `code_constant`, `storage` slot, `calldata`
+  offset, `msg_sender`, `call_return`, `keccak`, `unresolved`), and per
+  function the ORIGIN/CALLER pcs and `guards` (msg.sender, tx.origin or
+  address(this) compared with a constant, a slot or a mapping). These are
+  inferred but sound where resolved; decompiler output is heuristic text,
+  so do not base an access-control conclusion on it. Always read
+  `coverage`: `unresolved` means unknown, not safe; `complete: false`
+  means some code was not analysed (`opcode_sites` with `reached: false`
+  lists sensitive opcodes no path reached).
+- **Verification match:** `contract inspect` `verification[]` and the
+  `contract source` stderr line say `exact` (code and metadata hash
+  match) or `partial` (code only; comments/names may differ from what was
+  compiled). Etherscan does not report it (`not_reported`).
+- `contract twins --submit-similarity` publishes a match on Sourcify; it is
+  a write (MCP `contract_twins_submit_similarity`, write tools only). Do not
+  run it unless asked.
 - **`account ... --all`:** the JSON is
   `{"complete", "requests", "stopped", "count", "rows"}`. If `complete` is
   false, the rows are not the whole history; raise `--max-pages` or narrow

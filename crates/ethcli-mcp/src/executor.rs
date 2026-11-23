@@ -21,6 +21,8 @@ const MAX_CONCURRENT_SUBPROCESSES: usize = 10;
 
 /// Default timeout for subprocess execution (30 seconds)
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+/// `contract twins --submit-similarity`: submit plus up to 60 s of polling
+const SIMILARITY_SUBMIT_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Fast timeout for simple operations like cast conversions (10 seconds)
 const FAST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -475,6 +477,8 @@ pub(crate) fn is_mutating_command(args: &[&str]) -> bool {
         (Some("endpoints"), Some("add" | "remove" | "enable" | "disable" | "optimize")) => true,
         (Some("chainlist"), Some("add")) => true,
         (Some("sig"), Some("cache-clear")) => true,
+        // Publishes a verified match on Sourcify
+        (Some("contract"), Some("twins")) => has_flag(args, "--submit-similarity"),
         (Some("simulate"), Some("share" | "unshare")) => true,
         (Some("simulate"), Some(_)) => has_flag(args, "--save"),
         (Some("dune"), _) => is_mutating_dune_command(&path),
@@ -1172,6 +1176,10 @@ fn get_timeout(args: &[&str]) -> Duration {
     }
     if command == "account" && sub == "approvals" {
         return ACCOUNT_APPROVALS_TIMEOUT;
+    }
+    // The Sourcify similarity job is polled for up to 60 s
+    if command == "contract" && sub == "twins" && has_flag(args, "--submit-similarity") {
+        return SIMILARITY_SUBMIT_TIMEOUT;
     }
 
     if FAST_COMMANDS.contains(&command) && !NETWORK_SUBCOMMANDS.contains(&(command, sub)) {
@@ -2342,6 +2350,14 @@ mod tests {
         ]));
         assert!(is_mutating_command(&["chainlist", "add", "base"]));
         assert!(is_mutating_command(&["sig", "cache-clear"]));
+        assert!(is_mutating_command(&[
+            "contract",
+            "twins",
+            "0xabc",
+            "--submit-similarity"
+        ]));
+        assert!(!is_mutating_command(&["contract", "twins", "0xabc"]));
+        assert!(!is_mutating_command(&["contract", "calls", "0xabc"]));
         assert!(is_mutating_command(&[
             "cow-swap",
             "cancel-order",

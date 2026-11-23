@@ -5,7 +5,7 @@
 use super::OutputFormat;
 use crate::bytecode::{
     analyze_bytecode, analyze_handler_checks, disassemble_bytecode, extract_selectors,
-    infer_dispatcher, opcode_stats, BytecodeAnalysis, RiskLevel, MAX_BYTECODE_SIZE,
+    infer_dispatcher, opcode_stats, BytecodeAnalysis, CallsBudget, RiskLevel, MAX_BYTECODE_SIZE,
 };
 use crate::config::{Chain, EndpointConfig};
 use crate::etherscan::Client;
@@ -768,6 +768,106 @@ pub enum ContractCommands {
         #[arg(long)]
         checks: bool,
 
+        /// Leave out the call-site summary and evmole's inferred storage
+        /// layout (faster on very large contracts)
+        #[arg(long)]
+        no_inference: bool,
+
+        /// Custom RPC URL (overrides config)
+        #[arg(long, value_name = "URL")]
+        rpc_url: Option<String>,
+
+        /// Output format (json, table/pretty)
+        #[arg(
+            long,
+            short = 'o',
+            visible_alias = "output",
+            value_enum,
+            default_value = "table"
+        )]
+        format: OutputFormat,
+    },
+
+    /// Call sites and access control recovered from bytecode (inferred)
+    ///
+    /// For every CALL, DELEGATECALL, STATICCALL, CALLCODE, CREATE and CREATE2:
+    /// the pc, the function (dispatcher branch) it runs in, and where the
+    /// target, outgoing selector, value and first arguments come from
+    /// (constant, storage slot, calldata offset, msg.sender, return of an
+    /// earlier call, or unresolved). Per function: ORIGIN and CALLER uses,
+    /// guards (msg.sender / tx.origin / address(this) compared with a
+    /// constant, slot or mapping), DELEGATECALL, SELFDESTRUCT, CREATE and
+    /// SSTORE sites. A coverage section says what was analysed and what was
+    /// not; nothing unresolved is guessed.
+    ///
+    /// Examples:
+    ///   ethcli contract calls 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640
+    ///   ethcli contract calls 0x... --lookup --json
+    ///   ethcli contract calls 0x... --block 21000000 --follow-proxy
+    Calls {
+        /// Contract address
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Block number (default: latest)
+        #[arg(long, short)]
+        block: Option<String>,
+
+        /// If proxy detected, analyze the implementation contract instead
+        #[arg(long)]
+        follow_proxy: bool,
+
+        /// Name selectors from the signature database (guesses)
+        #[arg(long, short)]
+        lookup: bool,
+
+        /// Opcode step budget over all paths
+        #[arg(long, value_name = "N", default_value_t = 4_000_000)]
+        max_steps: u64,
+
+        /// Time budget in seconds (results are partial when it is hit)
+        #[arg(long, value_name = "SECS", default_value_t = 15)]
+        timeout: u64,
+
+        /// Custom RPC URL (overrides config)
+        #[arg(long, value_name = "URL")]
+        rpc_url: Option<String>,
+
+        /// Output format (json, table/pretty)
+        #[arg(
+            long,
+            short = 'o',
+            visible_alias = "output",
+            value_enum,
+            default_value = "table"
+        )]
+        format: OutputFormat,
+    },
+
+    /// Verified contracts with the same (or similar) runtime code
+    ///
+    /// Asks Etherscan (similar match), Blockscout (verified twin) and
+    /// Sourcify (verification of the address itself), then reads each
+    /// candidate's code and says whether it is byte-for-byte the same.
+    /// Sourcify has no public lookup by code hash.
+    ///
+    /// --submit-similarity asks Sourcify to verify the address against
+    /// similar verified contracts. That is a write: on success Sourcify
+    /// publishes a verified match for the address.
+    ///
+    /// Examples:
+    ///   ethcli contract twins 0x51c72848c68a965f66fa7a88855f9f7784502a7f
+    ///   ethcli contract twins 0x... --json
+    Twins {
+        /// Contract address
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Submit a Sourcify similarity verification (publishes a match on
+        /// Sourcify; not read-only)
+        #[arg(long)]
+        submit_similarity: bool,
+
         /// Custom RPC URL (overrides config)
         #[arg(long, value_name = "URL")]
         rpc_url: Option<String>,
@@ -859,8 +959,15 @@ pub async fn handle(
                 .source_code_with_origin(address)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to fetch source: {}", e))?;
-            if !quiet && origin != crate::etherscan::fallback::Origin::Etherscan {
-                eprintln!("Not available from Etherscan; source from {origin}");
+            if !quiet {
+                if origin != crate::etherscan::fallback::Origin::Etherscan {
+                    eprintln!("Not available from Etherscan; source from {origin}");
+                }
+                eprintln!(
+                    "Verification match: {} (exact = code and metadata hash match; \
+                     partial = code matches, metadata differs)",
+                    origin.match_type()
+                );
             }
 
             if *list || file.is_some() || function.is_some() || grep.is_some() {
@@ -1535,6 +1642,7 @@ pub async fn handle(
             follow_proxy,
             dispatcher,
             checks,
+            no_inference,
             rpc_url,
             format,
         } => {
@@ -1668,15 +1776,510 @@ pub async fn handle(
                 }
             }
 
+            // evmole's inferred facts (storage layout only when asked for
+            // inference) and the call-site summary
+            let with_storage = !*no_inference;
+            let code = analysis_bytecode.clone();
+            let facts =
+                run_blocking(move || crate::bytecode::infer_facts(&code, with_storage)).await?;
+            analysis.inferred = Some(serde_json::to_value(&facts)?);
+            if !*no_inference {
+                if !quiet {
+                    eprintln!("Tracing call sites...");
+                }
+                let report = calls_report(
+                    analysis_bytecode.clone(),
+                    CallsBudget {
+                        max_time: std::time::Duration::from_secs(10),
+                        ..CallsBudget::default()
+                    },
+                )
+                .await?;
+                analysis.calls = Some(report.summary());
+            }
+
             if format.is_json() {
                 println!("{}", serde_json::to_string_pretty(&analysis)?);
             } else {
                 print_analysis_table(&analysis);
             }
         }
+
+        ContractCommands::Calls {
+            address,
+            block,
+            follow_proxy,
+            lookup,
+            max_steps,
+            timeout,
+            rpc_url,
+            format,
+        } => {
+            let addr = Address::from_str(address)
+                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let block_id = match block {
+                Some(b) => {
+                    let b = resolve_block_arg(chain, rpc_url.as_deref(), b, quiet).await?;
+                    Some(super::rpc::parse_block_id(&b)?)
+                }
+                None => None,
+            };
+            let mut target = addr;
+            let mut code = get_bytecode_at(&chain, rpc_url.as_deref(), addr, block_id).await?;
+            if code.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "No bytecode found at {address} (not a contract or empty)"
+                ));
+            }
+            let proxy = crate::bytecode::detect_proxy(&code);
+            if *follow_proxy {
+                let implementation = match proxy.implementation {
+                    Some(i) => Some(i),
+                    None => get_implementation_from_storage(&chain, rpc_url.as_deref(), addr).await,
+                };
+                if let Some(i) = implementation {
+                    if !quiet {
+                        eprintln!("Following proxy to implementation: {i:#x}");
+                    }
+                    let impl_code =
+                        get_bytecode_at(&chain, rpc_url.as_deref(), i, block_id).await?;
+                    if !impl_code.is_empty() {
+                        target = i;
+                        code = impl_code;
+                    }
+                }
+            } else if proxy.is_proxy && !quiet {
+                eprintln!("Detected a proxy; use --follow-proxy to analyse the implementation");
+            }
+            if !quiet {
+                eprintln!("Tracing call sites in {} bytes of code...", code.len());
+            }
+            let budget = CallsBudget {
+                max_steps: *max_steps,
+                max_time: std::time::Duration::from_secs(*timeout),
+                ..CallsBudget::default()
+            };
+            let mut report = calls_report(code, budget).await?;
+            let mut names = serde_json::Map::new();
+            if *lookup {
+                let selectors: std::collections::BTreeSet<String> = report
+                    .functions
+                    .iter()
+                    .map(|f| f.function.clone())
+                    .chain(
+                        report
+                            .call_sites
+                            .iter()
+                            .flat_map(|c| c.selector.iter())
+                            .filter(|p| p.kind == "constant")
+                            .filter_map(|p| p.value.clone()),
+                    )
+                    .filter(|s| s.len() == 10 && s.starts_with("0x"))
+                    .collect();
+                let client = signature_client()?;
+                for selector in selectors {
+                    if let Some(sig) = client.lookup_selector(&selector[2..]).await {
+                        names.insert(selector, serde_json::json!(sig));
+                    }
+                }
+                for f in &mut report.functions {
+                    f.signature = names
+                        .get(&f.function)
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
+                }
+            }
+            let mut out = serde_json::to_value(&report)?;
+            out["address"] = serde_json::json!(addr.to_checksum(None));
+            if target != addr {
+                out["analysed"] = serde_json::json!(target.to_checksum(None));
+            }
+            if *lookup {
+                out["selector_names"] = serde_json::json!(names);
+                out["selector_names_note"] = serde_json::json!(
+                    "Names come from the signature database: guesses, not verified"
+                );
+            }
+            if format.is_json() {
+                println!("{}", serde_json::to_string_pretty(&out)?);
+            } else {
+                print!("{}", format_calls_table(&report, &names));
+            }
+        }
+
+        ContractCommands::Twins {
+            address,
+            submit_similarity,
+            rpc_url,
+            format,
+        } => {
+            let addr = Address::from_str(address)
+                .map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+            let code = get_bytecode_at(&chain, rpc_url.as_deref(), addr, None).await?;
+            if code.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "No bytecode found at {address} (not a contract or empty)"
+                ));
+            }
+            let mut out = find_twins(chain, api_key.clone(), addr, &code, rpc_url.as_deref()).await;
+            if *submit_similarity {
+                eprintln!(
+                    "WARNING: --submit-similarity asks Sourcify to verify {} against similar \
+                     verified contracts. If it succeeds, Sourcify PUBLISHES a verified match \
+                     for this address. This is not a read-only operation.",
+                    addr.to_checksum(None)
+                );
+                let http = reqwest::Client::new();
+                let result = crate::etherscan::fallback::sourcify_submit_similarity(
+                    &http,
+                    chain.chain_id(),
+                    &addr.to_checksum(None),
+                    std::time::Duration::from_secs(60),
+                )
+                .await;
+                out["similarity_submission"] = match result {
+                    Ok(job) => serde_json::json!({ "submitted": true, "job": job }),
+                    Err(e) => serde_json::json!({ "submitted": false, "error": e }),
+                };
+            }
+            if format.is_json() {
+                println!("{}", serde_json::to_string_pretty(&out)?);
+            } else {
+                print!("{}", format_twins_table(&out));
+            }
+        }
     }
 
     Ok(())
+}
+
+/// Run CPU-bound analysis off the async runtime
+async fn run_blocking<T: Send + 'static>(
+    f: impl FnOnce() -> T + Send + 'static,
+) -> anyhow::Result<T> {
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| anyhow::anyhow!("analysis task failed: {e}"))
+}
+
+/// Run the call-site analysis on a blocking thread. evmole's own passes have
+/// no budget, so the whole job gets a deadline a little past the
+/// interpreter's.
+async fn calls_report(
+    code: Vec<u8>,
+    budget: CallsBudget,
+) -> anyhow::Result<crate::bytecode::CallsReport> {
+    let deadline = budget.max_time + std::time::Duration::from_secs(10);
+    tokio::time::timeout(
+        deadline,
+        run_blocking(move || crate::bytecode::analyze_calls(&code, budget)),
+    )
+    .await
+    .map_err(|_| {
+        anyhow::anyhow!(
+            "bytecode analysis did not finish within {} s",
+            deadline.as_secs()
+        )
+    })?
+}
+
+/// Runtime code at a block (latest when `None`)
+async fn get_bytecode_at(
+    chain: &Chain,
+    rpc_url: Option<&str>,
+    address: Address,
+    block: Option<alloy::eips::BlockId>,
+) -> anyhow::Result<Vec<u8>> {
+    let candidates = read_candidates(chain, rpc_url)?;
+    crate::rpc::with_failover(candidates, |endpoint| async move {
+        let call = endpoint.provider().get_code_at(address);
+        let call = match block {
+            Some(b) => call.block_id(b),
+            None => call,
+        };
+        let code = call
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fetch bytecode: {}", e))?;
+        Ok(code.to_vec())
+    })
+    .await
+}
+
+/// Verified contracts with the same or similar runtime code, and how the
+/// address itself is verified
+async fn find_twins(
+    chain: Chain,
+    api_key: Option<String>,
+    address: Address,
+    code: &[u8],
+    rpc_url: Option<&str>,
+) -> serde_json::Value {
+    use crate::etherscan::fallback;
+    use alloy::primitives::keccak256;
+    let checksum = address.to_checksum(None);
+    let code_hash = keccak256(code);
+    let http = reqwest::Client::new();
+    let mut lookups = Vec::new();
+    let mut verification = Vec::new();
+    // (candidate, where it came from)
+    let mut candidates: Vec<(Address, String)> = Vec::new();
+
+    // Etherscan: getsourcecode carries a SimilarMatch address for contracts
+    // it verified through a similar contract
+    match Client::new(chain, api_key) {
+        Ok(client) => {
+            let result = client
+                .explorer_get(&[
+                    ("module", "contract".to_string()),
+                    ("action", "getsourcecode".to_string()),
+                    ("address", checksum.clone()),
+                ])
+                .await;
+            match result {
+                Ok(v) => {
+                    let first = v.get(0).cloned().unwrap_or_default();
+                    let similar = first["SimilarMatch"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_string();
+                    let verified = first["SourceCode"].as_str().is_some_and(|s| !s.is_empty());
+                    lookups.push(serde_json::json!({
+                        "source": "etherscan",
+                        "method": "getsourcecode SimilarMatch",
+                        "verified": verified,
+                        "similar_match": (!similar.is_empty()).then_some(&similar),
+                        "field_present": first.get("SimilarMatch").is_some(),
+                    }));
+                    if let Ok(a) = Address::from_str(&similar) {
+                        candidates.push((a, "etherscan SimilarMatch".into()));
+                    }
+                }
+                Err(e) => lookups.push(serde_json::json!({
+                    "source": "etherscan", "error": e,
+                })),
+            }
+        }
+        Err(e) => lookups.push(serde_json::json!({
+            "source": "etherscan", "error": e.to_string(),
+        })),
+    }
+
+    // Blockscout: verified_twin_address_hash and its own match flags
+    match fallback::blockscout_lookup(&http, chain.chain_id(), &checksum).await {
+        Some((base, value)) => {
+            let m = fallback::blockscout_match_type(&value);
+            let twin = value["verified_twin_address_hash"]
+                .as_str()
+                .map(str::to_string);
+            lookups.push(serde_json::json!({
+                "source": "blockscout",
+                "method": "smart-contracts verified_twin_address_hash",
+                "host": base,
+                "verified_twin": twin,
+            }));
+            if let Some(a) = twin.as_deref().and_then(|t| Address::from_str(t).ok()) {
+                candidates.push((a, "blockscout verified twin".into()));
+            }
+            verification.push(m);
+        }
+        None => lookups.push(serde_json::json!({
+            "source": "blockscout",
+            "note": "no public Blockscout API for this chain, or it did not answer",
+        })),
+    }
+
+    // Sourcify: the address itself. There is no public lookup by code hash.
+    match fallback::sourcify_lookup(&http, chain.chain_id(), &checksum).await {
+        Some(m) => verification.push(m),
+        None => lookups.push(serde_json::json!({
+            "source": "sourcify", "error": "Sourcify did not answer",
+        })),
+    }
+    lookups.push(serde_json::json!({
+        "source": "sourcify",
+        "method": "none",
+        "note": "Sourcify v2 has no public lookup by runtime code hash; \
+                 `--submit-similarity` asks it to verify against similar code (a write)",
+    }));
+
+    // Compare each candidate's code with ours
+    candidates.sort();
+    candidates.dedup_by(|a, b| a.0 == b.0);
+    let mut twins = Vec::new();
+    for (candidate, from) in candidates {
+        if candidate == address {
+            continue;
+        }
+        let twin_code = get_bytecode_at(&chain, rpc_url, candidate, None).await;
+        let basis = match &twin_code {
+            Ok(c) if keccak256(c) == code_hash => "exact_runtime_code",
+            Ok(c) if c.is_empty() => "no_code",
+            Ok(_) => "similar_runtime_code",
+            Err(_) => "code_not_read",
+        };
+        twins.push(serde_json::json!({
+            "address": candidate.to_checksum(None),
+            "found_by": from,
+            "basis": basis,
+            "code_hash": twin_code.ok().map(|c| format!("{:#x}", keccak256(&c))),
+        }));
+    }
+
+    serde_json::json!({
+        "address": checksum,
+        "chain": chain.display_name(),
+        "code_hash": format!("{code_hash:#x}"),
+        "code_size": code.len(),
+        "verification": verification,
+        "twins": twins,
+        "lookups": lookups,
+    })
+}
+
+fn format_twins_table(out: &serde_json::Value) -> String {
+    use std::fmt::Write;
+    let mut s = String::new();
+    let _ = writeln!(s, "Address:   {}", out["address"].as_str().unwrap_or("?"));
+    let _ = writeln!(s, "Code hash: {}", out["code_hash"].as_str().unwrap_or("?"));
+    for m in out["verification"].as_array().into_iter().flatten() {
+        let _ = writeln!(
+            s,
+            "Verified on {}: {}",
+            m["source"].as_str().unwrap_or("?"),
+            m["match_type"].as_str().unwrap_or("?")
+        );
+    }
+    let twins = out["twins"].as_array().cloned().unwrap_or_default();
+    if twins.is_empty() {
+        let _ = writeln!(s, "Twins:     none found");
+    }
+    for t in twins {
+        let _ = writeln!(
+            s,
+            "Twin:      {} ({}, found by {})",
+            t["address"].as_str().unwrap_or("?"),
+            t["basis"].as_str().unwrap_or("?"),
+            t["found_by"].as_str().unwrap_or("?")
+        );
+    }
+    if let Some(sub) = out.get("similarity_submission") {
+        let _ = writeln!(s, "Sourcify similarity submission: {sub}");
+    }
+    s
+}
+
+fn format_calls_table(
+    report: &crate::bytecode::CallsReport,
+    names: &serde_json::Map<String, serde_json::Value>,
+) -> String {
+    use std::fmt::Write;
+    let name = |sel: &str| -> String {
+        match names.get(sel).and_then(|v| v.as_str()) {
+            Some(n) => format!("{sel} {n}?"),
+            None => sel.to_string(),
+        }
+    };
+    let list = |ps: &[crate::bytecode::Provenance]| -> String {
+        if ps.is_empty() {
+            return "-".into();
+        }
+        ps.iter()
+            .map(|p| p.describe())
+            .collect::<Vec<_>>()
+            .join(" | ")
+    };
+    let mut s = String::new();
+    let _ = writeln!(
+        s,
+        "Inferred from bytecode; unresolved means unknown, not safe.\n"
+    );
+    let _ = writeln!(s, "CALL SITES ({})", report.call_sites.len());
+    for c in &report.call_sites {
+        let fns: Vec<String> = c.functions.iter().map(|f| name(f)).collect();
+        let _ = writeln!(s, "  pc {:>6} {:<12} in {}", c.pc, c.kind, fns.join(", "));
+        if !c.target.is_empty() {
+            let _ = writeln!(s, "      target:   {}", list(&c.target));
+        }
+        if !c.selector.is_empty() {
+            let sels: Vec<String> = c
+                .selector
+                .iter()
+                .map(|p| match (&p.kind[..], &p.value) {
+                    ("constant", Some(v)) => name(v),
+                    _ => p.describe(),
+                })
+                .collect();
+            let _ = writeln!(s, "      selector: {}", sels.join(" | "));
+        }
+        if !c.value.is_empty() {
+            let _ = writeln!(s, "      value:    {}", list(&c.value));
+        }
+        for (i, a) in c.args.iter().enumerate() {
+            let _ = writeln!(s, "      arg{i}:     {}", list(a));
+        }
+    }
+    let _ = writeln!(s, "\nFUNCTIONS");
+    for f in &report.functions {
+        let _ = writeln!(s, "  {}", name(&f.function));
+        let pcs = |label: &str, v: &[usize], s: &mut String| {
+            if !v.is_empty() {
+                let _ = writeln!(s, "      {label:<13} {v:?}");
+            }
+        };
+        pcs("ORIGIN", &f.origin_pcs, &mut s);
+        pcs("CALLER", &f.caller_pcs, &mut s);
+        pcs("calls", &f.call_pcs, &mut s);
+        pcs("DELEGATECALL", &f.delegatecall_pcs, &mut s);
+        pcs("SELFDESTRUCT", &f.selfdestruct_pcs, &mut s);
+        pcs("CREATE", &f.create_pcs, &mut s);
+        for g in &f.guards {
+            let _ = writeln!(
+                s,
+                "      guard pc {}: {} {} {}",
+                g.pc,
+                g.subject,
+                g.check,
+                g.against.describe()
+            );
+        }
+        for st in &f.sstores {
+            let _ = writeln!(s, "      SSTORE pc {}: {}", st.pc, st.slot.describe());
+        }
+    }
+    let ue: Vec<String> = report
+        .opcode_sites
+        .iter()
+        .filter(|o| !o.reached)
+        .map(|o| format!("{}@{}", o.opcode, o.pc))
+        .collect();
+    let c = &report.coverage;
+    let _ = writeln!(s, "\nCOVERAGE");
+    let _ = writeln!(
+        s,
+        "  CFG blocks analysed {}/{} (+{} outside evmole's CFG), unresolved jumps {}, unresolved call sites {}",
+        c.cfg_blocks_analysed,
+        c.cfg_reachable_blocks,
+        c.extra_blocks_analysed,
+        c.unresolved_jumps.len(),
+        c.unresolved_call_sites
+    );
+    let _ = writeln!(
+        s,
+        "  steps {}/{}, {} ms, states pruned {}, budget hit: {}, complete: {}",
+        c.steps,
+        c.step_limit,
+        c.elapsed_ms,
+        c.states_pruned,
+        c.step_budget_hit || c.time_budget_hit,
+        c.complete
+    );
+    if !ue.is_empty() {
+        let _ = writeln!(s, "  sensitive opcodes not reached: {}", ue.join(", "));
+    }
+    for n in &report.notes {
+        let _ = writeln!(s, "  note: {n}");
+    }
+    s
 }
 
 /// Turn a `--block` given as a time (a date, @timestamp or age) into a block
@@ -2058,6 +2661,54 @@ fn print_analysis_table(analysis: &BytecodeAnalysis) {
             }
         }
     }
+    if let Some(inferred) = &analysis.inferred {
+        if let Some(compiler) = inferred["metadata"]["compiler"].as_str() {
+            println!("  Compiler:       {compiler} (CBOR metadata)");
+        }
+        let cf = &inferred["control_flow"];
+        println!(
+            "  Control flow:   {} reachable / {} blocks, {} unresolved jumps (inferred)",
+            cf["reachable_blocks"], cf["basic_blocks"], cf["unresolved_jumps"]
+        );
+        if let Some(slots) = inferred["storage"]["slots"].as_array() {
+            println!("  Storage:        {} slots (inferred)", slots.len());
+            for slot in slots.iter().take(12) {
+                println!(
+                    "    {} +{} {}",
+                    slot["slot"].as_str().unwrap_or("?"),
+                    slot["offset"],
+                    slot["type"].as_str().unwrap_or("?")
+                );
+            }
+        }
+    }
+    if let Some(calls) = &analysis.calls {
+        println!(
+            "  Call sites:     {} (calldata-controlled targets {}, msg.sender targets {}) (inferred)",
+            calls["call_sites"], calls["calldata_controlled_targets"], calls["msg_sender_targets"]
+        );
+        if let Some(targets) = calls["hardcoded_targets"].as_array() {
+            for t in targets.iter().take(10) {
+                println!("    hard-coded target {}", t.as_str().unwrap_or("?"));
+            }
+        }
+        for g in calls["guards"].as_array().into_iter().flatten().take(12) {
+            println!(
+                "    guard in {} at pc {}: {}",
+                g["function"].as_str().unwrap_or("?"),
+                g["pc"],
+                g["check"].as_str().unwrap_or("?")
+            );
+        }
+        println!(
+            "    ORIGIN at pcs {}; coverage {}/{} CFG blocks, complete: {}",
+            calls["origin_pcs"],
+            calls["coverage"]["cfg_blocks_analysed"],
+            calls["coverage"]["cfg_reachable_blocks"],
+            calls["coverage"]["complete"]
+        );
+        println!("    (run `ethcli contract calls` for every site)");
+    }
     println!();
 
     // Functions (top 10)
@@ -2393,6 +3044,45 @@ async fn inspect_address(
     }
     let interface_target = implementation.map(|(_, target)| target).unwrap_or(address);
 
+    // Bytecode facts evmole infers (of the implementation, for a proxy)
+    let inferred_code = if interface_target == address {
+        code.to_vec()
+    } else {
+        provider
+            .get_code_at(interface_target)
+            .block_id(block)
+            .await
+            .map(|c| c.to_vec())
+            .unwrap_or_default()
+    };
+    if !inferred_code.is_empty() {
+        let for_facts = inferred_code.clone();
+        match run_blocking(move || crate::bytecode::infer_facts(&for_facts, true)).await {
+            Ok(facts) => {
+                let mut value = serde_json::to_value(&facts)?;
+                value["of"] = serde_json::json!(interface_target.to_checksum(None));
+                out["inferred"] = value;
+            }
+            Err(e) => notes.push(format!("Bytecode inference failed: {e}")),
+        }
+    }
+
+    // How the code is verified, and verified twins
+    let twins = match tokio::time::timeout(
+        std::time::Duration::from_secs(12),
+        find_twins(chain, api_key.clone(), address, &code, rpc_url),
+    )
+    .await
+    {
+        Ok(t) => t,
+        Err(_) => {
+            notes.push("Verification and twin lookups timed out".to_string());
+            serde_json::json!({})
+        }
+    };
+    out["verification"] = twins["verification"].clone();
+    out["twins"] = twins["twins"].clone();
+
     // Standard getters, read together at the pinned block. Each may fail.
     let probe = |signature: &str| keccak256(signature.as_bytes())[..4].to_vec();
     let probes = [
@@ -2629,6 +3319,60 @@ fn format_inspect_table(report: &serde_json::Value) -> String {
             format!(
                 "{bytes} bytes, hash {}",
                 text(&report["code"]["hash"]).unwrap_or_default()
+            ),
+        );
+    }
+    for m in report["verification"].as_array().into_iter().flatten() {
+        if let (Some(source), Some(kind)) = (text(&m["source"]), text(&m["match_type"])) {
+            line(&mut out, "Verification", format!("{source}: {kind}"));
+        }
+    }
+    for t in report["twins"].as_array().into_iter().flatten() {
+        line(
+            &mut out,
+            "Verified twin",
+            format!(
+                "{} ({}, found by {})",
+                text(&t["address"]).unwrap_or_default(),
+                text(&t["basis"]).unwrap_or_default(),
+                text(&t["found_by"]).unwrap_or_default()
+            ),
+        );
+    }
+    let inferred = &report["inferred"];
+    if let Some(compiler) = text(&inferred["metadata"]["compiler"]) {
+        let hash = text(&inferred["metadata"]["ipfs"])
+            .map(|h| format!(", ipfs {h}"))
+            .or_else(|| text(&inferred["metadata"]["bzzr"]).map(|h| format!(", {h}")))
+            .unwrap_or_default();
+        line(
+            &mut out,
+            "Compiler",
+            format!("{compiler}{hash} (from the code's CBOR metadata)"),
+        );
+    }
+    if let Some(blocks) = inferred["control_flow"]["reachable_blocks"].as_u64() {
+        line(
+            &mut out,
+            "Control flow",
+            format!(
+                "{blocks} reachable blocks of {}, {} unresolved jumps (inferred)",
+                inferred["control_flow"]["basic_blocks"]
+                    .as_u64()
+                    .unwrap_or(0),
+                inferred["control_flow"]["unresolved_jumps"]
+                    .as_u64()
+                    .unwrap_or(0)
+            ),
+        );
+    }
+    if let Some(slots) = inferred["storage"]["slots"].as_array() {
+        line(
+            &mut out,
+            "Storage",
+            format!(
+                "{} slots inferred from bytecode (types are guesses)",
+                slots.len()
             ),
         );
     }

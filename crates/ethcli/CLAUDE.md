@@ -564,6 +564,48 @@ ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 ethcli contract analyze 0x... --format json
 ```
 
+### `contract calls`, inferred facts, twins
+
+```bash
+ethcli contract calls <addr> [--block N] [--follow-proxy] [--lookup] [--json]
+ethcli contract twins <addr> [--json]          # read-only
+ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
+```
+
+- `src/bytecode/calls.rs`: bounded abstract interpretation from pc 0. Values
+  carry provenance (`constant`, `code_constant` (PUSH20/PUSH32 or codecopy;
+  an immutable is indistinguishable from a literal), `storage` slot,
+  `storage_computed` (mapping), `calldata` offset (also `shr(96, ...)`
+  packed), `msg_sender`, `tx_origin`, `address_this`, `call_return`,
+  `keccak`, `computed`, `unresolved`). Memory is keyed by symbolic base +
+  constant offset; `calldatacopy`, constant `codecopy` and return data are
+  modelled; an unknown-address write clears memory. Functions come from
+  `selector == PUSH4` branches, evmole entry offsets, or a byte-bounded
+  calldata jump table (`jump_table[i]`, every JUMPDEST enumerated). Guards:
+  EQ of msg.sender/tx.origin/address(this) inside a JUMPI condition (through
+  AND/ISZERO/OR), and mapping lookups keyed by msg.sender. Budgets: steps
+  (4M), time (15 s; 10 s in analyze), distinct states per (pc, function)
+  (24). `coverage` gives evmole CFG blocks analysed / reachable, unresolved
+  jumps and call sites, prunes, and `complete`. `opcode_sites` is a linear
+  scan so unreached ORIGIN/CALLER/CALL/... are still listed.
+- `src/bytecode/inference.rs`: evmole 0.10 `with_storage`,
+  `with_control_flow_graph`, `with_metadata` wrapped in ethcli types
+  (`InferredFacts`), all marked inferred. `contract analyze` adds
+  `inferred` and `calls` (summary); `contract inspect` adds `inferred` (of
+  the implementation for a proxy), `verification` (Sourcify `match`/
+  `runtimeMatch`/`creationMatch`, Blockscout fully/partially verified ->
+  `exact`/`partial`/`unknown`) and `twins`.
+- Twins: Etherscan `getsourcecode` `SimilarMatch`, Blockscout
+  `verified_twin_address_hash`; each candidate's code hash is compared
+  (`exact_runtime_code` / `similar_runtime_code`). Sourcify has no public
+  code-hash lookup. `--submit-similarity` POSTs
+  `/v2/verify/similarity/{chain}/{address}` and polls 60 s; it is in
+  `MUTATING_COMMANDS` as `contract twins --submit-similarity` (entries may
+  name a flag). `SOURCIFY_SERVER_URL` / `BLOCKSCOUT_BASE_URL` override the
+  hosts (tests).
+- Fixtures: `tests/fixtures/bytecode/*.hex` (mainnet runtime code),
+  `tests/bytecode_calls.rs` asserts facts with a step budget only.
+
 ### Proxy Detection
 
 The analyze command automatically detects proxy contracts:
