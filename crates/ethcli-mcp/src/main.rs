@@ -290,6 +290,7 @@ impl EthcliMcpServer {
             input.from_block,
             input.max_pages,
             input.no_price,
+            input.include_zero_exposure,
         )
         .await
         .to_response()

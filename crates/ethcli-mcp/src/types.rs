@@ -199,6 +199,10 @@ pub struct AccountApprovalsInput {
     /// Skip USD prices
     #[serde(default)]
     pub no_price: bool,
+    /// Also list approvals with nothing at risk now (zero balance or expired).
+    /// Off by default: for active wallets that list can pass the 1 MB output cap
+    #[serde(default)]
+    pub include_zero_exposure: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

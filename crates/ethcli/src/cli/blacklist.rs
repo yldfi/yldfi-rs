@@ -263,7 +263,7 @@ const KNOWN_PROTOCOL_TOKENS: &[(u64, &str)] = &[
 ];
 
 /// Check whether a token is a known protocol token (by address only)
-fn is_known_safe_protocol(chain_id: u64, address: &str) -> bool {
+pub(crate) fn is_known_safe_protocol(chain_id: u64, address: &str) -> bool {
     let address = address.trim().to_lowercase();
     KNOWN_PROTOCOL_TOKENS
         .iter()
@@ -271,7 +271,7 @@ fn is_known_safe_protocol(chain_id: u64, address: &str) -> bool {
 }
 
 /// Check security using GoPlus API via the gplus crate
-async fn check_security(chain_id: u64, address: &str) -> Option<SecurityResult> {
+pub(crate) async fn check_security(chain_id: u64, address: &str) -> Option<SecurityResult> {
     // Only supported chains
     if !gplus::is_chain_supported(chain_id) {
         return None;

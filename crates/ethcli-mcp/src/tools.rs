@@ -296,6 +296,7 @@ pub async fn account_approvals(
     from_block: Option<u64>,
     max_pages: Option<u32>,
     no_price: bool,
+    include_zero_exposure: bool,
 ) -> Result<String, ToolError> {
     let from = from_block.map(|b| b.to_string());
     let pages = max_pages.map(|p| p.to_string());
@@ -305,7 +306,8 @@ pub async fn account_approvals(
         .format_json()
         .opt("--from-block", from.as_deref())
         .opt("--max-pages", pages.as_deref())
-        .opt_flag("--no-price", no_price);
+        .opt_flag("--no-price", no_price)
+        .opt_flag("--exposed-only", !include_zero_exposure);
     builder
         .end_of_options()
         .arg(address)

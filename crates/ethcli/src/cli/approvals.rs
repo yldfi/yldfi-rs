@@ -43,6 +43,39 @@ mod permit2 {
     }
 }
 
+/// Longest symbol kept in the output
+const MAX_SYMBOL_CHARS: usize = 32;
+/// Longest contract name kept in the output
+const MAX_NAME_CHARS: usize = 64;
+
+/// Token-supplied or explorer-supplied text, made safe to print and to pass
+/// on: hidden and control characters escaped, cut to `max` characters
+pub(crate) fn clean_text(text: &str, max: usize) -> String {
+    let safe = crate::abi::revert::safe_text(text.trim());
+    if safe.chars().count() <= max {
+        safe
+    } else {
+        let mut cut: String = safe.chars().take(max.saturating_sub(1)).collect();
+        cut.push('…');
+        cut
+    }
+}
+
+/// Whether a symbol looks like a lure rather than a ticker: characters
+/// outside letters, digits and `-_.+$/`, or link/claim wording
+pub(crate) fn symbol_suspicious(symbol: &str) -> bool {
+    let lower = symbol.to_lowercase();
+    let odd_chars = symbol
+        .chars()
+        .any(|c| !(c.is_alphanumeric() || "-_.+$/".contains(c)));
+    let lure = [
+        "http", "www", "://", ".com", ".io", ".org", ".xyz", "visit", "claim", "airdrop", "reward",
+    ]
+    .iter()
+    .any(|w| lower.contains(w));
+    symbol.is_empty() || odd_chars || lure
+}
+
 /// One log row from the explorer
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct LogRow {
@@ -293,7 +326,7 @@ impl SpenderInfo {
             "kind": self.kind,
         });
         if let Some(label) = &self.label {
-            out["label"] = serde_json::json!(label);
+            out["label"] = serde_json::json!(clean_text(label, MAX_NAME_CHARS));
         }
         if let Some(verified) = self.verified {
             out["verified"] = serde_json::json!(verified);
@@ -373,7 +406,7 @@ async fn describe_spenders<P: Provider>(
                 info.contract_name = entry["ContractName"]
                     .as_str()
                     .filter(|n| !n.is_empty())
-                    .map(str::to_string);
+                    .map(|n| clean_text(n, MAX_NAME_CHARS));
             }
         }
         out.insert(*spender, info);
@@ -381,7 +414,70 @@ async fn describe_spenders<P: Provider>(
     out
 }
 
-async fn usd_prices(chain: Chain, tokens: &[Address]) -> HashMap<Address, f64> {
+/// A DefiLlama price and its confidence (1.0 when the source gives none)
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Price {
+    pub usd: f64,
+    pub confidence: f64,
+}
+
+/// Prices below this confidence are shown per row but left out of the total
+pub(crate) const MIN_TOTAL_CONFIDENCE: f64 = 0.9;
+
+/// USD totals over the rows' `exposure_usd`: (counted, excluded as spam,
+/// excluded for low confidence)
+pub(crate) fn usd_totals<'a>(rows: impl Iterator<Item = &'a serde_json::Value>) -> (f64, f64, f64) {
+    let (mut counted, mut spam, mut low) = (0.0, 0.0, 0.0);
+    for row in rows {
+        let Some(usd) = row["exposure_usd"].as_f64() else {
+            continue;
+        };
+        if row["token"]["spam"] == true {
+            spam += usd;
+        } else if row["price_confidence"].as_f64().unwrap_or(0.0) >= MIN_TOTAL_CONFIDENCE {
+            counted += usd;
+        } else {
+            low += usd;
+        }
+    }
+    (counted, spam, low)
+}
+
+/// Spam reason for a token: on the local blacklist, or (unless a known
+/// protocol token) unverified, a honeypot or a sell tax over 10% per GoPlus
+async fn spam_check(chain: Chain, token: Address) -> Option<String> {
+    let text = format!("{token:#x}");
+    if crate::config::TokenBlacklist::load_default().is_blacklisted(&text) {
+        return Some("on the local token blacklist".to_string());
+    }
+    if crate::cli::blacklist::is_known_safe_protocol(chain.chain_id(), &text) {
+        return None;
+    }
+    let security = crate::cli::blacklist::check_security(chain.chain_id(), &text).await?;
+    if security.is_honeypot {
+        Some("GoPlus: honeypot".to_string())
+    } else if security.has_high_sell_tax() {
+        Some("GoPlus: sell tax over 10%".to_string())
+    } else if !security.is_open_source {
+        Some("GoPlus: source not verified".to_string())
+    } else {
+        None
+    }
+}
+
+async fn spam_checks(chain: Chain, tokens: &[Address]) -> HashMap<Address, String> {
+    use futures::StreamExt;
+    futures::stream::iter(tokens.iter().take(MAX_PRICED_TOKENS).copied())
+        .map(|t| async move { spam_check(chain, t).await.map(|r| (t, r)) })
+        .buffered(4)
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .flatten()
+        .collect()
+}
+
+async fn usd_prices(chain: Chain, tokens: &[Address]) -> HashMap<Address, Price> {
     use crate::aggregator::price::fetch_prices_parallel;
     use crate::aggregator::PriceSource;
     let lookups = tokens
@@ -394,8 +490,11 @@ async fn usd_prices(chain: Chain, tokens: &[Address]) -> HashMap<Address, f64> {
                 .sources
                 .iter()
                 .filter_map(|s| s.data.as_ref())
-                .map(|p| p.usd)
-                .find(|p| p.is_finite() && *p > 0.0);
+                .find(|p| p.usd.is_finite() && p.usd > 0.0)
+                .map(|p| Price {
+                    usd: p.usd,
+                    confidence: p.confidence.unwrap_or(1.0),
+                });
             price.map(|p| (*token, p))
         });
     futures::future::join_all(lookups)
@@ -411,6 +510,8 @@ pub struct ApprovalsOptions {
     pub max_pages: u64,
     pub price: bool,
     pub source_check: bool,
+    /// Leave out rows whose exposure is zero (counted in `hidden_zero_exposure`)
+    pub exposed_only: bool,
     pub quiet: bool,
 }
 
@@ -671,13 +772,25 @@ pub async fn approvals_report(
     } else {
         HashMap::new()
     };
+    let spam: HashMap<Address, String> = if opts.price && !exposed_tokens.is_empty() {
+        if !opts.quiet {
+            eprintln!("Checking {} tokens for spam...", exposed_tokens.len());
+        }
+        spam_checks(chain, &exposed_tokens).await
+    } else {
+        HashMap::new()
+    };
 
     let token_json = |token: Address| {
         let info = token_info.get(&token).cloned().unwrap_or_default();
         serde_json::json!({
             "address": token.to_checksum(None),
-            "symbol": info.symbol,
+            "symbol": info.symbol.as_deref().map(|s| clean_text(s, MAX_SYMBOL_CHARS)),
+            "symbol_untrusted": !prices.contains_key(&token)
+                || info.symbol.as_deref().is_none_or(symbol_suspicious),
             "decimals": info.decimals,
+            "spam": spam.contains_key(&token),
+            "spam_reason": spam.get(&token),
         })
     };
     let amount =
@@ -695,7 +808,7 @@ pub async fn approvals_report(
             let decimals = info.decimals.unwrap_or(0);
             let whole = to_float(at_risk, decimals);
             let price = prices.get(token).copied();
-            let usd = price.map(|p| whole * p).filter(|u| u.is_finite());
+            let usd = price.map(|p| whole * p.usd).filter(|u| u.is_finite());
             let mut flags = spender_flags(*spender);
             if is_unlimited(*allowance) {
                 flags.insert(0, "unlimited");
@@ -711,7 +824,8 @@ pub async fn approvals_report(
                 "exposure": at_risk.to_string(),
                 "exposure_formatted": amount(at_risk, info.decimals),
                 "exposure_usd": usd,
-                "price_usd": price,
+                "price_usd": price.map(|p| p.usd),
+                "price_confidence": price.map(|p| p.confidence),
                 "price_source": price.map(|_| "llama"),
                 "last_approval_block": block,
                 "flags": flags,
@@ -741,7 +855,7 @@ pub async fn approvals_report(
             let decimals = info.decimals.unwrap_or(0);
             let whole = to_float(at_risk, decimals);
             let price = prices.get(token).copied();
-            let usd = price.map(|p| whole * p).filter(|u| u.is_finite());
+            let usd = price.map(|p| whole * p.usd).filter(|u| u.is_finite());
             let mut flags = spender_flags(*spender);
             if is_unlimited(*amt) {
                 flags.insert(0, "unlimited");
@@ -763,7 +877,8 @@ pub async fn approvals_report(
                 "exposure": at_risk.to_string(),
                 "exposure_formatted": amount(at_risk, info.decimals),
                 "exposure_usd": usd,
-                "price_usd": price,
+                "price_usd": price.map(|p| p.usd),
+                "price_confidence": price.map(|p| p.confidence),
                 "price_source": price.map(|_| "llama"),
                 "last_event_block": block,
                 "flags": flags,
@@ -798,13 +913,22 @@ pub async fn approvals_report(
         .collect();
     operator_rows.sort_by_key(|r| std::cmp::Reverse(r.0));
 
-    let total_usd: f64 = erc20_rows
-        .iter()
-        .chain(permit2_rows.iter())
-        .map(|(usd, _, _)| usd.max(0.0))
-        .sum();
+    let (total_usd, spam_usd, low_confidence_usd) =
+        usd_totals(erc20_rows.iter().chain(permit2_rows.iter()).map(|r| &r.2));
+    let mut hidden = 0usize;
+    if opts.exposed_only {
+        for rows in [&mut erc20_rows, &mut permit2_rows] {
+            let before = rows.len();
+            rows.retain(|r| r.2["exposure"] != "0");
+            hidden += before - rows.len();
+        }
+    }
     let complete = scans.iter().all(|s| s["complete"] == true);
     let mut notes = vec![
+        format!(
+            "total_exposure_usd leaves out tokens flagged spam (excluded_spam_usd) and prices \
+             with confidence under {MIN_TOTAL_CONFIDENCE} (excluded_low_confidence_usd)"
+        ),
         "Pairs come from the owner's Approval, ApprovalForAll and Permit2 events; an \
          approval that emitted no event is not found"
             .to_string(),
@@ -838,6 +962,9 @@ pub async fn approvals_report(
             "permit2": candidates.permit2.len(),
         },
         "total_exposure_usd": total_usd,
+        "excluded_spam_usd": spam_usd,
+        "excluded_low_confidence_usd": low_confidence_usd,
+        "hidden_zero_exposure": hidden,
         "approvals": erc20_rows.into_iter().map(|r| r.2).collect::<Vec<_>>(),
         "permit2": permit2_rows.into_iter().map(|r| r.2).collect::<Vec<_>>(),
         "operator_approvals": operator_rows.into_iter().map(|r| r.1).collect::<Vec<_>>(),
@@ -875,10 +1002,15 @@ pub fn format_approvals(report: &serde_json::Value) -> String {
             .unwrap_or_else(|| "-".to_string())
     };
     let symbol = |row: &serde_json::Value| {
-        row["token"]["symbol"]
+        let name = row["token"]["symbol"]
             .as_str()
             .map(safe_text)
-            .unwrap_or_else(|| text(&row["token"]["address"]))
+            .unwrap_or_else(|| text(&row["token"]["address"]));
+        if row["token"]["spam"] == true {
+            format!("{name} (spam)")
+        } else {
+            name
+        }
     };
 
     let mut out = String::new();
@@ -961,8 +1093,10 @@ pub fn format_approvals(report: &serde_json::Value) -> String {
 
     let _ = writeln!(
         out,
-        "\nTotal priced exposure: {}",
-        usd(&report["total_exposure_usd"])
+        "\nTotal priced exposure: {} (excluded: spam {}, low-confidence prices {})",
+        usd(&report["total_exposure_usd"]),
+        usd(&report["excluded_spam_usd"]),
+        usd(&report["excluded_low_confidence_usd"])
     );
     let _ = writeln!(out, "\nScan:");
     for scan in report["scan"].as_array().into_iter().flatten() {
@@ -1081,6 +1215,33 @@ mod tests {
         assert_eq!(eip7702_delegate(&code), Some(target));
         assert_eq!(eip7702_delegate(&code[..22]), None);
         assert_eq!(eip7702_delegate(&[0x60, 0x80]), None);
+    }
+
+    #[test]
+    fn totals_leave_out_spam_and_low_confidence_prices() {
+        let rows = [
+            serde_json::json!({"token": {"spam": false}, "exposure_usd": 100.0, "price_confidence": 0.99}),
+            serde_json::json!({"token": {"spam": true}, "exposure_usd": 5000.0, "price_confidence": 0.99}),
+            serde_json::json!({"token": {"spam": false}, "exposure_usd": 70.0, "price_confidence": 0.5}),
+            serde_json::json!({"token": {"spam": false}, "exposure_usd": null}),
+        ];
+        assert_eq!(usd_totals(rows.iter()), (100.0, 5000.0, 70.0));
+    }
+
+    #[test]
+    fn lure_symbols_are_flagged_and_cut() {
+        let lure = "Visit https://x.example to claim";
+        assert!(symbol_suspicious(lure));
+        assert!(symbol_suspicious("USDC\u{202e}"));
+        for ok in ["USDC", "UNI-V2", "stETH", "yvCurve-3pool", "шайлушай"] {
+            assert!(!symbol_suspicious(ok), "{ok}");
+        }
+        let long = "A".repeat(100);
+        let cut = clean_text(&long, MAX_SYMBOL_CHARS);
+        assert_eq!(cut.chars().count(), MAX_SYMBOL_CHARS);
+        assert!(cut.ends_with('…'));
+        assert_eq!(clean_text("ab\ncd", 32), "ab\\u{a}cd");
+        assert_eq!(clean_text(lure, MAX_SYMBOL_CHARS), lure);
     }
 
     #[test]

@@ -314,6 +314,11 @@ pub enum AccountCommands {
         #[arg(long)]
         no_source_check: bool,
 
+        /// Leave out approvals with nothing at risk now (zero balance or
+        /// expired); their count is in `hidden_zero_exposure`
+        #[arg(long)]
+        exposed_only: bool,
+
         /// Output format (json, table/pretty)
         #[arg(
             long,
@@ -1747,6 +1752,7 @@ pub async fn handle(
             max_pages,
             no_price,
             no_source_check,
+            exposed_only,
             output,
         } => {
             let (owner, _) = resolve_address(address, chain, quiet).await?;
@@ -1755,6 +1761,7 @@ pub async fn handle(
                 max_pages: (*max_pages).max(1),
                 price: !*no_price,
                 source_check: !*no_source_check,
+                exposed_only: *exposed_only,
                 quiet,
             };
             let report =

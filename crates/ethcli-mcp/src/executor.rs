@@ -34,6 +34,11 @@ const DUNE_EXECUTE_TIMEOUT: Duration = Duration::from_secs(330);
 /// lost every result, since the CLI saved only at the end.
 const ENDPOINTS_OPTIMIZE_TIMEOUT: Duration = Duration::from_secs(600);
 
+/// Timeout for `account approvals`: four paced explorer log scans, a
+/// multicall, then per-token price and spam checks and per-spender source
+/// checks. A busy wallet takes 30-60 s.
+const ACCOUNT_APPROVALS_TIMEOUT: Duration = Duration::from_secs(180);
+
 /// How long a call waits for one of the MAX_CONCURRENT_SUBPROCESSES slots
 /// before it is refused as rate limited
 const SLOT_WAIT: Duration = Duration::from_secs(30);
@@ -1119,6 +1124,9 @@ fn get_timeout(args: &[&str]) -> Duration {
     if command == "endpoints" && sub == "optimize" {
         return ENDPOINTS_OPTIMIZE_TIMEOUT;
     }
+    if command == "account" && sub == "approvals" {
+        return ACCOUNT_APPROVALS_TIMEOUT;
+    }
 
     if FAST_COMMANDS.contains(&command) && !NETWORK_SUBCOMMANDS.contains(&(command, sub)) {
         FAST_TIMEOUT
@@ -2141,6 +2149,10 @@ mod tests {
     #[test]
     fn test_get_timeout_fast_commands() {
         assert_eq!(get_timeout(&["cast"]), FAST_TIMEOUT);
+        assert_eq!(
+            get_timeout(&["account", "approvals", "0xabc"]),
+            ACCOUNT_APPROVALS_TIMEOUT
+        );
         assert_eq!(get_timeout(&["config"]), FAST_TIMEOUT);
         assert_eq!(get_timeout(&["config", "validate"]), FAST_TIMEOUT);
         assert_eq!(get_timeout(&["address", "list"]), FAST_TIMEOUT);
