@@ -70,7 +70,10 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
 ## Reporting
 
 - `exact`: "the rebuild compiles to the deployed code, metadata included".
-- `partial`: "matches the deployed code ignoring metadata". Never call a
+- `partial`: "matches the deployed code ignoring metadata".
+- `partial_unverified_metadata`: as `partial`, but say that the deployed
+  metadata bytes could hide reachable code; never report it as a clean
+  partial match. Never call a
   partial match verified, matching or equivalent without that qualifier.
 - Always state the compiler settings, the inline-assembly share
   (`inline_assembly`) and any immutable or library values found

@@ -724,7 +724,8 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
     // falling through, or by a static jump to a JUMPDEST inside) are code,
     // not metadata. A 0x5b in an honest hash is not a jump target, so honest
     // metadata whose hash differs still gives a partial match.
-    let reach = super::metadata::static_reach(onchain);
+    let (reach, computed_jumps) = super::metadata::static_reach_info(onchain);
+    let mut unverified_metadata: Vec<String> = Vec::new();
     let mut executable_metadata: Vec<MetadataBlock> = Vec::new();
     for b in chain_blocks.iter().filter(|b| {
         chain_trailing.as_ref().is_some_and(|t| t.start == b.start)
@@ -736,6 +737,42 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
             .map(|(_, op, _)| *op)
             .collect();
         if reached.is_empty() {
+            // Not reached by a constant jump; with computed jumps present,
+            // a JUMPDEST inside followed by an effectful opcode before the
+            // next halt could still be entered
+            if computed_jumps {
+                let ops: Vec<(usize, u8)> = reach
+                    .iter()
+                    .filter(|(pc, _, _)| *pc >= b.start && *pc < b.end)
+                    .map(|(pc, op, _)| (*pc, *op))
+                    .collect();
+                let mut hits: Vec<String> = Vec::new();
+                for (i, (pc, op)) in ops.iter().enumerate() {
+                    if *op != 0x5b {
+                        continue;
+                    }
+                    for (_, next) in &ops[i + 1..] {
+                        if matches!(next, 0x00 | 0xfd | 0xfe) {
+                            break;
+                        }
+                        if EFFECTFUL_OPCODES.contains(next) {
+                            hits.push(format!("JUMPDEST at {pc:#x} then opcode {next:#04x}"));
+                            break;
+                        }
+                        if matches!(next, 0x56 | 0xf3 | 0xff) {
+                            break;
+                        }
+                    }
+                }
+                if !hits.is_empty() {
+                    unverified_metadata.push(format!(
+                        "deployed bytes {:#x}..{:#x} look like compiler metadata, but the code has computed jumps and these bytes hold {}; whether code can jump there is not verified",
+                        b.start,
+                        b.end,
+                        hits.join(", ")
+                    ));
+                }
+            }
             continue;
         }
         let effectful = reached.iter().any(|op| EFFECTFUL_OPCODES.contains(op));
@@ -753,6 +790,12 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
         (
             "exact",
             "Exact match: the deployed code equals the artifact, compiler metadata included (immutables and library addresses masked)".to_string(),
+        )
+    } else if exec_equal && !unverified_metadata.is_empty() {
+        warnings.extend(unverified_metadata.iter().cloned());
+        (
+            "partial_unverified_metadata",
+            "Partial match with unverified metadata: the executable code equals the artifact, but the deployed metadata-looking bytes contain a JUMPDEST followed by effectful opcodes and the code has computed jumps, so they may be reachable. Not a clean partial match, and not verified".to_string(),
         )
     } else if exec_equal {
         (
@@ -923,14 +966,30 @@ pub fn assembly_share(artifact: &Artifact) -> Option<AssemblyShare> {
         return None;
     }
     let mut contracts = Vec::new();
-    for (_, ast) in &artifact.asts {
-        contract_nodes(ast, &mut contracts);
-    }
+    let mut own = Vec::new();
     let name = artifact.contract_name.as_deref()?;
-    let bases: Vec<u64> = contracts
-        .iter()
-        .find(|(_, n, _, _)| n == name)
-        .map(|(_, _, b, _)| b.clone())?;
+    for (_, ast) in &artifact.asts {
+        let mut here = Vec::new();
+        contract_nodes(ast, &mut here);
+        // The matched contract: this name in this artifact's own source file
+        let path_ok = match (&artifact.source_path, ast["absolutePath"].as_str()) {
+            (Some(want), Some(have)) => want == have,
+            _ => artifact.asts.len() == 1,
+        };
+        if path_ok {
+            own.extend(
+                here.iter()
+                    .filter(|(_, n, _, _)| n == name)
+                    .map(|(_, _, b, _)| b.clone()),
+            );
+        }
+        contracts.extend(here);
+    }
+    // Unknown when the name is not found in its file, or found twice
+    if own.len() != 1 {
+        return None;
+    }
+    let bases = own.remove(0);
     let mut spans = Vec::new();
     let mut asm = Vec::new();
     for (id, _, _, node) in &contracts {
@@ -1260,7 +1319,9 @@ mod tests {
     fn honest_metadata_with_a_5b_hash_byte_stays_partial() {
         // Nothing jumps into the metadata: a 0x5b followed by CALLER in the
         // hash is just hash bytes
-        let code = "6080604052600436106000575b00";
+        // No computed jumps (POP instead of JUMPI), so an unreached
+        // 0x5b run in the hash cannot be entered
+        let code = "6080604052600436106000505b00";
         let art = parse_artifact(
             &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
             None,
@@ -1302,13 +1363,64 @@ mod tests {
                 {"nodeType": "FunctionDefinition", "name": "h", "src": "0:100:1", "body": {
                     "nodeType": "InlineAssembly", "src": "10:50:1"}}]}
         ]});
+        let mut ast_a = ast_a;
+        ast_a["absolutePath"] = serde_json::json!("src/A.sol");
         let art = Artifact {
             contract_name: Some("A".into()),
+            source_path: Some("src/A.sol".into()),
             asts: vec![(Some(0), ast_a), (Some(1), ast_other)],
             ..Default::default()
         };
         let share = assembly_share(&art).unwrap();
         assert_eq!(share.blocks, 0);
         assert_eq!(share.function_bytes, 200);
+    }
+
+    #[test]
+    fn same_name_in_another_file_does_not_count() {
+        let a = |path: &str, asm: bool| {
+            serde_json::json!({"nodeType": "SourceUnit", "absolutePath": path, "nodes": [
+                {"nodeType": "ContractDefinition", "id": if asm { 9 } else { 1 }, "name": "A",
+                 "linearizedBaseContracts": [if asm { 9 } else { 1 }], "nodes": [
+                    {"nodeType": "FunctionDefinition", "name": "f", "src": "0:100:0",
+                     "body": if asm { serde_json::json!({"nodeType": "InlineAssembly", "src": "1:50:0"}) } else { serde_json::json!({}) }}]}]})
+        };
+        let mut art = Artifact {
+            contract_name: Some("A".into()),
+            source_path: Some("src/A.sol".into()),
+            asts: vec![
+                (Some(0), a("src/A.sol", false)),
+                (Some(1), a("lib/A.sol", true)),
+            ],
+            ..Default::default()
+        };
+        assert_eq!(assembly_share(&art).unwrap().blocks, 0);
+        // Two definitions in the artifact's own file: unknown
+        art.asts.push((Some(2), a("src/A.sol", true)));
+        assert!(assembly_share(&art).is_none());
+    }
+
+    #[test]
+    fn computed_jump_into_fake_metadata_is_flagged() {
+        // PUSH1 0 CALLDATALOAD JUMP: a computed jump, then STOP
+        let code = "6000355600";
+        let art = parse_artifact(
+            &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        let evil = META.replacen("8b5d96ae", "5b33ff00", 1);
+        let deployed = hex::decode(&with_meta(code, &evil)[2..]).unwrap();
+        let report = match_code(&art, &deployed);
+        assert_eq!(
+            report.verdict, "partial_unverified_metadata",
+            "{:?}",
+            report.warnings
+        );
+        assert!(report.warnings.iter().any(|w| w.contains("computed jumps")));
+        // Honest hash: a 0x5b followed by STOP is not an effectful run
+        let honest = META.replacen("8b5d96ae", "5b00aaaa", 1);
+        let deployed = hex::decode(&with_meta(code, &honest)[2..]).unwrap();
+        assert_eq!(match_code(&art, &deployed).verdict, "partial");
     }
 }

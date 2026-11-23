@@ -640,6 +640,10 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   `create(` ... occurrences than opcode sites (whole words, calls only for
   create/delegatecall/selfdestruct), or a missing `effects` flag, is a
   warning.
+- `match` verdict `partial_unverified_metadata`: executable code equal, but
+  the deployed metadata-looking bytes hold a JUMPDEST followed by an
+  effectful opcode and the code has computed jumps, so entry cannot be ruled
+  out by the static CFG (constant pushes only). TODO: use #312's CFG.
 - Fixture: `tests/fixtures/match/` (a small forge build and a one-line variant).
 
 ### Proxy Detection

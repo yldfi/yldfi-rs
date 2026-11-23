@@ -286,6 +286,20 @@ pub fn linear_sweep(code: &[u8]) -> Vec<(usize, u8)> {
     out
 }
 
+/// The value a PUSH puts on the stack, when it fits in a usize
+fn push_value(code: &[u8], pc: usize, op: u8) -> Option<usize> {
+    let bytes = code.get(pc + 1..pc + 1 + push_size(op))?;
+    let lead = bytes.len().saturating_sub(std::mem::size_of::<usize>());
+    if bytes[..lead].iter().any(|b| *b != 0) {
+        return None;
+    }
+    Some(
+        bytes[lead..]
+            .iter()
+            .fold(0usize, |acc, b| (acc << 8) | *b as usize),
+    )
+}
+
 /// Immediate bytes taken by an opcode
 pub fn push_size(op: u8) -> usize {
     if (0x60..=0x7f).contains(&op) {
@@ -379,6 +393,15 @@ impl CodeView {
 /// fixed point). Computed jump targets are not followed. Returns
 /// (pc, opcode, reached) for every instruction of the EVM's linear sweep.
 pub fn static_reach(code: &[u8]) -> Vec<(usize, u8, bool)> {
+    static_reach_info(code).0
+}
+
+/// `static_reach`, plus whether any reached JUMP/JUMPI takes a target that
+/// is not a constant pushed right before it (a computed jump, whose
+/// destinations this analysis cannot see)
+// TODO(#312): replace with #312's CFG, which resolves computed jumps, so
+// entry into metadata is only reported when it is really possible
+pub fn static_reach_info(code: &[u8]) -> (Vec<(usize, u8, bool)>, bool) {
     use std::collections::HashSet;
     let sweep = linear_sweep(code);
     let jumpdests: HashSet<usize> = sweep
@@ -396,10 +419,8 @@ pub fn static_reach(code: &[u8]) -> Vec<(usize, u8, bool)> {
                 live = true;
             }
             out.push((*pc, *op, live));
-            if live && (0x60..=0x63).contains(op) {
-                let n = push_size(*op);
-                if let Some(bytes) = code.get(pc + 1..pc + 1 + n) {
-                    let v = bytes.iter().fold(0usize, |acc, b| (acc << 8) | *b as usize);
+            if live && (0x60..=0x7f).contains(op) {
+                if let Some(v) = push_value(code, *pc, *op) {
                     if jumpdests.contains(&v) {
                         found.insert(v);
                     }
@@ -410,7 +431,18 @@ pub fn static_reach(code: &[u8]) -> Vec<(usize, u8, bool)> {
             }
         }
         if found.len() == targets.len() {
-            return out;
+            // A reached jump not directly preceded by a PUSH of a valid
+            // JUMPDEST is computed
+            let computed = out.iter().enumerate().any(|(i, (_, op, live))| {
+                *live
+                    && matches!(op, 0x56 | 0x57)
+                    && !(i > 0 && {
+                        let (ppc, pop, _) = out[i - 1];
+                        (0x60..=0x7f).contains(&pop)
+                            && push_value(code, ppc, pop).is_some_and(|v| jumpdests.contains(&v))
+                    })
+            });
+            return (out, computed);
         }
         targets = found;
     }
