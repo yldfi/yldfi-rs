@@ -10,6 +10,10 @@ struct GitHubRelease {
     tag_name: String,
     html_url: String,
     assets: Vec<GitHubAsset>,
+    #[serde(default)]
+    draft: bool,
+    #[serde(default)]
+    prerelease: bool,
 }
 
 #[derive(Deserialize)]
@@ -59,15 +63,14 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
 
     // Filter for ethcli-specific releases (tag_name starts with "ethcli-v")
     let releases: Vec<GitHubRelease> = response.json().await?;
-    let release = releases
-        .into_iter()
-        .find(|r| r.tag_name.starts_with(RELEASE_TAG_PREFIX))
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "No ethcli releases found. Check manually: https://github.com/{}/releases",
-                REPO
-            )
-        })?;
+    // GitHub does not list releases in version order, so take the highest
+    // published ethcli version rather than the first one listed
+    let release = newest_ethcli_release(releases).ok_or_else(|| {
+        anyhow::anyhow!(
+            "No ethcli releases found. Check manually: https://github.com/{}/releases",
+            REPO
+        )
+    })?;
     let latest_version_str = release.tag_name.trim_start_matches(RELEASE_TAG_PREFIX);
 
     println!("Current version: v{}", CURRENT_VERSION);
@@ -265,6 +268,20 @@ pub async fn handle(install: bool, quiet: bool) -> anyhow::Result<()> {
 
 /// Download a checksum file. Any non-success status is an error: a listed
 /// checksum that can't be fetched must abort the install, never skip verification.
+/// The published (non-draft, non-prerelease) ethcli release with the highest
+/// version
+fn newest_ethcli_release(releases: Vec<GitHubRelease>) -> Option<GitHubRelease> {
+    releases
+        .into_iter()
+        .filter(|r| !r.draft && !r.prerelease)
+        .filter_map(|r| {
+            let version = Version::parse(r.tag_name.strip_prefix(RELEASE_TAG_PREFIX)?).ok()?;
+            Some((version, r))
+        })
+        .max_by(|a, b| a.0.cmp(&b.0))
+        .map(|(_, r)| r)
+}
+
 async fn fetch_checksum(client: &reqwest::Client, url: &str) -> anyhow::Result<String> {
     let response = client
         .get(url)
@@ -943,5 +960,38 @@ mod tests {
         std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
         assert!(verify_installed(&bin, "0.0.0").is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod newest_release_tests {
+    use super::*;
+
+    fn release(tag: &str, draft: bool) -> GitHubRelease {
+        GitHubRelease {
+            tag_name: tag.to_string(),
+            html_url: String::new(),
+            assets: Vec::new(),
+            draft,
+            prerelease: false,
+        }
+    }
+
+    #[test]
+    fn picks_highest_version_not_first_listed() {
+        // The order GitHub returned on 2026-11-23: 0.30.9 before 0.30.10
+        let releases = vec![
+            release("ethcli-mcp-v0.6.11", false),
+            release("ethcli-v0.30.9", false),
+            release("ethcli-v0.30.8", false),
+            release("ethcli-v0.30.10", false),
+            release("ethcli-v0.31.0", true),
+            release("ethcli-vnot-a-version", false),
+        ];
+        assert_eq!(
+            newest_ethcli_release(releases).unwrap().tag_name,
+            "ethcli-v0.30.10"
+        );
+        assert!(newest_ethcli_release(vec![release("ethcli-mcp-v1.0.0", false)]).is_none());
     }
 }
