@@ -20,7 +20,7 @@ use futures::StreamExt;
 use serde::Serialize;
 use std::collections::HashMap;
 use uniswap_v4_sdk::prelude::sdk_core::addresses::{ChainAddresses, CHAIN_TO_ADDRESSES_MAP};
-use uniswap_v4_sdk::prelude::sdk_core::prelude::{BaseCurrency, BaseCurrencyCore, FractionBase};
+use uniswap_v4_sdk::prelude::sdk_core::prelude::FractionBase;
 
 sol! {
     #[sol(rpc)]
@@ -32,13 +32,37 @@ sol! {
             uint128 amount1Max;
         }
         function ownerOf(uint256 tokenId) external view returns (address);
+        function factory() external view returns (address);
         function positions(uint256 tokenId) external view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1);
         function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
     }
 
     #[sol(rpc)]
+    interface IUniswapV3FactoryLite {
+        function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address);
+    }
+
+    #[sol(rpc)]
+    interface IUniswapV3PoolLite {
+        function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked);
+        function liquidity() external view returns (uint128);
+        function feeGrowthGlobal0X128() external view returns (uint256);
+        function feeGrowthGlobal1X128() external view returns (uint256);
+        function ticks(int24 tick) external view returns (uint128 liquidityGross, int128 liquidityNet, uint256 feeGrowthOutside0X128, uint256 feeGrowthOutside1X128, int56 tickCumulativeOutside, uint160 secondsPerLiquidityOutsideX128, uint32 secondsOutside, bool initialized);
+    }
+
+    #[sol(rpc)]
     interface IV4PositionManagerLite {
+        struct PoolKey {
+            address currency0;
+            address currency1;
+            uint24 fee;
+            int24 tickSpacing;
+            address hooks;
+        }
         function ownerOf(uint256 tokenId) external view returns (address);
+        function getPoolAndPositionInfo(uint256 tokenId) external view returns (PoolKey memory poolKey, uint256 info);
+        function getPositionLiquidity(uint256 tokenId) external view returns (uint128 liquidity);
     }
 
     #[sol(rpc)]
@@ -54,8 +78,15 @@ sol! {
 /// v4 pools with this fee value read their LP fee from slot0 (dynamic fee)
 const DYNAMIC_FEE_FLAG: u32 = 0x80_0000;
 
+/// Multicall3, at the same address on every chain that has it
+const MULTICALL3: Address =
+    alloy::primitives::address!("0xcA11bde05977b3631167028862bE2a173976CA11");
+
+/// DefiLlama search window for historical prices
+const HISTORICAL_SEARCH_WIDTH: &str = "4h";
+
 /// Concurrent position valuations when listing an owner's positions
-const LIST_CONCURRENCY: usize = 4;
+const LIST_CONCURRENCY: usize = 2;
 
 /// Uniswap version of an NFT position
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
@@ -242,6 +273,9 @@ pub struct LpPosition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fee_cross_check: Option<FeeCrossCheck>,
     pub prices: Vec<TokenPrice>,
+    /// "latest" (current prices) or the block's UTC time (historical prices
+    /// from DefiLlama when --block is given); null with --no-price
+    pub prices_at: Option<String>,
     pub value_usd: UsdValue,
     /// How the amounts and fees were computed
     pub method: String,
@@ -377,11 +411,34 @@ struct Ctx {
     provider: DynProvider,
     chain: crate::config::Chain,
     block: u64,
+    /// The block was given with --block (so prices should be historical)
+    historical: bool,
 }
 
 impl Ctx {
     fn block_id(&self) -> BlockId {
         BlockId::number(self.block)
+    }
+
+    /// Whether Multicall3 has code at this block
+    async fn has_multicall3(&self) -> anyhow::Result<bool> {
+        let code = self
+            .provider
+            .get_code_at(MULTICALL3)
+            .block_id(self.block_id())
+            .await
+            .map_err(rpc_err)?;
+        Ok(!code.is_empty())
+    }
+
+    async fn block_timestamp(&self) -> anyhow::Result<u64> {
+        let b = self
+            .provider
+            .get_block_by_number(self.block.into())
+            .await
+            .map_err(rpc_err)?
+            .ok_or_else(|| anyhow::anyhow!("block {} not found", self.block))?;
+        Ok(b.header.timestamp)
     }
 
     fn addresses(&self) -> anyhow::Result<&'static ChainAddresses> {
@@ -405,6 +462,7 @@ async fn connect(rpc_arg: Option<&str>, chain: &str, block: Option<u64>) -> anyh
                 .map_err(|_| anyhow::anyhow!("Invalid RPC URL for {chain}"))?,
         )
         .erased();
+    let historical = block.is_some();
     let block = match block {
         Some(b) => b,
         None => provider.get_block_number().await.map_err(rpc_err)?,
@@ -413,6 +471,7 @@ async fn connect(rpc_arg: Option<&str>, chain: &str, block: Option<u64>) -> anyh
         provider,
         chain,
         block,
+        historical,
     })
 }
 
@@ -425,7 +484,18 @@ async fn raw_call(ctx: &Ctx, to: Address, selector: [u8; 4]) -> Option<alloy::pr
     let tx = alloy::rpc::types::TransactionRequest::default()
         .to(to)
         .input(alloy::primitives::Bytes::copy_from_slice(&selector).into());
-    ctx.provider.call(tx).block(ctx.block_id()).await.ok()
+    // Retry briefly: shared endpoints may rate-limit when many positions are
+    // valued at once. A revert is final.
+    for attempt in 0..3u64 {
+        match ctx.provider.call(tx.clone()).block(ctx.block_id()).await {
+            Ok(b) => return Some(b),
+            Err(e) if is_revert(&e) => return None,
+            Err(_) => {
+                tokio::time::sleep(std::time::Duration::from_millis(300 * (attempt + 1))).await
+            }
+        }
+    }
+    None
 }
 
 async fn erc20_symbol(ctx: &Ctx, token: Address) -> String {
@@ -480,12 +550,12 @@ fn bigint_to_u256(v: impl ToString) -> anyhow::Result<U256> {
 // ---------------------------------------------------------------------------
 
 async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
-    use uniswap_v3_sdk::extensions::{get_collectable_token_amounts, get_position};
+    use uniswap_v3_sdk::prelude::{get_tokens_owed, FeeAmount, Pool, Position};
+    use uniswap_v4_sdk::prelude::sdk_core::prelude::Token;
 
     let addrs = ctx.addresses()?;
     let npm = addrs.nonfungible_position_manager;
     let chain_id = ctx.chain.chain_id();
-    let bid = Some(ctx.block_id());
 
     let npm_c = INonfungiblePositionManagerLite::new(npm, ctx.provider.clone());
     let owner = match npm_c.ownerOf(token_id).block(ctx.block_id()).call().await {
@@ -504,25 +574,78 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         U256::from(raw_pos.tokensOwed1),
     );
 
-    let pos = get_position(chain_id, npm, token_id, ctx.provider.clone(), bid)
+    let (t0, t1) = (raw_pos.token0, raw_pos.token1);
+    let fee: u32 = raw_pos.fee.to::<u32>();
+    let (tl, tu) = (raw_pos.tickLower.as_i32(), raw_pos.tickUpper.as_i32());
+
+    // The pool, from the chain's real factory (the NPM's factory())
+    let factory = npm_c
+        .factory()
+        .block(ctx.block_id())
+        .call()
         .await
-        .map_err(|e| rpc_err(format!("v3 position {token_id}: {e}")))?;
+        .map_err(rpc_err)?;
+    let pool_addr = IUniswapV3FactoryLite::new(factory, ctx.provider.clone())
+        .getPool(t0, t1, raw_pos.fee)
+        .block(ctx.block_id())
+        .call()
+        .await
+        .map_err(rpc_err)?;
+    if pool_addr == Address::ZERO {
+        anyhow::bail!("v3 position {token_id}: factory has no pool for its tokens and fee");
+    }
+    let pool_c = IUniswapV3PoolLite::new(pool_addr, ctx.provider.clone());
+    let b = ctx.block_id();
+    let (slot0, pool_liq, g0, g1, lower, upper, d0, d1, s0, s1) = tokio::join!(
+        async { pool_c.slot0().block(b).call().await },
+        async { pool_c.liquidity().block(b).call().await },
+        async { pool_c.feeGrowthGlobal0X128().block(b).call().await },
+        async { pool_c.feeGrowthGlobal1X128().block(b).call().await },
+        async { pool_c.ticks(raw_pos.tickLower).block(b).call().await },
+        async { pool_c.ticks(raw_pos.tickUpper).block(b).call().await },
+        erc20_decimals(ctx, t0),
+        erc20_decimals(ctx, t1),
+        erc20_symbol(ctx, t0),
+        erc20_symbol(ctx, t1),
+    );
+    let slot0 = slot0.map_err(rpc_err)?;
+    let (lower, upper) = (lower.map_err(rpc_err)?, upper.map_err(rpc_err)?);
+    let (g0, g1) = (g0.map_err(rpc_err)?, g1.map_err(rpc_err)?);
+    let (d0, d1) = (d0?, d1?);
+    let tokens = vec![erc20_info(t0, s0, d0), erc20_info(t1, s1, d1)];
 
-    let t0 = pos.pool.token0.address();
-    let t1 = pos.pool.token1.address();
-    let (s0, s1) = tokio::join!(erc20_symbol(ctx, t0), erc20_symbol(ctx, t1));
-    let tokens = vec![
-        erc20_info(t0, s0, pos.pool.token0.decimals),
-        erc20_info(t1, s1, pos.pool.token1.decimals),
-    ];
-
+    // Amounts: uniswap-v3-sdk Position on a Pool built from these reads
+    let pool = Pool::new(
+        Token::new(chain_id, t0, d0, None, None, 0, 0),
+        Token::new(chain_id, t1, d1, None, None, 0, 0),
+        FeeAmount::from(fee),
+        slot0.sqrtPriceX96,
+        pool_liq.map_err(rpc_err)?,
+    )
+    .map_err(|e| anyhow::anyhow!("v3 position {token_id}: {e}"))?;
+    let pos = Position::new(pool, raw_pos.liquidity, tl, tu);
     let a0 = bigint_to_u256(pos.amount0().map_err(rpc_err)?.quotient())?;
     let a1 = bigint_to_u256(pos.amount1().map_err(rpc_err)?.quotient())?;
+    let tick = slot0.tick.as_i32();
 
-    // Fees, two ways
-    let growth = get_collectable_token_amounts(npm, token_id, ctx.provider.clone(), bid)
-        .await
-        .map_err(|e| rpc_err(format!("v3 fee growth {token_id}: {e}")))?;
+    // Fees, two ways: pool fee growth (the same maths as the SDK's
+    // get_collectable_token_amounts) and the collect eth_call
+    let (in0, in1) = fee_growth_inside(
+        tick,
+        tl,
+        tu,
+        (g0, g1),
+        (lower.feeGrowthOutside0X128, lower.feeGrowthOutside1X128),
+        (upper.feeGrowthOutside0X128, upper.feeGrowthOutside1X128),
+    );
+    let (n0, n1) = get_tokens_owed(
+        raw_pos.feeGrowthInside0LastX128,
+        raw_pos.feeGrowthInside1LastX128,
+        raw_pos.liquidity,
+        in0,
+        in1,
+    );
+    let growth = (owed_raw.0 + n0, owed_raw.1 + n1);
     let collect = npm_c
         .collect(INonfungiblePositionManagerLite::CollectParams {
             tokenId: token_id,
@@ -539,15 +662,10 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
     let (collectable, cross) = v3_reconcile_fees(growth, collect, &tokens);
     let (fees_raw, owed) = split_collectable(collectable, owed_raw);
 
-    let tick = pos.pool.tick_current;
-    let fee_u24: alloy::primitives::aliases::U24 = pos.pool.fee.into();
-    let fee: u32 = fee_u24.to::<u32>();
-    let pool_addr = pos.pool.address(None, None);
-
     let method = if cross.authoritative == "collect_eth_call" {
-        "amounts: uniswap-v3-sdk get_position (liquidity at the current sqrt price); collectable total: eth_call of NonfungiblePositionManager.collect(tokenId, owner, max, max) from the owner, cross-checked against tokensOwed + pool fee growth (get_collectable_token_amounts); fees = collectable - tokensOwed, tokens_owed = tokensOwed, each counted once".to_string()
+        "amounts: uniswap-v3-sdk Position on the pool read from the chain's factory (liquidity at the current sqrt price); collectable total: eth_call of NonfungiblePositionManager.collect(tokenId, owner, max, max) from the owner, cross-checked against tokensOwed + pool fee growth inside the range x liquidity; fees = collectable - tokensOwed, tokens_owed = tokensOwed, each counted once".to_string()
     } else {
-        "amounts: uniswap-v3-sdk get_position (liquidity at the current sqrt price); fees: pool fee growth since the last liquidity change (get_collectable_token_amounts - tokensOwed); tokens_owed = tokensOwed; the collect eth_call failed".to_string()
+        "amounts: uniswap-v3-sdk Position on the pool read from the chain's factory (liquidity at the current sqrt price); fees: pool fee growth inside the range since the last liquidity change x liquidity; tokens_owed = tokensOwed; the collect eth_call failed".to_string()
     };
 
     Ok(LpPosition {
@@ -570,20 +688,60 @@ async fn value_v3(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         ]),
         fee_cross_check: Some(cross),
         prices: Vec::new(),
+        prices_at: None,
         value_usd: UsdValue::default(),
         fee_tier: Some(fee),
         fee_pct: Some(fee_pct(fee)),
-        tick_lower: Some(pos.tick_lower),
-        tick_upper: Some(pos.tick_upper),
+        tick_lower: Some(tl),
+        tick_upper: Some(tu),
         tick_current: Some(tick),
-        in_range: Some(in_range(tick, pos.tick_lower, pos.tick_upper)),
-        liquidity: pos.liquidity.to_string(),
+        in_range: Some(in_range(tick, tl, tu)),
+        liquidity: raw_pos.liquidity.to_string(),
         lp_total_supply: None,
         pool_share_pct: None,
         tokens,
         method,
         notes: Vec::new(),
     })
+}
+
+/// Ticks from a v4 PositionInfo word: tickLower at bits 8..32, tickUpper at
+/// bits 32..56 (v4-periphery PositionInfoLibrary)
+pub fn decode_v4_position_info(info: U256) -> (i32, i32) {
+    let int24 = |shift: usize| -> i32 {
+        let raw = ((info >> shift) & U256::from(0xFF_FFFFu32)).to::<u32>();
+        ((raw << 8) as i32) >> 8
+    };
+    (int24(8), int24(32))
+}
+
+/// Fee growth inside [tick_lower, tick_upper), as Uniswap's Tick library
+/// computes it (wrapping subtraction is intended)
+pub fn fee_growth_inside(
+    tick: i32,
+    tick_lower: i32,
+    tick_upper: i32,
+    global: (U256, U256),
+    lower_outside: (U256, U256),
+    upper_outside: (U256, U256),
+) -> (U256, U256) {
+    let one = |g: U256, lo: U256, up: U256| -> U256 {
+        let below = if tick >= tick_lower {
+            lo
+        } else {
+            g.wrapping_sub(lo)
+        };
+        let above = if tick < tick_upper {
+            up
+        } else {
+            g.wrapping_sub(up)
+        };
+        g.wrapping_sub(below).wrapping_sub(above)
+    };
+    (
+        one(global.0, lower_outside.0, upper_outside.0),
+        one(global.1, lower_outside.1, upper_outside.1),
+    )
 }
 
 /// Split what `collect` would pay into fees earned since the last liquidity
@@ -645,8 +803,9 @@ pub fn v3_reconcile_fees(
 }
 
 async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
-    use uniswap_v4_sdk::extensions::{get_position, PoolManagerLens};
-    use uniswap_v4_sdk::prelude::calculate_position_key;
+    use uniswap_v4_sdk::extensions::PoolManagerLens;
+    use uniswap_v4_sdk::prelude::sdk_core::prelude::{Currency, Ether, Token};
+    use uniswap_v4_sdk::prelude::{calculate_position_key, Pool, Position};
 
     let addrs = ctx.addresses()?;
     let (pm, manager) = match (addrs.v4_position_manager, addrs.v4_pool_manager) {
@@ -656,29 +815,64 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
     let chain_id = ctx.chain.chain_id();
     let bid = Some(ctx.block_id());
 
-    let owner = match IV4PositionManagerLite::new(pm, ctx.provider.clone())
-        .ownerOf(token_id)
-        .block(ctx.block_id())
-        .call()
-        .await
-    {
+    let pm_c = IV4PositionManagerLite::new(pm, ctx.provider.clone());
+    let owner = match pm_c.ownerOf(token_id).block(ctx.block_id()).call().await {
         Ok(o) => o,
         Err(e) if is_revert(&e) => return Err(not_found(token_id)),
         Err(e) => return Err(rpc_err(e)),
     };
-    let pos = get_position(chain_id, pm, token_id, ctx.provider.clone(), bid)
-        .await
-        .map_err(|e| rpc_err(format!("v4 position {token_id}: {e}")))?;
+    let b = ctx.block_id();
+    let (info, pos_liq) = tokio::join!(
+        async { pm_c.getPoolAndPositionInfo(token_id).block(b).call().await },
+        async { pm_c.getPositionLiquidity(token_id).block(b).call().await },
+    );
+    let info = info.map_err(rpc_err)?;
+    let pos_liq = pos_liq.map_err(rpc_err)?;
+    let key = info.poolKey;
+    let (tl, tu) = decode_v4_position_info(info.info);
 
+    // Currencies (decimals and symbols read here; the SDK's own token
+    // metadata read cannot decode bytes32 symbols)
     let mut tokens = Vec::with_capacity(2);
-    for c in [&pos.pool.currency0, &pos.pool.currency1] {
-        if c.is_native() {
+    let mut currencies = Vec::with_capacity(2);
+    for a in [key.currency0, key.currency1] {
+        if a == Address::ZERO {
             tokens.push(native_info(ctx.chain));
+            currencies.push(Currency::NativeCurrency(Ether::on_chain(chain_id)));
         } else {
-            let a = c.address();
-            tokens.push(erc20_info(a, erc20_symbol(ctx, a).await, c.decimals()));
+            let d = erc20_decimals(ctx, a).await?;
+            tokens.push(erc20_info(a, erc20_symbol(ctx, a).await, d));
+            currencies.push(Currency::Token(Token::new(
+                chain_id, a, d, None, None, 0, 0,
+            )));
         }
     }
+    let lens = PoolManagerLens::new(manager, ctx.provider.clone());
+    let pool_id = Pool::get_pool_id(
+        &currencies[0],
+        &currencies[1],
+        key.fee,
+        key.tickSpacing.as_i32(),
+        key.hooks,
+    )
+    .map_err(|e| anyhow::anyhow!("v4 position {token_id}: {e}"))?;
+    let (slot0, pool_liq) = tokio::join!(
+        lens.get_slot0(pool_id, bid),
+        lens.get_liquidity(pool_id, bid)
+    );
+    let (sqrt_price, tick_now, _, lp_fee) = slot0.map_err(rpc_err)?;
+    let mut c = currencies.into_iter();
+    let pool = Pool::new(
+        c.next().expect("two currencies"),
+        c.next().expect("two currencies"),
+        key.fee,
+        key.tickSpacing.as_i32(),
+        key.hooks,
+        sqrt_price,
+        pool_liq.map_err(rpc_err)?,
+    )
+    .map_err(|e| anyhow::anyhow!("v4 position {token_id}: {e}"))?;
+    let pos = Position::new(pool, pos_liq, tl, tu);
 
     let a0 = bigint_to_u256(pos.amount0().map_err(rpc_err)?.quotient())?;
     let a1 = bigint_to_u256(pos.amount1().map_err(rpc_err)?.quotient())?;
@@ -686,16 +880,14 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
     // Uncollected fees from the PoolManager position (owner = PositionManager,
     // salt = tokenId)
     let lens = PoolManagerLens::new(manager, ctx.provider.clone());
-    let pool_id = pos.pool.pool_id;
-    let (tl, tu) = (pos.tick_lower, pos.tick_upper);
-    let key = calculate_position_key(
+    let pkey = calculate_position_key(
         pm,
         I24::try_from(tl).map_err(|e| anyhow::anyhow!("tick {tl}: {e}"))?,
         I24::try_from(tu).map_err(|e| anyhow::anyhow!("tick {tu}: {e}"))?,
         B256::from(token_id),
     );
     let (liq, last0, last1) = lens
-        .get_position_info(pool_id, key, bid)
+        .get_position_info(pool_id, pkey, bid)
         .await
         .map_err(rpc_err)?;
     let (in0, in1) = lens
@@ -712,22 +904,21 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         ));
     }
 
-    let declared_fee = pos.pool.fee.to::<u32>();
+    let declared_fee = key.fee.to::<u32>();
     let fee = if declared_fee == DYNAMIC_FEE_FLAG {
-        let (_, _, _, lp_fee) = lens.get_slot0(pool_id, bid).await.map_err(rpc_err)?;
         notes.push("dynamic-fee pool: fee_tier is the current LP fee from slot0".into());
         lp_fee.to::<u32>()
     } else {
         declared_fee
     };
 
-    let hooks = pos.pool.hooks;
-    let mut method = "amounts: uniswap-v4-sdk get_position (liquidity at the current sqrt price); fees: PoolManager fee growth inside the range minus the position's feeGrowthInsideLast (PoolManagerLens get_fee_growth_inside / get_position_info), times liquidity".to_string();
+    let hooks = key.hooks;
+    let mut method = "amounts: uniswap-v4-sdk Position on the pool read from the PositionManager and PoolManager (liquidity at the current sqrt price); fees: PoolManager fee growth inside the range minus the position's feeGrowthInsideLast (PoolManagerLens get_fee_growth_inside / get_position_info), times liquidity".to_string();
     if hooks != Address::ZERO {
         method.push_str("; hooked pool: hooks can take or add value outside the PoolManager fee growth, which this does not include");
     }
 
-    let tick = pos.pool.tick_current;
+    let tick = tick_now.as_i32();
     Ok(LpPosition {
         protocol: "uniswap-v4".into(),
         chain: ctx.chain.name().to_string(),
@@ -745,6 +936,7 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
         tokens_owed: None,
         fee_cross_check: None,
         prices: Vec::new(),
+        prices_at: None,
         value_usd: UsdValue::default(),
         fee_tier: Some(fee),
         fee_pct: Some(fee_pct(fee)),
@@ -763,22 +955,43 @@ async fn value_v4(ctx: &Ctx, token_id: U256) -> anyhow::Result<LpPosition> {
 
 async fn value_v2(ctx: &Ctx, pair: Address, owner: Address) -> anyhow::Result<LpPosition> {
     let p = IUniswapV2PairLite::new(pair, ctx.provider.clone());
-    let (balance, total_supply, reserves, t0, t1) = ctx
-        .provider
-        .multicall()
-        .add(p.balanceOf(owner))
-        .add(p.totalSupply())
-        .add(p.getReserves())
-        .add(p.token0())
-        .add(p.token1())
-        .block(ctx.block_id())
-        .aggregate()
-        .await
-        .map_err(|e| {
-            rpc_err(format!(
-                "{pair:#x} does not answer as a Uniswap v2-style pair: {e}"
-            ))
-        })?;
+    let not_pair = |e: String| {
+        rpc_err(format!(
+            "{pair:#x} does not answer as a Uniswap v2-style pair: {e}"
+        ))
+    };
+    let via_multicall = ctx.has_multicall3().await?;
+    let (balance, total_supply, reserves, t0, t1) = if via_multicall {
+        ctx.provider
+            .multicall()
+            .add(p.balanceOf(owner))
+            .add(p.totalSupply())
+            .add(p.getReserves())
+            .add(p.token0())
+            .add(p.token1())
+            .block(ctx.block_id())
+            .aggregate()
+            .await
+            .map_err(|e| not_pair(e.to_string()))?
+    } else {
+        // Before Multicall3 existed: the same five reads, one by one
+        let b = ctx.block_id();
+        let (bal, ts, r, a, c) = tokio::join!(
+            async { p.balanceOf(owner).block(b).call().await },
+            async { p.totalSupply().block(b).call().await },
+            async { p.getReserves().block(b).call().await },
+            async { p.token0().block(b).call().await },
+            async { p.token1().block(b).call().await },
+        );
+        let f = |e: alloy::contract::Error| not_pair(e.to_string());
+        (
+            bal.map_err(f)?,
+            ts.map_err(f)?,
+            r.map_err(f)?,
+            a.map_err(f)?,
+            c.map_err(f)?,
+        )
+    };
     let r0 = U256::from(reserves.reserve0);
     let r1 = U256::from(reserves.reserve1);
     let (a0, a1) = v2_share(balance, total_supply, r0, r1)?;
@@ -807,6 +1020,7 @@ async fn value_v2(ctx: &Ctx, pair: Address, owner: Address) -> anyhow::Result<Lp
         tokens_owed: None,
         fee_cross_check: None,
         prices: Vec::new(),
+        prices_at: None,
         value_usd: UsdValue::default(),
         fee_tier: None,
         fee_pct: None,
@@ -819,7 +1033,12 @@ async fn value_v2(ctx: &Ctx, pair: Address, owner: Address) -> anyhow::Result<Lp
         pool_share_pct: Some(share_pct),
         tokens,
         method: format!(
-            "v2-style pair ({pair_symbol}): one multicall of balanceOf(owner), totalSupply(), getReserves(), token0(), token1(); amounts = reserves x balance / totalSupply. Swap fees are compounded into the reserves, so there are no separate uncollected fees"
+            "v2-style pair ({pair_symbol}): {} of balanceOf(owner), totalSupply(), getReserves(), token0(), token1(); amounts = reserves x balance / totalSupply. Swap fees are compounded into the reserves, so there are no separate uncollected fees",
+            if via_multicall {
+                "one multicall"
+            } else {
+                "individual calls (Multicall3 did not exist at this block)"
+            }
         ),
         notes: vec![
             "Only LP tokens held directly by the owner are counted (not LP tokens staked in a farm or gauge)".into(),
@@ -830,7 +1049,8 @@ async fn value_v2(ctx: &Ctx, pair: Address, owner: Address) -> anyhow::Result<Lp
 
 /// Fetch USD prices for every distinct token across `positions` and fill
 /// `prices` and `value_usd`.
-async fn price_positions(positions: &mut [LpPosition], chain: &str) {
+async fn price_positions(positions: &mut [LpPosition], ctx: &Ctx) {
+    let chain = ctx.chain.name();
     let mut keys: Vec<String> = positions
         .iter()
         .flat_map(|p| p.tokens.iter().map(|t| t.price_key.clone()))
@@ -838,6 +1058,95 @@ async fn price_positions(positions: &mut [LpPosition], chain: &str) {
     keys.sort();
     keys.dedup();
 
+    let (map, prices_at) = if ctx.historical {
+        match ctx.block_timestamp().await {
+            Ok(ts) => (
+                historical_prices(&keys, chain, ts).await,
+                crate::rpc::block_time::format_timestamp(ts),
+            ),
+            Err(e) => {
+                eprintln!(
+                    "Warning: no block time for historical prices ({e}); USD values left out"
+                );
+                (HashMap::new(), "unavailable".to_string())
+            }
+        }
+    } else {
+        (current_prices(&keys, chain).await, "latest".to_string())
+    };
+
+    for p in positions.iter_mut() {
+        p.prices = p
+            .tokens
+            .iter()
+            .map(|t| {
+                let (usd, source) = map.get(&t.price_key).cloned().unwrap_or((None, None));
+                TokenPrice {
+                    symbol: t.symbol.clone(),
+                    usd,
+                    source,
+                }
+            })
+            .collect();
+        p.prices_at = Some(prices_at.clone());
+        apply_usd(p);
+    }
+}
+
+type PriceMap = HashMap<String, (Option<f64>, Option<String>)>;
+
+/// Prices at a past time from DefiLlama, as `price --at` does
+async fn historical_prices(keys: &[String], chain: &str, ts: u64) -> PriceMap {
+    let llama_chain = crate::aggregator::chain_map::normalize_chain_for_source("llama", chain);
+    let tokens: Vec<(String, dllma::coins::Token)> = keys
+        .iter()
+        .map(|k| {
+            let t = if k.starts_with("0x") {
+                dllma::coins::Token::new(llama_chain.clone(), k)
+            } else {
+                dllma::coins::Token::coingecko(crate::aggregator::price::symbol_to_coingecko_id(k))
+            };
+            (k.clone(), t)
+        })
+        .collect();
+    let mut map = PriceMap::new();
+    let client = match crate::aggregator::price::get_llama_client() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Warning: DefiLlama client error ({e}); USD values left out");
+            return map;
+        }
+    };
+    let list: Vec<dllma::coins::Token> = tokens.iter().map(|(_, t)| t.clone()).collect();
+    match client
+        .coins()
+        .historical_with_search_width(ts, &list, HISTORICAL_SEARCH_WIDTH)
+        .await
+    {
+        Ok(resp) => {
+            for (k, t) in &tokens {
+                let entry = resp.coins.get(&t.format()).map(|c| {
+                    let at = c.timestamp.unwrap_or(ts);
+                    (
+                        Some(c.price),
+                        Some(format!(
+                            "defillama at {} ({:+} s from the block)",
+                            crate::rpc::block_time::format_timestamp(at),
+                            at as i64 - ts as i64
+                        )),
+                    )
+                });
+                map.insert(k.clone(), entry.unwrap_or((None, None)));
+            }
+        }
+        Err(e) => {
+            eprintln!("Warning: DefiLlama historical prices failed ({e}); USD values left out")
+        }
+    }
+    map
+}
+
+async fn current_prices(keys: &[String], chain: &str) -> PriceMap {
     let fetched = futures::future::join_all(keys.iter().map(|k| async move {
         let r = crate::aggregator::price::fetch_prices_all(k, chain).await;
         let agg = &r.aggregated;
@@ -857,23 +1166,7 @@ async fn price_positions(positions: &mut [LpPosition], chain: &str) {
         (k.clone(), price)
     }))
     .await;
-    let map: HashMap<String, (Option<f64>, Option<String>)> = fetched.into_iter().collect();
-
-    for p in positions.iter_mut() {
-        p.prices = p
-            .tokens
-            .iter()
-            .map(|t| {
-                let (usd, source) = map.get(&t.price_key).cloned().unwrap_or((None, None));
-                TokenPrice {
-                    symbol: t.symbol.clone(),
-                    usd,
-                    source,
-                }
-            })
-            .collect();
-        apply_usd(p);
-    }
+    fetched.into_iter().collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -977,6 +1270,9 @@ fn print_table(p: &LpPosition) {
             ),
         }
     }
+    if let Some(at) = p.prices_at.as_deref().filter(|a| *a != "latest") {
+        println!("  prices at    {at}");
+    }
     for pr in &p.prices {
         if let Some(usd) = pr.usd {
             println!(
@@ -1011,7 +1307,30 @@ fn print_table(p: &LpPosition) {
     }
 }
 
-fn emit(positions: &[LpPosition], single: bool, format: OutputFormat) -> anyhow::Result<()> {
+/// A position `lp-positions` could not value
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct FailedPosition {
+    pub token_id: String,
+    pub error: String,
+}
+
+/// Total of `value_usd.total` across positions; None when any position has
+/// no total, nothing was priced, or any position failed
+pub fn list_total(positions: &[LpPosition], failed: &[FailedPosition]) -> Option<f64> {
+    if !failed.is_empty() || positions.iter().any(|p| p.prices.is_empty()) {
+        return None;
+    }
+    positions.iter().map(|p| p.value_usd.total).sum()
+}
+
+/// `nft_count` is Some for `lp-positions` (a list), None for one position
+fn emit(
+    positions: &[LpPosition],
+    failed: &[FailedPosition],
+    nft_count: Option<usize>,
+    format: OutputFormat,
+) -> anyhow::Result<()> {
+    let single = nft_count.is_none();
     match format {
         OutputFormat::Table => {
             if positions.is_empty() {
@@ -1023,15 +1342,21 @@ fn emit(positions: &[LpPosition], single: bool, format: OutputFormat) -> anyhow:
                 }
                 print_table(p);
             }
-            if !single && positions.len() > 1 {
-                let totals: Vec<Option<f64>> =
-                    positions.iter().map(|p| p.value_usd.total).collect();
-                if totals.iter().all(|t| t.is_some()) && !positions[0].prices.is_empty() {
-                    let sum: f64 = totals.iter().flatten().sum();
-                    println!(
+            if !single {
+                for f in failed {
+                    println!("\nFAILED position {}: {}", f.token_id, f.error);
+                }
+                match list_total(positions, failed) {
+                    Some(sum) if !positions.is_empty() => println!(
                         "\nTotal value: ${sum:.2} across {} positions",
                         positions.len()
-                    );
+                    ),
+                    _ if !failed.is_empty() => println!(
+                        "\nINCOMPLETE: {} of {} positions could not be valued; no total",
+                        failed.len(),
+                        positions.len() + failed.len()
+                    ),
+                    _ => {}
                 }
             }
         }
@@ -1039,18 +1364,28 @@ fn emit(positions: &[LpPosition], single: bool, format: OutputFormat) -> anyhow:
             for p in positions {
                 println!("{}", serde_json::to_string(p)?);
             }
+            if !single {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "summary": true,
+                        "complete": failed.is_empty(),
+                        "failed": failed,
+                        "total_value_usd": list_total(positions, failed),
+                    })
+                );
+            }
         }
         OutputFormat::Json => {
             if single {
                 println!("{}", serde_json::to_string_pretty(&positions[0])?);
             } else {
-                let total: Option<f64> = positions
-                    .iter()
-                    .map(|p| p.value_usd.total)
-                    .sum::<Option<f64>>();
                 let out = serde_json::json!({
+                    "complete": failed.is_empty(),
+                    "nft_count": nft_count,
                     "count": positions.len(),
-                    "total_value_usd": if positions.iter().all(|p| !p.prices.is_empty()) { total } else { None },
+                    "failed": failed,
+                    "total_value_usd": list_total(positions, failed),
                     "positions": positions,
                 });
                 println!("{}", serde_json::to_string_pretty(&out)?);
@@ -1093,10 +1428,10 @@ pub async fn handle_position(args: &PositionArgs, chain: &str, quiet: bool) -> a
     };
     let mut list = [pos.clone()];
     if !args.no_price {
-        price_positions(&mut list, ctx.chain.name()).await;
+        price_positions(&mut list, &ctx).await;
         pos = list[0].clone();
     }
-    emit(std::slice::from_ref(&pos), true, args.format)
+    emit(std::slice::from_ref(&pos), &[], None, args.format)
 }
 
 /// `uniswap lp-positions`
@@ -1151,19 +1486,26 @@ pub async fn handle_lp_positions(
         .collect()
         .await;
     let mut positions = Vec::with_capacity(results.len());
+    let mut failed = Vec::new();
     for (id, r) in ids.iter().zip(results) {
         match r {
             Ok(p) => positions.push(p),
-            Err(e) => eprintln!("Warning: position {id}: {e}"),
+            Err(e) => {
+                eprintln!("Warning: position {id}: {e}");
+                failed.push(FailedPosition {
+                    token_id: id.to_string(),
+                    error: e.to_string(),
+                });
+            }
         }
     }
     if !args.no_price {
-        price_positions(&mut positions, ctx.chain.name()).await;
+        price_positions(&mut positions, &ctx).await;
     }
     if !quiet {
         eprintln!("Note: v4 positions are not listed (the v4 PositionManager is not enumerable on-chain); value one with `uniswap position <id> --version v4`");
     }
-    emit(&positions, false, args.format)
+    emit(&positions, &failed, Some(total), args.format)
 }
 
 #[cfg(test)]
@@ -1296,6 +1638,7 @@ mod tests {
                     source: Some("y".into()),
                 },
             ],
+            prices_at: Some("latest".into()),
             value_usd: UsdValue::default(),
             fee_tier: Some(500),
             fee_pct: Some(fee_pct(500)),
@@ -1353,6 +1696,43 @@ mod tests {
         assert_eq!(p.value_usd.fees, Some(1.0));
         assert_eq!(p.value_usd.owed, Some(500.0));
         assert_eq!(p.value_usd.total, Some(3503.0));
+    }
+
+    #[test]
+    fn fee_growth_inside_matches_tick_library() {
+        let g = (u(1_000), u(2_000));
+        let lo = (u(100), u(200));
+        let up = (u(300), u(400));
+        // in range: global - below(lower outside) - above(upper outside)
+        assert_eq!(fee_growth_inside(5, 0, 10, g, lo, up), (u(600), u(1_400)));
+        // below the range: lower_outside - upper_outside
+        assert_eq!(
+            fee_growth_inside(-5, 0, 10, g, lo, up).0,
+            U256::ZERO.wrapping_sub(u(200))
+        );
+        // above the range: upper_outside - lower_outside
+        assert_eq!(fee_growth_inside(20, 0, 10, g, lo, up), (u(200), u(200)));
+    }
+
+    #[test]
+    fn decode_v4_position_info_ticks() {
+        // tickLower = -887220 at bits 8..32, tickUpper = 887220 at 32..56
+        let lo = (-887_220i32 as u32) & 0xFF_FFFF;
+        let hi = 887_220u32;
+        let info = (U256::from(hi) << 32) | (U256::from(lo) << 8) | U256::from(1u8);
+        assert_eq!(decode_v4_position_info(info), (-887_220, 887_220));
+    }
+
+    #[test]
+    fn list_total_is_null_when_any_position_failed() {
+        let mut p = sample(Some(vec![]));
+        apply_usd(&mut p);
+        assert_eq!(list_total(std::slice::from_ref(&p), &[]), Some(3002.0));
+        let f = FailedPosition {
+            token_id: "1".into(),
+            error: "x".into(),
+        };
+        assert_eq!(list_total(&[p], &[f]), None);
     }
 
     #[test]
