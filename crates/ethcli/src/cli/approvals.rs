@@ -309,6 +309,43 @@ async fn multicall_all<P: Provider>(
     .await
 }
 
+/// What a read that came back without a usable value means
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Resolved {
+    /// The value was read
+    Known(U256),
+    /// The call ran but the address has no code: nothing can be moved, so
+    /// the exposure is a known zero
+    NoCode,
+    /// The address has code but did not answer like a token (reverted or
+    /// returned data that does not decode)
+    NonStandard,
+    /// The call was never read (RPC failure, request cap), or the code
+    /// check failed
+    Unknown,
+}
+
+impl Resolved {
+    pub(crate) fn value(self) -> Option<U256> {
+        match self {
+            Resolved::Known(v) => Some(v),
+            Resolved::NoCode => Some(U256::ZERO),
+            Resolved::NonStandard | Resolved::Unknown => None,
+        }
+    }
+}
+
+/// Classify a read: `value` is the decoded value if any, `unread` whether a
+/// call it needs was never answered, `has_code` the target's code check
+pub(crate) fn resolve_read(value: Option<U256>, unread: bool, has_code: Option<bool>) -> Resolved {
+    match (value, unread, has_code) {
+        (Some(v), _, _) => Resolved::Known(v),
+        (None, true, _) | (None, false, None) => Resolved::Unknown,
+        (None, false, Some(false)) => Resolved::NoCode,
+        (None, false, Some(true)) => Resolved::NonStandard,
+    }
+}
+
 /// Most `eth_call`s one state read may make, splitting included
 const MAX_SPLIT_REQUESTS: usize = 200;
 /// Retries (with backoff) of a single call that failed without an
@@ -828,7 +865,14 @@ pub async fn approvals_report(
             candidates.erc20.len() + candidates.operators.len() + candidates.permit2.len()
         );
     }
+    let targets: Vec<Address> = calls.iter().map(|c| c.0).collect();
     let read = multicall_all(provider, calls).await?;
+    let unread_targets: BTreeSet<Address> = targets
+        .iter()
+        .zip(&read.results)
+        .filter(|(_, r)| r.is_none())
+        .map(|(t, _)| *t)
+        .collect();
     let unknown_reads = read.results.iter().filter(|r| r.is_none()).count();
     let mut results = read.results.clone().into_iter();
     // A call that was not read, or reverted inside the batch, is unknown:
@@ -927,6 +971,41 @@ pub async fn approvals_report(
         let balance = token_info.get(token).and_then(|t| t.balance)?;
         Some(exposure(amount.min(cap), balance))
     };
+
+    // Contracts that answered without a usable value: check for code, so an
+    // address with no code reads as a known zero, not as unknown state
+    let answered_badly: BTreeSet<Address> = open_erc20
+        .iter()
+        .filter(|((t, _), _, a)| erc20_at_risk(t, *a).is_none() && !unread_targets.contains(t))
+        .map(|((t, _), _, _)| *t)
+        .chain(
+            open_permit2
+                .iter()
+                .filter(|((t, _), _, st)| {
+                    permit2_at_risk(t, *st).is_none()
+                        && !unread_targets.contains(t)
+                        && !unread_targets.contains(&PERMIT2)
+                })
+                .map(|((t, _), _, _)| *t),
+        )
+        .chain(
+            open_operators
+                .iter()
+                .filter(|((c, _), _, ap)| ap.is_none() && !unread_targets.contains(c))
+                .map(|((c, _), _, _)| *c),
+        )
+        .collect();
+    let has_code: HashMap<Address, Option<bool>> = {
+        use futures::StreamExt;
+        futures::stream::iter(answered_badly.iter().copied())
+            .map(|a| async move { (a, provider.get_code_at(a).await.ok().map(|c| !c.is_empty())) })
+            .buffered(8)
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect()
+    };
+    let code_of = |a: &Address| has_code.get(a).copied().flatten();
 
     // Owner account: EIP-7702 delegation
     let owner_code = provider.get_code_at(owner).await.ok();
@@ -1038,7 +1117,12 @@ pub async fn approvals_report(
         .iter()
         .map(|((token, spender), block, allowance)| {
             let info = token_info.get(token).cloned().unwrap_or_default();
-            let at_risk = erc20_at_risk(token, *allowance);
+            let resolved = resolve_read(
+                erc20_at_risk(token, *allowance),
+                unread_targets.contains(token),
+                code_of(token),
+            );
+            let at_risk = resolved.value();
             let whole = at_risk.map_or(0.0, |r| to_float(r, info.decimals.unwrap_or(0)));
             let price = prices.get(token).copied();
             let usd = at_risk
@@ -1061,7 +1145,9 @@ pub async fn approvals_report(
                 "exposure": at_risk.map(|r| r.to_string()),
                 "exposure_formatted": at_risk.and_then(|r| amount(r, info.decimals)),
                 "exposure_usd": usd,
-                "state_unknown": at_risk.is_none(),
+                "state_unknown": resolved == Resolved::Unknown,
+                "token_kind": (resolved == Resolved::NoCode).then_some("no_code"),
+                "non_standard_token": resolved == Resolved::NonStandard,
                 "price_usd": price.map(|p| p.usd),
                 "price_confidence": price.map(|p| p.confidence),
                 "price_source": price.map(|_| "llama"),
@@ -1082,7 +1168,12 @@ pub async fn approvals_report(
         .iter()
         .map(|((token, spender), block, state)| {
             let info = token_info.get(token).cloned().unwrap_or_default();
-            let at_risk = permit2_at_risk(token, *state);
+            let resolved = resolve_read(
+                permit2_at_risk(token, *state),
+                unread_targets.contains(token) || unread_targets.contains(&PERMIT2),
+                code_of(token),
+            );
+            let at_risk = resolved.value();
             let whole = at_risk.map_or(0.0, |r| to_float(r, info.decimals.unwrap_or(0)));
             let price = prices.get(token).copied();
             let usd = at_risk
@@ -1115,7 +1206,9 @@ pub async fn approvals_report(
                 "exposure": at_risk.map(|r| r.to_string()),
                 "exposure_formatted": at_risk.and_then(|r| amount(r, info.decimals)),
                 "exposure_usd": usd,
-                "state_unknown": at_risk.is_none(),
+                "state_unknown": resolved == Resolved::Unknown,
+                "token_kind": (resolved == Resolved::NoCode).then_some("no_code"),
+                "non_standard_token": resolved == Resolved::NonStandard,
                 "price_usd": price.map(|p| p.usd),
                 "price_confidence": price.map(|p| p.confidence),
                 "price_source": price.map(|_| "llama"),
@@ -1135,7 +1228,16 @@ pub async fn approvals_report(
     let mut operator_rows: Vec<(U256, serde_json::Value)> = open_operators
         .iter()
         .map(|((collection, operator), block, approved)| {
-            let held = collection_balance.get(collection).copied().flatten();
+            let resolved = resolve_read(
+                approved.map(|a| U256::from(a as u8)),
+                unread_targets.contains(collection),
+                code_of(collection),
+            );
+            let held = if resolved == Resolved::NoCode {
+                Some(U256::ZERO)
+            } else {
+                collection_balance.get(collection).copied().flatten()
+            };
             let mut flags = vec!["all_items"];
             flags.extend(spender_flags(*operator));
             (
@@ -1144,7 +1246,9 @@ pub async fn approvals_report(
                     "collection": collection.to_checksum(None),
                     "operator": spender_entry(*operator),
                     "items_held": held.map(|h| h.to_string()),
-                    "state_unknown": approved.is_none(),
+                    "state_unknown": resolved == Resolved::Unknown,
+                    "token_kind": (resolved == Resolved::NoCode).then_some("no_code"),
+                    "non_standard_token": resolved == Resolved::NonStandard,
                     "last_approval_block": block,
                     "flags": flags,
                 }),
@@ -1218,6 +1322,20 @@ pub async fn approvals_report(
         notes.push(format!(
             "{state_unknown} approvals have state_unknown: a value they need could not be \
              read, so their exposure is null; they are kept even with --exposed-only"
+        ));
+    }
+    let non_standard = erc20_rows
+        .iter()
+        .chain(permit2_rows.iter())
+        .map(|r| &r.2)
+        .chain(operator_rows.iter().map(|r| &r.1))
+        .filter(|r| r["non_standard_token"] == true)
+        .count();
+    if non_standard > 0 {
+        notes.push(format!(
+            "{non_standard} approvals are on contracts that have code but did not answer like a \
+             token (non_standard_token): exposure is null and they are kept visible, but they \
+             do not make the report incomplete"
         ));
     }
     if !read.reverted.is_empty() {
@@ -1732,6 +1850,21 @@ mod tests {
             })
             .collect();
         assert_eq!(got, vec![("0xa", 30.0), ("0xd", 20.0)]);
+    }
+
+    #[test]
+    fn empty_answers_are_classified_by_code() {
+        let v = U256::from(7u8);
+        assert_eq!(resolve_read(Some(v), false, None), Resolved::Known(v));
+        // Answered, no code: nothing to move, a known zero
+        assert_eq!(resolve_read(None, false, Some(false)), Resolved::NoCode);
+        assert_eq!(Resolved::NoCode.value(), Some(U256::ZERO));
+        // Answered, has code, not a token: visible, value unknown
+        assert_eq!(resolve_read(None, false, Some(true)), Resolved::NonStandard);
+        assert_eq!(Resolved::NonStandard.value(), None);
+        // Never read, or the code check failed: unknown
+        assert_eq!(resolve_read(None, true, Some(false)), Resolved::Unknown);
+        assert_eq!(resolve_read(None, false, None), Resolved::Unknown);
     }
 
     #[test]

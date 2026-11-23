@@ -237,7 +237,12 @@ ethcli account approvals <addr> --json          # open approvals and amount at r
   goes in `rpc_failed_contracts`. A failed read is never taken as zero: the
   row stays, with `exposure` null and `state_unknown: true` (kept under
   `--exposed-only`), and `complete` is false whenever any row is unknown,
-  the request cap is hit, or a scan was cut short. `top_exposures` lists the
+  the request cap is hit, or a scan was cut short. A call that was answered
+  but gave no usable value is checked for code: no code gives
+  `token_kind: "no_code"` and a known exposure of 0 (dropped by
+  `--exposed-only`); code that does not answer like a token gives
+  `non_standard_token: true` with exposure null, kept visible with a note,
+  without making the report incomplete. `top_exposures` lists the
   five tokens contributing most to `total_exposure_usd`. EIP-7702 delegated EOA spenders get `eoa_spender`
   and `delegated_eoa`. `total_exposure_usd` counts each token once, at its
   largest exposure (`per_approval_sum_usd` adds every row). It also leaves out tokens flagged `spam` (local blacklist, or
