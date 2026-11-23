@@ -54,6 +54,7 @@ const CORE_TOOLS: &[&str] = &[
     "rpc_call",
     "rpc_balance",
     "rpc_block_at",
+    "rpc_find_change",
     "rpc_code_summary",
     "logs",
     "token_info",
@@ -844,6 +845,27 @@ impl EthcliMcpServer {
         tools::rpc_block_at(&input.time, Some(&input.chain))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Find the block where a value changed, by binary search over blocks (about log2(range) reads; needs an archive endpoint for old blocks). target: call (value = \"<address> <signature> [args...]\" with return types, e.g. balanceOf(address)(uint256)), balance, storage (with slot), code (deployment) or nonce. Returns the first block in (from, to] where the value differs from its value at `from`, with time, old and new values, top-level transactions to or from the address, and rpc_calls. Assumes one change; with several it finds one boundary, so narrow the range or set all=true",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn rpc_find_change(
+        &self,
+        Parameters(input): Parameters<RpcFindChangeInput>,
+    ) -> CallToolResult {
+        tools::rpc_find_change(
+            &input.target,
+            &input.value,
+            input.slot.as_deref(),
+            &input.from,
+            input.to.as_deref(),
+            input.all,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(

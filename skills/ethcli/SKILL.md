@@ -22,6 +22,7 @@ ethcli does not sign or send transactions.
 | One contract read | `ethcli contract call <addr> <function> [args] --json` | `contract_call` |
 | State at a date | add `--block 2024-01-31` (or `@<unix time>`, or `7d`) | `block` input |
 | Block for a time | `ethcli rpc block-at <time> --json` | `rpc_block_at` |
+| When did a value change? | `ethcli rpc find-change "<addr> <sig>(<returns>) [args]" --from <block\|time> --json` (or `--balance`, `--storage <addr> <slot>`, `--code`, `--nonce`) | `rpc_find_change` |
 | Why did a call revert? | read the error, or `ethcli sig error <data>` | `sig_error` |
 | Whole address history | `ethcli account txs <addr> --all --json` | `account_txs` with `all: true` |
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |

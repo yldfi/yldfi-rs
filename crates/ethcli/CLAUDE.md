@@ -132,6 +132,29 @@ ethcli rpc balance <addr> --block 2024-01-31
 ethcli contract call <addr> totalSupply --block 7d
 ```
 
+### `rpc find-change`: when did a value change
+
+```bash
+ethcli rpc find-change --code <addr> --from 6000000                 # deployment block
+ethcli rpc find-change "<token> balanceOf(address)(uint256) <holder>" --from 2024-01-01 --json
+ethcli rpc find-change --nonce <addr> --from 30d --all
+ethcli rpc find-change --storage <addr> <slot> --from <block> --to <block>
+```
+
+- Exactly one target: a call (as in `rpc multicall`), `--balance`, `--storage
+  <addr> <slot>`, `--code` or `--nonce`. `--from` and `--to` take a block, a
+  time or (`--to` only, the default) `latest`.
+- Reads the value at `--from`, then binary-searches `(from, to]` for the first
+  block where it differs: about log2(to - from) reads (24 for a million
+  blocks). The output gives `rpc_calls`.
+- Assumes one change in the range. With several it finds one boundary, not
+  necessarily the first. `--all` searches again after each change (up to 100);
+  a change that is undone inside a segment is still missed.
+- Needs historical state; an archive endpoint is chosen for old blocks. If no
+  endpoint can read state at `--from` the error says so.
+- `transactions` lists top-level transactions in that block sent from or to
+  the address. Internal calls and contract creations are not listed.
+
 ### `tx`: one call for a transaction
 
 `ethcli tx <hash>` returns the decoded call, events and token transfers, and also:

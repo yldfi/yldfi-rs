@@ -140,6 +140,12 @@ ethcli rpc call <to> -s "totalSupply()" -d uint256 -b 2024-01-31   # --block als
 # A plain date = 00:00 UTC at the START of that day (state before anything on that date).
 # End of day: use the next day's date or 2024-01-31T23:59:59Z. Times are UTC.
 ethcli rpc nonce <addr>             # Account nonce
+# Block where a value changed (binary search; needs archive state). One of:
+# a call "<addr> <sig>(<returns>) [args]", --balance, --storage <addr> <slot>, --code, --nonce
+ethcli rpc find-change --code <addr> --from 6000000            # deployment block
+ethcli rpc find-change "<token> balanceOf(address)(uint256) <holder>" --from 2024-01-01 --to latest --json
+# Assumes one change in (from, to]; with several it finds one boundary. --all repeats
+# the search after each change (misses a value that changes and changes back). JSON has rpc_calls.
 
 # Many calls at one block in one request (Multicall3), decoded, in input order.
 # Use this instead of looping `rpc call` / `contract call`.
