@@ -380,22 +380,21 @@ pub(super) async fn run(
     }
     let rpc_calls = calls.load(Ordering::Relaxed);
 
+    let several = args.all && rows.len() > 1;
+    if several && !quiet {
+        eprintln!("Warning: {SEVERAL_CHANGES_WARNING}");
+    }
     if args.json {
-        let mut out = serde_json::json!({
-            "target": args.target.kind(),
-            "address": address.to_checksum(None),
-            "from": from,
-            "to": to,
-            "value_at_from": base,
-            "changed": !rows.is_empty(),
-            "rpc_calls": rpc_calls,
-        });
-        if args.all {
-            out["changes"] = serde_json::Value::Array(rows);
-            out["truncated"] = serde_json::json!(truncated);
-        } else {
-            out["change"] = rows.into_iter().next().unwrap_or(serde_json::Value::Null);
-        }
+        let out = result_json(
+            args.target.kind(),
+            &address.to_checksum(None),
+            (from, to),
+            &base,
+            rows,
+            args.all,
+            truncated,
+            rpc_calls,
+        );
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
         if rows.is_empty() {
@@ -416,11 +415,60 @@ pub(super) async fn run(
         if truncated {
             println!("Stopped after {MAX_CHANGES} changes");
         }
+        if !args.all && !rows.is_empty() {
+            println!("Note: {SINGLE_CHANGE_NOTE}");
+        }
         if !quiet {
             eprintln!("{rpc_calls} RPC calls");
         }
     }
     Ok(())
+}
+
+/// Printed with a plain (non `--all`) result
+const SINGLE_CHANGE_NOTE: &str =
+    "binary search finds a block where the value changed, not necessarily \
+the first change; use --all when the first change matters";
+
+/// Given when `--all` finds more than one change
+const SEVERAL_CHANGES_WARNING: &str = "the value changed several times in this range; a search \
+without --all may not have returned the first change";
+
+/// The JSON result. `rows` are the changes found, in block order.
+#[allow(clippy::too_many_arguments)]
+fn result_json(
+    kind: &str,
+    address: &str,
+    (from, to): (u64, u64),
+    base: &str,
+    rows: Vec<serde_json::Value>,
+    all: bool,
+    truncated: bool,
+    rpc_calls: u64,
+) -> serde_json::Value {
+    let mut out = serde_json::json!({
+        "target": kind,
+        "address": address,
+        "from": from,
+        "to": to,
+        "value_at_from": base,
+        "changed": !rows.is_empty(),
+        "single_change_assumed": !all,
+        "rpc_calls": rpc_calls,
+    });
+    if all {
+        if rows.len() > 1 {
+            out["warning"] = serde_json::json!(SEVERAL_CHANGES_WARNING);
+        }
+        out["changes"] = serde_json::Value::Array(rows);
+        out["truncated"] = serde_json::json!(truncated);
+    } else {
+        if !rows.is_empty() {
+            out["note"] = serde_json::json!(SINGLE_CHANGE_NOTE);
+        }
+        out["change"] = rows.into_iter().next().unwrap_or(serde_json::Value::Null);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -481,6 +529,38 @@ mod tests {
         assert_eq!(changes[3].new, 4);
         let capped = bisect_all(0, 10_000, 0, &f, 2).await.unwrap();
         assert_eq!(capped.len(), 2);
+    }
+
+    #[test]
+    fn json_states_the_single_change_assumption() {
+        let row = |b: u64| serde_json::json!({ "block": b });
+        let single = result_json("nonce", "0x", (1, 9), "0", vec![row(5)], false, false, 4);
+        assert_eq!(single["single_change_assumed"], true);
+        assert!(single["note"].is_string());
+        assert!(single.get("warning").is_none());
+        assert_eq!(single["change"]["block"], 5);
+
+        let none = result_json("nonce", "0x", (1, 9), "0", vec![], false, false, 2);
+        assert_eq!(none["single_change_assumed"], true);
+        assert!(none.get("note").is_none());
+
+        let one = result_json("nonce", "0x", (1, 9), "0", vec![row(5)], true, false, 6);
+        assert_eq!(one["single_change_assumed"], false);
+        assert!(one.get("warning").is_none());
+
+        let many = result_json(
+            "nonce",
+            "0x",
+            (1, 9),
+            "0",
+            vec![row(3), row(5)],
+            true,
+            false,
+            9,
+        );
+        assert_eq!(many["single_change_assumed"], false);
+        assert!(many["warning"].as_str().unwrap().contains("several"));
+        assert_eq!(many["changes"].as_array().unwrap().len(), 2);
     }
 
     #[test]

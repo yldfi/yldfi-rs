@@ -145,7 +145,9 @@ ethcli rpc nonce <addr>             # Account nonce
 ethcli rpc find-change --code <addr> --from 6000000            # deployment block
 ethcli rpc find-change "<token> balanceOf(address)(uint256) <holder>" --from 2024-01-01 --to latest --json
 # Assumes one change in (from, to]; with several it finds one boundary. --all repeats
-# the search after each change (misses a value that changes and changes back). JSON has rpc_calls.
+# the search after each change (misses a value that changes and changes back). JSON has rpc_calls,
+# single_change_assumed (true without --all), and a warning when --all finds several changes.
+# When the FIRST change matters, use --all and read changes[0].
 
 # Many calls at one block in one request (Multicall3), decoded, in input order.
 # Use this instead of looping `rpc call` / `contract call`.

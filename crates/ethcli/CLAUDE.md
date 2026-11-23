@@ -150,6 +150,11 @@ ethcli rpc find-change --storage <addr> <slot> --from <block> --to <block>
 - Assumes one change in the range. With several it finds one boundary, not
   necessarily the first. `--all` searches again after each change (up to 100);
   a change that is undone inside a segment is still missed.
+- The JSON always has `single_change_assumed` (`true` without `--all`). A plain
+  result carries a `note` saying it may not be the first change. When `--all`
+  finds more than one change it adds a `warning` (also on stderr): the plain
+  result for that range may not have been the first change. **If the first
+  change matters, use `--all` and take `changes[0]`.**
 - Needs historical state; an archive endpoint is chosen for old blocks. If no
   endpoint can read state at `--from` the error says so.
 - `transactions` lists top-level transactions in that block sent from or to

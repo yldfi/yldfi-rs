@@ -362,6 +362,8 @@ ethcli rpc find-change "0xA0b8... balanceOf(address)(uint256) 0xd8dA..." --from 
 # It assumes the value changed once; with several changes it finds one of them.
 # --all searches again after each change (up to 100), but misses a change that is
 # undone within a segment (a balance that goes up and back down).
+# JSON carries single_change_assumed, and a warning when --all finds several
+# changes: when the first change matters, use --all.
 
 # Size and code hash only (is it a contract? did the code change?)
 ethcli rpc code 0x... --summary
