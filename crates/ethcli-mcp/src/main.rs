@@ -5173,9 +5173,9 @@ impl EthcliMcpServer {
     )]
     async fn moralis_wallet_active_chains(
         &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
+        Parameters(input): Parameters<MoralisWalletActiveChainsInput>,
     ) -> CallToolResult {
-        tools::moralis_wallet_active_chains(&input.address, Some(input.chain.as_str()))
+        tools::moralis_wallet_active_chains(&input.address, input.chains.as_deref())
             .await
             .to_response()
     }

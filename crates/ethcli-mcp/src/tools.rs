@@ -5023,15 +5023,16 @@ pub async fn moralis_wallet_transactions(
         .map_err(ToolError::from)
 }
 
+// `wallet active-chains` checks the Moralis default set unless --chains is set
 pub async fn moralis_wallet_active_chains(
     address: &str,
-    chain: Option<&str>,
+    chains: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
-        .opt("--chain", chain)
         .subcommand("active-chains")
         .arg(address)
+        .opt("--chains", chains)
         .execute()
         .await
         .map_err(ToolError::from)
