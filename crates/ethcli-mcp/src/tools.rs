@@ -672,6 +672,34 @@ pub async fn contract_creation(address: &str, chain: Option<&str>) -> Result<Str
         .map_err(ToolError::from)
 }
 
+pub async fn contract_storage(
+    address: &str,
+    variable: Option<&str>,
+    keys: Vec<String>,
+    list: bool,
+    chain: Option<&str>,
+    block: Option<&str>,
+    rpc_url: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("contract")
+        .subcommand("storage")
+        .arg(address)
+        .chain(chain)
+        .opt("-b", block)
+        .opt("--rpc-url", rpc_url)
+        .opt_flag("--list", list)
+        .format_json()
+        // After `--` so negative keys (int mapping keys) stay arguments
+        .end_of_options();
+    if let Some(variable) = variable {
+        builder = builder.arg(variable);
+    }
+    for key in keys {
+        builder = builder.arg(&key);
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
 pub async fn contract_call(
     address: &str,
     sig: &str,
@@ -864,6 +892,25 @@ pub async fn gas_estimate(gwei: u64, chain: Option<&str>) -> Result<String, Tool
         .map_err(ToolError::from)
 }
 
+pub async fn gas_cost(input: &crate::types::GasCostInput) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("gas")
+        .subcommand("cost")
+        .opt("--sig", input.sig.as_deref())
+        .opt("--args", input.args.as_deref())
+        .opt("--from", input.from.as_deref())
+        .opt("--value", input.value.as_deref())
+        .opt_flag("--no-usd", input.no_usd)
+        .opt("--rpc-url", input.rpc_url.as_deref())
+        .chain(Some(&input.chain))
+        .format_json()
+        .end_of_options()
+        .arg(&input.to);
+    if let Some(data) = &input.data {
+        builder = builder.arg(data);
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
 // =============================================================================
 // SIG (4 subcommands) - Signature lookup
 // =============================================================================
@@ -890,6 +937,65 @@ pub async fn sig_error(data: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("sig")
         .subcommand("error")
         .arg(data)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn safe_info(safe: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("safe")
+        .subcommand("info")
+        .arg(safe)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn safe_queue(
+    safe: &str,
+    chain: Option<&str>,
+    limit: Option<u32>,
+) -> Result<String, ToolError> {
+    let limit = limit.map(|l| l.to_string());
+    ArgsBuilder::new("safe")
+        .subcommand("queue")
+        .arg(safe)
+        .chain(chain)
+        .opt("--limit", limit.as_deref())
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn safe_tx(safe_tx_hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("safe")
+        .subcommand("tx")
+        .arg(safe_tx_hash)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn safe_history(
+    safe: &str,
+    chain: Option<&str>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<String, ToolError> {
+    let limit = limit.map(|l| l.to_string());
+    let offset = offset.map(|o| o.to_string());
+    ArgsBuilder::new("safe")
+        .subcommand("history")
+        .arg(safe)
+        .chain(chain)
+        .opt("--limit", limit.as_deref())
+        .opt("--offset", offset.as_deref())
         .format_json()
         .execute()
         .await
@@ -1200,6 +1306,45 @@ pub async fn rpc_block_at(time: &str, chain: Option<&str>) -> Result<String, Too
         .execute()
         .await
         .map_err(ToolError::from)
+}
+
+pub async fn rpc_find_change(
+    target: &str,
+    value: &str,
+    slot: Option<&str>,
+    from: &str,
+    to: Option<&str>,
+    all: bool,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let builder = ArgsBuilder::new("rpc").subcommand("find-change");
+    let builder = match (target, slot) {
+        ("call", _) => builder,
+        ("balance" | "code" | "nonce", _) => builder.opt(&format!("--{target}"), Some(value)),
+        ("storage", Some(slot)) => builder.opt("--storage", Some(value)).arg(slot),
+        ("storage", None) => {
+            return Err(ToolError::from(
+                "target \"storage\" needs a slot".to_string(),
+            ))
+        }
+        _ => {
+            return Err(ToolError::from(
+                "target must be call, balance, storage, code or nonce".to_string(),
+            ))
+        }
+    };
+    let builder = builder
+        .opt("--from", Some(from))
+        .opt("--to", to)
+        .opt_flag("--all", all)
+        .chain(chain)
+        .format_json();
+    let builder = if target == "call" {
+        builder.end_of_options().arg(value)
+    } else {
+        builder
+    };
+    builder.execute().await.map_err(ToolError::from)
 }
 
 pub async fn rpc_tx(hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
@@ -5023,15 +5168,16 @@ pub async fn moralis_wallet_transactions(
         .map_err(ToolError::from)
 }
 
+// `wallet active-chains` checks the Moralis default set unless --chains is set
 pub async fn moralis_wallet_active_chains(
     address: &str,
-    chain: Option<&str>,
+    chains: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
-        .opt("--chain", chain)
         .subcommand("active-chains")
         .arg(address)
+        .opt("--chains", chains)
         .execute()
         .await
         .map_err(ToolError::from)

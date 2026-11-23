@@ -87,3 +87,7 @@ unused_dependencies = "deny"
 unused_workspace_dependencies = "deny"
 unused_workspace_package_fields = "deny"
 missing_lints_inheritance = "deny"
+
+# Dev builds: skip debug info for dependencies (our own crates keep it)
+[profile.dev.package."*"]
+debug = false
