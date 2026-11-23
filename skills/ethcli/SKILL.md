@@ -38,6 +38,9 @@ single facts.
 - **Historical prices:** `price <token> --at <date|block|7d> --json` gives
   the DefiLlama price with `price_time` and `offset_seconds`; don't call
   price APIs by hand.
+- **Don't read whole sources.** `contract source <addr> --list`, then
+  `--function <name>` or `--grep <regex>`, instead of piping the full source
+  through grep or head.
 - **Ask for JSON.** Add `--json` to any command. (`--csv` exists on
   `account txs`, `internal-txs`, `erc20` and `rpc multicall` for
   spreadsheets, but it cannot say whether an `--all` history is complete.) Integers are decimal strings,

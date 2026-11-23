@@ -366,16 +366,24 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Download verified source code for a contract",
+        description = "Verified source code for a contract. The full source can be very large: use list=true to see the files, then function, grep or file to return only the part you need",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_source(
         &self,
         Parameters(input): Parameters<ContractSourceInput>,
     ) -> CallToolResult {
-        tools::contract_source(&input.address, Some(&input.chain), input.output.as_deref())
-            .await
-            .to_response()
+        tools::contract_source(
+            &input.address,
+            Some(&input.chain),
+            input.output.as_deref(),
+            input.list,
+            input.file.as_deref(),
+            input.function.as_deref(),
+            input.grep.as_deref(),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(

@@ -625,16 +625,25 @@ pub async fn contract_abi(
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn contract_source(
     address: &str,
     chain: Option<&str>,
     output: Option<&str>,
+    list: bool,
+    file: Option<&str>,
+    function: Option<&str>,
+    grep: Option<&str>,
 ) -> Result<String, ToolError> {
     reject_file_output(output)?;
 
     ArgsBuilder::new("contract")
         .subcommand("source")
         .arg(address)
+        .opt_flag("--list", list)
+        .opt("--file", file)
+        .opt("--function", function)
+        .opt("--grep", grep)
         .chain(chain)
         .execute()
         .await
