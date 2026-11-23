@@ -2758,6 +2758,15 @@ pub struct MoralisAddressInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisWalletActiveChainsInput {
+    /// Wallet address
+    pub address: String,
+    /// Only check these chains, comma-separated (e.g. "eth,base"; default: the Moralis default set)
+    #[serde(default)]
+    pub chains: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MoralisWalletInsightInput {
     /// Wallet address
     pub address: String,
