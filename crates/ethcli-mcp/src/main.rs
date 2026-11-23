@@ -525,7 +525,7 @@ impl EthcliMcpServer {
     }
 
     #[tool(
-        description = "Decompile an unverified contract with the optional external decompiler evmdec (must be installed; otherwise returns install steps, ethcli's own facts and a Dedaub link). ethcli fetches the code itself (following proxies) and runs evmdec offline with no environment and a timeout. Read cross_check first: warnings where the decompiled text misses sensitive opcodes (tx.origin, delegatecall, selfdestruct, storage writes), evmole vs evmdec type disagreements, and 'not found by evmdec' items, which are not facts. Everything under heuristic is a guess, not source",
+        description = "Decompile an unverified contract with optional external decompilers: evmdec (default) or heimdall, or backend all for every installed one (if none is installed, returns install steps, ethcli's own facts and a Dedaub link). ethcli fetches the code itself (following real proxies) and runs each offline with no environment, no config and a timeout. Each result is under decompilers[]. Read cross_check first: warnings where the decompiled text misses sensitive opcodes (tx.origin, delegatecall, selfdestruct, storage writes), evmole vs evmdec type disagreements, and 'not found by evmdec' items, which are not facts. Everything under heuristic is a guess, not source",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn contract_decompile(
@@ -538,6 +538,7 @@ impl EthcliMcpServer {
             input.block.as_deref(),
             input.no_follow_proxy,
             input.timeout,
+            input.backend.as_deref(),
         )
         .await
         .to_response()

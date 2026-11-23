@@ -312,9 +312,10 @@ ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 # metadata, minimum EVM version (PUSH0, MCOPY, TLOAD), legacy/via-IR guess
 ethcli contract fingerprint 0x...
 
-# Decompile with the optional external evmdec, cross-checked against
-# ethcli's own facts first (see "Decompiling" below)
+# Decompile with the optional external evmdec (or heimdall, or all
+# installed backends), cross-checked against ethcli's own facts first
 ethcli contract decompile 0x... --timeout 60
+ethcli contract decompile 0x... --backend all
 
 # Compare a compiled artifact with the deployed code
 ethcli contract match 0x... --artifact out/Router.sol/Router.json
@@ -344,6 +345,21 @@ reported for Uniswap V3's `tickBitmap`, `calldata[block.chainid]` artefacts,
 and `address[]` shown as `uint256[]`. heimdall is not supported. Without
 evmdec the command prints install steps, ethcli's facts and a
 [Dedaub](https://app.dedaub.com) link (Dedaub needs sign-in).
+
+heimdall ([heimdall-rs](https://github.com/Jon-Becker/heimdall-rs)) is a
+second optional backend: `--backend heimdall`, or `--backend all` to run every
+installed backend and cross-check each. ethcli never installs, downloads or
+builds it; it is found through `HEIMDALL_PATH` or `PATH`. ethcli runs only
+`heimdall decompile <runtime bytecode> --include-sol --skip-resolving
+--default --output <temp dir>`: never an address, RPC URL, LLM option or
+explorer key. Its config file is not read (HOME is an empty temporary
+directory) and all HTTP goes to a dead local proxy, which stops its
+release check; the same empty environment and hard timeout apply.
+heimdall tends to show guard conditions (`tx.origin`, callback
+`msg.sender` checks) and revert strings well; its parameter types and
+counts are weak, storage names are guessed, some conditions come out
+garbled, and it can hang or run out of memory on some contracts (hence the
+timeout).
 
 #### Matching an artifact (`contract match`)
 

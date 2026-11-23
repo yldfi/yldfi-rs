@@ -280,8 +280,10 @@ pub struct ContractDecompileInput {
     /// Decompile the address's own code even if it is a proxy
     #[serde(default)]
     pub no_follow_proxy: bool,
-    /// Seconds before evmdec is killed (1-100, default 60)
+    /// Seconds before each decompiler is killed (1-100, default 60)
     pub timeout: Option<u32>,
+    /// Decompiler: "evmdec" (default), "heimdall", or "all" (every installed one)
+    pub backend: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -85,12 +85,16 @@ ethcli contract az <addr> --lookup  # With signature lookup
 ethcli contract analyze <addr> --follow-proxy --lookup --dispatcher --checks
                                       # Unverified/proxy review: handler map + guard heuristics
 ethcli contract fingerprint <addr>  # Compiler + version, metadata hash, min EVM version, pipeline guess
-ethcli contract decompile <addr>    # Optional evmdec, cross-checked first (see below)
+ethcli contract decompile <addr> [--backend evmdec|heimdall|all]
+                                     # Optional external decompilers, cross-checked first
 ethcli contract match <addr> --artifact out/X.sol/X.json [--contract X] [--creation-tx <hash>] [--build-info out/build-info/<id>.json]
                                      # exact / partial (ignoring metadata, NOT verified) / mismatch
 ```
 
-`contract decompile` needs the external `evmdec` (on PATH or `EVMDEC_PATH`);
+`contract decompile` needs the external `evmdec` (on PATH or `EVMDEC_PATH`),
+or `heimdall` (`HEIMDALL_PATH`) with `--backend heimdall|all`; heimdall runs
+only as `decompile <bytecode> --include-sol --skip-resolving` with an empty
+HOME and HTTP sent to a dead proxy;
 without it, it prints install steps, ethcli's own facts and a Dedaub link.
 ethcli fetches the code (following proxies, naming the implementation used),
 writes it to a temp file and runs only `evmdec decompile <file> --json` with

@@ -308,7 +308,7 @@ ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks --fo
 ```
 
 `contract_fingerprint` reads compiler facts from runtime code, `contract_decompile`
-runs the optional external evmdec decompiler (cross-check first, output labelled
+runs the optional external evmdec or heimdall decompiler (`backend`: evmdec, heimdall or all) (cross-check first, output labelled
 heuristic; returns install steps and ethcli's facts when evmdec is missing) and
 `contract_match` compares a local forge or solc artifact with deployed code
 (`exact`, `partial` = equal ignoring metadata and not a verification, or

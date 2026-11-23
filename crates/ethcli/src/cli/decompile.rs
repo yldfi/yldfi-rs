@@ -475,16 +475,7 @@ async fn run_heimdall(bin: &Path, code: &[u8], timeout: Duration) -> Result<Valu
         "--output".as_ref(),
         out.as_os_str(),
     ];
-    let proxy: &std::ffi::OsStr = DEAD_PROXY.as_ref();
-    let env: [(&str, &std::ffi::OsStr); 7] = [
-        ("HOME", home.as_os_str()),
-        ("HTTP_PROXY", proxy),
-        ("HTTPS_PROXY", proxy),
-        ("ALL_PROXY", proxy),
-        ("http_proxy", proxy),
-        ("https_proxy", proxy),
-        ("all_proxy", proxy),
-    ];
+    let env = heimdall_env(&home);
     let run = run_sandboxed_in(bin, &args, timeout, &env, &dir.0)
         .await
         .map_err(|e| format!("{e:#}"))?;
@@ -513,6 +504,21 @@ async fn run_heimdall(bin: &Path, code: &[u8], timeout: Duration) -> Result<Valu
         source.unwrap_or_default(),
         &abi,
     ))
+}
+
+/// heimdall's environment besides PATH: an empty HOME (so its config file
+/// with any RPC URL or API keys is not read) and a dead proxy for all HTTP
+fn heimdall_env(home: &Path) -> [(&'static str, &std::ffi::OsStr); 7] {
+    let proxy: &std::ffi::OsStr = DEAD_PROXY.as_ref();
+    [
+        ("HOME", home.as_os_str()),
+        ("HTTP_PROXY", proxy),
+        ("HTTPS_PROXY", proxy),
+        ("ALL_PROXY", proxy),
+        ("http_proxy", proxy),
+        ("https_proxy", proxy),
+        ("all_proxy", proxy),
+    ]
 }
 
 /// Put heimdall's output in the shape the cross-check reads. With
@@ -1005,6 +1011,9 @@ pub async fn decompile(chain: Chain, args: &DecompileArgs, quiet: bool) -> anyho
             Some(Err(e)) => entry["error"] = json!(e),
             None => {}
         }
+        // Everything a decompiler returns can carry strings recovered from
+        // untrusted bytecode: escape control and direction characters
+        sanitise_json(&mut entry);
         results.push(entry);
     }
     out["decompilers"] = json!(results);
@@ -1013,6 +1022,30 @@ pub async fn decompile(chain: Chain, args: &DecompileArgs, quiet: bool) -> anyho
         Ok(())
     } else {
         print_json(&args.target.format, &out)
+    }
+}
+
+/// Untrusted multi-line text made safe to print: control, invisible and
+/// direction-changing characters are escaped, except newline and tab
+pub fn safe_multiline(text: &str) -> String {
+    text.split('\n')
+        .map(|line| {
+            line.split('\t')
+                .map(crate::abi::revert::safe_text)
+                .collect::<Vec<_>>()
+                .join("\t")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Apply `safe_multiline` to every string in a JSON value
+fn sanitise_json(value: &mut Value) {
+    match value {
+        Value::String(s) => *s = safe_multiline(s),
+        Value::Array(items) => items.iter_mut().for_each(sanitise_json),
+        Value::Object(map) => map.values_mut().for_each(sanitise_json),
+        _ => {}
     }
 }
 
@@ -1033,16 +1066,13 @@ async fn run_backend(backend: &str, code: &[u8], timeout: Duration, quiet: bool)
             output: None,
         };
     };
-    let version = run_sandboxed(&bin, &["--version".as_ref()], Duration::from_secs(5))
-        .await
-        .ok()
-        .map(|o| {
-            String::from_utf8_lossy(&o.stdout)
-                .trim()
-                .chars()
-                .take(80)
-                .collect::<String>()
-        });
+    let version = backend_version(backend, &bin).await.map(|o| {
+        String::from_utf8_lossy(&o.stdout)
+            .trim()
+            .chars()
+            .take(80)
+            .collect::<String>()
+    });
     let meta = json!({
         "backend": backend,
         "installed": true,
@@ -1061,6 +1091,23 @@ async fn run_backend(backend: &str, code: &[u8], timeout: Duration, quiet: bool)
         meta,
         output: Some(output),
     }
+}
+
+/// `<backend> --version`, under the same sandbox as the real run
+async fn backend_version(backend: &str, bin: &Path) -> Option<RunOutput> {
+    let timeout = Duration::from_secs(5);
+    if backend != "heimdall" {
+        return run_sandboxed(bin, &["--version".as_ref()], timeout)
+            .await
+            .ok();
+    }
+    let dir = TempDir::create("heimdall").ok()?;
+    let home = dir.0.join("home");
+    std::fs::create_dir_all(&home).ok()?;
+    let env = heimdall_env(&home);
+    run_sandboxed_in(bin, &["--version".as_ref()], timeout, &env, &dir.0)
+        .await
+        .ok()
 }
 
 async fn run_evmdec(bin: &Path, code: &[u8], timeout: Duration) -> Result<Value, String> {
@@ -1921,5 +1968,22 @@ mod tests {
             "Safe proxy",
             &hex::decode("6000600060006000355af400").unwrap()
         ));
+    }
+
+    #[test]
+    fn decompiler_text_is_sanitised() {
+        let source = "require(x, \"ok\u{1b}[31mFAKE\u{202e}gnp.exe\");\n\tdone".to_string();
+        let mut entry = json!({"heuristic": {"source": source}, "error": "bad\u{1b}]0;title\u{7}"});
+        sanitise_json(&mut entry);
+        let text = entry.to_string();
+        let src = entry["heuristic"]["source"].as_str().unwrap();
+        assert!(
+            !src.contains('\u{1b}') && !src.contains('\u{202e}'),
+            "{text}"
+        );
+        assert!(src.contains("\\u{1b}") && src.contains("\\u{202e}"));
+        // newline and tab survive
+        assert!(src.contains("\n\tdone"));
+        assert!(!entry["error"].as_str().unwrap().contains('\u{7}'));
     }
 }

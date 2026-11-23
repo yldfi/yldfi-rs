@@ -43,9 +43,10 @@ const ACCOUNT_APPROVALS_TIMEOUT: Duration = Duration::from_secs(180);
 const FIND_CHANGE_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// Timeout for `contract decompile`: the CLI kills evmdec after its own
-/// --timeout (60 s by default, at most 100 s through MCP), so this leaves room
-/// for fetching the code before and printing after
-const CONTRACT_DECOMPILE_TIMEOUT: Duration = Duration::from_secs(150);
+/// --timeout (60 s by default, at most 100 s through MCP) per backend, and
+/// `--backend all` runs two, so this leaves room for both plus fetching the
+/// code before and printing after
+const CONTRACT_DECOMPILE_TIMEOUT: Duration = Duration::from_secs(250);
 
 /// How long a call waits for one of the MAX_CONCURRENT_SUBPROCESSES slots
 /// before it is refused as rate limited

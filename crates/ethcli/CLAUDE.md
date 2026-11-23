@@ -583,6 +583,20 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   found by evmdec". Known evmdec defects: dropped `tx.origin` guard on a
   hand-written MEV bot, "0 writes" on UniV3 `tickBitmap`,
   `calldata[block.chainid]` artefacts, `address[]` shown as `uint256[]`.
+- `--backend heimdall|all`: heimdall (`HEIMDALL_PATH` or PATH; never
+  installed by ethcli) runs as `heimdall decompile <0xbytecode>
+  --include-sol --skip-resolving --default --output <tempdir>` only. Never
+  pass `-l/--llm-postprocess`, `--openrouter-api-key`,
+  `--etherscan-api-key`, `--rpc-url` or an address. HOME is an empty
+  temp dir (its `~/.bifrost/config.toml` can hold an RPC URL and keys, and
+  `home_dir()` falls back to the passwd entry when HOME is unset), and
+  HTTP(S)_PROXY/ALL_PROXY point to a dead local port (it checks GitHub for
+  releases on every run). Output (`decompiled.sol`, `abi.json`) is mapped to
+  the evmdec shape and goes through the same site-count cross-check; it has
+  no `effects`, so only the text is compared. Known weaknesses: weak
+  parameter types/arity, guessed storage, garbled conditions, can hang or
+  OOM. Strengths: guard conditions and revert strings. JSON results are in
+  `decompilers[]`, one per backend.
 - Sensitive-opcode positions come from the EVM's own linear sweep from offset
   0 (PUSH immediates honoured, valid JUMPDESTs as in jumpdest analysis).
   Opcodes after a halt and before the next valid JUMPDEST are listed as

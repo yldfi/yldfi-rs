@@ -28,7 +28,9 @@ Tools: `ethcli` (or the MCP tools `contract_fingerprint`, `contract_inspect`,
    storage reads (`ethcli rpc storage`). Selectors that have no known name
    keep their exact selector: mine a name with that selector or use a
    placeholder name whose keccak gives it, never change the selector.
-3. **Optional draft.** `ethcli contract decompile <impl>`. Read the
+3. **Optional draft.** `ethcli contract decompile <impl>` (add
+   `--backend all` to also run heimdall, which is better at guard
+   conditions and revert strings and worse at parameter types). Read the
    cross-check block first. Each warning there is something the draft does
    not show (for example `tx.origin` guards, storage writes, creation of
    contracts). "Not found by evmdec" is not a fact. Use the draft for control

@@ -693,8 +693,16 @@ pub async fn contract_decompile(
     block: Option<&str>,
     no_follow_proxy: bool,
     timeout: Option<u32>,
+    backend: Option<&str>,
 ) -> Result<String, ToolError> {
     let timeout = timeout.map(|t| t.clamp(1, 100).to_string());
+    if let Some(b) = backend {
+        if !matches!(b, "evmdec" | "heimdall" | "all") {
+            return Err(ToolError::InvalidInput(
+                "backend must be evmdec, heimdall or all".into(),
+            ));
+        }
+    }
     ArgsBuilder::new("contract")
         .subcommand("decompile")
         .arg(address)
@@ -702,6 +710,7 @@ pub async fn contract_decompile(
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)
         .opt("--timeout", timeout.as_deref())
+        .opt("--backend", backend)
         .format_json()
         .execute()
         .await
