@@ -54,6 +54,12 @@ pub enum UniswapCommands {
     /// Get LP positions for a wallet (subgraph, requires API key)
     Positions(PositionsArgs),
 
+    /// Value one LP position on-chain: a v3/v4 NFT id, or a v2-style pair with --v2
+    Position(super::uniswap_lp::PositionArgs),
+
+    /// List and value every open v3 LP position an address owns (on-chain)
+    LpPositions(super::uniswap_lp::LpPositionsArgs),
+
     /// Get token balance for an account
     Balance(BalanceArgs),
 
@@ -262,9 +268,27 @@ fn resolve_lens_target(
             "Uniswap lens queries support ethereum, optimism, polygon, base and arbitrum (got chain {chain_id})"
         ),
     };
+    let url = rpc_url_for(rpc_arg, chain)?;
+    Ok((url, factory, chain))
+}
+
+/// Resolve the RPC URL for an on-chain command on `chain`, with the same
+/// rules as [`resolve_lens_target`] but no factory restriction.
+pub(crate) fn resolve_rpc_target(
+    rpc_arg: Option<&str>,
+    chain: &str,
+) -> anyhow::Result<(String, crate::config::Chain)> {
+    let chain = crate::config::Chain::from_str_or_id(chain)
+        .map_err(|e| anyhow::anyhow!("Invalid --chain '{chain}': {e}"))?;
+    let url = rpc_url_for(rpc_arg, chain)?;
+    Ok((url, chain))
+}
+
+fn rpc_url_for(rpc_arg: Option<&str>, chain: crate::config::Chain) -> anyhow::Result<String> {
+    let chain_id = chain.chain_id();
     let env_url = std::env::var("ETH_RPC_URL").ok();
     let explicit = rpc_arg.filter(|u| chain_id == 1 || env_url.as_deref() != Some(*u));
-    let url = match explicit {
+    Ok(match explicit {
         Some(u) => u.to_string(),
         None => match crate::rpc::selector::get_rpc_url(chain) {
             Ok(u) => u,
@@ -273,8 +297,7 @@ fn resolve_lens_target(
                 "No RPC endpoint configured for {chain}: {e}. Pass --rpc-url or add one with `ethcli endpoints add`"
             ),
         },
-    };
-    Ok((url, factory, chain))
+    })
 }
 
 /// Handle Uniswap CLI commands
@@ -286,6 +309,14 @@ pub async fn handle(action: &UniswapCommands, chain: &str, quiet: bool) -> anyho
     use unswp::{factories, pools, subgraph_ids, tokens, LensClient, SubgraphClient};
 
     match action {
+        UniswapCommands::Position(args) => {
+            return super::uniswap_lp::handle_position(args, chain, quiet).await;
+        }
+
+        UniswapCommands::LpPositions(args) => {
+            return super::uniswap_lp::handle_lp_positions(args, chain, quiet).await;
+        }
+
         UniswapCommands::Pool(args) => {
             let (rpc_url, factory, lens_chain) =
                 resolve_lens_target(args.rpc_url.as_deref(), chain)?;

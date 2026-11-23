@@ -906,6 +906,40 @@ pub struct UniswapPositionsInput {
     pub version: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct UniswapPositionValueInput {
+    /// NFT token id of a v3 or v4 position (omit when `v2_pair` is set)
+    pub token_id: Option<String>,
+    /// Position manager version for token_id: v3 (default) or v4
+    pub version: Option<String>,
+    /// Uniswap v2-style pair address (also Sushi and other v2 forks); needs `owner`
+    pub v2_pair: Option<String>,
+    /// LP token holder for `v2_pair`
+    pub owner: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block number to value at (default: latest)
+    pub block: Option<u64>,
+    /// Skip USD pricing
+    pub no_price: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct UniswapLpPositionsInput {
+    /// Owner address
+    pub owner: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Include closed positions (no liquidity and nothing to collect)
+    pub all: Option<bool>,
+    /// Block number to value at (default: latest)
+    pub block: Option<u64>,
+    /// Skip USD pricing
+    pub no_price: Option<bool>,
+}
+
 // --- Curve ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CurvePoolsInput {

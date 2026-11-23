@@ -45,6 +45,7 @@ pub mod tenderly;
 pub mod token;
 pub mod tx;
 pub mod uniswap;
+pub mod uniswap_lp;
 pub mod update;
 pub mod velora;
 pub mod yields;

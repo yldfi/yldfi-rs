@@ -7268,6 +7268,53 @@ pub async fn uniswap_positions(
         .map_err(ToolError::from)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn uniswap_position_value(
+    token_id: Option<&str>,
+    version: Option<&str>,
+    v2_pair: Option<&str>,
+    owner: Option<&str>,
+    chain: Option<&str>,
+    block: Option<u64>,
+    no_price: bool,
+) -> Result<String, ToolError> {
+    let block = block.map(|b| b.to_string());
+    let mut b = ArgsBuilder::new("uniswap").subcommand("position");
+    if let Some(id) = token_id {
+        b = b.arg(id).opt("--version", version);
+    }
+    b.opt("--v2", v2_pair)
+        .opt("--owner", owner)
+        .opt("--block", block.as_deref())
+        .opt_flag("--no-price", no_price)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn uniswap_lp_positions(
+    owner: &str,
+    chain: Option<&str>,
+    all: bool,
+    block: Option<u64>,
+    no_price: bool,
+) -> Result<String, ToolError> {
+    let block = block.map(|b| b.to_string());
+    ArgsBuilder::new("uniswap")
+        .subcommand("lp-positions")
+        .opt("--owner", Some(owner))
+        .opt_flag("--all", all)
+        .opt("--block", block.as_deref())
+        .opt_flag("--no-price", no_price)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn uniswap_balance(
     token: &str,
     account: &str,

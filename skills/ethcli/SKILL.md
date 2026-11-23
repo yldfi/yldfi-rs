@@ -26,6 +26,8 @@ ethcli does not sign or send transactions.
 | Whole address history | `ethcli account txs <addr> --all --json` | `account_txs` with `all: true` |
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |
+| Value a Uniswap LP position | `ethcli uniswap position <id> [--version v4] --json`, or `--v2 <pair> --owner <addr>` | `uniswap_position_value` |
+| All v3 LP positions of an address | `ethcli uniswap lp-positions --owner <addr> --json` | `uniswap_lp_positions` |
 
 These replace chains of smaller calls. `contract inspect` covers `rpc code`,
 `contract selectors`, `contract abi`, `contract creation` and `token info`.
@@ -73,6 +75,11 @@ single facts.
 - **`account funded-by` `source`:** `explorer` is the explorer's own answer.
   `first_incoming_transfer` is the free fallback: the earliest incoming
   native-token transfer, ignoring token transfers.
+- **`uniswap position` fees:** for v3, `fee_cross_check.agree` false means
+  the pool fee-growth figure and the `collect` eth_call differ;
+  `uncollected_fees` is the `collect` figure. v2 has no separate fees
+  (`uncollected_fees` is null; they are in the reserves). A `value_usd`
+  field of null means a token had no price, not zero.
 - **`notes`:** many commands list what they could not fetch or what an
   answer leaves out. Pass these on to the user.
 

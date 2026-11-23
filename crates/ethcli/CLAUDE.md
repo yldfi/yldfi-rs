@@ -1413,6 +1413,13 @@ ethcli uniswap positions 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ethcli uniswap positions <address> --version v3 --chain arbitrum
 ethcli uniswap positions <address> --format json    # JSON output
 
+# LP position valuation (on-chain, no API key; honours --chain)
+ethcli uniswap position 1234567                         # v3 NFT
+ethcli uniswap position 12345 --version v4              # v4 NFT
+ethcli uniswap position --v2 <pair> --owner <address>   # v2-style pair, also Sushi and other forks
+ethcli uniswap lp-positions --owner <address> --json    # all open v3 positions (--all for closed)
+ethcli uniswap position 1234567 --block 21000000 --no-price
+
 # List well-known addresses
 ethcli uniswap addresses                            # All factories, pools, tokens
 ethcli uniswap addresses --factories                # Only factories
@@ -1426,6 +1433,11 @@ ethcli uniswap addresses --pools --version v3       # Only V3 pools
 - **Subgraph queries**: Use `eth-price`, `top-pools`, `swaps`, `day-data`, `positions` - requires `THEGRAPH_API_KEY`
 - **Multi-chain**: Supports Ethereum, Arbitrum, Optimism, Polygon, Base
 - **Multi-version**: Supports V2, V3, and V4 protocols
+- **LP valuation** (`position`, `lp-positions`): on-chain, pinned to one block, on every chain where Uniswap publishes v3/v4 deployments (addresses from `uniswap-sdk-core`). Reports tokens, fee tier, tick range, current tick, `in_range`, liquidity, token amounts, uncollected fees, USD values (median of ethcli's price sources, named in `prices[].source`) and `method`
+  - v3: `uniswap-v3-sdk` `get_position`; fees from an `eth_call` of `NonfungiblePositionManager.collect(tokenId, owner, max, max)` sent from the owner, cross-checked against pool fee growth (`get_collectable_token_amounts`). Both are in `fee_cross_check`; `agree: false` flags a difference
+  - v4: `uniswap-v4-sdk` `get_position`; fees from the PoolManager's fee growth inside the range minus the position's last value. Hooked pools are flagged in `method` (hook-side value is not included); dynamic-fee pools report the current LP fee
+  - v2-style pairs: one multicall (`balanceOf`, `totalSupply`, `getReserves`, `token0`, `token1`); fees are compounded into the reserves, so `uncollected_fees` is null. LP tokens staked elsewhere are not counted
+  - `lp-positions` lists v3 only: the v4 PositionManager is not enumerable on-chain
 
 ## Project Structure
 
