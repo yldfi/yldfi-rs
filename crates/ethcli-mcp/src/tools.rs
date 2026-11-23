@@ -2302,9 +2302,14 @@ pub async fn tenderly_vnets_admin_create_access_list(
 // PRICE, PORTFOLIO, NFTS, YIELDS, DOCTOR (standalone commands)
 // =============================================================================
 
-pub async fn price(token: &str, chain: Option<&str>) -> Result<String, ToolError> {
+pub async fn price(
+    token: &str,
+    chain: Option<&str>,
+    at: Option<&str>,
+) -> Result<String, ToolError> {
     ArgsBuilder::new("price")
         .arg(token)
+        .opt("--at", at)
         .chain(chain)
         .format_json()
         .execute()

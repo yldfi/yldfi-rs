@@ -35,6 +35,9 @@ single facts.
 
 ## Rules
 
+- **Historical prices:** `price <token> --at <date|block|7d> --json` gives
+  the DefiLlama price with `price_time` and `offset_seconds`; don't call
+  price APIs by hand.
 - **Don't read whole sources.** `contract source <addr> --list`, then
   `--function <name>` or `--grep <regex>`, instead of piping the full source
   through grep or head.

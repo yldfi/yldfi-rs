@@ -90,7 +90,7 @@ static KONG_CLIENT: OnceLock<Result<ykong::Client, String>> = OnceLock::new();
 static ENSO_CLIENT: OnceLock<Result<ensof::Client, String>> = OnceLock::new();
 
 /// Get or create the cached DefiLlama client
-fn get_llama_client() -> Result<&'static dllma::Client, &'static str> {
+pub(crate) fn get_llama_client() -> Result<&'static dllma::Client, &'static str> {
     LLAMA_CLIENT
         .get_or_init(|| {
             // Check for API key in config or env

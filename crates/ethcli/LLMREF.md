@@ -169,6 +169,7 @@ ethcli logs ... --format json|ndjson    # Output format
 ### Price (multi-source)
 ```bash
 ethcli price ETH                    # By symbol
+ethcli price <token> --at <date|time|7d|block>   # Historical price (DefiLlama), with the time of the price point
 ethcli price <token_addr>           # By address
 ethcli price ETH --sources gecko,llama # Specific sources
 ```
