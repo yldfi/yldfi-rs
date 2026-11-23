@@ -726,6 +726,61 @@ pub async fn contract_fingerprint(
         .map_err(ToolError::from)
 }
 
+/// Largest artifact `contract_match` accepts
+const MAX_ARTIFACT_BYTES: u64 = 50 * 1024 * 1024;
+
+/// Root under which `contract_match` may read artifacts:
+/// `ETHCLI_MCP_ARTIFACT_ROOT`, else the server's working directory
+fn artifact_root() -> Result<std::path::PathBuf, ToolError> {
+    let root = std::env::var_os("ETHCLI_MCP_ARTIFACT_ROOT")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::current_dir().ok())
+        .ok_or_else(|| ToolError::InvalidInput("no artifact root configured".into()))?;
+    root.canonicalize()
+        .map_err(|_| ToolError::InvalidInput("artifact root is not accessible".into()))
+}
+
+/// Check an artifact path from a tool call: a regular `.json` file under
+/// the artifact root, no larger than the cap. Returns the canonical path.
+/// Errors never echo file contents or parser details.
+pub fn validate_artifact_path(
+    raw: &str,
+    root: &std::path::Path,
+) -> Result<std::path::PathBuf, ToolError> {
+    let denied = || {
+        ToolError::InvalidInput(
+            "artifact must be a .json file under the allowed artifact root (ETHCLI_MCP_ARTIFACT_ROOT, default: the server's working directory)".into(),
+        )
+    };
+    if raw.is_empty() || raw.contains('\0') {
+        return Err(denied());
+    }
+    let given = std::path::Path::new(raw);
+    let joined = if given.is_absolute() {
+        given.to_path_buf()
+    } else {
+        root.join(given)
+    };
+    let canonical = joined.canonicalize().map_err(|_| denied())?;
+    if !canonical.starts_with(root) {
+        return Err(denied());
+    }
+    if canonical.extension().and_then(|e| e.to_str()) != Some("json") {
+        return Err(denied());
+    }
+    let meta = std::fs::metadata(&canonical).map_err(|_| denied())?;
+    if !meta.is_file() {
+        return Err(denied());
+    }
+    if meta.len() > MAX_ARTIFACT_BYTES {
+        return Err(ToolError::InvalidInput(
+            "artifact is larger than 50 MB".into(),
+        ));
+    }
+    Ok(canonical)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn contract_match(
     address: &str,
@@ -736,6 +791,11 @@ pub async fn contract_match(
     block: Option<&str>,
     no_follow_proxy: bool,
 ) -> Result<String, ToolError> {
+    let root = artifact_root()?;
+    let artifact = validate_artifact_path(artifact, &root)?;
+    let artifact = artifact
+        .to_str()
+        .ok_or_else(|| ToolError::InvalidInput("artifact path is not valid UTF-8".into()))?;
     ArgsBuilder::new("contract")
         .subcommand("match")
         .arg(address)
@@ -9562,5 +9622,78 @@ mod policy_tests {
         assert!(reject_file_reference("access_list", Some(" @x.json")).is_err());
         assert!(reject_file_reference("access_list", Some("[]")).is_ok());
         assert!(reject_file_reference("access_list", None).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod artifact_path_tests {
+    use super::*;
+
+    /// A fresh directory under the system temp dir, removed on drop
+    struct TempDir(std::path::PathBuf);
+    impl TempDir {
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    fn tempdir() -> TempDir {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static N: AtomicUsize = AtomicUsize::new(0);
+        let p = std::env::temp_dir().join(format!(
+            "ethcli-mcp-test-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&p).unwrap();
+        TempDir(p)
+    }
+
+    #[test]
+    fn artifact_paths_are_confined_to_the_root() {
+        let outside = tempdir();
+        let root_dir = tempdir();
+        let root = root_dir.path().canonicalize().unwrap();
+        std::fs::create_dir_all(root.join("out/A.sol")).unwrap();
+        std::fs::write(root.join("out/A.sol/A.json"), "{}").unwrap();
+        std::fs::write(root.join("notes.txt"), "secret").unwrap();
+        std::fs::write(outside.path().join("B.json"), "{}").unwrap();
+
+        // Allowed: relative and absolute inside the root
+        assert!(validate_artifact_path("out/A.sol/A.json", &root).is_ok());
+        let abs = root.join("out/A.sol/A.json");
+        assert!(validate_artifact_path(abs.to_str().unwrap(), &root).is_ok());
+
+        // Refused: outside, traversal, wrong extension, directory, missing
+        let out = outside.path().join("B.json");
+        for bad in [
+            out.to_str().unwrap(),
+            "../B.json",
+            "out/../../B.json",
+            "notes.txt",
+            "out",
+            "missing.json",
+            "/etc/passwd",
+            "",
+        ] {
+            let err = validate_artifact_path(bad, &root).unwrap_err().to_string();
+            assert!(!err.contains("secret"), "{err}");
+            assert!(err.contains("artifact"), "{bad}: {err}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_out_of_the_root_is_refused() {
+        let outside = tempdir();
+        let root_dir = tempdir();
+        let root = root_dir.path().canonicalize().unwrap();
+        std::fs::write(outside.path().join("x.json"), "{}").unwrap();
+        std::os::unix::fs::symlink(outside.path().join("x.json"), root.join("link.json")).unwrap();
+        assert!(validate_artifact_path("link.json", &root).is_err());
     }
 }

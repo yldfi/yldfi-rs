@@ -583,11 +583,19 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   found by evmdec". Known evmdec defects: dropped `tx.origin` guard on a
   hand-written MEV bot, "0 writes" on UniV3 `tickBitmap`,
   `calldata[block.chainid]` artefacts, `address[]` shown as `uint256[]`.
-- Sensitive-opcode positions come from a linear sweep that skips bytes after a
-  halting opcode until the next JUMPDEST, and excludes metadata. Data inside
-  code can still be miscounted.
+- Sensitive-opcode positions come from the EVM's own linear sweep from offset
+  0 (PUSH immediates honoured, valid JUMPDESTs as in jumpdest analysis).
+  Opcodes after a halt and before the next valid JUMPDEST are listed as
+  `unreachable_by_fallthrough`, never dropped. A metadata block is excluded
+  only when no instruction in it is reachable and it holds no valid JUMPDEST;
+  otherwise its opcodes are reported under `inside_metadata` with a warning.
 - Metadata blocks are found anywhere in the code (nested contracts) and only
-  count when the CBOR decodes exactly up to its length field.
+  count when the CBOR decodes exactly up to its length field, with byte
+  strings of at most 64 bytes, 32/34-byte hashes and 3-byte solc versions.
+- MCP `contract_match` only reads `.json` regular files up to 50 MB under
+  `ETHCLI_MCP_ARTIFACT_ROOT` (default: the server's working directory),
+  after canonicalising (symlinks out of the root are refused). Errors never
+  echo file contents.
 - `match`: immutables and libraries are always masked and their deployed
   values checked for consistency; metadata is compared separately. `partial`
   must never be called verified (a test enforces the wording). Same-size

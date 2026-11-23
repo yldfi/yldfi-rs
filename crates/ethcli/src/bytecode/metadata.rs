@@ -48,6 +48,10 @@ fn decode_cbor(data: &[u8], pos: usize, depth: usize) -> Option<(Cbor, usize)> {
         0 => Some((Cbor::Uint(arg), next)),
         2 | 3 => {
             let len = usize::try_from(arg).ok()?;
+            // Hashes are at most 64 bytes, versions and keys far less
+            if len > 64 {
+                return None;
+            }
             let raw = data.get(next..next.checked_add(len)?)?;
             next += len;
             if major == 2 {
@@ -164,11 +168,16 @@ fn describe(cbor: &Cbor, start: usize, end: usize, trailing: bool) -> Option<Met
     for (key, value) in entries {
         let Cbor::Text(key) = key else { return None };
         match (key.as_str(), value) {
+            ("ipfs" | "bzzr0" | "bzzr1", Cbor::Bytes(h)) if h.len() != 32 && h.len() != 34 => {
+                return None
+            }
             ("ipfs" | "bzzr0" | "bzzr1", Cbor::Bytes(hash)) => {
                 block.hash_type = key.clone();
                 block.hash = Some(hex::encode(hash));
                 known = true;
             }
+            ("solc", Cbor::Bytes(b)) if b.len() != 3 => return None,
+            ("solc" | "vyper", Cbor::Text(t)) if t.len() > 40 => return None,
             ("solc", v) => {
                 block.compiler = "solc".into();
                 block.version = version_from(v);
@@ -258,34 +267,6 @@ pub fn linear_sweep(code: &[u8]) -> Vec<(usize, u8)> {
     out
 }
 
-/// A linear sweep that skips bytes which cannot be reached by falling
-/// through: after a halting or jumping opcode (STOP, JUMP, RETURN, REVERT,
-/// INVALID, SELFDESTRUCT) everything up to the next JUMPDEST is treated as
-/// data. This drops most jump tables and constants embedded in code, which a
-/// plain linear sweep reads as opcodes. It is still a heuristic: data that
-/// happens to contain 0x5b is read again from there.
-pub fn code_sweep(code: &[u8]) -> Vec<(usize, u8)> {
-    let mut out = Vec::with_capacity(code.len() / 2);
-    let mut pc = 0;
-    let mut dead = false;
-    while pc < code.len() {
-        let op = code[pc];
-        if dead {
-            if op != 0x5b {
-                pc += 1;
-                continue;
-            }
-            dead = false;
-        }
-        out.push((pc, op));
-        if matches!(op, 0x00 | 0x56 | 0xf3 | 0xfd | 0xfe | 0xff) {
-            dead = true;
-        }
-        pc += 1 + push_size(op);
-    }
-    out
-}
-
 /// Immediate bytes taken by an opcode
 pub fn push_size(op: u8) -> usize {
     if (0x60..=0x7f).contains(&op) {
@@ -295,45 +276,125 @@ pub fn push_size(op: u8) -> usize {
     }
 }
 
-/// Where the executable part ends: the first metadata block, or the end
-pub fn executable_end(code: &[u8], blocks: &[MetadataBlock]) -> usize {
-    blocks
-        .iter()
-        .find(|b| b.trailing)
-        .map(|b| b.start)
-        .unwrap_or(code.len())
+/// Opcodes after which execution cannot fall through to the next byte
+fn halts(op: u8) -> bool {
+    matches!(op, 0x00 | 0x56 | 0xf3 | 0xfd | 0xfe | 0xff)
 }
 
-/// Positions of sensitive opcodes, from a linear sweep that stops at the
-/// trailing metadata
+/// The EVM's own view of the code: one linear sweep from offset 0 that
+/// honours PUSH immediates. This is exactly the jumpdest analysis the EVM
+/// performs, so the JUMPDESTs it finds are the only valid jump targets.
+pub struct CodeView {
+    /// (pc, opcode, reachable by fallthrough from a valid entry)
+    pub instructions: Vec<(usize, u8, bool)>,
+    /// Metadata blocks that are excluded: after the final halting
+    /// instruction and holding no valid JUMPDEST, so never executed
+    pub excluded: Vec<MetadataBlock>,
+    /// Metadata-looking blocks that could be executed and so are not excluded
+    pub suspicious: Vec<MetadataBlock>,
+}
+
+impl CodeView {
+    pub fn new(code: &[u8]) -> Self {
+        let sweep = linear_sweep(code);
+        // Reachable by fallthrough: from pc 0, until a halt; again from each
+        // valid JUMPDEST. Anything else is still listed, flagged.
+        let mut instructions = Vec::with_capacity(sweep.len());
+        let mut live = true;
+        for (pc, op) in &sweep {
+            if *op == 0x5b {
+                live = true;
+            }
+            instructions.push((*pc, *op, live));
+            if halts(*op) {
+                live = false;
+            }
+        }
+        let mut excluded = Vec::new();
+        let mut suspicious = Vec::new();
+        for block in find_metadata_blocks(code) {
+            let inside = || {
+                instructions
+                    .iter()
+                    .filter(move |(pc, _, _)| *pc >= block.start && *pc < block.end)
+            };
+            let has_jumpdest = inside().any(|(_, op, _)| *op == 0x5b);
+            let any_live = inside().any(|(_, _, live)| *live);
+            // An instruction straddling the block start (PUSH data running
+            // into it) would also make the region executable
+            let straddles = instructions.iter().any(|(pc, op, live)| {
+                *live && *pc < block.start && pc + push_size(*op) >= block.start
+            });
+            if has_jumpdest || any_live || straddles {
+                suspicious.push(block);
+            } else {
+                excluded.push(block);
+            }
+        }
+        Self {
+            instructions,
+            excluded,
+            suspicious,
+        }
+    }
+
+    fn excluded_at(&self, pc: usize) -> bool {
+        self.excluded.iter().any(|b| pc >= b.start && pc < b.end)
+    }
+
+    fn suspicious_at(&self, pc: usize) -> bool {
+        self.suspicious.iter().any(|b| pc >= b.start && pc < b.end)
+    }
+
+    /// Instructions outside the excluded metadata
+    pub fn code_ops(&self) -> impl Iterator<Item = &(usize, u8, bool)> {
+        self.instructions
+            .iter()
+            .filter(|(pc, _, _)| !self.excluded_at(*pc))
+    }
+}
+
+/// Positions of sensitive opcodes on the EVM's instruction boundaries
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct OpcodeCensus {
-    /// How instructions were found (see `code_sweep`)
+    /// How instructions were found
     pub method: &'static str,
-    /// opcode name -> pcs
+    /// opcode name -> pcs reachable by fallthrough from pc 0 or a valid JUMPDEST
     pub positions: std::collections::BTreeMap<String, Vec<usize>>,
+    /// opcode name -> pcs after a halt and before the next valid JUMPDEST.
+    /// Normally data, but listed so nothing is hidden
+    pub unreachable_by_fallthrough: std::collections::BTreeMap<String, Vec<usize>>,
+    /// opcode name -> pcs inside metadata-looking bytes that could be
+    /// executed (a valid JUMPDEST inside, or reachable by fallthrough)
+    pub inside_metadata: std::collections::BTreeMap<String, Vec<usize>>,
+    pub warnings: Vec<String>,
 }
 
 pub fn sensitive_census(code: &[u8]) -> OpcodeCensus {
-    let blocks = find_metadata_blocks(code);
-    let end = executable_end(code, &blocks);
-    // Nested metadata (embedded contracts) is data too
-    let in_metadata = |pc: usize| blocks.iter().any(|b| pc >= b.start && pc < b.end);
+    let view = CodeView::new(code);
     let mut census = OpcodeCensus {
-        method: "linear sweep skipping unreachable bytes after halting opcodes",
-        positions: Default::default(),
+        method: "EVM linear sweep from offset 0 (PUSH immediates honoured, valid JUMPDESTs as in the EVM's jumpdest analysis)",
+        ..Default::default()
     };
-    for (pc, op) in code_sweep(&code[..end]) {
-        if in_metadata(pc) {
+    for (pc, op, live) in view.code_ops() {
+        let Some((_, name)) = SENSITIVE_OPCODES.iter().find(|(o, _)| o == op) else {
             continue;
-        }
-        if let Some((_, name)) = SENSITIVE_OPCODES.iter().find(|(o, _)| *o == op) {
-            census
-                .positions
-                .entry((*name).to_string())
-                .or_default()
-                .push(pc);
-        }
+        };
+        let map = if view.suspicious_at(*pc) {
+            &mut census.inside_metadata
+        } else if *live {
+            &mut census.positions
+        } else {
+            &mut census.unreachable_by_fallthrough
+        };
+        map.entry((*name).to_string()).or_default().push(*pc);
+    }
+    for (name, pcs) in &census.inside_metadata {
+        census.warnings.push(format!(
+            "{} {name} inside bytes that look like compiler metadata but can be executed (pc {}); treat as real code",
+            pcs.len(),
+            pcs.iter().map(|p| format!("{p:#x}")).collect::<Vec<_>>().join(", ")
+        ));
     }
     census
 }
@@ -402,12 +463,8 @@ pub fn fingerprint(code: &[u8]) -> Fingerprint {
     use std::collections::{BTreeMap, BTreeSet};
 
     let blocks = find_metadata_blocks(code);
-    let end = executable_end(code, &blocks);
-    let in_metadata = |pc: usize| blocks.iter().any(|b| pc >= b.start && pc < b.end);
-    let ops: Vec<(usize, u8)> = code_sweep(&code[..end])
-        .into_iter()
-        .filter(|(pc, _)| !in_metadata(*pc))
-        .collect();
+    let view = CodeView::new(code);
+    let ops: Vec<(usize, u8)> = view.code_ops().map(|(pc, op, _)| (*pc, *op)).collect();
 
     let mut counts: BTreeMap<u8, usize> = BTreeMap::new();
     let mut address_like = BTreeSet::new();
@@ -483,7 +540,7 @@ pub fn fingerprint(code: &[u8]) -> Fingerprint {
 
     let trailing = blocks.iter().find(|b| b.trailing).cloned();
     let mut notes = vec![
-        "Opcodes come from a linear sweep that skips unreachable bytes after halting opcodes; data inside code can still be miscounted".to_string(),
+        "Opcodes come from the EVM linear sweep; data stored inside code is counted too, so counts are upper bounds".to_string(),
         "The pipeline guess is a heuristic; confirm by compiling".to_string(),
     ];
     if trailing.is_none() {
@@ -577,5 +634,69 @@ mod tests {
         assert!(shanghai.min_evm_version.starts_with("shanghai"));
         let cancun = fingerprint(&hex::decode("5f5c00").unwrap());
         assert!(cancun.min_evm_version.starts_with("cancun"));
+    }
+
+    #[test]
+    fn origin_hidden_behind_fake_jumpdest_in_push_data_is_found() {
+        // STOP ; PUSH1 0x5b ; ORIGIN. The 0x5b is push data, not a valid
+        // JUMPDEST, so ORIGIN stays on the EVM's instruction boundaries and
+        // is listed (unreachable by fallthrough), never dropped.
+        let code = hex::decode("00605b32").unwrap();
+        let census = sensitive_census(&code);
+        assert_eq!(census.unreachable_by_fallthrough["ORIGIN"], vec![3]);
+        // A real JUMPDEST makes it reachable
+        let code = hex::decode("005b32").unwrap();
+        assert_eq!(sensitive_census(&code).positions["ORIGIN"], vec![2]);
+        // ORIGIN inside push data is not an instruction at all
+        let code = hex::decode("603200").unwrap();
+        assert!(sensitive_census(&code).positions.is_empty());
+    }
+
+    #[test]
+    fn fake_metadata_with_reachable_delegatecall_is_reported() {
+        // Code that falls straight into bytes shaped like solc metadata, with
+        // a JUMPDEST and a DELEGATECALL inside the ipfs "hash"
+        let mut hash = vec![0u8; 34];
+        hash[0] = 0x5b;
+        hash[1] = 0xf4;
+        let mut cbor = hex::decode("a2646970667358").unwrap();
+        cbor.push(34);
+        cbor.extend(&hash);
+        cbor.extend(hex::decode("64736f6c6343000815").unwrap());
+        let mut code = hex::decode("6000").unwrap();
+        let len = cbor.len() as u16;
+        code.extend(&cbor);
+        code.extend(len.to_be_bytes());
+        assert!(
+            trailing_metadata(&code).is_some(),
+            "fixture must look like metadata"
+        );
+        let census = sensitive_census(&code);
+        assert!(
+            census.inside_metadata.contains_key("DELEGATECALL"),
+            "{census:?}"
+        );
+        assert!(!census.warnings.is_empty());
+    }
+
+    #[test]
+    fn real_trailing_metadata_is_excluded() {
+        let mut code = hex::decode("600160020100").unwrap();
+        code.extend(hex::decode(TAIL).unwrap());
+        let view = CodeView::new(&code);
+        assert_eq!(view.excluded.len(), 1);
+        assert!(view.suspicious.is_empty());
+    }
+
+    #[test]
+    fn oversized_cbor_strings_are_not_metadata() {
+        let mut cbor = hex::decode("a1646970667358").unwrap();
+        cbor.push(80);
+        cbor.extend([0x11; 80]);
+        let mut code = vec![0x00];
+        let len = cbor.len() as u16;
+        code.extend(&cbor);
+        code.extend(len.to_be_bytes());
+        assert!(trailing_metadata(&code).is_none());
     }
 }

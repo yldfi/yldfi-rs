@@ -441,8 +441,14 @@ pub fn cross_check(
         warnings.push("evmdec ran out of its work budget; output is partial".into());
     }
 
+    warnings.extend(census.warnings.iter().cloned());
+    // Executable "metadata" counts as code for the comparison
+    let mut all = census.positions.clone();
+    for (k, v) in &census.inside_metadata {
+        all.entry(k.clone()).or_default().extend(v);
+    }
     for (name, tokens, what) in TEXT_EVIDENCE {
-        let Some(at) = census.positions.get(*name) else {
+        let Some(at) = all.get(*name) else {
             continue;
         };
         let shown = tokens.iter().any(|t| {
@@ -466,7 +472,7 @@ pub fn cross_check(
         }
     }
     let fns = evmdec["functions"].as_array().cloned().unwrap_or_default();
-    if let Some(sstores) = census.positions.get("SSTORE") {
+    if let Some(sstores) = all.get("SSTORE") {
         let writes = fns
             .iter()
             .any(|f| f["effects"]["writes_storage"].as_bool() == Some(true));
@@ -565,22 +571,29 @@ fn print_facts_table(facts: &Value) {
             f["state_mutability"].as_str().unwrap_or("")
         );
     }
-    println!("  sensitive opcodes (sweep skipping unreachable bytes; metadata excluded; may still misread data):");
-    let positions = facts["sensitive_opcodes"]["positions"]
-        .as_object()
-        .cloned()
-        .unwrap_or_default();
-    if positions.is_empty() {
-        println!("    none");
-    }
-    for (name, list) in positions {
-        let list: Vec<usize> = list
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|v| v.as_u64().map(|n| n as usize))
-            .collect();
-        println!("    {name:<13} x{:<4} at {}", list.len(), pcs(&list));
+    let census = &facts["sensitive_opcodes"];
+    for (key, label) in [
+        ("positions", "sensitive opcodes (EVM instruction boundaries, reachable by fallthrough)"),
+        ("unreachable_by_fallthrough", "after a halt, before the next valid JUMPDEST (usually data; reachable only if something jumps there)"),
+        ("inside_metadata", "inside executable metadata-looking bytes (treat as real code)"),
+    ] {
+        let entries = census[key].as_object().cloned().unwrap_or_default();
+        if entries.is_empty() && key != "positions" {
+            continue;
+        }
+        println!("  {label}:");
+        if entries.is_empty() {
+            println!("    none");
+        }
+        for (name, list) in entries {
+            let list: Vec<usize> = list
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_u64().map(|n| n as usize))
+                .collect();
+            println!("    {name:<13} x{:<4} at {}", list.len(), pcs(&list));
+        }
     }
 }
 
@@ -864,11 +877,33 @@ pub async fn fingerprint_cmd(
 // match
 // ---------------------------------------------------------------------------
 
+/// Largest artifact `contract match` reads
+pub const MAX_ARTIFACT_BYTES: u64 = 50 * 1024 * 1024;
+
+/// Read an artifact file: a regular file under the size cap, parsed as JSON.
+/// Errors never include the file's contents.
+fn read_artifact(path: &Path) -> anyhow::Result<Value> {
+    let meta = std::fs::metadata(path)
+        .map_err(|_| anyhow::anyhow!("artifact not found or not readable"))?;
+    if !meta.is_file() {
+        anyhow::bail!("artifact is not a regular file");
+    }
+    if meta.len() > MAX_ARTIFACT_BYTES {
+        anyhow::bail!(
+            "artifact is larger than {} MB",
+            MAX_ARTIFACT_BYTES / 1024 / 1024
+        );
+    }
+    let bytes = std::fs::read(path).map_err(|_| anyhow::anyhow!("artifact could not be read"))?;
+    serde_json::from_slice(&bytes).map_err(|_| {
+        anyhow::anyhow!(
+            "artifact is not valid JSON (expected a forge artifact or solc standard-JSON output)"
+        )
+    })
+}
+
 pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::Result<()> {
-    let text = std::fs::read_to_string(&args.artifact)
-        .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", args.artifact.display()))?;
-    let json_artifact: Value = serde_json::from_str(&text)
-        .map_err(|e| anyhow::anyhow!("{} is not JSON: {e}", args.artifact.display()))?;
+    let json_artifact = read_artifact(&args.artifact)?;
     let artifact = parse_artifact(&json_artifact, args.contract.as_deref())?;
     if artifact.runtime.is_empty() {
         anyhow::bail!("the artifact has no deployed bytecode (an interface or abstract contract?)");
@@ -1082,7 +1117,7 @@ mod tests {
     fn census_with(name: &str, at: Vec<usize>) -> OpcodeCensus {
         let mut c = OpcodeCensus {
             method: "linear sweep",
-            positions: Default::default(),
+            ..Default::default()
         };
         c.positions.insert(name.into(), at);
         c
@@ -1186,5 +1221,19 @@ mod tests {
             dedaub_link(Chain::Ethereum, a),
             "https://app.dedaub.com/ethereum/address/0x6b75d8af000000e20b7a7ddf000ba900b4009a80/decompiled"
         );
+    }
+
+    #[test]
+    fn read_artifact_refuses_dirs_and_hides_contents() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(read_artifact(dir.path())
+            .unwrap_err()
+            .to_string()
+            .contains("not a regular file"));
+        let p = dir.path().join("a.json");
+        std::fs::write(&p, "top secret, not json").unwrap();
+        let err = read_artifact(&p).unwrap_err().to_string();
+        assert!(!err.contains("secret"), "{err}");
+        assert!(read_artifact(&dir.path().join("missing.json")).is_err());
     }
 }
