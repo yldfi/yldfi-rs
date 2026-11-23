@@ -220,6 +220,30 @@ fn is_constant(p: &crate::bytecode::Provenance, addr: Address) -> bool {
             .is_some_and(|v| v == U256::from_be_slice(addr.as_slice()))
 }
 
+/// Is this call exactly `implementation()` with no arguments, by
+/// STATICCALL, or by CALL with a value that is a constant zero?
+fn is_implementation_call(c: &crate::bytecode::CallSite) -> bool {
+    let const_eq = |p: &crate::bytecode::Provenance, want: U256| {
+        p.kind == "constant"
+            && p.value
+                .as_deref()
+                .and_then(|v| U256::from_str(v).ok())
+                .is_some_and(|v| v == want)
+    };
+    let kind_ok = match c.kind.as_str() {
+        "STATICCALL" => true,
+        "CALL" => !c.value.is_empty() && c.value.iter().all(|v| const_eq(v, U256::ZERO)),
+        _ => false,
+    };
+    kind_ok
+        && !c.selector.is_empty()
+        && c.selector
+            .iter()
+            .all(|s| s.kind == "constant" && s.value.as_deref() == Some("0x5c60da1b"))
+        && !c.args_len.is_empty()
+        && c.args_len.iter().all(|l| const_eq(l, U256::from(4u8)))
+}
+
 fn proxy_check_report(
     kind: &str,
     report: &CallsReport,
@@ -246,6 +270,7 @@ fn proxy_check_report(
                     && t.call_pc.is_some_and(|pc| {
                         report.call_sites.iter().any(|c| {
                             c.pc == pc
+                                && is_implementation_call(c)
                                 && c.target.iter().any(|b| {
                                     from_slot(b, EIP1967_BEACON_SLOT)
                                         || beacon.is_some_and(|addr| is_constant(b, addr))
@@ -297,7 +322,10 @@ fn immutable_beacon(code: &[u8]) -> Option<Address> {
         .flat_map(|s| s.target.iter())
         .filter(|t| t.kind == "call_return")
         .find_map(|t| {
-            let call = report.call_sites.iter().find(|c| Some(c.pc) == t.call_pc)?;
+            let call = report
+                .call_sites
+                .iter()
+                .find(|c| Some(c.pc) == t.call_pc && is_implementation_call(c))?;
             call.target.iter().find_map(|b| {
                 if matches!(b.kind.as_str(), "constant" | "code_constant") {
                     b.value.as_deref().and_then(|v| Address::from_str(v).ok())
@@ -2520,6 +2548,7 @@ mod tests {
             selector: vec![],
             value: vec![],
             args: vec![],
+            args_len: vec![],
             resolved: true,
         }
     }
@@ -2545,10 +2574,10 @@ mod tests {
     fn immutable_beacon_is_followed() {
         let beacon = Address::repeat_byte(0xbe);
         let imp = Address::repeat_byte(0x11);
-        let report = report_with(vec![
-            site(
+        let beacon_call = |kind: &str, selector: &str, len: &str, value: Option<&str>| {
+            let mut c = site(
                 10,
-                "STATICCALL",
+                kind,
                 "dispatcher",
                 vec![prov(
                     "code_constant",
@@ -2556,24 +2585,56 @@ mod tests {
                     None,
                     None,
                 )],
-            ),
+            );
+            c.selector = vec![prov("constant", Some(selector), None, None)];
+            c.args_len = vec![prov("constant", Some(len), None, None)];
+            c.value = value
+                .map(|v| vec![prov("constant", Some(v), None, None)])
+                .unwrap_or_default();
+            c
+        };
+        let delegate = || {
             site(
                 20,
                 "DELEGATECALL",
                 "dispatcher",
                 vec![prov("call_return", None, None, Some(10))],
-            ),
-        ]);
-        assert!(proxy_check_report("EIP-1967 beacon proxy", &report, imp, Some(beacon)).ok);
-        assert!(
-            !proxy_check_report(
+            )
+        };
+        let ok = |c, b| {
+            proxy_check_report(
                 "EIP-1967 beacon proxy",
-                &report,
+                &report_with(vec![c, delegate()]),
                 imp,
-                Some(Address::repeat_byte(0x22))
+                Some(b),
             )
             .ok
-        );
+        };
+        assert!(ok(
+            beacon_call("STATICCALL", "0x5c60da1b", "0x4", None),
+            beacon
+        ));
+        assert!(ok(
+            beacon_call("CALL", "0x5c60da1b", "0x4", Some("0x0")),
+            beacon
+        ));
+        // Wrong beacon, another selector (getTarget()), extra arguments, a value
+        assert!(!ok(
+            beacon_call("STATICCALL", "0x5c60da1b", "0x4", None),
+            Address::repeat_byte(0x22)
+        ));
+        assert!(!ok(
+            beacon_call("STATICCALL", "0xf00e6a2a", "0x4", None),
+            beacon
+        ));
+        assert!(!ok(
+            beacon_call("STATICCALL", "0x5c60da1b", "0x24", None),
+            beacon
+        ));
+        assert!(!ok(
+            beacon_call("CALL", "0x5c60da1b", "0x4", Some("0x1")),
+            beacon
+        ));
     }
 
     #[test]

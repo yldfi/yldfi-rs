@@ -976,6 +976,9 @@ pub struct CallSite {
     pub value: Vec<Provenance>,
     /// Up to three argument words after the selector
     pub args: Vec<Vec<Provenance>>,
+    /// Length of the call's input (argsLength)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub args_len: Vec<Provenance>,
     /// Whether every target is resolved
     pub resolved: bool,
 }
@@ -1235,6 +1238,7 @@ struct SiteAcc {
     selector: BTreeSet<Provenance>,
     value: BTreeSet<Provenance>,
     args: [BTreeSet<Provenance>; 3],
+    args_len: BTreeSet<Provenance>,
 }
 
 #[derive(Default)]
@@ -2024,6 +2028,7 @@ impl<'a> Interp<'a> {
         if let Some(v) = value {
             insert_capped(&mut site.value, provenance(v));
         }
+        insert_capped(&mut site.args_len, provenance(args_len));
         if matches!(op, 0xf0 | 0xf5) {
             return;
         }
@@ -2153,6 +2158,7 @@ pub fn analyze_calls_with(
                 .filter(|a| !a.is_empty())
                 .map(|a| a.iter().cloned().collect())
                 .collect(),
+            args_len: acc.args_len.iter().cloned().collect(),
             resolved: !acc.target.iter().any(Provenance::is_unresolved),
         };
         if let Some(prev) = call_sites.last_mut() {
