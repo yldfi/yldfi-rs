@@ -19,6 +19,7 @@ pub mod dune_cli;
 pub mod endpoints;
 pub mod ens;
 pub mod enso;
+pub mod find_change;
 pub mod gas;
 pub mod gecko;
 pub mod goplus;
@@ -36,6 +37,7 @@ pub mod price;
 pub mod pyth;
 pub mod quote;
 pub mod rpc;
+pub mod safe;
 pub mod schema;
 pub mod sig;
 pub mod simulate;
@@ -443,6 +445,16 @@ pub enum Commands {
         action: rpc::RpcCommands,
 
         /// Custom RPC URL (overrides default)
+        #[arg(long, global = true)]
+        rpc_url: Option<String>,
+    },
+
+    /// Safe (Gnosis Safe) multisig: info, pending queue, one transaction, history (read-only)
+    Safe {
+        #[command(subcommand)]
+        action: safe::SafeCommands,
+
+        /// Custom RPC URL for on-chain reads (overrides default)
         #[arg(long, global = true)]
         rpc_url: Option<String>,
     },

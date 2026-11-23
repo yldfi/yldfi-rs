@@ -20,9 +20,12 @@ ethcli does not sign or send transactions.
 | What did this transaction do? | `ethcli tx <hash> --full --json` | `tx_analyze` with `full: true` |
 | Several contract reads | `ethcli rpc multicall "<addr> <sig>(<returns>) [args]" ... --json` | `rpc_multicall` |
 | One contract read | `ethcli contract call <addr> <function> [args] --json` | `contract_call` |
+| A storage variable with no getter | `ethcli contract storage <addr> <var> [keys...] -o json` (`--list` for the layout) | `contract_storage` |
 | State at a date | add `--block 2024-01-31` (or `@<unix time>`, or `7d`) | `block` input |
 | Block for a time | `ethcli rpc block-at <time> --json` | `rpc_block_at` |
+| When did a value change? | `ethcli rpc find-change "<addr> <sig>(<returns>) [args]" --from <block\|time> --json` (or `--balance`, `--storage <addr> <slot>`, `--code`, `--nonce`). Finds *a* change; add `--all` when the first change matters (`single_change_assumed`, `warning` in JSON) | `rpc_find_change` (`all: true`) |
 | Why did a call revert? | read the error, or `ethcli sig error <data>` | `sig_error` |
+| Safe owners, queue, a Safe tx | `ethcli safe info\|queue <safe> --json`, `ethcli safe tx <safeTxHash> --json` | `safe_info`, `safe_queue`, `safe_tx` |
 | Whole address history | `ethcli account txs <addr> --all --json` | `account_txs` with `all: true` |
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
 | Cost of a transaction (incl. L1 data fee) | `ethcli gas cost <to> [data] -s <sig> -a "<args>" --from <addr> --chain base --json` | `gas_cost` |

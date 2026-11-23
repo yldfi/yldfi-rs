@@ -183,6 +183,40 @@ pub async fn find_verified(
         .and_then(|v| parse_blockscout(v, host))
 }
 
+/// What Sourcify said about a contract's storage layout
+#[derive(Debug)]
+pub enum LayoutLookup {
+    /// The `storageLayout` object
+    Found(serde_json::Value),
+    /// Verified, but Sourcify has no layout for it (older compilers, Vyper)
+    NoLayout,
+    /// Not verified on Sourcify
+    NotVerified,
+    /// Sourcify did not answer usefully
+    Unavailable(String),
+}
+
+/// Fetch a contract's compiler storage layout from Sourcify
+pub async fn storage_layout(http: &reqwest::Client, chain_id: u64, address: &str) -> LayoutLookup {
+    let url = format!("{SOURCIFY_API}/{chain_id}/{address}?fields=storageLayout");
+    let response = match http.get(&url).timeout(Duration::from_secs(20)).send().await {
+        Ok(r) => r,
+        Err(e) => return LayoutLookup::Unavailable(format!("request failed: {e}")),
+    };
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return LayoutLookup::NotVerified;
+    }
+    if !response.status().is_success() {
+        return LayoutLookup::Unavailable(format!("HTTP {}", response.status()));
+    }
+    match response.json::<serde_json::Value>().await {
+        Ok(v) if v["storageLayout"].is_object() => LayoutLookup::Found(v["storageLayout"].clone()),
+        Ok(v) if v["match"].is_null() => LayoutLookup::NotVerified,
+        Ok(_) => LayoutLookup::NoLayout,
+        Err(e) => LayoutLookup::Unavailable(format!("bad response: {e}")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

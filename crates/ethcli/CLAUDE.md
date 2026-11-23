@@ -41,6 +41,7 @@ ethcli contract   # Contract operations (ABI, source, creation, bytecode analysi
 ethcli token      # Token operations (info, holders, balance)
 ethcli gas        # Gas price oracle and estimates
 ethcli sig        # Signature lookup (function selectors, event topics)
+ethcli safe       # Safe multisig: info (on chain), queue, tx, history (read-only)
 ethcli simulate   # Transaction simulation and tracing
 ethcli cast       # Type conversions, hashing, encoding
 ethcli rpc        # Direct RPC calls
@@ -131,6 +132,34 @@ ethcli rpc block-at 2024-01-31                          # latest block at or bef
 ethcli rpc balance <addr> --block 2024-01-31
 ethcli contract call <addr> totalSupply --block 7d
 ```
+
+### `rpc find-change`: when did a value change
+
+```bash
+ethcli rpc find-change --code <addr> --from 6000000                 # deployment block
+ethcli rpc find-change "<token> balanceOf(address)(uint256) <holder>" --from 2024-01-01 --json
+ethcli rpc find-change --nonce <addr> --from 30d --all
+ethcli rpc find-change --storage <addr> <slot> --from <block> --to <block>
+```
+
+- Exactly one target: a call (as in `rpc multicall`), `--balance`, `--storage
+  <addr> <slot>`, `--code` or `--nonce`. `--from` and `--to` take a block, a
+  time or (`--to` only, the default) `latest`.
+- Reads the value at `--from`, then binary-searches `(from, to]` for the first
+  block where it differs: about log2(to - from) reads (24 for a million
+  blocks). The output gives `rpc_calls`.
+- Assumes one change in the range. With several it finds one boundary, not
+  necessarily the first. `--all` searches again after each change (up to 100);
+  a change that is undone inside a segment is still missed.
+- The JSON always has `single_change_assumed` (`true` without `--all`). A plain
+  result carries a `note` saying it may not be the first change. When `--all`
+  finds more than one change it adds a `warning` (also on stderr): the plain
+  result for that range may not have been the first change. **If the first
+  change matters, use `--all` and take `changes[0]`.**
+- Needs historical state; an archive endpoint is chosen for old blocks. If no
+  endpoint can read state at `--from` the error says so.
+- `transactions` lists top-level transactions in that block sent from or to
+  the address. Internal calls and contract creations are not listed.
 
 ### `tx`: one call for a transaction
 
@@ -253,6 +282,87 @@ ethcli contract inspect <addr> --json
 It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 `contract creation` and `token info`.
 
+### `safe`
+
+```bash
+ethcli safe info <safe>                 # owners, threshold, nonce, version, modules, guard, fallback handler (on chain)
+ethcli safe queue <safe>                # pending txs (nonce >= on-chain nonce): who signed, who has not
+ethcli safe tx <safeTxHash>             # one tx, calldata decoded, MultiSend batches unpacked
+ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset to page)
+```
+
+- Read-only: nothing is proposed, signed or executed.
+- `info` is one Multicall3 request (`getOwners`, `getThreshold`, `nonce`,
+  `VERSION`, `getModulesPaginated`) plus storage reads of the guard, fallback
+  handler and singleton slots, pinned to one block. Works on any chain.
+- `queue`, `tx` and `history` use the Safe Transaction Service
+  (`api.safe.global/tx-service/<short name>`; chain IDs map to its short names
+  in `service_chain_name`). It works without a key; `SAFE_API_KEY` (Bearer)
+  raises the rate limit, `SAFE_TX_SERVICE_URL` overrides the base URL.
+- `queue` lists nonce >= the on-chain nonce, compares confirmations with the
+  on-chain threshold and owners, and flags several proposals at one nonce.
+- Only distinct confirmations from current on-chain owners count toward
+  `confirmations` and `ready`; others are listed as `stale_signers`.
+- `multiSend(bytes)` is unpacked only when `to` is a known Safe MultiSend /
+  MultiSendCallOnly deployment (1.1.1-1.5.0, canonical/eip155/zksync). A
+  DELEGATECALL to anything that is not a known Safe library sets
+  `delegatecall_warning` and prints a WARNING line.
+- Batches DELEGATECALLed from inside a batch are unpacked recursively (up
+  to 4 levels) and every level is checked; findings, including a batch that
+  cannot be unpacked or is nested too deep, are in `call.batch_warnings`
+  (also in `queue` and `history`). A CALL (not DELEGATECALL) to a MultiSend
+  is warned about and not unpacked; undecodable multiSend calldata is warned.
+- Every service record is checked: the returned `safeTxHash` and `safe` must
+  match the request, and the EIP-712 safeTxHash is recomputed from the fields
+  (chainId domain, or the pre-1.3.0 domain); mismatches go in `warnings`.
+- `refund` shows safeTxGas, baseGas, gasPrice, gasToken and refundReceiver;
+  a non-zero gasPrice or a set refundReceiver adds a refund warning.
+- `ready` is true only at the current on-chain nonce with enough owner
+  signatures; `signatures_complete` is the signature check alone.
+- `info` reports owners, nonce or modules as unknown (JSON `null`) when the
+  read fails, falls back to `getModules()` for Safe 1.0.0, and sets
+  `modules_truncated` when more than 100 modules are enabled.
+- Calls are decoded from the verified ABI, else the signature database
+  (`source: signature_database`, a guess). `multiSend(bytes)` payloads
+  (`operation(1) to(20) value(32) length(32) data`) are unpacked and each
+  inner call decoded in `safe tx`; lists show the inner call count only.
+
+### `contract storage`
+
+Reads a storage variable by name, decoded, using the compiler's storage layout
+from Sourcify. Useful for state that has no getter.
+
+```bash
+ethcli contract storage <addr> --list                       # name, slot, offset, type
+ethcli contract storage <addr> totalSupply_
+ethcli contract storage <addr> allowed <owner> <spender>    # nested mapping
+ethcli contract storage <addr> "poolInfo[3].gauge"          # array of structs, one member
+ethcli contract storage <addr> slot0 --block 7d -o json     # whole struct
+```
+
+- Steps after the name are taken by type: a mapping takes a key, an array an
+  index, a struct a member name. They can be extra arguments or written in the
+  path (`name[key].member`).
+- Keys: address, uint, int (negative allowed), bool, bytesN, string and bytes,
+  hashed per Solidity rules. Other key types need the 32-byte key as hex.
+  Keys are range-checked against the key type; a hex intN key is read as that
+  type's two's complement (`0xf2761a` is int24 -887270); bytesN keys must be
+  exactly N bytes.
+- Dynamic array indexes are checked against the stored length.
+- When several variables share a name (`__gap`, private variables of
+  different base contracts) the command lists them; pick one with
+  `name@slot` or `Contract.name`.
+- A whole struct prints all members; a dynamic array prints its length and
+  the first 32 elements; a mapping needs a key.
+- Proxies (EIP-1967, beacon, legacy OpenZeppelin, EIP-1167, Safe): the
+  implementation's layout is used and the proxy's storage is read. JSON
+  `layout_from` says which layout was used.
+- One block is pinned for every read; `--block` takes a time like the other
+  commands.
+- No layout (older compilers, Vyper, not on Sourcify): it fails and points to
+  `rpc storage` and `cast index`. Namespaced storage (ERC-7201), diamonds,
+  immutables and constants are not in the layout and cannot be read this way.
+
 ### `rpc multicall`
 
 - Each call is `<address> <signature> [args...]`. Return types in the signature
@@ -279,7 +389,7 @@ It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 ### Times in place of blocks
 
 `--block` on `rpc call`, `storage`, `code`, `nonce`, `balance`, `block`,
-`multicall` and on `contract call` accepts:
+`multicall` and on `contract call` and `contract storage` accepts:
 
 | Form | Example |
 |---|---|

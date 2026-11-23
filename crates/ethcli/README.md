@@ -272,6 +272,15 @@ ethcli contract creation 0x...
 ethcli contract inspect 0x...
 ethcli contract inspect 0x... --json
 
+# Read a storage variable by name, decoded, from the verified storage layout
+# (Sourcify). Keys, indexes and struct members follow the name or go in the path.
+# For a proxy, the implementation's layout is used and the proxy's storage read.
+ethcli contract storage 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --list
+ethcli contract storage 0xA0b8...eB48 balanceAndBlacklistStates 0xHolder
+ethcli contract storage 0xA0b8...eB48 allowed 0xOwner 0xSpender --block 2025-01-01
+ethcli contract storage 0x88e6...5640 slot0.tick
+ethcli contract storage 0x88e6...5640 "ticks[-887270]" -o json
+
 # Extract function selectors from bytecode (no ABI needed)
 ethcli contract selectors 0x...
 ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory
@@ -352,6 +361,18 @@ ethcli contract call 0x... totalSupply --block 7d
 ethcli rpc block-at 2024-01-31T12:00:00Z    # the latest block at or before that time
 # A plain date is 00:00 UTC at the start of that day: 2024-01-31 is the close of 30 January.
 # For an end-of-day figure use the next day's date or a full time (2024-01-31T23:59:59Z).
+
+# The block where a value changed, by binary search (about log2(range) reads,
+# archive state needed). Target: a call, --balance, --storage <addr> <slot>,
+# --code (deployment) or --nonce. Prints the block, its time, old and new
+# values, top-level transactions to or from the address, and the RPC call count.
+ethcli rpc find-change --code 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --from 6000000 --to 7000000
+ethcli rpc find-change "0xA0b8... balanceOf(address)(uint256) 0xd8dA..." --from 2024-01-01 --json
+# It assumes the value changed once; with several changes it finds one of them.
+# --all searches again after each change (up to 100), but misses a change that is
+# undone within a segment (a balance that goes up and back down).
+# JSON carries single_change_assumed, and a warning when --all finds several
+# changes: when the first change matters, use --all.
 
 # Size and code hash only (is it a contract? did the code change?)
 ethcli rpc code 0x... --summary
@@ -462,6 +483,25 @@ ethcli sig error 0x08c379a0...       # decode revert data (Error, Panic or a cus
 # Lookup event by topic
 ethcli sig event 0xddf252ad...
 ```
+
+### Safe - Multisig Info, Queue and Transactions (read-only)
+
+```bash
+ethcli safe info <safe>                 # owners, threshold, nonce, version, modules, guard, fallback handler (on chain)
+ethcli safe queue <safe>                # pending txs (nonce >= on-chain nonce): who signed, who has not
+ethcli safe tx <safeTxHash>             # one tx, calldata decoded, MultiSend batches unpacked
+ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset to page)
+ethcli safe queue <safe> --chain arbitrum --json
+```
+
+`info` reads the Safe on chain (one Multicall3 request plus storage reads for
+the guard, fallback handler and singleton), so it works on any chain. `queue`,
+`tx` and `history` use the public Safe Transaction Service
+(`https://api.safe.global/tx-service/<chain>`), which works without a key;
+set `SAFE_API_KEY` for a higher rate limit, or `SAFE_TX_SERVICE_URL` to point
+at another deployment. Calls are decoded from the target's verified ABI, or
+from the signature database (marked with `?` / `"source": "signature_database"`,
+a guess). Nothing is proposed, signed or executed.
 
 ### Address Book
 
