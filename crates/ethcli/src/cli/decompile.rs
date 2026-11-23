@@ -898,6 +898,9 @@ pub struct OpcodeCensus {
     /// opcode -> pcs no analysed path reached (dead code, data, or beyond
     /// the analysis)
     pub not_reached: std::collections::BTreeMap<String, Vec<usize>>,
+    /// opcode -> unreached pcs in dead regions (after a halt with no
+    /// JUMPDEST before them): data that cannot execute
+    pub in_dead_data: std::collections::BTreeMap<String, Vec<usize>>,
     /// opcode -> pcs in trailing metadata bytes that hold no JUMPDEST
     pub in_metadata: std::collections::BTreeMap<String, Vec<usize>>,
     /// Guards on msg.sender / tx.origin found by the analysis
@@ -962,7 +965,25 @@ fn census_from(report: &CallsReport) -> OpcodeCensus {
 }
 
 fn sensitive_census(code: &[u8]) -> OpcodeCensus {
-    census_from(&analyze_calls(code, CallsBudget::default()))
+    let mut c = census_from(&analyze_calls(code, CallsBudget::default()));
+    split_dead_data(&mut c, code);
+    c
+}
+
+/// Move unreached sites that cannot execute (in a dead region after a halt)
+/// out of `not_reached` into `in_dead_data`
+fn split_dead_data(c: &mut OpcodeCensus, code: &[u8]) {
+    let dead = crate::bytecode::calls::dead_regions(code);
+    for (name, pcs) in &mut c.not_reached {
+        let (data, live): (Vec<usize>, Vec<usize>) = pcs
+            .iter()
+            .partition(|pc| dead.get(**pc).copied().unwrap_or(false));
+        if !data.is_empty() {
+            c.in_dead_data.insert(name.clone(), data);
+        }
+        *pcs = live;
+    }
+    c.not_reached.retain(|_, v| !v.is_empty());
 }
 
 /// ethcli's own facts about the code
@@ -1174,6 +1195,12 @@ pub fn cross_check_for(
             ));
         }
     }
+    let dead_data: usize = census.in_dead_data.values().map(Vec::len).sum();
+    if dead_data > 0 {
+        warnings.push(format!(
+            "{dead_data} sensitive-opcode bytes in unreachable data regions, not compared"
+        ));
+    }
     // Guard and control opcodes the analysis did not reach are still named,
     // one by one, when the decompiler's text shows fewer than exist: a
     // check behind a function pointer or other unresolved jump can sit there
@@ -1349,6 +1376,10 @@ fn print_facts_table(facts: &Value) {
         (
             "not_reached",
             "sensitive opcodes no analysed path reached (dead code, data, or beyond the analysis)",
+        ),
+        (
+            "in_dead_data",
+            "in data after a halt with no JUMPDEST before them (cannot execute)",
         ),
         (
             "in_metadata",
@@ -2688,6 +2719,42 @@ mod tests {
             Some(Address::from_str("0x5f890841f657d90e081babdb532a05996af79fe6").unwrap())
         );
         assert!(vyper_forwarder(&hex::decode("6000").unwrap()).is_none());
+    }
+
+    #[test]
+    fn data_after_a_halt_is_counted_not_named() {
+        // PUSH1 0 SLOAD POP STOP, then 70 SELFDESTRUCT bytes with no JUMPDEST
+        let mut code = hex::decode("60005450").unwrap();
+        code.push(0x00);
+        code.extend(std::iter::repeat_n(0xff, 70));
+        let census = sensitive_census(&code);
+        assert!(!census.not_reached.contains_key("SELFDESTRUCT"));
+        assert_eq!(census.in_dead_data["SELFDESTRUCT"].len(), 70);
+        let dec = json!({"source": "x = 1;", "functions": [], "storage": [], "stats": {}});
+        let cc = cross_check_for("heimdall", &[], &census, &dec);
+        let w: Vec<&str> = cc["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert!(!w.iter().any(|s| s.contains("possible dropped guard")));
+        assert!(w.contains(&"70 sensitive-opcode bytes in unreachable data regions, not compared"));
+    }
+
+    #[test]
+    fn origin_behind_a_computed_jump_is_still_named() {
+        // CALLDATALOAD(0) JUMP; STOP; JUMPDEST ORIGIN POP STOP
+        let code = hex::decode("600035560000005b325000").unwrap();
+        let census = sensitive_census(&code);
+        assert_eq!(census.not_reached.get("ORIGIN"), Some(&vec![8]));
+        assert!(census.in_dead_data.is_empty());
+        let dec = json!({"source": "x = 1;", "functions": [], "storage": [], "stats": {}});
+        let cc = cross_check_for("heimdall", &[], &census, &dec);
+        assert!(cc["warnings"].as_array().unwrap().iter().any(|w| w
+            .as_str()
+            .unwrap()
+            .starts_with("ORIGIN at pc 0x8 not reached")));
     }
 
     #[test]

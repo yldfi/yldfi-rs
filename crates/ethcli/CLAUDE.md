@@ -602,7 +602,7 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   reached sites (a reached site counts even inside metadata-looking bytes,
   with a warning), summarises unreached ones, and names each unreached
   ORIGIN / CALLER / DELEGATECALL / SELFDESTRUCT site the decompiler does not
-  show ("possible dropped guard").
+  show ("possible dropped guard"); sites in data after a halt with no JUMPDEST before them (`calls::dead_regions`) are only counted.
 - Proxy following also covers immutable beacons (OpenZeppelin 5.x
   BeaconProxy, Euler v2 vaults: the beacon call's target is a code constant
   equal to the beacon) and Vyper forwarders (Curve factory pools, Uniswap
