@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.9](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.8...ethcli-mcp-v0.6.9) (2026-11-23)
+
+
+### Features
+
+* **ethcli:** contract source --list, --function, --grep and --file ([#297](https://github.com/yldfi/yldfi-rs/issues/297)) ([3a2e6b7](https://github.com/yldfi/yldfi-rs/commit/3a2e6b7d1dd3c7cf595a6942bde1ed3e85e53e98))
+* **ethcli:** price --at for historical prices ([#299](https://github.com/yldfi/yldfi-rs/issues/299)) ([edcc67c](https://github.com/yldfi/yldfi-rs/commit/edcc67cce5574c1acff498d73c71d32a9a0acc09))
+
 ## [0.6.8](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.7...ethcli-mcp-v0.6.8) (2026-11-18)
 
 
