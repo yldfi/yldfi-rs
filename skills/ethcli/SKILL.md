@@ -109,7 +109,8 @@ single facts.
   match) or `partial` (code only; comments/names may differ from what was
   compiled). Etherscan does not report it (`not_reported`); when Etherscan
   serves the source of another address through a similar match,
-  `contract source` says so on stderr and `contract twins` shows
+  `contract source` says so in its output (a `// Note:` line, or
+  `source_verified_for` on each JSON element) and `contract twins` shows
   `verified_for_this_address: false`.
 - `contract twins --submit-similarity` publishes a match on Sourcify; it is
   a write (MCP `contract_twins_submit_similarity`, write tools only). Do not

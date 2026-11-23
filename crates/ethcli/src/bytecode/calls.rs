@@ -295,6 +295,24 @@ fn mk(code: u8, args: Vec<V>) -> V {
 
 /// Strip masks, `iszero(iszero(x))` and the 12-byte shifts that move a packed
 /// address to the low bytes, so provenance shows through
+/// Like [`strip`], but only through masks that keep a whole address (at
+/// least 160 bits): `caller & 0xff` is no longer the caller
+fn strip_subject(v: &V) -> &V {
+    match v {
+        V::Op(0x16, a) if a.len() == 2 => match (&a[0], &a[1]) {
+            (V::Const(m, _), x) | (x, V::Const(m, _)) if low_mask(*m) && m.bit_len() >= 160 => {
+                strip_subject(x)
+            }
+            _ => v,
+        },
+        V::Op(0x15, a) => match a.as_slice() {
+            [V::Op(0x15, b)] => strip_subject(&b[0]),
+            _ => v,
+        },
+        _ => v,
+    }
+}
+
 fn strip(v: &V) -> &V {
     match v {
         V::Op(0x16, a) if a.len() == 2 => match (&a[0], &a[1]) {
@@ -540,28 +558,230 @@ enum MemVal {
     Unknown,
 }
 
+const ADDR_BIAS: u64 = 1 << 40;
+
+/// A memory address as a sum: symbolic terms (each taken as unsigned, so
+/// the address is at least `k`) plus a constant
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct Addr {
+    /// Sorted, so equal sums compare equal
+    terms: Vec<V>,
+    k: u64,
+    /// Proven lower bound of the address (at least `k`; more when a term
+    /// is `x - small` with a known lower bound for `x`)
+    lb: u64,
+    /// Holds an unknown value: compared by lower bound only
+    opaque: bool,
+    /// A symbolic floor: the address is at least `floor_terms + floor_k`
+    /// (each `x - small` term replaced by `x` and its bound), which places
+    /// `end - (len & 31)` above the start of the same buffer
+    floor_terms: Vec<V>,
+    floor_k: i128,
+}
+
+/// An upper bound of a value, when it is masked or reduced to a small range
+fn upper_bound(v: &V) -> Option<u64> {
+    let small = |c: &U256| (c.bit_len() <= 40).then(|| c.to::<u64>());
+    match v {
+        V::Const(c, _) => small(c),
+        V::Op(0x16, a) if a.len() == 2 => {
+            a.iter().find_map(|x| x.as_const()).and_then(|m| small(&m))
+        }
+        V::Op(0x06, a) if a.len() == 2 => a[1]
+            .as_const()
+            .and_then(|m| small(&m))
+            .map(|m| m.saturating_sub(1)),
+        _ => None,
+    }
+}
+
+/// A proven lower bound of one symbolic term
+fn term_lower_bound(t: &V) -> u64 {
+    match t {
+        // x - y with y small: at least lb(x) - max(y) (Solidity's
+        // `end - (len & 31)` padding arithmetic)
+        V::Op(0x03, a) if a.len() == 2 => match (affine(&a[0]), upper_bound(&a[1])) {
+            (Some(x), Some(y)) => x.lb.saturating_sub(y),
+            _ => 0,
+        },
+        // x & ~(2^n - 1): x rounded down (Solidity's 32-byte alignment)
+        V::Op(0x16, a) if a.len() == 2 => {
+            let (x, m) = match (&a[0], &a[1]) {
+                (V::Const(m, _), x) | (x, V::Const(m, _)) => (x, *m),
+                _ => return 0,
+            };
+            let low = !m;
+            if low.bit_len() > 16 || (low & (low + U256::from(1u8))) != U256::ZERO {
+                return 0;
+            }
+            affine(x).map_or(0, |x| x.lb & !low.to::<u64>())
+        }
+        _ => 0,
+    }
+}
+
+fn term_key(v: &V) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    v.hash(&mut h);
+    h.finish()
+}
+
+/// Flatten nested ADDs into terms and a constant. `None` for an unknown
+/// address or one too large to be real memory.
+fn affine(v: &V) -> Option<Addr> {
+    fn go(v: &V, terms: &mut Vec<V>, k: &mut u64) -> Option<()> {
+        match v {
+            V::Const(c, _) => {
+                if c.bit_len() <= 40 {
+                    *k = k.checked_add(c.to::<u64>())?;
+                } else {
+                    // A two's-complement negative constant: `add(p, not(31))`
+                    // is p - 32
+                    let neg = U256::ZERO.wrapping_sub(*c);
+                    if neg.bit_len() > 40 {
+                        return None;
+                    }
+                    *k = k.checked_sub(neg.to::<u64>())?;
+                }
+            }
+            V::Op(0x01, a) if a.len() == 2 => {
+                go(&a[0], terms, k)?;
+                go(&a[1], terms, k)?;
+            }
+            other => terms.push(other.clone()),
+        }
+        (terms.len() <= 8).then_some(())
+    }
+    let mut terms = Vec::new();
+    // `k` is biased by ADDR_BIAS so a negative offset (p - 32) is
+    // representable; only differences of `k` and `lb` are used
+    let mut k = ADDR_BIAS;
+    go(v, &mut terms, &mut k)?;
+    terms.sort_by_key(term_key);
+    let lb = terms
+        .iter()
+        .map(term_lower_bound)
+        .fold(k, u64::saturating_add)
+        .saturating_sub(ADDR_BIAS);
+    // A bare unknown term can stand for anything, so two of them are never
+    // the same address: only the lower bound counts. (A term that merely
+    // contains an unknown, like `32 * n`, is the same expression on both
+    // sides of one path and is compared as such.)
+    let opaque = terms.iter().any(|t| matches!(t, V::Unknown));
+    let mut floor_terms = Vec::new();
+    let mut floor_k = k as i128;
+    for t in &terms {
+        match t {
+            V::Op(0x03, a) if a.len() == 2 => match (affine(&a[0]), upper_bound(&a[1])) {
+                (Some(x), Some(y)) => {
+                    floor_terms.extend(x.terms);
+                    floor_k += x.k as i128 - ADDR_BIAS as i128 - y as i128;
+                }
+                _ => floor_terms.push(t.clone()),
+            },
+            _ => floor_terms.push(t.clone()),
+        }
+    }
+    floor_terms.sort_by_key(term_key);
+    Some(Addr {
+        terms,
+        k,
+        lb,
+        opaque,
+        floor_terms,
+        floor_k,
+    })
+}
+
+/// `small` is a sub-multiset of `big`; returns what `big` has in addition
+fn extra_terms<'a>(small: &[V], big: &'a [V]) -> Option<Vec<&'a V>> {
+    let mut rest: Vec<&V> = big.iter().collect();
+    for t in small {
+        let i = rest.iter().position(|x| *x == t)?;
+        rest.remove(i);
+    }
+    Some(rest)
+}
+
 #[derive(Clone, Debug, Hash)]
 struct MemWrite {
-    base: V,
-    off: u64,
-    len: u64,
+    at: Addr,
+    /// `None`: a copy of unknown length, so everything from `at` up
+    len: Option<u64>,
+    /// The symbolic length of such a copy, to recognise a write that
+    /// starts exactly at its end (`calldatacopy(p, o, n); mstore(p + n, x)`)
+    len_v: Option<V>,
     val: MemVal,
 }
 
-/// Split an address into a symbolic base and a constant offset
-fn split_addr(v: &V) -> Option<(V, u64)> {
-    match v {
-        V::Const(c, _) => (c.bit_len() <= 40).then(|| (V::c(U256::ZERO), c.to::<u64>())),
-        V::Op(0x01, a) if a.len() == 2 => match (&a[0], &a[1]) {
-            (x, V::Const(c, _)) | (V::Const(c, _), x) if c.bit_len() <= 32 => {
-                let (base, off) = split_addr(x)?;
-                Some((base, off.checked_add(c.to::<u64>())?))
+/// Can a range starting at `a` (length `alen`, `None` = unbounded) share a
+/// byte with the entry `e`? Symbolic terms are unsigned, so an address with
+/// extra terms is at least as high; anything not provably apart overlaps.
+fn may_overlap(a: &Addr, alen: Option<u64>, e: &MemWrite) -> bool {
+    let end = |k: u64, len: Option<u64>| len.map_or(u64::MAX, |l| k.saturating_add(l));
+    let opaque = a.opaque || e.at.opaque;
+    // Floors: one range provably starts at or past the other's end
+    if !opaque {
+        if let Some(e_end) = e.len.map(|l| e.at.k as i128 + l as i128) {
+            if a.floor_k >= e_end && extra_terms(&e.at.terms, &a.floor_terms).is_some() {
+                return false;
             }
-            _ => Some((v.clone(), 0)),
-        },
-        V::Unknown => None,
-        _ => Some((v.clone(), 0)),
+        }
+        if let Some(a_end) = alen.map(|l| a.k as i128 + l as i128) {
+            if e.at.floor_k >= a_end && extra_terms(&a.terms, &e.at.floor_terms).is_some() {
+                return false;
+            }
+        }
     }
+    if !opaque && a.terms == e.at.terms {
+        return a.k < end(e.at.k, e.len) && e.at.k < end(a.k, alen);
+    }
+    if let Some(extra) = (!opaque)
+        .then(|| extra_terms(&e.at.terms, &a.terms))
+        .flatten()
+    {
+        // a = entry base + extra + a.k: starts at or above entry base + a.k
+        if e.len.is_none() {
+            // Starts exactly at (or past) the end of a copy of length L
+            if let Some(l) = &e.len_v {
+                if extra.len() == 1 && extra[0] == l && a.k >= e.at.k {
+                    return false;
+                }
+            }
+        }
+        // A constant entry: a's proven lower bound counts in full
+        let start = if e.at.terms.is_empty() {
+            a.lb + ADDR_BIAS
+        } else {
+            a.k
+        };
+        return start < end(e.at.k, e.len);
+    }
+    if !opaque && extra_terms(&a.terms, &e.at.terms).is_some() {
+        // entry = a's base + extra + e.k: starts at or above a's base + e.k
+        let start = if a.terms.is_empty() {
+            e.at.lb + ADDR_BIAS
+        } else {
+            e.at.k
+        };
+        return start < end(a.k, alen);
+    }
+    // One side is a plain constant range, the other is at least its lower
+    // bound
+    if a.terms.is_empty() {
+        return e.at.lb + ADDR_BIAS < end(a.k, alen);
+    }
+    if e.at.terms.is_empty() {
+        return a.lb + ADDR_BIAS < end(e.at.k, e.len);
+    }
+    true
+}
+
+struct MemWriteView<'a> {
+    off: u64,
+    #[allow(dead_code)]
+    len: Option<u64>,
+    val: &'a MemVal,
 }
 
 #[derive(Clone, Debug, Default, Hash)]
@@ -573,52 +793,43 @@ const MAX_MEM_WRITES: usize = 192;
 
 impl Memory {
     fn write(&mut self, addr: &V, len: Option<u64>, val: MemVal) {
+        self.write_len(addr, len, &V::Unknown, val);
+    }
+
+    /// Write `val` over `len` bytes (`None`: unknown length, `len_v` its
+    /// symbolic value). Entries this write certainly replaces (same base,
+    /// fully covered) are dropped; others stay, and a read takes the newest
+    /// entry that may overlap it, which is a value only when it is at the
+    /// same base. An unknown address forgets everything.
+    fn write_len(&mut self, addr: &V, len: Option<u64>, len_v: &V, val: MemVal) {
         let w = Rc::make_mut(&mut self.writes);
-        // A symbolic address can alias anything outside its own allocation:
-        // forget every entry whose base is not the same pointer or built
-        // from it (pointer arithmetic on one allocation), except Solidity's
-        // free memory pointer word (0x40), without which nothing past the
-        // first allocation could be followed
-        if let Some((base, _)) = split_addr(addr) {
-            if base != V::c(U256::ZERO) {
-                let zero = V::c(U256::ZERO);
-                w.retain(|e| {
-                    (e.base == zero && e.off == 0x40)
-                        || (e.base != zero
-                            && (e.base == base
-                                || e.base.contains(&|x| *x == base)
-                                || base.contains(&|x| *x == e.base)))
-                });
-            }
+        if len == Some(0) {
+            return;
         }
-        match (split_addr(addr), len) {
-            (Some((base, off)), Some(len)) if len > 0 => {
-                // drop writes this one fully covers
-                w.retain(|e| !(e.base == base && e.off >= off && e.off + e.len <= off + len));
-                w.push(MemWrite {
-                    base,
-                    off,
-                    len,
-                    val,
-                });
-                if w.len() > MAX_MEM_WRITES {
-                    w.remove(0);
-                }
+        let Some(at) = affine(addr) else {
+            w.clear();
+            return;
+        };
+        let end = len.map_or(u64::MAX, |l| at.k.saturating_add(l));
+        w.retain(|e| {
+            if !at.opaque && !e.at.opaque && e.at.terms == at.terms {
+                // Same base: exact offsets; drop only what is fully covered,
+                // a partly overwritten entry still answers for its other
+                // bytes (a selector followed by arguments)
+                !(e.at.k >= at.k && e.len.is_some_and(|l| e.at.k.saturating_add(l) <= end))
+            } else {
+                // Another base this write may alias: forget it
+                !may_overlap(&at, len, e)
             }
-            (_, Some(0)) => {}
-            // Known start, unknown length (dynamic bytes): everything from the
-            // start up in that region is unknown
-            (Some((base, off)), None) => {
-                w.retain(|e| e.base != base || e.off.saturating_add(e.len) <= off);
-                w.push(MemWrite {
-                    base,
-                    off,
-                    len: u64::MAX / 2,
-                    val,
-                });
-            }
-            // Unknown address or length: forget everything
-            _ => w.clear(),
+        });
+        w.push(MemWrite {
+            at,
+            len,
+            len_v: (len.is_none() && !matches!(len_v, V::Unknown)).then(|| len_v.clone()),
+            val,
+        });
+        if w.len() > MAX_MEM_WRITES {
+            w.remove(0);
         }
     }
 
@@ -629,16 +840,47 @@ impl Memory {
     /// The word at `addr`, trusting only its first `n` bytes: a later write
     /// past them does not make it unknown (a selector followed by arguments)
     fn read_prefix(&self, code: &[u8], addr: &V, n: u64) -> V {
-        let Some((base, off)) = split_addr(addr) else {
+        let Some(at) = affine(addr) else {
             return V::Unknown;
         };
+        let off = at.k;
+        // A copy of symbolic length L that covers the read (same base): a
+        // newer write exactly at its end (base + L) is taken not to reach
+        // back into it, i.e. the bytes read are assumed to lie within L
+        let cover = self.writes.iter().rev().find(|e| {
+            !at.opaque
+                && !e.at.opaque
+                && e.at.terms == at.terms
+                && e.len.is_none()
+                && e.len_v.is_some()
+                && off >= e.at.k
+        });
         for e in self.writes.iter().rev() {
-            if e.base != base || off + n <= e.off || off >= e.off.saturating_add(e.len) {
+            if !may_overlap(&at, Some(n), e) {
                 continue;
             }
-            let inside = off >= e.off && off + n <= e.off.saturating_add(e.len);
-            return match &e.val {
-                MemVal::Word(v) if e.off == off && e.len == 32 => v.clone(),
+            if let Some(c) = cover {
+                let at_end = extra_terms(&c.at.terms, &e.at.terms).is_some_and(|extra| {
+                    extra.len() == 1 && Some(extra[0]) == c.len_v.as_ref() && e.at.k >= c.at.k
+                });
+                if at_end {
+                    continue;
+                }
+            }
+            // The latest write that may overlap decides: a value only when it
+            // is at the same symbolic base and covers the bytes read
+            if at.opaque || e.at.opaque || e.at.terms != at.terms {
+                return V::Unknown;
+            }
+            let e_end = e.len.map_or(u64::MAX, |l| e.at.k.saturating_add(l));
+            let inside = off >= e.at.k && off + n <= e_end;
+            let e = MemWriteView {
+                off: e.at.k,
+                len: e.len,
+                val: &e.val,
+            };
+            return match e.val {
+                MemVal::Word(v) if e.off == off && e.len == Some(32) => v.clone(),
                 MemVal::CallData(src) if inside => {
                     calldata(mk(0x01, vec![src.clone(), V::c(U256::from(off - e.off))]))
                 }
@@ -950,6 +1192,14 @@ struct FnAcc {
 
 const MAX_PROVENANCE_PER_FIELD: usize = 6;
 
+/// Whether a state entering a block is new, a memory variant of a known
+/// stack (explored after everything else), or seen / over the cap
+enum Admit {
+    New,
+    Variant,
+    Seen,
+}
+
 /// Memory / last-call variants kept per distinct stack at one pc
 const MEMORY_VARIANTS_PER_STACK: usize = 4;
 
@@ -1086,44 +1336,66 @@ impl<'a> Interp<'a> {
     /// Record comparisons of caller/origin/this found in a branch condition
     fn scan_guards(&mut self, pc: usize, ctx: Ctx, cond: &V) {
         let mut found: Vec<Guard> = Vec::new();
-        fn walk(v: &V, pc: usize, out: &mut Vec<Guard>, depth: usize) {
+        fn subject_of(v: &V) -> Option<&'static str> {
+            match strip_subject(v) {
+                V::Caller => Some("msg_sender"),
+                V::Origin => Some("tx_origin"),
+                V::This => Some("address_this"),
+                _ => None,
+            }
+        }
+        fn push_eq(a: &[V], pc: usize, out: &mut Vec<Guard>) {
+            for (x, y) in [(&a[0], &a[1]), (&a[1], &a[0])] {
+                let Some(subject) = subject_of(x) else {
+                    continue;
+                };
+                // tx.origin == msg.sender is reported once, as origin;
+                // msg.sender == msg.sender says nothing
+                if (subject == "msg_sender" && matches!(strip(y), V::Origin | V::Caller))
+                    || subject_of(y) == Some(subject)
+                {
+                    continue;
+                }
+                out.push(Guard {
+                    pc,
+                    subject: subject.into(),
+                    check: "eq".into(),
+                    against: provenance(y),
+                });
+            }
+        }
+        // `direct`: the value decides the branch as it is (only ISZERO in
+        // between), so a SUB or XOR of it is zero exactly when its operands
+        // are equal. Inside AND/OR or further arithmetic it is not an
+        // equality test.
+        fn walk(v: &V, pc: usize, out: &mut Vec<Guard>, depth: usize, direct: bool) {
             if depth > 6 {
                 return;
             }
             match v {
-                // EQ, and the SUB / XOR solc emits for `a == b` and `a != b`
-                // before a JUMPI (zero exactly when equal)
-                V::Op(0x14 | 0x03 | 0x18, a)
-                    if a.len() == 2
-                        && a.iter()
-                            .any(|x| matches!(strip(x), V::Caller | V::Origin | V::This)) =>
-                {
+                V::Op(0x14, a) if a.len() == 2 => {
+                    if a.iter().any(|x| subject_of(x).is_some()) {
+                        push_eq(a, pc, out);
+                        return;
+                    }
+                    // eq(sub(a, b), 0) and eq(0, xor(a, b))
                     for (x, y) in [(&a[0], &a[1]), (&a[1], &a[0])] {
-                        let subject = match strip(x) {
-                            V::Caller => "msg_sender",
-                            V::Origin => "tx_origin",
-                            V::This => "address_this",
-                            _ => continue,
-                        };
-                        // tx.origin == msg.sender is reported once, as origin;
-                        // msg.sender == msg.sender says nothing
-                        if (subject == "msg_sender" && matches!(strip(y), V::Origin | V::Caller))
-                            || (subject == "tx_origin" && matches!(strip(y), V::Origin))
-                        {
-                            continue;
+                        if y.as_const() == Some(U256::ZERO) && matches!(x, V::Op(0x03 | 0x18, _)) {
+                            walk(x, pc, out, depth + 1, true);
+                            return;
                         }
-
-                        out.push(Guard {
-                            pc,
-                            subject: subject.into(),
-                            check: "eq".into(),
-                            against: provenance(y),
-                        });
                     }
                 }
-                V::Op(0x15 | 0x16 | 0x17 | 0x18 | 0x03, a) => {
+                // The SUB / XOR solc emits for `a == b` / `a != b` before JUMPI
+                V::Op(0x03 | 0x18, a)
+                    if direct && a.len() == 2 && a.iter().any(|x| subject_of(x).is_some()) =>
+                {
+                    push_eq(a, pc, out);
+                }
+                V::Op(0x15, a) => walk(&a[0], pc, out, depth + 1, direct),
+                V::Op(0x16 | 0x17 | 0x18 | 0x03, a) => {
                     for x in a.iter() {
-                        walk(x, pc, out, depth + 1);
+                        walk(x, pc, out, depth + 1, false);
                     }
                 }
                 V::SLoad(slot) => {
@@ -1158,14 +1430,14 @@ impl<'a> Interp<'a> {
                     if let V::Op(0x1c | 0x04, a) = v {
                         for x in a.iter() {
                             if matches!(x, V::SLoad(_)) {
-                                walk(x, pc, out, depth + 1);
+                                walk(x, pc, out, depth + 1, false);
                             }
                         }
                     }
                 }
             }
         }
-        walk(cond, pc, &mut found, 0);
+        walk(cond, pc, &mut found, 0, true);
         if !found.is_empty() {
             let acc = self.fnacc(ctx);
             acc.guards.extend(found);
@@ -1184,7 +1456,7 @@ impl<'a> Interp<'a> {
     }
 
     /// Enter a block: dedupe states per (pc, ctx)
-    fn admit(&mut self, s: &State) -> bool {
+    fn admit(&mut self, s: &State) -> Admit {
         // Two levels: distinct stacks (what decides control flow) get the
         // per-pc cap; for each stack a few memory / last-call variants are
         // kept too, since two paths that differ only in memory can give a
@@ -1203,22 +1475,22 @@ impl<'a> Interp<'a> {
         match stacks.get_mut(&stack_key) {
             Some(mems) => {
                 if mems.contains(&mem_key) {
-                    return false;
+                    return Admit::Seen;
                 }
                 if mems.len() >= MEMORY_VARIANTS_PER_STACK {
                     self.pruned += 1;
-                    return false;
+                    return Admit::Seen;
                 }
                 mems.insert(mem_key);
-                true
+                Admit::Variant
             }
             None => {
                 if stacks.len() >= cap {
                     self.pruned += 1;
-                    return false;
+                    return Admit::Seen;
                 }
                 stacks.insert(stack_key, HashSet::from([mem_key]));
-                true
+                Admit::New
             }
         }
     }
@@ -1231,12 +1503,27 @@ impl<'a> Interp<'a> {
             ctx: Ctx::Dispatcher,
             last_call: None,
         }];
-        'paths: while let Some(mut s) = work.pop() {
+        // Memory variants (same stack, different memory) wait here until
+        // every other path is done, so they use only what budget is left
+        // and never crowd out a path the stack alone would have explored
+        let mut deferred: Vec<State> = Vec::new();
+        'paths: while let Some((mut s, admitted)) = work
+            .pop()
+            .map(|s| (s, false))
+            .or_else(|| deferred.pop().map(|s| (s, true)))
+        {
             if self.step_hit || self.time_hit {
                 break;
             }
-            if !self.admit(&s) {
-                continue;
+            if !admitted {
+                match self.admit(&s) {
+                    Admit::New => {}
+                    Admit::Variant => {
+                        deferred.push(s);
+                        continue;
+                    }
+                    Admit::Seen => continue,
+                }
             }
             loop {
                 if self.out_of_budget() {
@@ -1348,7 +1635,7 @@ impl<'a> Interp<'a> {
                             .as_const()
                             .filter(|l| l.bit_len() <= 24)
                             .map(|l| l.to::<u64>());
-                        s.mem.write(&dest, l, MemVal::CallData(src));
+                        s.mem.write_len(&dest, l, &len, MemVal::CallData(src));
                     }
                     0x39 | 0x3e => {
                         let dest = pop!();
@@ -1365,7 +1652,7 @@ impl<'a> Interp<'a> {
                             }
                             _ => MemVal::Unknown,
                         };
-                        s.mem.write(&dest, l, val);
+                        s.mem.write_len(&dest, l, &len, val);
                     }
                     0x3c => {
                         // extcodecopy(addr, dest, offset, len): external code
@@ -1377,7 +1664,7 @@ impl<'a> Interp<'a> {
                             .as_const()
                             .filter(|l| l.bit_len() <= 24)
                             .map(|l| l.to::<u64>());
-                        s.mem.write(&dest, l, MemVal::Unknown);
+                        s.mem.write_len(&dest, l, &len, MemVal::Unknown);
                     }
                     0x5e => {
                         let dest = pop!();
@@ -1387,7 +1674,7 @@ impl<'a> Interp<'a> {
                             .as_const()
                             .filter(|l| l.bit_len() <= 24)
                             .map(|l| l.to::<u64>());
-                        s.mem.write(&dest, l, MemVal::Unknown);
+                        s.mem.write_len(&dest, l, &len, MemVal::Unknown);
                     }
                     0x51 => {
                         let a = pop!();
@@ -1423,7 +1710,12 @@ impl<'a> Interp<'a> {
                                     p.value = Some(hex_u256(c));
                                     p
                                 }
-                                None => provenance(&sload(k)),
+                                // Display only: wrap without the cap, the key is already bounded
+                                None => provenance(&V::SLoad(Bx {
+                                    depth: (k.depth() + 1) as u8,
+                                    nodes: (k.nodes() + 1).min(255) as u8,
+                                    v: Box::new(k),
+                                })),
                             },
                             transient: op == 0x5d,
                         };
@@ -1501,7 +1793,7 @@ impl<'a> Interp<'a> {
                             .as_const()
                             .filter(|l| l.bit_len() <= 24)
                             .map(|l| l.to::<u64>());
-                        s.mem.write(&ret_off, l, MemVal::Ret(pc));
+                        s.mem.write_len(&ret_off, l, &ret_len, MemVal::Ret(pc));
                         s.last_call = Some(pc);
                         push!(V::Ret(pc))
                     }
@@ -1549,8 +1841,13 @@ impl<'a> Interp<'a> {
                 s.pc = next;
                 if next < self.code.len() && self.jumpdests[next] {
                     // fall-through into a block: dedupe
-                    if !self.admit(&s) {
-                        continue 'paths;
+                    match self.admit(&s) {
+                        Admit::New => {}
+                        Admit::Variant => {
+                            deferred.push(s);
+                            continue 'paths;
+                        }
+                        Admit::Seen => continue 'paths,
                     }
                 }
             }
@@ -2181,6 +2478,104 @@ mod tests {
         let r = run("0c325000"); // 0x0c is undefined
         assert_eq!(r.coverage.invalid_opcodes, vec![0]);
         assert!(!r.coverage.complete);
+    }
+
+    /// A constant in memory that a later write may have overwritten is not
+    /// reported as the call target (the review's cases a-d, plus a write at
+    /// returndatasize())
+    #[test]
+    fn stale_constant_cases_are_unresolved() {
+        let k = "731111111111111111111111111111111111111111";
+        let call_with = |target_load: &str| format!("5f5f5f5f5f{target_load}5af100");
+        let cases = [
+            // (a) constant at 0x40, write at calldataload(4), read 0x40
+            format!("{k}604052 602435600435 52 {}", call_with("604051")),
+            // (b) the same through extcodecopy to a calldata destination
+            format!("{k}604052 6020 5f 600435 5f 3c {}", call_with("604051")),
+            // (c) constant at cd4, write at 0, read cd4
+            format!("{k}600435 52 5f35 5f 52 {}", call_with("60043551")),
+            // (d) constant at cd4 + cd44, write at cd4, read cd4 + cd44
+            format!(
+                "{k}604435600435 01 52 602435 600435 52 {}",
+                call_with("604435600435 01 51")
+            ),
+            // (e) constant at 0, write at returndatasize() (0 before a call)
+            format!("{k}5f52 602435 3d 52 {}", call_with("5f51")),
+        ];
+        for (i, code) in cases.iter().enumerate() {
+            let r = run(&code.replace(' ', ""));
+            assert_eq!(
+                r.call_sites[0].target[0].kind, "unresolved",
+                "case {i}: {:?}",
+                r.call_sites[0].target
+            );
+        }
+    }
+
+    /// 1inch v5 style: selector at 0x80, a dynamic copy after it, then a
+    /// word written right at the copy's end; Safe fallback style: calldata
+    /// copied to 0 and the caller appended at calldatasize
+    #[test]
+    fn writes_past_a_dynamic_copy_keep_earlier_words() {
+        let inch = concat!(
+            "63aabbccdd60e01b608052", // mstore(0x80, sel << 224)
+            "33608452",               // mstore(0x84, caller)
+            "602435604460a437",       // calldatacopy(0xa4, 0x44, cd(0x24))
+            "6001602435 60a4 01 52",  // mstore(0xa4 + cd(0x24), 1)
+            "5f5f60446080 5f 600435 5af100"
+        )
+        .replace(' ', "");
+        let r = run(&inch);
+        let site = &r.call_sites[0];
+        assert_eq!(site.selector[0].value.as_deref(), Some("0xaabbccdd"));
+        assert_eq!(site.args[0][0].kind, "msg_sender");
+
+        let safe = concat!(
+            "365f5f37",         // calldatacopy(0, 0, calldatasize)
+            "33 6060 1b 36 52", // mstore(calldatasize, caller << 96)
+            "5f5f 6014 36 01 5f 5f 731111111111111111111111111111111111111111 5af100"
+        )
+        .replace(' ', "");
+        let r = run(&safe);
+        let site = &r.call_sites[0];
+        assert_eq!(site.selector[0].kind, "calldata");
+        assert_eq!(site.selector[0].offset.as_deref(), Some("0x0"));
+    }
+
+    fn guards_for(cond: &str) -> Vec<Guard> {
+        let cond = cond.replace(' ', "");
+        let dest = cond.len() / 2 + 4;
+        let code = format!("{cond}60{dest:02x}57005b00");
+        run(&code)
+            .functions
+            .iter()
+            .flat_map(|f| f.guards.clone())
+            .collect()
+    }
+
+    /// SUB / XOR are equality tests only as the branch condition itself
+    /// (or under ISZERO / eq(_, 0)); masked or further arithmetic is not
+    #[test]
+    fn sub_xor_guards_only_when_direct() {
+        for not_guard in [
+            "5f54 33 03 6001 16",   // and(sub(caller, s0), 1)
+            "600435 5f54 33 03 03", // sub(sub(caller, s0), cd4)
+            "600435 5f54 33 18 18", // xor(xor(caller, s0), cd4)
+            "5f54 33 18 60ff 16",   // and(xor(caller, s0), 0xff)
+        ] {
+            assert!(guards_for(not_guard).is_empty(), "{not_guard}");
+        }
+        for guard in [
+            "5f54 33 03",       // sub(caller, s0)
+            "5f54 33 18 15",    // iszero(xor(caller, s0))
+            "5f 5f54 33 03 14", // eq(sub(caller, s0), 0)
+        ] {
+            let g = guards_for(guard);
+            assert_eq!(g.len(), 1, "{guard}");
+            assert_eq!(g[0].against.slot.as_deref(), Some("0x0"));
+        }
+        // address(this) compared with itself is not a guard
+        assert!(guards_for("30 30 14").is_empty());
     }
 
     /// Sensitive opcodes inside a forged trailer are still listed; a trailer

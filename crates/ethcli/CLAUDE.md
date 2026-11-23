@@ -579,20 +579,30 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   packed), `msg_sender`, `tx_origin`, `address_this`, `call_return`,
   `keccak`, `computed`, `unresolved`). Memory is keyed by symbolic base +
   constant offset; `calldatacopy`, constant `codecopy` and return data are
-  modelled, and EXTCODECOPY makes its range unknown. An unknown-address
-  write clears memory; a write through a symbolic base forgets every
-  entry not of the same allocation (same base or built from it), except
-  the free memory pointer word 0x40. Values are capped at depth 8 and 64
+  modelled, and EXTCODECOPY makes its range unknown. Addresses are sums
+  of symbolic terms (taken as unsigned) plus a constant, with a proven
+  lower bound (`x - (len & 31)` and `x & ~31` keep x's bound) and a
+  symbolic floor. A write drops same-base entries it fully covers and any
+  other entry it may overlap; a read takes the newest entry that may
+  overlap it, and is a value only when that entry has the same base and
+  covers the bytes. One assumption: a write exactly at the end of a copy
+  of symbolic length L (`calldatacopy(p, o, L); mstore(p + L, x)`) does
+  not reach back into bytes read from inside that copy (it would only if
+  L were smaller than the read offset). Values are capped at depth 8 and 64
   nodes (cached per node, so checks are O(1)); larger values are
   unresolved. Functions come from
   `selector == PUSH4` branches, evmole entry offsets, or a byte-bounded
   calldata jump table (`jump_table[i]`, every JUMPDEST enumerated). Guards:
-  EQ, SUB or XOR (solc's `==`/`!=` peephole) of msg.sender/tx.origin/
-  address(this) inside a JUMPI condition (through AND/ISZERO/OR), and
-  mapping lookups keyed by msg.sender. Budgets: steps (4M), time (15 s;
-  10 s in analyze), distinct states per (pc, function) (24
-  distinct stacks, plus up to 4 memory/last-call variants per stack, all
-  drops counted in `states_pruned`). `coverage` gives evmole
+  EQ of msg.sender/tx.origin/address(this) (masks of 160 bits or more
+  only) anywhere in a JUMPI condition, and SUB / XOR (solc's `==`/`!=`
+  peephole) only as the condition itself, under ISZERO or as
+  `eq(_, 0)`; mapping lookups keyed by msg.sender. Budgets: steps (4M),
+  time (15 s; 10 s in analyze), distinct states per (pc, function) (24
+  distinct stacks, plus up to 4 memory/last-call variants per stack,
+  explored after every other path so they never crowd one out; all drops
+  counted in `states_pruned`). `tests/calls_corpus.rs` (ignored) writes
+  every fact for a directory of bytecode, for A/B runs between builds.
+  `coverage` gives evmole
   CFG blocks analysed / reachable, unresolved jumps and call sites, prunes,
   `invalid_opcodes` (unknown opcodes stop a path) and `complete`.
   `calls::opcode_sites(code, metadata_offset)` is a public linear sweep of

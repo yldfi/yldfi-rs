@@ -971,30 +971,36 @@ pub async fn handle(
             }
             // Etherscan can serve the source of another address whose code is
             // similar; say so, since it was not verified for this address
+            // Also in stdout (and JSON), so MCP callers see it
+            let mut source_note: Option<String> = None;
+            let mut verified_for: Option<String> = None;
             if origin == crate::etherscan::fallback::Origin::Etherscan {
-                if let Ok(v) = client
-                    .explorer_get(&[
-                        ("module", "contract".to_string()),
-                        ("action", "getsourcecode".to_string()),
-                        ("address", address.to_string()),
-                    ])
-                    .await
-                {
-                    if let Some(similar) = v
-                        .get(0)
-                        .and_then(|r| r["SimilarMatch"].as_str())
-                        .filter(|s| !s.is_empty())
-                    {
-                        eprintln!(
-                            "Note: Etherscan serves this source through a similar match: it \
-                             was verified for {similar}, not for {address}. Check \
-                             `ethcli contract twins {address}` for whether the code is identical."
-                        );
+                match etherscan_similar_match(&client, address).await {
+                    Ok(Some(similar)) => {
+                        source_note = Some(format!(
+                            "Etherscan serves this source through a similar match: it was \
+                             verified for {similar}, not for {address}. Check `ethcli contract \
+                             twins {address}` for whether the code is identical."
+                        ));
+                        verified_for = Some(similar);
                     }
+                    Ok(None) => {}
+                    Err(e) => {
+                        source_note = Some(format!(
+                            "Could not tell whether Etherscan's source was verified for this \
+                             address or borrowed from a similar contract ({e})"
+                        ));
+                    }
+                }
+                if let (Some(note), false) = (&source_note, quiet) {
+                    eprintln!("Note: {note}");
                 }
             }
 
             if *list || file.is_some() || function.is_some() || grep.is_some() {
+                if let (Some(note), true) = (&source_note, format.is_table()) {
+                    println!("// Note: {note}");
+                }
                 let files = source_files(&metadata.items);
                 if files.is_empty() {
                     return Err(anyhow::anyhow!(
@@ -1008,6 +1014,7 @@ pub async fn handle(
                     function.as_deref(),
                     grep.as_deref(),
                     *format,
+                    verified_for.as_deref(),
                 );
             }
 
@@ -1095,6 +1102,9 @@ pub async fn handle(
                     ));
                 }
 
+                if let Some(note) = &source_note {
+                    println!("// Note: {note}");
+                }
                 for item in items {
                     println!("// Contract: {}", item.contract_name);
                     println!("// Compiler: {}", item.compiler_version);
@@ -3712,6 +3722,49 @@ fn source_files(
 /// Print the part of the source that `--list`, `--file`, `--function` or
 /// `--grep` asked for. `--file` narrows `--function` and `--grep` to the
 /// matching files.
+/// Mark every element of a JSON array with the address the source was
+/// verified for, when Etherscan served it through a similar match
+fn with_verified_for(
+    mut value: serde_json::Value,
+    verified_for: Option<&str>,
+) -> serde_json::Value {
+    if let (Some(addr), Some(items)) = (verified_for, value.as_array_mut()) {
+        for item in items {
+            if let Some(obj) = item.as_object_mut() {
+                obj.insert("source_verified_for".into(), serde_json::json!(addr));
+            }
+        }
+    }
+    value
+}
+
+/// Etherscan's `SimilarMatch` for an address: `Some(other)` when the source
+/// it serves was verified for another address. One retry.
+async fn etherscan_similar_match(client: &Client, address: &str) -> Result<Option<String>, String> {
+    let params = [
+        ("module", "contract".to_string()),
+        ("action", "getsourcecode".to_string()),
+        ("address", address.to_string()),
+    ];
+    let mut last = String::new();
+    for attempt in 0..2 {
+        if attempt > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+        }
+        match client.explorer_get(&params).await {
+            Ok(v) => {
+                return Ok(v
+                    .get(0)
+                    .and_then(|r| r["SimilarMatch"].as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string))
+            }
+            Err(e) => last = e,
+        }
+    }
+    Err(last)
+}
+
 fn print_source_slice(
     files: &[super::source_view::SourceFile],
     list: bool,
@@ -3719,6 +3772,7 @@ fn print_source_slice(
     function: Option<&str>,
     grep: Option<&str>,
     format: OutputFormat,
+    verified_for: Option<&str>,
 ) -> anyhow::Result<()> {
     use super::source_view;
 
@@ -3733,7 +3787,13 @@ fn print_source_slice(
                 );
             }
         } else {
-            println!("{}", serde_json::to_string_pretty(&listed)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&with_verified_for(
+                    serde_json::to_value(&listed)?,
+                    verified_for
+                ))?
+            );
         }
         return Ok(());
     }
@@ -3769,7 +3829,13 @@ fn print_source_slice(
                 println!("{}", f.text);
             }
         } else {
-            println!("{}", serde_json::to_string_pretty(&found)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&with_verified_for(
+                    serde_json::to_value(&found)?,
+                    verified_for
+                ))?
+            );
         }
         return Ok(());
     }
@@ -3784,7 +3850,13 @@ fn print_source_slice(
                 eprintln!("No lines match '{pattern}'");
             }
         } else {
-            println!("{}", serde_json::to_string_pretty(&hits)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&with_verified_for(
+                    serde_json::to_value(&hits)?,
+                    verified_for
+                ))?
+            );
         }
         return Ok(());
     }
@@ -3805,7 +3877,13 @@ fn print_source_slice(
             .iter()
             .map(|f| serde_json::json!({"path": f.path, "content": f.content}))
             .collect();
-        println!("{}", serde_json::to_string_pretty(&out)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&with_verified_for(
+                serde_json::to_value(&out)?,
+                verified_for
+            ))?
+        );
     }
     Ok(())
 }
@@ -3813,6 +3891,14 @@ fn print_source_slice(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn similar_match_source_is_marked_in_json() {
+        let listed = serde_json::json!([{"path": "A.sol", "lines": 3}]);
+        let marked = with_verified_for(listed.clone(), Some("0xb4e1"));
+        assert_eq!(marked[0]["source_verified_for"], "0xb4e1");
+        assert_eq!(with_verified_for(listed.clone(), None), listed);
+    }
 
     #[test]
     fn inspect_table_shows_each_part_and_escapes_contract_text() {
