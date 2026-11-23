@@ -68,8 +68,9 @@ pub struct DecompileArgs {
     #[command(flatten)]
     pub target: TargetArgs,
 
-    /// Decompiler backend. Only evmdec is supported
-    #[arg(long, default_value = "evmdec", value_parser = ["evmdec"])]
+    /// Decompiler backend: evmdec (default), heimdall, or all (every
+    /// installed backend, each cross-checked)
+    #[arg(long, default_value = "evmdec", value_parser = ["evmdec", "heimdall", "all"])]
     pub backend: String,
 
     /// Seconds before the decompiler is killed
@@ -110,6 +111,10 @@ pub struct MatchArgs {
     /// a matching file next to a forge artifact is used when present
     #[arg(long, value_name = "PATH")]
     pub build_info: Option<PathBuf>,
+
+    /// Do not look for a build-info file next to the artifact
+    #[arg(long)]
+    pub no_build_info_discovery: bool,
 }
 
 /// Code fetched for one address
@@ -156,27 +161,54 @@ fn acts_as_proxy(kind: &str, code: &[u8]) -> bool {
     if !code_delegates(code) {
         return false;
     }
-    let pushes = |slot: &str| {
+    // The slot constant must be pushed by reachable code and loaded with
+    // SLOAD within the next few instructions
+    let reads_slot = |slot: &str| {
         let Ok(slot) = hex::decode(slot) else {
             return false;
         };
-        crate::bytecode::metadata::linear_sweep(code)
-            .iter()
-            .any(|(pc, op)| *op == 0x7f && code.get(pc + 1..pc + 33) == Some(slot.as_slice()))
+        let view = crate::bytecode::metadata::CodeView::new(code);
+        let ins = &view.instructions;
+        ins.iter().enumerate().any(|(i, (pc, op, live))| {
+            *live
+                && *op == 0x7f
+                && code.get(pc + 1..pc + 33) == Some(slot.as_slice())
+                && ins[i + 1..]
+                    .iter()
+                    .take(8)
+                    .any(|(_, op, live)| *live && *op == 0x54)
+        })
     };
     match kind {
-        "EIP-1967 proxy" => pushes(EIP1967_IMPL),
-        "EIP-1967 beacon proxy" => pushes(EIP1967_BEACON),
-        "OpenZeppelin legacy proxy" => pushes(OZ_LEGACY),
-        "Safe proxy" => code.len() <= 1024,
+        "EIP-1967 proxy" => reads_slot(EIP1967_IMPL),
+        "EIP-1967 beacon proxy" => reads_slot(EIP1967_BEACON),
+        "OpenZeppelin legacy proxy" => reads_slot(OZ_LEGACY),
+        "Safe proxy" => is_known_safe_proxy(code),
         _ => false,
     }
 }
 
+/// The Safe proxy's runtime code up to its metadata (GnosisSafeProxy 1.3.0,
+/// as deployed by the canonical proxy factory). Other versions are not
+/// recognised and are analysed as their own code
+const SAFE_PROXY_1_3_0: &str = "608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fe";
+
+fn is_known_safe_proxy(code: &[u8]) -> bool {
+    let Ok(known) = hex::decode(SAFE_PROXY_1_3_0) else {
+        return false;
+    };
+    match crate::bytecode::metadata::trailing_metadata(code) {
+        Some(m) => code[..m.start] == known[..],
+        None => false,
+    }
+}
+
+/// A reachable DELEGATECALL (live by fallthrough or after a valid JUMPDEST,
+/// outside metadata)
 fn code_delegates(code: &[u8]) -> bool {
-    let census = sensitive_census(code);
-    census.positions.contains_key("DELEGATECALL")
-        || census.inside_metadata.contains_key("DELEGATECALL")
+    sensitive_census(code)
+        .positions
+        .contains_key("DELEGATECALL")
 }
 
 async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::Result<Target> {
@@ -378,22 +410,135 @@ fn dedaub_link(chain: Chain, address: Address) -> String {
 // evmdec
 // ---------------------------------------------------------------------------
 
-/// Find the evmdec binary: EVMDEC_PATH, then PATH
-fn find_evmdec() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("EVMDEC_PATH").filter(|p| !p.is_empty()) {
+/// Find a backend binary: `<NAME>_PATH`, then PATH
+fn find_binary(name: &str, env_var: &str) -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os(env_var).filter(|p| !p.is_empty()) {
         let p = PathBuf::from(p);
         return p.is_file().then_some(p);
     }
     let path = std::env::var_os("PATH")?;
+    let file = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    };
     std::env::split_paths(&path)
-        .map(|dir| {
-            dir.join(if cfg!(windows) {
-                "evmdec.exe"
-            } else {
-                "evmdec"
-            })
-        })
+        .map(|dir| dir.join(&file))
         .find(|p| p.is_file())
+}
+
+const HEIMDALL_INSTALL: &str = "heimdall is not installed. It is optional; install it yourself (see github.com/Jon-Becker/heimdall-rs) and put it on PATH or set HEIMDALL_PATH. ethcli never installs or downloads it, and runs only `heimdall decompile <bytecode> --include-sol --skip-resolving` offline.";
+
+/// A temporary directory, removed on drop
+struct TempDir(PathBuf);
+
+impl TempDir {
+    fn create(tag: &str) -> anyhow::Result<Self> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let path =
+            std::env::temp_dir().join(format!("ethcli-{tag}-{}-{nanos}", std::process::id()));
+        std::fs::create_dir(&path)?;
+        Ok(Self(path))
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// A proxy address that refuses connections: heimdall checks GitHub for a
+/// newer release on every run; this makes that request fail at once
+const DEAD_PROXY: &str = "http://127.0.0.1:9";
+
+/// Run heimdall on runtime bytecode only. Its config file
+/// (`$HOME/.bifrost/config.toml`, which can hold an RPC URL and API keys) is
+/// never read: HOME points at an empty temporary directory. All HTTP goes to
+/// a dead proxy. Arguments are fixed: no address, RPC, LLM or explorer key.
+async fn run_heimdall(bin: &Path, code: &[u8], timeout: Duration) -> Result<Value, String> {
+    let dir = TempDir::create("heimdall").map_err(|e| format!("temp dir: {e}"))?;
+    let home = dir.0.join("home");
+    let out = dir.0.join("out");
+    std::fs::create_dir_all(&home).map_err(|e| format!("temp dir: {e}"))?;
+    std::fs::create_dir_all(&out).map_err(|e| format!("temp dir: {e}"))?;
+    let bytecode = format!("0x{}", hex::encode(code));
+    let args: [&std::ffi::OsStr; 7] = [
+        "decompile".as_ref(),
+        bytecode.as_ref(),
+        "--include-sol".as_ref(),
+        "--skip-resolving".as_ref(),
+        "--default".as_ref(),
+        "--output".as_ref(),
+        out.as_os_str(),
+    ];
+    let proxy: &std::ffi::OsStr = DEAD_PROXY.as_ref();
+    let env: [(&str, &std::ffi::OsStr); 7] = [
+        ("HOME", home.as_os_str()),
+        ("HTTP_PROXY", proxy),
+        ("HTTPS_PROXY", proxy),
+        ("ALL_PROXY", proxy),
+        ("http_proxy", proxy),
+        ("https_proxy", proxy),
+        ("all_proxy", proxy),
+    ];
+    let run = run_sandboxed_in(bin, &args, timeout, &env, &dir.0)
+        .await
+        .map_err(|e| format!("{e:#}"))?;
+    let read = |name: &str| -> Option<String> {
+        let path = out.join(name);
+        let meta = std::fs::metadata(&path).ok()?;
+        (meta.is_file() && meta.len() <= 32 * 1024 * 1024)
+            .then(|| std::fs::read_to_string(&path).ok())
+            .flatten()
+    };
+    let source = read("decompiled.sol");
+    if source.is_none() {
+        return Err(format!(
+            "heimdall exited with {:?} and wrote no source: {}",
+            run.status,
+            String::from_utf8_lossy(&run.stderr)
+                .chars()
+                .take(600)
+                .collect::<String>()
+        ));
+    }
+    let abi: Value = read("abi.json")
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or(Value::Null);
+    Ok(heimdall_as_decompiler_json(
+        source.unwrap_or_default(),
+        &abi,
+    ))
+}
+
+/// Put heimdall's output in the shape the cross-check reads. With
+/// `--skip-resolving` its functions are named `Unresolved_<selector>`
+pub fn heimdall_as_decompiler_json(source: String, abi: &Value) -> Value {
+    let functions: Vec<Value> = abi
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|e| e["type"] == "function")
+        .map(|e| {
+            let name = e["name"].as_str().unwrap_or("");
+            let selector = name
+                .strip_prefix("Unresolved_")
+                .filter(|s| s.len() == 8 && s.chars().all(|c| c.is_ascii_hexdigit()))
+                .map(|s| format!("0x{}", s.to_lowercase()));
+            let params: Vec<Value> = e["inputs"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|i| json!({"ty": i["type"]}))
+                .collect();
+            json!({"selector": selector, "name": name, "params": params, "mutability": e["stateMutability"]})
+        })
+        .collect();
+    json!({"source": source, "functions": functions, "storage": [], "stats": {}})
 }
 
 /// The only environment evmdec gets: a PATH for the system tools, nothing
@@ -418,17 +563,28 @@ async fn run_sandboxed(
     args: &[&std::ffi::OsStr],
     timeout: Duration,
 ) -> anyhow::Result<RunOutput> {
+    run_sandboxed_in(bin, args, timeout, &[], &std::env::temp_dir()).await
+}
+
+/// `run_sandboxed` with a few extra environment variables and a working
+/// directory
+async fn run_sandboxed_in(
+    bin: &Path,
+    args: &[&std::ffi::OsStr],
+    timeout: Duration,
+    extra_env: &[(&str, &std::ffi::OsStr)],
+    cwd: &Path,
+) -> anyhow::Result<RunOutput> {
     let mut cmd = tokio::process::Command::new(bin);
     cmd.args(args)
         .env_clear()
         .env("PATH", MINIMAL_PATH)
+        .envs(extra_env.iter().map(|(k, v)| (*k, *v)))
+        .current_dir(cwd)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
-    if let Some(dir) = std::env::temp_dir().to_str() {
-        cmd.current_dir(dir);
-    }
     let mut child = cmd
         .spawn()
         .map_err(|e| anyhow::anyhow!("could not start {}: {e}", bin.display()))?;
@@ -611,6 +767,18 @@ pub fn cross_check(
     census: &OpcodeCensus,
     evmdec: &Value,
 ) -> Value {
+    cross_check_for("evmdec", functions, census, evmdec)
+}
+
+/// Compare a decompiler's output with ethcli's facts. `evmdec` is the
+/// decompiler's output in evmdec's JSON shape (`source`, `functions` with
+/// `selector`/`params`/optional `effects`, `storage`, `stats`)
+pub fn cross_check_for(
+    backend: &str,
+    functions: &[ExtractedFunction],
+    census: &OpcodeCensus,
+    evmdec: &Value,
+) -> Value {
     let source = evmdec["source"].as_str().unwrap_or("");
     let mut warnings: Vec<String> = Vec::new();
 
@@ -621,19 +789,21 @@ pub fn cross_check(
     ) {
         if covered < total {
             warnings.push(format!(
-                "evmdec covered {covered} of {total} code blocks; code in the other {} is not in the output",
+                "{backend} covered {covered} of {total} code blocks; code in the other {} is not in the output",
                 total - covered
             ));
         }
     }
     if stats["unresolved_jumps"].as_u64().unwrap_or(0) > 0 {
         warnings.push(format!(
-            "evmdec left {} jumps unresolved; control flow there is missing",
+            "{backend} left {} jumps unresolved; control flow there is missing",
             stats["unresolved_jumps"]
         ));
     }
     if stats["budget_exhausted"].as_bool() == Some(true) {
-        warnings.push("evmdec ran out of its work budget; output is partial".into());
+        warnings.push(format!(
+            "{backend} ran out of its work budget; output is partial"
+        ));
     }
 
     warnings.extend(census.warnings.iter().cloned());
@@ -642,6 +812,13 @@ pub fn cross_check(
     for (k, v) in &census.inside_metadata {
         all.entry(k.clone()).or_default().extend(v);
     }
+    // Only evmdec reports per-function effects; for other backends the
+    // text alone is compared
+    let has_effects = evmdec["functions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|f| f["effects"].is_object());
     let effect_set = |flag: &str| {
         evmdec["functions"]
             .as_array()
@@ -654,10 +831,10 @@ pub fn cross_check(
             continue;
         };
         let shown: usize = tokens.iter().map(|t| count_word(source, t, *call)).sum();
-        let effect_missing = effect.is_some_and(|e| !effect_set(e));
+        let effect_missing = has_effects && effect.is_some_and(|e| !effect_set(e));
         if shown < at.len() || effect_missing {
             warnings.push(format!(
-                "{} {name} site{} at pc {}, but evmdec's text shows {} ({}){}; {what}",
+                "{} {name} site{} at pc {}, but {backend}'s text shows {} ({}){}; {what}",
                 at.len(),
                 if at.len() == 1 { "" } else { "s" },
                 pcs(at),
@@ -672,13 +849,13 @@ pub fn cross_check(
         }
     }
     let fns = evmdec["functions"].as_array().cloned().unwrap_or_default();
-    if let Some(sstores) = all.get("SSTORE") {
+    if let Some(sstores) = all.get("SSTORE").filter(|_| has_effects) {
         let writes = fns
             .iter()
             .any(|f| f["effects"]["writes_storage"].as_bool() == Some(true));
         if !writes {
             warnings.push(format!(
-                "{} SSTORE at pc {} but evmdec reports no function writing storage; state changes are missing",
+                "{} SSTORE at pc {} but {backend} reports no function writing storage; state changes are missing",
                 sstores.len(),
                 pcs(sstores)
             ));
@@ -704,8 +881,8 @@ pub fn cross_check(
                 types.push(json!({
                     "selector": sel,
                     "evmole": format!("({})", f.arguments.join(",")),
-                    "evmdec": format!("({})", dec.join(",")),
-                    "evmdec_name": d["name"],
+                    "decompiler": format!("({})", dec.join(",")),
+                    "decompiler_name": d["name"],
                     "agree": f.arguments == dec,
                 }));
             }
@@ -720,7 +897,7 @@ pub fn cross_check(
     let disagreements = types.iter().filter(|t| t["agree"] == false).count();
     if disagreements > 0 {
         warnings.push(format!(
-            "{disagreements} function(s) where evmole and evmdec disagree on argument types; see type_comparison"
+            "{disagreements} function(s) where evmole and {backend} disagree on argument types; see type_comparison"
         ));
     }
 
@@ -729,7 +906,7 @@ pub fn cross_check(
     for s in evmdec["storage"].as_array().into_iter().flatten() {
         if s["writes"].as_u64() == Some(0) {
             not_found.push(format!(
-                "writes to slot {} ({}): not found by evmdec",
+                "writes to slot {} ({}): not found by {backend}",
                 s["slot"].as_str().unwrap_or("?"),
                 s["name"].as_str().unwrap_or("?")
             ));
@@ -740,8 +917,8 @@ pub fn cross_check(
         "warnings": warnings,
         "type_comparison": types,
         "selectors_only_in_ethcli": only_ethcli,
-        "selectors_only_in_evmdec": only_evmdec,
-        "not_found_by_evmdec": not_found,
+        "selectors_only_in_decompiler": only_evmdec,
+        "not_found_by_decompiler": not_found,
     })
 }
 
@@ -810,52 +987,92 @@ pub async fn decompile(chain: Chain, args: &DecompileArgs, quiet: bool) -> anyho
             "note": "Dedaub's decompiler; needs sign-in",
         },
     });
-
-    let Some(bin) = find_evmdec() else {
-        out["evmdec"] = json!({"installed": false, "install": EVMDEC_INSTALL});
-        if args.target.format.is_table() {
-            print_target_table(&out);
-            println!();
-            println!("{EVMDEC_INSTALL}");
-            println!();
-            print_facts_table(&out["facts"]);
-            println!();
-            println!(
-                "Dedaub (sign-in needed): {}",
-                out["dedaub"]["url"].as_str().unwrap_or("")
-            );
-        } else {
-            print_json(&args.target.format, &out)?;
-        }
-        return Ok(());
+    let backends: &[&str] = match args.backend.as_str() {
+        "heimdall" => &["heimdall"],
+        "all" => &["evmdec", "heimdall"],
+        _ => &["evmdec"],
     };
+    let timeout = Duration::from_secs(args.timeout);
+    let mut results = Vec::new();
+    for backend in backends {
+        let result = run_backend(backend, &target.code, timeout, quiet).await;
+        let mut entry = result.meta;
+        match result.output {
+            Some(Ok(dec)) => {
+                entry["cross_check"] = cross_check_for(backend, &functions, &census, &dec);
+                entry["heuristic"] = heuristic_json(backend, &dec);
+            }
+            Some(Err(e)) => entry["error"] = json!(e),
+            None => {}
+        }
+        results.push(entry);
+    }
+    out["decompilers"] = json!(results);
+    if args.target.format.is_table() {
+        print_decompile_table(&out);
+        Ok(())
+    } else {
+        print_json(&args.target.format, &out)
+    }
+}
 
+struct BackendRun {
+    meta: Value,
+    /// None when the backend is not installed
+    output: Option<Result<Value, String>>,
+}
+
+async fn run_backend(backend: &str, code: &[u8], timeout: Duration, quiet: bool) -> BackendRun {
+    let (env_var, install) = match backend {
+        "heimdall" => ("HEIMDALL_PATH", HEIMDALL_INSTALL),
+        _ => ("EVMDEC_PATH", EVMDEC_INSTALL),
+    };
+    let Some(bin) = find_binary(backend, env_var) else {
+        return BackendRun {
+            meta: json!({"backend": backend, "installed": false, "install": install}),
+            output: None,
+        };
+    };
     let version = run_sandboxed(&bin, &["--version".as_ref()], Duration::from_secs(5))
         .await
         .ok()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
-    out["evmdec"] = json!({
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .trim()
+                .chars()
+                .take(80)
+                .collect::<String>()
+        });
+    let meta = json!({
+        "backend": backend,
         "installed": true,
         "path": bin.display().to_string(),
         "version": version,
         "binary_sha256": sha256_file(&bin),
-        "commit": null,
-        "commit_note": "evmdec does not report its commit; the sha256 identifies the binary",
     });
-
-    let file = HexFile::create(&target.code)?;
     if !quiet {
-        eprintln!("Running evmdec (timeout {} s)...", args.timeout);
+        eprintln!("Running {backend} (timeout {} s)...", timeout.as_secs());
     }
+    let output = match backend {
+        "heimdall" => run_heimdall(&bin, code, timeout).await,
+        _ => run_evmdec(&bin, code, timeout).await,
+    };
+    BackendRun {
+        meta,
+        output: Some(output),
+    }
+}
+
+async fn run_evmdec(bin: &Path, code: &[u8], timeout: Duration) -> Result<Value, String> {
+    let file = HexFile::create(code).map_err(|e| format!("temp file: {e}"))?;
     let run = run_sandboxed(
-        &bin,
+        bin,
         &["decompile".as_ref(), file.0.as_os_str(), "--json".as_ref()],
-        Duration::from_secs(args.timeout),
+        timeout,
     )
     .await;
     drop(file);
-
-    let parsed: Result<Value, String> = match run {
+    match run {
         Err(e) => Err(format!("{e:#}")),
         Ok(o) if o.status != Some(0) => Err(format!(
             "evmdec exited with {:?}: {}",
@@ -868,47 +1085,26 @@ pub async fn decompile(chain: Chain, args: &DecompileArgs, quiet: bool) -> anyho
         Ok(o) => {
             serde_json::from_slice(&o.stdout).map_err(|e| format!("evmdec output is not JSON: {e}"))
         }
-    };
-
-    match parsed {
-        Err(e) => {
-            out["evmdec"]["error"] = json!(e);
-            if args.target.format.is_table() {
-                print_target_table(&out);
-                println!("evmdec failed: {e}");
-                println!();
-                print_facts_table(&out["facts"]);
-                println!();
-                println!(
-                    "Dedaub (sign-in needed): {}",
-                    out["dedaub"]["url"].as_str().unwrap_or("")
-                );
-            } else {
-                print_json(&args.target.format, &out)?;
-            }
-        }
-        Ok(dec) => {
-            out["cross_check"] = cross_check(&functions, &census, &dec);
-            out["heuristic"] = json!({
-                "label": "HEURISTIC: evmdec's reconstruction, not source. Names come from its built-in signature dictionary; types, storage names and control flow are guesses",
-                "compiler": dec["compiler"],
-                "stats": dec["stats"],
-                "functions": dec["functions"].as_array().map(|fs| fs.iter().map(|f| json!({
-                    "selector": f["selector"], "name": f["name"], "params": f["params"],
-                    "returns": f["returns"], "mutability": f["mutability"], "effects": f["effects"],
-                })).collect::<Vec<_>>()),
-                "storage": dec["storage"],
-                "call_targets": dec["call_targets"],
-                "source": dec["source"],
-            });
-            if args.target.format.is_table() {
-                print_decompile_table(&out);
-            } else {
-                print_json(&args.target.format, &out)?;
-            }
-        }
     }
-    Ok(())
+}
+
+fn heuristic_json(backend: &str, dec: &Value) -> Value {
+    let label = match backend {
+        "heimdall" => "HEURISTIC: heimdall's reconstruction (symbolic execution), not source. Selectors are not resolved; parameter types and counts, storage names and some conditions are guesses",
+        _ => "HEURISTIC: evmdec's reconstruction, not source. Names come from its built-in signature dictionary; types, storage names and control flow are guesses",
+    };
+    json!({
+        "label": label,
+        "compiler": dec["compiler"],
+        "stats": dec["stats"],
+        "functions": dec["functions"].as_array().map(|fs| fs.iter().map(|f| json!({
+            "selector": f["selector"], "name": f["name"], "params": f["params"],
+            "returns": f["returns"], "mutability": f["mutability"], "effects": f["effects"],
+        })).collect::<Vec<_>>()),
+        "storage": dec["storage"],
+        "call_targets": dec["call_targets"],
+        "source": dec["source"],
+    })
 }
 
 fn print_target_table(out: &Value) {
@@ -939,61 +1135,96 @@ fn print_target_table(out: &Value) {
 
 fn print_decompile_table(out: &Value) {
     print_target_table(out);
-    let e = &out["evmdec"];
-    println!(
-        "evmdec: {} (sha256 {})",
-        e["version"].as_str().unwrap_or("version unknown"),
-        e["binary_sha256"]
-            .as_str()
-            .map(|s| &s[..16.min(s.len())])
-            .unwrap_or("?")
-    );
-    println!();
-    println!("== CROSS-CHECK (ethcli facts vs evmdec) ==");
-    let cc = &out["cross_check"];
-    let warnings = cc["warnings"].as_array().cloned().unwrap_or_default();
-    if warnings.is_empty() {
-        println!("No disagreement found between ethcli's facts and evmdec's output.");
-    }
-    for w in &warnings {
-        println!("WARNING: {}", w.as_str().unwrap_or(""));
-    }
-    let types = cc["type_comparison"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    let disagree: Vec<&Value> = types.iter().filter(|t| t["agree"] == false).collect();
-    if !disagree.is_empty() {
-        println!();
-        println!("{:<12} {:<40} evmdec", "selector", "evmole");
-        for t in disagree {
-            println!(
-                "{:<12} {:<40} {}",
-                t["selector"].as_str().unwrap_or(""),
-                t["evmole"].as_str().unwrap_or(""),
-                t["evmdec"].as_str().unwrap_or("")
-            );
+    let decs = out["decompilers"].as_array().cloned().unwrap_or_default();
+    for d in &decs {
+        let backend = d["backend"].as_str().unwrap_or("?");
+        if d["installed"] == false {
+            println!();
+            println!("{}", d["install"].as_str().unwrap_or(""));
+            continue;
         }
-    }
-    for key in ["selectors_only_in_ethcli", "selectors_only_in_evmdec"] {
-        let list = cc[key].as_array().cloned().unwrap_or_default();
-        if !list.is_empty() {
-            let items: Vec<&str> = list.iter().filter_map(Value::as_str).collect();
-            println!("{key}: {}", items.join(", "));
-        }
-    }
-    for n in cc["not_found_by_evmdec"].as_array().into_iter().flatten() {
         println!(
-            "Not found by evmdec (not a fact): {}",
-            n.as_str().unwrap_or("")
+            "{backend}: {} (sha256 {})",
+            d["version"].as_str().unwrap_or("version unknown"),
+            d["binary_sha256"]
+                .as_str()
+                .map(|s| &s[..16.min(s.len())])
+                .unwrap_or("?")
         );
+    }
+    // Cross-checks first, for every backend
+    for d in &decs {
+        let backend = d["backend"].as_str().unwrap_or("?");
+        if let Some(e) = d["error"].as_str() {
+            println!();
+            println!("{backend} failed: {e}");
+            continue;
+        }
+        let cc = &d["cross_check"];
+        if cc.is_null() {
+            continue;
+        }
+        println!();
+        println!("== CROSS-CHECK (ethcli facts vs {backend}) ==");
+        let warnings = cc["warnings"].as_array().cloned().unwrap_or_default();
+        if warnings.is_empty() {
+            println!("No disagreement found between ethcli's facts and {backend}'s output.");
+        }
+        for w in &warnings {
+            println!("WARNING: {}", w.as_str().unwrap_or(""));
+        }
+        let types = cc["type_comparison"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let disagree: Vec<&Value> = types.iter().filter(|t| t["agree"] == false).collect();
+        if !disagree.is_empty() {
+            println!();
+            println!("{:<12} {:<40} {backend}", "selector", "evmole");
+            for t in disagree {
+                println!(
+                    "{:<12} {:<40} {}",
+                    t["selector"].as_str().unwrap_or(""),
+                    t["evmole"].as_str().unwrap_or(""),
+                    t["decompiler"].as_str().unwrap_or("")
+                );
+            }
+        }
+        for (key, label) in [
+            ("selectors_only_in_ethcli", "selectors only in ethcli"),
+            (
+                "selectors_only_in_decompiler",
+                "selectors only in the decompiler",
+            ),
+        ] {
+            let list = cc[key].as_array().cloned().unwrap_or_default();
+            if !list.is_empty() {
+                let items: Vec<&str> = list.iter().filter_map(Value::as_str).collect();
+                println!("{label}: {}", items.join(", "));
+            }
+        }
+        for n in cc["not_found_by_decompiler"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            println!("Not a fact: {}", n.as_str().unwrap_or(""));
+        }
     }
     println!();
     print_facts_table(&out["facts"]);
-    println!();
-    println!("== HEURISTIC PSEUDO-SOLIDITY (evmdec; not source, may be wrong or incomplete) ==");
-    print!("{}", out["heuristic"]["source"].as_str().unwrap_or(""));
-    println!();
+    for d in &decs {
+        let Some(src) = d["heuristic"]["source"].as_str() else {
+            continue;
+        };
+        let backend = d["backend"].as_str().unwrap_or("?");
+        println!();
+        println!(
+            "== HEURISTIC PSEUDO-SOLIDITY ({backend}; not source, may be wrong or incomplete) =="
+        );
+        print!("{src}");
+        println!();
+    }
     println!(
         "Second opinion (sign-in needed): {}",
         out["dedaub"]["url"].as_str().unwrap_or("")
@@ -1111,6 +1342,7 @@ fn attach_build_info(
     artifact: &mut crate::bytecode::matcher::Artifact,
     artifact_path: &Path,
     given: Option<&Path>,
+    discover: bool,
 ) -> anyhow::Result<Option<String>> {
     if artifact.format != "forge" && given.is_none() {
         return Ok(None);
@@ -1124,19 +1356,47 @@ fn attach_build_info(
         artifact.attach_build_info(&json)?;
         return Ok(name(path));
     }
-    let Some(dir) = artifact_path
-        .parent()
-        .and_then(Path::parent)
-        .map(|out| out.join("build-info"))
+    if !discover {
+        return Ok(None);
+    }
+    // Confine discovery: the build-info directory and every file in it must
+    // resolve inside the artifact's own out/ directory (and inside
+    // ETHCLI_MCP_ARTIFACT_ROOT when that is set); symlinks are skipped
+    let Some(out_dir) = artifact_path
+        .canonicalize()
+        .ok()
+        .and_then(|p| p.parent().and_then(Path::parent).map(Path::to_path_buf))
     else {
         return Ok(None);
     };
+    let root = std::env::var_os("ETHCLI_MCP_ARTIFACT_ROOT")
+        .filter(|v| !v.is_empty())
+        .and_then(|r| PathBuf::from(r).canonicalize().ok());
+    let inside =
+        |p: &Path| p.starts_with(&out_dir) && root.as_ref().is_none_or(|r| p.starts_with(r));
+    let raw_dir = out_dir.join("build-info");
+    if std::fs::symlink_metadata(&raw_dir)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(true)
+    {
+        return Ok(None);
+    }
+    let Ok(dir) = raw_dir.canonicalize() else {
+        return Ok(None);
+    };
+    if !inside(&dir) {
+        return Ok(None);
+    }
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return Ok(None);
     };
     let mut candidates: Vec<PathBuf> = entries
-        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+        .map(|e| e.path())
         .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .filter_map(|p| p.canonicalize().ok())
+        .filter(|p| inside(p))
         .collect();
     candidates.sort();
     for path in candidates.into_iter().take(64) {
@@ -1156,8 +1416,12 @@ pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::R
     if artifact.runtime.is_empty() {
         anyhow::bail!("the artifact has no deployed bytecode (an interface or abstract contract?)");
     }
-    let build_info_used =
-        attach_build_info(&mut artifact, &args.artifact, args.build_info.as_deref())?;
+    let build_info_used = attach_build_info(
+        &mut artifact,
+        &args.artifact,
+        args.build_info.as_deref(),
+        !args.no_build_info_discovery,
+    )?;
     let target = fetch_target(chain, &args.target, quiet).await?;
     let report = match_code(&artifact, &target.code);
 
@@ -1427,9 +1691,9 @@ mod tests {
         let census = census_with("SSTORE", vec![10]);
         let cc = cross_check(&[f], &census, &dec);
         assert_eq!(cc["type_comparison"][0]["agree"], false);
-        assert_eq!(cc["type_comparison"][0]["evmdec"], "(uint256,uint256)");
+        assert_eq!(cc["type_comparison"][0]["decompiler"], "(uint256,uint256)");
         assert_eq!(
-            cc["not_found_by_evmdec"][0],
+            cc["not_found_by_decompiler"][0],
             "writes to slot 0x5 (tickBitmap): not found by evmdec"
         );
         // writes_storage is true, so no SSTORE warning
@@ -1551,5 +1815,111 @@ mod tests {
             .unwrap()
             .iter()
             .any(|w| w.as_str().unwrap().contains("shows 1")));
+    }
+
+    #[test]
+    fn heimdall_output_is_cross_checked() {
+        // Canned heimdall output: abi.json and decompiled.sol with --skip-resolving
+        let abi = json!([
+            {"type": "function", "name": "Unresolved_a9059cbb", "inputs": [{"name": "arg0", "type": "address"}, {"name": "arg1", "type": "uint256"}], "outputs": [], "stateMutability": "nonpayable"},
+            {"type": "event", "name": "Event_1", "inputs": []}
+        ]);
+        let source = "function Unresolved_a9059cbb(address arg0, uint256 arg1) public {\n    require(tx.origin == address(0xae2f));\n    require(msg.sender == address(0x1));\n}\n".to_string();
+        let dec = heimdall_as_decompiler_json(source, &abi);
+        assert_eq!(dec["functions"][0]["selector"], "0xa9059cbb");
+        let f = ExtractedFunction {
+            selector: "0xa9059cbb".into(),
+            arguments: vec!["address".into(), "uint256".into()],
+            state_mutability: StateMutability::NonPayable,
+            signature: None,
+        };
+        let mut census = census_with("ORIGIN", vec![1, 2, 3]);
+        census.positions.insert("SSTORE".into(), vec![9]);
+        let cc = cross_check_for("heimdall", &[f], &census, &dec);
+        let w: Vec<String> = cc["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        // 3 ORIGIN sites, 1 tx.origin in the text
+        assert!(
+            w.iter().any(|s| s.contains("heimdall's text shows 1")),
+            "{w:?}"
+        );
+        // No effects in heimdall output: no SSTORE warning from missing effects
+        assert!(!w.iter().any(|s| s.contains("SSTORE")), "{w:?}");
+        assert_eq!(cc["type_comparison"][0]["agree"], true);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn build_info_discovery_skips_symlinks() {
+        use crate::bytecode::matcher::parse_artifact;
+        let outside = tempfile::tempdir().unwrap();
+        let proj = tempfile::tempdir().unwrap();
+        let out = proj.path().join("out");
+        std::fs::create_dir_all(out.join("A.sol")).unwrap();
+        let artifact = serde_json::json!({
+            "deployedBytecode": {"object": "0x6000"},
+            "bytecode": {"object": "0x6000"},
+            "metadata": {"settings": {"compilationTarget": {"src/A.sol": "A"}}},
+        });
+        let path = out.join("A.sol/A.json");
+        std::fs::write(&path, artifact.to_string()).unwrap();
+        let info = serde_json::json!({"output": {"contracts": {"src/A.sol": {"A": {}}}, "sources": {"src/A.sol": {"id": 0, "ast": {"nodeType": "SourceUnit"}}}}});
+        std::fs::write(outside.path().join("x.json"), info.to_string()).unwrap();
+        // build-info dir that is a symlink out of the project
+        std::os::unix::fs::symlink(outside.path(), out.join("build-info")).unwrap();
+        let mut art = parse_artifact(&artifact, None).unwrap();
+        assert_eq!(
+            attach_build_info(&mut art, &path, None, true).unwrap(),
+            None
+        );
+        // a real dir holding a symlinked file is skipped too
+        std::fs::remove_file(out.join("build-info")).unwrap();
+        std::fs::create_dir(out.join("build-info")).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("x.json"), out.join("build-info/x.json"))
+            .unwrap();
+        assert_eq!(
+            attach_build_info(&mut art, &path, None, true).unwrap(),
+            None
+        );
+        // a regular file inside is used, unless discovery is off
+        std::fs::remove_file(out.join("build-info/x.json")).unwrap();
+        std::fs::write(out.join("build-info/y.json"), info.to_string()).unwrap();
+        assert_eq!(
+            attach_build_info(&mut art, &path, None, false).unwrap(),
+            None
+        );
+        assert_eq!(
+            attach_build_info(&mut art, &path, None, true)
+                .unwrap()
+                .as_deref(),
+            Some("y.json")
+        );
+    }
+
+    #[test]
+    fn dead_delegatecall_with_slot_constant_is_not_a_proxy() {
+        // PUSH32 <slot> SLOAD STOP | data: DELEGATECALL (after a halt, no JUMPDEST)
+        let code =
+            hex::decode("7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5400f4")
+                .unwrap();
+        assert!(!acts_as_proxy("EIP-1967 proxy", &code));
+        // Slot constant only in dead code
+        let code = hex::decode("6000600060006000355af4007f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc54").unwrap();
+        assert!(!acts_as_proxy("EIP-1967 proxy", &code));
+    }
+
+    #[test]
+    fn safe_proxy_is_recognised_by_code_not_size() {
+        let real = hex::decode(format!("{SAFE_PROXY_1_3_0}a2646970667358221220d1429297349653a4918076d650332de1a1068c5f3e07c5c82360c277770b955264736f6c63430007060033")).unwrap();
+        assert!(acts_as_proxy("Safe proxy", &real));
+        // A small contract with a DELEGATECALL is not a Safe proxy
+        assert!(!acts_as_proxy(
+            "Safe proxy",
+            &hex::decode("6000600060006000355af400").unwrap()
+        ));
     }
 }

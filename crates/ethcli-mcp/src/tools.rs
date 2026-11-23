@@ -837,6 +837,7 @@ pub async fn contract_match(
         .opt("--contract", contract)
         .opt("--creation-tx", creation_tx)
         .opt("--build-info", build_info)
+        .opt_flag("--no-build-info-discovery", build_info.is_none())
         .chain(chain)
         .opt("--block", block)
         .opt_flag("--no-follow-proxy", no_follow_proxy)

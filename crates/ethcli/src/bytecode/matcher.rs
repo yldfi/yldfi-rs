@@ -624,6 +624,13 @@ fn token(code: &[u8], pc: usize, op: u8) -> Vec<u8> {
     }
 }
 
+/// CALL, STATICCALL, CALLCODE, DELEGATECALL, CREATE, CREATE2,
+/// SELFDESTRUCT, LOG0-LOG4, JUMP, JUMPI, RETURN, SSTORE, ORIGIN, CALLER
+const EFFECTFUL_OPCODES: &[u8] = &[
+    0xf1, 0xfa, 0xf2, 0xf4, 0xf0, 0xf5, 0xff, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0x56, 0x57, 0xf3, 0x55,
+    0x32, 0x33,
+];
+
 pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
     let art = &artifact.runtime;
     let mut warnings = Vec::new();
@@ -706,22 +713,18 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
             chain_trailing.as_ref().is_some_and(|t| t.start == b.start)
                 || art_blocks.iter().any(|a| !a.trailing && a.start == b.start)
         })
-        // A hash byte that happens to be 0x5b is common; only flag the
-        // block when executable sensitive opcodes sit in it
+        // A hash byte that happens to be 0x5b is common; flag the block when
+        // a reachable instruction in it can do anything that matters:
+        // control flow, calls, logs, storage writes, creation, caller checks
         .filter(|b| {
             chain_view.instructions.iter().any(|(pc, op, live)| {
-                *live
-                    && *pc >= b.start
-                    && *pc < b.end
-                    && super::metadata::SENSITIVE_OPCODES
-                        .iter()
-                        .any(|(o, _)| o == op)
+                *live && *pc >= b.start && *pc < b.end && EFFECTFUL_OPCODES.contains(op)
             })
         })
         .collect();
     for b in &executable_metadata {
         warnings.push(format!(
-            "deployed bytes {:#x}..{:#x} look like compiler metadata but hold sensitive opcodes that can execute (after a valid JUMPDEST or reachable code); they are compared as code",
+            "deployed bytes {:#x}..{:#x} look like compiler metadata but hold reachable control-flow, call, log or storage opcodes (after a valid JUMPDEST or reachable code); they are compared as code",
             b.start, b.end
         ));
     }
@@ -1181,6 +1184,24 @@ mod tests {
         let deployed = hex::decode(&with_meta(code, &evil)[2..]).unwrap();
         let report = match_code(&art, &deployed);
         assert_ne!(report.verdict, "partial");
-        assert!(report.warnings.iter().any(|w| w.contains("can execute")));
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.contains("compared as code")));
+    }
+
+    #[test]
+    fn call_hidden_in_fake_metadata_is_not_partial() {
+        let code = "6080604052600436106000575b00";
+        let art = parse_artifact(
+            &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        // JUMPDEST then CALL inside the ipfs "hash"
+        let evil = META.replacen("8b5d96ae", "5bf10000", 1);
+        let deployed = hex::decode(&with_meta(code, &evil)[2..]).unwrap();
+        let report = match_code(&art, &deployed);
+        assert_ne!(report.verdict, "partial");
     }
 }

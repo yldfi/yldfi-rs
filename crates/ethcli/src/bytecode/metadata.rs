@@ -555,7 +555,17 @@ pub fn fingerprint(code: &[u8]) -> Fingerprint {
     if trailing.is_none() {
         // vyper appends immutables after its metadata, so the block is not
         // at the very end; take the last vyper block followed only by data
-        if let Some(last) = blocks.last().filter(|b| b.compiler == "vyper") {
+        // Accept it only when nothing after it can run, the block itself is
+        // excluded as never-executed, and what follows is whole 32-byte words
+        if let Some(last) = blocks.last().filter(|b| {
+            b.compiler == "vyper"
+                && (code.len() - b.end).is_multiple_of(32)
+                && view.excluded.iter().any(|e| e.start == b.start)
+                && !view
+                    .instructions
+                    .iter()
+                    .any(|(pc, _, live)| *pc >= b.end && *live)
+        }) {
             extra_notes.push(format!(
                 "vyper metadata at {:#x}, followed by {} bytes of immutables",
                 last.start,
@@ -768,5 +778,21 @@ mod tests {
         code.extend(len.to_be_bytes());
         let m = trailing_metadata(&code).unwrap();
         assert!(m.version.is_none());
+    }
+
+    #[test]
+    fn spoofed_vyper_block_with_live_code_after_is_rejected() {
+        let mut code = hex::decode("600000").unwrap();
+        code.extend(hex::decode("a165767970657283000307000b").unwrap());
+        // JUMPDEST CALLER SELFDESTRUCT then padding to 32 bytes: live code
+        let mut tail = vec![0x5b, 0x33, 0xff];
+        tail.resize(32, 0);
+        code.extend(tail);
+        assert!(fingerprint(&code).metadata.is_none());
+        // Not a multiple of 32
+        let mut code = hex::decode("600000").unwrap();
+        code.extend(hex::decode("a165767970657283000307000b").unwrap());
+        code.extend([0x11; 31]);
+        assert!(fingerprint(&code).metadata.is_none());
     }
 }
