@@ -422,6 +422,19 @@ async fn call_implementation_function<P: Provider>(
     address_from_word(&result)
 }
 
+/// `implementation()` at a given block
+async fn call_implementation_function_at<P: Provider>(
+    provider: &P,
+    address: Address,
+    block: alloy::eips::BlockId,
+) -> Option<Address> {
+    let tx = alloy::rpc::types::TransactionRequest::default()
+        .to(address)
+        .input(vec![0x5c, 0x60, 0xda, 0x1b].into());
+    let result = provider.call(tx).block(block).await.ok()?;
+    address_from_word(&result)
+}
+
 /// An address returned as a single ABI word: exactly 32 bytes, left-padded
 /// with zeros. Anything else (a struct, a string, two values) is not an
 /// `implementation()` answer.
@@ -1882,6 +1895,7 @@ async fn storage_command(
         block: block_id,
         cache: Default::default(),
     };
+    layout.check_bounds(&reader, &loc).await?;
     let value = layout.decode(&reader, &loc).await?;
     let type_label = layout.type_label(&loc.type_id);
     let slot_hex = format!("{:#066x}", loc.slot);
@@ -2251,7 +2265,7 @@ async fn find_implementation<P: Provider>(
         return Some(("OpenZeppelin legacy proxy", found));
     }
     if let Some(beacon) = storage_address(provider, address, eip1967_beacon_slot(), block).await {
-        if let Some(found) = call_implementation_function(provider, beacon).await {
+        if let Some(found) = call_implementation_function_at(provider, beacon, block).await {
             return Some(("EIP-1967 beacon proxy", found));
         }
     }
@@ -2266,7 +2280,7 @@ async fn find_implementation<P: Provider>(
         }
     }
     // A contract can expose implementation() without delegating to it
-    call_implementation_function(provider, address)
+    call_implementation_function_at(provider, address, block)
         .await
         .map(|found| ("implementation() getter (may not be a proxy)", found))
 }

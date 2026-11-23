@@ -61,6 +61,9 @@ pub struct Location {
     pub slot: U256,
     pub offset: usize,
     pub type_id: String,
+    /// Dynamic array indexes on the way, to check against the stored length:
+    /// (slot holding the length, index, path so far)
+    pub array_checks: Vec<(U256, usize, String)>,
 }
 
 /// Reads one storage slot. Implemented over RPC by the CLI and over a map in
@@ -152,23 +155,14 @@ impl Layout {
     /// Find where `name` followed by `steps` (mapping keys, array indexes and
     /// struct member names, in order) is stored
     pub fn locate(&self, name: &str, steps: &[String]) -> Result<Location> {
-        let var = self
-            .storage
-            .iter()
-            .find(|v| v.label == name)
-            .ok_or_else(|| {
-                let names: Vec<&str> = self.storage.iter().map(|v| v.label.as_str()).collect();
-                anyhow!(
-                    "no variable '{name}' in the storage layout. Variables: {}",
-                    names.join(", ")
-                )
-            })?;
+        let (var, steps) = self.select_var(name, steps)?;
         let mut loc = Location {
             slot: var.slot,
             offset: var.offset,
             type_id: var.type_id.clone(),
+            array_checks: Vec::new(),
         };
-        let mut path = name.to_string();
+        let mut path = var.label.clone();
         for step in steps {
             let t = self.type_def(&loc.type_id)?;
             loc = if t.encoding == "mapping" {
@@ -181,6 +175,7 @@ impl Layout {
                     slot: U256::from_be_bytes(keccak256(&preimage).0),
                     offset: 0,
                     type_id: t.value.clone().unwrap_or_default(),
+                    array_checks: loc.array_checks,
                 }
             } else if let Some(base) = &t.base {
                 let index: usize = parse_uint(step)
@@ -188,7 +183,9 @@ impl Layout {
                     .and_then(|i| usize::try_from(i).ok())
                     .ok_or_else(|| anyhow!("'{step}' is not an index for {path} ({})", t.label))?;
                 let elem = self.type_def(base)?;
+                let mut array_checks = loc.array_checks;
                 let start = if t.encoding == "dynamic_array" {
+                    array_checks.push((loc.slot, index, path.clone()));
                     U256::from_be_bytes(keccak256(loc.slot.to_be_bytes::<32>()).0)
                 } else {
                     if let Some(len) = static_len(&t.label) {
@@ -203,6 +200,7 @@ impl Layout {
                     slot,
                     offset,
                     type_id: base.clone(),
+                    array_checks,
                 }
             } else if let Some(members) = &t.members {
                 let member = members.iter().find(|m| m.label == *step).ok_or_else(|| {
@@ -217,6 +215,7 @@ impl Layout {
                     slot: loc.slot.wrapping_add(member.slot),
                     offset: member.offset,
                     type_id: member.type_id.clone(),
+                    array_checks: loc.array_checks,
                 }
             } else {
                 bail!(
@@ -227,6 +226,85 @@ impl Layout {
             path = format!("{path}[{step}]");
         }
         Ok(loc)
+    }
+
+    /// Pick the variable `name` names. Several variables can share a label
+    /// (private variables of different base contracts, `__gap`); then
+    /// `Contract.name` or `name@slot` selects one. Returns the variable and
+    /// the steps left after a `Contract.` prefix.
+    fn select_var<'a, 's>(
+        &'a self,
+        name: &str,
+        steps: &'s [String],
+    ) -> Result<(&'a Var, &'s [String])> {
+        let (label, at_slot) = match name.split_once('@') {
+            Some((label, slot)) => (
+                label,
+                Some(parse_uint(slot).with_context(|| format!("slot in '{name}'"))?),
+            ),
+            None => (name, None),
+        };
+        let by_label = |label: &str, contract: Option<&str>| -> Vec<&'a Var> {
+            self.storage
+                .iter()
+                .filter(|v| v.label == label)
+                .filter(|v| at_slot.is_none_or(|s| v.slot == s))
+                .filter(|v| contract.is_none_or(|c| v.contract.as_deref() == Some(c)))
+                .collect()
+        };
+        let mut rest = steps;
+        let mut matches = by_label(label, None);
+        // `Contract.var`: the first step is the variable
+        if matches.is_empty() && at_slot.is_none() {
+            if let Some((first, tail)) = steps.split_first() {
+                let (inner, inner_slot) = match first.split_once('@') {
+                    Some((l, s)) => (l, Some(parse_uint(s)?)),
+                    None => (first.as_str(), None),
+                };
+                matches = self
+                    .storage
+                    .iter()
+                    .filter(|v| v.label == inner && v.contract.as_deref() == Some(label))
+                    .filter(|v| inner_slot.is_none_or(|s| v.slot == s))
+                    .collect();
+                rest = tail;
+            }
+        }
+        match matches.as_slice() {
+            [one] => Ok((one, rest)),
+            [] => {
+                let names: Vec<&str> = self.storage.iter().map(|v| v.label.as_str()).collect();
+                bail!(
+                    "no variable '{name}' in the storage layout. Variables: {}",
+                    names.join(", ")
+                )
+            }
+            many => {
+                let list: Vec<String> = many
+                    .iter()
+                    .map(|v| match &v.contract {
+                        Some(c) => format!("{}@{} ({c}.{})", v.label, v.slot, v.label),
+                        None => format!("{}@{}", v.label, v.slot),
+                    })
+                    .collect();
+                bail!(
+                    "'{name}' is ambiguous: {} variables share that name. Pick one with name@slot or Contract.name: {}",
+                    many.len(),
+                    list.join(", ")
+                )
+            }
+        }
+    }
+
+    /// Check dynamic array indexes in `loc` against the stored lengths
+    pub async fn check_bounds<R: SlotReader>(&self, reader: &R, loc: &Location) -> Result<()> {
+        for (len_slot, index, path) in &loc.array_checks {
+            let len = reader.read(*len_slot).await?;
+            if U256::from(*index) >= len {
+                bail!("index {index} is out of bounds for {path} (length {len})");
+            }
+        }
+        Ok(())
     }
 
     /// Read and decode the value at `loc`
@@ -454,14 +532,44 @@ pub fn encode_key(label: &str, key: &str) -> Result<Vec<u8>> {
         w[31] = v;
         return word(w);
     }
-    if label.starts_with("uint") || label.starts_with("enum ") {
-        return word(parse_uint(key)?.to_be_bytes::<32>());
+    if let Some(bits) = int_bits(label, "uint") {
+        let v = parse_uint(key)?;
+        if bits < 256 && v >> bits != U256::ZERO {
+            bail!("{v} does not fit in {label}");
+        }
+        return word(v.to_be_bytes::<32>());
     }
-    if label.starts_with("int") {
-        let v: I256 = if let Some(hex) = key.strip_prefix("0x") {
-            I256::from_raw(U256::from_str_radix(hex, 16)?)
+    if label.starts_with("enum ") {
+        let v = parse_uint(key)?;
+        if v > U256::from(255) {
+            bail!("{v} does not fit in an enum");
+        }
+        return word(v.to_be_bytes::<32>());
+    }
+    if let Some(bits) = int_bits(label, "int") {
+        let v: I256 = if let Some(hex) = key.strip_prefix("0x").or_else(|| key.strip_prefix("0X")) {
+            // hex is the type's own two's complement: sign-extend from its width
+            let raw = U256::from_str_radix(hex, 16).map_err(|e| anyhow!("invalid hex: {e}"))?;
+            if bits < 256 && raw >> bits != U256::ZERO {
+                bail!("{key} is wider than {label}");
+            }
+            let negative = raw.bit(bits - 1);
+            let extended = if negative && bits < 256 {
+                raw | (U256::MAX << bits)
+            } else {
+                raw
+            };
+            I256::from_raw(extended)
         } else {
-            I256::from_dec_str(key).map_err(|e| anyhow!("invalid integer: {e}"))?
+            let v = I256::from_dec_str(key).map_err(|e| anyhow!("invalid integer: {e}"))?;
+            if bits < 256 {
+                let max = I256::from_raw((U256::from(1) << (bits - 1)) - U256::from(1));
+                let min = -max - I256::ONE;
+                if v > max || v < min {
+                    bail!("{v} does not fit in {label}");
+                }
+            }
+            v
         };
         return word(v.to_be_bytes::<32>());
     }
@@ -471,8 +579,8 @@ pub fn encode_key(label: &str, key: &str) -> Result<Vec<u8>> {
     {
         let raw =
             hex::decode(key.trim_start_matches("0x")).map_err(|e| anyhow!("invalid hex: {e}"))?;
-        if raw.len() > n {
-            bail!("expected at most {n} bytes, got {}", raw.len());
+        if raw.len() != n {
+            bail!("{label} key must be exactly {n} bytes, got {}", raw.len());
         }
         let mut w = [0u8; 32];
         w[..raw.len()].copy_from_slice(&raw);
@@ -486,6 +594,17 @@ pub fn encode_key(label: &str, key: &str) -> Result<Vec<u8>> {
             anyhow!("key type '{label}' is not supported; pass the 32-byte key as hex")
         })?;
     Ok(raw)
+}
+
+/// Width in bits of `uintN`/`intN` (`uint` alone is 256)
+fn int_bits(label: &str, prefix: &str) -> Option<usize> {
+    let rest = label.strip_prefix(prefix)?;
+    if rest.is_empty() {
+        return Some(256);
+    }
+    rest.parse::<usize>()
+        .ok()
+        .filter(|b| *b > 0 && *b <= 256 && b % 8 == 0)
 }
 
 /// Split `name[a][b].c` into the name and its steps (`a`, `b`, `c`)
@@ -791,5 +910,73 @@ mod tests {
             ("slot0".to_string(), vec!["tick".to_string()])
         );
         assert!(split_path("a[1").is_err());
+    }
+
+    #[test]
+    fn keys_are_range_checked_and_hex_ints_sign_extended() {
+        // int24 -887270 is 0xf2761a in the type's own 24-bit two's complement
+        let dec = encode_key("int24", "-887270").unwrap();
+        let hex = encode_key("int24", "0xf2761a").unwrap();
+        assert_eq!(dec, hex);
+        assert!(encode_key("int24", "0xfff2764a").is_err()); // wider than 24 bits
+        assert!(encode_key("int24", "-8388609").is_err()); // below int24 min
+        assert!(encode_key("int24", "8388608").is_err()); // above int24 max
+        assert!(encode_key("int24", "-8388608").is_ok());
+        assert!(encode_key("uint8", "256").is_err());
+        assert!(encode_key("uint8", "255").is_ok());
+        assert!(encode_key("uint256", "0x01").is_ok());
+        assert!(encode_key("bytes32", "0x01").is_err()); // must be exactly 32 bytes
+        assert!(encode_key("enum E", "256").is_err());
+    }
+
+    fn dup_layout() -> Layout {
+        Layout::parse(&json!({
+            "storage": [
+                {"label": "__gap", "slot": "2", "offset": 0, "type": "t_array(t_uint256)49_storage", "contract": "a/A.sol:Initializable"},
+                {"label": "x", "slot": "51", "offset": 0, "type": "t_uint256", "contract": "b/B.sol:Pod"},
+                {"label": "__gap", "slot": "63", "offset": 0, "type": "t_array(t_uint256)35_storage", "contract": "b/B.sol:Pod"}
+            ],
+            "types": {
+                "t_uint256": {"label": "uint256", "encoding": "inplace", "numberOfBytes": "32"},
+                "t_array(t_uint256)49_storage": {"label": "uint256[49]", "encoding": "inplace", "base": "t_uint256", "numberOfBytes": "1568"},
+                "t_array(t_uint256)35_storage": {"label": "uint256[35]", "encoding": "inplace", "base": "t_uint256", "numberOfBytes": "1120"}
+            }
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn duplicate_labels_need_disambiguation() {
+        let l = dup_layout();
+        let err = l.locate("__gap", &["1".into()]).unwrap_err().to_string();
+        assert!(
+            err.contains("ambiguous") && err.contains("__gap@2") && err.contains("__gap@63"),
+            "{err}"
+        );
+        assert_eq!(
+            l.locate("__gap@63", &["1".into()]).unwrap().slot,
+            U256::from(64)
+        );
+        assert_eq!(
+            l.locate("Pod", &["__gap".into(), "1".into()]).unwrap().slot,
+            U256::from(64)
+        );
+        let (name, steps) = split_path("Initializable.__gap[0]").unwrap();
+        assert_eq!(l.locate(&name, &steps).unwrap().slot, U256::from(2));
+        assert_eq!(l.locate("x", &[]).unwrap().slot, U256::from(51));
+    }
+
+    #[tokio::test]
+    async fn dynamic_array_index_is_bounds_checked() {
+        let l = layout();
+        let r = reader(&[(U256::from(20), U256::from(5))]);
+        let ok = l.locate("small", &["4".into()]).unwrap();
+        l.check_bounds(&r, &ok).await.unwrap();
+        let bad = l.locate("small", &["5".into()]).unwrap();
+        let err = l.check_bounds(&r, &bad).await.unwrap_err().to_string();
+        assert!(
+            err.contains("out of bounds") && err.contains("length 5"),
+            "{err}"
+        );
     }
 }

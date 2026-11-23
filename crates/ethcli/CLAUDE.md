@@ -258,6 +258,13 @@ ethcli contract storage <addr> slot0 --block 7d -o json     # whole struct
   path (`name[key].member`).
 - Keys: address, uint, int (negative allowed), bool, bytesN, string and bytes,
   hashed per Solidity rules. Other key types need the 32-byte key as hex.
+  Keys are range-checked against the key type; a hex intN key is read as that
+  type's two's complement (`0xf2761a` is int24 -887270); bytesN keys must be
+  exactly N bytes.
+- Dynamic array indexes are checked against the stored length.
+- When several variables share a name (`__gap`, private variables of
+  different base contracts) the command lists them; pick one with
+  `name@slot` or `Contract.name`.
 - A whole struct prints all members; a dynamic array prints its length and
   the first 32 elements; a mapping needs a key.
 - Proxies (EIP-1967, beacon, legacy OpenZeppelin, EIP-1167, Safe): the
