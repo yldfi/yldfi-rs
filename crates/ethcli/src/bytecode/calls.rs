@@ -1054,6 +1054,32 @@ pub fn jumpdests(code: &[u8]) -> Vec<bool> {
     out
 }
 
+/// Per pc: true when the byte lies in a dead region, i.e. after a halting
+/// opcode (STOP, JUMP, RETURN, REVERT, INVALID, SELFDESTRUCT) with no
+/// JUMPDEST since, by the same linear sweep as [`jumpdests`]. No jump can
+/// land there and nothing falls through into it, so it is data.
+#[must_use]
+pub fn dead_regions(code: &[u8]) -> Vec<bool> {
+    let mut out = vec![false; code.len()];
+    let mut dead = false;
+    let mut pc = 0;
+    while pc < code.len() {
+        let op = code[pc];
+        if op == 0x5b {
+            dead = false;
+        }
+        let end = (pc + 1 + push_size(op)).min(code.len());
+        for d in &mut out[pc..end] {
+            *d = dead;
+        }
+        if matches!(op, 0x00 | 0x56 | 0xf3 | 0xfd | 0xfe | 0xff) {
+            dead = true;
+        }
+        pc += 1 + push_size(op);
+    }
+    out
+}
+
 fn push_size(op: u8) -> usize {
     if (0x60..=0x7f).contains(&op) {
         (op - 0x5f) as usize
