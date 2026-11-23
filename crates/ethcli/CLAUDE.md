@@ -618,7 +618,7 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   source map + AST (`forge build --ast`), else approximate dispatcher ranges.
 - Proxies are followed only when the address's own code acts as that proxy:
   a reachable DELEGATECALL and the slot constant it reads (PUSH32 of the
-  EIP-1967 / beacon / OZ slot), an EIP-1167 clone, or a small Safe proxy.
+  EIP-1967 / beacon / OZ slot, then SLOAD), an EIP-1167 clone, or a Safe proxy whose runtime equals a canonical one (1.0.0, 1.1.1, 1.3.0, 1.4.1, 1.5.0).
   A slot set on any other contract is reported and its own code analysed.
   When code is substituted, the address's own code is censused too
   (`target.own_code`).

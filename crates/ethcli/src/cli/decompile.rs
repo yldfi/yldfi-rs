@@ -188,19 +188,26 @@ fn acts_as_proxy(kind: &str, code: &[u8]) -> bool {
     }
 }
 
-/// The Safe proxy's runtime code up to its metadata (GnosisSafeProxy 1.3.0,
-/// as deployed by the canonical proxy factory). Other versions are not
-/// recognised and are analysed as their own code
-const SAFE_PROXY_1_3_0: &str = "608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fe";
+/// Safe proxy runtime code, exactly as the canonical proxy factories of
+/// safe-global/safe-deployments deploy it (Safe 1.0.0, 1.1.1, 1.3.0, 1.4.1,
+/// 1.5.0; the runtime does not depend on the singleton, which is in
+/// storage). zkSync deployments run EraVM code and are not covered.
+const SAFE_PROXY_RUNTIMES: &[&str] = &[
+    // 1.0.0
+    "608060405273ffffffffffffffffffffffffffffffffffffffff600054163660008037600080366000845af43d6000803e6000811415603d573d6000fd5b3d6000f3fea165627a7a723058201e7d648b83cfac072cbccefc2ffc62a6999d4a050ee87a721942de1da9670db80029",
+    // 1.1.1
+    "608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fea265627a7a72315820d8a00dc4fe6bf675a9d7416fc2d00bb3433362aa8186b750f76c4027269667ff64736f6c634300050e0032",
+    // 1.3.0
+    "608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fea2646970667358221220d1429297349653a4918076d650332de1a1068c5f3e07c5c82360c277770b955264736f6c63430007060033",
+    // 1.4.1
+    "608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000000000000000000000000000000000000000000000000000000060003514156050578060005260206000f35b3660008037600080366000845af43d6000803e60008114156070573d6000fd5b3d6000f3fea264697066735822122003d1488ee65e08fa41e58e888a9865554c535f2c77126a82cb4c0f917f31441364736f6c63430007060033",
+    // 1.5.0
+    "608060405260005463a619486e60003560e01c14156024578060601b606c5260206060f35b3660008037600080366000845af43d6000803e806040573d6000fd5b3d6000f3fea2646970667358221220e61834ebd2d8cd909d362bf67c47ef58fd665df38e6dd036ce65611101d072e964736f6c63430007060033",
+];
 
 fn is_known_safe_proxy(code: &[u8]) -> bool {
-    let Ok(known) = hex::decode(SAFE_PROXY_1_3_0) else {
-        return false;
-    };
-    match crate::bytecode::metadata::trailing_metadata(code) {
-        Some(m) => code[..m.start] == known[..],
-        None => false,
-    }
+    let hex_code = hex::encode(code);
+    SAFE_PROXY_RUNTIMES.contains(&hex_code.as_str())
 }
 
 /// A reachable DELEGATECALL (live by fallthrough or after a valid JUMPDEST,
@@ -1961,8 +1968,9 @@ mod tests {
 
     #[test]
     fn safe_proxy_is_recognised_by_code_not_size() {
-        let real = hex::decode(format!("{SAFE_PROXY_1_3_0}a2646970667358221220d1429297349653a4918076d650332de1a1068c5f3e07c5c82360c277770b955264736f6c63430007060033")).unwrap();
-        assert!(acts_as_proxy("Safe proxy", &real));
+        for runtime in SAFE_PROXY_RUNTIMES {
+            assert!(acts_as_proxy("Safe proxy", &hex::decode(runtime).unwrap()));
+        }
         // A small contract with a DELEGATECALL is not a Safe proxy
         assert!(!acts_as_proxy(
             "Safe proxy",
