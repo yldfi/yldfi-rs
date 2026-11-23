@@ -310,6 +310,16 @@ async fn run(args: Vec<String>) -> anyhow::Result<()> {
         Commands::Rpc { action, rpc_url } => {
             return ethcli::cli::rpc::handle(action, chain, rpc_url.clone(), cli.quiet).await;
         }
+        Commands::Safe { action, rpc_url } => {
+            return ethcli::cli::safe::handle(
+                action,
+                chain,
+                rpc_url.clone(),
+                etherscan_key.clone(),
+                cli.quiet,
+            )
+            .await;
+        }
         Commands::Ens { action, rpc_url } => {
             return ethcli::cli::ens::handle(action, chain, rpc_url.clone(), cli.quiet).await;
         }

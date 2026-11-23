@@ -41,6 +41,7 @@ pub mod fetcher;
 pub mod output;
 pub mod proxy;
 pub mod rpc;
+pub mod storage_layout;
 pub mod tx;
 pub mod utils;
 

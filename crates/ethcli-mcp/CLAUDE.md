@@ -159,7 +159,7 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 | Prefix | Count | Description |
 |--------|-------|-------------|
 | `cast_*` | 15 | Unit conversions, hashing, mapping slots |
-| `rpc_*` | 14 | Direct RPC calls, batch reads, block by time |
+| `rpc_*` | 15 | Direct RPC calls, batch reads, block by time |
 | `contract_*` | 9 | Address overview, ABI, source, bytecode analysis, security |
 | `account_*` | 10 | Balance, transactions, first funder, labels |
 | `lifi_*` | 19 | Cross-chain aggregator |
@@ -178,8 +178,13 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 | `rpc_tx` | A transaction by hash |
 | `rpc_code_summary` | Whether an address has code, its size and code hash, and any EIP-7702 delegate, without the bytecode |
 | `rpc_block_at` | The block for a date, Unix timestamp (`@1706700000`) or age (`7d`) |
+| `rpc_find_change` | The block where a call result, balance, storage slot, code or nonce changed (binary search) |
 | `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
 | `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
+| `safe_info` | Safe owners, threshold, nonce, version, modules, guard and fallback handler, read on chain |
+| `safe_queue` | Pending Safe transactions with who has and has not signed |
+| `safe_tx` | One Safe transaction, decoded, with MultiSend batches unpacked |
+| `safe_history` | Executed Safe transactions, paged |
 | `cast_index` | The storage slot of a mapping entry |
 
 The `block` input of `rpc_balance`, `rpc_multicall` and `contract_call` also

@@ -52,6 +52,55 @@ impl WalletQuery {
     }
 }
 
+/// Query parameters for [`WalletApi::get_active_chains_with_query`]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ActiveChainsQuery {
+    /// Chains to check (e.g. `"eth"`, `"0x89"`); empty means the Moralis
+    /// default set
+    pub chains: Vec<String>,
+}
+
+impl ActiveChainsQuery {
+    /// Create a new query (Moralis default chains)
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a chain to check
+    #[must_use]
+    pub fn chain(mut self, chain: impl Into<String>) -> Self {
+        self.chains.push(chain.into());
+        self
+    }
+
+    /// Add several chains to check
+    #[must_use]
+    pub fn chains<I, S>(mut self, chains: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.chains.extend(chains.into_iter().map(Into::into));
+        self
+    }
+
+    /// Query pairs, with `chains` in the indexed form Moralis expects
+    /// (`chains[0]=eth&chains[1]=polygon`)
+    fn to_query(&self) -> Vec<(String, String)> {
+        indexed_chains(&self.chains)
+    }
+}
+
+fn indexed_chains(chains: &[String]) -> Vec<(String, String)> {
+    chains
+        .iter()
+        .enumerate()
+        .map(|(i, chain)| (format!("chains[{i}]"), chain.clone()))
+        .collect()
+}
+
 /// Query parameters for [`WalletApi::get_insight`]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
@@ -87,12 +136,7 @@ impl WalletInsightQuery {
     /// Query pairs, with `chains` in the indexed form Moralis expects
     /// (`chains[0]=eth&chains[1]=polygon`)
     fn to_query(&self) -> Vec<(String, String)> {
-        let mut query: Vec<(String, String)> = self
-            .chains
-            .iter()
-            .enumerate()
-            .map(|(i, chain)| (format!("chains[{i}]"), chain.clone()))
-            .collect();
+        let mut query = indexed_chains(&self.chains);
         if let Some(include) = self.include_chain_breakdown {
             query.push(("includeChainBreakdown".to_string(), include.to_string()));
         }
@@ -161,10 +205,28 @@ impl<'a> WalletApi<'a> {
         self.client.get(&path).await
     }
 
-    /// Get active chains for an address
+    /// Get active chains for an address (Moralis default chain set)
     pub async fn get_active_chains(&self, address: &str) -> Result<ActiveChains> {
+        self.get_active_chains_with_query(address, &ActiveChainsQuery::default())
+            .await
+    }
+
+    /// Get active chains for an address, limited to the chains in `query`
+    ///
+    /// Calls `GET /wallets/{address}/chains`; an empty query uses the
+    /// Moralis default chain set.
+    pub async fn get_active_chains_with_query(
+        &self,
+        address: &str,
+        query: &ActiveChainsQuery,
+    ) -> Result<ActiveChains> {
         let path = format!("/wallets/{address}/chains");
-        self.client.get(&path).await
+        let pairs = query.to_query();
+        if pairs.is_empty() {
+            self.client.get(&path).await
+        } else {
+            self.client.get_with_query(&path, &pairs).await
+        }
     }
 
     /// Get token approvals for an address
@@ -336,6 +398,21 @@ mod multiple_balances_tests {
             "chains%5B0%5D=eth&chains%5B1%5D=0x89&includeChainBreakdown=true"
         );
         assert!(WalletInsightQuery::new().to_query().is_empty());
+    }
+
+    #[test]
+    fn active_chains_query_uses_indexed_chains() {
+        let q = ActiveChainsQuery::new()
+            .chain("eth")
+            .chains(["base", "0x89"])
+            .to_query();
+        let mut url = reqwest::Url::parse("https://example.com/").unwrap();
+        url.query_pairs_mut().extend_pairs(&q);
+        assert_eq!(
+            url.query().unwrap(),
+            "chains%5B0%5D=eth&chains%5B1%5D=base&chains%5B2%5D=0x89"
+        );
+        assert!(ActiveChainsQuery::new().to_query().is_empty());
     }
 
     #[tokio::test]

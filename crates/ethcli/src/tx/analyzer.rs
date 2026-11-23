@@ -566,6 +566,53 @@ impl TxAnalyzer {
             Err(e) => analysis.notes.push(format!("Block time not fetched: {e}")),
         }
 
+        // Is a separate L1 fee really charged on top? Where the sender's
+        // balance change equals value + gasUsed x price exactly, the l1Fee
+        // was informational (already inside the gas price): fix the split
+        let mut fee_fixed = false;
+        if analysis.block_number > 0 {
+            if let Some(b) = analysis.fee_breakdown.as_mut() {
+                if b.l1_fee_wei.as_deref().is_some_and(|f| f != "0") && !b.l1_fee_included {
+                    let from = analysis.from;
+                    let at = |n: u64| provider.get_balance(from).block_id(n.into());
+                    if let (Ok(before), Ok(after)) = (
+                        at(analysis.block_number - 1).await,
+                        at(analysis.block_number).await,
+                    ) {
+                        if let Some(spent) = before.checked_sub(after) {
+                            let gas_times_price = alloy::primitives::U256::from(analysis.gas_used)
+                                * b.gas_price_wei
+                                    .parse::<alloy::primitives::U256>()
+                                    .unwrap_or_default();
+                            if spent == analysis.value + gas_times_price && b.mark_l1_fee_included()
+                            {
+                                analysis.fee_wei = Some(b.total_fee_wei.clone());
+                                analysis.fee = Some(b.total_fee.clone());
+                                analysis.notes.push(
+                                    "The receipt's l1Fee is already part of gasUsed x price \
+                                     (checked against the sender's balance change)"
+                                        .to_string(),
+                                );
+                                fee_fixed = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if fee_fixed {
+            refresh_balance_changes(analysis);
+        }
+
+        // The fee in USD at the block's time
+        if let (Some(ts), Some(b)) = (analysis.timestamp, analysis.fee_breakdown.as_mut()) {
+            match crate::tx::l2_fee::native_usd_price(self.chain, Some(ts)).await {
+                Ok((price, source)) => b.set_usd(price, source),
+                Err(e) => analysis.notes.push(format!("Fee in USD not computed: {e}")),
+            }
+        }
+
         // A call trace gives two things exactly: every native transfer made
         // inside the call, and for a failed transaction the revert data of
         // the transaction as it actually ran
@@ -745,6 +792,7 @@ impl TxAnalyzer {
 
         // Build analysis
         let mut analysis = TransactionAnalysis::new(&raw);
+        self.apply_fee_breakdown(&mut analysis, hash).await;
 
         // Analyze contracts involved
         analysis.contracts = self.analyze_contracts(&raw);
@@ -984,6 +1032,45 @@ impl TxAnalyzer {
     }
 
     /// Fetch raw transaction data
+    /// Split the fee into execution and L1 data parts. On rollups this needs
+    /// the raw receipt (alloy drops the L1 fee fields), and the total
+    /// replaces `fee_wei`/`fee`, since the L1 data fee is charged too.
+    async fn apply_fee_breakdown(&self, analysis: &mut TransactionAnalysis, hash: B256) {
+        use crate::tx::l2_fee::{FeeBreakdown, FeeModel};
+        let chain_id = self.chain.chain_id();
+        // Known L1 chains skip the raw receipt; anything else is read, since
+        // the receipt's own l1Fee / gasUsedForL1 fields decide the split
+        if FeeModel::known(chain_id) == Some(FeeModel::L1) {
+            let (Some(price), Some(fee)) = (&analysis.effective_gas_price, &analysis.fee_wei)
+            else {
+                return;
+            };
+            let receipt = serde_json::json!({
+                "gasUsed": analysis.gas_used.to_string(),
+                "effectiveGasPrice": price,
+            });
+            analysis.fee_breakdown = FeeBreakdown::from_receipt_json(chain_id, &receipt)
+                .filter(|b| &b.total_fee_wei == fee);
+            return;
+        }
+        match self.pool.get_receipt_json(hash).await {
+            Ok(Some(receipt)) => match FeeBreakdown::from_receipt_json(chain_id, &receipt) {
+                Some(b) => {
+                    analysis.fee_wei = Some(b.total_fee_wei.clone());
+                    analysis.fee = Some(b.total_fee.clone());
+                    analysis.fee_breakdown = Some(b);
+                }
+                None => analysis
+                    .notes
+                    .push("L1 data fee not read: receipt has no gas fields".to_string()),
+            },
+            Ok(None) => {}
+            Err(e) => analysis.notes.push(format!(
+                "L1 data fee not read ({e}); fee is L2 execution only"
+            )),
+        }
+    }
+
     async fn fetch_raw_data(&self, hash: B256) -> Result<RawTxData> {
         // Fetch transaction and receipt in parallel
         let (tx_result, receipt_result) = tokio::join!(
@@ -1234,8 +1321,27 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
         u256_to_eth_f64(&analysis.value)
     ));
     output.push_str(&format!("Gas Used: {}\n", analysis.gas_used));
-    if let (Some(fee), Some(price)) = (&analysis.fee, &analysis.effective_gas_price) {
-        output.push_str(&format!("Fee: {} (gas price {} wei)\n", fee, price));
+    match &analysis.fee_breakdown {
+        Some(b) if b.l1_fee_wei.is_some() => {
+            output.push_str(&format!("Fee: {} ({})\n", b.total_fee, b.model));
+            for line in b.lines(&b.native_symbol) {
+                output.push_str(&line);
+                output.push('\n');
+            }
+        }
+        _ => {
+            if let (Some(fee), Some(price)) = (&analysis.fee, &analysis.effective_gas_price) {
+                output.push_str(&format!("Fee: {} (gas price {} wei)\n", fee, price));
+                if let Some(u) = analysis.fee_breakdown.as_ref().and_then(|b| b.usd.as_ref()) {
+                    output.push_str(&format!(
+                        "  ${} at ${} ({})\n",
+                        crate::tx::l2_fee::format_usd(u.total_usd),
+                        crate::tx::l2_fee::format_usd(u.price_usd),
+                        u.source
+                    ));
+                }
+            }
+        }
     }
     output.push_str(&format!(
         "Status: {}\n",
@@ -1423,6 +1529,7 @@ mod tests {
             effective_gas_price: Some("20000000000".to_string()),
             fee_wei: Some("420000000000000".to_string()),
             fee: Some("0.000420000000000000".to_string()),
+            fee_breakdown: None,
             balance_changes: vec![],
             timestamp: None,
             time: None,

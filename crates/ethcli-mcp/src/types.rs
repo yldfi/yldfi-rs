@@ -184,6 +184,28 @@ pub struct AccountLabelsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AccountApprovalsInput {
+    /// Owner address (hex, ENS name, or address book label)
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// First block of the event scan (default 0)
+    #[serde(default)]
+    pub from_block: Option<u64>,
+    /// Most explorer requests per event type, 1,000 logs each (default 20)
+    #[serde(default)]
+    pub max_pages: Option<u32>,
+    /// Skip USD prices
+    #[serde(default)]
+    pub no_price: bool,
+    /// Also list approvals with nothing at risk now (zero balance or expired).
+    /// Off by default: for active wallets that list can pass the 1 MB output cap
+    #[serde(default)]
+    pub include_zero_exposure: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AccountErc721Input {
     /// Ethereum address
     pub address: String,
@@ -398,6 +420,30 @@ pub struct GasEstimateInput {
     pub chain: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GasCostInput {
+    /// Target address
+    pub to: String,
+    /// Calldata (hex); use this or `sig`
+    pub data: Option<String>,
+    /// Function signature, e.g. "transfer(address,uint256)"
+    pub sig: Option<String>,
+    /// Function arguments for `sig`, space-separated
+    pub args: Option<String>,
+    /// Sender the estimate runs as
+    pub from: Option<String>,
+    /// Value to send, in wei
+    pub value: Option<String>,
+    /// Skip the USD conversion
+    #[serde(default)]
+    pub no_usd: bool,
+    /// Custom RPC URL (overrides the configured endpoints)
+    pub rpc_url: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 // --- Signature Lookup ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SigLookupInput {
@@ -409,6 +455,38 @@ pub struct SigLookupInput {
 pub struct SigErrorInput {
     /// Revert data as 0x hex (selector plus encoded arguments), or a bare 4-byte error selector
     pub data: String,
+}
+
+// --- Safe ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SafeAddressInput {
+    /// Safe address
+    pub safe: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SafeListInput {
+    /// Safe address
+    pub safe: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Maximum transactions to list (default 20)
+    pub limit: Option<u32>,
+    /// Skip this many transactions (history only, for paging)
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SafeTxInput {
+    /// safeTxHash (the Safe's EIP-712 transaction hash, not the chain transaction hash)
+    pub safe_tx_hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
 }
 
 // --- Cast (Conversions) ---
@@ -561,6 +639,30 @@ pub struct RpcBlockAtInput {
     /// date is 00:00 UTC at the start of that day: for the end of a day pass
     /// the next day's date or a full time ("2024-01-31T23:59:59Z")
     pub time: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcFindChangeInput {
+    /// What to watch: "call", "balance", "storage", "code" or "nonce"
+    pub target: String,
+    /// For "call": "<address> <signature> [args...]", with return types to
+    /// decode, e.g. "0xToken balanceOf(address)(uint256) 0xHolder".
+    /// Otherwise the address
+    pub value: String,
+    /// Storage slot (hex or decimal), for target "storage"
+    #[serde(default)]
+    pub slot: Option<String>,
+    /// Start: block number or a time ("2024-01-31", "@1706700000", "30d")
+    pub from: String,
+    /// End: block number, a time or "latest" (default: latest)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// Report every change (up to 100), not just one boundary
+    #[serde(default)]
+    pub all: bool,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
@@ -906,6 +1008,40 @@ pub struct UniswapPositionsInput {
     pub version: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct UniswapPositionValueInput {
+    /// NFT token id of a v3 or v4 position (omit when `v2_pair` is set)
+    pub token_id: Option<String>,
+    /// Position manager version for token_id: v3 (default) or v4
+    pub version: Option<String>,
+    /// Uniswap v2-style pair address (also Sushi and other v2 forks); needs `owner`
+    pub v2_pair: Option<String>,
+    /// LP token holder for `v2_pair`
+    pub owner: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block number to value at (default: latest)
+    pub block: Option<u64>,
+    /// Skip USD pricing
+    pub no_price: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct UniswapLpPositionsInput {
+    /// Owner address
+    pub owner: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Include closed positions (no liquidity and nothing to collect)
+    pub all: Option<bool>,
+    /// Block number to value at (default: latest)
+    pub block: Option<u64>,
+    /// Skip USD pricing
+    pub no_price: Option<bool>,
+}
+
 // --- Curve ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CurvePoolsInput {
@@ -1197,6 +1333,28 @@ pub struct ContractCallInput {
     /// Format output for human readability (commas in numbers, token decimals)
     #[serde(default)]
     pub human: bool,
+}
+
+// --- Contract Storage ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractStorageInput {
+    /// Contract address. For a proxy, the implementation's layout is used and the proxy's storage is read
+    pub address: String,
+    /// Variable name, optionally with a path: "totalSupply", "slot0.tick", "allowed[0xOwner][0xSpender]", "poolInfo[3].gauge". Omit with list=true
+    pub variable: Option<String>,
+    /// Further mapping keys, array indexes and struct member names, in order (alternative to writing them in the path)
+    #[serde(default)]
+    pub keys: Vec<String>,
+    /// List the storage layout (name, slot, offset, type) instead of reading a variable
+    #[serde(default)]
+    pub list: bool,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block number, tag, date (2024-01-31), @timestamp or age (7d). Default: latest
+    pub block: Option<String>,
+    /// Custom RPC URL (overrides config)
+    pub rpc_url: Option<String>,
 }
 
 // --- Cast Extra ---
@@ -2755,6 +2913,15 @@ pub struct MoralisAddressInput {
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisWalletActiveChainsInput {
+    /// Wallet address
+    pub address: String,
+    /// Only check these chains, comma-separated (e.g. "eth,base"; default: the Moralis default set)
+    #[serde(default)]
+    pub chains: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

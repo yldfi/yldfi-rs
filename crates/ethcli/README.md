@@ -249,6 +249,13 @@ ethcli account funded-by 0x...
 # Names and labels: Etherscan name tags (Pro Plus plan), the address book and
 # ethcli's built-in labels
 ethcli account labels 0x... 0x...
+
+# Open token approvals and the amount each puts at risk (min of allowance and
+# balance, with USD where priced), Permit2 allowances with expiry, NFT operator
+# approvals and any EIP-7702 delegation. Pairs come from the owner's approval
+# events (explorer logs); current values are read on chain in one multicall
+ethcli account approvals 0x...
+ethcli account approvals 0x... --json --max-pages 50 --no-price
 ```
 
 ### Contract - ABI, Source Code, and Bytecode Analysis
@@ -271,6 +278,15 @@ ethcli contract creation 0x...
 # implementation, verified name, creator, token details, Safe owners, and its functions
 ethcli contract inspect 0x...
 ethcli contract inspect 0x... --json
+
+# Read a storage variable by name, decoded, from the verified storage layout
+# (Sourcify). Keys, indexes and struct members follow the name or go in the path.
+# For a proxy, the implementation's layout is used and the proxy's storage read.
+ethcli contract storage 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --list
+ethcli contract storage 0xA0b8...eB48 balanceAndBlacklistStates 0xHolder
+ethcli contract storage 0xA0b8...eB48 allowed 0xOwner 0xSpender --block 2025-01-01
+ethcli contract storage 0x88e6...5640 slot0.tick
+ethcli contract storage 0x88e6...5640 "ticks[-887270]" -o json
 
 # Extract function selectors from bytecode (no ABI needed)
 ethcli contract selectors 0x...
@@ -353,6 +369,18 @@ ethcli rpc block-at 2024-01-31T12:00:00Z    # the latest block at or before that
 # A plain date is 00:00 UTC at the start of that day: 2024-01-31 is the close of 30 January.
 # For an end-of-day figure use the next day's date or a full time (2024-01-31T23:59:59Z).
 
+# The block where a value changed, by binary search (about log2(range) reads,
+# archive state needed). Target: a call, --balance, --storage <addr> <slot>,
+# --code (deployment) or --nonce. Prints the block, its time, old and new
+# values, top-level transactions to or from the address, and the RPC call count.
+ethcli rpc find-change --code 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --from 6000000 --to 7000000
+ethcli rpc find-change "0xA0b8... balanceOf(address)(uint256) 0xd8dA..." --from 2024-01-01 --json
+# It assumes the value changed once; with several changes it finds one of them.
+# --all searches again after each change (up to 100), but misses a change that is
+# undone within a segment (a balance that goes up and back down).
+# JSON carries single_change_assumed, and a warning when --all finds several
+# changes: when the first change matters, use --all.
+
 # Size and code hash only (is it a contract? did the code change?)
 ethcli rpc code 0x... --summary
 
@@ -407,7 +435,49 @@ ethcli gas oracle
 
 # Estimate confirmation time
 ethcli gas estimate 30
+
+# Full cost of a transaction: L2 execution + L1 data fee, in ETH and USD
+ethcli gas cost 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  -s "transfer(address,uint256)" -a "0x000000000000000000000000000000000000dEaD 1" \
+  --from 0x... --chain base
+ethcli gas cost 0x... 0x<calldata> --chain arbitrum --json
 ```
+
+`gas cost` takes L2 gas from `eth_estimateGas` and the price from
+`eth_gasPrice`. The L1 data fee comes from the GasPriceOracle predeploy
+(`getL1Fee`, given the unsigned RLP transaction) on OP-stack chains, plus
+the operator fee (`getOperatorFee`, e.g. BOB's per-transaction constant);
+from Scroll's L1GasPriceOracle (`0x5300…0002`, given the transaction with a
+placeholder signature); and from NodeInterface (`gasEstimateL1Component`) on
+Arbitrum, where it is part of the estimated gas. Chains outside the known
+list are probed (ArbSys, the OP GasPriceOracle and the Scroll oracle) and the
+answer is cached per chain for the process; a chain none of them matches is
+reported as `unknown`, not as an L1. Rollups that fold the L1 cost into the
+gas price (Linea, zkSync Era, Polygon zkEVM, Taiko) show `included`. Mantle
+is excluded from estimates (it prices the L1 fee in MNT through a token
+ratio). On L1 chains the L1 fee is not applicable. `--rpc-url` uses one
+endpoint and its own `eth_chainId` (an explicit `--chain` that disagrees is
+an error). USD prices the chain's actual gas token: ETH from the price
+aggregation, others (FRAX on Fraxtal, MNT, POL, ...) by CoinGecko id on
+DefiLlama. USD uses the median of
+CoinGecko, DefiLlama, Chainlink, Pyth and an exchange, and names the sources
+(`--no-usd` skips it).
+
+For a mined transaction, `tx` and `rpc receipt` read the L1 fee fields of the
+receipt (`l1Fee`, `l1GasUsed`, `l1GasPrice`, `l1BaseFeeScalar`,
+`l1BlobBaseFee`, ... on OP-stack; `gasUsedForL1` on Arbitrum) and report
+`fee_breakdown` / `feeBreakdown`: execution, L1 data and total. The receipt's
+own fields decide, on any chain: `l1Fee` present means an OP-style L1 fee
+(including Mantle and other chains outside the known list), `gasUsedForL1`
+means Arbitrum. An OP-stack operator fee (`operatorFeeScalar`,
+`operatorFeeConstant`) is added as `operator_fee_wei`; deposit transactions
+pay nothing. Mantle's Tectonic-era receipts (a `tokenRatio`, no operator-fee
+fields) report an `l1Fee` already inside gasUsed × price; it is shown with
+`l1_fee_included: true` and not added. `tx --full` also checks the sender's
+balance change and moves an `l1Fee` inside the execution fee when that is
+what was paid. `tx`'s `fee_wei` is the total, so balance changes include
+the L1 fee.
+`tx --full` adds the fee in USD at the block's time (DefiLlama).
 
 ### Token - Token Operations
 
@@ -430,6 +500,25 @@ ethcli sig error 0x08c379a0...       # decode revert data (Error, Panic or a cus
 # Lookup event by topic
 ethcli sig event 0xddf252ad...
 ```
+
+### Safe - Multisig Info, Queue and Transactions (read-only)
+
+```bash
+ethcli safe info <safe>                 # owners, threshold, nonce, version, modules, guard, fallback handler (on chain)
+ethcli safe queue <safe>                # pending txs (nonce >= on-chain nonce): who signed, who has not
+ethcli safe tx <safeTxHash>             # one tx, calldata decoded, MultiSend batches unpacked
+ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset to page)
+ethcli safe queue <safe> --chain arbitrum --json
+```
+
+`info` reads the Safe on chain (one Multicall3 request plus storage reads for
+the guard, fallback handler and singleton), so it works on any chain. `queue`,
+`tx` and `history` use the public Safe Transaction Service
+(`https://api.safe.global/tx-service/<chain>`), which works without a key;
+set `SAFE_API_KEY` for a higher rate limit, or `SAFE_TX_SERVICE_URL` to point
+at another deployment. Calls are decoded from the target's verified ABI, or
+from the signature database (marked with `?` / `"source": "signature_database"`,
+a guess). Nothing is proposed, signed or executed.
 
 ### Address Book
 
@@ -1084,6 +1173,13 @@ ethcli uniswap day-data 0x... --days 7
 ethcli uniswap positions 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ethcli uniswap positions <address> --version v3 --chain arbitrum
 ethcli uniswap positions <address> --format json
+
+# LP position valuation (on-chain, no API key; honours --chain)
+ethcli uniswap position 1234567                         # v3 NFT
+ethcli uniswap position 12345 --version v4              # v4 NFT
+ethcli uniswap position --v2 <pair> --owner <address>   # v2-style pair, also Sushi and other forks
+ethcli uniswap lp-positions --owner <address> --json    # all open v3 positions (--all for closed)
+ethcli uniswap position 1234567 --block 21000000 --no-price
 
 # Well-known addresses
 ethcli uniswap addresses

@@ -2133,6 +2133,8 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-normalization",
+ "uniswap-v3-sdk",
+ "uniswap-v4-sdk",
  "unswp",
  "vlra",
  "wiremock",
