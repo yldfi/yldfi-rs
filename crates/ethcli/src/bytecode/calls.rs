@@ -47,29 +47,115 @@ impl Default for CallsBudget {
 // ---------------------------------------------------------------------------
 // Abstract values
 
+/// Deepest value tree kept; deeper values become `Unknown`
 const MAX_DEPTH: usize = 8;
+/// Most nodes in one value tree; larger values become `Unknown`. With the
+/// depth cap this bounds every recursive walk (Drop, Hash, Eq, provenance)
+/// whatever the bytecode does.
+const MAX_NODES: usize = 64;
+
+/// A boxed child with its subtree depth and size cached, so the caps are
+/// checked in O(1)
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct Bx {
+    v: Box<V>,
+    depth: u8,
+    nodes: u8,
+}
+
+impl std::ops::Deref for Bx {
+    type Target = V;
+    fn deref(&self) -> &V {
+        &self.v
+    }
+}
+
+impl AsRef<V> for Bx {
+    fn as_ref(&self) -> &V {
+        &self.v
+    }
+}
+
+/// Child list with cached depth and size
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct Args {
+    v: Vec<V>,
+    depth: u8,
+    nodes: u8,
+}
+
+impl std::ops::Deref for Args {
+    type Target = [V];
+    fn deref(&self) -> &[V] {
+        &self.v
+    }
+}
+
+impl Args {
+    fn as_slice(&self) -> &[V] {
+        &self.v
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum V {
     /// A constant; the second field is the PUSH size it came from (0 when
     /// computed from other constants)
     Const(U256, u8),
-    CallData(Box<V>),
+    CallData(Bx),
     Caller,
     Origin,
     This,
     CallValue,
-    SLoad(Box<V>),
-    TLoad(Box<V>),
+    SLoad(Bx),
+    TLoad(Bx),
     /// Return data (or success flag, or created address) of the call/create at pc
     Ret(usize),
     /// Keccak of memory words
-    Hash(Vec<V>),
+    Hash(Args),
     /// Any other operation: opcode and arguments in pop order
-    Op(u8, Vec<V>),
+    Op(u8, Args),
     /// Environment value with no useful provenance (opcode)
     Env(u8),
     Unknown,
+}
+
+/// Box a child, or `None` when the result would exceed the caps
+fn bx(v: V) -> Option<Bx> {
+    let (depth, nodes) = (v.depth() + 1, v.nodes() + 1);
+    (depth <= MAX_DEPTH && nodes <= MAX_NODES).then(|| Bx {
+        v: Box::new(v),
+        depth: depth as u8,
+        nodes: nodes as u8,
+    })
+}
+
+fn args(v: Vec<V>) -> Option<Args> {
+    let depth = 1 + v.iter().map(V::depth).max().unwrap_or(0);
+    let nodes = 1 + v.iter().map(V::nodes).sum::<usize>();
+    (depth <= MAX_DEPTH && nodes <= MAX_NODES).then_some(Args {
+        v,
+        depth: depth as u8,
+        nodes: nodes as u8,
+    })
+}
+
+// Every nesting constructor goes through these: past the caps the value
+// is Unknown
+fn calldata(off: V) -> V {
+    bx(off).map_or(V::Unknown, V::CallData)
+}
+fn sload(slot: V) -> V {
+    bx(slot).map_or(V::Unknown, V::SLoad)
+}
+fn tload(slot: V) -> V {
+    bx(slot).map_or(V::Unknown, V::TLoad)
+}
+fn hash(words: Vec<V>) -> V {
+    args(words).map_or(V::Unknown, V::Hash)
+}
+fn op(code: u8, a: Vec<V>) -> V {
+    args(a).map_or(V::Unknown, |a| V::Op(code, a))
 }
 
 impl V {
@@ -82,11 +168,20 @@ impl V {
             _ => None,
         }
     }
+    /// Cached: O(1)
     fn depth(&self) -> usize {
         match self {
-            V::CallData(x) | V::SLoad(x) | V::TLoad(x) => 1 + x.depth(),
-            V::Hash(xs) | V::Op(_, xs) => 1 + xs.iter().map(V::depth).max().unwrap_or(0),
+            V::CallData(x) | V::SLoad(x) | V::TLoad(x) => x.depth as usize,
+            V::Hash(xs) | V::Op(_, xs) => xs.depth as usize,
             _ => 0,
+        }
+    }
+    /// Cached: O(1)
+    fn nodes(&self) -> usize {
+        match self {
+            V::CallData(x) | V::SLoad(x) | V::TLoad(x) => x.nodes as usize,
+            V::Hash(xs) | V::Op(_, xs) => xs.nodes as usize,
+            _ => 1,
         }
     }
     fn contains(&self, pred: &dyn Fn(&V) -> bool) -> bool {
@@ -162,14 +257,14 @@ fn fold(op: u8, a: &[U256]) -> Option<U256> {
 }
 
 /// Build an operation, folding constants and dropping no-ops
-fn mk(op: u8, args: Vec<V>) -> V {
+fn mk(code: u8, args: Vec<V>) -> V {
     let consts: Option<Vec<U256>> = args.iter().map(V::as_const).collect();
     if let Some(c) = &consts {
-        if let Some(v) = fold(op, c) {
+        if let Some(v) = fold(code, c) {
             return V::c(v);
         }
     }
-    match (op, args.as_slice()) {
+    match (code, args.as_slice()) {
         // x + 0, x - 0, x * 1, x | 0
         (0x01 | 0x17, [x, V::Const(z, _)]) | (0x01 | 0x17, [V::Const(z, _), x]) if z.is_zero() => {
             return x.clone()
@@ -183,24 +278,19 @@ fn mk(op: u8, args: Vec<V>) -> V {
         // iszero(iszero(iszero(x))) = iszero(x)
         (0x15, [V::Op(0x15, inner)]) => {
             if let [V::Op(0x15, x)] = inner.as_slice() {
-                return V::Op(0x15, x.clone());
+                return op(0x15, x.v.clone());
             }
         }
         // (a + c1) + c2
         (0x01, [V::Op(0x01, inner), V::Const(c2, _)])
         | (0x01, [V::Const(c2, _), V::Op(0x01, inner)]) => {
             if let [x, V::Const(c1, _)] | [V::Const(c1, _), x] = inner.as_slice() {
-                return V::Op(0x01, vec![x.clone(), V::c(c1.wrapping_add(*c2))]);
+                return op(0x01, vec![x.clone(), V::c(c1.wrapping_add(*c2))]);
             }
         }
         _ => {}
     }
-    let v = V::Op(op, args);
-    if v.depth() > MAX_DEPTH {
-        V::Unknown
-    } else {
-        v
-    }
+    op(code, args)
 }
 
 /// Strip masks, `iszero(iszero(x))` and the 12-byte shifts that move a packed
@@ -380,7 +470,7 @@ fn provenance(v: &V) -> Provenance {
             // Partial provenance: a packed storage read keeps its slot
             if let V::Op(op, args) = v {
                 if matches!(op, 0x16 | 0x1c | 0x04) {
-                    for a in args {
+                    for a in args.iter() {
                         if let V::SLoad(s) = strip(a) {
                             if let Some(slot) = s.as_const() {
                                 let mut p = Provenance::kind("storage");
@@ -532,10 +622,9 @@ impl Memory {
             let inside = off >= e.off && off + n <= e.off.saturating_add(e.len);
             return match &e.val {
                 MemVal::Word(v) if e.off == off && e.len == 32 => v.clone(),
-                MemVal::CallData(src) if inside => V::CallData(Box::new(mk(
-                    0x01,
-                    vec![src.clone(), V::c(U256::from(off - e.off))],
-                ))),
+                MemVal::CallData(src) if inside => {
+                    calldata(mk(0x01, vec![src.clone(), V::c(U256::from(off - e.off))]))
+                }
                 MemVal::Ret(pc) if inside => V::Ret(*pc),
                 MemVal::Code(src) if inside => {
                     // Bytes past the copied range are not trusted: zero them
@@ -942,7 +1031,7 @@ impl<'a> Interp<'a> {
                     }
                 }
                 V::Op(0x15 | 0x16 | 0x17 | 0x18 | 0x03, a) => {
-                    for x in a {
+                    for x in a.iter() {
                         walk(x, pc, out, depth + 1);
                     }
                 }
@@ -976,7 +1065,7 @@ impl<'a> Interp<'a> {
                     // Only shifts/divisions that unpack a flag; a comparison such
                     // as balance >= amount is not access control
                     if let V::Op(0x1c | 0x04, a) = v {
-                        for x in a {
+                        for x in a.iter() {
                             if matches!(x, V::SLoad(_)) {
                                 walk(x, pc, out, depth + 1);
                             }
@@ -1118,7 +1207,7 @@ impl<'a> Interp<'a> {
                                         s.mem.read_prefix(self.code, &a, (l - 32 * i).min(32))
                                     })
                                     .collect();
-                                V::Hash(words)
+                                hash(words)
                             }
                             _ => V::Unknown,
                         };
@@ -1136,7 +1225,7 @@ impl<'a> Interp<'a> {
                     0x34 => push!(V::CallValue),
                     0x35 => {
                         let off = pop!();
-                        push!(V::CallData(Box::new(off)))
+                        push!(calldata(off))
                     }
                     0x37 => {
                         let dest = pop!();
@@ -1192,11 +1281,11 @@ impl<'a> Interp<'a> {
                     }
                     0x54 => {
                         let k = pop!();
-                        push!(V::SLoad(Box::new(k)))
+                        push!(sload(k))
                     }
                     0x5c => {
                         let k = pop!();
-                        push!(V::TLoad(Box::new(k)))
+                        push!(tload(k))
                     }
                     0x55 | 0x5d => {
                         let k = pop!();
@@ -1209,7 +1298,7 @@ impl<'a> Interp<'a> {
                                     p.value = Some(hex_u256(c));
                                     p
                                 }
-                                None => provenance(&V::SLoad(Box::new(k))),
+                                None => provenance(&sload(k)),
                             },
                             transient: op == 0x5d,
                         };
@@ -1821,6 +1910,41 @@ mod tests {
         let site = &r.call_sites[0];
         assert_eq!(site.selector[0].value.as_deref(), Some("0xa9059cbb"));
         assert_eq!(site.target[0].kind, "code_constant");
+    }
+
+    /// Hostile code that nests values thousands deep must not overflow the
+    /// stack (Drop, Hash, Eq) or blow up: values past the caps are Unknown
+    #[test]
+    fn deep_value_chains_are_capped() {
+        let mut code = String::from("5f");
+        code.push_str(&"35".repeat(5000)); // calldataload(calldataload(...))
+        code.push_str(&"54".repeat(5000)); // sload(sload(...))
+        code.push_str(&"5c".repeat(2000)); // tload(...)
+        code.push_str(&"8001".repeat(2000)); // x + x, doubling the tree
+                                             // keccak(mstore(0, x)) chained
+        code.push_str(&"5f526020 5f20".replace(' ', "").repeat(2000));
+        // call(gas, x, 0, 0, 0, 0, 0) and a branch on x
+        code.push_str("5f5f5f5f5f855af1");
+        code.push_str("80600057");
+        code.push_str("00");
+        let r = run(&code);
+        assert_eq!(r.call_sites.len(), 1);
+        // Bounded: the last keccak is shallow again, over unknown inputs
+        assert!(matches!(
+            r.call_sites[0].target[0].kind.as_str(),
+            "keccak" | "unresolved"
+        ));
+        // Direct check of the caps
+        let mut v = V::Caller;
+        for _ in 0..10_000 {
+            v = calldata(sload(v));
+        }
+        assert!(v.depth() <= MAX_DEPTH && v.nodes() <= MAX_NODES);
+        let mut w = V::Caller;
+        for _ in 0..100 {
+            w = mk(0x01, vec![w.clone(), w]);
+        }
+        assert!(w.depth() <= MAX_DEPTH && w.nodes() <= MAX_NODES);
     }
 
     #[test]

@@ -1972,7 +1972,17 @@ async fn calls_report(
     let deadline = budget.max_time + std::time::Duration::from_secs(10);
     tokio::time::timeout(
         deadline,
-        run_blocking(move || crate::bytecode::analyze_calls(&code, budget)),
+        // Own thread with a large stack: values are depth-capped, so this is
+        // defence in depth against recursion on hostile code
+        run_blocking(move || {
+            std::thread::Builder::new()
+                .name("calls-analysis".into())
+                .stack_size(64 * 1024 * 1024)
+                .spawn(move || crate::bytecode::analyze_calls(&code, budget))
+                .map_err(|e| anyhow::anyhow!("could not start the analysis thread: {e}"))?
+                .join()
+                .map_err(|_| anyhow::anyhow!("bytecode analysis panicked"))
+        }),
     )
     .await
     .map_err(|_| {
@@ -1980,7 +1990,7 @@ async fn calls_report(
             "bytecode analysis did not finish within {} s",
             deadline.as_secs()
         )
-    })?
+    })??
 }
 
 /// Runtime code at a block (latest when `None`)
