@@ -605,6 +605,9 @@ pub struct PriceInput {
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,
+    /// Historical price instead of the current one: a date (2025-01-01,
+    /// midnight UTC), an RFC 3339 time, @<unix>, an age (7d) or a block number
+    pub at: Option<String>,
 }
 
 // --- Portfolio ---

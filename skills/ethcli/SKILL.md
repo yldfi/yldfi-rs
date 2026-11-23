@@ -35,6 +35,9 @@ single facts.
 
 ## Rules
 
+- **Historical prices:** `price <token> --at <date|block|7d> --json` gives
+  the DefiLlama price with `price_time` and `offset_seconds`; don't call
+  price APIs by hand.
 - **Ask for JSON.** Add `--json` to any command. (`--csv` exists on
   `account txs`, `internal-txs`, `erc20` and `rpc multicall` for
   spreadsheets, but it cannot say whether an `--all` history is complete.) Integers are decimal strings,

@@ -923,11 +923,11 @@ impl EthcliMcpServer {
     // =========================================================================
 
     #[tool(
-        description = "Get token price from multiple aggregated sources",
+        description = "Get token price from multiple aggregated sources. With at (a date, time, age such as 7d, or block number) returns the historical price from DefiLlama with the time of the price point",
         annotations(read_only_hint = true, open_world_hint = true)
     )]
     async fn price(&self, Parameters(input): Parameters<PriceInput>) -> CallToolResult {
-        tools::price(&input.token, Some(&input.chain))
+        tools::price(&input.token, Some(&input.chain), input.at.as_deref())
             .await
             .to_response()
     }

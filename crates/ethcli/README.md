@@ -620,6 +620,7 @@ Query token prices from multiple sources in parallel and get aggregated results.
 ```bash
 # Get aggregated price for a token
 ethcli price ETH
+ethcli price ETH --at 2025-01-01             # historical: date, time, @unix, age (30d) or block number
 ethcli price BTC
 
 # Query specific chain

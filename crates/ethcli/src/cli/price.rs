@@ -9,6 +9,7 @@ use crate::aggregator::{
 use crate::cli::OutputFormat;
 use clap::Args;
 use serde::Serialize;
+use std::str::FromStr;
 
 #[derive(Args)]
 #[command(after_help = r#"Examples:
@@ -18,6 +19,9 @@ use serde::Serialize;
   ethcli price 0x... --lp                       # LP token price via Curve
   ethcli price BTC --summary-only               # Only aggregated result
   ethcli price ETH --format json                # JSON output
+  ethcli price ETH --at 2025-01-01              # Price at midnight UTC that day
+  ethcli price 0xA0b8... --at 21000000          # Price at a block's time
+  ethcli price CRV --at 30d                     # Price 30 days ago
 
 Environment Variables:
   COINGECKO_API_KEY   Optional: Increases CoinGecko rate limit
@@ -49,9 +53,158 @@ pub struct PriceArgs {
     #[arg(long)]
     pub summary_only: bool,
 
+    /// Historical price: a date (`2025-01-01`, midnight UTC), a time
+    /// (`2025-01-01T12:00:00Z`), `@<unix>`, an age (`7d`, `12h`) or a block
+    /// number. Uses DefiLlama; the output gives the time of the price point
+    /// found, which can differ from the time asked for by up to 4 hours.
+    #[arg(long, value_name = "WHEN", conflicts_with_all = ["lp", "source", "summary_only", "show_raw"])]
+    pub at: Option<String>,
+
     /// Output format
     #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
     pub format: OutputFormat,
+}
+
+/// A historical price from `--at`
+#[derive(Debug, Serialize)]
+pub struct HistoricalPrice {
+    pub token: String,
+    pub chain: String,
+    pub source: &'static str,
+    /// What was asked for, as written
+    pub at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block: Option<u64>,
+    pub requested_timestamp: u64,
+    pub requested_time: String,
+    pub price_usd: f64,
+    /// When the price point DefiLlama returned was taken
+    pub price_timestamp: u64,
+    pub price_time: String,
+    /// price_timestamp minus requested_timestamp, in seconds
+    pub offset_seconds: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f64>,
+}
+
+/// How far from the asked-for time DefiLlama may look for a price point
+const HISTORICAL_SEARCH_WIDTH: &str = "4h";
+
+/// Turn `--at` into a Unix timestamp, and the block when one was given
+async fn resolve_at(at: &str, chain: &str, now: u64) -> anyhow::Result<(u64, Option<u64>)> {
+    if let Some(timestamp) = crate::rpc::block_time::parse_time_spec(at, now) {
+        return Ok((timestamp, None));
+    }
+    let digits = at.trim().replace('_', "");
+    let block: u64 = digits.parse().map_err(|_| {
+        anyhow::anyhow!(
+            "--at '{at}' is not a date, time, @unix timestamp, age (7d) or block number"
+        )
+    })?;
+    let chain_id = crate::config::Chain::from_str(chain)
+        .map_err(|e| anyhow::anyhow!("Unknown chain '{chain}': {e}"))?;
+    let endpoint = crate::rpc::get_rpc_endpoint(chain_id)?;
+    let header = alloy::providers::Provider::get_block_by_number(
+        endpoint.provider(),
+        alloy::eips::BlockNumberOrTag::Number(block),
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Could not read block {block}: {e}"))?
+    .ok_or_else(|| anyhow::anyhow!("Block {block} does not exist on {chain} yet"))?;
+    Ok((header.header.timestamp, Some(block)))
+}
+
+async fn execute_historical(args: &PriceArgs, at: &str, quiet: bool) -> anyhow::Result<()> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    let (requested, block) = resolve_at(at, &args.chain, now).await?;
+    if requested > now {
+        anyhow::bail!("--at '{at}' is in the future");
+    }
+
+    let token = if args.token.starts_with("0x") {
+        dllma::coins::Token::new(
+            crate::aggregator::chain_map::normalize_chain_for_source("llama", &args.chain),
+            &args.token,
+        )
+    } else {
+        dllma::coins::Token::coingecko(crate::aggregator::price::symbol_to_coingecko_id(
+            &args.token,
+        ))
+    };
+    if !quiet {
+        eprintln!(
+            "Fetching the price of {} at {}...",
+            args.token,
+            crate::rpc::block_time::format_timestamp(requested)
+        );
+    }
+    let client = crate::aggregator::price::get_llama_client()
+        .map_err(|e| anyhow::anyhow!("DefiLlama client error: {e}"))?;
+    let response = client
+        .coins()
+        .historical_with_search_width(
+            requested,
+            std::slice::from_ref(&token),
+            HISTORICAL_SEARCH_WIDTH,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("DefiLlama historical price request failed: {e}"))?;
+    let coin = response.coins.get(&token.format()).ok_or_else(|| {
+        anyhow::anyhow!(
+            "DefiLlama has no price for {} within {HISTORICAL_SEARCH_WIDTH} of {}",
+            args.token,
+            crate::rpc::block_time::format_timestamp(requested)
+        )
+    })?;
+
+    let price_timestamp = coin.timestamp.unwrap_or(requested);
+    let output = HistoricalPrice {
+        token: args.token.clone(),
+        chain: args.chain.clone(),
+        source: "defillama",
+        at: at.to_string(),
+        block,
+        requested_timestamp: requested,
+        requested_time: crate::rpc::block_time::format_timestamp(requested),
+        price_usd: coin.price,
+        price_timestamp,
+        price_time: crate::rpc::block_time::format_timestamp(price_timestamp),
+        offset_seconds: price_timestamp as i64 - requested as i64,
+        symbol: coin.symbol.clone(),
+        confidence: coin.confidence,
+    };
+
+    match args.format {
+        OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&output)?),
+        OutputFormat::Ndjson => println!("{}", serde_json::to_string(&output)?),
+        OutputFormat::Table => {
+            let name = output.symbol.as_deref().unwrap_or(&output.token);
+            println!("{name}: ${}", format_usd(output.price_usd));
+            match output.block {
+                Some(b) => println!("  Asked for: block {b} ({})", output.requested_time),
+                None => println!("  Asked for: {}", output.requested_time),
+            }
+            println!(
+                "  Price at:  {} ({:+} s)",
+                output.price_time, output.offset_seconds
+            );
+            println!("  Source:    DefiLlama");
+        }
+    }
+    Ok(())
+}
+
+/// A USD price with enough digits for cheap tokens
+fn format_usd(price: f64) -> String {
+    if price >= 1.0 {
+        format!("{price:.4}")
+    } else {
+        format!("{price:.8}")
+    }
 }
 
 /// Price command output
@@ -75,6 +228,9 @@ pub struct SourcePrice {
 
 /// Execute the price command
 pub async fn execute(args: &PriceArgs, quiet: bool) -> anyhow::Result<()> {
+    if let Some(at) = &args.at {
+        return execute_historical(args, at, quiet).await;
+    }
     let token = &args.token;
     let chain = &args.chain;
 
@@ -372,6 +528,26 @@ fn symbol_address_on_chain(symbol: &str, chain: &str) -> Option<String> {
 #[cfg(test)]
 mod symbol_tests {
     use super::symbol_address_on_chain;
+
+    #[tokio::test]
+    async fn at_accepts_times_and_rejects_words() {
+        let now = 1_800_000_000;
+        assert_eq!(
+            super::resolve_at("2025-01-01", "ethereum", now)
+                .await
+                .unwrap(),
+            (1_735_689_600, None)
+        );
+        assert_eq!(
+            super::resolve_at("7d", "ethereum", now).await.unwrap(),
+            (now - 7 * 86_400, None)
+        );
+        assert!(super::resolve_at("yesterday", "ethereum", now)
+            .await
+            .is_err());
+        assert_eq!(super::format_usd(3333.54), "3333.5400");
+        assert_eq!(super::format_usd(0.269436), "0.26943600");
+    }
 
     #[test]
     fn symbols_resolve_on_the_requested_chain() {
