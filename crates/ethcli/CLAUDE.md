@@ -266,6 +266,10 @@ ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset t
   MultiSendCallOnly deployment (1.1.1-1.5.0, canonical/eip155/zksync). A
   DELEGATECALL to anything that is not a known Safe library sets
   `delegatecall_warning` and prints a WARNING line.
+- Batches DELEGATECALLed from inside a batch are unpacked recursively (up
+  to 4 levels) and every level is checked; findings, including a batch that
+  cannot be unpacked or is nested too deep, are in `call.batch_warnings`
+  (also in `queue` and `history`).
 - Calls are decoded from the verified ABI, else the signature database
   (`source: signature_database`, a guess). `multiSend(bytes)` payloads
   (`operation(1) to(20) value(32) length(32) data`) are unpacked and each

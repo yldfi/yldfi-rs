@@ -330,24 +330,14 @@ pub async fn handle(
             let data = hex_bytes(&tx["data"]);
             let mut call = decode_call(&fetcher, chain, to, &data).await;
             if let Some(inner) = multisend_payload(to, &data) {
-                match unpack_multisend(&inner) {
-                    Ok(calls) => {
-                        let mut out = Vec::with_capacity(calls.len());
-                        for c in calls {
-                            let decoded = decode_call(&fetcher, chain, c.to, &c.data).await;
-                            out.push(json!({
-                                "operation": operation_name(c.operation),
-                                "to": c.to.to_checksum(None),
-                                "value": c.value.to_string(),
-                                "data": format!("0x{}", hex::encode(&c.data)),
-                                "call": decoded,
-                                "delegatecall_warning": delegatecall_warning(c.operation, c.to),
-                            }));
-                        }
-                        call["multisend"] = json!(out);
-                    }
+                match decode_batch(&fetcher, chain, &inner, 1).await {
+                    Ok(calls) => call["multisend"] = json!(calls),
                     Err(e) => call["multisend_error"] = json!(e.to_string()),
                 }
+            }
+            let warnings = batch_warnings(to, &data, 1);
+            if !warnings.is_empty() {
+                call["batch_warnings"] = json!(warnings);
             }
 
             let mut out = json!({
@@ -807,6 +797,103 @@ async fn decode_call_inner(fetcher: &AbiFetcher, chain: Chain, to: Address, data
     json!({"selector": selector, "source": "none"})
 }
 
+/// How deep nested MultiSend batches are unpacked
+const MAX_BATCH_DEPTH: usize = 4;
+
+/// The inner payload when a call DELEGATECALLs a known MultiSend
+fn nested_payload(operation: u8, to: Address, data: &[u8]) -> Option<Vec<u8>> {
+    (operation == 1)
+        .then(|| multisend_payload(to, data))
+        .flatten()
+}
+
+/// Warnings for every call inside a MultiSend batch sent to `to`, at any
+/// depth: DELEGATECALLs to unknown contracts, nested batches that cannot be
+/// unpacked, and batches nested deeper than [`MAX_BATCH_DEPTH`]. `depth` is
+/// the level of the batch in `data` (1 for the transaction's own batch).
+pub fn batch_warnings(to: Address, data: &[u8], depth: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    let Some(packed) = multisend_payload(to, data) else {
+        return out;
+    };
+    scan_batch(&packed, depth, "", &mut out);
+    out
+}
+
+fn scan_batch(packed: &[u8], depth: usize, path: &str, out: &mut Vec<String>) {
+    let calls =
+        match unpack_multisend(packed) {
+            Ok(calls) => calls,
+            Err(e) => {
+                out.push(format!(
+                "batch{} at depth {depth} could not be unpacked ({e}); its calls were not checked",
+                if path.is_empty() { String::new() } else { format!(" {path}") }
+            ));
+                return;
+            }
+        };
+    for (i, c) in calls.iter().enumerate() {
+        let here = if path.is_empty() {
+            format!("[{i}]")
+        } else {
+            format!("{path}[{i}]")
+        };
+        if let Some(w) = delegatecall_warning(c.operation, c.to) {
+            out.push(format!("call {here}: {w}"));
+        }
+        if c.operation == 1 && c.data.len() >= 4 && c.data[..4] == MULTISEND_SELECTOR {
+            match nested_payload(c.operation, c.to, &c.data) {
+                Some(_) if depth >= MAX_BATCH_DEPTH => out.push(format!(
+                    "call {here}: MultiSend nested deeper than {MAX_BATCH_DEPTH} levels; its calls were not checked"
+                )),
+                Some(inner) => scan_batch(&inner, depth + 1, &here, out),
+                None if known_library(c.to).is_some_and(|(_, m)| m) => out.push(format!(
+                    "call {here}: nested MultiSend payload could not be decoded; its calls were not checked"
+                )),
+                None => {}
+            }
+        }
+    }
+}
+
+/// Decode a MultiSend batch, unpacking batches that are DELEGATECALLed from
+/// inside it, down to [`MAX_BATCH_DEPTH`]
+fn decode_batch<'a>(
+    fetcher: &'a AbiFetcher,
+    chain: Chain,
+    packed: &'a [u8],
+    depth: usize,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Value>>> + Send + 'a>> {
+    Box::pin(async move {
+        let calls = unpack_multisend(packed)?;
+        let mut out = Vec::with_capacity(calls.len());
+        for c in calls {
+            let mut decoded = decode_call(fetcher, chain, c.to, &c.data).await;
+            if let Some(inner) = nested_payload(c.operation, c.to, &c.data) {
+                if depth >= MAX_BATCH_DEPTH {
+                    decoded["multisend_error"] = json!(format!(
+                        "nested deeper than {MAX_BATCH_DEPTH} levels; not unpacked"
+                    ));
+                } else {
+                    match decode_batch(fetcher, chain, &inner, depth + 1).await {
+                        Ok(nested) => decoded["multisend"] = json!(nested),
+                        Err(e) => decoded["multisend_error"] = json!(e.to_string()),
+                    }
+                }
+            }
+            out.push(json!({
+                "operation": operation_name(c.operation),
+                "to": c.to.to_checksum(None),
+                "value": c.value.to_string(),
+                "data": format!("0x{}", hex::encode(&c.data)),
+                "call": decoded,
+                "delegatecall_warning": delegatecall_warning(c.operation, c.to),
+            }));
+        }
+        Ok(out)
+    })
+}
+
 async fn decode_many(fetcher: &AbiFetcher, chain: Chain, txs: &[Value]) -> Vec<Value> {
     futures::stream::iter(txs.iter().map(|tx| async move {
         let to = parse_address(&text(&tx["to"])).unwrap_or_default();
@@ -816,6 +903,10 @@ async fn decode_many(fetcher: &AbiFetcher, chain: Chain, txs: &[Value]) -> Vec<V
             if let Ok(calls) = unpack_multisend(&inner) {
                 call["multisend_calls"] = json!(calls.len());
             }
+        }
+        let warnings = batch_warnings(to, &data, 1);
+        if !warnings.is_empty() {
+            call["batch_warnings"] = json!(warnings);
         }
         call
     }))
@@ -1032,6 +1123,7 @@ fn print_queue(out: &Value) {
         if let Some(w) = tx["call"]["warning"].as_str() {
             println!("  WARNING: {}", safe_text_s(w));
         }
+        print_batch_warnings(&tx["call"], "  ");
         println!("  signed:     {}", join(&tx["signed"]));
         if tx["stale_signers"]
             .as_array()
@@ -1088,22 +1180,9 @@ fn print_tx(out: &Value) {
     if let Some(w) = out["delegatecall_warning"].as_str() {
         println!("WARNING:    {}", safe_text_s(w));
     }
+    print_batch_warnings(&out["call"], "");
     print_call(&out["call"], "  ");
-    if let Some(calls) = out["call"]["multisend"].as_array() {
-        println!("MultiSend: {} calls", calls.len());
-        for (i, c) in calls.iter().enumerate() {
-            println!(
-                "  [{i}] {} {} value {}",
-                st(&c["operation"]),
-                st(&c["to"]),
-                st(&c["value"])
-            );
-            if let Some(w) = c["delegatecall_warning"].as_str() {
-                println!("      WARNING: {}", safe_text_s(w));
-            }
-            print_call(&c["call"], "      ");
-        }
-    }
+    print_batch(&out["call"], "");
     println!(
         "Status:     {}",
         if out["executed"] == true {
@@ -1143,6 +1222,37 @@ fn print_tx(out: &Value) {
     }
 }
 
+fn print_batch_warnings(call: &Value, indent: &str) {
+    for w in call["batch_warnings"].as_array().into_iter().flatten() {
+        println!("{indent}WARNING: {}", st(w));
+    }
+}
+
+/// A MultiSend batch and any batches nested inside it
+fn print_batch(call: &Value, indent: &str) {
+    if let Some(e) = call["multisend_error"].as_str() {
+        println!("{indent}WARNING: batch not unpacked: {}", safe_text_s(e));
+    }
+    let Some(calls) = call["multisend"].as_array() else {
+        return;
+    };
+    println!("{indent}MultiSend: {} calls", calls.len());
+    for (i, c) in calls.iter().enumerate() {
+        println!(
+            "{indent}  [{i}] {} {} value {}",
+            st(&c["operation"]),
+            st(&c["to"]),
+            st(&c["value"])
+        );
+        if let Some(w) = c["delegatecall_warning"].as_str() {
+            println!("{indent}      WARNING: {}", safe_text_s(w));
+        }
+        let inner = format!("{indent}      ");
+        print_call(&c["call"], &inner);
+        print_batch(&c["call"], &format!("{indent}    "));
+    }
+}
+
 fn print_history(out: &Value) {
     println!(
         "Safe {} on {}: {} of {} executed transactions (offset {})",
@@ -1176,6 +1286,10 @@ fn print_history(out: &Value) {
             st(&tx["to"]),
             st(&tx["transaction_hash"])
         );
+        if let Some(w) = tx["delegatecall_warning"].as_str() {
+            println!("        WARNING: {}", safe_text_s(w));
+        }
+        print_batch_warnings(&tx["call"], "        ");
     }
 }
 
@@ -1328,5 +1442,69 @@ mod tests {
     fn table_text_strips_escapes() {
         let v = json!("evil\u{1b}[31mred");
         assert!(!st(&v).contains('\u{1b}'));
+    }
+
+    fn multisend_call(packed: Vec<u8>) -> Vec<u8> {
+        let mut data = MULTISEND_SELECTOR.to_vec();
+        data.extend(DynSolValue::Tuple(vec![DynSolValue::Bytes(packed)]).abi_encode_params());
+        data
+    }
+
+    #[test]
+    fn nested_unknown_delegatecall_is_warned() {
+        let ms: Address = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"
+            .parse()
+            .unwrap();
+        let evil = Address::with_last_byte(0xee);
+        // level 3: delegatecall to an unknown contract
+        let level3 = pack(1, evil, 0, &[0xde, 0xad, 0xbe, 0xef]);
+        // level 2: delegatecall to MultiSend wrapping level 3
+        let level2 = pack(1, ms, 0, &multisend_call(level3));
+        // level 1 (the tx's batch): a plain call, then a delegatecall to MultiSend wrapping level 2
+        let mut level1 = pack(0, Address::with_last_byte(1), 0, &[]);
+        level1.extend(pack(1, ms, 0, &multisend_call(level2)));
+        let warnings = batch_warnings(ms, &multisend_call(level1), 1);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(
+            warnings[0].starts_with("call [1][0][0]:"),
+            "{}",
+            warnings[0]
+        );
+        assert!(warnings[0].contains(&evil.to_checksum(None)));
+    }
+
+    #[test]
+    fn depth_limit_is_warned() {
+        let ms: Address = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"
+            .parse()
+            .unwrap();
+        let mut packed = pack(0, Address::with_last_byte(1), 0, &[]);
+        for _ in 0..MAX_BATCH_DEPTH {
+            packed = pack(1, ms, 0, &multisend_call(packed));
+        }
+        let warnings = batch_warnings(ms, &multisend_call(packed), 1);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(
+            warnings[0].contains("nested deeper than"),
+            "{}",
+            warnings[0]
+        );
+    }
+
+    #[test]
+    fn broken_nested_batch_is_warned() {
+        let ms: Address = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"
+            .parse()
+            .unwrap();
+        let mut bad = pack(0, Address::with_last_byte(1), 0, &[1, 2, 3]);
+        bad.pop();
+        let level1 = pack(1, ms, 0, &multisend_call(bad));
+        let warnings = batch_warnings(ms, &multisend_call(level1), 1);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(
+            warnings[0].contains("could not be unpacked"),
+            "{}",
+            warnings[0]
+        );
     }
 }
