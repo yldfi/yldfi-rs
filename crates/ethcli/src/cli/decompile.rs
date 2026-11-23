@@ -8,14 +8,16 @@
 //! deployed code.
 
 use super::OutputFormat;
+use crate::bytecode::calls::{analyze_calls, CallsBudget, CallsReport};
 use crate::bytecode::matcher::{assembly_share, match_code, match_creation, parse_artifact};
-use crate::bytecode::metadata::{fingerprint, sensitive_census, OpcodeCensus};
+use crate::bytecode::metadata::fingerprint;
 use crate::bytecode::{extract_selectors, ExtractedFunction};
 use crate::config::{Chain, EndpointConfig};
 use crate::rpc::Endpoint;
-use alloy::primitives::{Address, B256};
+use alloy::primitives::{Address, B256, U256};
 use alloy::providers::Provider;
 use clap::Args;
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -144,48 +146,68 @@ fn parse_block(value: &str) -> anyhow::Result<alloy::eips::BlockNumberOrTag> {
     })
 }
 
-/// Does this code delegate (a reachable DELEGATECALL)?
-/// Does this code act as the proxy `kind` says? A slot alone proves
-/// nothing (any contract can write to it), and a DELEGATECALL alone proves
-/// nothing either (a contract can delegate to an argument). The code must
-/// delegate and read the slot it names: the slot constant appears as a
-/// PUSH32. EIP-1167 clones are recognised from their exact code; Safe
-/// proxies are small and read slot 0
-fn acts_as_proxy(kind: &str, code: &[u8]) -> bool {
-    const EIP1967_IMPL: &str = "360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
-    const EIP1967_BEACON: &str = "a3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50";
-    const OZ_LEGACY: &str = "7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3";
-    if kind.starts_with("EIP-1167") {
-        return true;
-    }
-    if !code_delegates(code) {
-        return false;
-    }
-    // The slot constant must be pushed by reachable code and loaded with
-    // SLOAD within the next few instructions
-    let reads_slot = |slot: &str| {
-        let Ok(slot) = hex::decode(slot) else {
-            return false;
-        };
-        let view = crate::bytecode::metadata::CodeView::new(code);
-        let ins = &view.instructions;
-        ins.iter().enumerate().any(|(i, (pc, op, live))| {
-            *live
-                && *op == 0x7f
-                && code.get(pc + 1..pc + 33) == Some(slot.as_slice())
-                && ins[i + 1..]
-                    .iter()
-                    .take(8)
-                    .any(|(_, op, live)| *live && *op == 0x54)
-        })
-    };
-    match kind {
-        "EIP-1967 proxy" => reads_slot(EIP1967_IMPL),
-        "EIP-1967 beacon proxy" => reads_slot(EIP1967_BEACON),
-        "OpenZeppelin legacy proxy" => reads_slot(OZ_LEGACY),
-        "Safe proxy" => is_known_safe_proxy(code),
+const EIP1967_IMPL_SLOT: &str =
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+const EIP1967_BEACON_SLOT: &str =
+    "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50";
+const OZ_LEGACY_SLOT: &str = "0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3";
+
+fn same_word(a: &str, b: &str) -> bool {
+    match (U256::from_str(a), U256::from_str(b)) {
+        (Ok(x), Ok(y)) => x == y,
         _ => false,
     }
+}
+
+/// Does this code act as the proxy `kind` says, by ethcli's call analysis?
+/// A slot alone proves nothing (any contract can write to it), and so does
+/// a DELEGATECALL alone (a contract can delegate to an argument). A
+/// reached DELEGATECALL must take its target from:
+/// - the EIP-1967 or OpenZeppelin legacy implementation slot,
+/// - the return of a call to a beacon read from the EIP-1967 beacon slot,
+/// - a code constant equal to the implementation (EIP-1167 clones).
+///
+/// Safe proxies are recognised by their exact runtime code (singleton in
+/// slot 0).
+fn acts_as_proxy(kind: &str, code: &[u8], implementation: Address) -> bool {
+    if kind == "Safe proxy" {
+        return is_known_safe_proxy(code);
+    }
+    let report = analyze_calls(code, CallsBudget::default());
+    let delegate_targets = report
+        .call_sites
+        .iter()
+        .filter(|s| s.kind == "DELEGATECALL")
+        .flat_map(|s| s.target.iter());
+    let from_slot = |p: &crate::bytecode::Provenance, slot: &str| {
+        p.kind == "storage" && p.slot.as_deref().is_some_and(|s| same_word(s, slot))
+    };
+    for t in delegate_targets {
+        let ok = match kind {
+            "EIP-1967 proxy" => from_slot(t, EIP1967_IMPL_SLOT),
+            "OpenZeppelin legacy proxy" => from_slot(t, OZ_LEGACY_SLOT),
+            "EIP-1967 beacon proxy" => {
+                t.kind == "call_return"
+                    && t.call_pc.is_some_and(|pc| {
+                        report.call_sites.iter().any(|c| {
+                            c.pc == pc && c.target.iter().any(|b| from_slot(b, EIP1967_BEACON_SLOT))
+                        })
+                    })
+            }
+            k if k.starts_with("EIP-1167") => {
+                matches!(t.kind.as_str(), "constant" | "code_constant")
+                    && t.value
+                        .as_deref()
+                        .and_then(|v| U256::from_str(v).ok())
+                        .is_some_and(|v| v == U256::from_be_slice(implementation.as_slice()))
+            }
+            _ => false,
+        };
+        if ok {
+            return true;
+        }
+    }
+    false
 }
 
 /// Safe proxy runtime code, exactly as the canonical proxy factories of
@@ -208,14 +230,6 @@ const SAFE_PROXY_RUNTIMES: &[&str] = &[
 fn is_known_safe_proxy(code: &[u8]) -> bool {
     let hex_code = hex::encode(code);
     SAFE_PROXY_RUNTIMES.contains(&hex_code.as_str())
-}
-
-/// A reachable DELEGATECALL (live by fallthrough or after a valid JUMPDEST,
-/// outside metadata)
-fn code_delegates(code: &[u8]) -> bool {
-    sensitive_census(code)
-        .positions
-        .contains_key("DELEGATECALL")
 }
 
 async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::Result<Target> {
@@ -298,9 +312,9 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
                     "answers implementation() with {}, but that alone does not make it a proxy; using its own code",
                     implementation.to_checksum(None)
                 ));
-            } else if !acts_as_proxy(kind, &code) {
+            } else if !acts_as_proxy(kind, &code, implementation) {
                 let warning = format!(
-                    "{kind} slot points to {}, but this address's own code does not delegate through that slot (no reachable DELEGATECALL with the slot read), so it does not run that code; analysing its own code",
+                    "{kind}: points to {}, but ethcli's call analysis finds no DELEGATECALL in this address's own code whose target comes from that slot, beacon or constant, so it does not run that code; analysing its own code",
                     implementation.to_checksum(None)
                 );
                 if !quiet {
@@ -687,6 +701,74 @@ fn sha256_file(path: &Path) -> Option<String> {
     Some(hex::encode(sha2::Sha256::digest(&bytes)))
 }
 
+/// Sensitive opcodes from ethcli's call analysis (`contract calls`):
+/// sites executed by an analysed path, sites no path reached, and sites in
+/// trailing metadata bytes without a JUMPDEST (data). SSTOREs come from the
+/// per-function facts.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct OpcodeCensus {
+    pub method: &'static str,
+    /// opcode -> pcs executed by an analysed path
+    pub positions: std::collections::BTreeMap<String, Vec<usize>>,
+    /// opcode -> pcs no analysed path reached (dead code, data, or beyond
+    /// the analysis)
+    pub not_reached: std::collections::BTreeMap<String, Vec<usize>>,
+    /// opcode -> pcs in trailing metadata bytes that hold no JUMPDEST
+    pub in_metadata: std::collections::BTreeMap<String, Vec<usize>>,
+    /// Guards on msg.sender / tx.origin found by the analysis
+    pub guards: Vec<String>,
+    pub analysis_complete: bool,
+    pub warnings: Vec<String>,
+}
+
+fn census_from(report: &CallsReport) -> OpcodeCensus {
+    let mut c = OpcodeCensus {
+        method: "ethcli call analysis (bytecode::calls): symbolic paths over the CFG, plus a linear sweep for unreached sites",
+        analysis_complete: report.coverage.complete,
+        ..Default::default()
+    };
+    for site in &report.opcode_sites {
+        let map = if site.in_metadata {
+            &mut c.in_metadata
+        } else if site.reached {
+            &mut c.positions
+        } else {
+            &mut c.not_reached
+        };
+        map.entry(site.opcode.clone()).or_default().push(site.pc);
+    }
+    for f in &report.functions {
+        for s in f.sstores.iter().filter(|s| !s.transient) {
+            c.positions.entry("SSTORE".into()).or_default().push(s.pc);
+        }
+        for g in &f.guards {
+            c.guards.push(format!(
+                "{} at {:#x}: {} {} {}",
+                f.function,
+                g.pc,
+                g.subject,
+                g.check,
+                g.against.describe()
+            ));
+        }
+    }
+    for v in c.positions.values_mut() {
+        v.sort_unstable();
+        v.dedup();
+    }
+    if !c.analysis_complete {
+        c.warnings.push(
+            "ethcli's own call analysis did not cover every path (coverage incomplete); facts below may miss code"
+                .into(),
+        );
+    }
+    c
+}
+
+fn sensitive_census(code: &[u8]) -> OpcodeCensus {
+    census_from(&analyze_calls(code, CallsBudget::default()))
+}
+
 /// ethcli's own facts about the code
 fn own_facts(code: &[u8]) -> (Vec<ExtractedFunction>, OpcodeCensus) {
     (extract_selectors(code), sensitive_census(code))
@@ -879,10 +961,22 @@ pub fn cross_check_for(
     }
 
     warnings.extend(census.warnings.iter().cloned());
-    // Executable "metadata" counts as code for the comparison
-    let mut all = census.positions.clone();
-    for (k, v) in &census.inside_metadata {
-        all.entry(k.clone()).or_default().extend(v);
+    // Sites an analysed path executed. Unreached sites are mostly data
+    // after a halt; with incomplete coverage some may be real code, so they
+    // are summarised in one warning instead of compared one by one
+    let all = census.positions.clone();
+    if !census.analysis_complete {
+        let unreached: Vec<String> = census
+            .not_reached
+            .iter()
+            .map(|(k, v)| format!("{k} x{}", v.len()))
+            .collect();
+        if !unreached.is_empty() {
+            warnings.push(format!(
+                "sites ethcli's analysis did not reach, not compared (data, dead code or unanalysed paths): {}",
+                unreached.join(", ")
+            ));
+        }
     }
     // Only evmdec reports per-function effects; for other backends the
     // text alone is compared
@@ -1021,10 +1115,22 @@ fn print_facts_table(facts: &Value) {
         );
     }
     let census = &facts["sensitive_opcodes"];
+    for g in census["guards"].as_array().into_iter().flatten() {
+        println!("  guard: {}", g.as_str().unwrap_or(""));
+    }
     for (key, label) in [
-        ("positions", "sensitive opcodes (EVM instruction boundaries, reachable by fallthrough)"),
-        ("unreachable_by_fallthrough", "after a halt, before the next valid JUMPDEST (usually data; reachable only if something jumps there)"),
-        ("inside_metadata", "inside executable metadata-looking bytes (treat as real code)"),
+        (
+            "positions",
+            "sensitive opcodes executed by ethcli's call analysis",
+        ),
+        (
+            "not_reached",
+            "sensitive opcodes no analysed path reached (dead code, data, or beyond the analysis)",
+        ),
+        (
+            "in_metadata",
+            "in trailing metadata bytes with no JUMPDEST (data)",
+        ),
     ] {
         let entries = census[key].as_object().cloned().unwrap_or_default();
         if entries.is_empty() && key != "positions" {
@@ -1407,11 +1513,20 @@ pub async fn fingerprint_cmd(
     quiet: bool,
 ) -> anyhow::Result<()> {
     let target = fetch_target(chain, &args.target, quiet).await?;
-    let fp = fingerprint(&target.code);
+    let analysis = analyze_calls(&target.code, CallsBudget::default());
+    let fp = fingerprint(&target.code, &analysis.visited);
     let out = json!({
         "target": target_json(chain, &target),
         "notes": target.notes,
         "fingerprint": fp,
+        // The same trailer as read by evmole (contract analyze's inferred
+        // compiler metadata), for cross-reference
+        "compiler_metadata": crate::bytecode::compiler_metadata(&target.code).map(|m| {
+            let mut v = json!(m);
+            sanitise_json(&mut v);
+            v
+        }),
+        "analysis_complete": analysis.coverage.complete,
     });
     if !args.target.format.is_table() {
         return print_json(&args.target.format, &out);
@@ -1830,7 +1945,8 @@ mod tests {
 
     fn census_with(name: &str, at: Vec<usize>) -> OpcodeCensus {
         let mut c = OpcodeCensus {
-            method: "linear sweep",
+            method: "test",
+            analysis_complete: true,
             ..Default::default()
         };
         c.positions.insert(name.into(), at);
@@ -1962,25 +2078,6 @@ mod tests {
     }
 
     #[test]
-    fn delegatecall_without_the_slot_is_not_a_proxy() {
-        // DELEGATECALL present but no EIP-1967 slot constant
-        let code = hex::decode("6000600060006000355af400").unwrap();
-        assert!(code_delegates(&code));
-        assert!(!acts_as_proxy("EIP-1967 proxy", &code));
-        // PUSH32 <slot> SLOAD ... DELEGATECALL
-        let code = hex::decode("7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc546000600060006000855af400").unwrap();
-        assert!(acts_as_proxy("EIP-1967 proxy", &code));
-    }
-
-    #[test]
-    fn slot_alone_does_not_make_a_proxy() {
-        // CALLER ORIGIN EQ ... no DELEGATECALL: not a proxy, whatever the slot says
-        assert!(!code_delegates(&hex::decode("333214600057").unwrap()));
-        // EIP-1167-like body with a DELEGATECALL
-        assert!(code_delegates(&hex::decode("363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3").unwrap()));
-    }
-
-    #[test]
     fn counts_sites_not_token_presence() {
         let census = census_with("CREATE", vec![1, 2]);
         // `createPair` must not count, and one create( is fewer than two sites
@@ -2085,30 +2182,6 @@ mod tests {
     }
 
     #[test]
-    fn dead_delegatecall_with_slot_constant_is_not_a_proxy() {
-        // PUSH32 <slot> SLOAD STOP | data: DELEGATECALL (after a halt, no JUMPDEST)
-        let code =
-            hex::decode("7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5400f4")
-                .unwrap();
-        assert!(!acts_as_proxy("EIP-1967 proxy", &code));
-        // Slot constant only in dead code
-        let code = hex::decode("6000600060006000355af4007f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc54").unwrap();
-        assert!(!acts_as_proxy("EIP-1967 proxy", &code));
-    }
-
-    #[test]
-    fn safe_proxy_is_recognised_by_code_not_size() {
-        for runtime in SAFE_PROXY_RUNTIMES {
-            assert!(acts_as_proxy("Safe proxy", &hex::decode(runtime).unwrap()));
-        }
-        // A small contract with a DELEGATECALL is not a Safe proxy
-        assert!(!acts_as_proxy(
-            "Safe proxy",
-            &hex::decode("6000600060006000355af400").unwrap()
-        ));
-    }
-
-    #[test]
     fn decompiler_text_is_sanitised() {
         let source = "require(x, \"ok\u{1b}[31mFAKE\u{202e}gnp.exe\");\n\tdone".to_string();
         let mut entry = json!({"heuristic": {"source": source}, "error": "bad\u{1b}]0;title\u{7}\nWARNING: fake"});
@@ -2150,6 +2223,60 @@ mod tests {
     fn safe_1_0_0_proxy_is_known_by_code() {
         assert!(is_known_safe_proxy(
             &hex::decode(SAFE_PROXY_RUNTIMES[0]).unwrap()
+        ));
+    }
+
+    const SLOT: &str = "360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+
+    #[test]
+    fn proxy_needs_a_delegatecall_target_from_the_slot() {
+        let imp = Address::repeat_byte(0x11);
+        // retLen retOff argsLen argsOff | addr = SLOAD(slot) | GAS DELEGATECALL STOP
+        let real = hex::decode(format!("600060003660007f{SLOT}545af400")).unwrap();
+        assert!(acts_as_proxy("EIP-1967 proxy", &real, imp));
+        // The same, delegating to calldata: not a proxy
+        let to_calldata = hex::decode("6000600036600060003560601c5af400").unwrap();
+        assert!(!acts_as_proxy("EIP-1967 proxy", &to_calldata, imp));
+        // Reads the slot (then drops it) and delegates to calldata
+        let reads_slot =
+            hex::decode(format!("7f{SLOT}54506000600036600060003560601c5af400")).unwrap();
+        assert!(!acts_as_proxy("EIP-1967 proxy", &reads_slot, imp));
+        // No DELEGATECALL at all
+        assert!(!acts_as_proxy(
+            "EIP-1967 proxy",
+            &hex::decode("333214600057").unwrap(),
+            imp
+        ));
+    }
+
+    #[test]
+    fn eip1167_needs_the_same_constant() {
+        let clone = hex::decode("363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3").unwrap();
+        assert!(acts_as_proxy(
+            "EIP-1167 minimal proxy",
+            &clone,
+            Address::repeat_byte(0xbe)
+        ));
+        assert!(!acts_as_proxy(
+            "EIP-1167 minimal proxy",
+            &clone,
+            Address::repeat_byte(0x11)
+        ));
+    }
+
+    #[test]
+    fn safe_proxies_are_recognised_by_exact_code() {
+        for runtime in SAFE_PROXY_RUNTIMES {
+            assert!(acts_as_proxy(
+                "Safe proxy",
+                &hex::decode(runtime).unwrap(),
+                Address::ZERO
+            ));
+        }
+        assert!(!acts_as_proxy(
+            "Safe proxy",
+            &hex::decode("6000600060006000355af400").unwrap(),
+            Address::ZERO
         ));
     }
 }

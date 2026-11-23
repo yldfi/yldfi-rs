@@ -597,6 +597,10 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   parameter types/arity, guessed storage, garbled conditions, can hang or
   OOM. Strengths: guard conditions and revert strings. JSON results are in
   `decompilers[]`, one per backend.
+- Sensitive-opcode facts come from `bytecode::calls` (`opcode_sites` with
+  `reached`, guards and SSTOREs per function); the cross-check compares only
+  reached sites and summarises unreached ones in one warning. Older notes
+  below about a separate sweep are superseded.
 - Sensitive-opcode positions come from the EVM's own linear sweep from offset
   0 (PUSH immediates honoured, valid JUMPDESTs as in jumpdest analysis).
   Opcodes after a halt and before the next valid JUMPDEST are listed as
@@ -616,12 +620,14 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   mismatches are compared per instruction; size changes are aligned by common
   prefix/suffix with PUSH2/PUSH3 operands ignored. Function mapping uses the
   source map + AST (`forge build --ast`), else approximate dispatcher ranges.
-- Proxies are followed only when the address's own code acts as that proxy:
-  a reachable DELEGATECALL and the slot constant it reads (PUSH32 of the
-  EIP-1967 / beacon / OZ slot, then SLOAD), an EIP-1167 clone, or a Safe proxy whose runtime equals a canonical one (1.0.0, 1.1.1, 1.3.0, 1.4.1, 1.5.0).
-  A slot set on any other contract is reported and its own code analysed.
-  When code is substituted, the address's own code is censused too
-  (`target.own_code`).
+- Proxies are followed only when ethcli's call analysis (`bytecode::calls`,
+  as in `contract calls`) finds a reached DELEGATECALL whose target comes
+  from the EIP-1967 or OpenZeppelin legacy implementation slot, from the
+  return of a call to a beacon read from the beacon slot, or from a code
+  constant equal to the implementation (EIP-1167). Safe proxies are matched
+  by exact runtime code (1.0.0-1.5.0) and their singleton read from slot 0.
+  Anything else with a slot set is analysed as its own code, with a warning,
+  and the own code is censused whenever another code is analysed.
 - `--block` takes a decimal or hex number, a tag or a time; anything else is
   an error.
 - `match --creation-tx` must be the transaction that created the analysed
@@ -643,7 +649,8 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
 - `match` verdict `partial_unverified_metadata`: executable code equal, but
   the deployed metadata-looking bytes hold a JUMPDEST followed by an
   effectful opcode and the code has computed jumps, so entry cannot be ruled
-  out by the static CFG (constant pushes only). TODO: use #312's CFG.
+  out because the call analysis did not resolve every path. A block the
+  analysis executes is compared as code.
 - Fixture: `tests/fixtures/match/` (a small forge build and a one-line variant).
 ### `contract calls`, inferred facts, twins
 

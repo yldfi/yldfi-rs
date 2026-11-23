@@ -1143,6 +1143,9 @@ pub struct CallsReport {
     pub jump_tables: Vec<JumpTable>,
     pub coverage: Coverage,
     pub notes: Vec<String>,
+    /// Per pc: whether any analysed path executed it (not serialised)
+    #[serde(skip)]
+    pub visited: Vec<bool>,
 }
 
 impl CallsReport {
@@ -2130,6 +2133,7 @@ pub fn analyze_calls_with(
                 ..Default::default()
             },
             notes,
+            visited: Vec::new(),
         };
     }
     let entry_map: HashMap<usize, u32> = entries.iter().map(|(s, pc)| (*pc, *s)).collect();
@@ -2299,6 +2303,7 @@ pub fn analyze_calls_with(
         jump_tables,
         coverage,
         notes,
+        visited: it.visited.clone(),
     }
 }
 

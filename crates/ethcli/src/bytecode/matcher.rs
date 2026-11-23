@@ -724,7 +724,15 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
     // falling through, or by a static jump to a JUMPDEST inside) are code,
     // not metadata. A 0x5b in an honest hash is not a jump target, so honest
     // metadata whose hash differs still gives a partial match.
-    let (reach, computed_jumps) = super::metadata::static_reach_info(onchain);
+    // #312's call analysis executes every path it can resolve (computed
+    // jumps included, as jump tables) and records the pcs it visited
+    let analysis = super::calls::analyze_calls(onchain, super::calls::CallsBudget::default());
+    let visited = analysis.visited;
+    let analysis_complete = analysis.coverage.complete;
+    let reach: Vec<(usize, u8, bool)> = linear_sweep(onchain)
+        .into_iter()
+        .map(|(pc, op)| (pc, op, visited.get(pc).copied().unwrap_or(false)))
+        .collect();
     let mut unverified_metadata: Vec<String> = Vec::new();
     let mut executable_metadata: Vec<MetadataBlock> = Vec::new();
     for b in chain_blocks.iter().filter(|b| {
@@ -737,10 +745,10 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
             .map(|(_, op, _)| *op)
             .collect();
         if reached.is_empty() {
-            // Not reached by a constant jump; with computed jumps present,
+            // No analysed path enters it; when the analysis is incomplete,
             // a JUMPDEST inside followed by an effectful opcode before the
             // next halt could still be entered
-            if computed_jumps {
+            if !analysis_complete {
                 // From the block start to the end of the code: a run that
                 // starts at a JUMPDEST inside the block may fall through
                 // past its end into real code
@@ -776,7 +784,7 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
                 }
                 if !hits.is_empty() {
                     unverified_metadata.push(format!(
-                        "deployed bytes {:#x}..{:#x} look like compiler metadata, but the code has computed jumps and these bytes hold {}; whether code can jump there is not verified",
+                        "deployed bytes {:#x}..{:#x} look like compiler metadata, but the call analysis did not resolve every path and these bytes hold {}; whether code can jump there is not verified",
                         b.start,
                         b.end,
                         hits.join(", ")
@@ -787,7 +795,7 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
         }
         let effectful = reached.iter().any(|op| EFFECTFUL_OPCODES.contains(op));
         warnings.push(format!(
-            "deployed bytes {:#x}..{:#x} look like compiler metadata but code reaches them (fallthrough or a static jump){}; they are compared as code",
+            "deployed bytes {:#x}..{:#x} look like compiler metadata but an analysed path executes them{}; they are compared as code",
             b.start,
             b.end,
             if effectful { ", and they hold effectful opcodes" } else { "" }
@@ -805,7 +813,7 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
         warnings.extend(unverified_metadata.iter().cloned());
         (
             "partial_unverified_metadata",
-            "Partial match with unverified metadata: the executable code equals the artifact, but the deployed metadata-looking bytes contain a JUMPDEST followed by effectful opcodes and the code has computed jumps, so they may be reachable. Not a clean partial match, and not verified".to_string(),
+            "Partial match with unverified metadata: the executable code equals the artifact, but the deployed metadata-looking bytes contain a JUMPDEST followed by effectful opcodes and the call analysis did not resolve every path, so they may be reachable. Not a clean partial match, and not verified".to_string(),
         )
     } else if exec_equal {
         (
@@ -1427,7 +1435,10 @@ mod tests {
             "{:?}",
             report.warnings
         );
-        assert!(report.warnings.iter().any(|w| w.contains("computed jumps")));
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.contains("did not resolve every path")));
         // Honest hash: a 0x5b followed by STOP is not an effectful run
         let honest = META.replacen("8b5d96ae", "5b00aaaa", 1);
         let deployed = hex::decode(&with_meta(code, &honest)[2..]).unwrap();

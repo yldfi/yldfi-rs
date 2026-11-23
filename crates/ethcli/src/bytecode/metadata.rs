@@ -259,18 +259,6 @@ pub fn trailing_metadata(code: &[u8]) -> Option<MetadataBlock> {
     block_at(code, start, code.len())
 }
 
-/// Opcodes whose positions the cross-check and fingerprint report
-pub const SENSITIVE_OPCODES: &[(u8, &str)] = &[
-    (0x32, "ORIGIN"),
-    (0x33, "CALLER"),
-    (0xf4, "DELEGATECALL"),
-    (0xf2, "CALLCODE"),
-    (0xff, "SELFDESTRUCT"),
-    (0xf0, "CREATE"),
-    (0xf5, "CREATE2"),
-    (0x55, "SSTORE"),
-];
-
 /// A linear sweep over the code: each instruction's pc and opcode
 ///
 /// A linear sweep cannot tell code from data embedded in it (jump tables,
@@ -286,20 +274,6 @@ pub fn linear_sweep(code: &[u8]) -> Vec<(usize, u8)> {
     out
 }
 
-/// The value a PUSH puts on the stack, when it fits in a usize
-fn push_value(code: &[u8], pc: usize, op: u8) -> Option<usize> {
-    let bytes = code.get(pc + 1..pc + 1 + push_size(op))?;
-    let lead = bytes.len().saturating_sub(std::mem::size_of::<usize>());
-    if bytes[..lead].iter().any(|b| *b != 0) {
-        return None;
-    }
-    Some(
-        bytes[lead..]
-            .iter()
-            .fold(0usize, |acc, b| (acc << 8) | *b as usize),
-    )
-}
-
 /// Immediate bytes taken by an opcode
 pub fn push_size(op: u8) -> usize {
     if (0x60..=0x7f).contains(&op) {
@@ -307,190 +281,6 @@ pub fn push_size(op: u8) -> usize {
     } else {
         0
     }
-}
-
-/// Opcodes after which execution cannot fall through to the next byte
-fn halts(op: u8) -> bool {
-    matches!(op, 0x00 | 0x56 | 0xf3 | 0xfd | 0xfe | 0xff)
-}
-
-/// The EVM's own view of the code: one linear sweep from offset 0 that
-/// honours PUSH immediates. This is exactly the jumpdest analysis the EVM
-/// performs, so the JUMPDESTs it finds are the only valid jump targets.
-pub struct CodeView {
-    /// (pc, opcode, reachable by fallthrough from a valid entry)
-    pub instructions: Vec<(usize, u8, bool)>,
-    /// Metadata blocks that are excluded: after the final halting
-    /// instruction and holding no valid JUMPDEST, so never executed
-    pub excluded: Vec<MetadataBlock>,
-    /// Metadata-looking blocks that could be executed and so are not excluded
-    pub suspicious: Vec<MetadataBlock>,
-}
-
-impl CodeView {
-    pub fn new(code: &[u8]) -> Self {
-        let sweep = linear_sweep(code);
-        // Reachable by fallthrough: from pc 0, until a halt; again from each
-        // valid JUMPDEST. Anything else is still listed, flagged.
-        let mut instructions = Vec::with_capacity(sweep.len());
-        let mut live = true;
-        for (pc, op) in &sweep {
-            if *op == 0x5b {
-                live = true;
-            }
-            instructions.push((*pc, *op, live));
-            if halts(*op) {
-                live = false;
-            }
-        }
-        let mut excluded = Vec::new();
-        let mut suspicious = Vec::new();
-        for block in find_metadata_blocks(code) {
-            let inside = || {
-                instructions
-                    .iter()
-                    .filter(move |(pc, _, _)| *pc >= block.start && *pc < block.end)
-            };
-            let has_jumpdest = inside().any(|(_, op, _)| *op == 0x5b);
-            let any_live = inside().any(|(_, _, live)| *live);
-            // An instruction straddling the block start (PUSH data running
-            // into it) would also make the region executable
-            let straddles = instructions.iter().any(|(pc, op, live)| {
-                *live && *pc < block.start && pc + push_size(*op) >= block.start
-            });
-            if has_jumpdest || any_live || straddles {
-                suspicious.push(block);
-            } else {
-                excluded.push(block);
-            }
-        }
-        Self {
-            instructions,
-            excluded,
-            suspicious,
-        }
-    }
-
-    fn excluded_at(&self, pc: usize) -> bool {
-        self.excluded.iter().any(|b| pc >= b.start && pc < b.end)
-    }
-
-    fn suspicious_at(&self, pc: usize) -> bool {
-        self.suspicious.iter().any(|b| pc >= b.start && pc < b.end)
-    }
-
-    /// Instructions outside the excluded metadata
-    pub fn code_ops(&self) -> impl Iterator<Item = &(usize, u8, bool)> {
-        self.instructions
-            .iter()
-            .filter(|(pc, _, _)| !self.excluded_at(*pc))
-    }
-}
-
-/// Reachability from a simple static CFG: execution starts at pc 0, falls
-/// through until a halting opcode, and resumes only at a JUMPDEST that is
-/// the value of a PUSH1-PUSH4 executed on a reached path (iterated to a
-/// fixed point). Computed jump targets are not followed. Returns
-/// (pc, opcode, reached) for every instruction of the EVM's linear sweep.
-pub fn static_reach(code: &[u8]) -> Vec<(usize, u8, bool)> {
-    static_reach_info(code).0
-}
-
-/// `static_reach`, plus whether any reached JUMP/JUMPI takes a target that
-/// is not a constant pushed right before it (a computed jump, whose
-/// destinations this analysis cannot see)
-// TODO(#312): replace with #312's CFG, which resolves computed jumps, so
-// entry into metadata is only reported when it is really possible
-pub fn static_reach_info(code: &[u8]) -> (Vec<(usize, u8, bool)>, bool) {
-    use std::collections::HashSet;
-    let sweep = linear_sweep(code);
-    let jumpdests: HashSet<usize> = sweep
-        .iter()
-        .filter(|(_, op)| *op == 0x5b)
-        .map(|(pc, _)| *pc)
-        .collect();
-    let mut targets: HashSet<usize> = HashSet::new();
-    loop {
-        let mut found = targets.clone();
-        let mut out = Vec::with_capacity(sweep.len());
-        let mut live = true;
-        for (pc, op) in &sweep {
-            if *op == 0x5b && targets.contains(pc) {
-                live = true;
-            }
-            out.push((*pc, *op, live));
-            if live && (0x60..=0x7f).contains(op) {
-                if let Some(v) = push_value(code, *pc, *op) {
-                    if jumpdests.contains(&v) {
-                        found.insert(v);
-                    }
-                }
-            }
-            if halts(*op) {
-                live = false;
-            }
-        }
-        if found.len() == targets.len() {
-            // A reached jump not directly preceded by a PUSH of a valid
-            // JUMPDEST is computed
-            let computed = out.iter().enumerate().any(|(i, (_, op, live))| {
-                *live
-                    && matches!(op, 0x56 | 0x57)
-                    && !(i > 0 && {
-                        let (ppc, pop, _) = out[i - 1];
-                        (0x60..=0x7f).contains(&pop)
-                            && push_value(code, ppc, pop).is_some_and(|v| jumpdests.contains(&v))
-                    })
-            });
-            return (out, computed);
-        }
-        targets = found;
-    }
-}
-
-/// Positions of sensitive opcodes on the EVM's instruction boundaries
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct OpcodeCensus {
-    /// How instructions were found
-    pub method: &'static str,
-    /// opcode name -> pcs reachable by fallthrough from pc 0 or a valid JUMPDEST
-    pub positions: std::collections::BTreeMap<String, Vec<usize>>,
-    /// opcode name -> pcs after a halt and before the next valid JUMPDEST.
-    /// Normally data, but listed so nothing is hidden
-    pub unreachable_by_fallthrough: std::collections::BTreeMap<String, Vec<usize>>,
-    /// opcode name -> pcs inside metadata-looking bytes that could be
-    /// executed (a valid JUMPDEST inside, or reachable by fallthrough)
-    pub inside_metadata: std::collections::BTreeMap<String, Vec<usize>>,
-    pub warnings: Vec<String>,
-}
-
-pub fn sensitive_census(code: &[u8]) -> OpcodeCensus {
-    let view = CodeView::new(code);
-    let mut census = OpcodeCensus {
-        method: "EVM linear sweep from offset 0 (PUSH immediates honoured, valid JUMPDESTs as in the EVM's jumpdest analysis)",
-        ..Default::default()
-    };
-    for (pc, op, live) in view.code_ops() {
-        let Some((_, name)) = SENSITIVE_OPCODES.iter().find(|(o, _)| o == op) else {
-            continue;
-        };
-        let map = if view.suspicious_at(*pc) {
-            &mut census.inside_metadata
-        } else if *live {
-            &mut census.positions
-        } else {
-            &mut census.unreachable_by_fallthrough
-        };
-        map.entry((*name).to_string()).or_default().push(*pc);
-    }
-    for (name, pcs) in &census.inside_metadata {
-        census.warnings.push(format!(
-            "{} {name} inside bytes that look like compiler metadata but can be executed (pc {}); treat as real code",
-            pcs.len(),
-            pcs.iter().map(|p| format!("{p:#x}")).collect::<Vec<_>>().join(", ")
-        ));
-    }
-    census
 }
 
 /// What can be told about the compiler from the runtime code alone
@@ -553,19 +343,20 @@ const FORK_OPCODES: &[(&str, &[(u8, &str)])] = &[
     ),
 ];
 
-pub fn fingerprint(code: &[u8]) -> Fingerprint {
+/// `visited` marks the pcs an analysed path executed (from
+/// `bytecode::calls::analyze_calls`); only those count for the EVM version,
+/// so data, dead code and bytes after the metadata (vyper's immutables) do
+/// not
+pub fn fingerprint(code: &[u8], visited: &[bool]) -> Fingerprint {
     use std::collections::{BTreeMap, BTreeSet};
 
     let blocks = find_metadata_blocks(code);
-    let view = CodeView::new(code);
-    // Only code reachable by fallthrough from pc 0 or a valid JUMPDEST:
-    // data after a halt (and bytes after the metadata, such as vyper's
-    // immutables) must not decide the EVM version
-    let ops: Vec<(usize, u8)> = view
-        .code_ops()
-        .filter(|(_, _, live)| *live)
-        .map(|(pc, op, _)| (*pc, *op))
+    let seen = |pc: usize| visited.get(pc).copied().unwrap_or(false);
+    let ops: Vec<(usize, u8)> = linear_sweep(code)
+        .into_iter()
+        .filter(|(pc, _)| seen(*pc))
         .collect();
+    let dests = super::calls::jumpdests(code);
 
     let mut counts: BTreeMap<u8, usize> = BTreeMap::new();
     let mut address_like = BTreeSet::new();
@@ -649,11 +440,8 @@ pub fn fingerprint(code: &[u8]) -> Fingerprint {
         if let Some(last) = blocks.last().filter(|b| {
             b.compiler == "vyper"
                 && (code.len() - b.end).is_multiple_of(32)
-                && view.excluded.iter().any(|e| e.start == b.start)
-                && !view
-                    .instructions
-                    .iter()
-                    .any(|(pc, _, live)| *pc >= b.end && *live)
+                && !dests[b.start..].iter().any(|d| *d)
+                && !(b.start..code.len()).any(seen)
         }) {
             extra_notes.push(format!(
                 "vyper metadata at {:#x}, followed by {} bytes of immutables",
@@ -664,7 +452,7 @@ pub fn fingerprint(code: &[u8]) -> Fingerprint {
         }
     }
     let mut notes = vec![
-        "Opcodes come from the EVM linear sweep; data stored inside code is counted too, so counts are upper bounds".to_string(),
+        "Opcodes come from the paths ethcli's call analysis executed; with incomplete coverage some code is not counted".to_string(),
         "The pipeline guess is a heuristic; confirm by compiling".to_string(),
     ];
     notes.extend(extra_notes);
@@ -746,77 +534,6 @@ mod tests {
     }
 
     #[test]
-    fn census_skips_push_data() {
-        // PUSH1 0x32 ; ORIGIN ; CALLER ; PUSH2 0xff55 ; SSTORE
-        let code = hex::decode("603232336155ff55").unwrap();
-        let census = sensitive_census(&code);
-        assert_eq!(census.positions["ORIGIN"], vec![2]);
-        assert_eq!(census.positions["CALLER"], vec![3]);
-        assert_eq!(census.positions["SSTORE"], vec![7]);
-        assert!(!census.positions.contains_key("SELFDESTRUCT"));
-    }
-
-    #[test]
-    fn fingerprint_detects_push0_and_cancun() {
-        let shanghai = fingerprint(&hex::decode("5f5f55").unwrap());
-        assert!(shanghai.min_evm_version.starts_with("shanghai"));
-        let cancun = fingerprint(&hex::decode("5f5c00").unwrap());
-        assert!(cancun.min_evm_version.starts_with("cancun"));
-    }
-
-    #[test]
-    fn origin_hidden_behind_fake_jumpdest_in_push_data_is_found() {
-        // STOP ; PUSH1 0x5b ; ORIGIN. The 0x5b is push data, not a valid
-        // JUMPDEST, so ORIGIN stays on the EVM's instruction boundaries and
-        // is listed (unreachable by fallthrough), never dropped.
-        let code = hex::decode("00605b32").unwrap();
-        let census = sensitive_census(&code);
-        assert_eq!(census.unreachable_by_fallthrough["ORIGIN"], vec![3]);
-        // A real JUMPDEST makes it reachable
-        let code = hex::decode("005b32").unwrap();
-        assert_eq!(sensitive_census(&code).positions["ORIGIN"], vec![2]);
-        // ORIGIN inside push data is not an instruction at all
-        let code = hex::decode("603200").unwrap();
-        assert!(sensitive_census(&code).positions.is_empty());
-    }
-
-    #[test]
-    fn fake_metadata_with_reachable_delegatecall_is_reported() {
-        // Code that falls straight into bytes shaped like solc metadata, with
-        // a JUMPDEST and a DELEGATECALL inside the ipfs "hash"
-        let mut hash = vec![0u8; 34];
-        hash[0] = 0x5b;
-        hash[1] = 0xf4;
-        let mut cbor = hex::decode("a2646970667358").unwrap();
-        cbor.push(34);
-        cbor.extend(&hash);
-        cbor.extend(hex::decode("64736f6c6343000815").unwrap());
-        let mut code = hex::decode("6000").unwrap();
-        let len = cbor.len() as u16;
-        code.extend(&cbor);
-        code.extend(len.to_be_bytes());
-        assert!(
-            trailing_metadata(&code).is_some(),
-            "fixture must look like metadata"
-        );
-        let census = sensitive_census(&code);
-        assert!(
-            census.inside_metadata.contains_key("DELEGATECALL"),
-            "{census:?}"
-        );
-        assert!(!census.warnings.is_empty());
-    }
-
-    #[test]
-    fn real_trailing_metadata_is_excluded() {
-        let mut code = hex::decode("600160020100").unwrap();
-        code.extend(hex::decode(TAIL).unwrap());
-        let view = CodeView::new(&code);
-        assert_eq!(view.excluded.len(), 1);
-        assert!(view.suspicious.is_empty());
-    }
-
-    #[test]
     fn oversized_cbor_strings_are_not_metadata() {
         let mut cbor = hex::decode("a1646970667358").unwrap();
         cbor.push(80);
@@ -826,33 +543,6 @@ mod tests {
         code.extend(&cbor);
         code.extend(len.to_be_bytes());
         assert!(trailing_metadata(&code).is_none());
-    }
-
-    #[test]
-    fn min_evm_ignores_unreachable_data() {
-        // PUSH1 0 ; STOP ; TLOAD (data after a halt)
-        let fp = fingerprint(&hex::decode("6000005c").unwrap());
-        assert!(
-            !fp.min_evm_version.starts_with("cancun"),
-            "{}",
-            fp.min_evm_version
-        );
-        // A reachable TLOAD does count
-        let fp = fingerprint(&hex::decode("60005c00").unwrap());
-        assert!(fp.min_evm_version.starts_with("cancun"));
-    }
-
-    #[test]
-    fn vyper_metadata_followed_by_immutables() {
-        let mut code = hex::decode("600000").unwrap();
-        // {"vyper": [0, 3, 7]} and its length, then 64 bytes of immutables
-        code.extend(hex::decode("a165767970657283000307000b").unwrap());
-        code.extend([0x11; 64]);
-        let fp = fingerprint(&code);
-        let m = fp.metadata.expect("vyper metadata");
-        assert_eq!(m.compiler, "vyper");
-        assert_eq!(m.version.as_deref(), Some("0.3.7"));
-        assert!(fp.embedded_metadata.is_empty());
     }
 
     #[test]
@@ -870,27 +560,54 @@ mod tests {
     }
 
     #[test]
-    fn spoofed_vyper_block_with_live_code_after_is_rejected() {
-        let mut code = hex::decode("600000").unwrap();
-        code.extend(hex::decode("a165767970657283000307000b").unwrap());
-        // JUMPDEST CALLER SELFDESTRUCT then padding to 32 bytes: live code
-        let mut tail = vec![0x5b, 0x33, 0xff];
-        tail.resize(32, 0);
-        code.extend(tail);
-        assert!(fingerprint(&code).metadata.is_none());
-        // Not a multiple of 32
-        let mut code = hex::decode("600000").unwrap();
-        code.extend(hex::decode("a165767970657283000307000b").unwrap());
-        code.extend([0x11; 31]);
-        assert!(fingerprint(&code).metadata.is_none());
-    }
-
-    #[test]
     fn version_text_must_look_like_a_version() {
         assert!(is_version_text("0.8.21"));
         assert!(is_version_text("0.8.21+commit.d9974bed"));
         assert!(is_version_text("0.4.0-nightly.2017.1.1"));
         assert!(!is_version_text("exact.match.verified"));
         assert!(!is_version_text("0.8"));
+    }
+
+    fn visited(code: &[u8]) -> Vec<bool> {
+        crate::bytecode::calls::analyze_calls(code, Default::default()).visited
+    }
+
+    #[test]
+    fn min_evm_from_executed_code_only() {
+        // PUSH1 0 STOP TLOAD: the TLOAD is never executed
+        let code = hex::decode("6000005c").unwrap();
+        assert!(!fingerprint(&code, &visited(&code))
+            .min_evm_version
+            .starts_with("cancun"));
+        let code = hex::decode("60005c00").unwrap();
+        assert!(fingerprint(&code, &visited(&code))
+            .min_evm_version
+            .starts_with("cancun"));
+        let code = hex::decode("5f5f5500").unwrap();
+        assert!(fingerprint(&code, &visited(&code))
+            .min_evm_version
+            .starts_with("shanghai"));
+    }
+
+    #[test]
+    fn vyper_metadata_followed_by_immutables() {
+        let mut code = hex::decode("600000").unwrap();
+        code.extend(hex::decode("a165767970657283000307000b").unwrap());
+        code.extend([0x11; 64]);
+        let fp = fingerprint(&code, &visited(&code));
+        let m = fp.metadata.expect("vyper metadata");
+        assert_eq!(m.version.as_deref(), Some("0.3.7"));
+        // A JUMPDEST after the block, or a tail that is not whole words,
+        // rules the fallback out
+        let mut bad = hex::decode("600000").unwrap();
+        bad.extend(hex::decode("a165767970657283000307000b").unwrap());
+        let mut tail = vec![0x5b, 0x33, 0xff];
+        tail.resize(32, 0);
+        bad.extend(tail);
+        assert!(fingerprint(&bad, &visited(&bad)).metadata.is_none());
+        let mut odd = hex::decode("600000").unwrap();
+        odd.extend(hex::decode("a165767970657283000307000b").unwrap());
+        odd.extend([0x11; 31]);
+        assert!(fingerprint(&odd, &visited(&odd)).metadata.is_none());
     }
 }
