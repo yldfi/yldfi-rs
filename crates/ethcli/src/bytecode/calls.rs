@@ -599,7 +599,7 @@ fn collect_sources(v: &V, out: &mut BTreeSet<&'static str>) {
 // ---------------------------------------------------------------------------
 // Memory model
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 enum MemVal {
     Word(V),
     /// calldatacopy: source offset
@@ -756,7 +756,7 @@ fn extra_terms<'a>(small: &[V], big: &'a [V]) -> Option<Vec<&'a V>> {
     Some(rest)
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct MemWrite {
     at: Addr,
     /// `None`: a copy of unknown length, so everything from `at` up
@@ -837,7 +837,7 @@ struct MemWriteView<'a> {
     val: &'a MemVal,
 }
 
-#[derive(Clone, Debug, Default, Hash)]
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 struct Memory {
     writes: Rc<Vec<MemWrite>>,
 }
@@ -1310,7 +1310,11 @@ struct Interp<'a> {
     time_hit: bool,
     pruned: u64,
     aborted: u64,
-    seen: HashMap<(usize, Ctx), HashMap<u64, HashSet<u64>>>,
+    /// Admitted states per (pc, ctx), keyed by the full stack, with the
+    /// full memory / last-call variants. Exact keys, not hashes: a crafted
+    /// hash collision must not make a distinct path look already explored
+    #[allow(clippy::type_complexity)]
+    seen: HashMap<(usize, Ctx), HashMap<Vec<V>, Vec<(Memory, Option<usize>)>>>,
     visited: Vec<bool>,
     unresolved_jumps: BTreeSet<usize>,
     invalid_opcodes: BTreeSet<usize>,
@@ -1522,25 +1526,18 @@ impl<'a> Interp<'a> {
         // later call a different target or selector. Memory variants get
         // their own small cap, so they cannot use up the stack budget and
         // starve other paths. Every dropped state is counted.
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        s.stack.hash(&mut h);
-        let stack_key = h.finish();
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        s.mem.hash(&mut h);
-        s.last_call.hash(&mut h);
-        let mem_key = h.finish();
         let cap = self.budget.max_states_per_pc;
         let stacks = self.seen.entry((s.pc, s.ctx)).or_default();
-        match stacks.get_mut(&stack_key) {
+        match stacks.get_mut(&s.stack) {
             Some(mems) => {
-                if mems.contains(&mem_key) {
+                if mems.iter().any(|(m, c)| *m == s.mem && *c == s.last_call) {
                     return Admit::Seen;
                 }
                 if mems.len() >= MEMORY_VARIANTS_PER_STACK {
                     self.pruned += 1;
                     return Admit::Seen;
                 }
-                mems.insert(mem_key);
+                mems.push((s.mem.clone(), s.last_call));
                 Admit::Variant
             }
             None => {
@@ -1548,7 +1545,7 @@ impl<'a> Interp<'a> {
                     self.pruned += 1;
                     return Admit::Seen;
                 }
-                stacks.insert(stack_key, HashSet::from([mem_key]));
+                stacks.insert(s.stack.clone(), vec![(s.mem.clone(), s.last_call)]);
                 Admit::New
             }
         }
@@ -2666,5 +2663,26 @@ mod tests {
     fn empty_code() {
         let r = analyze_calls(&[], CallsBudget::default());
         assert!(r.call_sites.is_empty());
+    }
+
+    #[test]
+    fn dedup_compares_full_states() {
+        let code = hex::decode("5b00").unwrap();
+        let mut it = Interp::new(&code, HashMap::new(), CallsBudget::default());
+        let st = |stack: Vec<V>| State {
+            pc: 0,
+            stack,
+            mem: Memory::default(),
+            ctx: Ctx::Dispatcher,
+            last_call: None,
+        };
+        let a = st(vec![V::Caller]);
+        let b = st(vec![V::Origin]);
+        assert!(matches!(it.admit(&a), Admit::New));
+        assert!(matches!(it.admit(&b), Admit::New));
+        assert!(matches!(it.admit(&a), Admit::Seen));
+        // Stored keys are the full stacks, not hashes
+        let stacks = &it.seen[&(0, Ctx::Dispatcher)];
+        assert!(stacks.contains_key(&vec![V::Caller]) && stacks.contains_key(&vec![V::Origin]));
     }
 }

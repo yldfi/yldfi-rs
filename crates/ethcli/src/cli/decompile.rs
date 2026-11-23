@@ -727,11 +727,16 @@ fn census_from(report: &CallsReport) -> OpcodeCensus {
         analysis_complete: report.coverage.complete,
         ..Default::default()
     };
+    let mut reached_in_metadata: Vec<String> = Vec::new();
     for site in &report.opcode_sites {
-        let map = if site.in_metadata {
-            &mut c.in_metadata
-        } else if site.reached {
+        // Executed code is code, wherever it sits
+        let map = if site.reached {
+            if site.in_metadata {
+                reached_in_metadata.push(format!("{} at {:#x}", site.opcode, site.pc));
+            }
             &mut c.positions
+        } else if site.in_metadata {
+            &mut c.in_metadata
         } else {
             &mut c.not_reached
         };
@@ -755,6 +760,12 @@ fn census_from(report: &CallsReport) -> OpcodeCensus {
     for v in c.positions.values_mut() {
         v.sort_unstable();
         v.dedup();
+    }
+    if !reached_in_metadata.is_empty() {
+        c.warnings.push(format!(
+            "reached code inside metadata-looking bytes: {}",
+            reached_in_metadata.join(", ")
+        ));
     }
     if !c.analysis_complete {
         c.warnings.push(
@@ -2278,5 +2289,42 @@ mod tests {
             &hex::decode("6000600060006000355af400").unwrap(),
             Address::ZERO
         ));
+    }
+
+    #[test]
+    fn reached_sites_in_a_trailer_count_as_code() {
+        use crate::bytecode::calls::{Coverage, OpcodeSite};
+        let site = |pc, reached, in_metadata| OpcodeSite {
+            opcode: "SELFDESTRUCT".into(),
+            pc,
+            reached,
+            in_metadata,
+        };
+        let report = CallsReport {
+            source: "inferred",
+            bytecode_size: 0,
+            call_sites: vec![],
+            functions: vec![],
+            opcode_sites: vec![
+                site(10, true, true),
+                site(20, false, true),
+                site(30, false, false),
+            ],
+            jump_tables: vec![],
+            coverage: Coverage {
+                complete: true,
+                ..Default::default()
+            },
+            notes: vec![],
+            visited: vec![],
+        };
+        let c = census_from(&report);
+        assert_eq!(c.positions["SELFDESTRUCT"], vec![10]);
+        assert_eq!(c.in_metadata["SELFDESTRUCT"], vec![20]);
+        assert_eq!(c.not_reached["SELFDESTRUCT"], vec![30]);
+        assert!(c
+            .warnings
+            .iter()
+            .any(|w| w.contains("reached code inside metadata-looking bytes")));
     }
 }

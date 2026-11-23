@@ -748,7 +748,11 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
             // No analysed path enters it; when the analysis is incomplete,
             // a JUMPDEST inside followed by an effectful opcode before the
             // next halt could still be entered
-            if !analysis_complete {
+            // Checked whatever the coverage says: a JUMPDEST followed by an
+            // effectful opcode inside metadata-looking bytes never passes
+            // as a clean partial (fail closed)
+            let _ = analysis_complete;
+            {
                 // From the block start to the end of the code: a run that
                 // starts at a JUMPDEST inside the block may fall through
                 // past its end into real code
@@ -784,7 +788,7 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
                 }
                 if !hits.is_empty() {
                     unverified_metadata.push(format!(
-                        "deployed bytes {:#x}..{:#x} look like compiler metadata, but the call analysis did not resolve every path and these bytes hold {}; whether code can jump there is not verified",
+                        "deployed bytes {:#x}..{:#x} look like compiler metadata but hold {}; no analysed path enters them, but a jump there is not ruled out",
                         b.start,
                         b.end,
                         hits.join(", ")
@@ -813,7 +817,7 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
         warnings.extend(unverified_metadata.iter().cloned());
         (
             "partial_unverified_metadata",
-            "Partial match with unverified metadata: the executable code equals the artifact, but the deployed metadata-looking bytes contain a JUMPDEST followed by effectful opcodes and the call analysis did not resolve every path, so they may be reachable. Not a clean partial match, and not verified".to_string(),
+            "Partial match with unverified metadata: the executable code equals the artifact, but the deployed metadata-looking bytes contain a JUMPDEST followed by effectful opcodes, so they may be reachable. Not a clean partial match, and not verified".to_string(),
         )
     } else if exec_equal {
         (
@@ -1334,7 +1338,7 @@ mod tests {
     }
 
     #[test]
-    fn honest_metadata_with_a_5b_hash_byte_stays_partial() {
+    fn metadata_jumpdest_run_fails_closed_even_with_full_coverage() {
         // Nothing jumps into the metadata: a 0x5b followed by CALLER in the
         // hash is just hash bytes
         // No computed jumps (POP instead of JUMPI), so an unreached
@@ -1348,7 +1352,16 @@ mod tests {
         let other = META.replacen("8b5d96ae", "5b33a2ff", 1);
         let deployed = hex::decode(&with_meta(code, &other)[2..]).unwrap();
         let report = match_code(&art, &deployed);
-        assert_eq!(report.verdict, "partial", "{:?}", report.warnings);
+        // A JUMPDEST then CALLER: fail closed even with complete coverage
+        assert_eq!(
+            report.verdict, "partial_unverified_metadata",
+            "{:?}",
+            report.warnings
+        );
+        // A JUMPDEST then STOP is harmless
+        let other = META.replacen("8b5d96ae", "5b00a2ff", 1);
+        let deployed = hex::decode(&with_meta(code, &other)[2..]).unwrap();
+        assert_eq!(match_code(&art, &deployed).verdict, "partial");
     }
 
     #[test]
@@ -1435,10 +1448,7 @@ mod tests {
             "{:?}",
             report.warnings
         );
-        assert!(report
-            .warnings
-            .iter()
-            .any(|w| w.contains("did not resolve every path")));
+        assert!(report.warnings.iter().any(|w| w.contains("not ruled out")));
         // Honest hash: a 0x5b followed by STOP is not an effectful run
         let honest = META.replacen("8b5d96ae", "5b00aaaa", 1);
         let deployed = hex::decode(&with_meta(code, &honest)[2..]).unwrap();
