@@ -184,6 +184,28 @@ pub struct AccountLabelsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AccountApprovalsInput {
+    /// Owner address (hex, ENS name, or address book label)
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// First block of the event scan (default 0)
+    #[serde(default)]
+    pub from_block: Option<u64>,
+    /// Most explorer requests per event type, 1,000 logs each (default 20)
+    #[serde(default)]
+    pub max_pages: Option<u32>,
+    /// Skip USD prices
+    #[serde(default)]
+    pub no_price: bool,
+    /// Also list approvals with nothing at risk now (zero balance or expired).
+    /// Off by default: for active wallets that list can pass the 1 MB output cap
+    #[serde(default)]
+    pub include_zero_exposure: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AccountErc721Input {
     /// Ethereum address
     pub address: String,

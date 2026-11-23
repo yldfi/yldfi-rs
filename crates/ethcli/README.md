@@ -249,6 +249,13 @@ ethcli account funded-by 0x...
 # Names and labels: Etherscan name tags (Pro Plus plan), the address book and
 # ethcli's built-in labels
 ethcli account labels 0x... 0x...
+
+# Open token approvals and the amount each puts at risk (min of allowance and
+# balance, with USD where priced), Permit2 allowances with expiry, NFT operator
+# approvals and any EIP-7702 delegation. Pairs come from the owner's approval
+# events (explorer logs); current values are read on chain in one multicall
+ethcli account approvals 0x...
+ethcli account approvals 0x... --json --max-pages 50 --no-price
 ```
 
 ### Contract - ABI, Source Code, and Bytecode Analysis

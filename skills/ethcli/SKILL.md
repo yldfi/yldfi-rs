@@ -30,6 +30,7 @@ ethcli does not sign or send transactions.
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
 | Cost of a transaction (incl. L1 data fee) | `ethcli gas cost <to> [data] -s <sig> -a "<args>" --from <addr> --chain base --json` | `gas_cost` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |
+| Open approvals and amount at risk | `ethcli account approvals <addr> --json` | `account_approvals` |
 | Value a Uniswap LP position | `ethcli uniswap position <id> [--version v4] --json`, or `--v2 <pair> --owner <addr>` | `uniswap_position_value` |
 | All v3 LP positions of an address | `ethcli uniswap lp-positions --owner <addr> --json` | `uniswap_lp_positions` |
 

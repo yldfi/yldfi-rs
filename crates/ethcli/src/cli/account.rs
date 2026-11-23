@@ -284,6 +284,52 @@ pub enum AccountCommands {
         output: OutputFormat,
     },
 
+    /// Open token approvals and the amount each puts at risk
+    ///
+    /// Finds (token, spender) pairs from the owner's Approval, ApprovalForAll
+    /// and Permit2 events (explorer logs API), then reads the current
+    /// allowance, balance and Permit2 allowance for each in one Multicall3
+    /// batch. Zero allowances are dropped; exposure is min(allowance, balance),
+    /// with a USD value where DefiLlama has a price. Also reports an EIP-7702
+    /// delegation on the owner.
+    #[command(visible_alias = "allowances")]
+    Approvals {
+        /// Owner address (hex, ENS name, or address book label)
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// First block of the event scan
+        #[arg(long, default_value = "0")]
+        from_block: u64,
+
+        /// Most explorer requests per event type (1,000 logs each)
+        #[arg(long, default_value = "20")]
+        max_pages: u64,
+
+        /// Skip USD prices
+        #[arg(long)]
+        no_price: bool,
+
+        /// Skip the explorer check of whether spender contracts are verified
+        #[arg(long)]
+        no_source_check: bool,
+
+        /// Leave out approvals with nothing at risk now (zero balance or
+        /// expired); their count is in `hidden_zero_exposure`
+        #[arg(long)]
+        exposed_only: bool,
+
+        /// Output format (json, table/pretty)
+        #[arg(
+            long,
+            short,
+            visible_alias = "format",
+            value_enum,
+            default_value = "table"
+        )]
+        output: OutputFormat,
+    },
+
     /// Get ERC721 (NFT) transfers for an address
     Erc721 {
         /// Address to query
@@ -366,11 +412,11 @@ pub enum AccountCommands {
 }
 
 /// Rows requested per call by `--all`
-const ALL_PAGE_SIZE: u64 = 1_000;
+pub(crate) const ALL_PAGE_SIZE: u64 = 1_000;
 /// Most rows the explorer serves for one query (page × offset)
 const EXPLORER_WINDOW: u64 = 10_000;
 /// Pause between `--all` requests, to stay under the explorer's per-second limit
-const PAGE_DELAY: std::time::Duration = std::time::Duration::from_millis(350);
+pub(crate) const PAGE_DELAY: std::time::Duration = std::time::Duration::from_millis(350);
 
 /// Rows read by [`fetch_all_pages`]
 pub(crate) struct AllPages<T> {
@@ -1695,6 +1741,33 @@ pub async fn handle(
             let report = address_labels(&client, &resolved).await;
             if output.is_table() {
                 print!("{}", format_labels(&report));
+            } else {
+                print_value(&report, *output)?;
+            }
+        }
+
+        AccountCommands::Approvals {
+            address,
+            from_block,
+            max_pages,
+            no_price,
+            no_source_check,
+            exposed_only,
+            output,
+        } => {
+            let (owner, _) = resolve_address(address, chain, quiet).await?;
+            let opts = crate::cli::approvals::ApprovalsOptions {
+                from_block: *from_block,
+                max_pages: (*max_pages).max(1),
+                price: !*no_price,
+                source_check: !*no_source_check,
+                exposed_only: *exposed_only,
+                quiet,
+            };
+            let report =
+                crate::cli::approvals::approvals_report(&client, chain, owner, &opts).await?;
+            if output.is_table() {
+                print!("{}", crate::cli::approvals::format_approvals(&report));
             } else {
                 print_value(&report, *output)?;
             }
