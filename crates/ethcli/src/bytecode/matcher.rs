@@ -39,6 +39,9 @@ pub struct Artifact {
     pub methods: BTreeMap<String, String>,
     /// Number of user sources, when known (from standard JSON or build-info)
     pub source_count: Option<usize>,
+    /// The deployed bytecode object as given (lowercase hex, no 0x), to tie
+    /// a build-info to this exact build
+    pub deployed_object: String,
 }
 
 /// Largest offset an artifact range may name; deployed code is far smaller
@@ -171,6 +174,7 @@ pub fn parse_artifact(json: &Value, contract: Option<&str>) -> anyhow::Result<Ar
         let immutables = immutable_ranges(deployed.get("immutableReferences"))?;
         check_within(&immutables, runtime.len(), "immutableReferences")?;
         return Ok(Artifact {
+            deployed_object: object.trim().trim_start_matches("0x").to_lowercase(),
             source_count: None,
             format: "forge".into(),
             contract_name: name.or_else(|| contract.map(String::from)),
@@ -239,6 +243,11 @@ pub fn parse_artifact(json: &Value, contract: Option<&str>) -> anyhow::Result<Ar
     let immutables = immutable_ranges(deployed.get("immutableReferences"))?;
     check_within(&immutables, runtime.len(), "immutableReferences")?;
     Ok(Artifact {
+        deployed_object: bytecode_object(deployed)
+            .unwrap_or_default()
+            .trim()
+            .trim_start_matches("0x")
+            .to_lowercase(),
         source_count,
         format: "solc-standard-json".into(),
         contract_name: Some(name),
@@ -299,8 +308,15 @@ impl Artifact {
         } else {
             &json["output"]
         };
+        // The same path and name is not enough: an older build-info of the
+        // same contract has other source ids. Require the identical
+        // deployed bytecode
         match (&self.source_path, &self.contract_name) {
-            (Some(p), Some(n)) => out["contracts"][p].get(n).is_some(),
+            (Some(p), Some(n)) => {
+                bytecode_object(&out["contracts"][p][n]["evm"]["deployedBytecode"]).is_some_and(
+                    |o| o.trim().trim_start_matches("0x").to_lowercase() == self.deployed_object,
+                )
+            }
             _ => false,
         }
     }
@@ -625,10 +641,11 @@ fn token(code: &[u8], pc: usize, op: u8) -> Vec<u8> {
 }
 
 /// CALL, STATICCALL, CALLCODE, DELEGATECALL, CREATE, CREATE2,
-/// SELFDESTRUCT, LOG0-LOG4, JUMP, JUMPI, RETURN, SSTORE, ORIGIN, CALLER
+/// SELFDESTRUCT, LOG0-LOG4, JUMP, JUMPI, RETURN, SSTORE, TSTORE, ORIGIN,
+/// CALLER, STOP, REVERT, INVALID
 const EFFECTFUL_OPCODES: &[u8] = &[
     0xf1, 0xfa, 0xf2, 0xf4, 0xf0, 0xf5, 0xff, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0x56, 0x57, 0xf3, 0x55,
-    0x32, 0x33,
+    0x5d, 0x32, 0x33, 0x00, 0xfd, 0xfe,
 ];
 
 pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
@@ -703,30 +720,32 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
     };
     let mapper = function_mapper(artifact, art_exec);
 
-    // Deployed bytes shaped like metadata but executable (a valid JUMPDEST
-    // inside, or reachable by fallthrough) cannot be ignored as metadata
-    let chain_view = super::metadata::CodeView::new(onchain);
-    let executable_metadata: Vec<&MetadataBlock> = chain_view
-        .suspicious
-        .iter()
-        .filter(|b| {
-            chain_trailing.as_ref().is_some_and(|t| t.start == b.start)
-                || art_blocks.iter().any(|a| !a.trailing && a.start == b.start)
-        })
-        // A hash byte that happens to be 0x5b is common; flag the block when
-        // a reachable instruction in it can do anything that matters:
-        // control flow, calls, logs, storage writes, creation, caller checks
-        .filter(|b| {
-            chain_view.instructions.iter().any(|(pc, op, live)| {
-                *live && *pc >= b.start && *pc < b.end && EFFECTFUL_OPCODES.contains(op)
-            })
-        })
-        .collect();
-    for b in &executable_metadata {
+    // Deployed bytes shaped like metadata that real code can enter (by
+    // falling through, or by a static jump to a JUMPDEST inside) are code,
+    // not metadata. A 0x5b in an honest hash is not a jump target, so honest
+    // metadata whose hash differs still gives a partial match.
+    let reach = super::metadata::static_reach(onchain);
+    let mut executable_metadata: Vec<MetadataBlock> = Vec::new();
+    for b in chain_blocks.iter().filter(|b| {
+        chain_trailing.as_ref().is_some_and(|t| t.start == b.start)
+            || art_blocks.iter().any(|a| !a.trailing && a.start == b.start)
+    }) {
+        let reached: Vec<u8> = reach
+            .iter()
+            .filter(|(pc, _, r)| *r && *pc >= b.start && *pc < b.end)
+            .map(|(_, op, _)| *op)
+            .collect();
+        if reached.is_empty() {
+            continue;
+        }
+        let effectful = reached.iter().any(|op| EFFECTFUL_OPCODES.contains(op));
         warnings.push(format!(
-            "deployed bytes {:#x}..{:#x} look like compiler metadata but hold reachable control-flow, call, log or storage opcodes (after a valid JUMPDEST or reachable code); they are compared as code",
-            b.start, b.end
+            "deployed bytes {:#x}..{:#x} look like compiler metadata but code reaches them (fallthrough or a static jump){}; they are compared as code",
+            b.start,
+            b.end,
+            if effectful { ", and they hold effectful opcodes" } else { "" }
         ));
+        executable_metadata.push(b.clone());
     }
     let exec_equal = exec_equal && executable_metadata.is_empty();
 
@@ -866,14 +885,58 @@ pub struct AssemblyShare {
     pub percent: f64,
 }
 
+/// Collect ContractDefinition nodes: (id, name, linearizedBaseContracts, node)
+fn contract_nodes<'a>(node: &'a Value, out: &mut Vec<(u64, String, Vec<u64>, &'a Value)>) {
+    match node {
+        Value::Object(map) => {
+            if map.get("nodeType").and_then(Value::as_str) == Some("ContractDefinition") {
+                let bases = map
+                    .get("linearizedBaseContracts")
+                    .and_then(Value::as_array)
+                    .map(|a| a.iter().filter_map(Value::as_u64).collect())
+                    .unwrap_or_default();
+                if let Some(id) = map.get("id").and_then(Value::as_u64) {
+                    out.push((
+                        id,
+                        map.get("name")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string(),
+                        bases,
+                        node,
+                    ));
+                }
+            }
+            for v in map.values() {
+                contract_nodes(v, out);
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|v| contract_nodes(v, out)),
+        _ => {}
+    }
+}
+
+/// Inline-assembly share of the matched contract and the contracts it
+/// inherits (its linearised bases), not the whole build
 pub fn assembly_share(artifact: &Artifact) -> Option<AssemblyShare> {
     if artifact.asts.is_empty() {
         return None;
     }
+    let mut contracts = Vec::new();
+    for (_, ast) in &artifact.asts {
+        contract_nodes(ast, &mut contracts);
+    }
+    let name = artifact.contract_name.as_deref()?;
+    let bases: Vec<u64> = contracts
+        .iter()
+        .find(|(_, n, _, _)| n == name)
+        .map(|(_, _, b, _)| b.clone())?;
     let mut spans = Vec::new();
     let mut asm = Vec::new();
-    for (_, ast) in &artifact.asts {
-        collect_functions(ast, None, &mut spans, &mut asm);
+    for (id, _, _, node) in &contracts {
+        if bases.contains(id) {
+            collect_functions(node, None, &mut spans, &mut asm);
+        }
     }
     let function_bytes: u64 = spans.iter().map(|s| s.end - s.start).sum();
     let assembly_bytes: u64 = asm.iter().map(|(_, l, _)| *l).sum();
@@ -1172,36 +1235,80 @@ mod tests {
     }
 
     #[test]
-    fn executable_metadata_is_not_partial() {
-        let code = "6080604052600436106000575b00";
+    fn metadata_entered_by_a_jump_is_code() {
+        // PUSH2 0x000f JUMP STOP: jumps to pc 15, which is inside the
+        // metadata (the first ipfs hash byte)
+        let code = "61000f5600";
         let art = parse_artifact(
             &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
             None,
         )
         .unwrap();
-        // Same-length metadata whose hash starts JUMPDEST CALLER SELFDESTRUCT
-        let evil = META.replacen("8b5d96ae", "5b33ff00", 1);
-        let deployed = hex::decode(&with_meta(code, &evil)[2..]).unwrap();
-        let report = match_code(&art, &deployed);
-        assert_ne!(report.verdict, "partial");
-        assert!(report
-            .warnings
-            .iter()
-            .any(|w| w.contains("compared as code")));
+        for payload in ["5b33ff00", "5bf10000", "5b00aaaa", "5bfdaaaa", "5b600160"] {
+            let evil = META.replacen("8b5d96ae", payload, 1);
+            let deployed = hex::decode(&with_meta(code, &evil)[2..]).unwrap();
+            let report = match_code(&art, &deployed);
+            assert_ne!(report.verdict, "partial", "{payload}");
+            assert!(report
+                .warnings
+                .iter()
+                .any(|w| w.contains("compared as code")));
+        }
     }
 
     #[test]
-    fn call_hidden_in_fake_metadata_is_not_partial() {
+    fn honest_metadata_with_a_5b_hash_byte_stays_partial() {
+        // Nothing jumps into the metadata: a 0x5b followed by CALLER in the
+        // hash is just hash bytes
         let code = "6080604052600436106000575b00";
         let art = parse_artifact(
             &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
             None,
         )
         .unwrap();
-        // JUMPDEST then CALL inside the ipfs "hash"
-        let evil = META.replacen("8b5d96ae", "5bf10000", 1);
-        let deployed = hex::decode(&with_meta(code, &evil)[2..]).unwrap();
+        let other = META.replacen("8b5d96ae", "5b33a2ff", 1);
+        let deployed = hex::decode(&with_meta(code, &other)[2..]).unwrap();
         let report = match_code(&art, &deployed);
-        assert_ne!(report.verdict, "partial");
+        assert_eq!(report.verdict, "partial", "{:?}", report.warnings);
+    }
+
+    #[test]
+    fn build_info_must_hold_the_same_bytecode() {
+        let art = parse_artifact(
+            &serde_json::json!({
+                "deployedBytecode": {"object": "0x6001"},
+                "bytecode": {"object": "0x6001"},
+                "metadata": {"settings": {"compilationTarget": {"src/A.sol": "A"}}},
+            }),
+            None,
+        )
+        .unwrap();
+        let same = serde_json::json!({"output": {"contracts": {"src/A.sol": {"A": {"evm": {"deployedBytecode": {"object": "6001"}}}}}}});
+        let stale = serde_json::json!({"output": {"contracts": {"src/A.sol": {"A": {"evm": {"deployedBytecode": {"object": "6002"}}}}}}});
+        assert!(art.build_info_matches(&same));
+        assert!(!art.build_info_matches(&stale));
+    }
+
+    #[test]
+    fn assembly_share_counts_only_the_contract_and_its_bases() {
+        let ast_a = serde_json::json!({"nodeType": "SourceUnit", "nodes": [
+            {"nodeType": "ContractDefinition", "id": 1, "name": "Base", "linearizedBaseContracts": [1], "nodes": [
+                {"nodeType": "FunctionDefinition", "name": "f", "src": "0:100:0", "body": {}}]},
+            {"nodeType": "ContractDefinition", "id": 2, "name": "A", "linearizedBaseContracts": [2, 1], "nodes": [
+                {"nodeType": "FunctionDefinition", "name": "g", "src": "100:100:0", "body": {}}]}
+        ]});
+        let ast_other = serde_json::json!({"nodeType": "SourceUnit", "nodes": [
+            {"nodeType": "ContractDefinition", "id": 3, "name": "Other", "linearizedBaseContracts": [3], "nodes": [
+                {"nodeType": "FunctionDefinition", "name": "h", "src": "0:100:1", "body": {
+                    "nodeType": "InlineAssembly", "src": "10:50:1"}}]}
+        ]});
+        let art = Artifact {
+            contract_name: Some("A".into()),
+            asts: vec![(Some(0), ast_a), (Some(1), ast_other)],
+            ..Default::default()
+        };
+        let share = assembly_share(&art).unwrap();
+        assert_eq!(share.blocks, 0);
+        assert_eq!(share.function_bytes, 200);
     }
 }

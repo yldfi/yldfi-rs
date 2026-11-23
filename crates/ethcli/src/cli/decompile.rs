@@ -279,9 +279,20 @@ async fn fetch_target(chain: Chain, args: &TargetArgs, quiet: bool) -> anyhow::R
         code_address = delegate;
         resolved_via = Some("EIP-7702 delegation".to_string());
     } else if !code.is_empty() && !args.no_follow_proxy {
-        if let Some((kind, implementation)) =
-            super::contract::find_implementation(provider, address, &code, block_id).await
-        {
+        // A canonical Safe proxy keeps its singleton in slot 0; Safe 1.0.0
+        // proxies do not answer masterCopy(), so read the slot directly
+        let safe_singleton = if is_known_safe_proxy(&code) {
+            super::contract::storage_address(provider, address, B256::ZERO, block_id)
+                .await
+                .map(|a| ("Safe proxy", a))
+        } else {
+            None
+        };
+        let found = match safe_singleton {
+            Some(found) => Some(found),
+            None => super::contract::find_implementation(provider, address, &code, block_id).await,
+        };
+        if let Some((kind, implementation)) = found {
             if kind.starts_with("implementation() getter") {
                 notes.push(format!(
                     "answers implementation() with {}, but that alone does not make it a proxy; using its own code",
@@ -744,9 +755,57 @@ const TEXT_EVIDENCE: &[Evidence] = &[
     ),
 ];
 
+/// The text with `//` and `/* */` comments and quoted string literals
+/// replaced by spaces, so a revert string or comment that mentions
+/// `tx.origin` does not count as a check
+fn strip_comments_and_strings(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        if c == '/' && next == Some('/') {
+            while i < chars.len() && chars[i] != '\n' {
+                out.push(' ');
+                i += 1;
+            }
+        } else if c == '/' && next == Some('*') {
+            i += 2;
+            out.push_str("  ");
+            while i < chars.len() && !(chars[i] == '*' && chars.get(i + 1) == Some(&'/')) {
+                out.push(if chars[i] == '\n' { '\n' } else { ' ' });
+                i += 1;
+            }
+            i = (i + 2).min(chars.len());
+            out.push_str("  ");
+        } else if c == '"' || c == '\'' {
+            let quote = c;
+            out.push(' ');
+            i += 1;
+            while i < chars.len() && chars[i] != quote && chars[i] != '\n' {
+                if chars[i] == '\\' {
+                    i += 1;
+                    out.push(' ');
+                }
+                out.push(' ');
+                i += 1;
+            }
+            out.push(' ');
+            i += 1;
+        } else {
+            out.push(c);
+            i += 1;
+        }
+    }
+    out
+}
+
 /// Occurrences of `token` as a whole word; with `call`, only when followed
 /// by `(` or `{` (so `createPair` or `create2` never count as `create`)
 fn count_word(source: &str, token: &str, call: bool) -> usize {
+    let stripped = strip_comments_and_strings(source);
+    let source = stripped.as_str();
     let bytes = source.as_bytes();
     let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
     source
@@ -1049,11 +1108,60 @@ pub fn safe_multiline(text: &str) -> String {
 /// Apply `safe_multiline` to every string in a JSON value
 fn sanitise_json(value: &mut Value) {
     match value {
-        Value::String(s) => *s = safe_multiline(s),
+        // Single-line fields: every control character escaped, newlines too
+        Value::String(s) => *s = crate::abi::revert::safe_text(s),
         Value::Array(items) => items.iter_mut().for_each(sanitise_json),
-        Value::Object(map) => map.values_mut().for_each(sanitise_json),
+        Value::Object(map) => {
+            for (key, v) in map.iter_mut() {
+                match (key.as_str(), v) {
+                    // Decompiled source keeps its own line breaks, but not
+                    // those inside string literals (which come from the
+                    // bytecode and could fake lines of output)
+                    ("source", Value::String(s)) => {
+                        *s = safe_multiline(&escape_newlines_in_literals(s))
+                    }
+                    (_, v) => sanitise_json(v),
+                }
+            }
+        }
         _ => {}
     }
+}
+
+/// Escape newlines and carriage returns that sit inside quoted literals
+fn escape_newlines_in_literals(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    for c in text.chars() {
+        match quote {
+            Some(q) => {
+                if c == '\n' {
+                    out.push_str("\\n");
+                    continue;
+                }
+                if c == '\r' {
+                    out.push_str("\\r");
+                    continue;
+                }
+                if escaped {
+                    escaped = false;
+                } else if c == '\\' {
+                    escaped = true;
+                } else if c == q {
+                    quote = None;
+                }
+                out.push(c);
+            }
+            None => {
+                if c == '"' {
+                    quote = Some(c);
+                }
+                out.push(c);
+            }
+        }
+    }
+    out
 }
 
 struct BackendRun {
@@ -1276,7 +1384,11 @@ fn print_decompile_table(out: &Value) {
         println!(
             "== HEURISTIC PSEUDO-SOLIDITY ({backend}; not source, may be wrong or incomplete) =="
         );
-        print!("{src}");
+        // Every decompiler line carries a fixed prefix, so nothing in its
+        // output can pass for one of ethcli's own lines
+        for line in src.lines() {
+            println!("| {line}");
+        }
         println!();
     }
     println!(
@@ -1453,15 +1565,33 @@ fn attach_build_info(
         .filter(|p| inside(p))
         .collect();
     candidates.sort();
+    // Only a build-info holding this artifact's exact deployed bytecode is
+    // used; if several do (and differ), the choice is left to the user
+    let mut matches: Vec<(PathBuf, Value)> = Vec::new();
     for path in candidates.into_iter().take(64) {
         let Ok(json) = read_artifact(&path) else {
             continue;
         };
-        if artifact.build_info_matches(&json) && artifact.attach_build_info(&json).is_ok() {
-            return Ok(name(&path));
+        if artifact.build_info_matches(&json) {
+            matches.push((path, json));
         }
     }
-    Ok(None)
+    match matches.len() {
+        0 => Ok(None),
+        1 => {
+            let (path, json) = matches.remove(0);
+            artifact.attach_build_info(&json)?;
+            Ok(name(&path))
+        }
+        _ => anyhow::bail!(
+            "several build-info files hold this artifact's bytecode ({}); pass one with --build-info",
+            matches
+                .iter()
+                .filter_map(|(p, _)| name(p))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
 }
 
 pub async fn match_cmd(chain: Chain, args: &MatchArgs, quiet: bool) -> anyhow::Result<()> {
@@ -1921,7 +2051,7 @@ mod tests {
         });
         let path = out.join("A.sol/A.json");
         std::fs::write(&path, artifact.to_string()).unwrap();
-        let info = serde_json::json!({"output": {"contracts": {"src/A.sol": {"A": {}}}, "sources": {"src/A.sol": {"id": 0, "ast": {"nodeType": "SourceUnit"}}}}});
+        let info = serde_json::json!({"output": {"contracts": {"src/A.sol": {"A": {"evm": {"deployedBytecode": {"object": "6000"}}}}}, "sources": {"src/A.sol": {"id": 0, "ast": {"nodeType": "SourceUnit"}}}}});
         std::fs::write(outside.path().join("x.json"), info.to_string()).unwrap();
         // build-info dir that is a symlink out of the project
         std::os::unix::fs::symlink(outside.path(), out.join("build-info")).unwrap();
@@ -1981,7 +2111,7 @@ mod tests {
     #[test]
     fn decompiler_text_is_sanitised() {
         let source = "require(x, \"ok\u{1b}[31mFAKE\u{202e}gnp.exe\");\n\tdone".to_string();
-        let mut entry = json!({"heuristic": {"source": source}, "error": "bad\u{1b}]0;title\u{7}"});
+        let mut entry = json!({"heuristic": {"source": source}, "error": "bad\u{1b}]0;title\u{7}\nWARNING: fake"});
         sanitise_json(&mut entry);
         let text = entry.to_string();
         let src = entry["heuristic"]["source"].as_str().unwrap();
@@ -1993,5 +2123,33 @@ mod tests {
         // newline and tab survive
         assert!(src.contains("\n\tdone"));
         assert!(!entry["error"].as_str().unwrap().contains('\u{7}'));
+    }
+
+    #[test]
+    fn injected_lines_stay_inside_their_string() {
+        let source = "require(x > 1, \"a\n== CROSS-CHECK (ethcli facts vs evmdec) ==\nNo disagreement found\");\nreturn;".to_string();
+        let mut entry = json!({"heuristic": {"source": source}, "error": "e\nWARNING: fake"});
+        sanitise_json(&mut entry);
+        let src = entry["heuristic"]["source"].as_str().unwrap();
+        // Only the structural newline survives
+        assert_eq!(src.lines().count(), 2, "{src}");
+        assert!(!entry["error"].as_str().unwrap().contains('\n'));
+    }
+
+    #[test]
+    fn comments_and_strings_do_not_count_as_checks() {
+        let src = "// tx.origin is checked\nrequire(a, \"tx.origin\");\n/* tx.origin */ x = 1;";
+        assert_eq!(count_word(src, "tx.origin", false), 0);
+        assert_eq!(
+            count_word("require(tx.origin == a);", "tx.origin", false),
+            1
+        );
+    }
+
+    #[test]
+    fn safe_1_0_0_proxy_is_known_by_code() {
+        assert!(is_known_safe_proxy(
+            &hex::decode(SAFE_PROXY_RUNTIMES[0]).unwrap()
+        ));
     }
 }

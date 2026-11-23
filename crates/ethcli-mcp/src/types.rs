@@ -310,7 +310,7 @@ pub struct ContractMatchInput {
     pub contract: Option<String>,
     /// Deployment transaction hash: also compare creation code and return constructor arguments
     pub creation_tx: Option<String>,
-    /// Local path of a forge build-info (out/build-info/<id>.json) with every source's AST, under the same root as artifact; found automatically next to a forge artifact when omitted
+    /// Local path of a forge build-info (out/build-info/<id>.json) with every source's AST, under the same root as artifact. Over MCP it is used only when given; without it, code from other source files is labelled without names
     pub build_info: Option<String>,
     /// Chain name
     #[serde(default = "default_chain")]

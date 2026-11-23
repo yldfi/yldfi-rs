@@ -129,6 +129,24 @@ impl MetadataBlock {
     }
 }
 
+/// A compiler version as solc and vyper write it: `X.Y.Z`, optionally
+/// followed by `-prerelease` or `+commit.<hex>` parts of letters, digits
+/// and dots. Anything else from the chain is not shown as a version
+fn is_version_text(t: &str) -> bool {
+    if t.is_empty() || t.len() > 40 {
+        return false;
+    }
+    let core_end = t.find(['+', '-']).unwrap_or(t.len());
+    let core: Vec<&str> = t[..core_end].split('.').collect();
+    core.len() == 3
+        && core
+            .iter()
+            .all(|p| !p.is_empty() && p.len() <= 4 && p.chars().all(|c| c.is_ascii_digit()))
+        && t[core_end..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-'))
+}
+
 fn describe(cbor: &Cbor, start: usize, end: usize, trailing: bool) -> Option<MetadataBlock> {
     let mut block = MetadataBlock {
         start,
@@ -143,11 +161,7 @@ fn describe(cbor: &Cbor, start: usize, end: usize, trailing: bool) -> Option<Met
     let version_from = |value: &Cbor| match value {
         Cbor::Bytes(b) if b.len() == 3 => Some(format!("{}.{}.{}", b[0], b[1], b[2])),
         // Untrusted text from the chain: a strict charset only
-        Cbor::Text(t) => (!t.is_empty()
-            && t.len() <= 40
-            && t.chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-')))
-        .then(|| t.clone()),
+        Cbor::Text(t) => is_version_text(t).then(|| t.clone()),
         Cbor::Array(parts) => {
             let nums: Vec<String> = parts
                 .iter()
@@ -356,6 +370,49 @@ impl CodeView {
         self.instructions
             .iter()
             .filter(|(pc, _, _)| !self.excluded_at(*pc))
+    }
+}
+
+/// Reachability from a simple static CFG: execution starts at pc 0, falls
+/// through until a halting opcode, and resumes only at a JUMPDEST that is
+/// the value of a PUSH1-PUSH4 executed on a reached path (iterated to a
+/// fixed point). Computed jump targets are not followed. Returns
+/// (pc, opcode, reached) for every instruction of the EVM's linear sweep.
+pub fn static_reach(code: &[u8]) -> Vec<(usize, u8, bool)> {
+    use std::collections::HashSet;
+    let sweep = linear_sweep(code);
+    let jumpdests: HashSet<usize> = sweep
+        .iter()
+        .filter(|(_, op)| *op == 0x5b)
+        .map(|(pc, _)| *pc)
+        .collect();
+    let mut targets: HashSet<usize> = HashSet::new();
+    loop {
+        let mut found = targets.clone();
+        let mut out = Vec::with_capacity(sweep.len());
+        let mut live = true;
+        for (pc, op) in &sweep {
+            if *op == 0x5b && targets.contains(pc) {
+                live = true;
+            }
+            out.push((*pc, *op, live));
+            if live && (0x60..=0x63).contains(op) {
+                let n = push_size(*op);
+                if let Some(bytes) = code.get(pc + 1..pc + 1 + n) {
+                    let v = bytes.iter().fold(0usize, |acc, b| (acc << 8) | *b as usize);
+                    if jumpdests.contains(&v) {
+                        found.insert(v);
+                    }
+                }
+            }
+            if halts(*op) {
+                live = false;
+            }
+        }
+        if found.len() == targets.len() {
+            return out;
+        }
+        targets = found;
     }
 }
 
@@ -794,5 +851,14 @@ mod tests {
         code.extend(hex::decode("a165767970657283000307000b").unwrap());
         code.extend([0x11; 31]);
         assert!(fingerprint(&code).metadata.is_none());
+    }
+
+    #[test]
+    fn version_text_must_look_like_a_version() {
+        assert!(is_version_text("0.8.21"));
+        assert!(is_version_text("0.8.21+commit.d9974bed"));
+        assert!(is_version_text("0.4.0-nightly.2017.1.1"));
+        assert!(!is_version_text("exact.match.verified"));
+        assert!(!is_version_text("0.8"));
     }
 }
