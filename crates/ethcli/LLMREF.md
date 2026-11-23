@@ -43,6 +43,7 @@ ethcli account txs <addr> --all --json  # Whole history (1,000 rows/request, pas
 ethcli account txs <addr> --all --csv   # CSV with a header line (also internal-txs, erc20, rpc multicall)
 ethcli account funded-by <addr>     # First funder (paid explorer endpoint, else earliest incoming transfer)
 ethcli account labels <addr>...     # Explorer name tags (Pro Plus), address book and built-in labels
+ethcli account approvals <addr>     # Open approvals, exposure = min(allowance, balance), Permit2, EIP-7702; check `complete`
 ethcli account erc721 <addr>        # NFT transfers
 ethcli account info <addr>          # Comprehensive info
 ```

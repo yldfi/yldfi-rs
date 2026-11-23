@@ -5,6 +5,7 @@
 pub mod account;
 pub mod address;
 pub mod alchemy;
+pub mod approvals;
 pub mod blacklist;
 pub mod cast;
 pub mod cex;

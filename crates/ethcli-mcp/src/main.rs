@@ -277,6 +277,25 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Open token approvals of an address with the amount at risk: pairs found from its Approval, ApprovalForAll and Permit2 events (explorer logs), current allowance, balance and Permit2 allowance/expiry read on chain, zero allowances dropped, sorted by exposure = min(allowance, balance) with USD where priced. Flags unlimited, expired, EOA and unverified spenders; reports an EIP-7702 delegation. Check `complete` and `scan` for truncation",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn account_approvals(
+        &self,
+        Parameters(input): Parameters<AccountApprovalsInput>,
+    ) -> CallToolResult {
+        tools::account_approvals(
+            &input.address,
+            Some(&input.chain),
+            input.from_block,
+            input.max_pages,
+            input.no_price,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
         description = "Names and labels for up to 100 addresses: explorer name tags and labels (needs an Etherscan Pro Plus plan; otherwise a note says so), the local address book, and ethcli's built-in labels",
         annotations(read_only_hint = true, open_world_hint = true)
     )]

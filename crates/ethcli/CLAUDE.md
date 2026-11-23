@@ -187,6 +187,7 @@ ethcli account internal-txs <addr> --all --json
 ethcli account erc20 <addr> --all --json
 ethcli account funded-by <addr>                 # first funder
 ethcli account labels <addr> <addr> ...         # up to 100
+ethcli account approvals <addr> --json          # open approvals and amount at risk
 ```
 
 - `--all` reads 1,000 rows per request and walks past the explorer's
@@ -214,6 +215,19 @@ ethcli account labels <addr> <addr> ...         # up to 100
 - `labels` combines Etherscan name tags and labels (`getaddresstag`, Pro Plus
   plan) with the address book and ethcli's built-in labels. Without that plan
   a note says why the explorer part is missing.
+- `approvals` finds (token, spender) pairs from the owner's ERC-20 `Approval`
+  (3 topics; ERC-721 single-token approvals are skipped), `ApprovalForAll`
+  and Permit2 `Approval`/`Permit` events via the explorer's logs API, walked
+  like `--all` (`--max-pages`, default 20 per event; `--from-block`). It then
+  reads current `allowance`, `balanceOf`, `symbol`, `decimals`,
+  `isApprovedForAll` and `Permit2.allowance` in Multicall3 batches and drops
+  zero allowances. `exposure` = min(allowance, balance); for Permit2 also
+  capped by the token's allowance to Permit2, and 0 once expired. USD values
+  come from DefiLlama (`price_source`). Flags: `unlimited`, `expired`,
+  `eoa_spender`, `unverified_spender` (explorer source check for up to 60
+  spenders with exposure; `--no-source-check` skips it). `scan` lists each
+  query's block range and `complete`; the top-level `complete` is false when
+  any was cut short. An approval that emitted no event is not found.
 
 ### `contract inspect`
 

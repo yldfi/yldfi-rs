@@ -26,6 +26,7 @@ ethcli does not sign or send transactions.
 | Whole address history | `ethcli account txs <addr> --all --json` | `account_txs` with `all: true` |
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |
+| Open approvals and amount at risk | `ethcli account approvals <addr> --json` | `account_approvals` |
 
 These replace chains of smaller calls. `contract inspect` covers `rpc code`,
 `contract selectors`, `contract abi`, `contract creation` and `token info`.

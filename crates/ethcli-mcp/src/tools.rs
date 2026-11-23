@@ -290,6 +290,30 @@ pub async fn account_funded_by(address: &str, chain: Option<&str>) -> Result<Str
         .map_err(ToolError::from)
 }
 
+pub async fn account_approvals(
+    address: &str,
+    chain: Option<&str>,
+    from_block: Option<u64>,
+    max_pages: Option<u32>,
+    no_price: bool,
+) -> Result<String, ToolError> {
+    let from = from_block.map(|b| b.to_string());
+    let pages = max_pages.map(|p| p.to_string());
+    let builder = ArgsBuilder::new("account")
+        .subcommand("approvals")
+        .chain(chain)
+        .format_json()
+        .opt("--from-block", from.as_deref())
+        .opt("--max-pages", pages.as_deref())
+        .opt_flag("--no-price", no_price);
+    builder
+        .end_of_options()
+        .arg(address)
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn account_labels(
     addresses: &[String],
     chain: Option<&str>,
