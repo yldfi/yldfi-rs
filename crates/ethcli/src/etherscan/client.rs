@@ -150,6 +150,7 @@ fn normalize_hex_selector(selector: &str) -> Cow<'_, str> {
 }
 
 use crate::error::{sanitize_error_message, AbiError, Result};
+use crate::etherscan::fallback::{self, Origin};
 use crate::etherscan::support::describe_etherscan_error;
 use crate::etherscan::SignatureCache;
 use crate::utils::{
@@ -312,33 +313,95 @@ impl Client {
         serde_json::from_str(&json).ok()
     }
 
-    /// Fetch a verified contract's ABI (`contract/getabi`) and store it in the
-    /// local ABI cache. Does not read the cache; see [`Self::cached_abi`].
+    /// Fetch a verified contract's ABI and store it in the local ABI cache.
+    /// Does not read the cache; see [`Self::cached_abi`]. See
+    /// [`Self::fetch_abi_with_origin`] for where it comes from.
     pub async fn fetch_abi(&self, address: &str) -> Result<JsonAbi> {
-        self.ensure_api_supported()?;
+        Ok(self.fetch_abi_with_origin(address).await?.0)
+    }
+
+    /// Fetch a verified contract's ABI from Etherscan (`contract/getabi`,
+    /// retried on rate limits). When Etherscan does not have it or cannot be
+    /// used, try Sourcify, then Blockscout. Returns where it came from.
+    pub async fn fetch_abi_with_origin(&self, address: &str) -> Result<(JsonAbi, Origin)> {
         let addr = parse_address(address)?;
-        let abi = self
-            .inner
-            .contract_abi(addr)
+        let primary: Result<JsonAbi> = async {
+            self.ensure_api_supported()?;
+            Ok(with_rate_limit_retry(|| self.inner.contract_abi(addr))
+                .await
+                .map_err(|e| map_etherscan_error(e, address))?)
+        }
+        .await;
+
+        let (abi, origin) = match primary {
+            Ok(abi) => (abi, Origin::Etherscan),
+            Err(err) => match fallback::find_verified(
+                &self.http,
+                self.chain.chain_id(),
+                &addr.to_checksum(None),
+            )
             .await
-            .map_err(|e| map_etherscan_error(e, address))?;
+            {
+                Some(found) => (found.abi, found.origin),
+                None => return Err(err),
+            },
+        };
 
         let json = serde_json::to_string(&abi)
             .map_err(|e| AbiError::ParseError(format!("Failed to serialize ABI: {}", e)))?;
         self.cache
             .set_abi(self.chain.chain_id(), address, &json, None);
-        Ok(abi)
+        Ok((abi, origin))
     }
 
-    /// Fetch verified source code and metadata (`contract/getsourcecode`).
+    /// Fetch verified source code and metadata. See
+    /// [`Self::source_code_with_origin`].
     pub async fn source_code(&self, address: &str) -> Result<ContractMetadata> {
-        self.ensure_api_supported()?;
+        Ok(self.source_code_with_origin(address).await?.0)
+    }
+
+    /// Fetch verified source code and metadata from Etherscan
+    /// (`contract/getsourcecode`, retried on rate limits). When Etherscan does
+    /// not have it or cannot be used, try Sourcify, then Blockscout.
+    pub async fn source_code_with_origin(
+        &self,
+        address: &str,
+    ) -> Result<(ContractMetadata, Origin)> {
         let addr = parse_address(address)?;
-        Ok(self
-            .inner
-            .contract_source_code(addr)
+        let primary: Result<ContractMetadata> = async {
+            self.ensure_api_supported()?;
+            let metadata = with_rate_limit_retry(|| self.inner.contract_source_code(addr))
+                .await
+                .map_err(|e| map_etherscan_error(e, address))?;
+            let has_source = metadata
+                .items
+                .iter()
+                .any(|item| !item.source_code.source_code().trim().is_empty());
+            if !has_source {
+                return Err(AbiError::ContractNotVerified(address.to_string()).into());
+            }
+            Ok(metadata)
+        }
+        .await;
+
+        match primary {
+            Ok(metadata) => Ok((metadata, Origin::Etherscan)),
+            Err(err) => match fallback::find_verified(
+                &self.http,
+                self.chain.chain_id(),
+                &addr.to_checksum(None),
+            )
             .await
-            .map_err(|e| map_etherscan_error(e, address))?)
+            {
+                Some(found) => Ok((
+                    ContractMetadata {
+                        items: vec![found.to_metadata()],
+                    },
+                    found.origin,
+                )),
+                None => Err(err),
+            },
+        }
     }
 
     /// Fetch the creation tx and deployer (`contract/getcontractcreation`).
@@ -727,6 +790,40 @@ fn alloy_api_is_etherscan(chain: AlloyChain) -> bool {
         .is_some_and(|url| url.host_str() == Some("api.etherscan.io"))
 }
 
+/// Whether an explorer error is a rate limit worth waiting out
+fn is_rate_limit(err: &EtherscanError) -> bool {
+    match err {
+        EtherscanError::RateLimitExceeded => true,
+        EtherscanError::ErrorResponse {
+            message, result, ..
+        } => {
+            let text = format!("{message} {}", result.as_deref().unwrap_or_default());
+            text.to_ascii_lowercase().contains("rate limit")
+        }
+        _ => false,
+    }
+}
+
+/// Run an explorer request, waiting 1 s then 2 s and retrying when it is
+/// rate limited
+async fn with_rate_limit_retry<T, F, Fut>(mut request: F) -> std::result::Result<T, EtherscanError>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = std::result::Result<T, EtherscanError>>,
+{
+    let mut wait = Duration::from_secs(1);
+    for _ in 0..2 {
+        match request().await {
+            Err(err) if is_rate_limit(&err) => {
+                tokio::time::sleep(wait).await;
+                wait *= 2;
+            }
+            other => return other,
+        }
+    }
+    request().await
+}
+
 fn parse_address(address: &str) -> Result<Address> {
     Address::from_str(address)
         .map_err(|e| AbiError::ParseError(format!("Invalid address {}: {}", address, e)).into())
@@ -818,6 +915,31 @@ mod tests {
         )
         .to_string();
         assert!(err.contains("Etherscan plan restriction"), "{err}");
+    }
+
+    #[test]
+    fn rate_limits_are_recognised_for_retry() {
+        assert!(is_rate_limit(&EtherscanError::RateLimitExceeded));
+        assert!(is_rate_limit(&EtherscanError::ErrorResponse {
+            status: "0".into(),
+            message: "NOTOK".into(),
+            result: Some("Max calls per sec rate limit reached (3/sec)".into()),
+        }));
+        assert!(!is_rate_limit(&EtherscanError::ContractCodeNotVerified(
+            Address::ZERO
+        )));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retry_stops_after_three_tries() {
+        let mut calls = 0;
+        let result: std::result::Result<(), _> = with_rate_limit_retry(|| {
+            calls += 1;
+            async { Err(EtherscanError::RateLimitExceeded) }
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(calls, 3);
     }
 
     #[test]

@@ -1592,6 +1592,11 @@ ethcli contract abi 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 
 # Get verified source code
 ethcli contract source 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+# ABI and source come from Etherscan (rate limits retried twice, waiting 1 s
+# then 2 s). If Etherscan has no verified source or fails (no key, plan
+# restriction, unsupported chain), Sourcify is tried, then Blockscout on
+# Ethereum and Optimism; stderr says which one answered. This applies to
+# every command that fetches an ABI (contract call, tx decoding, ...).
 # Only part of it (verified sources can be 100 KB+): --list, --function <name>,
 # --grep <regex>, --file <name>; --file narrows --function and --grep.
 # A shared absolute path prefix from the deployer's machine is stripped.

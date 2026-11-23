@@ -762,10 +762,14 @@ pub async fn handle(
                     eprintln!("Fetching ABI for {}...", address);
                 }
 
-                client
-                    .fetch_abi(address)
+                let (abi, origin) = client
+                    .fetch_abi_with_origin(address)
                     .await
-                    .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?
+                    .map_err(|e| anyhow::anyhow!("Failed to fetch ABI: {}", e))?;
+                if !quiet && origin != crate::etherscan::fallback::Origin::Etherscan {
+                    eprintln!("Not available from Etherscan; ABI from {origin}");
+                }
+                abi
             };
             let json = serde_json::to_string_pretty(&abi)?;
 
@@ -795,10 +799,13 @@ pub async fn handle(
                 eprintln!("Fetching source code for {}...", address);
             }
 
-            let metadata = client
-                .source_code(address)
+            let (metadata, origin) = client
+                .source_code_with_origin(address)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to fetch source: {}", e))?;
+            if !quiet && origin != crate::etherscan::fallback::Origin::Etherscan {
+                eprintln!("Not available from Etherscan; source from {origin}");
+            }
 
             if *list || file.is_some() || function.is_some() || grep.is_some() {
                 let files = source_files(&metadata.items);
