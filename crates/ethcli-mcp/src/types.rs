@@ -358,6 +358,39 @@ pub struct ContractAnalyzeInput {
     /// Include handler guard/check heuristics for auth, calldata hash validation, storage checks, and external calls
     #[serde(default)]
     pub checks: bool,
+    /// Leave out evmole's inferred storage layout and the call-site summary (faster)
+    #[serde(default)]
+    pub no_inference: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractCallsInput {
+    /// Contract address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block number (default: latest)
+    pub block: Option<String>,
+    /// If a proxy is detected, analyse the implementation
+    #[serde(default)]
+    pub follow_proxy: bool,
+    /// Name selectors from the signature database (guesses)
+    #[serde(default)]
+    pub lookup: bool,
+    /// Opcode step budget (default 4,000,000)
+    pub max_steps: Option<u64>,
+    /// Time budget in seconds (default 15; keep under the tool's 30 s limit)
+    pub timeout: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractTwinsInput {
+    /// Contract address
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
 }
 
 // --- Token ---

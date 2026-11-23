@@ -84,6 +84,17 @@ ethcli contract analyze <addr>      # Combined security analysis
 ethcli contract az <addr> --lookup  # With signature lookup
 ethcli contract analyze <addr> --follow-proxy --lookup --dispatcher --checks
                                       # Unverified/proxy review: handler map + guard heuristics
+                                      # analyze also adds `inferred` (evmole storage layout, CFG summary,
+                                      # CBOR compiler metadata) and a `calls` summary; --no-inference skips them
+ethcli contract calls <addr> [--block N] [--follow-proxy] [--lookup] [--json]
+                                      # Every CALL/DELEGATECALL/STATICCALL/CALLCODE/CREATE/CREATE2: pc, function,
+                                      # target/selector/value/args provenance (constant, storage slot, calldata
+                                      # offset, msg_sender, call_return, keccak, unresolved); per function ORIGIN,
+                                      # CALLER, guards, DELEGATECALL, SELFDESTRUCT, CREATE, SSTORE; `coverage`.
+                                      # Inferred: unresolved = unknown. Budgets: --max-steps, --timeout (s)
+ethcli contract twins <addr> [--json] # Verified same/similar code (Etherscan SimilarMatch, Blockscout twin;
+                                      # code hash compared) + Sourcify/Blockscout exact|partial match.
+                                      # --submit-similarity WRITES: publishes a Sourcify match
 ```
 
 ### ENS Resolution

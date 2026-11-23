@@ -307,7 +307,27 @@ ethcli contract az 0x... --include-disassembly
 # Unverified/proxy contract review: follow implementation, resolve selectors,
 # map dispatcher entries, and scan side-effecting handlers for missing auth/hash checks
 ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
+
+# Call sites and access control from bytecode (inferred): where every
+# CALL/DELEGATECALL/STATICCALL/CREATE target, selector and value comes from,
+# ORIGIN/CALLER uses and guards per function, with coverage
+ethcli contract calls 0x... --lookup
+ethcli contract calls 0x... --block 21000000 --json
+
+# Verified contracts with the same code, and exact/partial verification match
+ethcli contract twins 0x...
 ```
+
+`contract analyze` and `contract inspect` also report what evmole infers from
+the bytecode (`inferred`: storage layout, control-flow summary, CBOR compiler
+metadata with the IPFS/bzzr hash) and, for inspect, the verification match
+type and verified twins. Everything inferred is labelled as such. `contract
+calls` is a bounded abstract interpretation: what it cannot resolve is
+`unresolved`, and its `coverage` section says what was not analysed, but a
+resolved fact is an inference, not a proof, and missing guards mean "not
+recognised", not "absent".
+`contract twins --submit-similarity` asks Sourcify to verify the address
+against similar code and publishes the match if one is found (a write).
 
 ### Cast - Type Conversions and Hashing
 
