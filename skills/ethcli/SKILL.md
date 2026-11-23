@@ -30,6 +30,8 @@ ethcli does not sign or send transactions.
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
 | Cost of a transaction (incl. L1 data fee) | `ethcli gas cost <to> [data] -s <sig> -a "<args>" --from <addr> --chain base --json` | `gas_cost` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |
+| Value a Uniswap LP position | `ethcli uniswap position <id> [--version v4] --json`, or `--v2 <pair> --owner <addr>` | `uniswap_position_value` |
+| All v3 LP positions of an address | `ethcli uniswap lp-positions --owner <addr> --json` | `uniswap_lp_positions` |
 
 These replace chains of smaller calls. `contract inspect` covers `rpc code`,
 `contract selectors`, `contract abi`, `contract creation` and `token info`.
@@ -77,6 +79,13 @@ single facts.
 - **`account funded-by` `source`:** `explorer` is the explorer's own answer.
   `first_incoming_transfer` is the free fallback: the earliest incoming
   native-token transfer, ignoring token transfers.
+- **`uniswap position` fees:** for v3, `fee_cross_check.agree` false means
+  the pool fee-growth figure and the `collect` eth_call differ;
+  the `collect` total is split into `tokens_owed` (withdrawn principal and
+  fees credited earlier) and `uncollected_fees` (fees since), each counted
+  once in `value_usd`. v2 has no separate fees
+  (`uncollected_fees` is null; they are in the reserves). A `value_usd`
+  field of null means a token had no price, not zero.
 - **Fees on rollups:** `tx` `fee_wei` is the total fee, L1 data fee
   included; `fee_breakdown` splits it into `execution_fee_wei` and
   `l1_fee_wei` (the receipt's `l1Fee` on any chain, plus `operator_fee_wei`

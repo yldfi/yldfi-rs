@@ -1275,6 +1275,46 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(
+        description = "Value one Uniswap LP position on-chain: a v3 or v4 NFT (token_id, version) or a v2-style pair (v2_pair + owner, also Sushi and other forks). Returns tokens, fee tier, tick range, in_range, token amounts, uncollected fees (v3 cross-checked with an eth_call of collect), USD values with the price source, and the method used",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn uniswap_position_value(
+        &self,
+        Parameters(input): Parameters<UniswapPositionValueInput>,
+    ) -> CallToolResult {
+        tools::uniswap_position_value(
+            input.token_id.as_deref(),
+            input.version.as_deref(),
+            input.v2_pair.as_deref(),
+            input.owner.as_deref(),
+            Some(&input.chain),
+            input.block,
+            input.no_price.unwrap_or(false),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "List and value every open Uniswap v3 LP position an address owns, on-chain (no subgraph). v4 positions are not enumerable on-chain; value them one by one with uniswap_position_value",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn uniswap_lp_positions(
+        &self,
+        Parameters(input): Parameters<UniswapLpPositionsInput>,
+    ) -> CallToolResult {
+        tools::uniswap_lp_positions(
+            &input.owner,
+            Some(&input.chain),
+            input.all.unwrap_or(false),
+            input.block,
+            input.no_price.unwrap_or(false),
+        )
+        .await
+        .to_response()
+    }
+
     // =========================================================================
     // CURVE
     // =========================================================================

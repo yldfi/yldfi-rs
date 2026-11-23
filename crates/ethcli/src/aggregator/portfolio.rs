@@ -349,19 +349,7 @@ async fn fetch_alchemy_portfolio(
     }
 }
 
-/// A token symbol safe to print: no control or bidi-override characters
-/// (on-chain strings can carry terminal escapes), at most 32 characters
-fn sanitize_symbol(symbol: &str) -> String {
-    symbol
-        .chars()
-        .filter(|c| {
-            !c.is_control()
-                && !('\u{202a}'..='\u{202e}').contains(c)
-                && !('\u{2066}'..='\u{2069}').contains(c)
-        })
-        .take(32)
-        .collect()
-}
+use crate::utils::format::sanitize_symbol;
 
 /// Symbol and decimals for Alchemy balance rows without metadata, via one
 /// multicall per chain, keyed by lowercase token address

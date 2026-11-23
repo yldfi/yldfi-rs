@@ -109,6 +109,8 @@ ensof = { version = "0.2.3", path = "../ensof" }
 
 # Uniswap client (V2, V3, V4)
 unswp = { version = "0.1.8", path = "../unswp" }
+uniswap-v3-sdk = { version = "=7.0.0", features = ["extensions", "std"] }
+uniswap-v4-sdk = { version = "=2.0.0", features = ["extensions", "std"] }
 
 # Yearn Kong API client
 ykong = { version = "0.1.7", path = "../ykong" }

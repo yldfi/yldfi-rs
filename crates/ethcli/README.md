@@ -1157,6 +1157,13 @@ ethcli uniswap positions 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ethcli uniswap positions <address> --version v3 --chain arbitrum
 ethcli uniswap positions <address> --format json
 
+# LP position valuation (on-chain, no API key; honours --chain)
+ethcli uniswap position 1234567                         # v3 NFT
+ethcli uniswap position 12345 --version v4              # v4 NFT
+ethcli uniswap position --v2 <pair> --owner <address>   # v2-style pair, also Sushi and other forks
+ethcli uniswap lp-positions --owner <address> --json    # all open v3 positions (--all for closed)
+ethcli uniswap position 1234567 --block 21000000 --no-price
+
 # Well-known addresses
 ethcli uniswap addresses
 ethcli uniswap addresses --factories
