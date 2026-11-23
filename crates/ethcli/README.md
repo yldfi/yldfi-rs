@@ -353,6 +353,18 @@ ethcli rpc block-at 2024-01-31T12:00:00Z    # the latest block at or before that
 # A plain date is 00:00 UTC at the start of that day: 2024-01-31 is the close of 30 January.
 # For an end-of-day figure use the next day's date or a full time (2024-01-31T23:59:59Z).
 
+# The block where a value changed, by binary search (about log2(range) reads,
+# archive state needed). Target: a call, --balance, --storage <addr> <slot>,
+# --code (deployment) or --nonce. Prints the block, its time, old and new
+# values, top-level transactions to or from the address, and the RPC call count.
+ethcli rpc find-change --code 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --from 6000000 --to 7000000
+ethcli rpc find-change "0xA0b8... balanceOf(address)(uint256) 0xd8dA..." --from 2024-01-01 --json
+# It assumes the value changed once; with several changes it finds one of them.
+# --all searches again after each change (up to 100), but misses a change that is
+# undone within a segment (a balance that goes up and back down).
+# JSON carries single_change_assumed, and a warning when --all finds several
+# changes: when the first change matters, use --all.
+
 # Size and code hash only (is it a contract? did the code change?)
 ethcli rpc code 0x... --summary
 
