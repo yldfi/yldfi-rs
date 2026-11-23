@@ -15,6 +15,7 @@ pub mod config;
 pub mod contract;
 pub mod cowswap;
 pub mod curve;
+pub mod decompile;
 pub mod doctor;
 pub mod dune_cli;
 pub mod endpoints;

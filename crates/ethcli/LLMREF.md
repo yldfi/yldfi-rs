@@ -86,6 +86,12 @@ ethcli contract analyze <addr> --follow-proxy --lookup --dispatcher --checks
                                       # Unverified/proxy review: handler map + guard heuristics
                                       # analyze also adds `inferred` (evmole storage layout, CFG summary,
                                       # CBOR compiler metadata) and a `calls` summary; --no-inference skips them
+ethcli contract fingerprint <addr>  # Compiler + version, metadata hash, min EVM version, pipeline guess
+ethcli contract decompile <addr> [--backend evmdec|heimdall|all]
+                                     # Optional external decompilers, cross-checked first
+ethcli contract match <addr> --artifact out/X.sol/X.json [--contract X] [--creation-tx <hash>] [--build-info out/build-info/<id>.json]
+                                     # exact / partial (ignoring metadata, NOT verified) /
+                                     # partial_unverified_metadata (metadata bytes may hide code) / mismatch
 ethcli contract calls <addr> [--block N] [--follow-proxy] [--lookup] [--json]
                                       # Every CALL/DELEGATECALL/STATICCALL/CALLCODE/CREATE/CREATE2: pc, function,
                                       # target/selector/value/args provenance (constant, storage slot, calldata
@@ -96,6 +102,23 @@ ethcli contract twins <addr> [--json] # Verified same/similar code (Etherscan Si
                                       # code hash compared) + Sourcify/Blockscout exact|partial match.
                                       # --submit-similarity WRITES: publishes a Sourcify match
 ```
+
+`contract decompile` needs the external `evmdec` (on PATH or `EVMDEC_PATH`),
+or `heimdall` (`HEIMDALL_PATH`) with `--backend heimdall|all`; heimdall runs
+only as `decompile <bytecode> --include-sol --skip-resolving` with an empty
+HOME and HTTP sent to a dead proxy;
+without it, it prints install steps, ethcli's own facts and a Dedaub link.
+ethcli fetches the code (following proxies, naming the implementation used),
+writes it to a temp file and runs only `evmdec decompile <file> --json` with
+an empty environment (PATH only) and `--timeout` (default 60 s, killed on
+expiry). Output: the cross-check first (coverage, sensitive opcodes the text
+does not show, evmole vs evmdec types, "not found by evmdec" items, which are
+not facts), then the pseudo-Solidity labelled heuristic. `contract match`
+masks immutables and library addresses (reporting their deployed values and
+whether every position agrees) and compares metadata separately; on a
+mismatch it gives the first differing offset, the function (source map + AST
+with `forge build --ast`, else dispatcher ranges) and a per-function table.
+Rebuild procedure: `skills/bytecode-to-source/SKILL.md`.
 
 ### ENS Resolution
 ```bash

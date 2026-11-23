@@ -564,6 +564,100 @@ ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 ethcli contract analyze 0x... --format json
 ```
 
+### Unverified contracts: fingerprint, decompile, match
+
+```bash
+ethcli contract fingerprint <addr>          # compiler, metadata hash, min EVM version, pipeline guess
+ethcli contract decompile <addr> [--timeout 60] [--block <b>] [--no-follow-proxy]
+ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [--creation-tx <hash>]
+```
+
+- Code lives in `src/cli/decompile.rs`, `src/bytecode/metadata.rs` (CBOR
+  metadata, sweep, fingerprint) and `src/bytecode/matcher.rs` (artifact
+  parsing, masking, diff).
+- `decompile` runs the external evmdec (PATH or `EVMDEC_PATH`) as
+  `evmdec decompile <tempfile> --json` only, with `env_clear()` plus a
+  minimal PATH, `kill_on_drop` and the `--timeout`. Never pass it an address,
+  `--rpc`, `--lookup`, or use `audit` (which downloads and runs a solc).
+  Cross-check first, then the heuristic text. Absence claims are worded "not
+  found by evmdec". Known evmdec defects: dropped `tx.origin` guard on a
+  hand-written MEV bot, "0 writes" on UniV3 `tickBitmap`,
+  `calldata[block.chainid]` artefacts, `address[]` shown as `uint256[]`.
+- `--backend heimdall|all`: heimdall (`HEIMDALL_PATH` or PATH; never
+  installed by ethcli) runs as `heimdall decompile <0xbytecode>
+  --include-sol --skip-resolving --default --output <tempdir>` only. Never
+  pass `-l/--llm-postprocess`, `--openrouter-api-key`,
+  `--etherscan-api-key`, `--rpc-url` or an address. HOME is an empty
+  temp dir (its `~/.bifrost/config.toml` can hold an RPC URL and keys, and
+  `home_dir()` falls back to the passwd entry when HOME is unset), and
+  HTTP(S)_PROXY/ALL_PROXY point to a dead local port (it checks GitHub for
+  releases on every run). Output (`decompiled.sol`, `abi.json`) is mapped to
+  the evmdec shape and goes through the same site-count cross-check; it has
+  no `effects`, so only the text is compared. Known weaknesses: weak
+  parameter types/arity, guessed storage, garbled conditions, can hang or
+  OOM. Strengths: guard conditions and revert strings. JSON results are in
+  `decompilers[]`, one per backend.
+- Sensitive-opcode facts come from `bytecode::calls` (`opcode_sites` with
+  `reached`, guards and SSTOREs per function); the cross-check compares only
+  reached sites (a reached site counts even inside metadata-looking bytes,
+  with a warning), summarises unreached ones, and names each unreached
+  ORIGIN / CALLER / DELEGATECALL / SELFDESTRUCT site the decompiler does not
+  show ("possible dropped guard").
+- Proxy following also covers immutable beacons (OpenZeppelin 5.x
+  BeaconProxy, Euler v2 vaults: the beacon call's target is a code constant
+  equal to the beacon) and Vyper forwarders (Curve factory pools, Uniswap
+  V1, by exact pattern). The slot-sourced DELEGATECALL must be on the
+  dispatcher path (run for every unmatched selector); one under a specific
+  selector gives "delegates to it only under selector X". "Does not run that
+  code" is said only when the analysis was complete; otherwise "could not
+  confirm".
+- Metadata blocks are found anywhere in the code (nested contracts) and only
+  count when the CBOR decodes exactly up to its length field, with byte
+  strings of at most 64 bytes, 32/34-byte hashes and 3-byte solc versions.
+- MCP `contract_match` only reads `.json` regular files up to 50 MB under
+  `ETHCLI_MCP_ARTIFACT_ROOT` (required; there is no default, and `/` or the home directory are refused),
+  after canonicalising (symlinks out of the root are refused). Errors never
+  echo file contents.
+- `match`: immutables and libraries are always masked and their deployed
+  values checked for consistency; metadata is compared separately. `partial`
+  must never be called verified (a test enforces the wording). Same-size
+  mismatches are compared per instruction; size changes are aligned by common
+  prefix/suffix with PUSH2/PUSH3 operands ignored. Function mapping uses the
+  source map + AST (`forge build --ast`), else approximate dispatcher ranges.
+- Proxies are followed only when ethcli's call analysis (`bytecode::calls`,
+  as in `contract calls`) finds a reached DELEGATECALL whose target comes
+  from the EIP-1967 or OpenZeppelin legacy implementation slot, from the
+  return of a call to a beacon read from the beacon slot, or from a code
+  constant equal to the implementation (EIP-1167). Safe proxies are matched
+  by exact runtime code (1.0.0-1.5.0) and their singleton read from slot 0.
+  Anything else with a slot set is analysed as its own code, with a warning,
+  and the own code is censused whenever another code is analysed.
+- `--block` takes a decimal or hex number, a tag or a time; anything else is
+  an error.
+- `match --creation-tx` must be the transaction that created the analysed
+  code (receipt `contractAddress`), else it errors.
+- `match --build-info <file>` (or a forge `out/build-info/*.json` next to the
+  artifact that lists the contract) supplies every source's AST, so base
+  contracts and modifiers in other files are named. Without it, code from
+  other sources is labelled `(source N: no AST ...)` and the "only shared
+  code differs" hint is not given.
+- Artifact `start`/`length` values are checked (no overflow, inside the
+  code). Deployed metadata-looking bytes that an analysed path executes are
+  compared as code. Otherwise a JUMPDEST followed by an effectful opcode
+  before a halt inside them gives `partial_unverified_metadata` (fail
+  closed, whatever the coverage), never a clean `partial`.
+- `min_evm_version` uses only reachable code. Vyper metadata followed by
+  immutables is recognised. CBOR version text is limited to `[0-9A-Za-z.+-]`.
+- The decompile cross-check counts sites: fewer `tx.origin` / `msg.sender` /
+  `create(` ... occurrences than opcode sites (whole words, calls only for
+  create/delegatecall/selfdestruct), or a missing `effects` flag, is a
+  warning.
+- `match` verdict `partial_unverified_metadata`: executable code equal, but
+  the deployed metadata-looking bytes hold a JUMPDEST followed by an
+  effectful opcode and the code has computed jumps, so entry cannot be ruled
+  out because the call analysis did not resolve every path. A block the
+  analysis executes is compared as code.
+- Fixture: `tests/fixtures/match/` (a small forge build and a one-line variant).
 ### `contract calls`, inferred facts, twins
 
 ```bash

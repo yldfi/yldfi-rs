@@ -525,6 +525,66 @@ impl EthcliMcpServer {
     }
 
     #[tool(
+        description = "Decompile an unverified contract with optional external decompilers: evmdec (default) or heimdall, or backend all for every installed one (if none is installed, returns install steps, ethcli's own facts and a Dedaub link). ethcli fetches the code itself (following real proxies) and runs each offline with no environment, no config and a timeout. Each result is under decompilers[]. Read cross_check first: warnings where the decompiled text misses sensitive opcodes (tx.origin, delegatecall, selfdestruct, storage writes), evmole vs evmdec type disagreements, and 'not found by evmdec' items, which are not facts. Everything under heuristic is a guess, not source",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_decompile(
+        &self,
+        Parameters(input): Parameters<ContractDecompileInput>,
+    ) -> CallToolResult {
+        tools::contract_decompile(
+            &input.address,
+            Some(&input.chain),
+            input.block.as_deref(),
+            input.no_follow_proxy,
+            input.timeout,
+            input.backend.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Compiler fingerprint of deployed code: compiler and version and metadata hash type from the CBOR metadata, embedded metadata of created contracts, minimum EVM version from opcodes (PUSH0, MCOPY, TLOAD), a legacy vs via-IR guess, and an upper bound on address-shaped immutables. First step before rebuilding source for an unverified contract",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_fingerprint(
+        &self,
+        Parameters(input): Parameters<ContractFingerprintInput>,
+    ) -> CallToolResult {
+        tools::contract_fingerprint(
+            &input.address,
+            Some(&input.chain),
+            input.block.as_deref(),
+            input.no_follow_proxy,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Compare a local compiled artifact (forge out/<File>.sol/<Name>.json, ideally built with --ast, or solc standard-JSON output) with deployed code. Masks immutables and library addresses (reports their values), compares metadata separately. Verdict exact, partial (equal ignoring metadata: NOT verified, never report it as verified), partial_unverified_metadata (as partial, but the deployed metadata bytes could hide reachable code: never report it as a clean partial) or mismatch with the first differing offset, the function it falls in and a per-function equal/different table. Optional creation_tx compares creation code and returns constructor arguments",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_match(
+        &self,
+        Parameters(input): Parameters<ContractMatchInput>,
+    ) -> CallToolResult {
+        tools::contract_match(
+            &input.address,
+            &input.artifact,
+            input.contract.as_deref(),
+            input.creation_tx.as_deref(),
+            input.build_info.as_deref(),
+            Some(&input.chain),
+            input.block.as_deref(),
+            input.no_follow_proxy,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
         description = "Disassemble contract bytecode into EVM opcodes. Shows offset, opcode name, and operands.",
         annotations(read_only_hint = true, open_world_hint = true)
     )]

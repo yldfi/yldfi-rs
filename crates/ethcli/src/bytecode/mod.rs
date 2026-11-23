@@ -28,6 +28,8 @@ pub mod calls;
 mod checks;
 mod disassemble;
 pub mod inference;
+pub mod matcher;
+pub mod metadata;
 mod proxy;
 mod security;
 mod selectors;

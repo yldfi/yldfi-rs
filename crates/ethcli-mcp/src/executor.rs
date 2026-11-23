@@ -44,6 +44,12 @@ const ACCOUNT_APPROVALS_TIMEOUT: Duration = Duration::from_secs(180);
 /// and with `--all` a search per change
 const FIND_CHANGE_TIMEOUT: Duration = Duration::from_secs(180);
 
+/// Timeout for `contract decompile`: the CLI kills evmdec after its own
+/// --timeout (60 s by default, at most 100 s through MCP) per backend, and
+/// `--backend all` runs two, so this leaves room for both plus fetching the
+/// code before and printing after
+const CONTRACT_DECOMPILE_TIMEOUT: Duration = Duration::from_secs(250);
+
 /// How long a call waits for one of the MAX_CONCURRENT_SUBPROCESSES slots
 /// before it is refused as rate limited
 const SLOT_WAIT: Duration = Duration::from_secs(30);
@@ -1177,6 +1183,9 @@ fn get_timeout(args: &[&str]) -> Duration {
     if command == "account" && sub == "approvals" {
         return ACCOUNT_APPROVALS_TIMEOUT;
     }
+    if command == "contract" && sub == "decompile" {
+        return CONTRACT_DECOMPILE_TIMEOUT;
+    }
     // The Sourcify similarity job is polled for up to 60 s
     if command == "contract" && sub == "twins" && has_flag(args, "--submit-similarity") {
         return SIMILARITY_SUBMIT_TIMEOUT;
@@ -2232,6 +2241,18 @@ mod tests {
     // -------------------------------------------------------------------------
     // get_timeout tests
     // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_get_timeout_contract_decompile() {
+        assert_eq!(
+            get_timeout(&["contract", "decompile", "0xabc", "--timeout", "100"]),
+            CONTRACT_DECOMPILE_TIMEOUT
+        );
+        assert_eq!(
+            get_timeout(&["contract", "match", "0xabc"]),
+            DEFAULT_TIMEOUT
+        );
+    }
 
     #[test]
     fn test_get_timeout_fast_commands() {

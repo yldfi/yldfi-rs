@@ -308,6 +308,72 @@ ethcli contract az 0x... --include-disassembly
 # map dispatcher entries, and scan side-effecting handlers for missing auth/hash checks
 ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 
+# Compiler fingerprint: solc/vyper version and metadata hash from the CBOR
+# metadata, minimum EVM version (PUSH0, MCOPY, TLOAD), legacy/via-IR guess
+ethcli contract fingerprint 0x...
+
+# Decompile with the optional external evmdec (or heimdall, or all
+# installed backends), cross-checked against ethcli's own facts first
+ethcli contract decompile 0x... --timeout 60
+ethcli contract decompile 0x... --backend all
+
+# Compare a compiled artifact with the deployed code
+ethcli contract match 0x... --artifact out/Router.sol/Router.json
+ethcli contract match 0x... --artifact build-output.json --contract Router --creation-tx 0x...
+```
+
+#### Decompiling (`contract decompile`)
+
+The backend is [evmdec](https://github.com/rink3y/Evmdec), which is optional
+and not bundled. Build it from source at a pinned commit (the one this
+release was checked against is `5d8b52c1bcdfe40abd5c7c63e75b22e51e5916f9`) and
+put `evmdec` on `PATH` or set `EVMDEC_PATH`. ethcli fetches the runtime code
+itself (following proxies like `contract inspect`, and saying which
+implementation it decompiled), writes it to a temporary file and runs only
+`evmdec decompile <file> --json`: no address, no RPC, no online signature
+lookup and never its `audit` mode, with an empty environment and a hard
+timeout. The version and the binary's sha256 are recorded (evmdec cannot
+report its commit).
+
+The output starts with a cross-check: code-block coverage, sensitive opcodes
+(ORIGIN, CALLER, DELEGATECALL, SELFDESTRUCT, CREATE/CREATE2, SSTORE) whose
+use the decompiled text does not show, argument types where evmole and evmdec
+disagree, and any "0 writes" claim, reported as "not found by evmdec". The
+pseudo-Solidity follows and is heuristic. Known evmdec defects seen in
+testing: a `tx.origin` guard dropped from a hand-written MEV bot, "0 writes"
+reported for Uniswap V3's `tickBitmap`, `calldata[block.chainid]` artefacts,
+and `address[]` shown as `uint256[]`. heimdall is not supported. Without
+evmdec the command prints install steps, ethcli's facts and a
+[Dedaub](https://app.dedaub.com) link (Dedaub needs sign-in).
+
+heimdall ([heimdall-rs](https://github.com/Jon-Becker/heimdall-rs)) is a
+second optional backend: `--backend heimdall`, or `--backend all` to run every
+installed backend and cross-check each. ethcli never installs, downloads or
+builds it; it is found through `HEIMDALL_PATH` or `PATH`. ethcli runs only
+`heimdall decompile <runtime bytecode> --include-sol --skip-resolving
+--default --output <temp dir>`: never an address, RPC URL, LLM option or
+explorer key. Its config file is not read (HOME is an empty temporary
+directory) and all HTTP goes to a dead local proxy, which stops its
+release check; the same empty environment and hard timeout apply.
+heimdall tends to show guard conditions (`tx.origin`, callback
+`msg.sender` checks) and revert strings well; its parameter types and
+counts are weak, storage names are guessed, some conditions come out
+garbled, and it can hang or run out of memory on some contracts (hence the
+timeout).
+
+#### Matching an artifact (`contract match`)
+
+Takes a forge artifact or solc standard-JSON output; no compiler is
+embedded. Verdicts: `exact` (identical, metadata included), `partial`
+(identical once metadata is ignored, as Sourcify calls it; this is not a
+verification), `partial_unverified_metadata` (as `partial`, but the deployed
+metadata-looking bytes hold a JUMPDEST followed by effectful opcodes, so
+hidden reachable code is not ruled out; never report it as a clean partial)
+or `mismatch`, with the first differing offset, both byte
+sequences, the function it falls in and a per-function equal/different
+table. Build with `forge build --ast` so functions are mapped from the source
+map and the inline-assembly share is reported. The rebuild procedure for
+agents is in `skills/bytecode-to-source/SKILL.md`.
 # Call sites and access control from bytecode (inferred): where every
 # CALL/DELEGATECALL/STATICCALL/CREATE target, selector and value comes from,
 # ORIGIN/CALLER uses and guards per function, with coverage

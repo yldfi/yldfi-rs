@@ -307,6 +307,15 @@ Equivalent CLI:
 ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks --format json
 ```
 
+`contract_fingerprint` reads compiler facts from runtime code, `contract_decompile`
+runs the optional external evmdec or heimdall decompiler (`backend`: evmdec, heimdall or all) (cross-check first, output labelled
+heuristic; returns install steps and ethcli's facts when evmdec is missing) and
+`contract_match` compares a local forge or solc artifact with deployed code
+(`exact`, `partial` = equal ignoring metadata and not a verification, or
+`partial_unverified_metadata` when the deployed metadata bytes could hide reachable code, or
+`mismatch` localised to a function). All three are read-only. `contract_match` reads only `.json` files (up to 50 MB) under `ETHCLI_MCP_ARTIFACT_ROOT`. The server must be started with that variable set to a project or artifacts directory; without it, or set to `/` or the home directory, `contract_match` refuses. See
+`skills/bytecode-to-source/SKILL.md` for the rebuild procedure.
+
 For endpoint diagnostics, `endpoints_health` returns JSON and defaults to `probes: 1` so MCP calls stay bounded. Increase `probes` when you need a deeper endpoint check.
 
 ## Architecture
