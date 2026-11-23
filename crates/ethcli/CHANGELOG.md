@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.12](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.11...ethcli-v0.30.12) (2026-11-23)
+
+
+### Bug Fixes
+
+* **ethcli:** do not name data bytes after a halt as dropped guards ([#318](https://github.com/yldfi/yldfi-rs/issues/318)) ([d1ccd0e](https://github.com/yldfi/yldfi-rs/commit/d1ccd0e2aee43146e28a0b3036a78fb007c16395))
+
 ## [0.30.11](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.10...ethcli-v0.30.11) (2026-11-23)
 
 
