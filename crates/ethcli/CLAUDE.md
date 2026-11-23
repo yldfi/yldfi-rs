@@ -585,10 +585,13 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   symbolic floor. A write drops same-base entries it fully covers and any
   other entry it may overlap; a read takes the newest entry that may
   overlap it, and is a value only when that entry has the same base and
-  covers the bytes. One assumption: a write exactly at the end of a copy
-  of symbolic length L (`calldatacopy(p, o, L); mstore(p + L, x)`) does
+  covers the bytes. One assumption: a write at the end of a copy
+  of symbolic length L (`p + L`, or `p + round32(L)`, plus anything) does
   not reach back into bytes read from inside that copy (it would only if
-  L were smaller than the read offset). Values are capped at depth 8 and 64
+  L were smaller than the read offset). An ADD chain counts as one depth
+  level (the free memory pointer grows by such sums after every call).
+  Precompile calls (0x01-0x11, 0x100) and hash-valued first words report no
+  selector. Values are capped at depth 8 and 64
   nodes (cached per node, so checks are O(1)); larger values are
   unresolved. Functions come from
   `selector == PUSH4` branches, evmole entry offsets, or a byte-bounded

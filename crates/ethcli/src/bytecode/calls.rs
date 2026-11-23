@@ -155,7 +155,60 @@ fn hash(words: Vec<V>) -> V {
     args(words).map_or(V::Unknown, V::Hash)
 }
 fn op(code: u8, a: Vec<V>) -> V {
+    if code == 0x01 {
+        // An ADD chain is one flat sum, so it counts as one level: Solidity
+        // bumps the free memory pointer by `round(returndatasize)` after
+        // every call, and a nested chain would otherwise hit the depth cap
+        // after a few calls. The node cap still bounds its size.
+        let depth = a
+            .iter()
+            .map(|x| match x {
+                V::Op(0x01, _) => x.depth(),
+                _ => x.depth() + 1,
+            })
+            .max()
+            .unwrap_or(1)
+            .max(1);
+        let nodes = 1 + a.iter().map(V::nodes).sum::<usize>();
+        return if depth <= MAX_DEPTH && nodes <= MAX_NODES {
+            V::Op(
+                code,
+                Args {
+                    v: a,
+                    depth: depth as u8,
+                    nodes: nodes as u8,
+                },
+            )
+        } else {
+            V::Unknown
+        };
+    }
     args(a).map_or(V::Unknown, |a| V::Op(code, a))
+}
+
+/// `t >= l` for every value: `t` is `l`, or `l` rounded up to 32 bytes
+/// (`and(add(l, 31), not(31))` or `mul(div(add(l, 31), 32), 32)`)
+fn at_least(t: &V, l: &V) -> bool {
+    if t == l {
+        return true;
+    }
+    let c = |v: &V, n: u64| v.as_const() == Some(U256::from(n));
+    let plus31 = |v: &V| {
+        matches!(v, V::Op(0x01, a) if a.len() == 2
+            && ((c(&a[0], 31) && a[1] == *l) || (c(&a[1], 31) && a[0] == *l)))
+    };
+    match t {
+        V::Op(0x16, a) if a.len() == 2 => {
+            let m = !U256::from(31u8);
+            (a[0].as_const() == Some(m) && plus31(&a[1]))
+                || (a[1].as_const() == Some(m) && plus31(&a[0]))
+        }
+        V::Op(0x02, a) if a.len() == 2 => {
+            let d = |v: &V| matches!(v, V::Op(0x04, b) if b.len() == 2 && plus31(&b[0]) && c(&b[1], 32));
+            (c(&a[0], 32) && d(&a[1])) || (c(&a[1], 32) && d(&a[0]))
+        }
+        _ => false,
+    }
 }
 
 impl V {
@@ -744,7 +797,7 @@ fn may_overlap(a: &Addr, alen: Option<u64>, e: &MemWrite) -> bool {
         if e.len.is_none() {
             // Starts exactly at (or past) the end of a copy of length L
             if let Some(l) = &e.len_v {
-                if extra.len() == 1 && extra[0] == l && a.k >= e.at.k {
+                if extra.iter().any(|x| at_least(x, l)) && a.k >= e.at.k {
                     return false;
                 }
             }
@@ -861,7 +914,10 @@ impl Memory {
             }
             if let Some(c) = cover {
                 let at_end = extra_terms(&c.at.terms, &e.at.terms).is_some_and(|extra| {
-                    extra.len() == 1 && Some(extra[0]) == c.len_v.as_ref() && e.at.k >= c.at.k
+                    extra
+                        .iter()
+                        .any(|x| c.len_v.as_ref().is_some_and(|l| at_least(x, l)))
+                        && e.at.k >= c.at.k
                 });
                 if at_end {
                     continue;
@@ -1980,8 +2036,17 @@ impl<'a> Interp<'a> {
             );
             return;
         }
+        // A precompile (0x01-0x11, 0x100) takes raw input, not a selector
+        let precompile = target.and_then(|t| strip(t).as_const()).is_some_and(|a| {
+            (U256::from(1u8)..=U256::from(0x11u8)).contains(&a) || a == U256::from(0x100u16)
+        });
         let word = s.mem.read_prefix(self.code, args_off, 4);
         let sel = match strip(&word) {
+            _ if precompile => {
+                Provenance::kind("unresolved").with_note("precompile: raw input, no selector")
+            }
+            // A hash is not a selector, whatever its top bytes
+            V::Hash(_) => Provenance::kind("unresolved").with_note("first word is a hash"),
             V::Const(c, _) if (*c >> 224usize) << 224usize == *c || c.bit_len() > 224 => {
                 let mut p = Provenance::kind("constant");
                 p.value = Some(format!("0x{:08x}", (*c >> 224usize).to::<u32>()));
