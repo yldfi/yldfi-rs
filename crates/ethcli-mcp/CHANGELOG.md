@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.10](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.9...ethcli-mcp-v0.6.10) (2026-11-23)
+
+
+### Features
+
+* **ethcli:** --fields projection and JSON error objects (CLI and MCP) ([#304](https://github.com/yldfi/yldfi-rs/issues/304)) ([557ee4b](https://github.com/yldfi/yldfi-rs/commit/557ee4bc9a8ce9fe904fa65351cafef465bba8d8))
+* **ethcli:** account approvals with amount at risk ([#307](https://github.com/yldfi/yldfi-rs/issues/307)) ([4f5a82c](https://github.com/yldfi/yldfi-rs/commit/4f5a82c63ac38b9734cacb9bbd1599b4ef95dbe5))
+* **ethcli:** contract storage reads variables by name from the storage layout ([#303](https://github.com/yldfi/yldfi-rs/issues/303)) ([324aa3c](https://github.com/yldfi/yldfi-rs/commit/324aa3c65e4a0f181dbcafe6f4c46d3685610601))
+* **ethcli:** L2 fees split into execution and L1 data fee ([#306](https://github.com/yldfi/yldfi-rs/issues/306)) ([c0c39c8](https://github.com/yldfi/yldfi-rs/commit/c0c39c8e3452ab98c65702b72cbafb75a5f83bcc))
+* **ethcli:** on-chain Uniswap LP position valuation (v2, v3, v4) ([#309](https://github.com/yldfi/yldfi-rs/issues/309)) ([6f4337c](https://github.com/yldfi/yldfi-rs/commit/6f4337cb256b5e5bc439fe3585c02711cf8e1ce2))
+* **ethcli:** read-only safe info, queue, tx and history ([#302](https://github.com/yldfi/yldfi-rs/issues/302)) ([f08a123](https://github.com/yldfi/yldfi-rs/commit/f08a123f7eb312d12459ea0b796f777817b6f7d2))
+* **ethcli:** rpc find-change, the block where a value changed ([#305](https://github.com/yldfi/yldfi-rs/issues/305)) ([c2f25f3](https://github.com/yldfi/yldfi-rs/commit/c2f25f362b10d9b272c185d26db3a93179b3434d))
+* Moralis active-chains filter and lighter dev builds ([#308](https://github.com/yldfi/yldfi-rs/issues/308)) ([96c31b2](https://github.com/yldfi/yldfi-rs/commit/96c31b21bbcdaf754a6410417b14596a7197d962))
+
 ## [0.6.9](https://github.com/yldfi/yldfi-rs/compare/ethcli-mcp-v0.6.8...ethcli-mcp-v0.6.9) (2026-11-23)
 
 
