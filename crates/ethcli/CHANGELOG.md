@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.30.8](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.7...ethcli-v0.30.8) (2026-11-23)
+
+
+### Features
+
+* **ethcli:** contract source --list, --function, --grep and --file ([#297](https://github.com/yldfi/yldfi-rs/issues/297)) ([3a2e6b7](https://github.com/yldfi/yldfi-rs/commit/3a2e6b7d1dd3c7cf595a6942bde1ed3e85e53e98))
+* **ethcli:** fall back to Sourcify and Blockscout for ABI and source ([#298](https://github.com/yldfi/yldfi-rs/issues/298)) ([d9607ce](https://github.com/yldfi/yldfi-rs/commit/d9607ce8973466b873949c7d2cdc0c7e83b14d66))
+* **ethcli:** price --at for historical prices ([#299](https://github.com/yldfi/yldfi-rs/issues/299)) ([edcc67c](https://github.com/yldfi/yldfi-rs/commit/edcc67cce5574c1acff498d73c71d32a9a0acc09))
+
 ## [0.30.7](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.6...ethcli-v0.30.7) (2026-11-18)
 
 
