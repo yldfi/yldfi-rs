@@ -41,6 +41,7 @@ ethcli contract   # Contract operations (ABI, source, creation, bytecode analysi
 ethcli token      # Token operations (info, holders, balance)
 ethcli gas        # Gas price oracle and estimates
 ethcli sig        # Signature lookup (function selectors, event topics)
+ethcli safe       # Safe multisig: info (on chain), queue, tx, history (read-only)
 ethcli simulate   # Transaction simulation and tracing
 ethcli cast       # Type conversions, hashing, encoding
 ethcli rpc        # Direct RPC calls
@@ -267,6 +268,51 @@ ethcli contract inspect <addr> --json
 
 It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 `contract creation` and `token info`.
+
+### `safe`
+
+```bash
+ethcli safe info <safe>                 # owners, threshold, nonce, version, modules, guard, fallback handler (on chain)
+ethcli safe queue <safe>                # pending txs (nonce >= on-chain nonce): who signed, who has not
+ethcli safe tx <safeTxHash>             # one tx, calldata decoded, MultiSend batches unpacked
+ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset to page)
+```
+
+- Read-only: nothing is proposed, signed or executed.
+- `info` is one Multicall3 request (`getOwners`, `getThreshold`, `nonce`,
+  `VERSION`, `getModulesPaginated`) plus storage reads of the guard, fallback
+  handler and singleton slots, pinned to one block. Works on any chain.
+- `queue`, `tx` and `history` use the Safe Transaction Service
+  (`api.safe.global/tx-service/<short name>`; chain IDs map to its short names
+  in `service_chain_name`). It works without a key; `SAFE_API_KEY` (Bearer)
+  raises the rate limit, `SAFE_TX_SERVICE_URL` overrides the base URL.
+- `queue` lists nonce >= the on-chain nonce, compares confirmations with the
+  on-chain threshold and owners, and flags several proposals at one nonce.
+- Only distinct confirmations from current on-chain owners count toward
+  `confirmations` and `ready`; others are listed as `stale_signers`.
+- `multiSend(bytes)` is unpacked only when `to` is a known Safe MultiSend /
+  MultiSendCallOnly deployment (1.1.1-1.5.0, canonical/eip155/zksync). A
+  DELEGATECALL to anything that is not a known Safe library sets
+  `delegatecall_warning` and prints a WARNING line.
+- Batches DELEGATECALLed from inside a batch are unpacked recursively (up
+  to 4 levels) and every level is checked; findings, including a batch that
+  cannot be unpacked or is nested too deep, are in `call.batch_warnings`
+  (also in `queue` and `history`). A CALL (not DELEGATECALL) to a MultiSend
+  is warned about and not unpacked; undecodable multiSend calldata is warned.
+- Every service record is checked: the returned `safeTxHash` and `safe` must
+  match the request, and the EIP-712 safeTxHash is recomputed from the fields
+  (chainId domain, or the pre-1.3.0 domain); mismatches go in `warnings`.
+- `refund` shows safeTxGas, baseGas, gasPrice, gasToken and refundReceiver;
+  a non-zero gasPrice or a set refundReceiver adds a refund warning.
+- `ready` is true only at the current on-chain nonce with enough owner
+  signatures; `signatures_complete` is the signature check alone.
+- `info` reports owners, nonce or modules as unknown (JSON `null`) when the
+  read fails, falls back to `getModules()` for Safe 1.0.0, and sets
+  `modules_truncated` when more than 100 modules are enabled.
+- Calls are decoded from the verified ABI, else the signature database
+  (`source: signature_database`, a guess). `multiSend(bytes)` payloads
+  (`operation(1) to(20) value(32) length(32) data`) are unpacked and each
+  inner call decoded in `safe tx`; lists show the inner call count only.
 
 ### `contract storage`
 

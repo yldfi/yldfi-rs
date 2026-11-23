@@ -59,6 +59,17 @@ ethcli contract creation <addr>     # Creation tx & deployer
 ethcli contract verify-status <addr> # Verification status
 ```
 
+### Safe (read-only)
+```bash
+ethcli safe info <safe>                 # owners, threshold, nonce, version, modules, guard, fallback handler (on chain)
+ethcli safe queue <safe>                # pending txs (nonce >= on-chain nonce): who signed, who has not
+ethcli safe tx <safeTxHash>             # one tx, calldata decoded, MultiSend batches unpacked
+ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset to page)
+```
+`info` is on chain (any chain); the others use the Safe Transaction Service
+(no key needed; `SAFE_API_KEY` raises the rate limit). `safeTxHash` is the
+Safe's EIP-712 hash, not the chain transaction hash.
+
 ### Bytecode Analysis
 ```bash
 ethcli contract selectors <addr>    # Extract function selectors (evmole)

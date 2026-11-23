@@ -924,6 +924,65 @@ pub async fn sig_error(data: &str) -> Result<String, ToolError> {
         .map_err(ToolError::from)
 }
 
+pub async fn safe_info(safe: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("safe")
+        .subcommand("info")
+        .arg(safe)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn safe_queue(
+    safe: &str,
+    chain: Option<&str>,
+    limit: Option<u32>,
+) -> Result<String, ToolError> {
+    let limit = limit.map(|l| l.to_string());
+    ArgsBuilder::new("safe")
+        .subcommand("queue")
+        .arg(safe)
+        .chain(chain)
+        .opt("--limit", limit.as_deref())
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn safe_tx(safe_tx_hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
+    ArgsBuilder::new("safe")
+        .subcommand("tx")
+        .arg(safe_tx_hash)
+        .chain(chain)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn safe_history(
+    safe: &str,
+    chain: Option<&str>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<String, ToolError> {
+    let limit = limit.map(|l| l.to_string());
+    let offset = offset.map(|o| o.to_string());
+    ArgsBuilder::new("safe")
+        .subcommand("history")
+        .arg(safe)
+        .chain(chain)
+        .opt("--limit", limit.as_deref())
+        .opt("--offset", offset.as_deref())
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn sig_event(topic: &str) -> Result<String, ToolError> {
     ArgsBuilder::new("sig")
         .subcommand("event")

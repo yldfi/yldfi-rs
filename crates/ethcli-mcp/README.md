@@ -186,6 +186,10 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `rpc_find_change` | The block where a call result, balance, storage slot, code or nonce changed (binary search) |
 | `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
 | `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
+| `safe_info` | Safe owners, threshold, nonce, version, modules, guard and fallback handler, read on chain |
+| `safe_queue` | Pending Safe transactions with who has and has not signed |
+| `safe_tx` | One Safe transaction, decoded, with MultiSend batches unpacked |
+| `safe_history` | Executed Safe transactions, paged |
 | `cast_index` | The storage slot of a mapping entry |
 
 The `block` input of `rpc_balance`, `rpc_multicall` and `contract_call` also
@@ -203,7 +207,7 @@ takes a comma-separated list:
 
 | Entry | Offers |
 |-------|--------|
-| `core` | About 20 tools that answer most questions in one call: `contract_inspect`, `contract_call`, `tx_analyze`, `rpc_multicall`, `rpc_call`, `rpc_balance`, `rpc_block_at`, `logs`, `token_info`, `account_txs`, `simulate_call`, `price`, `quote_best`, `sig_error` and a few more |
+| `core` | About 20 tools that answer most questions in one call: `contract_inspect`, `contract_call`, `tx_analyze`, `rpc_multicall`, `rpc_call`, `rpc_balance`, `rpc_block_at`, `logs`, `token_info`, `account_txs`, `simulate_call`, `price`, `quote_best`, `sig_error`, `safe_info`, `safe_queue`, `safe_tx` and a few more |
 | a group (`curve`, `tenderly`, `rpc`, `account`, ...) | Every tool whose name starts with that group |
 | a tool name (`uniswap_pool`) | That tool |
 | `all`, or unset | Every tool |

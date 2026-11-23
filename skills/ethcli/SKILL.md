@@ -25,6 +25,7 @@ ethcli does not sign or send transactions.
 | Block for a time | `ethcli rpc block-at <time> --json` | `rpc_block_at` |
 | When did a value change? | `ethcli rpc find-change "<addr> <sig>(<returns>) [args]" --from <block\|time> --json` (or `--balance`, `--storage <addr> <slot>`, `--code`, `--nonce`). Finds *a* change; add `--all` when the first change matters (`single_change_assumed`, `warning` in JSON) | `rpc_find_change` (`all: true`) |
 | Why did a call revert? | read the error, or `ethcli sig error <data>` | `sig_error` |
+| Safe owners, queue, a Safe tx | `ethcli safe info\|queue <safe> --json`, `ethcli safe tx <safeTxHash> --json` | `safe_info`, `safe_queue`, `safe_tx` |
 | Whole address history | `ethcli account txs <addr> --all --json` | `account_txs` with `all: true` |
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |

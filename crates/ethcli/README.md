@@ -442,6 +442,25 @@ ethcli sig error 0x08c379a0...       # decode revert data (Error, Panic or a cus
 ethcli sig event 0xddf252ad...
 ```
 
+### Safe - Multisig Info, Queue and Transactions (read-only)
+
+```bash
+ethcli safe info <safe>                 # owners, threshold, nonce, version, modules, guard, fallback handler (on chain)
+ethcli safe queue <safe>                # pending txs (nonce >= on-chain nonce): who signed, who has not
+ethcli safe tx <safeTxHash>             # one tx, calldata decoded, MultiSend batches unpacked
+ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset to page)
+ethcli safe queue <safe> --chain arbitrum --json
+```
+
+`info` reads the Safe on chain (one Multicall3 request plus storage reads for
+the guard, fallback handler and singleton), so it works on any chain. `queue`,
+`tx` and `history` use the public Safe Transaction Service
+(`https://api.safe.global/tx-service/<chain>`), which works without a key;
+set `SAFE_API_KEY` for a higher rate limit, or `SAFE_TX_SERVICE_URL` to point
+at another deployment. Calls are decoded from the target's verified ABI, or
+from the signature database (marked with `?` / `"source": "signature_database"`,
+a guess). Nothing is proposed, signed or executed.
+
 ### Address Book
 
 ```bash
