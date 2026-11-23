@@ -687,6 +687,70 @@ pub async fn contract_inspect(address: &str, chain: Option<&str>) -> Result<Stri
         .map_err(ToolError::from)
 }
 
+pub async fn contract_decompile(
+    address: &str,
+    chain: Option<&str>,
+    block: Option<&str>,
+    no_follow_proxy: bool,
+    timeout: Option<u32>,
+) -> Result<String, ToolError> {
+    let timeout = timeout.map(|t| t.clamp(1, 100).to_string());
+    ArgsBuilder::new("contract")
+        .subcommand("decompile")
+        .arg(address)
+        .chain(chain)
+        .opt("--block", block)
+        .opt_flag("--no-follow-proxy", no_follow_proxy)
+        .opt("--timeout", timeout.as_deref())
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+pub async fn contract_fingerprint(
+    address: &str,
+    chain: Option<&str>,
+    block: Option<&str>,
+    no_follow_proxy: bool,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("contract")
+        .subcommand("fingerprint")
+        .arg(address)
+        .chain(chain)
+        .opt("--block", block)
+        .opt_flag("--no-follow-proxy", no_follow_proxy)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn contract_match(
+    address: &str,
+    artifact: &str,
+    contract: Option<&str>,
+    creation_tx: Option<&str>,
+    chain: Option<&str>,
+    block: Option<&str>,
+    no_follow_proxy: bool,
+) -> Result<String, ToolError> {
+    ArgsBuilder::new("contract")
+        .subcommand("match")
+        .arg(address)
+        .opt("--artifact", Some(artifact))
+        .opt("--contract", contract)
+        .opt("--creation-tx", creation_tx)
+        .chain(chain)
+        .opt("--block", block)
+        .opt_flag("--no-follow-proxy", no_follow_proxy)
+        .format_json()
+        .execute()
+        .await
+        .map_err(ToolError::from)
+}
+
 pub async fn contract_creation(address: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("contract")
         .subcommand("creation")

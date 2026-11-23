@@ -307,7 +307,54 @@ ethcli contract az 0x... --include-disassembly
 # Unverified/proxy contract review: follow implementation, resolve selectors,
 # map dispatcher entries, and scan side-effecting handlers for missing auth/hash checks
 ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
+
+# Compiler fingerprint: solc/vyper version and metadata hash from the CBOR
+# metadata, minimum EVM version (PUSH0, MCOPY, TLOAD), legacy/via-IR guess
+ethcli contract fingerprint 0x...
+
+# Decompile with the optional external evmdec, cross-checked against
+# ethcli's own facts first (see "Decompiling" below)
+ethcli contract decompile 0x... --timeout 60
+
+# Compare a compiled artifact with the deployed code
+ethcli contract match 0x... --artifact out/Router.sol/Router.json
+ethcli contract match 0x... --artifact build-output.json --contract Router --creation-tx 0x...
 ```
+
+#### Decompiling (`contract decompile`)
+
+The backend is [evmdec](https://github.com/rink3y/Evmdec), which is optional
+and not bundled. Build it from source at a pinned commit (the one this
+release was checked against is `5d8b52c1bcdfe40abd5c7c63e75b22e51e5916f9`) and
+put `evmdec` on `PATH` or set `EVMDEC_PATH`. ethcli fetches the runtime code
+itself (following proxies like `contract inspect`, and saying which
+implementation it decompiled), writes it to a temporary file and runs only
+`evmdec decompile <file> --json`: no address, no RPC, no online signature
+lookup and never its `audit` mode, with an empty environment and a hard
+timeout. The version and the binary's sha256 are recorded (evmdec cannot
+report its commit).
+
+The output starts with a cross-check: code-block coverage, sensitive opcodes
+(ORIGIN, CALLER, DELEGATECALL, SELFDESTRUCT, CREATE/CREATE2, SSTORE) whose
+use the decompiled text does not show, argument types where evmole and evmdec
+disagree, and any "0 writes" claim, reported as "not found by evmdec". The
+pseudo-Solidity follows and is heuristic. Known evmdec defects seen in
+testing: a `tx.origin` guard dropped from a hand-written MEV bot, "0 writes"
+reported for Uniswap V3's `tickBitmap`, `calldata[block.chainid]` artefacts,
+and `address[]` shown as `uint256[]`. heimdall is not supported. Without
+evmdec the command prints install steps, ethcli's facts and a
+[Dedaub](https://app.dedaub.com) link (Dedaub needs sign-in).
+
+#### Matching an artifact (`contract match`)
+
+Takes a forge artifact or solc standard-JSON output; no compiler is
+embedded. Verdicts: `exact` (identical, metadata included), `partial`
+(identical once metadata is ignored, as Sourcify calls it; this is not a
+verification) or `mismatch`, with the first differing offset, both byte
+sequences, the function it falls in and a per-function equal/different
+table. Build with `forge build --ast` so functions are mapped from the source
+map and the inline-assembly share is reported. The rebuild procedure for
+agents is in `skills/bytecode-to-source/SKILL.md`.
 
 ### Cast - Type Conversions and Hashing
 

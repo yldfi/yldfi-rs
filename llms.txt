@@ -5,6 +5,7 @@
 ## Start here
 
 - [Agent skill](skills/ethcli/SKILL.md): which ethcli command to use for each question, and which output fields to check before reporting a result
+- [Bytecode to source skill](skills/bytecode-to-source/SKILL.md): rebuilding Solidity for an unverified contract with contract fingerprint, decompile and match
 - [LLM reference](crates/ethcli/LLMREF.md): compact command reference
 - [Crate reference](crates/ethcli/CLAUDE.md): every command family in detail
 - [ethcli README](crates/ethcli/README.md): installation and examples

@@ -84,7 +84,25 @@ ethcli contract analyze <addr>      # Combined security analysis
 ethcli contract az <addr> --lookup  # With signature lookup
 ethcli contract analyze <addr> --follow-proxy --lookup --dispatcher --checks
                                       # Unverified/proxy review: handler map + guard heuristics
+ethcli contract fingerprint <addr>  # Compiler + version, metadata hash, min EVM version, pipeline guess
+ethcli contract decompile <addr>    # Optional evmdec, cross-checked first (see below)
+ethcli contract match <addr> --artifact out/X.sol/X.json [--contract X] [--creation-tx <hash>]
+                                     # exact / partial (ignoring metadata, NOT verified) / mismatch
 ```
+
+`contract decompile` needs the external `evmdec` (on PATH or `EVMDEC_PATH`);
+without it, it prints install steps, ethcli's own facts and a Dedaub link.
+ethcli fetches the code (following proxies, naming the implementation used),
+writes it to a temp file and runs only `evmdec decompile <file> --json` with
+an empty environment (PATH only) and `--timeout` (default 60 s, killed on
+expiry). Output: the cross-check first (coverage, sensitive opcodes the text
+does not show, evmole vs evmdec types, "not found by evmdec" items, which are
+not facts), then the pseudo-Solidity labelled heuristic. `contract match`
+masks immutables and library addresses (reporting their deployed values and
+whether every position agrees) and compares metadata separately; on a
+mismatch it gives the first differing offset, the function (source map + AST
+with `forge build --ast`, else dispatcher ranges) and a per-function table.
+Rebuild procedure: `skills/bytecode-to-source/SKILL.md`.
 
 ### ENS Resolution
 ```bash

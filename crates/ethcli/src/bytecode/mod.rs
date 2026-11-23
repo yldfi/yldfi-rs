@@ -26,6 +26,8 @@
 mod analyze;
 mod checks;
 mod disassemble;
+pub mod matcher;
+pub mod metadata;
 mod proxy;
 mod security;
 mod selectors;

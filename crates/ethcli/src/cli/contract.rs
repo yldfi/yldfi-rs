@@ -724,6 +724,47 @@ pub enum ContractCommands {
         format: OutputFormat,
     },
 
+    /// Decompile with the optional external evmdec, cross-checked first
+    ///
+    /// ethcli fetches the runtime code (following proxies like `contract
+    /// inspect`) and runs only `evmdec decompile <file> --json`, with an empty
+    /// environment and a hard timeout. Output starts with a cross-check against
+    /// ethcli's own facts (evmole selectors and types, sensitive opcode
+    /// positions); evmdec's pseudo-Solidity follows, labelled heuristic.
+    /// Without evmdec it prints install steps, ethcli's facts and a Dedaub link.
+    ///
+    /// Examples:
+    ///   ethcli contract decompile 0x6b75d8AF000000e20B7a7DDf000Ba900b4009A80
+    ///   ethcli contract decompile 0x... --timeout 120 --json
+    Decompile(super::decompile::DecompileArgs),
+
+    /// Compiler facts from runtime code: version, metadata hash, EVM version
+    ///
+    /// Reads the CBOR metadata (compiler and version, ipfs/bzzr hash), the
+    /// lowest EVM version the opcodes need (PUSH0, MCOPY, TLOAD, ...), a
+    /// legacy/via-IR guess from the code's shape, and an upper bound on
+    /// address-shaped immutables.
+    ///
+    /// Examples:
+    ///   ethcli contract fingerprint 0xdb5889e35e379ef0498aae126fc2cce1fbd23216
+    #[command(visible_alias = "fp")]
+    Fingerprint(super::decompile::FingerprintArgs),
+
+    /// Compare a compiled artifact with the deployed code
+    ///
+    /// Takes a forge artifact (out/<File>.sol/<Name>.json) or a solc
+    /// standard-JSON output. Immutables and library addresses are masked
+    /// (their deployed values reported), metadata is compared separately.
+    /// Verdict: exact, partial (equal ignoring metadata; NOT a verification)
+    /// or mismatch, with the first differing offset, the function it falls in
+    /// and a per-function table. Build with `forge build --ast` for
+    /// source-level function mapping and the inline-assembly share.
+    ///
+    /// Examples:
+    ///   ethcli contract match 0x... --artifact out/Router.sol/Router.json
+    ///   ethcli contract match 0x... --artifact out.json --contract Router --creation-tx 0x...
+    Match(super::decompile::MatchArgs),
+
     /// Comprehensive bytecode security analysis
     ///
     /// Combines function selector extraction, security pattern detection,
@@ -1269,6 +1310,16 @@ pub async fn handle(
             }
         }
 
+        ContractCommands::Decompile(args) => {
+            super::decompile::decompile(chain, args, quiet).await?;
+        }
+        ContractCommands::Fingerprint(args) => {
+            super::decompile::fingerprint_cmd(chain, args, quiet).await?;
+        }
+        ContractCommands::Match(args) => {
+            super::decompile::match_cmd(chain, args, quiet).await?;
+        }
+
         ContractCommands::Inspect {
             address,
             rpc_url,
@@ -1681,7 +1732,7 @@ pub async fn handle(
 
 /// Turn a `--block` given as a time (a date, @timestamp or age) into a block
 /// number; anything else is returned unchanged
-async fn resolve_block_arg(
+pub(crate) async fn resolve_block_arg(
     chain: Chain,
     rpc_url: Option<&str>,
     block: &str,
@@ -2249,7 +2300,7 @@ pub(crate) async fn storage_address<P: Provider>(
 }
 
 /// How a proxy's implementation was found
-async fn find_implementation<P: Provider>(
+pub(crate) async fn find_implementation<P: Provider>(
     provider: &P,
     address: Address,
     code: &[u8],

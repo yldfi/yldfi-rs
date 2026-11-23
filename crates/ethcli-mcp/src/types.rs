@@ -269,6 +269,56 @@ pub struct ContractAddressInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractDecompileInput {
+    /// Contract address (proxies are followed to their implementation)
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block to read the code at (number, tag or time); latest if omitted
+    pub block: Option<String>,
+    /// Decompile the address's own code even if it is a proxy
+    #[serde(default)]
+    pub no_follow_proxy: bool,
+    /// Seconds before evmdec is killed (1-100, default 60)
+    pub timeout: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractFingerprintInput {
+    /// Contract address (proxies are followed to their implementation)
+    pub address: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block to read the code at (number, tag or time); latest if omitted
+    pub block: Option<String>,
+    /// Use the address's own code even if it is a proxy
+    #[serde(default)]
+    pub no_follow_proxy: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractMatchInput {
+    /// Contract address (proxies are followed to their implementation)
+    pub address: String,
+    /// Local path of a forge artifact (out/<File>.sol/<Name>.json) or a solc standard-JSON output
+    pub artifact: String,
+    /// Contract name, needed when a standard-JSON output holds several
+    pub contract: Option<String>,
+    /// Deployment transaction hash: also compare creation code and return constructor arguments
+    pub creation_tx: Option<String>,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block to read the code at (number, tag or time); latest if omitted
+    pub block: Option<String>,
+    /// Use the address's own code even if it is a proxy
+    #[serde(default)]
+    pub no_follow_proxy: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ContractAbiInput {
     /// Contract address
     pub address: String,

@@ -564,6 +564,38 @@ ethcli contract analyze 0x... --follow-proxy --lookup --dispatcher --checks
 ethcli contract analyze 0x... --format json
 ```
 
+### Unverified contracts: fingerprint, decompile, match
+
+```bash
+ethcli contract fingerprint <addr>          # compiler, metadata hash, min EVM version, pipeline guess
+ethcli contract decompile <addr> [--timeout 60] [--block <b>] [--no-follow-proxy]
+ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [--creation-tx <hash>]
+```
+
+- Code lives in `src/cli/decompile.rs`, `src/bytecode/metadata.rs` (CBOR
+  metadata, sweep, fingerprint) and `src/bytecode/matcher.rs` (artifact
+  parsing, masking, diff).
+- `decompile` runs the external evmdec (PATH or `EVMDEC_PATH`) as
+  `evmdec decompile <tempfile> --json` only, with `env_clear()` plus a
+  minimal PATH, `kill_on_drop` and the `--timeout`. Never pass it an address,
+  `--rpc`, `--lookup`, or use `audit` (which downloads and runs a solc).
+  Cross-check first, then the heuristic text. Absence claims are worded "not
+  found by evmdec". Known evmdec defects: dropped `tx.origin` guard on a
+  hand-written MEV bot, "0 writes" on UniV3 `tickBitmap`,
+  `calldata[block.chainid]` artefacts, `address[]` shown as `uint256[]`.
+- Sensitive-opcode positions come from a linear sweep that skips bytes after a
+  halting opcode until the next JUMPDEST, and excludes metadata. Data inside
+  code can still be miscounted.
+- Metadata blocks are found anywhere in the code (nested contracts) and only
+  count when the CBOR decodes exactly up to its length field.
+- `match`: immutables and libraries are always masked and their deployed
+  values checked for consistency; metadata is compared separately. `partial`
+  must never be called verified (a test enforces the wording). Same-size
+  mismatches are compared per instruction; size changes are aligned by common
+  prefix/suffix with PUSH2/PUSH3 operands ignored. Function mapping uses the
+  source map + AST (`forge build --ast`), else approximate dispatcher ranges.
+- Fixture: `tests/fixtures/match/` (a small forge build and a one-line variant).
+
 ### Proxy Detection
 
 The analyze command automatically detects proxy contracts:

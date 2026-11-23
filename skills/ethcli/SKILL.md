@@ -126,6 +126,10 @@ single facts.
 
 ## More
 
+- Unverified contract, want source that compiles to it: follow
+  `skills/bytecode-to-source/SKILL.md` (`contract fingerprint`, optional
+  `contract decompile`, `contract match`).
+
 - `ethcli <command> --help` for every option, or `ethcli --help-json` for
   the command tree as JSON.
 - Full reference: `crates/ethcli/LLMREF.md` and `crates/ethcli/CLAUDE.md` in

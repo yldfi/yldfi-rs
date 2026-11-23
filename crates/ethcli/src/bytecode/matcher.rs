@@ -1,0 +1,1010 @@
+//! Compare a compiled artifact with deployed runtime code.
+//!
+//! The artifact is a forge `out/<File>.sol/<Name>.json` or a solc
+//! standard-JSON output. Immutable references and library link placeholders
+//! are masked (their deployed values are reported), compiler metadata is
+//! compared separately, and a mismatch is located down to a function.
+//!
+//! Verdicts follow Sourcify's terms: `exact` (identical, metadata included)
+//! and `partial` (identical once metadata is ignored). A partial match is not
+//! a verification: the metadata hash commits to the exact sources and
+//! settings, and those differ.
+
+use super::metadata::{find_metadata_blocks, linear_sweep, push_size, MetadataBlock};
+use serde::Serialize;
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::ops::Range;
+
+/// The parts of a compiled artifact `contract match` uses
+#[derive(Debug, Clone, Default)]
+pub struct Artifact {
+    /// `forge` or `solc-standard-json`
+    pub format: String,
+    pub contract_name: Option<String>,
+    pub source_path: Option<String>,
+    pub compiler_version: Option<String>,
+    pub runtime: Vec<u8>,
+    pub creation: Option<Vec<u8>>,
+    /// id -> byte ranges in the runtime
+    pub immutables: BTreeMap<String, Vec<Range<usize>>>,
+    /// library -> byte ranges in the runtime
+    pub libraries: BTreeMap<String, Vec<Range<usize>>>,
+    /// library -> byte ranges in the creation code
+    pub creation_libraries: BTreeMap<String, Vec<Range<usize>>>,
+    pub source_map: Option<String>,
+    /// AST nodes of the sources, with their source index when known
+    pub asts: Vec<(Option<u64>, Value)>,
+    /// selector (hex, no 0x) -> signature
+    pub methods: BTreeMap<String, String>,
+}
+
+fn link_ranges(refs: Option<&Value>) -> BTreeMap<String, Vec<Range<usize>>> {
+    let mut out: BTreeMap<String, Vec<Range<usize>>> = BTreeMap::new();
+    let Some(Value::Object(files)) = refs else {
+        return out;
+    };
+    for (file, libs) in files {
+        let Value::Object(libs) = libs else { continue };
+        for (lib, positions) in libs {
+            for p in positions.as_array().into_iter().flatten() {
+                let (Some(start), Some(len)) = (p["start"].as_u64(), p["length"].as_u64()) else {
+                    continue;
+                };
+                out.entry(format!("{file}:{lib}"))
+                    .or_default()
+                    .push(start as usize..(start + len) as usize);
+            }
+        }
+    }
+    out
+}
+
+fn immutable_ranges(refs: Option<&Value>) -> BTreeMap<String, Vec<Range<usize>>> {
+    let mut out: BTreeMap<String, Vec<Range<usize>>> = BTreeMap::new();
+    let Some(Value::Object(ids)) = refs else {
+        return out;
+    };
+    for (id, positions) in ids {
+        for p in positions.as_array().into_iter().flatten() {
+            let (Some(start), Some(len)) = (p["start"].as_u64(), p["length"].as_u64()) else {
+                continue;
+            };
+            out.entry(id.clone())
+                .or_default()
+                .push(start as usize..(start + len) as usize);
+        }
+    }
+    out
+}
+
+/// Decode bytecode hex, writing zeros over library placeholders first
+fn decode_object(
+    object: &str,
+    links: &BTreeMap<String, Vec<Range<usize>>>,
+) -> anyhow::Result<Vec<u8>> {
+    let mut hex_text: Vec<u8> = object.trim().trim_start_matches("0x").as_bytes().to_vec();
+    for range in links.values().flatten() {
+        let (a, b) = (range.start * 2, range.end * 2);
+        if b <= hex_text.len() {
+            hex_text[a..b].fill(b'0');
+        }
+    }
+    if let Some(pos) = hex_text.windows(2).position(|w| w == b"__") {
+        anyhow::bail!(
+            "bytecode has an unlinked library placeholder at hex offset {pos} that linkReferences does not list"
+        );
+    }
+    hex::decode(&hex_text).map_err(|e| anyhow::anyhow!("bytecode is not valid hex: {e}"))
+}
+
+fn bytecode_object(value: &Value) -> Option<&str> {
+    match value {
+        Value::String(s) => Some(s),
+        Value::Object(_) => value["object"].as_str(),
+        _ => None,
+    }
+}
+
+fn methods_from(value: Option<&Value>) -> BTreeMap<String, String> {
+    value
+        .and_then(Value::as_object)
+        .map(|m| {
+            m.iter()
+                .filter_map(|(sig, sel)| Some((sel.as_str()?.to_lowercase(), sig.clone())))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Read a forge artifact or a solc standard-JSON output
+pub fn parse_artifact(json: &Value, contract: Option<&str>) -> anyhow::Result<Artifact> {
+    // forge: deployedBytecode at the top level
+    if let Some(deployed) = json.get("deployedBytecode") {
+        let object = bytecode_object(deployed)
+            .ok_or_else(|| anyhow::anyhow!("deployedBytecode.object missing"))?;
+        let libraries = link_ranges(deployed.get("linkReferences"));
+        let runtime = decode_object(object, &libraries)?;
+        let creation_libraries = link_ranges(json["bytecode"].get("linkReferences"));
+        let creation = bytecode_object(&json["bytecode"])
+            .map(|o| decode_object(o, &creation_libraries))
+            .transpose()?
+            .filter(|c| !c.is_empty());
+        let target = json["metadata"]["settings"]["compilationTarget"].as_object();
+        let (source_path, name) = target
+            .and_then(|t| t.iter().next())
+            .map(|(p, n)| (Some(p.clone()), n.as_str().map(String::from)))
+            .unwrap_or((None, None));
+        if let (Some(want), Some(have)) = (contract, name.as_deref()) {
+            if want != have {
+                anyhow::bail!("artifact is for contract {have}, not {want}");
+            }
+        }
+        let mut asts = Vec::new();
+        if let Some(ast) = json.get("ast").filter(|a| a.is_object()) {
+            asts.push((json["id"].as_u64(), ast.clone()));
+        }
+        return Ok(Artifact {
+            format: "forge".into(),
+            contract_name: name.or_else(|| contract.map(String::from)),
+            source_path,
+            compiler_version: json["metadata"]["compiler"]["version"]
+                .as_str()
+                .map(String::from),
+            runtime,
+            creation,
+            immutables: immutable_ranges(deployed.get("immutableReferences")),
+            libraries,
+            creation_libraries,
+            source_map: deployed["sourceMap"].as_str().map(String::from),
+            asts,
+            methods: methods_from(json.get("methodIdentifiers")),
+        });
+    }
+
+    // solc standard JSON: contracts[file][name].evm
+    let contracts = json
+        .get("contracts")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "not a forge artifact (no deployedBytecode) or solc standard-JSON output (no contracts)"
+            )
+        })?;
+    let mut found = Vec::new();
+    for (file, by_name) in contracts {
+        for (name, entry) in by_name.as_object().into_iter().flatten() {
+            let has_code =
+                bytecode_object(&entry["evm"]["deployedBytecode"]).is_some_and(|o| !o.is_empty());
+            if has_code && contract.is_none_or(|c| c == name || c == format!("{file}:{name}")) {
+                found.push((file.clone(), name.clone(), entry));
+            }
+        }
+    }
+    let (file, name, entry) = match found.len() {
+        0 => anyhow::bail!(
+            "no contract with deployed code{} in the standard-JSON output",
+            contract.map(|c| format!(" named {c}")).unwrap_or_default()
+        ),
+        1 => found.remove(0),
+        _ => anyhow::bail!(
+            "several contracts in the output; pick one with --contract: {}",
+            found
+                .iter()
+                .map(|(f, n, _)| format!("{f}:{n}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    };
+    let evm = &entry["evm"];
+    let deployed = &evm["deployedBytecode"];
+    let libraries = link_ranges(deployed.get("linkReferences"));
+    let creation_libraries = link_ranges(evm["bytecode"].get("linkReferences"));
+    let metadata: Option<Value> = entry["metadata"]
+        .as_str()
+        .and_then(|m| serde_json::from_str(m).ok());
+    let asts = json["sources"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(_, s)| s.get("ast").map(|a| (s["id"].as_u64(), a.clone())))
+        .collect();
+    Ok(Artifact {
+        format: "solc-standard-json".into(),
+        contract_name: Some(name),
+        source_path: Some(file),
+        compiler_version: metadata
+            .as_ref()
+            .and_then(|m| m["compiler"]["version"].as_str().map(String::from)),
+        runtime: decode_object(bytecode_object(deployed).unwrap_or_default(), &libraries)?,
+        creation: bytecode_object(&evm["bytecode"])
+            .map(|o| decode_object(o, &creation_libraries))
+            .transpose()?
+            .filter(|c| !c.is_empty()),
+        immutables: immutable_ranges(deployed.get("immutableReferences")),
+        libraries,
+        creation_libraries,
+        source_map: deployed["sourceMap"].as_str().map(String::from),
+        asts,
+        methods: methods_from(evm.get("methodIdentifiers")),
+    })
+}
+
+/// A function's source range, from the AST
+#[derive(Debug, Clone)]
+struct FnSpan {
+    name: String,
+    start: u64,
+    end: u64,
+    file: u64,
+}
+
+fn parse_src(src: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = src.split(':');
+    let s = parts.next()?.parse().ok()?;
+    let l = parts.next()?.parse().ok()?;
+    let f = parts.next()?.parse().ok()?;
+    Some((s, l, f))
+}
+
+fn collect_functions(
+    node: &Value,
+    contract: Option<&str>,
+    out: &mut Vec<FnSpan>,
+    asm: &mut Vec<(u64, u64, u64)>,
+) {
+    match node {
+        Value::Object(map) => {
+            let kind = map.get("nodeType").and_then(Value::as_str).unwrap_or("");
+            let contract = if kind == "ContractDefinition" {
+                map.get("name").and_then(Value::as_str)
+            } else {
+                contract
+            };
+            if matches!(kind, "FunctionDefinition" | "ModifierDefinition") {
+                if let Some((s, l, f)) = map.get("src").and_then(Value::as_str).and_then(parse_src)
+                {
+                    let raw = map.get("name").and_then(Value::as_str).unwrap_or("");
+                    let fn_kind = map
+                        .get("kind")
+                        .and_then(Value::as_str)
+                        .unwrap_or("function");
+                    let label = if raw.is_empty() {
+                        fn_kind.to_string()
+                    } else {
+                        raw.to_string()
+                    };
+                    let name = match (kind, contract) {
+                        ("ModifierDefinition", Some(c)) => format!("{c}.modifier {label}"),
+                        (_, Some(c)) => format!("{c}.{label}"),
+                        _ => label,
+                    };
+                    out.push(FnSpan {
+                        name,
+                        start: s,
+                        end: s + l,
+                        file: f,
+                    });
+                }
+            }
+            if kind == "InlineAssembly" {
+                if let Some(span) = map.get("src").and_then(Value::as_str).and_then(parse_src) {
+                    asm.push(span);
+                }
+            }
+            for v in map.values() {
+                collect_functions(v, contract, out, asm);
+            }
+        }
+        Value::Array(items) => {
+            for v in items {
+                collect_functions(v, contract, out, asm);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Decode a compressed source map into one (start, length, file) per instruction
+fn decode_source_map(map: &str) -> Vec<Option<(u64, u64, i64)>> {
+    let mut out = Vec::new();
+    let (mut s, mut l, mut f) = (0i64, 0i64, -1i64);
+    for entry in map.split(';') {
+        let fields: Vec<&str> = entry.split(':').collect();
+        let pick = |i: usize, cur: i64| {
+            fields
+                .get(i)
+                .filter(|v| !v.is_empty())
+                .and_then(|v| v.parse::<i64>().ok())
+                .unwrap_or(cur)
+        };
+        s = pick(0, s);
+        l = pick(1, l);
+        f = pick(2, f);
+        out.push((s >= 0 && l >= 0).then_some((s as u64, l as u64, f)));
+    }
+    out
+}
+
+/// How pcs are attributed to functions
+pub struct FunctionMapper {
+    /// "source map + AST", "dispatcher ranges (approximate)" or "none"
+    pub method: String,
+    /// artifact instruction pc -> function label
+    labels: BTreeMap<usize, String>,
+}
+
+impl FunctionMapper {
+    pub fn label(&self, pc: usize) -> String {
+        self.labels
+            .range(..=pc)
+            .next_back()
+            .map(|(_, l)| l.clone())
+            .unwrap_or_else(|| "(unmapped)".into())
+    }
+}
+
+/// Build the pc -> function mapping for the artifact's runtime
+pub fn function_mapper(artifact: &Artifact, exec_end: usize) -> FunctionMapper {
+    let instructions: Vec<(usize, u8)> = linear_sweep(&artifact.runtime[..exec_end]);
+    if let (Some(map), false) = (&artifact.source_map, artifact.asts.is_empty()) {
+        let mut spans = Vec::new();
+        let mut asm = Vec::new();
+        for (_, ast) in &artifact.asts {
+            collect_functions(ast, None, &mut spans, &mut asm);
+        }
+        let entries = decode_source_map(map);
+        let mut labels = BTreeMap::new();
+        for (i, (pc, _)) in instructions.iter().enumerate() {
+            let label = match entries.get(i).copied().flatten() {
+                Some((s, l, f)) if f >= 0 => spans
+                    .iter()
+                    .filter(|sp| sp.file == f as u64 && sp.start <= s && s + l <= sp.end)
+                    .min_by_key(|sp| sp.end - sp.start)
+                    .map(|sp| sp.name.clone())
+                    .unwrap_or_else(|| "(contract-level code)".into()),
+                _ => "(compiler-generated)".into(),
+            };
+            labels.insert(*pc, label);
+        }
+        return FunctionMapper {
+            method: "source map + AST".into(),
+            labels,
+        };
+    }
+    // Dispatcher: each selector's handler entry; a pc belongs to the nearest
+    // handler before it. Shared internal code lands on whichever is nearest.
+    let functions = super::extract_selectors(&artifact.runtime);
+    let mut labels = BTreeMap::new();
+    labels.insert(0, "(dispatcher)".to_string());
+    if let Ok(entries) = super::infer_dispatcher(&artifact.runtime, &functions) {
+        for e in entries {
+            let sel = e.selector.trim_start_matches("0x").to_lowercase();
+            let name = artifact
+                .methods
+                .get(&sel)
+                .cloned()
+                .unwrap_or_else(|| format!("0x{sel}"));
+            labels.insert(e.handler_offset, name);
+        }
+    }
+    FunctionMapper {
+        method: if labels.len() > 1 {
+            "dispatcher ranges (approximate: code after a handler is counted to it, shared internal code included)".into()
+        } else {
+            "none".into()
+        },
+        labels,
+    }
+}
+
+/// Values found on chain at masked positions
+#[derive(Debug, Clone, Serialize)]
+pub struct MaskedValue {
+    pub id: String,
+    pub positions: usize,
+    /// Distinct deployed values at those positions (hex)
+    pub values: Vec<String>,
+    /// All positions carry the same value, as they must
+    pub consistent: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FunctionDiff {
+    pub function: String,
+    pub instructions: usize,
+    pub status: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Mismatch {
+    pub first_difference_offset: usize,
+    pub function: String,
+    pub artifact_bytes: String,
+    pub onchain_bytes: String,
+    /// Offset of the context shown, in the artifact
+    pub context_start: usize,
+    /// Offset of the first difference in the deployed code (differs from
+    /// the artifact's offset when sizes differ)
+    pub onchain_offset: usize,
+    /// Printable text around the difference, when it is inside a string
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifact_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub onchain_text: Option<String>,
+    pub size_difference: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
+    /// How the per-function table was built
+    pub table_method: String,
+    pub functions: Vec<FunctionDiff>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MatchReport {
+    /// exact | partial | mismatch
+    pub verdict: &'static str,
+    pub summary: String,
+    pub artifact_size: usize,
+    pub onchain_size: usize,
+    pub executable_size_artifact: usize,
+    pub executable_size_onchain: usize,
+    pub metadata_artifact: Option<MetadataBlock>,
+    pub metadata_onchain: Option<MetadataBlock>,
+    pub metadata_equal: bool,
+    pub immutables: Vec<MaskedValue>,
+    pub libraries: Vec<MaskedValue>,
+    pub function_mapping: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mismatch: Option<Mismatch>,
+    pub warnings: Vec<String>,
+}
+
+fn masked_values(
+    onchain: &[u8],
+    ranges: &BTreeMap<String, Vec<Range<usize>>>,
+    describe: impl Fn(&str) -> String,
+) -> Vec<MaskedValue> {
+    ranges
+        .iter()
+        .map(|(id, rs)| {
+            let mut values: Vec<String> = rs
+                .iter()
+                .filter_map(|r| {
+                    onchain
+                        .get(r.clone())
+                        .map(|b| format!("0x{}", hex::encode(b)))
+                })
+                .collect();
+            values.sort();
+            values.dedup();
+            MaskedValue {
+                id: describe(id),
+                positions: rs.len(),
+                consistent: values.len() <= 1,
+                values,
+            }
+        })
+        .collect()
+}
+
+/// Byte-for-byte equal outside the masks
+fn equal_masked(a: &[u8], b: &[u8], masked: &[bool]) -> bool {
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .enumerate()
+            .all(|(i, (x, y))| x == y || masked.get(i).copied().unwrap_or(false))
+}
+
+fn first_diff(a: &[u8], b: &[u8], masked: &[bool]) -> Option<usize> {
+    (0..a.len().max(b.len()))
+        .find(|&i| !masked.get(i).copied().unwrap_or(false) && a.get(i) != b.get(i))
+}
+
+/// The printable ASCII run containing `at`, if it is at least 4 characters
+fn text_around(code: &[u8], at: usize) -> Option<String> {
+    let printable = |b: u8| (0x20..0x7f).contains(&b);
+    if !code.get(at).copied().is_some_and(printable) {
+        return None;
+    }
+    let mut start = at;
+    while start > 0 && at - start < 64 && printable(code[start - 1]) {
+        start -= 1;
+    }
+    let mut end = at;
+    while end < code.len() && end - at < 64 && printable(code[end]) {
+        end += 1;
+    }
+    (end - start >= 4).then(|| String::from_utf8_lossy(&code[start..end]).into_owned())
+}
+
+/// Instruction token for alignment when sizes differ: PUSH2/PUSH3 operands
+/// are mostly code offsets, which shift, so they are left out
+fn token(code: &[u8], pc: usize, op: u8) -> Vec<u8> {
+    let n = push_size(op);
+    if n == 2 || n == 3 {
+        vec![op]
+    } else {
+        code[pc..(pc + 1 + n).min(code.len())].to_vec()
+    }
+}
+
+pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
+    let art = &artifact.runtime;
+    let mut warnings = Vec::new();
+
+    let art_blocks = find_metadata_blocks(art);
+    let chain_blocks = find_metadata_blocks(onchain);
+    let art_trailing = art_blocks.iter().find(|b| b.trailing).cloned();
+    let chain_trailing = chain_blocks.iter().find(|b| b.trailing).cloned();
+    let art_exec = art_trailing.as_ref().map(|b| b.start).unwrap_or(art.len());
+    let chain_exec = chain_trailing
+        .as_ref()
+        .map(|b| b.start)
+        .unwrap_or(onchain.len());
+
+    // Masks over artifact positions: immutables and libraries always
+    let mut value_mask = vec![false; art.len()];
+    for r in artifact
+        .immutables
+        .values()
+        .chain(artifact.libraries.values())
+        .flatten()
+    {
+        for i in r.clone() {
+            if i < value_mask.len() {
+                value_mask[i] = true;
+            }
+        }
+    }
+    // ...plus nested metadata blocks (embedded contracts), when the deployed
+    // code has a block of the same size at the same place
+    let mut meta_mask = value_mask.clone();
+    for b in art_blocks.iter().filter(|b| !b.trailing) {
+        if chain_blocks
+            .iter()
+            .any(|c| c.start == b.start && c.end == b.end)
+        {
+            for flag in &mut meta_mask[b.start..b.end] {
+                *flag = true;
+            }
+        } else {
+            warnings.push(format!(
+                "embedded metadata at {:#x} in the artifact has no counterpart at the same place on chain",
+                b.start
+            ));
+        }
+    }
+
+    let immutables = masked_values(onchain, &artifact.immutables, |id| {
+        format!("immutable AST id {id}")
+    });
+    let libraries = masked_values(onchain, &artifact.libraries, |l| l.to_string());
+    for m in immutables.iter().chain(&libraries) {
+        if !m.consistent {
+            warnings.push(format!(
+                "{} has different deployed values at its {} positions ({}): the code around it is not what the artifact describes",
+                m.id,
+                m.positions,
+                m.values.join(", ")
+            ));
+        }
+    }
+
+    let exact = equal_masked(art, onchain, &value_mask);
+    let exec_equal = art_exec == chain_exec
+        && equal_masked(&art[..art_exec], &onchain[..chain_exec], &meta_mask);
+    let metadata_equal = match (&art_trailing, &chain_trailing) {
+        (Some(a), Some(c)) => art[a.start..a.end] == onchain[c.start..c.end],
+        (None, None) => true,
+        _ => false,
+    };
+    let mapper = function_mapper(artifact, art_exec);
+
+    let (verdict, summary) = if exact {
+        (
+            "exact",
+            "Exact match: the deployed code equals the artifact, compiler metadata included (immutables and library addresses masked)".to_string(),
+        )
+    } else if exec_equal {
+        (
+            "partial",
+            "Partial match: the executable code equals the artifact, but the compiler metadata differs. This is not a verified match: the metadata hash commits to the exact sources and settings, which are not the ones deployed".to_string(),
+        )
+    } else {
+        (
+            "mismatch",
+            "Mismatch: the executable code differs".to_string(),
+        )
+    };
+
+    let mismatch = (verdict == "mismatch").then(|| {
+        let a = &art[..art_exec];
+        let c = &onchain[..chain_exec];
+        let mut first = first_diff(a, c, &meta_mask).unwrap_or(a.len().min(c.len()));
+        let mut onchain_first = first;
+        // Per-function table over the artifact's instructions
+        let instructions = linear_sweep(a);
+        let mut changed = vec![false; instructions.len()];
+        let table_method;
+        if a.len() == c.len() {
+            table_method = "same size: each instruction compared byte for byte at its offset".to_string();
+            for (i, (pc, op)) in instructions.iter().enumerate() {
+                let end = (pc + 1 + push_size(*op)).min(a.len());
+                changed[i] = (*pc..end).any(|j| a[j] != c[j] && !meta_mask[j]);
+            }
+        } else {
+            table_method = "sizes differ: instructions aligned by common prefix and suffix (PUSH2/PUSH3 operands ignored, as code offsets shift); everything between the first and last difference counts as changed".to_string();
+            let chain_ins = linear_sweep(c);
+            let ta: Vec<Vec<u8>> = instructions.iter().map(|(pc, op)| token(a, *pc, *op)).collect();
+            let tc: Vec<Vec<u8>> = chain_ins.iter().map(|(pc, op)| token(c, *pc, *op)).collect();
+            let prefix = ta.iter().zip(&tc).take_while(|(x, y)| x == y).count();
+            let max_suffix = ta.len().min(tc.len()) - prefix;
+            let suffix = ta
+                .iter()
+                .rev()
+                .zip(tc.iter().rev())
+                .take(max_suffix)
+                .take_while(|(x, y)| x == y)
+                .count();
+            if let (Some((pa, _)), Some((pb, _))) = (instructions.get(prefix), chain_ins.get(prefix)) {
+                first = *pa;
+                onchain_first = *pb;
+            }
+            let end = ta.len() - suffix;
+            if prefix < end {
+            for flag in &mut changed[prefix..end] {
+                    *flag = true;
+                }
+            } else if !changed.is_empty() {
+                // Pure insertion on chain: blame the instruction before it
+                let last = changed.len() - 1;
+                changed[prefix.saturating_sub(1).min(last)] = true;
+            }
+        }
+        let mut per: BTreeMap<String, (usize, bool)> = BTreeMap::new();
+        for (i, (pc, _)) in instructions.iter().enumerate() {
+            let e = per.entry(mapper.label(*pc)).or_default();
+            e.0 += 1;
+            e.1 |= changed[i];
+        }
+        let mut functions: Vec<FunctionDiff> = per
+            .into_iter()
+            .map(|(function, (instructions, diff))| FunctionDiff {
+                function,
+                instructions,
+                status: if diff { "different" } else { "equal" },
+            })
+            .collect();
+        functions.sort_by_key(|f| (f.status == "equal", f.function.clone()));
+        let window = |code: &[u8], at: usize| {
+            let start = at.saturating_sub(16).min(code.len());
+            hex::encode(&code[start..(at + 16).min(code.len())])
+        };
+        let function = mapper.label(first);
+        let user_changed = functions
+            .iter()
+            .any(|f| f.status == "different" && !f.function.starts_with('('));
+        let hint = (!user_changed).then(|| {
+            "the difference is only in code shared between functions (ABI coders, string and error helpers, checked arithmetic, the dispatcher); look for the constant or text shown here in the sources".to_string()
+        });
+        Mismatch {
+            first_difference_offset: first,
+            function,
+            artifact_bytes: window(a, first),
+            onchain_bytes: window(c, onchain_first),
+            context_start: first.saturating_sub(16),
+            onchain_offset: onchain_first,
+            artifact_text: text_around(a, first),
+            onchain_text: text_around(c, onchain_first),
+            hint,
+            size_difference: c.len() as i64 - a.len() as i64,
+            table_method,
+            functions,
+        }
+    });
+
+    if art_trailing.is_none() {
+        warnings.push("the artifact has no compiler metadata (compiled with bytecodeHash none or appendCBOR false); an exact match then cannot vouch for the sources".into());
+    }
+
+    MatchReport {
+        verdict,
+        summary,
+        artifact_size: art.len(),
+        onchain_size: onchain.len(),
+        executable_size_artifact: art_exec,
+        executable_size_onchain: chain_exec,
+        metadata_artifact: art_trailing,
+        metadata_onchain: chain_trailing,
+        metadata_equal,
+        immutables,
+        libraries,
+        function_mapping: mapper.method,
+        mismatch,
+        warnings,
+    }
+}
+
+/// Share of the target contract's source that is inline assembly, from the AST
+#[derive(Debug, Clone, Serialize)]
+pub struct AssemblyShare {
+    /// Bytes of source inside `assembly { }` blocks, all files with ASTs
+    pub assembly_bytes: u64,
+    /// Bytes of source inside function and modifier bodies
+    pub function_bytes: u64,
+    pub blocks: usize,
+    pub percent: f64,
+}
+
+pub fn assembly_share(artifact: &Artifact) -> Option<AssemblyShare> {
+    if artifact.asts.is_empty() {
+        return None;
+    }
+    let mut spans = Vec::new();
+    let mut asm = Vec::new();
+    for (_, ast) in &artifact.asts {
+        collect_functions(ast, None, &mut spans, &mut asm);
+    }
+    let function_bytes: u64 = spans.iter().map(|s| s.end - s.start).sum();
+    let assembly_bytes: u64 = asm.iter().map(|(_, l, _)| *l).sum();
+    Some(AssemblyShare {
+        assembly_bytes,
+        function_bytes,
+        blocks: asm.len(),
+        percent: if function_bytes == 0 {
+            0.0
+        } else {
+            (assembly_bytes as f64 * 1000.0 / function_bytes as f64).round() / 10.0
+        },
+    })
+}
+
+/// Compare creation code from a deployment transaction with the artifact's
+#[derive(Debug, Clone, Serialize)]
+pub struct CreationReport {
+    /// exact | partial | mismatch
+    pub verdict: &'static str,
+    pub creation_size: usize,
+    pub constructor_args: String,
+    pub notes: Vec<String>,
+}
+
+pub fn match_creation(artifact: &Artifact, input: &[u8]) -> Option<CreationReport> {
+    let creation = artifact.creation.as_ref()?;
+    let mut notes = Vec::new();
+    if input.len() < creation.len() {
+        return Some(CreationReport {
+            verdict: "mismatch",
+            creation_size: creation.len(),
+            constructor_args: String::new(),
+            notes: vec![
+                "the transaction input is shorter than the artifact's creation code".into(),
+            ],
+        });
+    }
+    let head = &input[..creation.len()];
+    let mut value_mask = vec![false; creation.len()];
+    for r in artifact.creation_libraries.values().flatten() {
+        for i in r.clone() {
+            if i < value_mask.len() {
+                value_mask[i] = true;
+            }
+        }
+    }
+    let exact = equal_masked(creation, head, &value_mask);
+    let mut meta_mask = value_mask;
+    for b in find_metadata_blocks(creation) {
+        for flag in &mut meta_mask[b.start..b.end] {
+            *flag = true;
+        }
+    }
+    let partial = equal_masked(creation, head, &meta_mask);
+    if !partial {
+        notes.push(format!(
+            "first difference at creation offset {:#x}",
+            first_diff(creation, head, &meta_mask).unwrap_or(0)
+        ));
+    }
+    Some(CreationReport {
+        verdict: if exact {
+            "exact"
+        } else if partial {
+            "partial"
+        } else {
+            "mismatch"
+        },
+        creation_size: creation.len(),
+        constructor_args: format!("0x{}", hex::encode(&input[creation.len()..])),
+        notes,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const META: &str = "a26469706673582212208b5d96ae75ef7e28d88d1c3820279a801b63c4e1319cce2a5166f9a221abe79564736f6c63430008150033";
+
+    fn forge_artifact(runtime_hex: &str, immutables: Value, links: Value) -> Value {
+        serde_json::json!({
+            "abi": [],
+            "bytecode": {"object": "0x6080", "linkReferences": {}},
+            "deployedBytecode": {
+                "object": runtime_hex,
+                "linkReferences": links,
+                "immutableReferences": immutables,
+            },
+            "methodIdentifiers": {"foo()": "c2985578"},
+        })
+    }
+
+    fn with_meta(code: &str, meta: &str) -> String {
+        format!("0x{code}{meta}")
+    }
+
+    #[test]
+    fn exact_partial_and_mismatch() {
+        let code = "6080604052600436106000575b00";
+        let art = parse_artifact(
+            &forge_artifact(&with_meta(code, META), Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        let same = hex::decode(&with_meta(code, META)[2..]).unwrap();
+        assert_eq!(match_code(&art, &same).verdict, "exact");
+
+        let other_meta = META.replace("8b5d96ae", "00000000");
+        let partial = hex::decode(&with_meta(code, &other_meta)[2..]).unwrap();
+        let report = match_code(&art, &partial);
+        assert_eq!(report.verdict, "partial");
+        assert!(!report.metadata_equal);
+        // Never call a partial match verified
+        let lower = report.summary.to_lowercase();
+        assert!(lower.contains("not a verified match"));
+
+        let changed = hex::decode(&with_meta(&code.replace("6004", "6005"), META)[2..]).unwrap();
+        let report = match_code(&art, &changed);
+        assert_eq!(report.verdict, "mismatch");
+        let m = report.mismatch.unwrap();
+        assert_eq!(m.first_difference_offset, 6);
+        assert_eq!(m.size_difference, 0);
+    }
+
+    #[test]
+    fn masks_immutables_and_checks_consistency() {
+        // PUSH32 <imm> POP PUSH32 <imm> POP
+        let zero = "00".repeat(32);
+        let code = format!("7f{zero}507f{zero}50");
+        let imm =
+            serde_json::json!({"7": [{"start": 1, "length": 32}, {"start": 35, "length": 32}]});
+        let art = parse_artifact(
+            &forge_artifact(&format!("0x{code}"), imm, Value::Null),
+            None,
+        )
+        .unwrap();
+        let v = "11".repeat(32);
+        let deployed = hex::decode(format!("7f{v}507f{v}50")).unwrap();
+        let report = match_code(&art, &deployed);
+        assert_eq!(report.verdict, "exact");
+        assert!(report.immutables[0].consistent);
+        assert_eq!(report.immutables[0].values, vec![format!("0x{v}")]);
+
+        let w = "22".repeat(32);
+        let report = match_code(&art, &hex::decode(format!("7f{v}507f{w}50")).unwrap());
+        assert!(!report.immutables[0].consistent);
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.contains("different deployed values")));
+    }
+
+    #[test]
+    fn replaces_link_placeholders() {
+        let placeholder = "__$1234567890abcdef1234567890abcdef12$__";
+        assert_eq!(placeholder.len(), 40);
+        let code = format!("0x73{placeholder}50");
+        let links = serde_json::json!({"src/L.sol": {"L": [{"start": 1, "length": 20}]}});
+        let art = parse_artifact(&forge_artifact(&code, Value::Null, links), None).unwrap();
+        let deployed = hex::decode(format!("73{}50", "ab".repeat(20))).unwrap();
+        let report = match_code(&art, &deployed);
+        assert_eq!(report.verdict, "exact");
+        assert_eq!(report.libraries[0].id, "src/L.sol:L");
+    }
+
+    #[test]
+    fn unlisted_placeholder_is_an_error() {
+        let code = format!("0x73{}50", "__$1234567890abcdef1234567890abcdef12$__");
+        assert!(parse_artifact(&forge_artifact(&code, Value::Null, Value::Null), None).is_err());
+    }
+
+    #[test]
+    fn reads_standard_json_and_requires_a_choice() {
+        let entry = |code: &str| serde_json::json!({"evm": {"deployedBytecode": {"object": code}, "bytecode": {"object": "6080"}, "methodIdentifiers": {}}});
+        let out = serde_json::json!({"contracts": {"a.sol": {"A": entry("6000"), "B": entry("6001")}}, "sources": {}});
+        assert!(parse_artifact(&out, None).is_err());
+        let art = parse_artifact(&out, Some("B")).unwrap();
+        assert_eq!(art.runtime, vec![0x60, 0x01]);
+        assert_eq!(art.format, "solc-standard-json");
+    }
+
+    #[test]
+    fn source_map_decoding_carries_fields_forward() {
+        let entries = decode_source_map("1:2:0;;3::;:4:-1");
+        assert_eq!(entries[0], Some((1, 2, 0)));
+        assert_eq!(entries[1], Some((1, 2, 0)));
+        assert_eq!(entries[2], Some((3, 2, 0)));
+        assert_eq!(entries[3], Some((3, 4, -1)));
+    }
+
+    #[test]
+    fn size_change_localised_by_prefix_and_suffix() {
+        let art = parse_artifact(
+            &forge_artifact("0x6001600201600355", Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        // Extra instruction in the middle
+        let deployed = hex::decode("600160020180600355").unwrap();
+        let m = match_code(&art, &deployed).mismatch.unwrap();
+        assert_eq!(m.size_difference, 1);
+        assert!(m.table_method.starts_with("sizes differ"));
+    }
+
+    // Fixture: forge build --ast of a small contract (solc 0.8.21, optimizer
+    // 200, shanghai). The second runtime is the same source with
+    // `msg.sender == owner` changed to `tx.origin == owner` in sweep().
+    const VAULT: &str = include_str!("../../tests/fixtures/match/Vault.json");
+    const VAULT_TXORIGIN: &str =
+        include_str!("../../tests/fixtures/match/Vault_txorigin_runtime.hex");
+
+    fn deployed_from(art: &Artifact, runtime: &[u8], owner: u8) -> Vec<u8> {
+        let mut code = runtime.to_vec();
+        for r in art.immutables.values().flatten() {
+            code[r.start + 12..r.end].fill(owner);
+        }
+        code
+    }
+
+    #[test]
+    fn fixture_exact_partial_and_localised_mismatch() {
+        let json: Value = serde_json::from_str(VAULT).unwrap();
+        let art = parse_artifact(&json, Some("Vault")).unwrap();
+        assert!(!art.asts.is_empty() && art.source_map.is_some());
+        assert_eq!(art.immutables.len(), 1);
+
+        let exact = deployed_from(&art, &art.runtime, 0xaa);
+        let report = match_code(&art, &exact);
+        assert_eq!(report.verdict, "exact");
+        assert!(report.immutables[0].consistent);
+        assert_eq!(report.function_mapping, "source map + AST");
+
+        let mut partial = exact.clone();
+        let meta = report.metadata_artifact.clone().unwrap();
+        partial[meta.start + 10] ^= 0xff;
+        let report = match_code(&art, &partial);
+        assert_eq!(report.verdict, "partial");
+        let text = serde_json::to_string(&report).unwrap().to_lowercase();
+        for (i, _) in text.match_indices("verified") {
+            assert!(
+                text[..i].ends_with("not a "),
+                "partial report calls itself verified"
+            );
+        }
+
+        let other = hex::decode(VAULT_TXORIGIN.trim().trim_start_matches("0x")).unwrap();
+        let report = match_code(&art, &deployed_from(&art, &other, 0xaa));
+        assert_eq!(report.verdict, "mismatch");
+        let m = report.mismatch.unwrap();
+        assert_eq!(m.function, "Vault.sweep");
+        let different: Vec<&str> = m
+            .functions
+            .iter()
+            .filter(|f| f.status == "different")
+            .map(|f| f.function.as_str())
+            .collect();
+        assert_eq!(different, vec!["Vault.sweep"]);
+        assert_eq!(assembly_share(&art).unwrap().blocks, 0);
+    }
+}
