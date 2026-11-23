@@ -590,7 +590,7 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   EQ, SUB or XOR (solc's `==`/`!=` peephole) of msg.sender/tx.origin/
   address(this) inside a JUMPI condition (through AND/ISZERO/OR), and
   mapping lookups keyed by msg.sender. Budgets: steps (4M), time (15 s;
-  10 s in analyze), distinct states per (pc, function) (24; the state key
+  10 s in analyze), distinct states per (pc, function) (24
   distinct stacks, plus up to 4 memory/last-call variants per stack, all
   drops counted in `states_pruned`). `coverage` gives evmole
   CFG blocks analysed / reachable, unresolved jumps and call sites, prunes,
