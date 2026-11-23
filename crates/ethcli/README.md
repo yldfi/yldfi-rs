@@ -407,14 +407,21 @@ ethcli gas cost 0x... 0x<calldata> --chain arbitrum --json
 
 `gas cost` takes L2 gas from `eth_estimateGas` and the price from
 `eth_gasPrice`. The L1 data fee comes from the GasPriceOracle predeploy
-(`getL1Fee`, given the unsigned RLP transaction) on OP-stack chains and from
-NodeInterface (`gasEstimateL1Component`) on Arbitrum, where it is part of the
-estimated gas. A chain is OP-stack when the GasPriceOracle predeploy
-(`0x4200…000F`) has code; well-known chains (Optimism, Base, Arbitrum,
-Ethereum, ...) skip that check, and the result is cached per chain for the
-process. Mantle is excluded from estimates (it prices the L1 fee in MNT
-through a token ratio). On L1 chains the L1 fee is reported as not applicable.
-`--rpc-url` uses one endpoint instead of the configured ones. USD uses the median of
+(`getL1Fee`, given the unsigned RLP transaction) on OP-stack chains, plus
+the operator fee (`getOperatorFee`, e.g. BOB's per-transaction constant);
+from Scroll's L1GasPriceOracle (`0x5300…0002`, given the transaction with a
+placeholder signature); and from NodeInterface (`gasEstimateL1Component`) on
+Arbitrum, where it is part of the estimated gas. Chains outside the known
+list are probed (ArbSys, the OP GasPriceOracle and the Scroll oracle) and the
+answer is cached per chain for the process; a chain none of them matches is
+reported as `unknown`, not as an L1. Rollups that fold the L1 cost into the
+gas price (Linea, zkSync Era, Polygon zkEVM, Taiko) show `included`. Mantle
+is excluded from estimates (it prices the L1 fee in MNT through a token
+ratio). On L1 chains the L1 fee is not applicable. `--rpc-url` uses one
+endpoint and its own `eth_chainId` (an explicit `--chain` that disagrees is
+an error). USD prices the chain's actual gas token: ETH from the price
+aggregation, others (FRAX on Fraxtal, MNT, POL, ...) by CoinGecko id on
+DefiLlama. USD uses the median of
 CoinGecko, DefiLlama, Chainlink, Pyth and an exchange, and names the sources
 (`--no-usd` skips it).
 
@@ -425,8 +432,13 @@ receipt (`l1Fee`, `l1GasUsed`, `l1GasPrice`, `l1BaseFeeScalar`,
 own fields decide, on any chain: `l1Fee` present means an OP-style L1 fee
 (including Mantle and other chains outside the known list), `gasUsedForL1`
 means Arbitrum. An OP-stack operator fee (`operatorFeeScalar`,
-`operatorFeeConstant`) is added as `operator_fee_wei`. `tx`'s `fee_wei` is the
-total, so balance changes include the L1 fee.
+`operatorFeeConstant`) is added as `operator_fee_wei`; deposit transactions
+pay nothing. Mantle's Tectonic-era receipts (a `tokenRatio`, no operator-fee
+fields) report an `l1Fee` already inside gasUsed × price; it is shown with
+`l1_fee_included: true` and not added. `tx --full` also checks the sender's
+balance change and moves an `l1Fee` inside the execution fee when that is
+what was paid. `tx`'s `fee_wei` is the total, so balance changes include
+the L1 fee.
 `tx --full` adds the fee in USD at the block's time (DefiLlama).
 
 ### Token - Token Operations

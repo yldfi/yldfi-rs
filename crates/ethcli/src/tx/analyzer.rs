@@ -566,6 +566,45 @@ impl TxAnalyzer {
             Err(e) => analysis.notes.push(format!("Block time not fetched: {e}")),
         }
 
+        // Is a separate L1 fee really charged on top? Where the sender's
+        // balance change equals value + gasUsed x price exactly, the l1Fee
+        // was informational (already inside the gas price): fix the split
+        let mut fee_fixed = false;
+        if analysis.block_number > 0 {
+            if let Some(b) = analysis.fee_breakdown.as_mut() {
+                if b.l1_fee_wei.as_deref().is_some_and(|f| f != "0") && !b.l1_fee_included {
+                    let from = analysis.from;
+                    let at = |n: u64| provider.get_balance(from).block_id(n.into());
+                    if let (Ok(before), Ok(after)) = (
+                        at(analysis.block_number - 1).await,
+                        at(analysis.block_number).await,
+                    ) {
+                        if let Some(spent) = before.checked_sub(after) {
+                            let gas_times_price = alloy::primitives::U256::from(analysis.gas_used)
+                                * b.gas_price_wei
+                                    .parse::<alloy::primitives::U256>()
+                                    .unwrap_or_default();
+                            if spent == analysis.value + gas_times_price && b.mark_l1_fee_included()
+                            {
+                                analysis.fee_wei = Some(b.total_fee_wei.clone());
+                                analysis.fee = Some(b.total_fee.clone());
+                                analysis.notes.push(
+                                    "The receipt's l1Fee is already part of gasUsed x price \
+                                     (checked against the sender's balance change)"
+                                        .to_string(),
+                                );
+                                fee_fixed = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if fee_fixed {
+            refresh_balance_changes(analysis);
+        }
+
         // The fee in USD at the block's time
         if let (Some(ts), Some(b)) = (analysis.timestamp, analysis.fee_breakdown.as_mut()) {
             match crate::tx::l2_fee::native_usd_price(self.chain, Some(ts)).await {

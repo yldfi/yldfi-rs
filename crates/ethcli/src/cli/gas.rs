@@ -198,6 +198,20 @@ pub async fn handle(
             let value: U256 = value
                 .parse()
                 .map_err(|e| anyhow::anyhow!("Invalid --value '{value}': {e}"))?;
+            // With --rpc-url the endpoint's own chain id is used
+            let chain = match rpc_url {
+                Some(_) => {
+                    use alloy::providers::Provider;
+                    let endpoint = cost_endpoints(chain, rpc_url.as_deref())?.remove(0);
+                    let id = endpoint
+                        .provider()
+                        .get_chain_id()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("eth_chainId failed: {e}"))?;
+                    resolve_rpc_chain(chain, id)?
+                }
+                None => chain,
+            };
             if !quiet {
                 eprintln!("Estimating transaction cost on {}...", chain.display_name());
             }
@@ -216,13 +230,14 @@ pub async fn handle(
             if output.is_json() {
                 let json = serde_json::json!({
                     "chain": chain.name(),
-                    "native_symbol": chain.native_symbol(),
+                    "chain_id": chain.chain_id(),
+                    "native_symbol": cost.native_symbol,
                     "fees": cost,
                 });
                 println!("{}", serde_json::to_string_pretty(&json)?);
             } else {
                 println!("Estimated cost on {}", chain.display_name());
-                for line in cost.lines(chain.native_symbol()) {
+                for line in cost.lines(&cost.native_symbol) {
                     println!("{line}");
                 }
             }
@@ -314,11 +329,90 @@ fn estimates_from_fee_history(
 
 alloy::sol! {
     function getL1Fee(bytes data) external view returns (uint256);
+    function getOperatorFee(uint256 gasUsed) external view returns (uint256);
     function gasEstimateL1Component(address to, bool contractCreation, bytes data)
         external payable returns (uint64 gasEstimateForL1, uint256 baseFee, uint256 l1BaseFeeEstimate);
 }
 
-/// L2 gas, gas price and L1 data fee for a transaction at the latest block
+/// Endpoints for `gas cost`: the one given with `--rpc-url`, else the
+/// configured ones for the chain
+fn cost_endpoints(
+    chain: Chain,
+    rpc_url: Option<&str>,
+) -> anyhow::Result<Vec<crate::rpc::Endpoint>> {
+    Ok(match rpc_url {
+        Some(url) => vec![crate::rpc::Endpoint::new(
+            crate::config::EndpointConfig::new(url.to_string()),
+            30,
+            None,
+        )?],
+        None => crate::rpc::candidate_endpoints(
+            chain,
+            &crate::rpc::SelectionOptions::default(),
+            crate::rpc::MAX_FAILOVER_ATTEMPTS,
+        )?,
+    })
+}
+
+/// The chain to use with `--rpc-url`: the endpoint's own `eth_chainId`.
+/// `--chain` left at its default (ethereum) gives way to it; any other
+/// `--chain` that disagrees is an error.
+fn resolve_rpc_chain(requested: Chain, endpoint_chain_id: u64) -> anyhow::Result<Chain> {
+    if requested.chain_id() == endpoint_chain_id {
+        return Ok(requested);
+    }
+    if requested == Chain::Ethereum {
+        return Ok(Chain::from_chain_id(endpoint_chain_id));
+    }
+    anyhow::bail!(
+        "--rpc-url serves chain {endpoint_chain_id}, but --chain is {} ({})",
+        requested.name(),
+        requested.chain_id()
+    )
+}
+
+/// The EIP-1559 transaction as the L1 fee oracle expects it.
+///
+/// OP-stack's `getL1Fee` takes the unsigned RLP and allows for the
+/// signature itself. Scroll's takes the signed transaction (checked: on a
+/// live receipt `getL1Fee(raw signed tx)` equals `l1Fee` exactly), so it gets
+/// a placeholder signature of full size.
+#[allow(clippy::too_many_arguments)]
+fn oracle_tx_bytes(
+    signed: bool,
+    chain_id: u64,
+    nonce: u64,
+    gas: u64,
+    price: U256,
+    to: alloy::primitives::Address,
+    value: U256,
+    data: Vec<u8>,
+) -> alloy::primitives::Bytes {
+    use alloy::consensus::{SignableTransaction, TxEip1559};
+    use alloy::eips::eip2718::Encodable2718;
+    let tx = TxEip1559 {
+        chain_id,
+        nonce,
+        gas_limit: gas,
+        max_fee_per_gas: u128::try_from(price).unwrap_or(u128::MAX),
+        max_priority_fee_per_gas: 1_000_000,
+        to: alloy::primitives::TxKind::Call(to),
+        value,
+        access_list: Default::default(),
+        input: data.into(),
+    };
+    if !signed {
+        return tx.encoded_for_signing().into();
+    }
+    let word = U256::from_be_bytes([0x7f; 32]);
+    let signature = alloy::primitives::Signature::new(word, word, false);
+    alloy::consensus::TxEnvelope::from(tx.into_signed(signature))
+        .encoded_2718()
+        .into()
+}
+
+/// L2 gas, gas price, L1 data fee and operator fee for a transaction at the
+/// latest block
 async fn estimate_cost(
     chain: Chain,
     from: Option<alloy::primitives::Address>,
@@ -327,8 +421,9 @@ async fn estimate_cost(
     value: U256,
     rpc_url: Option<&str>,
 ) -> anyhow::Result<crate::tx::l2_fee::FeeBreakdown> {
-    use crate::tx::l2_fee::{FeeBreakdown, FeeModel, ARB_NODE_INTERFACE, OP_GAS_PRICE_ORACLE};
-    use alloy::consensus::{SignableTransaction, TxEip1559};
+    use crate::tx::l2_fee::{
+        FeeBreakdown, FeeModel, ARB_NODE_INTERFACE, OP_GAS_PRICE_ORACLE, SCROLL_GAS_PRICE_ORACLE,
+    };
     use alloy::providers::Provider;
     use alloy::rpc::types::TransactionRequest;
     use alloy::sol_types::SolCall;
@@ -340,18 +435,7 @@ async fn estimate_cost(
             chain.chain_id()
         );
     }
-    let candidates = match rpc_url {
-        Some(url) => vec![crate::rpc::Endpoint::new(
-            crate::config::EndpointConfig::new(url.to_string()),
-            30,
-            None,
-        )?],
-        None => crate::rpc::candidate_endpoints(
-            chain,
-            &crate::rpc::SelectionOptions::default(),
-            crate::rpc::MAX_FAILOVER_ATTEMPTS,
-        )?,
-    };
+    let candidates = cost_endpoints(chain, rpc_url)?;
     crate::rpc::with_failover(candidates, |endpoint| {
         let data = data.clone();
         async move {
@@ -375,44 +459,62 @@ async fn estimate_cost(
             );
             let exec = U256::from(gas) * price;
             let model = crate::tx::l2_fee::detect_model(chain.chain_id(), provider).await;
+            let view = |to_addr, input: Vec<u8>| {
+                provider.call(
+                    TransactionRequest::default()
+                        .to(to_addr)
+                        .input(input.into()),
+                )
+            };
             let mut b = match model {
-                FeeModel::Unsupported => Err(anyhow::anyhow!(
+                FeeModel::Unsupported => anyhow::bail!(
                     "L1 data fee estimate is not supported on chain {}",
                     chain.chain_id()
-                )),
-                FeeModel::L1 => Ok(FeeBreakdown::new(model, gas, price, exec, None)),
-                FeeModel::OpStack => {
-                    // getL1Fee takes the unsigned, RLP-encoded transaction;
-                    // the oracle allows for the signature itself
+                ),
+                FeeModel::L1 | FeeModel::IncludedInGas | FeeModel::Unknown => {
+                    FeeBreakdown::new(model, gas, price, exec, None)
+                }
+                FeeModel::OpStack | FeeModel::Scroll => {
                     let nonce = match from {
                         Some(f) => provider.get_transaction_count(f).await.unwrap_or(0),
                         None => 0,
                     };
-                    let tx = TxEip1559 {
-                        chain_id: chain.chain_id(),
+                    let rlp = oracle_tx_bytes(
+                        model == FeeModel::Scroll,
+                        chain.chain_id(),
                         nonce,
-                        gas_limit: gas,
-                        max_fee_per_gas: u128::try_from(price).unwrap_or(u128::MAX),
-                        max_priority_fee_per_gas: 1_000_000,
-                        to: alloy::primitives::TxKind::Call(to),
+                        gas,
+                        price,
+                        to,
                         value,
-                        access_list: Default::default(),
-                        input: data.into(),
+                        data,
+                    );
+                    let oracle = if model == FeeModel::Scroll {
+                        SCROLL_GAS_PRICE_ORACLE
+                    } else {
+                        OP_GAS_PRICE_ORACLE
                     };
-                    let call = getL1FeeCall {
-                        data: tx.encoded_for_signing().into(),
-                    };
-                    let out = provider
-                        .call(
-                            TransactionRequest::default()
-                                .to(OP_GAS_PRICE_ORACLE)
-                                .input(call.abi_encode().into()),
-                        )
+                    let out = view(oracle, getL1FeeCall { data: rlp }.abi_encode())
                         .await
-                        .map_err(|e| anyhow::anyhow!("GasPriceOracle.getL1Fee failed: {e}"))?;
+                        .map_err(|e| anyhow::anyhow!("L1 fee oracle getL1Fee failed: {e}"))?;
                     let l1 = getL1FeeCall::abi_decode_returns(&out)
-                        .map_err(|e| anyhow::anyhow!("GasPriceOracle.getL1Fee: {e}"))?;
-                    Ok(FeeBreakdown::new(model, gas, price, exec, Some(l1)))
+                        .map_err(|e| anyhow::anyhow!("L1 fee oracle getL1Fee: {e}"))?;
+                    let mut b = FeeBreakdown::new(model, gas, price, exec, Some(l1));
+                    if model == FeeModel::OpStack {
+                        // Operator fee (Isthmus and later). Chains before
+                        // Isthmus have no getOperatorFee and charge none
+                        let call = getOperatorFeeCall {
+                            gasUsed: U256::from(gas),
+                        };
+                        if let Ok(out) = view(OP_GAS_PRICE_ORACLE, call.abi_encode()).await {
+                            if let Ok(fee) = getOperatorFeeCall::abi_decode_returns(&out) {
+                                if !fee.is_zero() {
+                                    b.add_operator_fee(fee);
+                                }
+                            }
+                        }
+                    }
+                    b
                 }
                 FeeModel::Arbitrum => {
                     // eth_estimateGas on Arbitrum already includes the L2 gas
@@ -444,14 +546,31 @@ async fn estimate_cost(
                         Some(U256::from(l1_gas) * price),
                     );
                     b.l1_gas_used = Some(l1_gas);
-                    Ok(b)
+                    b
                 }
-            }?;
-            b.native_symbol = chain.native_symbol().to_string();
+            };
+            b.native_symbol = crate::tx::l2_fee::gas_symbol(chain.chain_id());
             Ok(b)
         }
     })
     .await
+}
+
+#[cfg(test)]
+mod cost_tests {
+    use super::*;
+
+    #[test]
+    fn rpc_chain_resolution() {
+        // Default --chain gives way to the endpoint
+        assert_eq!(
+            resolve_rpc_chain(Chain::Ethereum, 8453).unwrap(),
+            Chain::Base
+        );
+        assert_eq!(resolve_rpc_chain(Chain::Base, 8453).unwrap(), Chain::Base);
+        // An explicit, different --chain is an error
+        assert!(resolve_rpc_chain(Chain::Optimism, 8453).is_err());
+    }
 }
 
 /// Gas tiers from RPC (eth_feeHistory, falling back to eth_gasPrice),

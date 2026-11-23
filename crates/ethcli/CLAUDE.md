@@ -145,8 +145,11 @@ ethcli contract call <addr> totalSupply --block 7d
   `fee_breakdown.usd` at the block's time. `rpc receipt -o json` returns the
   raw receipt (all chain fields) plus `feeBreakdown`. For an estimate before
   sending: `ethcli gas cost <to> [data|-s sig -a args] --from <addr>`
-  (OP-stack detected by GasPriceOracle code at `0x4200…000F`, cached per
-  chain; Mantle not supported for estimates);
+  (unlisted chains probed for Arbitrum, OP-stack and Scroll oracles, cached
+  per chain; no match is `unknown`, not L1; OP operator fee included; Mantle
+  not supported for estimates; `--rpc-url` uses the endpoint's chain id).
+  Mantle Tectonic-era `l1Fee` is informational (`l1_fee_included: true`);
+  `--full` checks the sender's balance change;
 - `balance_changes`: the net change per address and token over the whole
   transaction, signed, in raw units and scaled by decimals.
   - Token lines come from Transfer events, plus deposits into and withdrawals

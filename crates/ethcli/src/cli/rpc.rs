@@ -747,8 +747,8 @@ async fn run_action(
                         }
                         println!("Logs:        {}", r.inner.logs().len());
                         if let Some(b) = &breakdown {
-                            println!("Fee:         {} {}", b.total_fee, chain.native_symbol());
-                            for line in b.lines(chain.native_symbol()) {
+                            println!("Fee:         {} {}", b.total_fee, b.native_symbol);
+                            for line in b.lines(&b.native_symbol) {
                                 println!("  {}", line.trim_start());
                             }
                         }

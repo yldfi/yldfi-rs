@@ -77,7 +77,9 @@ single facts.
 - **Fees on rollups:** `tx` `fee_wei` is the total fee, L1 data fee
   included; `fee_breakdown` splits it into `execution_fee_wei` and
   `l1_fee_wei` (the receipt's `l1Fee` on any chain, plus `operator_fee_wei`
-  when charged; Arbitrum `gasUsedForL1` × price, already inside `gasUsed`). On L1 chains `l1_fee_wei` is `null`: not applicable,
+  when charged; Arbitrum `gasUsedForL1` × price, already inside `gasUsed`). `l1_fee_included: true` means the `l1Fee` is
+  already in the execution fee (Mantle, some eras). `model: "unknown"` means
+  the L1 fee could not be determined: say so. On L1 chains `l1_fee_wei` is `null`: not applicable,
   not zero. With `--full`, `fee_breakdown.usd` prices it at block time.
 - **`notes`:** many commands list what they could not fetch or what an
   answer leaves out. Pass these on to the user.
