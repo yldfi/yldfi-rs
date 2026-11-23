@@ -1924,7 +1924,7 @@ fn eip1967_admin_slot() -> B256 {
 }
 
 /// The address held in a storage slot, if the slot is not empty
-async fn storage_address<P: Provider>(
+pub(crate) async fn storage_address<P: Provider>(
     provider: &P,
     address: Address,
     slot: B256,

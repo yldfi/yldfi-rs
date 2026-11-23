@@ -162,6 +162,10 @@ cargo test -p ethcli-mcp --test integration -- --include-ignored
 | `rpc_block_at` | The block for a date, Unix timestamp (`@1706700000`) or age (`7d`) |
 | `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
 | `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
+| `safe_info` | Safe owners, threshold, nonce, version, modules, guard and fallback handler, read on chain |
+| `safe_queue` | Pending Safe transactions with who has and has not signed |
+| `safe_tx` | One Safe transaction, decoded, with MultiSend batches unpacked |
+| `safe_history` | Executed Safe transactions, paged |
 | `cast_index` | The storage slot of a mapping entry |
 
 The `block` input of `rpc_balance`, `rpc_multicall` and `contract_call` also

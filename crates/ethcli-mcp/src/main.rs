@@ -61,6 +61,9 @@ const CORE_TOOLS: &[&str] = &[
     "account_funded_by",
     "sig_lookup",
     "sig_error",
+    "safe_info",
+    "safe_queue",
+    "safe_tx",
     "simulate_call",
     "simulate_tx",
     "price",
@@ -589,6 +592,46 @@ impl EthcliMcpServer {
     )]
     async fn sig_error(&self, Parameters(input): Parameters<SigErrorInput>) -> CallToolResult {
         tools::sig_error(&input.data).await.to_response()
+    }
+
+    #[tool(
+        description = "Safe (Gnosis Safe) multisig state read on chain in one request: owners, threshold, nonce, version, modules, guard, fallback handler and singleton. Works on any chain, no API needed",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn safe_info(&self, Parameters(input): Parameters<SafeAddressInput>) -> CallToolResult {
+        tools::safe_info(&input.safe, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Pending Safe transactions from the Safe Transaction Service with nonce at or above the on-chain nonce: decoded method, confirmations against the on-chain threshold, which owners signed and which have not, and whether several proposals share a nonce. Read-only",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn safe_queue(&self, Parameters(input): Parameters<SafeListInput>) -> CallToolResult {
+        tools::safe_queue(&input.safe, Some(&input.chain), input.limit)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "One Safe transaction by safeTxHash: calldata decoded (verified ABI, else signature database marked as a guess), MultiSend batches unpacked into each inner call and decoded, confirmations, and for a pending one the owners who have not signed",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn safe_tx(&self, Parameters(input): Parameters<SafeTxInput>) -> CallToolResult {
+        tools::safe_tx(&input.safe_tx_hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Executed Safe transactions, newest first, with decoded method, success, execution time and chain transaction hash; page with limit and offset",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn safe_history(&self, Parameters(input): Parameters<SafeListInput>) -> CallToolResult {
+        tools::safe_history(&input.safe, Some(&input.chain), input.limit, input.offset)
+            .await
+            .to_response()
     }
 
     #[tool(

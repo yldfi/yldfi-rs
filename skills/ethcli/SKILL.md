@@ -23,6 +23,7 @@ ethcli does not sign or send transactions.
 | State at a date | add `--block 2024-01-31` (or `@<unix time>`, or `7d`) | `block` input |
 | Block for a time | `ethcli rpc block-at <time> --json` | `rpc_block_at` |
 | Why did a call revert? | read the error, or `ethcli sig error <data>` | `sig_error` |
+| Safe owners, queue, a Safe tx | `ethcli safe info\|queue <safe> --json`, `ethcli safe tx <safeTxHash> --json` | `safe_info`, `safe_queue`, `safe_tx` |
 | Whole address history | `ethcli account txs <addr> --all --json` | `account_txs` with `all: true` |
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |

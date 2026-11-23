@@ -411,6 +411,38 @@ pub struct SigErrorInput {
     pub data: String,
 }
 
+// --- Safe ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SafeAddressInput {
+    /// Safe address
+    pub safe: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SafeListInput {
+    /// Safe address
+    pub safe: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Maximum transactions to list (default 20)
+    pub limit: Option<u32>,
+    /// Skip this many transactions (history only, for paging)
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SafeTxInput {
+    /// safeTxHash (the Safe's EIP-712 transaction hash, not the chain transaction hash)
+    pub safe_tx_hash: String,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 // --- Cast (Conversions) ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CastToWeiInput {
