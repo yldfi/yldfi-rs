@@ -37,6 +37,8 @@ use types::*;
 #[derive(Clone)]
 pub struct EthcliMcpServer {
     tool_router: ToolRouter<Self>,
+    /// Tools that take the `fields` input
+    fields_tools: std::sync::Arc<std::collections::HashSet<String>>,
 }
 
 /// Environment variable that limits which tools the server offers
@@ -137,7 +139,75 @@ impl EthcliMcpServer {
                 "tools limited by {TOOLSETS_ENV}"
             );
         }
-        Self { tool_router }
+        let fields_tools = std::sync::Arc::new(add_fields_parameter(&mut tool_router));
+        Self {
+            tool_router,
+            fields_tools,
+        }
+    }
+}
+
+/// Name of the input every tool accepts for trimming its JSON result.
+const FIELDS_PARAM: &str = "fields";
+
+/// Can `fields` be offered on this tool? Only read-only tools (a write must
+/// never run and then report a `fields` failure), and not `health`, whose
+/// probe runs `ethcli --version`. A read tool whose result is text fails
+/// with `invalid_argument`, which is harmless since nothing changed.
+fn accepts_fields(tool: &rmcp::model::Tool) -> bool {
+    let read_only = tool
+        .annotations
+        .as_ref()
+        .and_then(|a| a.read_only_hint)
+        .unwrap_or(false);
+    read_only && tool.name != "health"
+}
+
+/// Add the optional `fields` input to the published schema of every tool that
+/// can take it (see [`accepts_fields`]), in one place rather than in each
+/// input struct. `call_tool` takes it out of the arguments before they reach
+/// the tool, so strict input structs (`deny_unknown_fields`) never see it.
+/// Returns the names of those tools.
+fn add_fields_parameter(
+    router: &mut ToolRouter<EthcliMcpServer>,
+) -> std::collections::HashSet<String> {
+    let mut names = std::collections::HashSet::new();
+    for route in router.map.values_mut() {
+        if !accepts_fields(&route.attr) {
+            continue;
+        }
+        names.insert(route.attr.name.to_string());
+        let mut schema = (*route.attr.input_schema).clone();
+        let properties = schema
+            .entry("properties")
+            .or_insert_with(|| serde_json::Value::Object(Default::default()));
+        if let Some(properties) = properties.as_object_mut() {
+            properties.entry(FIELDS_PARAM).or_insert_with(|| {
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Return only these fields of the JSON result: comma-separated, \
+                        dot paths into nested objects (e.g. \"hash,value\" or \"balance.wei\"), \
+                        applied to each element of an array. Fails if the result is not JSON."
+                })
+            });
+        }
+        route.attr.input_schema = std::sync::Arc::new(schema);
+    }
+    names
+}
+
+/// Take the `fields` input out of a tool call's arguments.
+fn take_fields_argument(
+    arguments: Option<&mut rmcp::model::JsonObject>,
+) -> Result<Option<String>, rmcp::ErrorData> {
+    match arguments.and_then(|args| args.remove(FIELDS_PARAM)) {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(s)) if s.trim().is_empty() => Ok(None),
+        Some(serde_json::Value::String(s)) if s.len() <= 1024 && !s.contains('\0') => Ok(Some(s)),
+        Some(_) => Err(rmcp::ErrorData::invalid_params(
+            "`fields` must be a comma-separated string of field paths (at most 1024 bytes)",
+            None,
+        )),
     }
 }
 
@@ -8992,6 +9062,29 @@ impl EthcliMcpServer {
 // Server handler implementation
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for EthcliMcpServer {
+    /// Every tool call goes through here. A `fields` argument is taken out
+    /// and applies to every ethcli run the tool makes (`--fields`).
+    async fn call_tool(
+        &self,
+        mut request: rmcp::model::CallToolRequestParams,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
+        let fields = take_fields_argument(request.arguments.as_mut())?;
+        if fields.is_some() && !self.fields_tools.contains(request.name.as_ref()) {
+            return Err(rmcp::ErrorData::invalid_params(
+                format!(
+                    "`fields` is not available on {}: it changes state",
+                    request.name
+                ),
+                None,
+            ));
+        }
+        let tcc = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        executor::FIELDS
+            .scope(fields, self.tool_router.call(tcc))
+            .await
+    }
+
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(server_implementation())
@@ -9394,5 +9487,53 @@ mod toolset_tests {
             missing.is_empty(),
             "core tools missing from this build: {missing:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod fields_tests {
+    use super::*;
+
+    #[test]
+    fn fields_is_published_only_on_read_only_json_tools() {
+        let server = EthcliMcpServer::new();
+        let tools = server.tool_router.list_all();
+        let mut with = 0;
+        for tool in &tools {
+            let has = tool.input_schema["properties"].get(FIELDS_PARAM).is_some();
+            let read_only = tool
+                .annotations
+                .as_ref()
+                .and_then(|a| a.read_only_hint)
+                .unwrap_or(false);
+            let expected = read_only && tool.name != "health";
+            assert_eq!(has, expected, "{}", tool.name);
+            assert_eq!(server.fields_tools.contains(tool.name.as_ref()), expected);
+            with += usize::from(has);
+        }
+        assert!(with > 100, "only {with} tools take fields");
+        for name in ["health", "address_add", "config_set_alchemy"] {
+            assert!(!server.fields_tools.contains(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn fields_argument_is_taken_out_before_the_tool_sees_it() {
+        let mut args = serde_json::json!({"hash": "0x1", "fields": "hash,value"})
+            .as_object()
+            .unwrap()
+            .clone();
+        assert_eq!(
+            take_fields_argument(Some(&mut args)).unwrap().as_deref(),
+            Some("hash,value")
+        );
+        assert!(!args.contains_key(FIELDS_PARAM));
+        assert_eq!(take_fields_argument(Some(&mut args)).unwrap(), None);
+        assert_eq!(take_fields_argument(None).unwrap(), None);
+        let mut bad = serde_json::json!({"fields": 3})
+            .as_object()
+            .unwrap()
+            .clone();
+        assert!(take_fields_argument(Some(&mut bad)).is_err());
     }
 }

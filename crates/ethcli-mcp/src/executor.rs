@@ -538,6 +538,22 @@ fn validate_command_policy(args: &[&str], has_stdin: bool) -> Result<(), Executi
     Ok(())
 }
 
+tokio::task_local! {
+    /// The `fields` argument of the tool call being served, if any. The
+    /// server sets it around the whole call (see `call_tool` in main.rs), so
+    /// every tool passes `--fields` to ethcli without its own parameter.
+    pub static FIELDS: Option<String>;
+}
+
+/// Add `--fields=<spec>` before any bare `--`, so ethcli trims its JSON output.
+fn with_fields(mut args: Vec<String>, fields: Option<String>) -> Vec<String> {
+    if let Some(spec) = fields {
+        let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+        args.insert(end, format!("--fields={spec}"));
+    }
+    args
+}
+
 /// Sanitize error messages to prevent information leakage
 fn sanitize_error(stderr: &str, stdout: &str) -> String {
     let mut message = String::new();
@@ -545,8 +561,13 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
     // Extract useful error info without exposing sensitive details
     // The command's own error comes first, so warnings can't push it past the
     // length limit.
-    let (errors, others): (Vec<&str>, Vec<&str>) = stderr
-        .lines()
+    // ethcli prints a JSON error object (`{"error": {"code", ...}}`) when run
+    // with `-o json`; turn it into one readable line that keeps the stable
+    // code, so it can be filtered and cut like any other line.
+    let lines: Vec<String> = stderr.lines().map(json_error_line).collect();
+    let (errors, others): (Vec<&str>, Vec<&str>) = lines
+        .iter()
+        .map(String::as_str)
         .partition(|line| line.trim_start().starts_with("Error"));
     for line in errors.into_iter().chain(others).chain(stdout.lines()) {
         // Transport errors quote request URLs, which can carry API keys
@@ -612,6 +633,25 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
         "Command failed".to_string()
     } else {
         message
+    }
+}
+
+/// `{"error":{"code":"not_verified","message":"m","hint":"h"}}` becomes
+/// `Error [not_verified]: m (hint: h)`; any other line is returned unchanged.
+fn json_error_line(line: &str) -> String {
+    let parsed = serde_json::from_str::<serde_json::Value>(line.trim()).ok();
+    let Some(error) = parsed.as_ref().and_then(|v| v.get("error")) else {
+        return line.to_string();
+    };
+    let (Some(code), Some(message)) = (
+        error.get("code").and_then(|c| c.as_str()),
+        error.get("message").and_then(|m| m.as_str()),
+    ) else {
+        return line.to_string();
+    };
+    match error.get("hint").and_then(|h| h.as_str()) {
+        Some(hint) => format!("Error [{code}]: {message} (hint: {hint})"),
+        None => format!("Error [{code}]: {message}"),
     }
 }
 
@@ -1556,7 +1596,8 @@ impl ArgsBuilder {
         if let Some(error) = self.error {
             return Err(ExecutionError::Validation(error).to_string());
         }
-        let args: Vec<&str> = self.args.iter().map(|s| s.as_str()).collect();
+        let args = with_fields(self.args, FIELDS.try_with(Clone::clone).ok().flatten());
+        let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         execute_validated(&args, self.stdin.as_deref())
             .await
             .map_err(|e| e.to_string())
@@ -2006,6 +2047,38 @@ mod tests {
         ] {
             assert!(!only_names_api_key(text), "should be redacted: {text}");
         }
+    }
+
+    #[test]
+    fn test_with_fields_goes_before_double_dash() {
+        let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            with_fields(
+                args(&["rpc", "tx", "0x1", "-o", "json"]),
+                Some("hash".into())
+            ),
+            args(&["rpc", "tx", "0x1", "-o", "json", "--fields=hash"])
+        );
+        assert_eq!(
+            with_fields(args(&["cast", "to-dec", "--", "-1"]), Some("a".into())),
+            args(&["cast", "to-dec", "--fields=a", "--", "-1"])
+        );
+        assert_eq!(with_fields(args(&["x"]), None), args(&["x"]));
+    }
+
+    #[test]
+    fn test_sanitize_error_reads_json_errors() {
+        let stderr = "Fetching ABI...\n{\"error\":{\"code\":\"not_verified\",\"hint\":\"try contract source\",\"message\":\"Contract not verified on Etherscan: 0x01\"}}";
+        assert_eq!(
+            sanitize_error(stderr, ""),
+            "Error [not_verified]: Contract not verified on Etherscan: 0x01 (hint: try contract source); Fetching ABI..."
+        );
+        let no_hint = "{\"error\":{\"code\":\"not_found\",\"message\":\"Transaction not found\"}}";
+        assert_eq!(
+            sanitize_error(no_hint, ""),
+            "Error [not_found]: Transaction not found"
+        );
+        assert_eq!(json_error_line("{\"a\":1}"), "{\"a\":1}");
     }
 
     #[test]

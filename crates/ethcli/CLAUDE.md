@@ -428,6 +428,42 @@ ethcli contract storage <addr> slot0 --block 7d -o json     # whole struct
   stderr.
 - Integers are decimal strings, since a uint256 does not fit a JSON number.
 - `account` subcommands accept `-o ndjson` for one object per line.
+- `--fields a,b.c` (global) keeps only those fields of JSON / NDJSON output:
+  dot paths into nested objects, applied to each element of an array, missing
+  fields left out. It implies `--json`. Before anything runs it fails with
+  `invalid_argument` on a command that changes state
+  (`cli::MUTATING_COMMANDS`; `tests/mcp_tool_paths.rs` checks it covers
+  every ethcli-mcp tool annotated `read_only_hint = false`) or when an
+  explicit non-JSON format such as `-o table` was given. A read command runs
+  and fails afterwards if it printed no JSON object or array (text, or a bare
+  `255`). Read commands without an output option that print JSON (`contract
+  abi`, `tenderly ... list`) work. `--help`/`--version` with `--fields` print
+  as usual. Add new state-changing commands to `MUTATING_COMMANDS`.
+  Mechanism (`src/agent_output.rs`, `main.rs`): `main` re-runs the binary
+  without `--fields` and with `--json` (env `ETHCLI_FIELDS_INNER=1`), captures
+  its stdout and projects it, so no command needs changes. Scalars are
+  copied as their original text (serde_json `raw_value`), so integers of any
+  size and key order survive.
+- JSON errors: a failure prints one line on stderr,
+  `{"error":{"code":"...","message":"...","hint":"..."}}` (`hint` optional,
+  message redacted), exit code 1, when:
+  - `ETHCLI_ERROR_FORMAT=json` (`=text` forces text errors), or else
+  - the command line asks for JSON (`--json`, `-o json`, `--format ndjson`,
+    `--fields`), or stdout is not a terminal (a script or agent is reading).
+
+  A terminal without JSON flags keeps the text errors. Codes:
+  `invalid_argument` (incl. clap usage errors), `not_verified`,
+  `missing_api_key`, `unauthorized`, `rate_limited`, `unsupported_chain`,
+  `not_found`, `rpc_error`, `internal`. `agent_output::classify_with_hint`
+  walks the anyhow chain and uses the first error with a known type:
+  `code()` on `error::{Error, RpcError, AbiError, ConfigError, OutputError}`
+  and `ChainlinkError`, plus clap, reqwest and I/O errors. Only foreign errors
+  fall back to matching the message text, and that matching takes HTTP
+  statuses only in status form (`status 429`, `HTTP 401`, `(503)`,
+  `429 Too Many Requests`), never bare digits, which addresses and hashes
+  contain. Give new error types a `code()` and add them to `typed_code`.
+  A clap error keeps clap's whole message; a missing subcommand includes the
+  help with the subcommand list.
 
 ### Times in place of blocks
 

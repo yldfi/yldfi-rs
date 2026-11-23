@@ -157,6 +157,12 @@ pub struct Cli {
     /// Suppress progress output
     #[arg(short, long, global = true)]
     pub quiet: bool,
+
+    /// Keep only these fields of the JSON output (comma-separated, dot paths
+    /// such as `balance.wei`; applied to each element of an array). Implies
+    /// --json; errors if the command has no JSON output
+    #[arg(long, global = true, value_name = "FIELDS")]
+    pub fields: Option<String>,
 }
 
 /// Resolve the chain ID for a command that has its own optional `--chain-id`
@@ -191,30 +197,12 @@ fn arg_named(arg: &clap::Arg, token: &str) -> bool {
     }
 }
 
-/// Expand a `--json` given anywhere on the command line into the output
-/// option of the command being run.
-///
-/// Commands spell their output option differently (`--format`, `--output`,
-/// both with `-o`), and a few have their own `--json`. This lets a caller
-/// write `--json` on any of them:
-///
-/// - the command has its own `--json`: left as it is;
-/// - the command has a format option that accepts `json`: `--json` becomes
-///   that option, unless the option was also given explicitly;
-/// - the command has no output option: `--json` is dropped with a note on
-///   stderr, so a command that already prints JSON still runs.
-///
-/// Everything after a bare `--` is left untouched.
-pub fn expand_json_flag(args: Vec<String>) -> Vec<String> {
-    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
-    if !args[..end].iter().skip(1).any(|a| a == "--json") {
-        return args;
-    }
-
-    let root = Cli::command();
-    let mut chain: Vec<&clap::Command> = vec![&root];
+/// The commands named on a command line, from the root to the leaf
+/// subcommand. `args[0]` is the program name.
+fn command_chain<'a>(root: &'a clap::Command, args: &[String]) -> Vec<&'a clap::Command> {
+    let mut chain: Vec<&clap::Command> = vec![root];
     let mut i = 1;
-    while i < end {
+    while i < args.len() {
         let token = &args[i];
         if token.starts_with('-') {
             // Step over the value of an option written as two tokens
@@ -236,18 +224,162 @@ pub fn expand_json_flag(args: Vec<String>) -> Vec<String> {
         }
         i += 1;
     }
+    chain
+}
+
+/// The command's `--format`/`--output` option, if it accepts `json`.
+fn json_format_arg(cmd: &clap::Command) -> Option<&clap::Arg> {
+    cmd.get_arguments().find(|a| {
+        (arg_named(a, "--format") || arg_named(a, "--output"))
+            && a.get_possible_values()
+                .iter()
+                .any(|v| v.get_name() == "json")
+    })
+}
+
+/// Commands that change state (local files, remote services, orders), by
+/// canonical command path. A listed path covers its subcommands.
+///
+/// `--fields` refuses these before running: projection happens after the
+/// command ran, so a write that prints text would succeed and still be
+/// reported as a failure. `tests/mcp_tool_paths.rs` checks that every
+/// ethcli-mcp tool annotated `read_only_hint = false` runs a listed command.
+pub const MUTATING_COMMANDS: &[&str] = &[
+    "address add",
+    "address import",
+    "address remove",
+    "alchemy nft refresh-metadata",
+    "alchemy nft report-spam",
+    "blacklist add",
+    "blacklist remove",
+    "chainlist add",
+    "config add-debug-rpc",
+    "config init",
+    "config remove-debug-rpc",
+    "config set-alchemy",
+    "config set-chainlink",
+    "config set-defillama",
+    "config set-dune",
+    "config set-etherscan-key",
+    "config set-moralis",
+    "config set-pyth",
+    "config set-solodit",
+    "config set-tenderly",
+    "cow-swap cancel-order",
+    "cow-swap cancel-orders",
+    "cow-swap create-order",
+    "dune matviews delete",
+    "dune matviews refresh",
+    "dune matviews upsert",
+    "dune pipelines execute",
+    "dune queries archive",
+    "dune queries create",
+    "dune queries make-private",
+    "dune queries make-public",
+    "dune queries unarchive",
+    "dune queries update",
+    "dune tables clear",
+    "dune tables create",
+    "dune tables delete",
+    "dune tables insert",
+    "dune tables upload-csv",
+    "endpoints add",
+    "endpoints disable",
+    "endpoints enable",
+    "endpoints optimize",
+    "endpoints remove",
+    "moralis nft resync-metadata",
+    "moralis nft resync-traits",
+    "moralis nft sync-collection",
+    "sig cache-clear",
+    "simulate call",
+    "simulate share",
+    "simulate unshare",
+    "tenderly actions resume",
+    "tenderly actions resume-many",
+    "tenderly actions stop",
+    "tenderly actions stop-many",
+    "tenderly alerts create",
+    "tenderly alerts delete",
+    "tenderly alerts update",
+    "tenderly contracts add",
+    "tenderly contracts bulk-tag",
+    "tenderly contracts remove-tag",
+    "tenderly contracts rename",
+    "tenderly vnets admin add-balance",
+    "tenderly vnets admin add-balances",
+    "tenderly vnets admin increase-blocks",
+    "tenderly vnets admin increase-time",
+    "tenderly vnets admin revert",
+    "tenderly vnets admin send-tx",
+    "tenderly vnets admin set-balance",
+    "tenderly vnets admin set-balances",
+    "tenderly vnets admin set-code",
+    "tenderly vnets admin set-erc20-balance",
+    "tenderly vnets admin set-max-erc20-balance",
+    "tenderly vnets admin set-storage",
+    "tenderly vnets admin set-timestamp",
+    "tenderly vnets admin set-timestamp-no-mine",
+    "tenderly vnets admin snapshot",
+    "tenderly vnets create",
+    "tenderly vnets delete",
+    "tenderly vnets fork",
+    "tenderly vnets send",
+    "tenderly vnets update",
+    "tenderly wallets add",
+    "upgrade",
+];
+
+/// Is this command path (`["address", "add"]`) one of [`MUTATING_COMMANDS`]?
+pub fn is_mutating_path(path: &[String]) -> bool {
+    MUTATING_COMMANDS.iter().any(|listed| {
+        let listed: Vec<&str> = listed.split_whitespace().collect();
+        path.len() >= listed.len() && listed.iter().zip(path).all(|(a, b)| *a == b.as_str())
+    })
+}
+
+/// Does the command on this command line change state? Subcommand aliases
+/// are resolved to their canonical names first.
+pub fn is_mutating_command(args: &[String]) -> bool {
+    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    let root = Cli::command();
+    let path: Vec<String> = command_chain(&root, &args[..end])
+        .iter()
+        .skip(1)
+        .map(|c| c.get_name().to_string())
+        .collect();
+    is_mutating_path(&path)
+}
+
+/// Expand a `--json` given anywhere on the command line into the output
+/// option of the command being run.
+///
+/// Commands spell their output option differently (`--format`, `--output`,
+/// both with `-o`), and a few have their own `--json`. This lets a caller
+/// write `--json` on any of them:
+///
+/// - the command has its own `--json`: left as it is;
+/// - the command has a format option that accepts `json`: `--json` becomes
+///   that option, unless the option was also given explicitly;
+/// - the command has no output option: `--json` is dropped with a note on
+///   stderr, so a command that already prints JSON still runs.
+///
+/// Everything after a bare `--` is left untouched.
+pub fn expand_json_flag(args: Vec<String>) -> Vec<String> {
+    let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    if !args[..end].iter().skip(1).any(|a| a == "--json") {
+        return args;
+    }
+
+    let root = Cli::command();
+    let chain = command_chain(&root, &args[..end]);
     let leaf = chain[chain.len() - 1];
 
     if leaf.get_arguments().any(|a| a.get_long() == Some("json")) {
         return args;
     }
 
-    let format_arg = leaf.get_arguments().find(|a| {
-        (arg_named(a, "--format") || arg_named(a, "--output"))
-            && a.get_possible_values()
-                .iter()
-                .any(|v| v.get_name() == "json")
-    });
+    let format_arg = json_format_arg(leaf);
 
     let mut out = Vec::with_capacity(args.len() + 1);
     match format_arg {
@@ -292,6 +424,39 @@ mod json_flag_tests {
 
     fn expand(args: &[&str]) -> Vec<String> {
         expand_json_flag(args.iter().map(|s| s.to_string()).collect())
+    }
+
+    #[test]
+    fn mutating_commands_are_recognised_through_aliases() {
+        let s = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        for args in [
+            s(&["ethcli", "address", "add", "x", "0x1"]),
+            s(&["ethcli", "--chain", "base", "address", "remove", "x"]),
+            s(&["ethcli", "config", "set-alchemy", "--stdin"]),
+        ] {
+            assert!(super::is_mutating_command(&args), "{args:?}");
+        }
+        for args in [
+            s(&["ethcli", "account", "txs", "0x1"]),
+            s(&["ethcli", "contract", "abi", "0x1"]),
+            s(&["ethcli", "address", "list"]),
+            s(&["ethcli", "cast", "keccak", "hello"]),
+            s(&["ethcli", "rpc"]),
+        ] {
+            assert!(!super::is_mutating_command(&args), "{args:?}");
+        }
+        // Every listed path names a real command, by its canonical name
+        use clap::CommandFactory;
+        let root = super::Cli::command();
+        for listed in super::MUTATING_COMMANDS {
+            let mut cmd = &root;
+            for seg in listed.split_whitespace() {
+                cmd = cmd
+                    .get_subcommands()
+                    .find(|c| c.get_name() == seg)
+                    .unwrap_or_else(|| panic!("MUTATING_COMMANDS: no command `{listed}`"));
+            }
+        }
     }
 
     #[test]
