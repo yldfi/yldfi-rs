@@ -729,16 +729,39 @@ pub async fn contract_fingerprint(
 /// Largest artifact `contract_match` accepts
 const MAX_ARTIFACT_BYTES: u64 = 50 * 1024 * 1024;
 
-/// Root under which `contract_match` may read artifacts:
-/// `ETHCLI_MCP_ARTIFACT_ROOT`, else the server's working directory
+/// Root under which `contract_match` may read artifacts. Fails closed: the
+/// operator must set ETHCLI_MCP_ARTIFACT_ROOT to a project directory.
 fn artifact_root() -> Result<std::path::PathBuf, ToolError> {
-    let root = std::env::var_os("ETHCLI_MCP_ARTIFACT_ROOT")
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    resolve_artifact_root(std::env::var_os("ETHCLI_MCP_ARTIFACT_ROOT"), home)
+}
+
+const ROOT_HINT: &str = "contract_match is disabled over MCP until the server is started with ETHCLI_MCP_ARTIFACT_ROOT set to the directory holding build artifacts (for example a project's out/ directory); it may not be / or the home directory";
+
+fn resolve_artifact_root(
+    configured: Option<std::ffi::OsString>,
+    home: Option<std::path::PathBuf>,
+) -> Result<std::path::PathBuf, ToolError> {
+    let raw = configured
         .filter(|v| !v.is_empty())
-        .map(std::path::PathBuf::from)
-        .or_else(|| std::env::current_dir().ok())
-        .ok_or_else(|| ToolError::InvalidInput("no artifact root configured".into()))?;
-    root.canonicalize()
-        .map_err(|_| ToolError::InvalidInput("artifact root is not accessible".into()))
+        .ok_or_else(|| ToolError::InvalidInput(ROOT_HINT.into()))?;
+    let root = std::path::PathBuf::from(raw).canonicalize().map_err(|_| {
+        ToolError::InvalidInput("ETHCLI_MCP_ARTIFACT_ROOT is not an accessible directory".into())
+    })?;
+    if !root.is_dir() {
+        return Err(ToolError::InvalidInput(
+            "ETHCLI_MCP_ARTIFACT_ROOT is not a directory".into(),
+        ));
+    }
+    // A filesystem root (/, C:\) has no parent
+    let is_fs_root = root.parent().is_none();
+    let is_home = home
+        .and_then(|h| h.canonicalize().ok())
+        .is_some_and(|h| h == root);
+    if is_fs_root || is_home {
+        return Err(ToolError::InvalidInput(ROOT_HINT.into()));
+    }
+    Ok(root)
 }
 
 /// Check an artifact path from a tool call: a regular `.json` file under
@@ -750,7 +773,7 @@ pub fn validate_artifact_path(
 ) -> Result<std::path::PathBuf, ToolError> {
     let denied = || {
         ToolError::InvalidInput(
-            "artifact must be a .json file under the allowed artifact root (ETHCLI_MCP_ARTIFACT_ROOT, default: the server's working directory)".into(),
+            "artifact must be a .json file under the allowed artifact root (ETHCLI_MCP_ARTIFACT_ROOT)".into(),
         )
     };
     if raw.is_empty() || raw.contains('\0') {
@@ -9684,6 +9707,29 @@ mod artifact_path_tests {
             assert!(!err.contains("secret"), "{err}");
             assert!(err.contains("artifact"), "{bad}: {err}");
         }
+    }
+
+    #[test]
+    fn artifact_root_fails_closed() {
+        let home = tempdir();
+        let project = tempdir();
+        let h = Some(home.path().to_path_buf());
+        // Unset or empty
+        assert!(resolve_artifact_root(None, h.clone())
+            .unwrap_err()
+            .to_string()
+            .contains("ETHCLI_MCP_ARTIFACT_ROOT"));
+        assert!(resolve_artifact_root(Some("".into()), h.clone()).is_err());
+        // Filesystem root and home
+        assert!(resolve_artifact_root(Some("/".into()), h.clone()).is_err());
+        assert!(resolve_artifact_root(Some(home.path().into()), h.clone()).is_err());
+        // Missing directory
+        assert!(
+            resolve_artifact_root(Some(project.path().join("nope").into()), h.clone()).is_err()
+        );
+        // A project directory is fine
+        let ok = resolve_artifact_root(Some(project.path().into()), h).unwrap();
+        assert_eq!(ok, project.path().canonicalize().unwrap());
     }
 
     #[cfg(unix)]

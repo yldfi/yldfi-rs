@@ -593,7 +593,7 @@ ethcli contract match <addr> --artifact <forge-or-solc-json> [--contract Name] [
   count when the CBOR decodes exactly up to its length field, with byte
   strings of at most 64 bytes, 32/34-byte hashes and 3-byte solc versions.
 - MCP `contract_match` only reads `.json` regular files up to 50 MB under
-  `ETHCLI_MCP_ARTIFACT_ROOT` (default: the server's working directory),
+  `ETHCLI_MCP_ARTIFACT_ROOT` (required; there is no default, and `/` or the home directory are refused),
   after canonicalising (symlinks out of the root are refused). Errors never
   echo file contents.
 - `match`: immutables and libraries are always masked and their deployed
