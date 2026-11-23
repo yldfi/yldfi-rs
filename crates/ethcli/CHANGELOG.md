@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.10](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.9...ethcli-v0.30.10) (2026-11-23)
+
+
+### Features
+
+* **ethcli:** contract calls, inferred bytecode facts and verified twins ([#312](https://github.com/yldfi/yldfi-rs/issues/312)) ([b4a2205](https://github.com/yldfi/yldfi-rs/commit/b4a2205f69066b80dcb64c3ce8ba33f040bb7192))
+* **ethcli:** contract decompile, fingerprint and match for unverified contracts ([#311](https://github.com/yldfi/yldfi-rs/issues/311)) ([b95ece2](https://github.com/yldfi/yldfi-rs/commit/b95ece2a2a0f5e9fb82a32f2f465ce71aa58aff0))
+
 ## [0.30.9](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.8...ethcli-v0.30.9) (2026-11-23)
 
 
