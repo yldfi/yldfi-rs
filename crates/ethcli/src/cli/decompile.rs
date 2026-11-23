@@ -220,6 +220,15 @@ fn is_constant(p: &crate::bytecode::Provenance, addr: Address) -> bool {
             .is_some_and(|v| v == U256::from_be_slice(addr.as_slice()))
 }
 
+/// Call-site records at `pc` reached on the dispatcher path
+fn dispatcher_calls_at(report: &CallsReport, pc: usize) -> Vec<&crate::bytecode::CallSite> {
+    report
+        .call_sites
+        .iter()
+        .filter(|c| c.pc == pc && c.functions.iter().any(|f| f == "dispatcher"))
+        .collect()
+}
+
 /// Is this call exactly `implementation()` with no arguments, by
 /// STATICCALL, or by CALL with a value that is a constant zero?
 fn is_implementation_call(c: &crate::bytecode::CallSite) -> bool {
@@ -268,14 +277,19 @@ fn proxy_check_report(
             "EIP-1967 beacon proxy" | "beacon proxy (immutable beacon)" => {
                 t.kind == "call_return"
                     && t.call_pc.is_some_and(|pc| {
-                        report.call_sites.iter().any(|c| {
-                            c.pc == pc
-                                && is_implementation_call(c)
-                                && c.target.iter().any(|b| {
-                                    from_slot(b, EIP1967_BEACON_SLOT)
-                                        || beacon.is_some_and(|addr| is_constant(b, addr))
-                                })
-                        })
+                        // Every record of that call on the dispatcher path
+                        // (the DELEGATECALL's own context) must be the
+                        // beacon's implementation() call
+                        let records = dispatcher_calls_at(report, pc);
+                        !records.is_empty()
+                            && records.iter().all(|c| {
+                                is_implementation_call(c)
+                                    && !c.target.is_empty()
+                                    && c.target.iter().all(|b| {
+                                        from_slot(b, EIP1967_BEACON_SLOT)
+                                            || beacon.is_some_and(|addr| is_constant(b, addr))
+                                    })
+                            })
                     })
             }
             k if k.starts_with("EIP-1167") => is_constant(t, implementation),
@@ -322,17 +336,25 @@ fn immutable_beacon(code: &[u8]) -> Option<Address> {
         .flat_map(|s| s.target.iter())
         .filter(|t| t.kind == "call_return")
         .find_map(|t| {
-            let call = report
-                .call_sites
-                .iter()
-                .find(|c| Some(c.pc) == t.call_pc && is_implementation_call(c))?;
-            call.target.iter().find_map(|b| {
-                if matches!(b.kind.as_str(), "constant" | "code_constant") {
-                    b.value.as_deref().and_then(|v| Address::from_str(v).ok())
-                } else {
-                    None
+            let records = dispatcher_calls_at(&report, t.call_pc?);
+            if records.is_empty() || !records.iter().all(|c| is_implementation_call(c)) {
+                return None;
+            }
+            // One constant beacon across every record
+            let mut found: Option<Address> = None;
+            for c in &records {
+                for b in &c.target {
+                    if !matches!(b.kind.as_str(), "constant" | "code_constant") {
+                        return None;
+                    }
+                    let a = b.value.as_deref().and_then(|v| Address::from_str(v).ok())?;
+                    if found.is_some_and(|f| f != a) {
+                        return None;
+                    }
+                    found = Some(a);
                 }
-            })
+            }
+            found
         })
 }
 
@@ -2678,5 +2700,54 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("ORIGIN at pc 0xc8 not reached")));
+    }
+
+    #[test]
+    fn beacon_call_records_must_all_be_implementation_on_the_dispatcher_path() {
+        let beacon = Address::repeat_byte(0xbe);
+        let call = |function: &str, selector: &str| {
+            let mut c = site(
+                10,
+                "STATICCALL",
+                function,
+                vec![prov(
+                    "code_constant",
+                    Some(&format!("{beacon:#x}")),
+                    None,
+                    None,
+                )],
+            );
+            c.selector = vec![prov("constant", Some(selector), None, None)];
+            c.args_len = vec![prov("constant", Some("0x4"), None, None)];
+            c
+        };
+        let delegate = site(
+            20,
+            "DELEGATECALL",
+            "dispatcher",
+            vec![prov("call_return", None, None, Some(10))],
+        );
+        let check = |sites| {
+            proxy_check_report(
+                "EIP-1967 beacon proxy",
+                &report_with(sites),
+                Address::ZERO,
+                Some(beacon),
+            )
+            .ok
+        };
+        // Same pc: getTarget() on the dispatcher path, implementation() elsewhere
+        assert!(!check(vec![
+            call("dispatcher", "0xf00e6a2a"),
+            call("0x12345678", "0x5c60da1b"),
+            delegate.clone()
+        ]));
+        // Both records on the dispatcher path, one of them not implementation()
+        assert!(!check(vec![
+            call("dispatcher", "0xf00e6a2a"),
+            call("dispatcher", "0x5c60da1b"),
+            delegate.clone()
+        ]));
+        assert!(check(vec![call("dispatcher", "0x5c60da1b"), delegate]));
     }
 }
