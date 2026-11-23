@@ -609,71 +609,100 @@ fn checker_detects_parent_flags_ignored_chain_and_bad_positionals() {
     assert!(!global_chain_commands(&root).iter().any(|c| c == "curve"));
 }
 
-/// The ethcli command paths a tool function runs (`None` when a subcommand
-/// is chosen at run time).
-fn tool_paths(body: &str) -> Option<Vec<Vec<String>>> {
-    let mut paths: Vec<Vec<String>> = Vec::new();
+/// The ethcli command paths a tool function runs. A subcommand chosen at run
+/// time ends the path there (the static prefix is kept).
+fn tool_paths(body: &str) -> Vec<Vec<String>> {
+    let mut paths: Vec<(Vec<String>, bool)> = Vec::new();
     for step in tokenize(body) {
         match step {
-            Step::New(cmd) => paths.push(cmd.split_whitespace().map(String::from).collect()),
-            Step::Sub(sub) => paths
-                .last_mut()?
-                .extend(sub.split_whitespace().map(String::from)),
-            Step::DynamicSub => return None,
+            Step::New(cmd) => {
+                paths.push((cmd.split_whitespace().map(String::from).collect(), false))
+            }
+            Step::Sub(sub) => {
+                if let Some((path, false)) = paths.last_mut() {
+                    path.extend(sub.split_whitespace().map(String::from));
+                }
+            }
+            Step::DynamicSub => {
+                if let Some(last) = paths.last_mut() {
+                    last.1 = true;
+                }
+            }
             _ => {}
         }
     }
-    Some(paths)
+    paths.into_iter().map(|(p, _)| p).collect()
 }
 
-/// Tool functions whose every ethcli command has no JSON output
-fn computed_text_tools(src: &str) -> Vec<String> {
-    let mut out: Vec<String> = split_functions(src)
-        .into_iter()
-        .filter(|(_, body)| match tool_paths(body) {
-            Some(paths) if !paths.is_empty() => paths.iter().all(|path| {
-                let argv: Vec<String> = std::iter::once("ethcli".to_string())
-                    .chain(path.iter().cloned())
-                    .collect();
-                !ethcli::cli::supports_json_output(&argv)
-            }),
-            _ => false,
+/// MCP tools annotated `read_only_hint = false`, with the tools.rs function
+/// each one calls.
+fn mcp_write_tools(main: &str) -> Vec<(String, String)> {
+    let tool = Regex::new(r"(?s)read_only_hint\s*=\s*false.*?async fn (\w+)\s*\(").unwrap();
+    let call = Regex::new(r"tools::(\w+)\s*\(").unwrap();
+    tool.captures_iter(main)
+        .map(|c| {
+            let name = c[1].to_string();
+            let after = &main[c.get(0).unwrap().end()..];
+            let func = call
+                .captures(after)
+                .map(|m| m[1].to_string())
+                .unwrap_or_else(|| name.clone());
+            (name, func)
         })
-        .map(|(name, _)| name)
-        .collect();
-    out.sort();
-    out
+        .collect()
 }
 
-/// ethcli-mcp's `TEXT_TOOLS` (tools that do not take `fields`) must match
-/// the tools whose ethcli command has no JSON output.
+/// The canonical command path of an argv (aliases resolved)
+fn canonical(argv: &[String]) -> String {
+    let mut cmd = &ethcli::cli::Cli::command();
+    let mut out = Vec::new();
+    for token in &argv[1..] {
+        match find_sub(cmd, token) {
+            Some(sub) => {
+                out.push(sub.get_name().to_string());
+                cmd = sub;
+            }
+            None => break,
+        }
+    }
+    out.join(" ")
+}
+
+/// Every command an MCP write tool runs must be in ethcli's
+/// `MUTATING_COMMANDS`, so `--fields` refuses it before it runs.
 #[test]
-fn mcp_text_tools_match_commands_without_json_output() {
+fn mcp_write_tools_are_mutating_commands() {
     let main_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../ethcli-mcp/src/main.rs");
     let (Some(tools), Ok(main)) = (tools_source(), std::fs::read_to_string(main_path)) else {
         eprintln!("ethcli-mcp sources not found; skipping");
         return;
     };
     let tools = tools.split("#[cfg(test)]").next().unwrap_or(&tools);
-    let start = main
-        .find("const TEXT_TOOLS")
-        .expect("TEXT_TOOLS in main.rs");
-    let end = start + main[start..].find("];").expect("end of TEXT_TOOLS");
-    let mut listed: Vec<String> = Regex::new(r#""(\w+)""#)
-        .unwrap()
-        .captures_iter(&main[start..end])
-        .map(|c| c[1].to_string())
-        .collect();
-    listed.sort();
-    let expected = computed_text_tools(tools);
-    assert_eq!(
-        listed,
-        expected,
-        "TEXT_TOOLS in crates/ethcli-mcp/src/main.rs is out of date; expected:\n{}",
-        expected
-            .iter()
-            .map(|n| format!("    \"{n}\","))
-            .collect::<Vec<_>>()
-            .join("\n")
+    let functions: std::collections::HashMap<String, String> =
+        split_functions(tools).into_iter().collect();
+    let writes = mcp_write_tools(&main);
+    assert!(writes.len() > 30, "found only {} write tools", writes.len());
+
+    let mut missing: Vec<String> = Vec::new();
+    for (tool, func) in &writes {
+        let body = functions
+            .get(func)
+            .unwrap_or_else(|| panic!("{tool}: tools::{func} not found"));
+        for path in tool_paths(body) {
+            // Through the clap tree, so aliases resolve to canonical names
+            let argv: Vec<String> = std::iter::once("ethcli".to_string())
+                .chain(path.iter().cloned())
+                .collect();
+            if !ethcli::cli::is_mutating_command(&argv) {
+                missing.push(format!("    \"{}\", // {tool}", canonical(&argv)));
+            }
+        }
+    }
+    missing.sort();
+    missing.dedup();
+    assert!(
+        missing.is_empty(),
+        "MUTATING_COMMANDS in crates/ethcli/src/cli/mod.rs lacks the commands of these MCP write tools:\n{}",
+        missing.join("\n")
     );
 }

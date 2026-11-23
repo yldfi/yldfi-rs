@@ -49,8 +49,8 @@ single facts.
 - **Ask only for the fields you need.** `--fields hash,value` (dot paths
   such as `balance.wei`; applied to each row of an array) trims JSON output
   and implies `--json`: `ethcli account txs <addr> --fields hash,value`.
-  Read-only MCP tools with JSON results take the same thing as a `fields`
-  input. Commands without JSON output refuse `--fields` before running.
+  Read-only MCP tools take the same thing as a `fields` input. Commands that
+  change state refuse `--fields` before running.
 - **Read JSON errors by code.** With JSON output, or when stdout is piped or
   captured (`ETHCLI_ERROR_FORMAT=json|text` overrides), a failure is one stderr line,
   `{"error":{"code","message","hint"}}`, exit code non-zero. Codes:

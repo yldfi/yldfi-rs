@@ -152,9 +152,9 @@ ethcli rpc multicall "<addr> pricePerShare()(uint256)" --block-range 21000000:21
 output option (`-o json`) and is ignored, with a note, on those that do not.
 `--fields a,b.c` keeps only those fields of the JSON or NDJSON output (dot
 paths into nested objects, applied to each element of an array; missing fields
-are left out). It implies `--json` and fails with `invalid_argument`, before
-running anything, when the command has no JSON output option (`--json` or
-`-o json`) or another format was chosen. With JSON output, or whenever stdout is not a
+are left out). It implies `--json` and fails with `invalid_argument`: before
+running, on a command that changes state or when another format was chosen;
+after running, when a read command printed no JSON object or array. With JSON output, or whenever stdout is not a
 terminal (`ETHCLI_ERROR_FORMAT=json|text` overrides), a failure prints one line on stderr,
 `{"error":{"code":"...","message":"...","hint":"..."}}` (`hint` optional), and
 exits non-zero. Codes: `invalid_argument`, `not_verified`, `missing_api_key`,

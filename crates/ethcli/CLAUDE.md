@@ -265,12 +265,14 @@ It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 - `--fields a,b.c` (global) keeps only those fields of JSON / NDJSON output:
   dot paths into nested objects, applied to each element of an array, missing
   fields left out. It implies `--json`. Before anything runs it fails with
-  `invalid_argument` when the command has no JSON output (no `--json` or
-  output option accepting `json`, per `cli::supports_json_output`, so also
-  commands that print JSON without such an option) or an explicit non-JSON
-  format such as `-o table` was given; output that is not a JSON object or
-  array (a bare `255`) also fails. `--help`/`--version` with `--fields` print
-  as usual.
+  `invalid_argument` on a command that changes state
+  (`cli::MUTATING_COMMANDS`; `tests/mcp_tool_paths.rs` checks it covers
+  every ethcli-mcp tool annotated `read_only_hint = false`) or when an
+  explicit non-JSON format such as `-o table` was given. A read command runs
+  and fails afterwards if it printed no JSON object or array (text, or a bare
+  `255`). Read commands without an output option that print JSON (`contract
+  abi`, `tenderly ... list`) work. `--help`/`--version` with `--fields` print
+  as usual. Add new state-changing commands to `MUTATING_COMMANDS`.
   Mechanism (`src/agent_output.rs`, `main.rs`): `main` re-runs the binary
   without `--fields` and with `--json` (env `ETHCLI_FIELDS_INNER=1`), captures
   its stdout and projects it, so no command needs changes. Scalars are

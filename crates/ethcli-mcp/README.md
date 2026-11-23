@@ -195,11 +195,11 @@ guess from the public signature list.
 
 ### Smaller results and error codes
 
-- Read-only tools with a JSON result accept an optional `fields` input: a
-  comma-separated list of field paths (`"hash,value"`, `"balance.wei"`),
-  applied to each element of an array. Only those fields of the result are
-  returned. Tools that write or return plain text do not list it, and refuse
-  it before running.
+- Read-only tools accept an optional `fields` input: a comma-separated list
+  of field paths (`"hash,value"`, `"balance.wei"`), applied to each element
+  of an array. Only those fields of the JSON result are returned; a tool
+  whose result is plain text returns `invalid_argument`. Tools that write do
+  not list it and refuse it before running.
 - A failed call's text starts with a stable code, for example
   `Error [not_verified]: ... (hint: ...)`. The codes are `invalid_argument`,
   `not_verified`, `missing_api_key`, `unauthorized`, `rate_limited`,

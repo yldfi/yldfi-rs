@@ -106,12 +106,12 @@ When adding a tool, decide whether it is safe in default read-only mode:
 ### `fields` on every tool
 
 `fields` is handled once, not per tool. `add_fields_parameter` (main.rs) adds
-it at startup to the published input schema of every read-only tool whose
-ethcli command has JSON output; write tools, `health` and `TEXT_TOOLS` do not
-get it, and a call that passes it anyway is refused before anything runs.
-`TEXT_TOOLS` is checked against the ethcli command definitions by
-`crates/ethcli/tests/mcp_tool_paths.rs`, which prints the expected list when
-a tool changes. The hand-written
+it at startup to the published input schema of every read-only tool (not
+`health`); write tools do not get it, and a call that passes it anyway is
+refused before anything runs. A read tool whose result is text returns
+`invalid_argument`. ethcli itself also refuses `--fields` on the commands in
+its `MUTATING_COMMANDS`, which `crates/ethcli/tests/mcp_tool_paths.rs`
+checks against the write tools here. The hand-written
 `call_tool` takes it out of the arguments before they are parsed into the
 input struct (so `deny_unknown_fields` structs are fine) and sets the
 `executor::FIELDS` task-local for the call. `ArgsBuilder::execute` then adds

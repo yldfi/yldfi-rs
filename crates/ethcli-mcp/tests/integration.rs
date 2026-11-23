@@ -354,18 +354,28 @@ fn test_fields_is_offered_only_where_it_applies() {
             t["name"] == name && t["inputSchema"]["properties"]["fields"]["type"] == "string"
         })
     };
-    assert!(has_fields("account_txs") && has_fields("contract_inspect"));
-    // Text output, the health probe, and tools that write
-    for name in ["cast_keccak", "health", "address_add"] {
+    assert!(has_fields("account_txs") && has_fields("contract_abi"));
+    // The health probe and tools that write do not take it
+    for name in ["health", "address_add"] {
         assert!(!has_fields(name), "{name}");
     }
 
-    // Given anyway, it is refused before anything runs
-    let response = client.call_tool("cast_keccak", json!({"value": "hello", "fields": "hash"}));
+    // Given to a write tool anyway, it is refused before anything runs
+    let response = client.call_tool(
+        "address_add",
+        json!({"name": "x", "address": "0x000000000000000000000000000000000000dEaD", "fields": "a"}),
+    );
     assert!(
         response["error"]["message"]
             .as_str()
             .is_some_and(|m| m.contains("`fields` is not available")),
+        "{response}"
+    );
+    // A read tool whose result is text runs and reports invalid_argument
+    let response = client.call_tool("cast_keccak", json!({"value": "hello", "fields": "hash"}));
+    assert_eq!(response["result"]["isError"], true, "{response}");
+    assert!(
+        response["result"].to_string().contains("invalid_argument"),
         "{response}"
     );
     // And the health tool still reports a working ethcli

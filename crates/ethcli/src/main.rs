@@ -172,17 +172,19 @@ fn run_with_fields(args: Vec<String>, spec: &str) -> anyhow::Result<i32> {
 
     let paths = ethcli::agent_output::parse_fields(spec)
         .map_err(|e| anyhow::Error::new(ethcli::agent_output::UsageError(e.to_string())))?;
-    // Refuse before running: a command without JSON output could otherwise
-    // do its work (possibly a write) and only then fail
+    // Refuse before running when the output cannot be JSON, or when the
+    // command changes state: projection happens afterwards, so a write that
+    // prints text would succeed and still be reported as a failure. A read
+    // command runs, and fails afterwards if it printed no JSON.
     if let Some(format) = ethcli::agent_output::explicit_non_json_format(&args) {
         return Err(anyhow::Error::new(ethcli::agent_output::UsageError(
             format!("--fields needs JSON output, but the output format was set to '{format}'"),
         )));
     }
-    if !ethcli::cli::supports_json_output(&args) {
+    if ethcli::cli::is_mutating_command(&args) {
         return Err(anyhow::Error::new(ethcli::agent_output::UsageError(
-            "--fields needs JSON output, and this command has no JSON output \
-             (no --json or -o json option); run it without --fields"
+            "--fields is not available on commands that change state; \
+             run it without --fields"
                 .to_string(),
         )));
     }
