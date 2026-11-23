@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.11](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.10...ethcli-v0.30.11) (2026-11-23)
+
+
+### Bug Fixes
+
+* **ethcli:** upgrade picks the highest published release ([#315](https://github.com/yldfi/yldfi-rs/issues/315)) ([ee213e3](https://github.com/yldfi/yldfi-rs/commit/ee213e317fb0dedf580ff610998783982f985fe5))
+
 ## [0.30.10](https://github.com/yldfi/yldfi-rs/compare/ethcli-v0.30.9...ethcli-v0.30.10) (2026-11-23)
 
 
