@@ -237,6 +237,63 @@ pub enum RpcCommands {
         format: OutputFormat,
     },
 
+    /// Find the block where a value changed, by binary search over blocks
+    ///
+    /// The target is one of: a contract call "<address> <signature> [args...]"
+    /// (as in `rpc multicall`; give return types to have values decoded),
+    /// --balance, --storage, --code or --nonce. The value is read at --from,
+    /// and the first block in (--from, --to] where it differs is found in
+    /// about log2(to - from) reads. Needs historical state (an archive
+    /// endpoint for old blocks).
+    ///
+    /// Assumes one change in the range. With several, it finds one boundary,
+    /// not always the first: narrow the range or use --all. --all repeats the
+    /// search after each change; it misses changes that are undone inside a
+    /// segment (a value that goes up and back down).
+    ///
+    /// Examples:
+    ///   ethcli rpc find-change --code 0xA0b8... --from 6000000
+    ///   ethcli rpc find-change "0xA0b8... balanceOf(address)(uint256) 0xd8dA..." --from 2024-01-01 --all
+    ///   ethcli rpc find-change --nonce 0xd8dA... --from 30d --json
+    #[command(visible_alias = "bisect")]
+    FindChange {
+        /// Contract call, "<address> <signature> [args...]"
+        #[arg(value_name = "CALL")]
+        call: Option<String>,
+
+        /// Native balance of this address
+        #[arg(long, value_name = "ADDRESS")]
+        balance: Option<String>,
+
+        /// Storage slot of a contract
+        #[arg(long, num_args = 2, value_names = ["ADDRESS", "SLOT"])]
+        storage: Vec<String>,
+
+        /// Code at this address (when it was deployed or changed)
+        #[arg(long, value_name = "ADDRESS")]
+        code: Option<String>,
+
+        /// Nonce of this address
+        #[arg(long, value_name = "ADDRESS")]
+        nonce: Option<String>,
+
+        /// Start: block number, or a time (2024-01-31, @1706700000, 7d)
+        #[arg(long, value_name = "BLOCK")]
+        from: String,
+
+        /// End: block number, a time, or "latest"
+        #[arg(long, default_value = "latest", value_name = "BLOCK")]
+        to: String,
+
+        /// Report every change (up to 100), searching again after each one
+        #[arg(long)]
+        all: bool,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
+
     /// Get a transaction by hash (eth_getTransactionByHash)
     #[command(visible_alias = "transaction", alias = "eth_getTransactionByHash")]
     Tx {
@@ -299,6 +356,35 @@ pub async fn handle(
     rpc_url: Option<String>,
     quiet: bool,
 ) -> anyhow::Result<()> {
+    if let RpcCommands::FindChange {
+        call,
+        balance,
+        storage,
+        code,
+        nonce,
+        from,
+        to,
+        all,
+        format,
+    } = action
+    {
+        let target = super::find_change::Target::from_args(
+            call.as_deref(),
+            balance.as_deref(),
+            storage,
+            code.as_deref(),
+            nonce.as_deref(),
+        )?;
+        let args = super::find_change::Args {
+            target,
+            from,
+            to,
+            all: *all,
+            json: !format.is_table(),
+        };
+        return super::find_change::run(args, chain, rpc_url, quiet).await;
+    }
+
     // A --block written as a time is turned into a block number first, so
     // endpoint selection and the command itself both see a plain number
     let resolved_action;
@@ -892,6 +978,10 @@ async fn run_action(
             }
         }
 
+        RpcCommands::FindChange { .. } => {
+            anyhow::bail!("find-change is handled before endpoint selection")
+        }
+
         RpcCommands::GasPrice { format } => {
             let gas_price = provider
                 .get_gas_price()
@@ -959,14 +1049,14 @@ const MULTICALL_CHUNK: usize = 200;
 const MULTICALL_MAX_BLOCKS: usize = 1000;
 
 /// One parsed `<address> <signature> [args...]` line
-struct CallSpec {
-    address: Address,
+pub(super) struct CallSpec {
+    pub(super) address: Address,
     args: Vec<String>,
-    function: alloy::json_abi::Function,
-    calldata: Vec<u8>,
+    pub(super) function: alloy::json_abi::Function,
+    pub(super) calldata: Vec<u8>,
 }
 
-fn parse_call_spec(line: &str) -> anyhow::Result<CallSpec> {
+pub(super) fn parse_call_spec(line: &str) -> anyhow::Result<CallSpec> {
     let mut parts = line.split_whitespace();
     let (Some(address), Some(signature)) = (parts.next(), parts.next()) else {
         anyhow::bail!("Call '{line}' must be \"<address> <signature> [args...]\"");

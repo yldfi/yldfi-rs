@@ -3,5 +3,5 @@
 mod api;
 mod types;
 
-pub use api::{WalletApi, WalletInsightQuery, WalletQuery};
+pub use api::{ActiveChainsQuery, WalletApi, WalletInsightQuery, WalletQuery};
 pub use types::*;

@@ -19,6 +19,7 @@ pub mod dune_cli;
 pub mod endpoints;
 pub mod ens;
 pub mod enso;
+pub mod find_change;
 pub mod gas;
 pub mod gecko;
 pub mod goplus;

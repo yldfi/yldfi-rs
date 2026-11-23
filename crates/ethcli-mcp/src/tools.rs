@@ -1230,6 +1230,45 @@ pub async fn rpc_block_at(time: &str, chain: Option<&str>) -> Result<String, Too
         .map_err(ToolError::from)
 }
 
+pub async fn rpc_find_change(
+    target: &str,
+    value: &str,
+    slot: Option<&str>,
+    from: &str,
+    to: Option<&str>,
+    all: bool,
+    chain: Option<&str>,
+) -> Result<String, ToolError> {
+    let builder = ArgsBuilder::new("rpc").subcommand("find-change");
+    let builder = match (target, slot) {
+        ("call", _) => builder,
+        ("balance" | "code" | "nonce", _) => builder.opt(&format!("--{target}"), Some(value)),
+        ("storage", Some(slot)) => builder.opt("--storage", Some(value)).arg(slot),
+        ("storage", None) => {
+            return Err(ToolError::from(
+                "target \"storage\" needs a slot".to_string(),
+            ))
+        }
+        _ => {
+            return Err(ToolError::from(
+                "target must be call, balance, storage, code or nonce".to_string(),
+            ))
+        }
+    };
+    let builder = builder
+        .opt("--from", Some(from))
+        .opt("--to", to)
+        .opt_flag("--all", all)
+        .chain(chain)
+        .format_json();
+    let builder = if target == "call" {
+        builder.end_of_options().arg(value)
+    } else {
+        builder
+    };
+    builder.execute().await.map_err(ToolError::from)
+}
+
 pub async fn rpc_tx(hash: &str, chain: Option<&str>) -> Result<String, ToolError> {
     ArgsBuilder::new("rpc")
         .subcommand("tx")
@@ -5051,15 +5090,16 @@ pub async fn moralis_wallet_transactions(
         .map_err(ToolError::from)
 }
 
+// `wallet active-chains` checks the Moralis default set unless --chains is set
 pub async fn moralis_wallet_active_chains(
     address: &str,
-    chain: Option<&str>,
+    chains: Option<&str>,
 ) -> Result<String, ToolError> {
     ArgsBuilder::new("moralis")
         .subcommand("wallet")
-        .opt("--chain", chain)
         .subcommand("active-chains")
         .arg(address)
+        .opt("--chains", chains)
         .execute()
         .await
         .map_err(ToolError::from)
