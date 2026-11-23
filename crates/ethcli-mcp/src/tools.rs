@@ -892,6 +892,25 @@ pub async fn gas_estimate(gwei: u64, chain: Option<&str>) -> Result<String, Tool
         .map_err(ToolError::from)
 }
 
+pub async fn gas_cost(input: &crate::types::GasCostInput) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("gas")
+        .subcommand("cost")
+        .opt("--sig", input.sig.as_deref())
+        .opt("--args", input.args.as_deref())
+        .opt("--from", input.from.as_deref())
+        .opt("--value", input.value.as_deref())
+        .opt_flag("--no-usd", input.no_usd)
+        .opt("--rpc-url", input.rpc_url.as_deref())
+        .chain(Some(&input.chain))
+        .format_json()
+        .end_of_options()
+        .arg(&input.to);
+    if let Some(data) = &input.data {
+        builder = builder.arg(data);
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
 // =============================================================================
 // SIG (4 subcommands) - Signature lookup
 // =============================================================================

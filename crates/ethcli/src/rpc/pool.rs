@@ -466,6 +466,41 @@ impl RpcPool {
         resolve_lookup(answered_null, last_err)
     }
 
+    /// The receipt as raw JSON, keeping chain-specific fields (`l1Fee`,
+    /// `gasUsedForL1`, ...) that the typed receipt drops
+    pub async fn get_receipt_json(&self, hash: B256) -> Result<Option<serde_json::Value>> {
+        use alloy::providers::Provider;
+        let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
+        let mut answered_null = false;
+        let mut last_err: Option<Error> = None;
+        for endpoint in endpoints {
+            let res = tokio::time::timeout(
+                Duration::from_secs(30),
+                endpoint
+                    .provider()
+                    .raw_request::<_, Option<serde_json::Value>>(
+                        "eth_getTransactionReceipt".into(),
+                        (hash,),
+                    ),
+            )
+            .await;
+            match res {
+                Ok(Ok(Some(v))) if !v.is_null() => return Ok(Some(v)),
+                Ok(Ok(_)) => answered_null = true,
+                Ok(Err(e)) => {
+                    last_err = Some(
+                        RpcError::Provider(
+                            crate::error::sanitize_error_message(&e.to_string()).into_owned(),
+                        )
+                        .into(),
+                    )
+                }
+                Err(_) => last_err = Some(RpcError::Timeout(30_000).into()),
+            }
+        }
+        resolve_lookup(answered_null, last_err)
+    }
+
     /// Get a block by number with full transaction objects (tries multiple endpoints)
     pub async fn get_block_with_txs(&self, block_number: u64) -> Result<Option<Block>> {
         let endpoints = self.select_endpoints(self.concurrency.max(MIN_TX_FETCH_CONCURRENCY));
