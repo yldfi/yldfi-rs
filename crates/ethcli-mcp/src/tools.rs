@@ -672,6 +672,34 @@ pub async fn contract_creation(address: &str, chain: Option<&str>) -> Result<Str
         .map_err(ToolError::from)
 }
 
+pub async fn contract_storage(
+    address: &str,
+    variable: Option<&str>,
+    keys: Vec<String>,
+    list: bool,
+    chain: Option<&str>,
+    block: Option<&str>,
+    rpc_url: Option<&str>,
+) -> Result<String, ToolError> {
+    let mut builder = ArgsBuilder::new("contract")
+        .subcommand("storage")
+        .arg(address)
+        .chain(chain)
+        .opt("-b", block)
+        .opt("--rpc-url", rpc_url)
+        .opt_flag("--list", list)
+        .format_json()
+        // After `--` so negative keys (int mapping keys) stay arguments
+        .end_of_options();
+    if let Some(variable) = variable {
+        builder = builder.arg(variable);
+    }
+    for key in keys {
+        builder = builder.arg(&key);
+    }
+    builder.execute().await.map_err(ToolError::from)
+}
+
 pub async fn contract_call(
     address: &str,
     sig: &str,

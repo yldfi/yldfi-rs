@@ -1839,6 +1839,27 @@ impl EthcliMcpServer {
         .to_response()
     }
 
+    #[tool(
+        description = "Read a contract storage variable by name, decoded, from its verified storage layout (Sourcify), at an optional block or time. Handles packed values, mappings (nested; address, uint, int, bool, bytesN and string keys), fixed and dynamic arrays, structs (whole or one member) and strings/bytes. Proxies are followed: the implementation's layout, the proxy's storage. Use it for state no getter exposes; list=true shows the layout. Without a layout (older compilers, Vyper, unverified) it fails: use rpc_storage with a slot and cast_index for mapping slots",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_storage(
+        &self,
+        Parameters(input): Parameters<ContractStorageInput>,
+    ) -> CallToolResult {
+        tools::contract_storage(
+            &input.address,
+            input.variable.as_deref(),
+            input.keys,
+            input.list,
+            Some(&input.chain),
+            input.block.as_deref(),
+            input.rpc_url.as_deref(),
+        )
+        .await
+        .to_response()
+    }
+
     // =========================================================================
     // SIG (additional)
     // =========================================================================
