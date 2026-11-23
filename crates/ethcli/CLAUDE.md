@@ -231,8 +231,14 @@ ethcli account approvals <addr> --json          # open approvals and amount at r
   The token's own allowance to Permit2 is read on chain for every Permit2
   candidate, so a narrowed scan does not hide a live Permit2 allowance.
   A batch that fails (a hostile token can burn the gas) is split and
-  retried down to single calls; contracts that still fail are listed in
-  `unreadable_contracts`. EIP-7702 delegated EOA spenders get `eoa_spender`
+  retried down to single calls, at most 200 requests (`state_reads`). A call
+  that fails alone with a revert or gas exhaustion lists its contract in
+  `unreadable_contracts`; one that fails for an RPC reason after two retries
+  goes in `rpc_failed_contracts`. A failed read is never taken as zero: the
+  row stays, with `exposure` null and `state_unknown: true` (kept under
+  `--exposed-only`), and `complete` is false whenever any row is unknown,
+  the request cap is hit, or a scan was cut short. `top_exposures` lists the
+  five tokens contributing most to `total_exposure_usd`. EIP-7702 delegated EOA spenders get `eoa_spender`
   and `delegated_eoa`. `total_exposure_usd` counts each token once, at its
   largest exposure (`per_approval_sum_usd` adds every row). It also leaves out tokens flagged `spam` (local blacklist, or
   GoPlus honeypot / sell tax over 10% / unverified; reported as

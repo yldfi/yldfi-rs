@@ -287,60 +287,132 @@ async fn scan_logs(
 /// Candidate tokens are attacker-chosen, and one call that burns all the gas
 /// makes a whole `aggregate3` fail. A failed batch is split in half and each
 /// half retried, down to single calls; a single call that still fails comes
-/// back as a failed result and its target is listed as unreadable. If every
-/// target is unreadable the node is taken to be down and the error returned.
+/// back unread (`None`). A call that fails alone with an execution error
+/// (revert, out of gas, node execution timeout) is the target's fault and its
+/// address goes in `reverted`; any other error (transport, rate limit) is
+/// retried with backoff and, if it persists, goes in `transport_failed`.
 async fn multicall_all<P: Provider>(
     provider: &P,
     calls: Vec<(Address, Bytes)>,
-) -> anyhow::Result<(Vec<MulticallResult>, BTreeSet<Address>)> {
-    let mut results: Vec<Option<MulticallResult>> = vec![None; calls.len()];
-    let mut unreadable = BTreeSet::new();
-    let mut last_error = None;
+) -> anyhow::Result<SplitRead> {
+    run_split(
+        calls,
+        MAX_SPLIT_REQUESTS,
+        |batch: Vec<(Address, Bytes)>, retries: u32| async move {
+            let mut builder = MulticallBuilder::new();
+            for (target, data) in batch {
+                builder = builder.add_call_allow_failure(target, data);
+            }
+            builder.execute_with_retry(provider, retries).await
+        },
+    )
+    .await
+}
+
+/// Most `eth_call`s one state read may make, splitting included
+const MAX_SPLIT_REQUESTS: usize = 200;
+/// Retries (with backoff) of a single call that failed without an
+/// execution error
+const SINGLE_CALL_RETRIES: u32 = 2;
+
+/// Results of [`run_split`]
+#[derive(Debug, Default)]
+pub(crate) struct SplitRead {
+    /// One entry per call, in order; `None` when the call was never read
+    pub results: Vec<Option<MulticallResult>>,
+    /// Targets whose call failed alone with an execution error
+    pub reverted: BTreeSet<Address>,
+    /// Targets whose call failed alone for another reason, after retries
+    pub transport_failed: BTreeSet<Address>,
+    /// `eth_call`s made
+    pub requests: usize,
+    /// Whether the request cap stopped the splitting
+    pub capped: bool,
+}
+
+/// Whether an `eth_call` error came from executing the call (the target's
+/// doing) rather than from reaching the node
+pub(crate) fn is_execution_error(error: &anyhow::Error) -> bool {
+    let text = format!("{error:#}").to_ascii_lowercase();
+    [
+        "revert",
+        "out of gas",
+        "gas required exceeds",
+        "execution aborted",
+        "execution timeout",
+        "invalid opcode",
+        "stack underflow",
+        "stack overflow",
+    ]
+    .iter()
+    .any(|needle| text.contains(needle))
+}
+
+/// The batching and splitting behind [`multicall_all`], with the call that
+/// runs one batch passed in (`exec(calls, retries)`) so it can be tested.
+/// Fails only when no call could be read and the node itself failed.
+async fn run_split<F, Fut>(
+    calls: Vec<(Address, Bytes)>,
+    max_requests: usize,
+    exec: F,
+) -> anyhow::Result<SplitRead>
+where
+    F: Fn(Vec<(Address, Bytes)>, u32) -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<Vec<MulticallResult>>>,
+{
+    let mut out = SplitRead {
+        results: vec![None; calls.len()],
+        ..Default::default()
+    };
+    let mut last_transport_error = None;
     let mut pending: Vec<(usize, usize)> = (0..calls.len())
         .step_by(CALLS_PER_BATCH)
         .map(|start| (start, (start + CALLS_PER_BATCH).min(calls.len())))
         .rev()
         .collect();
     while let Some((start, end)) = pending.pop() {
-        let mut builder = MulticallBuilder::new();
-        for (target, data) in &calls[start..end] {
-            builder = builder.add_call_allow_failure(*target, data.clone());
+        if out.requests >= max_requests {
+            out.capped = true;
+            break;
         }
-        let retries = if end - start == 1 { 0 } else { 1 };
-        match builder.execute_with_retry(provider, retries).await {
+        out.requests += 1;
+        let single = end - start == 1;
+        let retries = if single { SINGLE_CALL_RETRIES } else { 1 };
+        match exec(calls[start..end].to_vec(), retries).await {
             Ok(batch) if batch.len() == end - start => {
                 for (i, r) in batch.into_iter().enumerate() {
-                    results[start + i] = Some(r);
+                    out.results[start + i] = Some(r);
                 }
             }
             outcome => {
-                if end - start > 1 {
+                if !single {
                     let mid = start + (end - start) / 2;
                     pending.push((mid, end));
                     pending.push((start, mid));
                 } else {
-                    if let Err(e) = outcome {
-                        last_error = Some(e);
+                    match outcome {
+                        Err(e) if is_execution_error(&e) => {
+                            out.reverted.insert(calls[start].0);
+                        }
+                        Err(e) => {
+                            out.transport_failed.insert(calls[start].0);
+                            last_transport_error = Some(e);
+                        }
+                        // A wrong-length answer for one call: not the target's fault
+                        Ok(_) => {
+                            out.transport_failed.insert(calls[start].0);
+                        }
                     }
-                    unreadable.insert(calls[start].0);
                 }
             }
         }
     }
-    let targets: BTreeSet<Address> = calls.iter().map(|c| c.0).collect();
-    if !calls.is_empty() && unreadable.len() == targets.len() {
-        return Err(last_error.unwrap_or_else(|| anyhow::anyhow!("every multicall failed")));
+    if !calls.is_empty() && out.results.iter().all(Option::is_none) {
+        if let Some(e) = last_transport_error {
+            return Err(e.context("could not read any approval state"));
+        }
     }
-    let results = results
-        .into_iter()
-        .map(|r| {
-            r.unwrap_or(MulticallResult {
-                success: false,
-                data: Bytes::new(),
-            })
-        })
-        .collect();
-    Ok((results, unreadable))
+    Ok(out)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -499,6 +571,49 @@ pub(crate) fn usd_totals<'a>(rows: impl Iterator<Item = &'a serde_json::Value>) 
         }
     }
     (counted, spam, low)
+}
+
+/// The `n` largest token contributions to `total_exposure_usd`: per token
+/// the row with the largest exposure, counted (not spam, confident price)
+pub(crate) fn top_exposures<'a>(
+    rows: impl Iterator<Item = &'a serde_json::Value>,
+    n: usize,
+) -> Vec<serde_json::Value> {
+    let mut per_token: BTreeMap<String, (f64, &'a serde_json::Value)> = BTreeMap::new();
+    for row in rows {
+        let Some(usd) = row["exposure_usd"].as_f64() else {
+            continue;
+        };
+        if row["token"]["spam"] == true
+            || row["price_confidence"].as_f64().unwrap_or(0.0) < MIN_TOTAL_CONFIDENCE
+        {
+            continue;
+        }
+        let key = row["token"]["address"]
+            .as_str()
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let entry = per_token.entry(key).or_insert((usd, row));
+        if usd > entry.0 {
+            *entry = (usd, row);
+        }
+    }
+    let mut top: Vec<(f64, &serde_json::Value)> = per_token.into_values().collect();
+    top.sort_by(|a, b| b.0.total_cmp(&a.0));
+    top.into_iter()
+        .take(n)
+        .map(|(usd, row)| {
+            serde_json::json!({
+                "token": row["token"]["address"],
+                "symbol": row["token"]["symbol"],
+                "exposure_formatted": row["exposure_formatted"],
+                "exposure_usd": usd,
+                "price_usd": row["price_usd"],
+                "price_source": row["price_source"],
+                "price_confidence": row["price_confidence"],
+            })
+        })
+        .collect()
 }
 
 /// Sum of `exposure_usd` over every row, counting a balance once per spender
@@ -713,17 +828,15 @@ pub async fn approvals_report(
             candidates.erc20.len() + candidates.operators.len() + candidates.permit2.len()
         );
     }
-    let (results, unreadable) = multicall_all(provider, calls).await?;
-    let mut results = results.into_iter();
-    let mut next = || {
-        results.next().unwrap_or(MulticallResult {
-            success: false,
-            data: Bytes::new(),
-        })
-    };
+    let read = multicall_all(provider, calls).await?;
+    let unknown_reads = read.results.iter().filter(|r| r.is_none()).count();
+    let mut results = read.results.clone().into_iter();
+    // A call that was not read, or reverted inside the batch, is unknown:
+    // never a zero
+    let mut next = || results.next().flatten().filter(|r| r.success);
 
     let now = next()
-        .decode_uint256()
+        .and_then(|r| r.decode_uint256())
         .map(|t| t.saturating_to::<u64>())
         .unwrap_or_else(|| {
             std::time::SystemTime::now()
@@ -732,9 +845,9 @@ pub async fn approvals_report(
         });
     let mut token_info: HashMap<Address, TokenInfo> = HashMap::new();
     for token in &tokens {
-        let symbol = next().decode_string();
-        let decimals = next().decode_uint8();
-        let balance = next().decode_uint256();
+        let symbol = next().and_then(|r| r.decode_string());
+        let decimals = next().and_then(|r| r.decode_uint8());
+        let balance = next().and_then(|r| r.decode_uint256());
         token_info.insert(
             *token,
             TokenInfo {
@@ -747,18 +860,20 @@ pub async fn approvals_report(
     let erc20_state: Vec<((Address, Address), u64, Option<U256>)> = candidates
         .erc20
         .iter()
-        .map(|(pair, block)| (*pair, *block, next().decode_uint256()))
+        .map(|(pair, block)| (*pair, *block, next().and_then(|r| r.decode_uint256())))
         .collect();
     let collection_balance: HashMap<Address, Option<U256>> = collections
         .iter()
-        .map(|c| (*c, next().decode_uint256()))
+        .map(|c| (*c, next().and_then(|r| r.decode_uint256())))
         .collect();
     let operator_state: Vec<((Address, Address), u64, Option<bool>)> = candidates
         .operators
         .iter()
         .map(|(pair, block)| {
-            let r = next();
-            (*pair, *block, r.decode_uint256().map(|v| !v.is_zero()))
+            let approved = next()
+                .and_then(|r| r.decode_uint256())
+                .map(|v| !v.is_zero());
+            (*pair, *block, approved)
         })
         .collect();
     #[allow(clippy::type_complexity)]
@@ -766,11 +881,8 @@ pub async fn approvals_report(
         .permit2
         .iter()
         .map(|(pair, block)| {
-            let r = next();
-            let decoded = r
-                .success
-                .then(|| permit2::allowanceCall::abi_decode_returns(&r.data).ok())
-                .flatten()
+            let decoded = next()
+                .and_then(|r| permit2::allowanceCall::abi_decode_returns(&r.data).ok())
                 .map(|out| {
                     (
                         U256::from(out.amount),
@@ -782,30 +894,39 @@ pub async fn approvals_report(
         })
         .collect();
 
-    let permit2_erc20_allowance: HashMap<Address, U256> = permit2_tokens
+    let permit2_erc20_allowance: HashMap<Address, Option<U256>> = permit2_tokens
         .iter()
-        .map(|t| (*t, next().decode_uint256().unwrap_or_default()))
+        .map(|t| (*t, next().and_then(|r| r.decode_uint256())))
         .collect();
 
-    // Keep the open ones
+    // Keep the open ones, and every one whose state is unknown
     let open_erc20: Vec<_> = erc20_state
         .into_iter()
-        .filter_map(|(pair, block, allowance)| {
-            allowance.filter(|a| !a.is_zero()).map(|a| (pair, block, a))
-        })
+        .filter(|(_, _, allowance)| allowance.is_none_or(|a| !a.is_zero()))
         .collect();
     let open_operators: Vec<_> = operator_state
         .into_iter()
-        .filter(|(_, _, approved)| *approved == Some(true))
+        .filter(|(_, _, approved)| *approved != Some(false))
         .collect();
     let open_permit2: Vec<_> = permit2_state
         .into_iter()
-        .filter_map(|(pair, block, state)| {
-            state
-                .filter(|(amount, _, _)| !amount.is_zero())
-                .map(|s| (pair, block, s))
-        })
+        .filter(|(_, _, state)| state.is_none_or(|(amount, _, _)| !amount.is_zero()))
         .collect();
+
+    // Amount at risk, or None when a value it needs is unknown
+    let erc20_at_risk = |token: &Address, allowance: Option<U256>| -> Option<U256> {
+        let balance = token_info.get(token).and_then(|t| t.balance)?;
+        Some(exposure(allowance?, balance))
+    };
+    let permit2_at_risk = |token: &Address, state: Option<(U256, u64, u64)>| -> Option<U256> {
+        let (amount, expiration, _) = state?;
+        if permit2_expired(expiration, now) {
+            return Some(U256::ZERO);
+        }
+        let cap = permit2_erc20_allowance.get(token).copied().flatten()?;
+        let balance = token_info.get(token).and_then(|t| t.balance)?;
+        Some(exposure(amount.min(cap), balance))
+    };
 
     // Owner account: EIP-7702 delegation
     let owner_code = provider.get_code_at(owner).await.ok();
@@ -828,8 +949,7 @@ pub async fn approvals_report(
     let mut to_check: BTreeSet<Address> = BTreeSet::new();
     if opts.source_check {
         for ((token, spender), _, allowance) in &open_erc20 {
-            let balance = token_info.get(token).and_then(|t| t.balance);
-            if balance.is_some_and(|b| !exposure(*allowance, b).is_zero()) {
+            if erc20_at_risk(token, *allowance).is_none_or(|e| !e.is_zero()) {
                 to_check.insert(*spender);
             }
         }
@@ -848,20 +968,12 @@ pub async fn approvals_report(
     let exposed_tokens: Vec<Address> = {
         let mut set = BTreeSet::new();
         for ((token, _), _, allowance) in &open_erc20 {
-            let balance = token_info.get(token).and_then(|t| t.balance);
-            if balance.is_some_and(|b| !exposure(*allowance, b).is_zero()) {
+            if erc20_at_risk(token, *allowance).is_some_and(|e| !e.is_zero()) {
                 set.insert(*token);
             }
         }
-        for ((token, _), _, (amount, expiration, _)) in &open_permit2 {
-            let balance = token_info.get(token).and_then(|t| t.balance);
-            let cap = permit2_erc20_allowance
-                .get(token)
-                .copied()
-                .unwrap_or_default();
-            if !permit2_expired(*expiration, now)
-                && balance.is_some_and(|b| !exposure((*amount).min(cap), b).is_zero())
-            {
+        for ((token, _), _, state) in &open_permit2 {
+            if permit2_at_risk(token, *state).is_some_and(|e| !e.is_zero()) {
                 set.insert(*token);
             }
         }
@@ -926,27 +1038,30 @@ pub async fn approvals_report(
         .iter()
         .map(|((token, spender), block, allowance)| {
             let info = token_info.get(token).cloned().unwrap_or_default();
-            let balance = info.balance.unwrap_or_default();
-            let at_risk = exposure(*allowance, balance);
-            let decimals = info.decimals.unwrap_or(0);
-            let whole = to_float(at_risk, decimals);
+            let at_risk = erc20_at_risk(token, *allowance);
+            let whole = at_risk.map_or(0.0, |r| to_float(r, info.decimals.unwrap_or(0)));
             let price = prices.get(token).copied();
-            let usd = price.map(|p| whole * p.usd).filter(|u| u.is_finite());
+            let usd = at_risk
+                .and(price)
+                .map(|p| whole * p.usd)
+                .filter(|u| u.is_finite());
+            let unlimited = allowance.is_some_and(is_unlimited);
             let mut flags = spender_flags(*spender);
-            if is_unlimited(*allowance) {
+            if unlimited {
                 flags.insert(0, "unlimited");
             }
             let row = serde_json::json!({
                 "token": token_json(*token),
                 "spender": spender_entry(*spender),
-                "allowance": allowance.to_string(),
-                "allowance_formatted": if is_unlimited(*allowance) { Some("unlimited".to_string()) } else { amount(*allowance, info.decimals) },
-                "unlimited": is_unlimited(*allowance),
+                "allowance": allowance.map(|a| a.to_string()),
+                "allowance_formatted": if unlimited { Some("unlimited".to_string()) } else { allowance.and_then(|a| amount(a, info.decimals)) },
+                "unlimited": unlimited,
                 "balance": info.balance.map(|b| b.to_string()),
                 "balance_formatted": info.balance.and_then(|b| amount(b, info.decimals)),
-                "exposure": at_risk.to_string(),
-                "exposure_formatted": amount(at_risk, info.decimals),
+                "exposure": at_risk.map(|r| r.to_string()),
+                "exposure_formatted": at_risk.and_then(|r| amount(r, info.decimals)),
                 "exposure_usd": usd,
+                "state_unknown": at_risk.is_none(),
                 "price_usd": price.map(|p| p.usd),
                 "price_confidence": price.map(|p| p.confidence),
                 "price_source": price.map(|_| "llama"),
@@ -965,41 +1080,42 @@ pub async fn approvals_report(
     // Permit2 allowances: limited by the token's allowance to Permit2 too
     let mut permit2_rows: Vec<(f64, f64, serde_json::Value)> = open_permit2
         .iter()
-        .map(|((token, spender), block, (amt, expiration, nonce))| {
+        .map(|((token, spender), block, state)| {
             let info = token_info.get(token).cloned().unwrap_or_default();
-            let balance = info.balance.unwrap_or_default();
-            let expired = permit2_expired(*expiration, now);
-            let erc20_to_permit2 = permit2_erc20_allowance.get(token).copied().unwrap_or_default();
-            let at_risk = if expired {
-                U256::ZERO
-            } else {
-                exposure((*amt).min(erc20_to_permit2), balance)
-            };
-            let decimals = info.decimals.unwrap_or(0);
-            let whole = to_float(at_risk, decimals);
+            let at_risk = permit2_at_risk(token, *state);
+            let whole = at_risk.map_or(0.0, |r| to_float(r, info.decimals.unwrap_or(0)));
             let price = prices.get(token).copied();
-            let usd = price.map(|p| whole * p.usd).filter(|u| u.is_finite());
+            let usd = at_risk
+                .and(price)
+                .map(|p| whole * p.usd)
+                .filter(|u| u.is_finite());
+            let amt = state.map(|s| s.0);
+            let expiration = state.map(|s| s.1);
+            let expired = expiration.map(|e| permit2_expired(e, now));
+            let cap = permit2_erc20_allowance.get(token).copied().flatten();
+            let unlimited = amt.is_some_and(is_unlimited);
             let mut flags = spender_flags(*spender);
-            if is_unlimited(*amt) {
+            if unlimited {
                 flags.insert(0, "unlimited");
             }
-            if expired {
+            if expired == Some(true) {
                 flags.push("expired");
             }
             let row = serde_json::json!({
                 "token": token_json(*token),
                 "spender": spender_entry(*spender),
-                "amount": amt.to_string(),
-                "amount_formatted": if is_unlimited(*amt) { Some("unlimited".to_string()) } else { amount(*amt, info.decimals) },
-                "unlimited": is_unlimited(*amt),
+                "amount": amt.map(|a| a.to_string()),
+                "amount_formatted": if unlimited { Some("unlimited".to_string()) } else { amt.and_then(|a| amount(a, info.decimals)) },
+                "unlimited": unlimited,
                 "expiration": expiration,
-                "expiration_time": crate::rpc::block_time::format_timestamp(*expiration),
+                "expiration_time": expiration.map(crate::rpc::block_time::format_timestamp),
                 "expired": expired,
-                "nonce": nonce,
-                "token_allowance_to_permit2": erc20_to_permit2.to_string(),
-                "exposure": at_risk.to_string(),
-                "exposure_formatted": amount(at_risk, info.decimals),
+                "nonce": state.map(|s| s.2),
+                "token_allowance_to_permit2": cap.map(|c| c.to_string()),
+                "exposure": at_risk.map(|r| r.to_string()),
+                "exposure_formatted": at_risk.and_then(|r| amount(r, info.decimals)),
                 "exposure_usd": usd,
+                "state_unknown": at_risk.is_none(),
                 "price_usd": price.map(|p| p.usd),
                 "price_confidence": price.map(|p| p.confidence),
                 "price_source": price.map(|_| "llama"),
@@ -1018,7 +1134,7 @@ pub async fn approvals_report(
     // Operator (setApprovalForAll) approvals, most items held first
     let mut operator_rows: Vec<(U256, serde_json::Value)> = open_operators
         .iter()
-        .map(|((collection, operator), block, _)| {
+        .map(|((collection, operator), block, approved)| {
             let held = collection_balance.get(collection).copied().flatten();
             let mut flags = vec!["all_items"];
             flags.extend(spender_flags(*operator));
@@ -1028,6 +1144,7 @@ pub async fn approvals_report(
                     "collection": collection.to_checksum(None),
                     "operator": spender_entry(*operator),
                     "items_held": held.map(|h| h.to_string()),
+                    "state_unknown": approved.is_none(),
                     "last_approval_block": block,
                     "flags": flags,
                 }),
@@ -1041,6 +1158,10 @@ pub async fn approvals_report(
         .any(|i| i.kind == "eoa_7702_delegated");
     let (total_usd, spam_usd, low_confidence_usd) =
         usd_totals(erc20_rows.iter().chain(permit2_rows.iter()).map(|r| &r.2));
+    let top = top_exposures(
+        erc20_rows.iter().chain(permit2_rows.iter()).map(|r| &r.2),
+        5,
+    );
     let approvals_sum_usd =
         per_approval_sum(erc20_rows.iter().chain(permit2_rows.iter()).map(|r| &r.2));
     let mut hidden = 0usize;
@@ -1054,7 +1175,15 @@ pub async fn approvals_report(
         operator_rows.retain(|r| r.1["items_held"] != "0");
         hidden += before - operator_rows.len();
     }
-    let complete = scans.iter().all(|s| s["complete"] == true);
+    let state_unknown = erc20_rows
+        .iter()
+        .chain(permit2_rows.iter())
+        .map(|r| &r.2)
+        .chain(operator_rows.iter().map(|r| &r.1))
+        .filter(|r| r["state_unknown"] == true)
+        .count();
+    let scans_complete = scans.iter().all(|s| s["complete"] == true);
+    let complete = scans_complete && state_unknown == 0 && !read.capped;
     let mut notes = vec![
         format!(
             "total_exposure_usd leaves out tokens flagged spam (excluded_spam_usd) and prices \
@@ -1066,7 +1195,7 @@ pub async fn approvals_report(
         "ERC-721 single-token approvals (Approval with a token id) are not listed".to_string(),
     ];
     notes.extend(source_notes);
-    if !complete {
+    if !scans_complete {
         notes.push(
             "The event scan was cut short (see scan); later approvals may be missing. \
              Raise --max-pages or set --from-block"
@@ -1085,11 +1214,30 @@ pub async fn approvals_report(
             opts.from_block
         ));
     }
-    if !unreadable.is_empty() {
+    if state_unknown > 0 {
         notes.push(format!(
-            "{} contracts could not be read (their calls failed even alone); their rows have \
-             missing values or are left out",
-            unreadable.len()
+            "{state_unknown} approvals have state_unknown: a value they need could not be \
+             read, so their exposure is null; they are kept even with --exposed-only"
+        ));
+    }
+    if !read.reverted.is_empty() {
+        notes.push(format!(
+            "{} contracts failed when called on their own (revert or gas exhaustion): see \
+             unreadable_contracts",
+            read.reverted.len()
+        ));
+    }
+    if !read.transport_failed.is_empty() {
+        notes.push(format!(
+            "{} contracts could not be read because of RPC errors that persisted after \
+             retries: see rpc_failed_contracts",
+            read.transport_failed.len()
+        ));
+    }
+    if read.capped {
+        notes.push(format!(
+            "State reads stopped at {MAX_SPLIT_REQUESTS} requests while isolating failing \
+             calls; {unknown_reads} calls were not read"
         ));
     }
     if spenders_delegated {
@@ -1114,11 +1262,24 @@ pub async fn approvals_report(
             "permit2": candidates.permit2.len(),
         },
         "total_exposure_usd": total_usd,
+        "top_exposures": top,
         "per_approval_sum_usd": approvals_sum_usd,
         "excluded_spam_usd": spam_usd,
         "excluded_low_confidence_usd": low_confidence_usd,
         "hidden_zero_exposure": hidden,
-        "unreadable_contracts": unreadable
+        "state_unknown": state_unknown,
+        "state_reads": {
+            "requests": read.requests,
+            "capped": read.capped,
+            "unread_calls": unknown_reads,
+        },
+        "unreadable_contracts": read
+            .reverted
+            .iter()
+            .map(|a| a.to_checksum(None))
+            .collect::<Vec<_>>(),
+        "rpc_failed_contracts": read
+            .transport_failed
             .iter()
             .map(|a| a.to_checksum(None))
             .collect::<Vec<_>>(),
@@ -1404,6 +1565,173 @@ mod tests {
         assert!(cut.ends_with('…'));
         assert_eq!(clean_text("ab\ncd", 32), "ab\\u{a}cd");
         assert_eq!(clean_text(lure, MAX_SYMBOL_CHARS), lure);
+    }
+
+    #[tokio::test]
+    async fn a_failing_call_is_isolated_and_the_rest_are_read() {
+        let bad = Address::repeat_byte(0xbd);
+        let calls: Vec<(Address, Bytes)> = (0..10u8)
+            .map(|i| {
+                let target = if i == 6 {
+                    bad
+                } else {
+                    Address::repeat_byte(i + 1)
+                };
+                (target, Bytes::from(vec![i]))
+            })
+            .collect();
+        let attempts = std::sync::atomic::AtomicUsize::new(0);
+        // Like a node where one gas-burning call sinks the whole aggregate3
+        let exec = |batch: Vec<(Address, Bytes)>, _retries: u32| {
+            attempts.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            async move {
+                if batch.iter().any(|(t, _)| *t == bad) {
+                    anyhow::bail!("out of gas");
+                }
+                Ok(batch
+                    .into_iter()
+                    .map(|(_, data)| MulticallResult {
+                        success: true,
+                        data,
+                    })
+                    .collect())
+            }
+        };
+        let read = run_split(calls, MAX_SPLIT_REQUESTS, exec).await.unwrap();
+        assert_eq!(read.results.len(), 10);
+        assert_eq!(read.reverted.iter().copied().collect::<Vec<_>>(), vec![bad]);
+        assert!(read.transport_failed.is_empty());
+        assert!(!read.capped);
+        for (i, r) in read.results.iter().enumerate() {
+            if i == 6 {
+                assert!(r.is_none(), "the bad call is unread, not a zero");
+            } else {
+                let r = r.as_ref().unwrap();
+                assert!(r.success);
+                assert_eq!(r.data.as_ref(), &[i as u8]);
+            }
+        }
+        // Halving, not one call per candidate
+        assert!(attempts.load(std::sync::atomic::Ordering::Relaxed) < 10);
+    }
+
+    #[tokio::test]
+    async fn an_all_failing_node_is_an_error() {
+        let calls = vec![
+            (Address::repeat_byte(1), Bytes::new()),
+            (Address::repeat_byte(2), Bytes::new()),
+        ];
+        let exec = |_: Vec<(Address, Bytes)>, _: u32| async { anyhow::bail!("connection reset") };
+        assert!(run_split(calls, MAX_SPLIT_REQUESTS, exec).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn rpc_errors_are_kept_apart_from_reverts_and_retried() {
+        let flaky = Address::repeat_byte(0xee);
+        let calls: Vec<(Address, Bytes)> = (0..4u8)
+            .map(|i| {
+                let target = if i == 1 {
+                    flaky
+                } else {
+                    Address::repeat_byte(i + 1)
+                };
+                (target, Bytes::from(vec![i]))
+            })
+            .collect();
+        let single_retries = std::sync::Mutex::new(Vec::new());
+        let exec = |batch: Vec<(Address, Bytes)>, retries: u32| {
+            if batch.len() == 1 {
+                single_retries.lock().unwrap().push(retries);
+            }
+            async move {
+                if batch.iter().any(|(t, _)| *t == flaky) {
+                    anyhow::bail!("429 Too Many Requests");
+                }
+                Ok(batch
+                    .into_iter()
+                    .map(|(_, data)| MulticallResult {
+                        success: true,
+                        data,
+                    })
+                    .collect())
+            }
+        };
+        let read = run_split(calls, MAX_SPLIT_REQUESTS, exec).await.unwrap();
+        assert!(read.reverted.is_empty());
+        assert_eq!(
+            read.transport_failed.iter().copied().collect::<Vec<_>>(),
+            vec![flaky]
+        );
+        assert!(read.results[1].is_none());
+        assert!(read.results[0].is_some() && read.results[2].is_some());
+        assert!(single_retries
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|r| *r == SINGLE_CALL_RETRIES));
+    }
+
+    #[tokio::test]
+    async fn splitting_stops_at_the_request_cap() {
+        let calls: Vec<(Address, Bytes)> = (0..64u8)
+            .map(|i| (Address::repeat_byte(i + 1), Bytes::new()))
+            .collect();
+        // Every batch and every call fails as a revert: the worst case
+        let exec = |_: Vec<(Address, Bytes)>, _: u32| async { anyhow::bail!("execution reverted") };
+        let read = run_split(calls, 10, exec).await.unwrap();
+        assert!(read.capped);
+        assert_eq!(read.requests, 10);
+        assert!(read.results.iter().all(Option::is_none));
+    }
+
+    #[test]
+    fn execution_errors_are_told_apart_from_rpc_errors() {
+        for text in [
+            "execution reverted",
+            "out of gas",
+            "execution aborted (timeout = 5s)",
+        ] {
+            assert!(
+                is_execution_error(&anyhow::anyhow!("Multicall failed: {text}")),
+                "{text}"
+            );
+        }
+        for text in [
+            "429 Too Many Requests",
+            "connection reset",
+            "request timed out",
+        ] {
+            assert!(
+                !is_execution_error(&anyhow::anyhow!("Multicall failed: {text}")),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn top_exposures_lists_counted_tokens_largest_first() {
+        let row = |a: &str, usd: f64, conf: f64, spam: bool| {
+            serde_json::json!({"token": {"address": a, "symbol": a, "spam": spam},
+                "exposure_usd": usd, "price_confidence": conf, "price_source": "llama"})
+        };
+        let rows = [
+            row("0xa", 10.0, 0.99, false),
+            row("0xa", 30.0, 0.99, false),
+            row("0xb", 500.0, 0.99, true),
+            row("0xc", 400.0, 0.5, false),
+            row("0xd", 20.0, 0.95, false),
+        ];
+        let top = top_exposures(rows.iter(), 5);
+        let got: Vec<(&str, f64)> = top
+            .iter()
+            .map(|t| {
+                (
+                    t["token"].as_str().unwrap(),
+                    t["exposure_usd"].as_f64().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(got, vec![("0xa", 30.0), ("0xd", 20.0)]);
     }
 
     #[test]
