@@ -950,6 +950,9 @@ struct FnAcc {
 
 const MAX_PROVENANCE_PER_FIELD: usize = 6;
 
+/// Memory / last-call variants kept per distinct stack at one pc
+const MEMORY_VARIANTS_PER_STACK: usize = 4;
+
 fn insert_capped(set: &mut BTreeSet<Provenance>, p: Provenance) {
     if set.len() < MAX_PROVENANCE_PER_FIELD {
         set.insert(p);
@@ -998,7 +1001,7 @@ struct Interp<'a> {
     time_hit: bool,
     pruned: u64,
     aborted: u64,
-    seen: HashMap<(usize, Ctx), HashSet<u64>>,
+    seen: HashMap<(usize, Ctx), HashMap<u64, HashSet<u64>>>,
     visited: Vec<bool>,
     unresolved_jumps: BTreeSet<usize>,
     invalid_opcodes: BTreeSet<usize>,
@@ -1182,24 +1185,42 @@ impl<'a> Interp<'a> {
 
     /// Enter a block: dedupe states per (pc, ctx)
     fn admit(&mut self, s: &State) -> bool {
+        // Two levels: distinct stacks (what decides control flow) get the
+        // per-pc cap; for each stack a few memory / last-call variants are
+        // kept too, since two paths that differ only in memory can give a
+        // later call a different target or selector. Memory variants get
+        // their own small cap, so they cannot use up the stack budget and
+        // starve other paths. Every dropped state is counted.
         let mut h = std::collections::hash_map::DefaultHasher::new();
         s.stack.hash(&mut h);
-        // Memory and the last call too: two paths that differ only there can
-        // give a later call a different target or selector
+        let stack_key = h.finish();
+        let mut h = std::collections::hash_map::DefaultHasher::new();
         s.mem.hash(&mut h);
         s.last_call.hash(&mut h);
-        let key = h.finish();
+        let mem_key = h.finish();
         let cap = self.budget.max_states_per_pc;
-        let set = self.seen.entry((s.pc, s.ctx)).or_default();
-        if set.contains(&key) {
-            return false;
+        let stacks = self.seen.entry((s.pc, s.ctx)).or_default();
+        match stacks.get_mut(&stack_key) {
+            Some(mems) => {
+                if mems.contains(&mem_key) {
+                    return false;
+                }
+                if mems.len() >= MEMORY_VARIANTS_PER_STACK {
+                    self.pruned += 1;
+                    return false;
+                }
+                mems.insert(mem_key);
+                true
+            }
+            None => {
+                if stacks.len() >= cap {
+                    self.pruned += 1;
+                    return false;
+                }
+                stacks.insert(stack_key, HashSet::from([mem_key]));
+                true
+            }
         }
-        if set.len() >= cap {
-            self.pruned += 1;
-            return false;
-        }
-        set.insert(key);
-        true
     }
 
     fn run(&mut self) {

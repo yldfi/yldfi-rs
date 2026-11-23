@@ -591,7 +591,8 @@ ethcli contract twins <addr> --submit-similarity # WRITES to Sourcify
   address(this) inside a JUMPI condition (through AND/ISZERO/OR), and
   mapping lookups keyed by msg.sender. Budgets: steps (4M), time (15 s;
   10 s in analyze), distinct states per (pc, function) (24; the state key
-  includes the stack, memory and the last call). `coverage` gives evmole
+  distinct stacks, plus up to 4 memory/last-call variants per stack, all
+  drops counted in `states_pruned`). `coverage` gives evmole
   CFG blocks analysed / reachable, unresolved jumps and call sites, prunes,
   `invalid_opcodes` (unknown opcodes stop a path) and `complete`.
   `calls::opcode_sites(code, metadata_offset)` is a public linear sweep of
