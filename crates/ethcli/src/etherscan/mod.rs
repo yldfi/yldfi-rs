@@ -7,6 +7,7 @@
 
 pub mod cache;
 mod client;
+pub mod fallback;
 pub mod support;
 
 pub use cache::{
