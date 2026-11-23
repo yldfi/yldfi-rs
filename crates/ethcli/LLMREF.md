@@ -54,9 +54,22 @@ ethcli contract abi <addr>          # Download ABI (JSON)
 ethcli contract source <addr>       # Download source code (Etherscan, else Sourcify, else Blockscout)
 ethcli contract source <addr> --list | --function <name> | --grep <regex> | --file <name>   # Only the part needed
 ethcli contract inspect <addr>      # Everything in one call: kind, proxy, name, creator, token, Safe, functions
+ethcli contract storage <addr> <var> [keys...]   # Storage variable by name, decoded (Sourcify layout; proxies followed)
+ethcli contract storage <addr> --list            # Layout: name, slot, offset, type
 ethcli contract creation <addr>     # Creation tx & deployer
 ethcli contract verify-status <addr> # Verification status
 ```
+
+### Safe (read-only)
+```bash
+ethcli safe info <safe>                 # owners, threshold, nonce, version, modules, guard, fallback handler (on chain)
+ethcli safe queue <safe>                # pending txs (nonce >= on-chain nonce): who signed, who has not
+ethcli safe tx <safeTxHash>             # one tx, calldata decoded, MultiSend batches unpacked
+ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset to page)
+```
+`info` is on chain (any chain); the others use the Safe Transaction Service
+(no key needed; `SAFE_API_KEY` raises the rate limit). `safeTxHash` is the
+Safe's EIP-712 hash, not the chain transaction hash.
 
 ### Bytecode Analysis
 ```bash
@@ -91,7 +104,9 @@ ethcli token supply <addr>          # Total supply
 ### Gas Oracle
 ```bash
 ethcli gas oracle                   # Current gas prices
-ethcli gas estimate --to <a> --value <v> # Estimate gas
+ethcli gas estimate <gwei>          # Confirmation time for a gas price
+ethcli gas cost <to> [data] [-s sig -a "args"] [--from a] [--value wei] [--no-usd] [--rpc-url u] --chain base
+                                    # Execution + L1 data fee (OP-stack, Arbitrum), native and USD
 ethcli gas history                  # Historical gas
 ```
 
@@ -141,6 +156,14 @@ ethcli rpc call <to> -s "totalSupply()" -d uint256 -b 2024-01-31   # --block als
 # A plain date = 00:00 UTC at the START of that day (state before anything on that date).
 # End of day: use the next day's date or 2024-01-31T23:59:59Z. Times are UTC.
 ethcli rpc nonce <addr>             # Account nonce
+# Block where a value changed (binary search; needs archive state). One of:
+# a call "<addr> <sig>(<returns>) [args]", --balance, --storage <addr> <slot>, --code, --nonce
+ethcli rpc find-change --code <addr> --from 6000000            # deployment block
+ethcli rpc find-change "<token> balanceOf(address)(uint256) <holder>" --from 2024-01-01 --to latest --json
+# Assumes one change in (from, to]; with several it finds one boundary. --all repeats
+# the search after each change (misses a value that changes and changes back). JSON has rpc_calls,
+# single_change_assumed (true without --all), and a warning when --all finds several changes.
+# When the FIRST change matters, use --all and read changes[0].
 
 # Many calls at one block in one request (Multicall3), decoded, in input order.
 # Use this instead of looping `rpc call` / `contract call`.
@@ -277,7 +300,11 @@ ethcli dune results <id>            # Get results
 ethcli uniswap pool <addr>          # Pool state (on-chain)
 ethcli uniswap eth-price            # ETH price (subgraph)
 ethcli uniswap top-pools 10         # Top pools by TVL
-ethcli uniswap positions <addr>     # LP positions
+ethcli uniswap positions <addr>     # LP positions (subgraph)
+ethcli uniswap position <id>                      # Value a v3 position on-chain (fees cross-checked with a collect eth_call)
+ethcli uniswap position <id> --version v4         # Value a v4 position
+ethcli uniswap position --v2 <pair> --owner <a>   # Share of a v2-style pair (Sushi etc.)
+ethcli uniswap lp-positions --owner <addr>        # Every open v3 position, valued (--all adds closed ones)
 ```
 
 ### Yearn/Kong

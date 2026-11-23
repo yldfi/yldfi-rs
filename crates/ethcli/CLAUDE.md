@@ -41,6 +41,7 @@ ethcli contract   # Contract operations (ABI, source, creation, bytecode analysi
 ethcli token      # Token operations (info, holders, balance)
 ethcli gas        # Gas price oracle and estimates
 ethcli sig        # Signature lookup (function selectors, event topics)
+ethcli safe       # Safe multisig: info (on chain), queue, tx, history (read-only)
 ethcli simulate   # Transaction simulation and tracing
 ethcli cast       # Type conversions, hashing, encoding
 ethcli rpc        # Direct RPC calls
@@ -132,11 +133,52 @@ ethcli rpc balance <addr> --block 2024-01-31
 ethcli contract call <addr> totalSupply --block 7d
 ```
 
+### `rpc find-change`: when did a value change
+
+```bash
+ethcli rpc find-change --code <addr> --from 6000000                 # deployment block
+ethcli rpc find-change "<token> balanceOf(address)(uint256) <holder>" --from 2024-01-01 --json
+ethcli rpc find-change --nonce <addr> --from 30d --all
+ethcli rpc find-change --storage <addr> <slot> --from <block> --to <block>
+```
+
+- Exactly one target: a call (as in `rpc multicall`), `--balance`, `--storage
+  <addr> <slot>`, `--code` or `--nonce`. `--from` and `--to` take a block, a
+  time or (`--to` only, the default) `latest`.
+- Reads the value at `--from`, then binary-searches `(from, to]` for the first
+  block where it differs: about log2(to - from) reads (24 for a million
+  blocks). The output gives `rpc_calls`.
+- Assumes one change in the range. With several it finds one boundary, not
+  necessarily the first. `--all` searches again after each change (up to 100);
+  a change that is undone inside a segment is still missed.
+- The JSON always has `single_change_assumed` (`true` without `--all`). A plain
+  result carries a `note` saying it may not be the first change. When `--all`
+  finds more than one change it adds a `warning` (also on stderr): the plain
+  result for that range may not have been the first change. **If the first
+  change matters, use `--all` and take `changes[0]`.**
+- Needs historical state; an archive endpoint is chosen for old blocks. If no
+  endpoint can read state at `--from` the error says so.
+- `transactions` lists top-level transactions in that block sent from or to
+  the address. Internal calls and contract creations are not listed.
+
 ### `tx`: one call for a transaction
 
 `ethcli tx <hash>` returns the decoded call, events and token transfers, and also:
 
 - `transaction_index`, `effective_gas_price`, `fee_wei` and `fee`;
+- `fee_breakdown`: execution fee, L1 data fee and total. When the receipt has
+  an `l1Fee` field (OP-stack, Mantle, any chain) it is added, plus any
+  OP-stack operator fee, so `fee_wei` is the total paid; on Arbitrum
+  the L1 part (`gasUsedForL1` × price) is already in `gasUsed` and is split
+  out; on L1 chains `l1_fee_wei` is null (not applicable). `--full` adds
+  `fee_breakdown.usd` at the block's time. `rpc receipt -o json` returns the
+  raw receipt (all chain fields) plus `feeBreakdown`. For an estimate before
+  sending: `ethcli gas cost <to> [data|-s sig -a args] --from <addr>`
+  (unlisted chains probed for Arbitrum, OP-stack and Scroll oracles, cached
+  per chain; no match is `unknown`, not L1; OP operator fee included; Mantle
+  not supported for estimates; `--rpc-url` uses the endpoint's chain id).
+  Mantle Tectonic-era `l1Fee` is informational (`l1_fee_included: true`);
+  `--full` checks the sender's balance change;
 - `balance_changes`: the net change per address and token over the whole
   transaction, signed, in raw units and scaled by decimals.
   - Token lines come from Transfer events, plus deposits into and withdrawals
@@ -283,6 +325,87 @@ ethcli contract inspect <addr> --json
 It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 `contract creation` and `token info`.
 
+### `safe`
+
+```bash
+ethcli safe info <safe>                 # owners, threshold, nonce, version, modules, guard, fallback handler (on chain)
+ethcli safe queue <safe>                # pending txs (nonce >= on-chain nonce): who signed, who has not
+ethcli safe tx <safeTxHash>             # one tx, calldata decoded, MultiSend batches unpacked
+ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset to page)
+```
+
+- Read-only: nothing is proposed, signed or executed.
+- `info` is one Multicall3 request (`getOwners`, `getThreshold`, `nonce`,
+  `VERSION`, `getModulesPaginated`) plus storage reads of the guard, fallback
+  handler and singleton slots, pinned to one block. Works on any chain.
+- `queue`, `tx` and `history` use the Safe Transaction Service
+  (`api.safe.global/tx-service/<short name>`; chain IDs map to its short names
+  in `service_chain_name`). It works without a key; `SAFE_API_KEY` (Bearer)
+  raises the rate limit, `SAFE_TX_SERVICE_URL` overrides the base URL.
+- `queue` lists nonce >= the on-chain nonce, compares confirmations with the
+  on-chain threshold and owners, and flags several proposals at one nonce.
+- Only distinct confirmations from current on-chain owners count toward
+  `confirmations` and `ready`; others are listed as `stale_signers`.
+- `multiSend(bytes)` is unpacked only when `to` is a known Safe MultiSend /
+  MultiSendCallOnly deployment (1.1.1-1.5.0, canonical/eip155/zksync). A
+  DELEGATECALL to anything that is not a known Safe library sets
+  `delegatecall_warning` and prints a WARNING line.
+- Batches DELEGATECALLed from inside a batch are unpacked recursively (up
+  to 4 levels) and every level is checked; findings, including a batch that
+  cannot be unpacked or is nested too deep, are in `call.batch_warnings`
+  (also in `queue` and `history`). A CALL (not DELEGATECALL) to a MultiSend
+  is warned about and not unpacked; undecodable multiSend calldata is warned.
+- Every service record is checked: the returned `safeTxHash` and `safe` must
+  match the request, and the EIP-712 safeTxHash is recomputed from the fields
+  (chainId domain, or the pre-1.3.0 domain); mismatches go in `warnings`.
+- `refund` shows safeTxGas, baseGas, gasPrice, gasToken and refundReceiver;
+  a non-zero gasPrice or a set refundReceiver adds a refund warning.
+- `ready` is true only at the current on-chain nonce with enough owner
+  signatures; `signatures_complete` is the signature check alone.
+- `info` reports owners, nonce or modules as unknown (JSON `null`) when the
+  read fails, falls back to `getModules()` for Safe 1.0.0, and sets
+  `modules_truncated` when more than 100 modules are enabled.
+- Calls are decoded from the verified ABI, else the signature database
+  (`source: signature_database`, a guess). `multiSend(bytes)` payloads
+  (`operation(1) to(20) value(32) length(32) data`) are unpacked and each
+  inner call decoded in `safe tx`; lists show the inner call count only.
+
+### `contract storage`
+
+Reads a storage variable by name, decoded, using the compiler's storage layout
+from Sourcify. Useful for state that has no getter.
+
+```bash
+ethcli contract storage <addr> --list                       # name, slot, offset, type
+ethcli contract storage <addr> totalSupply_
+ethcli contract storage <addr> allowed <owner> <spender>    # nested mapping
+ethcli contract storage <addr> "poolInfo[3].gauge"          # array of structs, one member
+ethcli contract storage <addr> slot0 --block 7d -o json     # whole struct
+```
+
+- Steps after the name are taken by type: a mapping takes a key, an array an
+  index, a struct a member name. They can be extra arguments or written in the
+  path (`name[key].member`).
+- Keys: address, uint, int (negative allowed), bool, bytesN, string and bytes,
+  hashed per Solidity rules. Other key types need the 32-byte key as hex.
+  Keys are range-checked against the key type; a hex intN key is read as that
+  type's two's complement (`0xf2761a` is int24 -887270); bytesN keys must be
+  exactly N bytes.
+- Dynamic array indexes are checked against the stored length.
+- When several variables share a name (`__gap`, private variables of
+  different base contracts) the command lists them; pick one with
+  `name@slot` or `Contract.name`.
+- A whole struct prints all members; a dynamic array prints its length and
+  the first 32 elements; a mapping needs a key.
+- Proxies (EIP-1967, beacon, legacy OpenZeppelin, EIP-1167, Safe): the
+  implementation's layout is used and the proxy's storage is read. JSON
+  `layout_from` says which layout was used.
+- One block is pinned for every read; `--block` takes a time like the other
+  commands.
+- No layout (older compilers, Vyper, not on Sourcify): it fails and points to
+  `rpc storage` and `cast index`. Namespaced storage (ERC-7201), diamonds,
+  immutables and constants are not in the layout and cannot be read this way.
+
 ### `rpc multicall`
 
 - Each call is `<address> <signature> [args...]`. Return types in the signature
@@ -309,7 +432,7 @@ It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 ### Times in place of blocks
 
 `--block` on `rpc call`, `storage`, `code`, `nonce`, `balance`, `block`,
-`multicall` and on `contract call` accepts:
+`multicall` and on `contract call` and `contract storage` accepts:
 
 | Form | Example |
 |---|---|
@@ -1456,6 +1579,13 @@ ethcli uniswap positions 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ethcli uniswap positions <address> --version v3 --chain arbitrum
 ethcli uniswap positions <address> --format json    # JSON output
 
+# LP position valuation (on-chain, no API key; honours --chain)
+ethcli uniswap position 1234567                         # v3 NFT
+ethcli uniswap position 12345 --version v4              # v4 NFT
+ethcli uniswap position --v2 <pair> --owner <address>   # v2-style pair, also Sushi and other forks
+ethcli uniswap lp-positions --owner <address> --json    # all open v3 positions (--all for closed)
+ethcli uniswap position 1234567 --block 21000000 --no-price
+
 # List well-known addresses
 ethcli uniswap addresses                            # All factories, pools, tokens
 ethcli uniswap addresses --factories                # Only factories
@@ -1469,6 +1599,15 @@ ethcli uniswap addresses --pools --version v3       # Only V3 pools
 - **Subgraph queries**: Use `eth-price`, `top-pools`, `swaps`, `day-data`, `positions` - requires `THEGRAPH_API_KEY`
 - **Multi-chain**: Supports Ethereum, Arbitrum, Optimism, Polygon, Base
 - **Multi-version**: Supports V2, V3, and V4 protocols
+- **LP valuation** (`position`, `lp-positions`): on-chain, pinned to one block, on every chain where Uniswap publishes v3/v4 deployments (addresses from `uniswap-sdk-core`). Reports tokens, fee tier, tick range, current tick, `in_range`, liquidity, token amounts, uncollected fees, USD values (median of ethcli's price sources, named in `prices[].source`) and `method`
+  - v3: the pool is read from the chain's own factory (`getPool`), and amounts come from a `uniswap-v3-sdk` `Position` built from those reads (so bytes32-symbol tokens such as MKR work); fees from an `eth_call` of `NonfungiblePositionManager.collect(tokenId, owner, max, max)` sent from the owner, cross-checked against tokensOwed + pool fee growth inside the range x liquidity. Both are in `fee_cross_check`; `agree: false` flags a difference. The collectable total is split so nothing is counted twice: `tokens_owed` is the position's tokensOwed (principal from an uncollected liquidity decrease, plus any fees credited at the last liquidity change; the two cannot be separated on-chain) and `uncollected_fees` is the rest, fees earned since. `value_usd.total` = amounts + fees + owed
+  - A burned or never-minted token id fails with `not_found: position <id> does not exist (burned or never minted)`. Token symbols read from contracts are sanitized (control and bidi characters removed, 32 characters max)
+  - v4: pool key and ticks from the PositionManager, pool state from `PoolManagerLens`, amounts from a `uniswap-v4-sdk` `Position`; fees from the PoolManager's fee growth inside the range minus the position's last value. Hooked pools are flagged in `method` (hook-side value is not included); dynamic-fee pools report the current LP fee
+  - v2-style pairs: one multicall (`balanceOf`, `totalSupply`, `getReserves`, `token0`, `token1`); fees are compounded into the reserves, so `uncollected_fees` is null. LP tokens staked elsewhere are not counted
+  - `lp-positions` lists v3 only: the v4 PositionManager is not enumerable on-chain
+  - `lp-positions` JSON has `complete`, `nft_count`, `count` and `failed` (`[{token_id, error}]`); `total_value_usd` is null when any position failed or lacks a price
+  - With `--block`, prices are DefiLlama's at the block's time and `prices_at` holds that time (`prices[].source` gives the offset); without it `prices_at` is `latest`
+  - v2 uses one multicall, or the same calls one by one at blocks before Multicall3 existed (`method` says which); v3 and v4 use no multicall
 
 ## Project Structure
 

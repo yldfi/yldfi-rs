@@ -20,13 +20,19 @@ ethcli does not sign or send transactions.
 | What did this transaction do? | `ethcli tx <hash> --full --json` | `tx_analyze` with `full: true` |
 | Several contract reads | `ethcli rpc multicall "<addr> <sig>(<returns>) [args]" ... --json` | `rpc_multicall` |
 | One contract read | `ethcli contract call <addr> <function> [args] --json` | `contract_call` |
+| A storage variable with no getter | `ethcli contract storage <addr> <var> [keys...] -o json` (`--list` for the layout) | `contract_storage` |
 | State at a date | add `--block 2024-01-31` (or `@<unix time>`, or `7d`) | `block` input |
 | Block for a time | `ethcli rpc block-at <time> --json` | `rpc_block_at` |
+| When did a value change? | `ethcli rpc find-change "<addr> <sig>(<returns>) [args]" --from <block\|time> --json` (or `--balance`, `--storage <addr> <slot>`, `--code`, `--nonce`). Finds *a* change; add `--all` when the first change matters (`single_change_assumed`, `warning` in JSON) | `rpc_find_change` (`all: true`) |
 | Why did a call revert? | read the error, or `ethcli sig error <data>` | `sig_error` |
+| Safe owners, queue, a Safe tx | `ethcli safe info\|queue <safe> --json`, `ethcli safe tx <safeTxHash> --json` | `safe_info`, `safe_queue`, `safe_tx` |
 | Whole address history | `ethcli account txs <addr> --all --json` | `account_txs` with `all: true` |
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
+| Cost of a transaction (incl. L1 data fee) | `ethcli gas cost <to> [data] -s <sig> -a "<args>" --from <addr> --chain base --json` | `gas_cost` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |
 | Open approvals and amount at risk | `ethcli account approvals <addr> --json` | `account_approvals` |
+| Value a Uniswap LP position | `ethcli uniswap position <id> [--version v4] --json`, or `--v2 <pair> --owner <addr>` | `uniswap_position_value` |
+| All v3 LP positions of an address | `ethcli uniswap lp-positions --owner <addr> --json` | `uniswap_lp_positions` |
 
 These replace chains of smaller calls. `contract inspect` covers `rpc code`,
 `contract selectors`, `contract abi`, `contract creation` and `token info`.
@@ -74,6 +80,20 @@ single facts.
 - **`account funded-by` `source`:** `explorer` is the explorer's own answer.
   `first_incoming_transfer` is the free fallback: the earliest incoming
   native-token transfer, ignoring token transfers.
+- **`uniswap position` fees:** for v3, `fee_cross_check.agree` false means
+  the pool fee-growth figure and the `collect` eth_call differ;
+  the `collect` total is split into `tokens_owed` (withdrawn principal and
+  fees credited earlier) and `uncollected_fees` (fees since), each counted
+  once in `value_usd`. v2 has no separate fees
+  (`uncollected_fees` is null; they are in the reserves). A `value_usd`
+  field of null means a token had no price, not zero.
+- **Fees on rollups:** `tx` `fee_wei` is the total fee, L1 data fee
+  included; `fee_breakdown` splits it into `execution_fee_wei` and
+  `l1_fee_wei` (the receipt's `l1Fee` on any chain, plus `operator_fee_wei`
+  when charged; Arbitrum `gasUsedForL1` × price, already inside `gasUsed`). `l1_fee_included: true` means the `l1Fee` is
+  already in the execution fee (Mantle, some eras). `model: "unknown"` means
+  the L1 fee could not be determined: say so. On L1 chains `l1_fee_wei` is `null`: not applicable,
+  not zero. With `--full`, `fee_breakdown.usd` prices it at block time.
 - **`notes`:** many commands list what they could not fetch or what an
   answer leaves out. Pass these on to the user.
 

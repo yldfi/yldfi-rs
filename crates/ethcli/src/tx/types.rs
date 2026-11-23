@@ -43,6 +43,10 @@ pub struct TransactionAnalysis {
     /// The fee in the chain's native token
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fee: Option<String>,
+    /// The fee split into L2 execution and L1 data parts. On rollups
+    /// `fee_wei`/`fee` are the total of both; on L1 chains `l1_fee_wei` is null
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee_breakdown: Option<crate::tx::l2_fee::FeeBreakdown>,
     /// Net change per address and token over the whole transaction, from
     /// its token transfers, the top-level value and the fee
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -305,6 +309,7 @@ impl TransactionAnalysis {
             effective_gas_price: Some(receipt.effective_gas_price.to_string()),
             fee_wei: Some(fee.to_string()),
             fee: alloy::primitives::utils::format_units(fee, 18).ok(),
+            fee_breakdown: None,
             balance_changes: Vec::new(),
             timestamp: None,
             time: None,

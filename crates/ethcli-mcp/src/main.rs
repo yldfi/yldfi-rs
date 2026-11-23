@@ -54,6 +54,7 @@ const CORE_TOOLS: &[&str] = &[
     "rpc_call",
     "rpc_balance",
     "rpc_block_at",
+    "rpc_find_change",
     "rpc_code_summary",
     "logs",
     "token_info",
@@ -61,6 +62,9 @@ const CORE_TOOLS: &[&str] = &[
     "account_funded_by",
     "sig_lookup",
     "sig_error",
+    "safe_info",
+    "safe_queue",
+    "safe_tx",
     "simulate_call",
     "simulate_tx",
     "price",
@@ -583,6 +587,14 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(
+        description = "Estimate the full cost of a transaction: L2 execution fee plus the L1 data fee on rollups (OP-stack via GasPriceOracle, Arbitrum via NodeInterface), in native token and USD. On L1 chains the L1 fee is null (not applicable)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gas_cost(&self, Parameters(input): Parameters<GasCostInput>) -> CallToolResult {
+        tools::gas_cost(&input).await.to_response()
+    }
+
     // =========================================================================
     // SIGNATURE LOOKUP
     // =========================================================================
@@ -609,6 +621,46 @@ impl EthcliMcpServer {
     )]
     async fn sig_error(&self, Parameters(input): Parameters<SigErrorInput>) -> CallToolResult {
         tools::sig_error(&input.data).await.to_response()
+    }
+
+    #[tool(
+        description = "Safe (Gnosis Safe) multisig state read on chain in one request: owners, threshold, nonce, version, modules, guard, fallback handler and singleton. Works on any chain, no API needed",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn safe_info(&self, Parameters(input): Parameters<SafeAddressInput>) -> CallToolResult {
+        tools::safe_info(&input.safe, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Pending Safe transactions from the Safe Transaction Service with nonce at or above the on-chain nonce: decoded method, confirmations against the on-chain threshold, which owners signed and which have not, and whether several proposals share a nonce. Read-only",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn safe_queue(&self, Parameters(input): Parameters<SafeListInput>) -> CallToolResult {
+        tools::safe_queue(&input.safe, Some(&input.chain), input.limit)
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "One Safe transaction by safeTxHash: calldata decoded (verified ABI, else signature database marked as a guess), MultiSend batches unpacked into each inner call and decoded, confirmations, and for a pending one the owners who have not signed",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn safe_tx(&self, Parameters(input): Parameters<SafeTxInput>) -> CallToolResult {
+        tools::safe_tx(&input.safe_tx_hash, Some(&input.chain))
+            .await
+            .to_response()
+    }
+
+    #[tool(
+        description = "Executed Safe transactions, newest first, with decoded method, success, execution time and chain transaction hash; page with limit and offset",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn safe_history(&self, Parameters(input): Parameters<SafeListInput>) -> CallToolResult {
+        tools::safe_history(&input.safe, Some(&input.chain), input.limit, input.offset)
+            .await
+            .to_response()
     }
 
     #[tool(
@@ -864,6 +916,27 @@ impl EthcliMcpServer {
         tools::rpc_block_at(&input.time, Some(&input.chain))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Find the block where a value changed, by binary search over blocks (about log2(range) reads; needs an archive endpoint for old blocks). target: call (value = \"<address> <signature> [args...]\" with return types, e.g. balanceOf(address)(uint256)), balance, storage (with slot), code (deployment) or nonce. Returns the first block in (from, to] where the value differs from its value at `from`, with time, old and new values, top-level transactions to or from the address, and rpc_calls. Assumes one change: without all it finds a boundary, not necessarily the first change (single_change_assumed=true, note). When the first change matters set all=true and read changes[0]; a warning field means the value changed several times",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn rpc_find_change(
+        &self,
+        Parameters(input): Parameters<RpcFindChangeInput>,
+    ) -> CallToolResult {
+        tools::rpc_find_change(
+            &input.target,
+            &input.value,
+            input.slot.as_deref(),
+            &input.from,
+            input.to.as_deref(),
+            input.all,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(
@@ -1220,6 +1293,46 @@ impl EthcliMcpServer {
         tools::uniswap_positions(&input.address, Some(&input.chain), input.version.as_deref())
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Value one Uniswap LP position on-chain: a v3 or v4 NFT (token_id, version) or a v2-style pair (v2_pair + owner, also Sushi and other forks). Returns tokens, fee tier, tick range, in_range, token amounts, uncollected fees (v3 cross-checked with an eth_call of collect), USD values with the price source, and the method used",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn uniswap_position_value(
+        &self,
+        Parameters(input): Parameters<UniswapPositionValueInput>,
+    ) -> CallToolResult {
+        tools::uniswap_position_value(
+            input.token_id.as_deref(),
+            input.version.as_deref(),
+            input.v2_pair.as_deref(),
+            input.owner.as_deref(),
+            Some(&input.chain),
+            input.block,
+            input.no_price.unwrap_or(false),
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "List and value every open Uniswap v3 LP position an address owns, on-chain (no subgraph). v4 positions are not enumerable on-chain; value them one by one with uniswap_position_value",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn uniswap_lp_positions(
+        &self,
+        Parameters(input): Parameters<UniswapLpPositionsInput>,
+    ) -> CallToolResult {
+        tools::uniswap_lp_positions(
+            &input.owner,
+            Some(&input.chain),
+            input.all.unwrap_or(false),
+            input.block,
+            input.no_price.unwrap_or(false),
+        )
+        .await
+        .to_response()
     }
 
     // =========================================================================
@@ -1832,6 +1945,27 @@ impl EthcliMcpServer {
             input.block.as_deref(),
             input.rpc_url.as_deref(),
             input.human,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Read a contract storage variable by name, decoded, from its verified storage layout (Sourcify), at an optional block or time. Handles packed values, mappings (nested; address, uint, int, bool, bytesN and string keys), fixed and dynamic arrays, structs (whole or one member) and strings/bytes. Proxies are followed: the implementation's layout, the proxy's storage. Use it for state no getter exposes; list=true shows the layout. Without a layout (older compilers, Vyper, unverified) it fails: use rpc_storage with a slot and cast_index for mapping slots",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_storage(
+        &self,
+        Parameters(input): Parameters<ContractStorageInput>,
+    ) -> CallToolResult {
+        tools::contract_storage(
+            &input.address,
+            input.variable.as_deref(),
+            input.keys,
+            input.list,
+            Some(&input.chain),
+            input.block.as_deref(),
+            input.rpc_url.as_deref(),
         )
         .await
         .to_response()
@@ -5193,9 +5327,9 @@ impl EthcliMcpServer {
     )]
     async fn moralis_wallet_active_chains(
         &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
+        Parameters(input): Parameters<MoralisWalletActiveChainsInput>,
     ) -> CallToolResult {
-        tools::moralis_wallet_active_chains(&input.address, Some(input.chain.as_str()))
+        tools::moralis_wallet_active_chains(&input.address, input.chains.as_deref())
             .await
             .to_response()
     }

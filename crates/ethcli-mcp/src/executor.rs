@@ -38,6 +38,9 @@ const ENDPOINTS_OPTIMIZE_TIMEOUT: Duration = Duration::from_secs(600);
 /// multicall, then per-token price and spam checks and per-spender source
 /// checks. A busy wallet takes 30-60 s.
 const ACCOUNT_APPROVALS_TIMEOUT: Duration = Duration::from_secs(180);
+/// Timeout for `rpc find-change`: about log2(range) state reads per change,
+/// and with `--all` a search per change
+const FIND_CHANGE_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// How long a call waits for one of the MAX_CONCURRENT_SUBPROCESSES slots
 /// before it is refused as rate limited
@@ -1120,6 +1123,9 @@ fn get_timeout(args: &[&str]) -> Duration {
 
     if command == "dune" && matches!(path.get(1..3), Some(["sql" | "query", "execute"])) {
         return DUNE_EXECUTE_TIMEOUT;
+    }
+    if command == "rpc" && sub == "find-change" {
+        return FIND_CHANGE_TIMEOUT;
     }
     if command == "endpoints" && sub == "optimize" {
         return ENDPOINTS_OPTIMIZE_TIMEOUT;

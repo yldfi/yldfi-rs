@@ -113,7 +113,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `lifi_*` | 19 | Cross-chain quotes, bridges, chains, transfers |
 | `curve_*` | 10 | Pools, routing, lending |
 | `uniswap_*` | 9 | V2/V3/V4 pool queries |
-| `rpc_*` | 14 | Direct blockchain calls |
+| `rpc_*` | 15 | Direct blockchain calls |
 | `tenderly_*` | 34 | Simulation, VNets (CRUD + Admin RPC + RPC Simulation) |
 | `cowswap_*` | 16 | MEV-protected trading |
 | `account_*` | 10 | Balance, transactions |
@@ -183,8 +183,13 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `rpc_tx` | A transaction by hash |
 | `rpc_code_summary` | Whether an address has code, its size and code hash, and any EIP-7702 delegate, without the bytecode |
 | `rpc_block_at` | The block for a date, Unix timestamp (`@1706700000`) or age (`7d`) |
+| `rpc_find_change` | The block where a call result, balance, storage slot, code or nonce changed (binary search) |
 | `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
 | `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
+| `safe_info` | Safe owners, threshold, nonce, version, modules, guard and fallback handler, read on chain |
+| `safe_queue` | Pending Safe transactions with who has and has not signed |
+| `safe_tx` | One Safe transaction, decoded, with MultiSend batches unpacked |
+| `safe_history` | Executed Safe transactions, paged |
 | `cast_index` | The storage slot of a mapping entry |
 
 The `block` input of `rpc_balance`, `rpc_multicall` and `contract_call` also
@@ -202,7 +207,7 @@ takes a comma-separated list:
 
 | Entry | Offers |
 |-------|--------|
-| `core` | About 20 tools that answer most questions in one call: `contract_inspect`, `contract_call`, `tx_analyze`, `rpc_multicall`, `rpc_call`, `rpc_balance`, `rpc_block_at`, `logs`, `token_info`, `account_txs`, `simulate_call`, `price`, `quote_best`, `sig_error` and a few more |
+| `core` | About 20 tools that answer most questions in one call: `contract_inspect`, `contract_call`, `tx_analyze`, `rpc_multicall`, `rpc_call`, `rpc_balance`, `rpc_block_at`, `logs`, `token_info`, `account_txs`, `simulate_call`, `price`, `quote_best`, `sig_error`, `safe_info`, `safe_queue`, `safe_tx` and a few more |
 | a group (`curve`, `tenderly`, `rpc`, `account`, ...) | Every tool whose name starts with that group |
 | a tool name (`uniswap_pool`) | That tool |
 | `all`, or unset | Every tool |
