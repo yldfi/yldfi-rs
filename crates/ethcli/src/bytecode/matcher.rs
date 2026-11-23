@@ -741,22 +741,32 @@ pub fn match_code(artifact: &Artifact, onchain: &[u8]) -> MatchReport {
             // a JUMPDEST inside followed by an effectful opcode before the
             // next halt could still be entered
             if computed_jumps {
+                // From the block start to the end of the code: a run that
+                // starts at a JUMPDEST inside the block may fall through
+                // past its end into real code
                 let ops: Vec<(usize, u8)> = reach
                     .iter()
-                    .filter(|(pc, _, _)| *pc >= b.start && *pc < b.end)
+                    .filter(|(pc, _, _)| *pc >= b.start)
                     .map(|(pc, op, _)| (*pc, *op))
                     .collect();
                 let mut hits: Vec<String> = Vec::new();
                 for (i, (pc, op)) in ops.iter().enumerate() {
-                    if *op != 0x5b {
+                    if *op != 0x5b || *pc >= b.end {
                         continue;
                     }
-                    for (_, next) in &ops[i + 1..] {
+                    for (next_pc, next) in &ops[i + 1..] {
                         if matches!(next, 0x00 | 0xfd | 0xfe) {
                             break;
                         }
                         if EFFECTFUL_OPCODES.contains(next) {
-                            hits.push(format!("JUMPDEST at {pc:#x} then opcode {next:#04x}"));
+                            hits.push(format!(
+                                "JUMPDEST at {pc:#x} then opcode {next:#04x} at {next_pc:#x}{}",
+                                if *next_pc >= b.end {
+                                    " (past the block end)"
+                                } else {
+                                    ""
+                                }
+                            ));
                             break;
                         }
                         if matches!(next, 0x56 | 0xf3 | 0xff) {
@@ -1422,5 +1432,42 @@ mod tests {
         let honest = META.replacen("8b5d96ae", "5b00aaaa", 1);
         let deployed = hex::decode(&with_meta(code, &honest)[2..]).unwrap();
         assert_eq!(match_code(&art, &deployed).verdict, "partial");
+    }
+
+    #[test]
+    fn run_falling_off_a_mid_code_block_is_flagged() {
+        // A nested metadata-shaped block: {"ipfs": <34 bytes>} + length
+        let nested = |hash: &[u8]| {
+            let mut b = hex::decode("a1646970667358").unwrap();
+            b.push(34);
+            b.extend(hash);
+            let len = b.len() as u16;
+            b.extend(len.to_be_bytes());
+            hex::encode(b)
+        };
+        // JUMPDEST, 32 x ADD, PUSH1 (swallows the length's 0x00), then the
+        // length's low byte (MUL) runs past the block end into CALL
+        let mut evil = vec![0x5b];
+        evil.extend([0x01; 32]);
+        evil.push(0x60);
+        let prefix = "6000355600"; // computed jump, then STOP
+        let art_code = format!("{prefix}{}f100", nested(&[0u8; 34]));
+        let dep_code = format!("{prefix}{}f100", nested(&evil));
+        let art = parse_artifact(
+            &forge_artifact(&with_meta(&art_code, META), Value::Null, Value::Null),
+            None,
+        )
+        .unwrap();
+        let deployed = hex::decode(&with_meta(&dep_code, META)[2..]).unwrap();
+        let report = match_code(&art, &deployed);
+        assert_eq!(
+            report.verdict, "partial_unverified_metadata",
+            "{:?}",
+            report.warnings
+        );
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.contains("past the block end")));
     }
 }
