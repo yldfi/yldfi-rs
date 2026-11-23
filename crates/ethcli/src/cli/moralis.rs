@@ -168,6 +168,9 @@ pub enum WalletCommands {
     ActiveChains {
         /// Wallet address
         address: String,
+        /// Only check these chains, comma-separated (default: the Moralis default set; ignores --chain)
+        #[arg(long, value_delimiter = ',')]
+        chains: Vec<String>,
     },
 
     /// Get token approvals
@@ -820,11 +823,19 @@ async fn handle_wallet(
             let response = client.wallet().get_net_worth(address).await?;
             print_output(&response, args.format)?;
         }
-        WalletCommands::ActiveChains { address } => {
+        WalletCommands::ActiveChains { address, chains } => {
             if !quiet {
                 eprintln!("Fetching active chains for {}...", address);
             }
-            let response = client.wallet().get_active_chains(address).await?;
+            let mut query = mrls::ActiveChainsQuery::new();
+            for chain in chains.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
+                ensure_moralis_chain_supported(chain)?;
+                query = query.chain(chain);
+            }
+            let response = client
+                .wallet()
+                .get_active_chains_with_query(address, &query)
+                .await?;
             print_output(&response, args.format)?;
         }
         WalletCommands::Approvals { address } => {
