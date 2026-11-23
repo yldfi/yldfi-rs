@@ -25,6 +25,7 @@ ethcli does not sign or send transactions.
 | Why did a call revert? | read the error, or `ethcli sig error <data>` | `sig_error` |
 | Whole address history | `ethcli account txs <addr> --all --json` | `account_txs` with `all: true` |
 | Who funded an address? | `ethcli account funded-by <addr> --json` | `account_funded_by` |
+| Cost of a transaction (incl. L1 data fee) | `ethcli gas cost <to> [data] -s <sig> -a "<args>" --from <addr> --chain base --json` | `gas_cost` |
 | Names for addresses | `ethcli account labels <addr> ... --json` | `account_labels` |
 
 These replace chains of smaller calls. `contract inspect` covers `rpc code`,
@@ -73,6 +74,11 @@ single facts.
 - **`account funded-by` `source`:** `explorer` is the explorer's own answer.
   `first_incoming_transfer` is the free fallback: the earliest incoming
   native-token transfer, ignoring token transfers.
+- **Fees on rollups:** `tx` `fee_wei` is the total fee, L1 data fee
+  included; `fee_breakdown` splits it into `execution_fee_wei` and
+  `l1_fee_wei` (OP-stack `l1Fee`; Arbitrum `gasUsedForL1` × price, already
+  inside `gasUsed`). On L1 chains `l1_fee_wei` is `null`: not applicable,
+  not zero. With `--full`, `fee_breakdown.usd` prices it at block time.
 - **`notes`:** many commands list what they could not fetch or what an
   answer leaves out. Pass these on to the user.
 

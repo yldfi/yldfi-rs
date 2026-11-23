@@ -706,10 +706,29 @@ async fn run_action(
 
             match receipt {
                 Some(r) => {
-                    if matches!(format, OutputFormat::Json) {
-                        println!("{}", serde_json::to_string_pretty(&r)?);
-                    } else if matches!(format, OutputFormat::Ndjson) {
-                        println!("{}", serde_json::to_string(&r)?);
+                    // The raw receipt keeps chain-specific fields (l1Fee,
+                    // gasUsedForL1, ...) that the typed one drops
+                    let raw: Option<serde_json::Value> = provider
+                        .raw_request("eth_getTransactionReceipt".into(), (tx_hash,))
+                        .await
+                        .ok()
+                        .flatten();
+                    let breakdown = raw.as_ref().and_then(|v| {
+                        crate::tx::l2_fee::FeeBreakdown::from_receipt_json(chain.chain_id(), v)
+                    });
+                    if !format.is_table() {
+                        let mut json = match raw {
+                            Some(v) if v.is_object() => v,
+                            _ => serde_json::to_value(&r)?,
+                        };
+                        if let Some(b) = &breakdown {
+                            json["feeBreakdown"] = serde_json::to_value(b)?;
+                        }
+                        if matches!(format, OutputFormat::Ndjson) {
+                            println!("{}", serde_json::to_string(&json)?);
+                        } else {
+                            println!("{}", serde_json::to_string_pretty(&json)?);
+                        }
                     } else {
                         println!("Transaction Receipt");
                         println!("{}", "─".repeat(50));
@@ -727,6 +746,12 @@ async fn run_action(
                             println!("Created:     {}", addr.to_checksum(None));
                         }
                         println!("Logs:        {}", r.inner.logs().len());
+                        if let Some(b) = &breakdown {
+                            println!("Fee:         {} {}", b.total_fee, chain.native_symbol());
+                            for line in b.lines(chain.native_symbol()) {
+                                println!("  {}", line.trim_start());
+                            }
+                        }
                     }
                 }
                 None => return Err(NotFound("Receipt not found (tx may be pending)").into()),

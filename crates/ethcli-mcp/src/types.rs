@@ -398,6 +398,28 @@ pub struct GasEstimateInput {
     pub chain: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GasCostInput {
+    /// Target address
+    pub to: String,
+    /// Calldata (hex); use this or `sig`
+    pub data: Option<String>,
+    /// Function signature, e.g. "transfer(address,uint256)"
+    pub sig: Option<String>,
+    /// Function arguments for `sig`, space-separated
+    pub args: Option<String>,
+    /// Sender the estimate runs as
+    pub from: Option<String>,
+    /// Value to send, in wei
+    pub value: Option<String>,
+    /// Skip the USD conversion
+    #[serde(default)]
+    pub no_usd: bool,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
 // --- Signature Lookup ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SigLookupInput {

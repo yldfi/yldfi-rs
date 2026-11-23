@@ -397,7 +397,29 @@ ethcli gas oracle
 
 # Estimate confirmation time
 ethcli gas estimate 30
+
+# Full cost of a transaction: L2 execution + L1 data fee, in ETH and USD
+ethcli gas cost 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  -s "transfer(address,uint256)" -a "0x000000000000000000000000000000000000dEaD 1" \
+  --from 0x... --chain base
+ethcli gas cost 0x... 0x<calldata> --chain arbitrum --json
 ```
+
+`gas cost` takes L2 gas from `eth_estimateGas` and the price from
+`eth_gasPrice`. The L1 data fee comes from the GasPriceOracle predeploy
+(`getL1Fee`, given the unsigned RLP transaction) on OP-stack chains (Optimism,
+Base, Zora, Mode, Unichain, ...) and from NodeInterface
+(`gasEstimateL1Component`) on Arbitrum, where it is part of the estimated gas.
+On L1 chains the L1 fee is reported as not applicable. USD uses the median of
+CoinGecko, DefiLlama, Chainlink, Pyth and an exchange, and names the sources
+(`--no-usd` skips it).
+
+For a mined transaction, `tx` and `rpc receipt` read the L1 fee fields of the
+receipt (`l1Fee`, `l1GasUsed`, `l1GasPrice`, `l1BaseFeeScalar`,
+`l1BlobBaseFee`, ... on OP-stack; `gasUsedForL1` on Arbitrum) and report
+`fee_breakdown` / `feeBreakdown`: execution, L1 data and total. On OP-stack
+chains `tx`'s `fee_wei` is the total, so balance changes include the L1 fee.
+`tx --full` adds the fee in USD at the block's time (DefiLlama).
 
 ### Token - Token Operations
 

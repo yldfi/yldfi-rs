@@ -563,6 +563,14 @@ impl EthcliMcpServer {
             .to_response()
     }
 
+    #[tool(
+        description = "Estimate the full cost of a transaction: L2 execution fee plus the L1 data fee on rollups (OP-stack via GasPriceOracle, Arbitrum via NodeInterface), in native token and USD. On L1 chains the L1 fee is null (not applicable)",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn gas_cost(&self, Parameters(input): Parameters<GasCostInput>) -> CallToolResult {
+        tools::gas_cost(&input).await.to_response()
+    }
+
     // =========================================================================
     // SIGNATURE LOOKUP
     // =========================================================================

@@ -9,6 +9,7 @@
 pub mod addresses;
 pub mod analyzer;
 pub mod flow;
+pub mod l2_fee;
 pub mod types;
 
 pub use analyzer::{format_analysis, TxAnalyzer};
