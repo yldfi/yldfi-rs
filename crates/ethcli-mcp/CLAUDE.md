@@ -103,6 +103,16 @@ When adding a tool, decide whether it is safe in default read-only mode:
   `sanitize_error` turns it into `Error [<code>]: <message> (hint: <hint>)`
   so the stable code reaches the client
 
+### `fields` on every tool
+
+`fields` is handled once, not per tool. `add_fields_parameter` (main.rs) adds
+it to every tool's published input schema at startup. The hand-written
+`call_tool` takes it out of the arguments before they are parsed into the
+input struct (so `deny_unknown_fields` structs are fine) and sets the
+`executor::FIELDS` task-local for the call. `ArgsBuilder::execute` then adds
+`--fields=<spec>` (before any `--`) to every ethcli run the tool makes, and
+ethcli does the projection. Do not add a `fields` field to an input struct.
+
 ### Security Controls
 
 - **Rate limiting**: Max 10 concurrent subprocesses (semaphore). A call waits up to 30s (`SLOT_WAIT`) for a free slot, then fails with "Too many concurrent requests"
@@ -189,4 +199,4 @@ These are documented improvements that could be made:
 
 2. **Add mock layer for testing** - Inject mock executor to test tool logic without spawning real subprocesses. Would require trait abstraction in executor.rs.
 
-3. **Structured error responses** - Return JSON error objects instead of "Error: ..." strings for better client parsing.
+3. **Structured error responses** - Errors now carry ethcli's stable code (`Error [code]: ...`); returning them as JSON objects in the tool result is still open.

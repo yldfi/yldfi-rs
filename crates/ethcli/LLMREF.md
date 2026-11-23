@@ -153,7 +153,8 @@ output option (`-o json`) and is ignored, with a note, on those that do not.
 `--fields a,b.c` keeps only those fields of the JSON or NDJSON output (dot
 paths into nested objects, applied to each element of an array; missing fields
 are left out). It implies `--json` and fails with `invalid_argument` when the
-command prints no JSON. With JSON output a failure prints one line on stderr,
+command prints no JSON. With JSON output, or whenever stdout is not a
+terminal (`ETHCLI_ERROR_FORMAT=json|text` overrides), a failure prints one line on stderr,
 `{"error":{"code":"...","message":"...","hint":"..."}}` (`hint` optional), and
 exits non-zero. Codes: `invalid_argument`, `not_verified`, `missing_api_key`,
 `unauthorized`, `rate_limited`, `unsupported_chain`, `not_found`, `rpc_error`,

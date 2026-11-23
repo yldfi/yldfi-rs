@@ -343,6 +343,52 @@ fn test_invalid_tool_name() {
 }
 
 #[test]
+fn test_every_tool_lists_fields_and_text_tools_reject_it() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let tools = client.list_tools();
+    let tools = tools["result"]["tools"].as_array().expect("tools");
+    assert!(tools
+        .iter()
+        .all(|t| t["inputSchema"]["properties"]["fields"]["type"] == "string"));
+
+    // `fields` is taken out before the input struct is parsed and reaches
+    // ethcli as --fields; keccak prints text, so ethcli refuses it
+    let response = client.call_tool("cast_keccak", json!({"value": "hello", "fields": "hash"}));
+    let result = &response["result"];
+    assert_eq!(result["isError"], true, "{response}");
+    assert!(
+        result.to_string().contains("invalid_argument"),
+        "{response}"
+    );
+}
+
+#[test]
+#[ignore] // Requires network
+fn test_fields_trims_a_json_result() {
+    let mut client = McpClient::new();
+    assert!(client.initialize());
+
+    let response = client.call_tool(
+        "account_txs",
+        json!({
+            "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+            "limit": 2,
+            "fields": "hash,value"
+        }),
+    );
+    let text = response["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{response}"));
+    let rows: Value = serde_json::from_str(text).expect("JSON");
+    for row in rows.as_array().expect("array") {
+        let keys: Vec<&String> = row.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["hash", "value"], "{row}");
+    }
+}
+
+#[test]
 fn test_missing_required_params() {
     let mut client = McpClient::new();
     assert!(client.initialize());

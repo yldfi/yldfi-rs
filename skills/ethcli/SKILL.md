@@ -49,7 +49,9 @@ single facts.
 - **Ask only for the fields you need.** `--fields hash,value` (dot paths
   such as `balance.wei`; applied to each row of an array) trims JSON output
   and implies `--json`: `ethcli account txs <addr> --fields hash,value`.
-- **Read JSON errors by code.** With JSON output a failure is one stderr line,
+  Every MCP tool takes the same thing as a `fields` input.
+- **Read JSON errors by code.** With JSON output, or when stdout is piped or
+  captured (`ETHCLI_ERROR_FORMAT=json|text` overrides), a failure is one stderr line,
   `{"error":{"code","message","hint"}}`, exit code non-zero. Codes:
   `invalid_argument`, `not_verified` (try `contract source` / `contract inspect`),
   `missing_api_key`, `unauthorized`, `rate_limited`, `unsupported_chain`,

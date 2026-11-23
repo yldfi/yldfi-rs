@@ -8,6 +8,8 @@
 //! inside the commands. `main` runs the same binary again without `--fields`
 //! (and with `--json`), captures its stdout and projects it here.
 
+use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use serde_json::{Map, Value};
 
 /// Environment variable set on the inner run so it never re-executes itself.
@@ -40,47 +42,130 @@ pub fn parse_fields(spec: &str) -> anyhow::Result<Vec<FieldPath>> {
     Ok(paths)
 }
 
-/// Keep only the listed paths of `value`.
-///
-/// Arrays are projected element by element (at any depth), objects keep only
-/// the listed keys, and missing keys are left out rather than added as null.
-pub fn project(value: &Value, paths: &[FieldPath]) -> Value {
-    let refs: Vec<&[String]> = paths.iter().map(Vec::as_slice).collect();
-    project_refs(value, &refs)
+/// A JSON document whose scalars are kept as their original text, so numbers
+/// of any size pass through `--fields` unchanged (a `serde_json::Value` would
+/// turn integers above u64 into floats). Object keys keep their order.
+#[derive(Debug)]
+enum Node {
+    Object(Vec<(String, Node)>),
+    Array(Vec<Node>),
+    Scalar(Box<RawValue>),
 }
 
-fn project_refs(value: &Value, paths: &[&[String]]) -> Value {
-    match value {
-        Value::Array(items) => Value::Array(items.iter().map(|v| project_refs(v, paths)).collect()),
-        Value::Object(map) => {
-            let mut out = Map::new();
-            for path in paths {
-                let Some((key, _)) = path.split_first() else {
-                    continue;
-                };
-                if out.contains_key(key) {
-                    continue;
-                }
-                let Some(child) = map.get(key) else {
-                    continue;
-                };
-                // Every path through this key; a path ending here keeps it whole
-                let rests: Vec<&[String]> = paths
-                    .iter()
-                    .filter(|p| p.first() == Some(key))
-                    .map(|p| &p[1..])
-                    .collect();
-                let projected = if rests.iter().any(|r| r.is_empty()) {
-                    child.clone()
-                } else {
-                    project_refs(child, &rests)
-                };
-                out.insert(key.clone(), projected);
+/// Object entries in document order, values left unparsed.
+struct Entries(Vec<(String, Box<RawValue>)>);
+
+impl<'de> Deserialize<'de> for Entries {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = Entries;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a JSON object")
             }
-            Value::Object(out)
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Entries, A::Error> {
+                let mut out = Vec::new();
+                while let Some(entry) = map.next_entry::<String, Box<RawValue>>()? {
+                    out.push(entry);
+                }
+                Ok(Entries(out))
+            }
         }
-        // A path that goes past a scalar keeps the scalar
-        other => other.clone(),
+        d.deserialize_map(V)
+    }
+}
+
+impl Node {
+    fn parse(raw: &RawValue) -> serde_json::Result<Self> {
+        match raw.get().trim_start().as_bytes().first() {
+            Some(b'{') => {
+                let Entries(entries) = serde_json::from_str(raw.get())?;
+                entries
+                    .into_iter()
+                    .map(|(k, v)| Ok((k, Node::parse(&v)?)))
+                    .collect::<serde_json::Result<_>>()
+                    .map(Node::Object)
+            }
+            Some(b'[') => {
+                let items: Vec<Box<RawValue>> = serde_json::from_str(raw.get())?;
+                items
+                    .iter()
+                    .map(|v| Node::parse(v))
+                    .collect::<serde_json::Result<_>>()
+                    .map(Node::Array)
+            }
+            _ => Ok(Node::Scalar(raw.to_owned())),
+        }
+    }
+
+    /// Keep only `paths`: arrays element by element (at any depth), objects
+    /// only the listed keys; missing keys are left out, and a path that goes
+    /// past a scalar keeps the scalar.
+    fn project(self, paths: &[&[String]]) -> Self {
+        match self {
+            Node::Array(items) => {
+                Node::Array(items.into_iter().map(|n| n.project(paths)).collect())
+            }
+            Node::Object(entries) => Node::Object(
+                entries
+                    .into_iter()
+                    .filter_map(|(key, child)| {
+                        let rests: Vec<&[String]> = paths
+                            .iter()
+                            .filter(|p| p.first() == Some(&key))
+                            .map(|p| &p[1..])
+                            .collect();
+                        if rests.is_empty() {
+                            None
+                        } else if rests.iter().any(|r| r.is_empty()) {
+                            // A path ending here keeps the whole value
+                            Some((key, child))
+                        } else {
+                            Some((key, child.project(&rests)))
+                        }
+                    })
+                    .collect(),
+            ),
+            scalar => scalar,
+        }
+    }
+}
+
+impl Serialize for Node {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap, SerializeSeq};
+        match self {
+            Node::Object(entries) => {
+                let mut map = s.serialize_map(Some(entries.len()))?;
+                for (k, v) in entries {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
+            Node::Array(items) => {
+                let mut seq = s.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    seq.serialize_element(item)?;
+                }
+                seq.end()
+            }
+            Node::Scalar(raw) => raw.serialize(s),
+        }
+    }
+}
+
+/// Project one JSON document given as text; `None` if it is not JSON.
+fn project_document(text: &str, paths: &[FieldPath], pretty: bool) -> Option<String> {
+    let raw: Box<RawValue> = serde_json::from_str(text).ok()?;
+    let refs: Vec<&[String]> = paths.iter().map(Vec::as_slice).collect();
+    let node = Node::parse(&raw).ok()?.project(&refs);
+    if pretty {
+        serde_json::to_string_pretty(&node).ok()
+    } else {
+        serde_json::to_string(&node).ok()
     }
 }
 
@@ -98,26 +183,20 @@ pub fn project_output(text: &str, paths: &[FieldPath]) -> anyhow::Result<String>
     if trimmed.is_empty() {
         return Ok(String::new());
     }
-    if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
-        let projected = project(&value, paths);
-        let mut out = if trimmed.contains('\n') {
-            serde_json::to_string_pretty(&projected)?
-        } else {
-            serde_json::to_string(&projected)?
-        };
+    if let Some(mut out) = project_document(trimmed, paths, trimmed.contains('\n')) {
         out.push('\n');
         return Ok(out);
     }
     let mut out = String::new();
     for line in trimmed.lines().filter(|l| !l.trim().is_empty()) {
-        let value: Value = serde_json::from_str(line).map_err(|_| {
+        let projected = project_document(line, paths, false).ok_or_else(|| {
             anyhow::Error::new(UsageError(
                 "--fields needs JSON output, but this command printed text \
                  (it may have no JSON output, or an explicit -o/--format chose another format)"
                     .to_string(),
             ))
         })?;
-        out.push_str(&serde_json::to_string(&project(&value, paths))?);
+        out.push_str(&projected);
         out.push('\n');
     }
     Ok(out)
@@ -181,6 +260,30 @@ pub fn json_output_requested(args: &[String]) -> bool {
         matches!(a.as_str(), "--format" | "--output" | "-o")
             && args.get(i + 1).is_some_and(|v| is_json(v))
     })
+}
+
+/// Environment variable that forces the error format: `json` or `text`.
+pub const ERROR_FORMAT_ENV: &str = "ETHCLI_ERROR_FORMAT";
+
+/// Should a failure be printed as a JSON object?
+///
+/// `ETHCLI_ERROR_FORMAT=json|text` decides when set. Otherwise errors are JSON
+/// when the command line asks for JSON output, or when stdout is not a
+/// terminal (a script or agent is reading it). A terminal without JSON flags
+/// keeps text errors.
+pub fn json_errors(args: &[String], env: Option<&str>, stdout_is_terminal: bool) -> bool {
+    match env.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
+        Some("json") => true,
+        Some("text") => false,
+        _ => json_output_requested(args) || !stdout_is_terminal,
+    }
+}
+
+/// [`json_errors`] for this process.
+pub fn json_errors_for_process(args: &[String]) -> bool {
+    use std::io::IsTerminal;
+    let env = std::env::var(ERROR_FORMAT_ENV).ok();
+    json_errors(args, env.as_deref(), std::io::stdout().is_terminal())
 }
 
 /// A command-line usage error (bad flag, bad value). Classified as
@@ -252,18 +355,210 @@ impl ErrorCode {
     }
 }
 
-/// Map an error to a stable code, from its type where known and otherwise
-/// from the messages in its chain.
+/// Map an error to a stable code. See [`classify_with_hint`].
 pub fn classify(err: &anyhow::Error) -> ErrorCode {
+    classify_with_hint(err).0
+}
+
+/// Map an error to a stable code and an optional hint specific to the error.
+///
+/// The first error in the chain with a known type decides (ethcli's own error
+/// types, usage errors, HTTP and I/O errors); only when none has one is the
+/// text of the whole chain matched.
+pub fn classify_with_hint(err: &anyhow::Error) -> (ErrorCode, Option<&'static str>) {
     // downcast_ref also sees a UsageError attached with `.context(...)`
-    if err.downcast_ref::<UsageError>().is_some()
-        || err
-            .chain()
-            .any(|e| e.is::<UsageError>() || e.is::<clap::Error>())
-    {
-        return ErrorCode::InvalidArgument;
+    if err.downcast_ref::<UsageError>().is_some() {
+        return (ErrorCode::InvalidArgument, None);
     }
-    classify_message(&format!("{err:#}"))
+    err.chain()
+        .find_map(typed_code)
+        .unwrap_or_else(|| (classify_message(&format!("{err:#}")), None))
+}
+
+/// The code of an error whose type is known, if it is one.
+fn typed_code(e: &(dyn std::error::Error + 'static)) -> Option<(ErrorCode, Option<&'static str>)> {
+    use crate::error::{AbiError, ConfigError, Error, OutputError, RpcError};
+    if e.is::<UsageError>() || e.is::<clap::Error>() {
+        return Some((ErrorCode::InvalidArgument, None));
+    }
+    if let Some(e) = e.downcast_ref::<Error>() {
+        return Some(e.code_and_hint());
+    }
+    if let Some(e) = e.downcast_ref::<RpcError>() {
+        return Some(e.code_and_hint());
+    }
+    if let Some(e) = e.downcast_ref::<AbiError>() {
+        return Some((e.code(), None));
+    }
+    if let Some(e) = e.downcast_ref::<ConfigError>() {
+        return Some((e.code(), None));
+    }
+    if let Some(e) = e.downcast_ref::<OutputError>() {
+        return Some((e.code(), None));
+    }
+    if let Some(e) = e.downcast_ref::<crate::chainlink::ChainlinkError>() {
+        return Some((e.code(), None));
+    }
+    if let Some(e) = e.downcast_ref::<reqwest::Error>() {
+        return Some((http_code(e), None));
+    }
+    if let Some(e) = e.downcast_ref::<std::io::Error>() {
+        return Some((io_code(e), None));
+    }
+    None
+}
+
+/// Text matching for an error of a known type whose variant carries an
+/// upstream message (e.g. an explorer's reply): the message decides when it
+/// is recognised, `default` otherwise.
+fn refine(msg: &str, default: ErrorCode) -> ErrorCode {
+    match classify_message(msg) {
+        ErrorCode::Internal => default,
+        code => code,
+    }
+}
+
+fn http_code(e: &reqwest::Error) -> ErrorCode {
+    match e.status().map(|s| s.as_u16()) {
+        Some(429) => ErrorCode::RateLimited,
+        Some(401 | 403) => ErrorCode::Unauthorized,
+        Some(404) => ErrorCode::NotFound,
+        Some(400 | 422) => ErrorCode::InvalidArgument,
+        _ => ErrorCode::RpcError,
+    }
+}
+
+fn io_code(e: &std::io::Error) -> ErrorCode {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => ErrorCode::NotFound,
+        std::io::ErrorKind::InvalidInput | std::io::ErrorKind::InvalidData => {
+            ErrorCode::InvalidArgument
+        }
+        std::io::ErrorKind::TimedOut
+        | std::io::ErrorKind::ConnectionRefused
+        | std::io::ErrorKind::ConnectionReset
+        | std::io::ErrorKind::ConnectionAborted => ErrorCode::RpcError,
+        _ => ErrorCode::Internal,
+    }
+}
+
+impl crate::error::Error {
+    /// Stable code for JSON error output.
+    pub fn code(&self) -> ErrorCode {
+        self.code_and_hint().0
+    }
+
+    fn code_and_hint(&self) -> (ErrorCode, Option<&'static str>) {
+        use crate::error::Error;
+        match self {
+            Error::Rpc(e) => e.code_and_hint(),
+            Error::Abi(e) => (e.code(), None),
+            Error::Config(e) => (e.code(), None),
+            Error::Output(e) => (e.code(), None),
+            Error::Checkpoint(_) => (ErrorCode::Internal, None),
+            Error::Io(e) => (io_code(e), None),
+            Error::Json(_) => (ErrorCode::Internal, None),
+            Error::Other(msg) => (classify_message(msg), None),
+        }
+    }
+}
+
+impl crate::error::RpcError {
+    /// Stable code for JSON error output.
+    pub fn code(&self) -> ErrorCode {
+        self.code_and_hint().0
+    }
+
+    fn code_and_hint(&self) -> (ErrorCode, Option<&'static str>) {
+        use crate::error::RpcError;
+        match self {
+            RpcError::NoHealthyEndpoints => (
+                ErrorCode::RpcError,
+                Some("add an RPC endpoint with `ethcli endpoints add <url>`"),
+            ),
+            RpcError::RateLimited(_) => (ErrorCode::RateLimited, None),
+            RpcError::BlockRangeTooLarge { .. } | RpcError::ResponseTooLarge(_) => (
+                ErrorCode::InvalidArgument,
+                Some("narrow the block range (smaller --from-block/--to-block)"),
+            ),
+            RpcError::ProxyNotSupported(_) => (ErrorCode::InvalidArgument, None),
+            RpcError::Http(e) => (http_code(e), None),
+            RpcError::Provider(msg) | RpcError::InvalidResponse(msg) => {
+                (refine(msg, ErrorCode::RpcError), None)
+            }
+            RpcError::AllEndpointsFailed | RpcError::Timeout(_) | RpcError::ConnectionFailed(_) => {
+                (ErrorCode::RpcError, None)
+            }
+        }
+    }
+}
+
+impl crate::error::AbiError {
+    /// Stable code for JSON error output.
+    pub fn code(&self) -> ErrorCode {
+        use crate::error::AbiError;
+        match self {
+            AbiError::ContractNotVerified(_) => ErrorCode::NotVerified,
+            AbiError::EtherscanUnsupportedChain(_) => ErrorCode::UnsupportedChain,
+            // The explorer's reply: rate limits, plan restrictions, bad keys
+            AbiError::EtherscanFetch(msg) => refine(msg, ErrorCode::RpcError),
+            AbiError::ParseError(msg) => refine(msg, ErrorCode::InvalidArgument),
+            AbiError::InvalidEventSignature(_) | AbiError::DecodeError(_) => {
+                ErrorCode::InvalidArgument
+            }
+            AbiError::EventNotFound(_) | AbiError::FileNotFound(_) => ErrorCode::NotFound,
+            AbiError::HttpClientInit(_) => ErrorCode::Internal,
+        }
+    }
+}
+
+impl crate::error::ConfigError {
+    /// Stable code for JSON error output.
+    pub fn code(&self) -> ErrorCode {
+        use crate::error::ConfigError;
+        match self {
+            ConfigError::InvalidChain(_) => ErrorCode::UnsupportedChain,
+            ConfigError::InvalidFile(_)
+            | ConfigError::InvalidAddress(_)
+            | ConfigError::InvalidBlockNumber(_)
+            | ConfigError::MissingField(_)
+            | ConfigError::ParseError(_) => ErrorCode::InvalidArgument,
+        }
+    }
+}
+
+impl crate::error::OutputError {
+    /// Stable code for JSON error output.
+    pub fn code(&self) -> ErrorCode {
+        use crate::error::OutputError;
+        match self {
+            OutputError::UnsupportedFormat(_) => ErrorCode::InvalidArgument,
+            OutputError::FileCreate(_) => ErrorCode::NotFound,
+            OutputError::JsonWrite(_) | OutputError::CsvWrite(_) | OutputError::Sqlite(_) => {
+                ErrorCode::Internal
+            }
+        }
+    }
+}
+
+impl crate::chainlink::ChainlinkError {
+    /// Stable code for JSON error output.
+    pub fn code(&self) -> ErrorCode {
+        use crate::chainlink::ChainlinkError;
+        match self {
+            ChainlinkError::NoFeed | ChainlinkError::NoFeedAtBlock(_) => ErrorCode::NotFound,
+            ChainlinkError::InvalidAddress(_) | ChainlinkError::UnknownSymbol(_) => {
+                ErrorCode::InvalidArgument
+            }
+            ChainlinkError::UnsupportedChain(_) => ErrorCode::UnsupportedChain,
+            ChainlinkError::RpcError(_)
+            | ChainlinkError::ContractError(_)
+            | ChainlinkError::ArchiveNodeRequired => ErrorCode::RpcError,
+            ChainlinkError::StalePrice
+            | ChainlinkError::UninitializedFeed
+            | ChainlinkError::InvalidPrice => ErrorCode::NotFound,
+        }
+    }
 }
 
 /// Map an error message to a stable code. The more specific codes are
@@ -342,13 +637,13 @@ pub fn classify_message(msg: &str) -> ErrorCode {
 /// The JSON error object for `err`, on one line. The message has URLs and
 /// secrets redacted.
 pub fn error_json(err: &anyhow::Error) -> String {
-    let code = classify(err);
+    let (code, hint) = classify_with_hint(err);
     let message = format!("{err:#}");
     let message = crate::error::sanitize_error_message(message.trim()).into_owned();
     let mut body = Map::new();
     body.insert("code".into(), Value::from(code.as_str()));
     body.insert("message".into(), Value::from(message));
-    if let Some(hint) = code.hint() {
+    if let Some(hint) = hint.or_else(|| code.hint()) {
         body.insert("hint".into(), Value::from(hint));
     }
     let mut root = Map::new();
@@ -367,6 +662,103 @@ mod tests {
 
     fn strings(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// Project a Value through the text path and read the result back
+    fn project(v: &Value, paths: &[FieldPath]) -> Value {
+        let out = project_output(&v.to_string(), paths).unwrap();
+        serde_json::from_str(&out).unwrap()
+    }
+
+    #[test]
+    fn numbers_of_any_size_pass_through_unchanged() {
+        let text = r#"{"big":115792089237316195423570985008687907853269984665640564039457584007913129639935,"f":1.10,"neg":-12345678901234567890123,"drop":1}"#;
+        assert_eq!(
+            project_output(text, &fields("big,f,neg")).unwrap(),
+            r#"{"big":115792089237316195423570985008687907853269984665640564039457584007913129639935,"f":1.10,"neg":-12345678901234567890123}"#
+                .to_string()
+                + "\n"
+        );
+        // Kept whole, nested, and pretty
+        let pretty = "{\n  \"x\": {\n    \"n\": 18446744073709551616\n  },\n  \"y\": 1\n}";
+        assert_eq!(
+            project_output(pretty, &fields("x")).unwrap(),
+            "{\n  \"x\": {\n    \"n\": 18446744073709551616\n  }\n}\n"
+        );
+    }
+
+    #[test]
+    fn keeps_document_key_order() {
+        assert_eq!(
+            project_output(r#"{"z":1,"a":2,"m":3}"#, &fields("a,z")).unwrap(),
+            "{\"z\":1,\"a\":2}\n"
+        );
+    }
+
+    #[test]
+    fn known_typed_errors_never_map_to_internal() {
+        use crate::chainlink::ChainlinkError;
+        use crate::error::{AbiError, ConfigError, Error, OutputError, RpcError};
+        let errors: Vec<anyhow::Error> = vec![
+            RpcError::AllEndpointsFailed.into(),
+            RpcError::NoHealthyEndpoints.into(),
+            RpcError::Timeout(1).into(),
+            RpcError::RateLimited("x".into()).into(),
+            RpcError::BlockRangeTooLarge {
+                max: 1,
+                requested: 2,
+            }
+            .into(),
+            RpcError::ResponseTooLarge(1).into(),
+            RpcError::InvalidResponse("garbled".into()).into(),
+            RpcError::ConnectionFailed("x".into()).into(),
+            RpcError::Provider("weird".into()).into(),
+            RpcError::ProxyNotSupported("x".into()).into(),
+            AbiError::EtherscanFetch("NOTOK".into()).into(),
+            AbiError::EtherscanUnsupportedChain("x".into()).into(),
+            AbiError::ContractNotVerified("0x1".into()).into(),
+            AbiError::InvalidEventSignature("x".into()).into(),
+            AbiError::ParseError("x".into()).into(),
+            AbiError::EventNotFound("x".into()).into(),
+            AbiError::DecodeError("x".into()).into(),
+            AbiError::FileNotFound("x".into()).into(),
+            ConfigError::InvalidFile("x".into()).into(),
+            ConfigError::InvalidAddress("x".into()).into(),
+            ConfigError::InvalidBlockNumber("x".into()).into(),
+            ConfigError::InvalidChain("x".into()).into(),
+            ConfigError::MissingField("x".into()).into(),
+            OutputError::UnsupportedFormat("x".into()).into(),
+            Error::from(AbiError::ContractNotVerified("0x1".into())).into(),
+            Error::from(RpcError::Timeout(1)).into(),
+            ChainlinkError::NoFeed.into(),
+            ChainlinkError::UnknownSymbol("x".into()).into(),
+            ChainlinkError::UnsupportedChain("x".into()).into(),
+            ChainlinkError::RpcError("x".into()).into(),
+            ChainlinkError::StalePrice.into(),
+        ];
+        for err in errors {
+            assert_ne!(classify(&err), ErrorCode::Internal, "{err:#}");
+        }
+    }
+
+    #[test]
+    fn typed_codes_win_over_text_and_survive_context() {
+        use crate::error::{AbiError, Error, RpcError};
+        // The context text says "not found"; the typed error decides
+        let err = anyhow::Error::from(Error::from(AbiError::ContractNotVerified("0x1".into())))
+            .context("token not found in cache, fetching ABI");
+        assert_eq!(classify(&err), ErrorCode::NotVerified);
+        // A typed error with an upstream message is refined by the message
+        let err = anyhow::Error::from(AbiError::EtherscanFetch("Max rate limit reached".into()));
+        assert_eq!(classify(&err), ErrorCode::RateLimited);
+        // A typed error can carry its own hint
+        let v: Value =
+            serde_json::from_str(&error_json(&RpcError::NoHealthyEndpoints.into())).unwrap();
+        assert_eq!(v["error"]["code"], "rpc_error");
+        assert!(v["error"]["hint"]
+            .as_str()
+            .unwrap()
+            .contains("endpoints add"));
     }
 
     #[test]
@@ -457,6 +849,21 @@ mod tests {
             with_json_flag(strings(&["ethcli", "x", "--json"])),
             strings(&["ethcli", "x", "--json"])
         );
+    }
+
+    #[test]
+    fn error_format_follows_env_flags_and_terminal() {
+        let plain = strings(&["ethcli", "rpc", "block", "1"]);
+        let json = strings(&["ethcli", "rpc", "block", "1", "--json"]);
+        // Terminal, no JSON flag: text, as before
+        assert!(!json_errors(&plain, None, true));
+        // Piped stdout: JSON
+        assert!(json_errors(&plain, None, false));
+        assert!(json_errors(&json, None, true));
+        // The environment variable decides when set
+        assert!(json_errors(&plain, Some("json"), true));
+        assert!(!json_errors(&json, Some("TEXT"), false));
+        assert!(json_errors(&plain, Some("other"), false));
     }
 
     #[test]

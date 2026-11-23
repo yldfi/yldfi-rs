@@ -530,6 +530,22 @@ fn validate_command_policy(args: &[&str], has_stdin: bool) -> Result<(), Executi
     Ok(())
 }
 
+tokio::task_local! {
+    /// The `fields` argument of the tool call being served, if any. The
+    /// server sets it around the whole call (see `call_tool` in main.rs), so
+    /// every tool passes `--fields` to ethcli without its own parameter.
+    pub static FIELDS: Option<String>;
+}
+
+/// Add `--fields=<spec>` before any bare `--`, so ethcli trims its JSON output.
+fn with_fields(mut args: Vec<String>, fields: Option<String>) -> Vec<String> {
+    if let Some(spec) = fields {
+        let end = args.iter().position(|a| a == "--").unwrap_or(args.len());
+        args.insert(end, format!("--fields={spec}"));
+    }
+    args
+}
+
 /// Sanitize error messages to prevent information leakage
 fn sanitize_error(stderr: &str, stdout: &str) -> String {
     let mut message = String::new();
@@ -1566,7 +1582,8 @@ impl ArgsBuilder {
         if let Some(error) = self.error {
             return Err(ExecutionError::Validation(error).to_string());
         }
-        let args: Vec<&str> = self.args.iter().map(|s| s.as_str()).collect();
+        let args = with_fields(self.args, FIELDS.try_with(Clone::clone).ok().flatten());
+        let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         execute_validated(&args, self.stdin.as_deref())
             .await
             .map_err(|e| e.to_string())
@@ -2016,6 +2033,23 @@ mod tests {
         ] {
             assert!(!only_names_api_key(text), "should be redacted: {text}");
         }
+    }
+
+    #[test]
+    fn test_with_fields_goes_before_double_dash() {
+        let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            with_fields(
+                args(&["rpc", "tx", "0x1", "-o", "json"]),
+                Some("hash".into())
+            ),
+            args(&["rpc", "tx", "0x1", "-o", "json", "--fields=hash"])
+        );
+        assert_eq!(
+            with_fields(args(&["cast", "to-dec", "--", "-1"]), Some("a".into())),
+            args(&["cast", "to-dec", "--fields=a", "--", "-1"])
+        );
+        assert_eq!(with_fields(args(&["x"]), None), args(&["x"]));
     }
 
     #[test]

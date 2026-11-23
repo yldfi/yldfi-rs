@@ -124,14 +124,14 @@ impl<W: std::io::Write> std::io::Write for RedactingWriter<W> {
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let json_errors = ethcli::agent_output::json_output_requested(&args);
+    let json_errors = ethcli::agent_output::json_errors_for_process(&args);
 
     // `--fields`: run this binary again with JSON output, then project its stdout
     if std::env::var_os(ethcli::agent_output::FIELDS_CHILD_ENV).is_none() {
         let (rest, spec) = ethcli::agent_output::take_fields_arg(args.clone());
         if let Some(spec) = spec {
             let code = run_with_fields(rest, &spec).unwrap_or_else(|e| {
-                report_error(&e, true);
+                report_error(&e, json_errors);
                 1
             });
             std::process::exit(code);
@@ -198,7 +198,7 @@ async fn run(args: Vec<String>) -> anyhow::Result<()> {
         return handle_help_json(&args);
     }
 
-    let json_errors = ethcli::agent_output::json_output_requested(&args);
+    let json_errors = ethcli::agent_output::json_errors_for_process(&args);
     let cli = match Cli::try_parse_from(ethcli::cli::expand_json_flag(args)) {
         Ok(cli) => cli,
         // Usage errors as JSON; help and --version print as usual

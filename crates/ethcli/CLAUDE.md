@@ -268,15 +268,25 @@ It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
   (no JSON output, or an explicit `-o table`) it fails with `invalid_argument`.
   Mechanism (`src/agent_output.rs`, `main.rs`): `main` re-runs the binary
   without `--fields` and with `--json` (env `ETHCLI_FIELDS_INNER=1`), captures
-  its stdout and projects it, so no command needs changes.
-- JSON errors: when the command line asks for JSON (`--json`, `-o json`,
-  `--format ndjson`, `--fields`), a failure prints one line on stderr,
+  its stdout and projects it, so no command needs changes. Scalars are
+  copied as their original text (serde_json `raw_value`), so integers of any
+  size and key order survive.
+- JSON errors: a failure prints one line on stderr,
   `{"error":{"code":"...","message":"...","hint":"..."}}` (`hint` optional,
-  message redacted), exit code 1. Codes come from `agent_output::classify`:
+  message redacted), exit code 1, when:
+  - `ETHCLI_ERROR_FORMAT=json` (`=text` forces text errors), or else
+  - the command line asks for JSON (`--json`, `-o json`, `--format ndjson`,
+    `--fields`), or stdout is not a terminal (a script or agent is reading).
+
+  A terminal without JSON flags keeps the text errors. Codes:
   `invalid_argument` (incl. clap usage errors), `not_verified`,
   `missing_api_key`, `unauthorized`, `rate_limited`, `unsupported_chain`,
-  `not_found`, `rpc_error`, `internal`. Text-mode errors are unchanged. A
-  command that prints JSON by default without a flag still reports text errors.
+  `not_found`, `rpc_error`, `internal`. `agent_output::classify_with_hint`
+  walks the anyhow chain and uses the first error with a known type:
+  `code()` on `error::{Error, RpcError, AbiError, ConfigError, OutputError}`
+  and `ChainlinkError`, plus clap, reqwest and I/O errors. Only foreign errors
+  fall back to matching the message text. Give new error types a `code()`
+  and add them to `typed_code`.
 
 ### Times in place of blocks
 

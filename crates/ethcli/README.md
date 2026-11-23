@@ -371,7 +371,8 @@ ethcli rpc call 0x... -s "totalSupply()" -d uint256 --json
 ethcli account txs 0x... --fields hash,value
 ethcli contract inspect 0x... --fields address,proxy,balance.wei
 
-# With JSON output, errors are one JSON line on stderr (non-zero exit):
+# With JSON output, or when stdout is not a terminal, errors are one JSON line
+# on stderr (non-zero exit); ETHCLI_ERROR_FORMAT=json|text overrides:
 # {"error":{"code":"not_verified","message":"...","hint":"..."}}
 # codes: invalid_argument, not_verified, missing_api_key, unauthorized,
 # rate_limited, unsupported_chain, not_found, rpc_error, internal

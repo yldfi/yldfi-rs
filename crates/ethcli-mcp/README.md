@@ -193,6 +193,17 @@ that day; for an end-of-day figure pass the next day's date or a full time. A re
 object; its `source` field is `signature_database` when the error name is a
 guess from the public signature list.
 
+### Smaller results and error codes
+
+- Every tool accepts an optional `fields` input: a comma-separated list of
+  field paths (`"hash,value"`, `"balance.wei"`), applied to each element of an
+  array. Only those fields of the JSON result are returned. It fails on a tool
+  whose result is plain text.
+- A failed call's text starts with a stable code, for example
+  `Error [not_verified]: ... (hint: ...)`. The codes are `invalid_argument`,
+  `not_verified`, `missing_api_key`, `unauthorized`, `rate_limited`,
+  `unsupported_chain`, `not_found`, `rpc_error` and `internal`.
+
 ## Choosing which tools to offer
 
 The server offers every tool by default (about 590). Some clients load every

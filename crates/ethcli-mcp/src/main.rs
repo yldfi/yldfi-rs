@@ -133,7 +133,50 @@ impl EthcliMcpServer {
                 "tools limited by {TOOLSETS_ENV}"
             );
         }
+        add_fields_parameter(&mut tool_router);
         Self { tool_router }
+    }
+}
+
+/// Name of the input every tool accepts for trimming its JSON result.
+const FIELDS_PARAM: &str = "fields";
+
+/// Add the optional `fields` input to every tool's published schema, in one
+/// place rather than in each input struct. `call_tool` takes it out of the
+/// arguments before they reach the tool, so strict input structs
+/// (`deny_unknown_fields`) never see it.
+fn add_fields_parameter(router: &mut ToolRouter<EthcliMcpServer>) {
+    for route in router.map.values_mut() {
+        let mut schema = (*route.attr.input_schema).clone();
+        let properties = schema
+            .entry("properties")
+            .or_insert_with(|| serde_json::Value::Object(Default::default()));
+        if let Some(properties) = properties.as_object_mut() {
+            properties.entry(FIELDS_PARAM).or_insert_with(|| {
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Return only these fields of the JSON result: comma-separated, \
+                        dot paths into nested objects (e.g. \"hash,value\" or \"balance.wei\"), \
+                        applied to each element of an array. Fails if the result is not JSON."
+                })
+            });
+        }
+        route.attr.input_schema = std::sync::Arc::new(schema);
+    }
+}
+
+/// Take the `fields` input out of a tool call's arguments.
+fn take_fields_argument(
+    arguments: Option<&mut rmcp::model::JsonObject>,
+) -> Result<Option<String>, rmcp::ErrorData> {
+    match arguments.and_then(|args| args.remove(FIELDS_PARAM)) {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(s)) if s.trim().is_empty() => Ok(None),
+        Some(serde_json::Value::String(s)) if s.len() <= 1024 && !s.contains('\0') => Ok(Some(s)),
+        Some(_) => Err(rmcp::ErrorData::invalid_params(
+            "`fields` must be a comma-separated string of field paths (at most 1024 bytes)",
+            None,
+        )),
     }
 }
 
@@ -8838,6 +8881,20 @@ impl EthcliMcpServer {
 // Server handler implementation
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for EthcliMcpServer {
+    /// Every tool call goes through here. A `fields` argument is taken out
+    /// and applies to every ethcli run the tool makes (`--fields`).
+    async fn call_tool(
+        &self,
+        mut request: rmcp::model::CallToolRequestParams,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::CallToolResponse, rmcp::ErrorData> {
+        let fields = take_fields_argument(request.arguments.as_mut())?;
+        let tcc = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        executor::FIELDS
+            .scope(fields, self.tool_router.call(tcc))
+            .await
+    }
+
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(server_implementation())
@@ -9240,5 +9297,41 @@ mod toolset_tests {
             missing.is_empty(),
             "core tools missing from this build: {missing:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod fields_tests {
+    use super::*;
+
+    #[test]
+    fn every_tool_publishes_the_fields_input() {
+        let server = EthcliMcpServer::new();
+        let tools = server.tool_router.list_all();
+        assert!(!tools.is_empty());
+        for tool in tools {
+            let prop = &tool.input_schema["properties"][FIELDS_PARAM];
+            assert_eq!(prop["type"], "string", "{}", tool.name);
+        }
+    }
+
+    #[test]
+    fn fields_argument_is_taken_out_before_the_tool_sees_it() {
+        let mut args = serde_json::json!({"hash": "0x1", "fields": "hash,value"})
+            .as_object()
+            .unwrap()
+            .clone();
+        assert_eq!(
+            take_fields_argument(Some(&mut args)).unwrap().as_deref(),
+            Some("hash,value")
+        );
+        assert!(!args.contains_key(FIELDS_PARAM));
+        assert_eq!(take_fields_argument(Some(&mut args)).unwrap(), None);
+        assert_eq!(take_fields_argument(None).unwrap(), None);
+        let mut bad = serde_json::json!({"fields": 3})
+            .as_object()
+            .unwrap()
+            .clone();
+        assert!(take_fields_argument(Some(&mut bad)).is_err());
     }
 }
