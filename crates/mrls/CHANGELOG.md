@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.5](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.4...mrls-v0.3.5) (2026-11-23)
+
+
+### Features
+
+* Moralis active-chains filter and lighter dev builds ([#308](https://github.com/yldfi/yldfi-rs/issues/308)) ([96c31b2](https://github.com/yldfi/yldfi-rs/commit/96c31b21bbcdaf754a6410417b14596a7197d962))
+
 ## [0.3.4](https://github.com/yldfi/yldfi-rs/compare/mrls-v0.3.3...mrls-v0.3.4) (2026-11-16)
 
 
