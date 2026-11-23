@@ -23,6 +23,8 @@ pub const PERMIT2: Address = address!("000000000022D473030F116dDEE9F6B43aC78BA3"
 const CALLS_PER_BATCH: usize = 300;
 /// Most tokens priced in one run
 const MAX_PRICED_TOKENS: usize = 40;
+/// Tokens per DefiLlama price request
+const PRICE_BATCH: usize = 50;
 /// Most spender contracts checked for verified source in one run
 const MAX_SOURCE_CHECKS: usize = 60;
 
@@ -281,26 +283,64 @@ async fn scan_logs(
 }
 
 /// Run `calls` through Multicall3 in batches, keeping the order
+///
+/// Candidate tokens are attacker-chosen, and one call that burns all the gas
+/// makes a whole `aggregate3` fail. A failed batch is split in half and each
+/// half retried, down to single calls; a single call that still fails comes
+/// back as a failed result and its target is listed as unreadable. If every
+/// target is unreadable the node is taken to be down and the error returned.
 async fn multicall_all<P: Provider>(
     provider: &P,
     calls: Vec<(Address, Bytes)>,
-) -> anyhow::Result<Vec<MulticallResult>> {
-    let mut results = Vec::with_capacity(calls.len());
-    for chunk in calls.chunks(CALLS_PER_BATCH) {
+) -> anyhow::Result<(Vec<MulticallResult>, BTreeSet<Address>)> {
+    let mut results: Vec<Option<MulticallResult>> = vec![None; calls.len()];
+    let mut unreadable = BTreeSet::new();
+    let mut last_error = None;
+    let mut pending: Vec<(usize, usize)> = (0..calls.len())
+        .step_by(CALLS_PER_BATCH)
+        .map(|start| (start, (start + CALLS_PER_BATCH).min(calls.len())))
+        .rev()
+        .collect();
+    while let Some((start, end)) = pending.pop() {
         let mut builder = MulticallBuilder::new();
-        for (target, data) in chunk {
+        for (target, data) in &calls[start..end] {
             builder = builder.add_call_allow_failure(*target, data.clone());
         }
-        let batch = builder.execute_with_retry(provider, 3).await?;
-        anyhow::ensure!(
-            batch.len() == chunk.len(),
-            "Multicall returned {} results for {} calls",
-            batch.len(),
-            chunk.len()
-        );
-        results.extend(batch);
+        let retries = if end - start == 1 { 0 } else { 1 };
+        match builder.execute_with_retry(provider, retries).await {
+            Ok(batch) if batch.len() == end - start => {
+                for (i, r) in batch.into_iter().enumerate() {
+                    results[start + i] = Some(r);
+                }
+            }
+            outcome => {
+                if end - start > 1 {
+                    let mid = start + (end - start) / 2;
+                    pending.push((mid, end));
+                    pending.push((start, mid));
+                } else {
+                    if let Err(e) = outcome {
+                        last_error = Some(e);
+                    }
+                    unreadable.insert(calls[start].0);
+                }
+            }
+        }
     }
-    Ok(results)
+    let targets: BTreeSet<Address> = calls.iter().map(|c| c.0).collect();
+    if !calls.is_empty() && unreadable.len() == targets.len() {
+        return Err(last_error.unwrap_or_else(|| anyhow::anyhow!("every multicall failed")));
+    }
+    let results = results
+        .into_iter()
+        .map(|r| {
+            r.unwrap_or(MulticallResult {
+                success: false,
+                data: Bytes::new(),
+            })
+        })
+        .collect();
+    Ok((results, unreadable))
 }
 
 #[derive(Debug, Clone, Default)]
@@ -339,8 +379,12 @@ impl SpenderInfo {
 
     fn flags(&self) -> Vec<&'static str> {
         let mut flags = Vec::new();
-        if self.kind == "eoa" {
+        if self.kind == "eoa" || self.kind == "eoa_7702_delegated" {
             flags.push("eoa_spender");
+        }
+        if self.kind == "eoa_7702_delegated" {
+            // Key-controlled, whatever code it delegates to
+            flags.push("delegated_eoa");
         }
         if self.verified == Some(false) {
             flags.push("unverified_spender");
@@ -426,12 +470,26 @@ pub(crate) const MIN_TOTAL_CONFIDENCE: f64 = 0.9;
 
 /// USD totals over the rows' `exposure_usd`: (counted, excluded as spam,
 /// excluded for low confidence)
+///
+/// One balance approved to several spenders (or to Permit2 and its spenders)
+/// can be taken only once, so each token counts with its largest exposure.
 pub(crate) fn usd_totals<'a>(rows: impl Iterator<Item = &'a serde_json::Value>) -> (f64, f64, f64) {
-    let (mut counted, mut spam, mut low) = (0.0, 0.0, 0.0);
+    let mut per_token: BTreeMap<String, (f64, &'a serde_json::Value)> = BTreeMap::new();
     for row in rows {
         let Some(usd) = row["exposure_usd"].as_f64() else {
             continue;
         };
+        let key = row["token"]["address"]
+            .as_str()
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let entry = per_token.entry(key).or_insert((usd, row));
+        if usd > entry.0 {
+            *entry = (usd, row);
+        }
+    }
+    let (mut counted, mut spam, mut low) = (0.0, 0.0, 0.0);
+    for (usd, row) in per_token.into_values() {
         if row["token"]["spam"] == true {
             spam += usd;
         } else if row["price_confidence"].as_f64().unwrap_or(0.0) >= MIN_TOTAL_CONFIDENCE {
@@ -441,6 +499,11 @@ pub(crate) fn usd_totals<'a>(rows: impl Iterator<Item = &'a serde_json::Value>) 
         }
     }
     (counted, spam, low)
+}
+
+/// Sum of `exposure_usd` over every row, counting a balance once per spender
+pub(crate) fn per_approval_sum<'a>(rows: impl Iterator<Item = &'a serde_json::Value>) -> f64 {
+    rows.filter_map(|r| r["exposure_usd"].as_f64()).sum()
 }
 
 /// Spam reason for a token: on the local blacklist, or (unless a known
@@ -477,31 +540,47 @@ async fn spam_checks(chain: Chain, tokens: &[Address]) -> HashMap<Address, Strin
         .collect()
 }
 
+/// A token ethcli knows by address: built-in labels, the price module's
+/// symbol table, or the blacklist's known protocol tokens
+fn is_known_token(chain: Chain, token: Address) -> bool {
+    let text = format!("{token:#x}");
+    crate::tx::addresses::get_label(&token).is_some()
+        || (chain == Chain::Ethereum
+            && crate::aggregator::price::eth_address_to_symbol(&text).is_some())
+        || crate::cli::blacklist::is_known_safe_protocol(chain.chain_id(), &text)
+}
+
+/// DefiLlama prices for `tokens`, [`PRICE_BATCH`] per request
 async fn usd_prices(chain: Chain, tokens: &[Address]) -> HashMap<Address, Price> {
-    use crate::aggregator::price::fetch_prices_parallel;
-    use crate::aggregator::PriceSource;
-    let lookups = tokens
-        .iter()
-        .take(MAX_PRICED_TOKENS)
-        .map(|token| async move {
-            let text = format!("{token:#x}");
-            let result = fetch_prices_parallel(&text, chain.name(), &[PriceSource::Llama]).await;
-            let price = result
-                .sources
-                .iter()
-                .filter_map(|s| s.data.as_ref())
-                .find(|p| p.usd.is_finite() && p.usd > 0.0)
-                .map(|p| Price {
-                    usd: p.usd,
-                    confidence: p.confidence.unwrap_or(1.0),
-                });
-            price.map(|p| (*token, p))
-        });
-    futures::future::join_all(lookups)
-        .await
-        .into_iter()
-        .flatten()
-        .collect()
+    let Ok(client) = crate::aggregator::price::get_llama_client() else {
+        return HashMap::new();
+    };
+    let llama_chain =
+        crate::aggregator::chain_map::normalize_chain_for_source("llama", chain.name());
+    let mut out = HashMap::new();
+    for chunk in tokens.chunks(PRICE_BATCH) {
+        let ids: Vec<dllma::coins::Token> = chunk
+            .iter()
+            .map(|t| dllma::coins::Token::new(llama_chain.clone(), format!("{t:#x}")))
+            .collect();
+        let Ok(response) = client.coins().current(&ids).await else {
+            continue;
+        };
+        for (token, id) in chunk.iter().zip(&ids) {
+            if let Some(coin) = response.coins.get(&id.format()) {
+                if coin.price.is_finite() && coin.price > 0.0 {
+                    out.insert(
+                        *token,
+                        Price {
+                            usd: coin.price,
+                            confidence: coin.confidence.unwrap_or(1.0),
+                        },
+                    );
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Options for [`approvals_report`]
@@ -616,13 +695,25 @@ pub async fn approvals_report(
         .abi_encode();
         calls.push((PERMIT2, data.into()));
     }
+    // The token's own allowance to Permit2 caps every Permit2 allowance. Read
+    // it on chain: its Approval event may be outside the scanned range.
+    let permit2_tokens: BTreeSet<Address> =
+        candidates.permit2.keys().map(|(token, _)| *token).collect();
+    for token in &permit2_tokens {
+        let data = allowanceCall {
+            owner,
+            spender: PERMIT2,
+        }
+        .abi_encode();
+        calls.push((*token, data.into()));
+    }
     if !opts.quiet {
         eprintln!(
             "Reading current state for {} candidate approvals...",
             candidates.erc20.len() + candidates.operators.len() + candidates.permit2.len()
         );
     }
-    let results = multicall_all(provider, calls).await?;
+    let (results, unreadable) = multicall_all(provider, calls).await?;
     let mut results = results.into_iter();
     let mut next = || {
         results.next().unwrap_or(MulticallResult {
@@ -691,6 +782,11 @@ pub async fn approvals_report(
         })
         .collect();
 
+    let permit2_erc20_allowance: HashMap<Address, U256> = permit2_tokens
+        .iter()
+        .map(|t| (*t, next().decode_uint256().unwrap_or_default()))
+        .collect();
+
     // Keep the open ones
     let open_erc20: Vec<_> = erc20_state
         .into_iter()
@@ -709,11 +805,6 @@ pub async fn approvals_report(
                 .filter(|(amount, _, _)| !amount.is_zero())
                 .map(|s| (pair, block, s))
         })
-        .collect();
-    let permit2_erc20_allowance: HashMap<Address, U256> = open_erc20
-        .iter()
-        .filter(|((_, spender), _, _)| *spender == PERMIT2)
-        .map(|((token, _), _, a)| (*token, *a))
         .collect();
 
     // Owner account: EIP-7702 delegation
@@ -762,7 +853,22 @@ pub async fn approvals_report(
                 set.insert(*token);
             }
         }
-        set.into_iter().collect()
+        for ((token, _), _, (amount, expiration, _)) in &open_permit2 {
+            let balance = token_info.get(token).and_then(|t| t.balance);
+            let cap = permit2_erc20_allowance
+                .get(token)
+                .copied()
+                .unwrap_or_default();
+            if !permit2_expired(*expiration, now)
+                && balance.is_some_and(|b| !exposure((*amount).min(cap), b).is_zero())
+            {
+                set.insert(*token);
+            }
+        }
+        // Known tokens first, so the spam-check cap never skips them
+        let mut tokens: Vec<Address> = set.into_iter().collect();
+        tokens.sort_by_key(|t| !is_known_token(chain, *t));
+        tokens
     };
     let prices = if opts.price && !exposed_tokens.is_empty() {
         if !opts.quiet {
@@ -776,7 +882,24 @@ pub async fn approvals_report(
         if !opts.quiet {
             eprintln!("Checking {} tokens for spam...", exposed_tokens.len());
         }
-        spam_checks(chain, &exposed_tokens).await
+        // Known tokens first, then the largest priced holdings, so the cap
+        // never skips what dominates the total
+        let held_usd = |t: &Address| {
+            let info = token_info.get(t);
+            match (prices.get(t), info.and_then(|i| i.balance)) {
+                (Some(p), Some(b)) => {
+                    to_float(b, info.and_then(|i| i.decimals).unwrap_or(0)) * p.usd
+                }
+                _ => 0.0,
+            }
+        };
+        let mut order = exposed_tokens.clone();
+        order.sort_by(|a, b| {
+            is_known_token(chain, *b)
+                .cmp(&is_known_token(chain, *a))
+                .then(held_usd(b).total_cmp(&held_usd(a)))
+        });
+        spam_checks(chain, &order).await
     } else {
         HashMap::new()
     };
@@ -913,8 +1036,13 @@ pub async fn approvals_report(
         .collect();
     operator_rows.sort_by_key(|r| std::cmp::Reverse(r.0));
 
+    let spenders_delegated = spender_info
+        .values()
+        .any(|i| i.kind == "eoa_7702_delegated");
     let (total_usd, spam_usd, low_confidence_usd) =
         usd_totals(erc20_rows.iter().chain(permit2_rows.iter()).map(|r| &r.2));
+    let approvals_sum_usd =
+        per_approval_sum(erc20_rows.iter().chain(permit2_rows.iter()).map(|r| &r.2));
     let mut hidden = 0usize;
     if opts.exposed_only {
         for rows in [&mut erc20_rows, &mut permit2_rows] {
@@ -922,6 +1050,9 @@ pub async fn approvals_report(
             rows.retain(|r| r.2["exposure"] != "0");
             hidden += before - rows.len();
         }
+        let before = operator_rows.len();
+        operator_rows.retain(|r| r.1["items_held"] != "0");
+        hidden += before - operator_rows.len();
     }
     let complete = scans.iter().all(|s| s["complete"] == true);
     let mut notes = vec![
@@ -944,8 +1075,29 @@ pub async fn approvals_report(
     }
     if opts.price && exposed_tokens.len() > MAX_PRICED_TOKENS {
         notes.push(format!(
-            "Only the first {MAX_PRICED_TOKENS} exposed tokens were priced"
+            "Spam checks ran for {MAX_PRICED_TOKENS} of {} exposed tokens: known tokens first, then the largest priced holdings",
+            exposed_tokens.len()
         ));
+    }
+    if opts.from_block > 0 {
+        notes.push(format!(
+            "Events before block {} were not scanned; older approvals are not listed",
+            opts.from_block
+        ));
+    }
+    if !unreadable.is_empty() {
+        notes.push(format!(
+            "{} contracts could not be read (their calls failed even alone); their rows have \
+             missing values or are left out",
+            unreadable.len()
+        ));
+    }
+    if spenders_delegated {
+        notes.push(
+            "A spender flagged delegated_eoa is an EIP-7702 delegated EOA: its key can move \
+             approved tokens whatever code it delegates to"
+                .to_string(),
+        );
     }
 
     Ok(serde_json::json!({
@@ -962,9 +1114,14 @@ pub async fn approvals_report(
             "permit2": candidates.permit2.len(),
         },
         "total_exposure_usd": total_usd,
+        "per_approval_sum_usd": approvals_sum_usd,
         "excluded_spam_usd": spam_usd,
         "excluded_low_confidence_usd": low_confidence_usd,
         "hidden_zero_exposure": hidden,
+        "unreadable_contracts": unreadable
+            .iter()
+            .map(|a| a.to_checksum(None))
+            .collect::<Vec<_>>(),
         "approvals": erc20_rows.into_iter().map(|r| r.2).collect::<Vec<_>>(),
         "permit2": permit2_rows.into_iter().map(|r| r.2).collect::<Vec<_>>(),
         "operator_approvals": operator_rows.into_iter().map(|r| r.1).collect::<Vec<_>>(),
@@ -1219,13 +1376,18 @@ mod tests {
 
     #[test]
     fn totals_leave_out_spam_and_low_confidence_prices() {
+        let t = |a: &str| serde_json::json!({"address": a, "spam": false});
         let rows = [
-            serde_json::json!({"token": {"spam": false}, "exposure_usd": 100.0, "price_confidence": 0.99}),
-            serde_json::json!({"token": {"spam": true}, "exposure_usd": 5000.0, "price_confidence": 0.99}),
-            serde_json::json!({"token": {"spam": false}, "exposure_usd": 70.0, "price_confidence": 0.5}),
-            serde_json::json!({"token": {"spam": false}, "exposure_usd": null}),
+            serde_json::json!({"token": t("0xa"), "exposure_usd": 100.0, "price_confidence": 0.99}),
+            serde_json::json!({"token": {"address": "0xb", "spam": true}, "exposure_usd": 5000.0, "price_confidence": 0.99}),
+            serde_json::json!({"token": t("0xc"), "exposure_usd": 70.0, "price_confidence": 0.5}),
+            serde_json::json!({"token": t("0xd"), "exposure_usd": null}),
+            // The same balance approved to other spenders: counted once
+            serde_json::json!({"token": t("0xA"), "exposure_usd": 100.0, "price_confidence": 0.99}),
+            serde_json::json!({"token": t("0xa"), "exposure_usd": 40.0, "price_confidence": 0.99}),
         ];
         assert_eq!(usd_totals(rows.iter()), (100.0, 5000.0, 70.0));
+        assert_eq!(per_approval_sum(rows.iter()), 5310.0);
     }
 
     #[test]
@@ -1242,6 +1404,15 @@ mod tests {
         assert!(cut.ends_with('…'));
         assert_eq!(clean_text("ab\ncd", 32), "ab\\u{a}cd");
         assert_eq!(clean_text(lure, MAX_SYMBOL_CHARS), lure);
+    }
+
+    #[test]
+    fn delegated_eoa_spenders_count_as_eoas() {
+        let info = SpenderInfo {
+            kind: "eoa_7702_delegated",
+            ..Default::default()
+        };
+        assert_eq!(info.flags(), vec!["eoa_spender", "delegated_eoa"]);
     }
 
     #[test]
