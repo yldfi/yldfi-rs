@@ -272,6 +272,15 @@ ethcli contract creation 0x...
 ethcli contract inspect 0x...
 ethcli contract inspect 0x... --json
 
+# Read a storage variable by name, decoded, from the verified storage layout
+# (Sourcify). Keys, indexes and struct members follow the name or go in the path.
+# For a proxy, the implementation's layout is used and the proxy's storage read.
+ethcli contract storage 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --list
+ethcli contract storage 0xA0b8...eB48 balanceAndBlacklistStates 0xHolder
+ethcli contract storage 0xA0b8...eB48 allowed 0xOwner 0xSpender --block 2025-01-01
+ethcli contract storage 0x88e6...5640 slot0.tick
+ethcli contract storage 0x88e6...5640 "ticks[-887270]" -o json
+
 # Extract function selectors from bytecode (no ABI needed)
 ethcli contract selectors 0x...
 ethcli contract sel 0x... --lookup  # Lookup signatures from 4byte.directory

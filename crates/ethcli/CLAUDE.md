@@ -240,6 +240,35 @@ ethcli contract inspect <addr> --json
 It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 `contract creation` and `token info`.
 
+### `contract storage`
+
+Reads a storage variable by name, decoded, using the compiler's storage layout
+from Sourcify. Useful for state that has no getter.
+
+```bash
+ethcli contract storage <addr> --list                       # name, slot, offset, type
+ethcli contract storage <addr> totalSupply_
+ethcli contract storage <addr> allowed <owner> <spender>    # nested mapping
+ethcli contract storage <addr> "poolInfo[3].gauge"          # array of structs, one member
+ethcli contract storage <addr> slot0 --block 7d -o json     # whole struct
+```
+
+- Steps after the name are taken by type: a mapping takes a key, an array an
+  index, a struct a member name. They can be extra arguments or written in the
+  path (`name[key].member`).
+- Keys: address, uint, int (negative allowed), bool, bytesN, string and bytes,
+  hashed per Solidity rules. Other key types need the 32-byte key as hex.
+- A whole struct prints all members; a dynamic array prints its length and
+  the first 32 elements; a mapping needs a key.
+- Proxies (EIP-1967, beacon, legacy OpenZeppelin, EIP-1167, Safe): the
+  implementation's layout is used and the proxy's storage is read. JSON
+  `layout_from` says which layout was used.
+- One block is pinned for every read; `--block` takes a time like the other
+  commands.
+- No layout (older compilers, Vyper, not on Sourcify): it fails and points to
+  `rpc storage` and `cast index`. Namespaced storage (ERC-7201), diamonds,
+  immutables and constants are not in the layout and cannot be read this way.
+
 ### `rpc multicall`
 
 - Each call is `<address> <signature> [args...]`. Return types in the signature
@@ -266,7 +295,7 @@ It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
 ### Times in place of blocks
 
 `--block` on `rpc call`, `storage`, `code`, `nonce`, `balance`, `block`,
-`multicall` and on `contract call` accepts:
+`multicall` and on `contract call` and `contract storage` accepts:
 
 | Form | Example |
 |---|---|

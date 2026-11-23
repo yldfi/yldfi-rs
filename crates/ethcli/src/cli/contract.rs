@@ -12,7 +12,7 @@ use crate::etherscan::Client;
 use crate::rpc::Endpoint;
 use crate::utils::format::with_thousands_sep;
 use alloy::dyn_abi::{DynSolType, DynSolValue, FunctionExt, JsonAbiExt};
-use alloy::primitives::{Address, B256};
+use alloy::primitives::{Address, B256, U256};
 use alloy::providers::Provider;
 use clap::Subcommand;
 use std::path::PathBuf;
@@ -539,6 +539,49 @@ pub enum ContractCommands {
         format: OutputFormat,
     },
 
+    /// Read a storage variable by name, decoded, using the verified storage layout
+    ///
+    /// The layout (variable names, slots, offsets and types) comes from
+    /// Sourcify. Mapping keys, array indexes and struct members follow the
+    /// variable, either as extra arguments or in the path itself. For a proxy
+    /// the implementation's layout is used and the proxy's storage is read.
+    ///
+    /// Examples:
+    ///   ethcli contract storage 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 --list
+    ///   ethcli contract storage <usdc> totalSupply_
+    ///   ethcli contract storage <usdc> balanceAndBlacklistStates <holder>
+    ///   ethcli contract storage <usdc> allowed <owner> <spender> --block 2025-01-01
+    ///   ethcli contract storage <addr> "positions[3].liquidity" --json
+    Storage {
+        /// Contract address (a proxy is followed to its implementation's layout)
+        #[arg(value_name = "ADDRESS")]
+        address: String,
+
+        /// Variable name, optionally with a path: `name`, `name.member`, `name[key][index]`
+        #[arg(value_name = "VARIABLE", required_unless_present = "list")]
+        variable: Option<String>,
+
+        /// Mapping keys, array indexes and struct member names, in order
+        #[arg(value_name = "KEY", allow_negative_numbers = true)]
+        keys: Vec<String>,
+
+        /// List the storage layout (name, slot, offset, type) instead of reading
+        #[arg(long)]
+        list: bool,
+
+        /// Block number, tag, date, @timestamp or age (e.g. 7d)
+        #[arg(long, short, default_value = "latest", value_name = "BLOCK")]
+        block: String,
+
+        /// Custom RPC URL (overrides config)
+        #[arg(long, value_name = "URL")]
+        rpc_url: Option<String>,
+
+        /// Output format
+        #[arg(long, short = 'o', visible_alias = "output", default_value = "table")]
+        format: OutputFormat,
+    },
+
     /// Everything about an address in one call
     ///
     /// Reports whether the address is an EOA, a contract or a delegated EOA
@@ -957,6 +1000,28 @@ pub async fn handle(
             }
         }
 
+        ContractCommands::Storage {
+            address,
+            variable,
+            keys,
+            list,
+            block,
+            rpc_url,
+            format,
+        } => {
+            storage_command(
+                chain,
+                address,
+                variable.as_deref(),
+                keys,
+                *list,
+                block,
+                rpc_url.as_deref(),
+                format,
+                quiet,
+            )
+            .await?;
+        }
         ContractCommands::Call {
             address,
             function,
@@ -972,29 +1037,8 @@ pub async fn handle(
 
             // A --block written as a time (a date, @timestamp or age) is
             // turned into a block number first
-            let resolved_block;
-            let block: &String = if crate::rpc::block_time::parse_time_spec(block, u64::MAX)
-                .is_some()
-            {
-                let probe = match rpc_url {
-                    Some(url) => Endpoint::new(EndpointConfig::new(url.clone()), 30, None)?,
-                    None => crate::rpc::get_rpc_endpoint(chain)?,
-                };
-                let resolved = crate::rpc::block_time::resolve_time_spec(probe.provider(), block)
-                    .await?
-                    .ok_or_else(|| anyhow::anyhow!("'{block}' could not be resolved to a block"))?;
-                if !quiet {
-                    eprintln!(
-                        "Resolved --block {block} to block {} ({})",
-                        resolved.number,
-                        resolved.iso_time()
-                    );
-                }
-                resolved_block = resolved.number.to_string();
-                &resolved_block
-            } else {
-                block
-            };
+            let resolved_block = resolve_block_arg(chain, rpc_url.as_deref(), block, quiet).await?;
+            let block: &String = &resolved_block;
 
             // Get RPC endpoint first (needed for proxy detection). A historical
             // --block needs an archive-capable endpoint.
@@ -1619,6 +1663,257 @@ pub async fn handle(
         }
     }
 
+    Ok(())
+}
+
+/// Turn a `--block` given as a time (a date, @timestamp or age) into a block
+/// number; anything else is returned unchanged
+async fn resolve_block_arg(
+    chain: Chain,
+    rpc_url: Option<&str>,
+    block: &str,
+    quiet: bool,
+) -> anyhow::Result<String> {
+    if crate::rpc::block_time::parse_time_spec(block, u64::MAX).is_none() {
+        return Ok(block.to_string());
+    }
+    let probe = match rpc_url {
+        Some(url) => Endpoint::new(EndpointConfig::new(url.to_string()), 30, None)?,
+        None => crate::rpc::get_rpc_endpoint(chain)?,
+    };
+    let resolved = crate::rpc::block_time::resolve_time_spec(probe.provider(), block)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("'{block}' could not be resolved to a block"))?;
+    if !quiet {
+        eprintln!(
+            "Resolved --block {block} to block {} ({})",
+            resolved.number,
+            resolved.iso_time()
+        );
+    }
+    Ok(resolved.number.to_string())
+}
+
+/// Storage reads at one block, cached so packed slots are fetched once
+struct RpcSlotReader<'a, P> {
+    provider: &'a P,
+    address: Address,
+    block: alloy::eips::BlockId,
+    cache: std::sync::Mutex<std::collections::HashMap<U256, U256>>,
+}
+
+impl<P: Provider + Sync> crate::storage_layout::SlotReader for RpcSlotReader<'_, P> {
+    fn read(
+        &self,
+        slot: U256,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<U256>> + Send + '_>>
+    {
+        Box::pin(async move {
+            if let Some(v) = self.cache.lock().expect("cache lock").get(&slot) {
+                return Ok(*v);
+            }
+            let v = self
+                .provider
+                .get_storage_at(self.address, slot)
+                .block_id(self.block)
+                .await
+                .map_err(|e| anyhow::anyhow!("eth_getStorageAt failed: {e}"))?;
+            self.cache.lock().expect("cache lock").insert(slot, v);
+            Ok(v)
+        })
+    }
+}
+
+const NO_LAYOUT_HINT: &str =
+    "Read the slot directly instead: `ethcli rpc storage <address> <slot>`, \
+with `ethcli cast index <key_type> <key> <slot>` for a mapping entry's slot";
+
+#[allow(clippy::too_many_arguments)]
+async fn storage_command(
+    chain: Chain,
+    address: &str,
+    variable: Option<&str>,
+    keys: &[String],
+    list: bool,
+    block: &str,
+    rpc_url: Option<&str>,
+    format: &OutputFormat,
+    quiet: bool,
+) -> anyhow::Result<()> {
+    use crate::etherscan::fallback::{storage_layout, LayoutLookup};
+    use crate::storage_layout::Layout;
+    use alloy::eips::{BlockId, BlockNumberOrTag};
+
+    let addr = Address::from_str(address).map_err(|e| anyhow::anyhow!("Invalid address: {}", e))?;
+    let block = resolve_block_arg(chain, rpc_url, block, quiet).await?;
+    let endpoint = if let Some(url) = rpc_url {
+        Endpoint::new(EndpointConfig::new(url.to_string()), 30, None)?
+    } else {
+        let target_block = crate::utils::parse_block_number(&block).ok();
+        crate::rpc::selector::get_rpc_endpoint_at(chain, target_block)?
+    };
+    let provider = endpoint.provider();
+
+    // Pin one block for the proxy check and every slot read
+    let block_number = match super::rpc::parse_block_id(&block)? {
+        BlockId::Number(BlockNumberOrTag::Number(n)) => n,
+        other => {
+            provider
+                .get_block(other)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to get block {block}: {e}"))?
+                .ok_or_else(|| anyhow::anyhow!("block {block} not found"))?
+                .header
+                .number
+        }
+    };
+    let block_id: BlockId = block_number.into();
+
+    let code = provider
+        .get_code_at(addr)
+        .block_id(block_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to fetch code: {e}"))?;
+    if code.is_empty() {
+        anyhow::bail!(
+            "{} has no code at block {block_number}",
+            addr.to_checksum(None)
+        );
+    }
+    let implementation = find_implementation(provider, addr, &code, block_id).await;
+
+    // Definite proxies: the implementation's layout first. A plain
+    // implementation() getter may not mean a proxy: own layout first.
+    let mut candidates: Vec<(Address, &str)> = Vec::new();
+    match implementation {
+        Some((kind, imp)) if !kind.starts_with("implementation()") => {
+            if !quiet {
+                eprintln!(
+                    "{kind}; using the layout of implementation {}",
+                    imp.to_checksum(None)
+                );
+            }
+            candidates.push((imp, "implementation"));
+            candidates.push((addr, "address"));
+        }
+        Some((_, imp)) => {
+            candidates.push((addr, "address"));
+            candidates.push((imp, "implementation"));
+        }
+        None => candidates.push((addr, "address")),
+    }
+
+    let http = reqwest::Client::builder()
+        .user_agent(concat!("ethcli/", env!("CARGO_PKG_VERSION")))
+        .build()?;
+    let mut reasons = Vec::new();
+    let mut found = None;
+    for (candidate, role) in &candidates {
+        let key = candidate.to_checksum(None);
+        match storage_layout(&http, chain.chain_id(), &key).await {
+            LayoutLookup::Found(v) => {
+                found = Some((*candidate, *role, Layout::parse(&v)?));
+                break;
+            }
+            LayoutLookup::NoLayout => reasons.push(format!(
+                "{key} ({role}) is verified on Sourcify but has no storage layout (older compiler or Vyper)"
+            )),
+            LayoutLookup::NotVerified => {
+                reasons.push(format!("{key} ({role}) is not verified on Sourcify"))
+            }
+            LayoutLookup::Unavailable(e) => {
+                reasons.push(format!("Sourcify lookup for {key} ({role}) failed: {e}"))
+            }
+        }
+    }
+    let Some((layout_addr, layout_role, layout)) = found else {
+        anyhow::bail!(
+            "No storage layout available.\n  {}\n{NO_LAYOUT_HINT}",
+            reasons.join("\n  ")
+        );
+    };
+    if !quiet && layout_role == "address" && candidates.len() > 1 {
+        eprintln!("Using the layout of the address itself");
+    }
+
+    if list {
+        if format.is_table() {
+            println!("{:<6} {:<6} {:<40} TYPE", "SLOT", "OFFSET", "NAME");
+            for v in &layout.storage {
+                println!(
+                    "{:<6} {:<6} {:<40} {}",
+                    v.slot.to_string(),
+                    v.offset,
+                    v.label,
+                    layout.type_label(&v.type_id)
+                );
+            }
+        } else {
+            let rows: Vec<serde_json::Value> = layout
+                .storage
+                .iter()
+                .map(|v| {
+                    serde_json::json!({
+                        "name": v.label,
+                        "slot": v.slot.to_string(),
+                        "offset": v.offset,
+                        "type": layout.type_label(&v.type_id),
+                        "contract": v.contract,
+                    })
+                })
+                .collect();
+            let out = serde_json::json!({
+                "address": addr.to_checksum(None),
+                "layout_from": layout_addr.to_checksum(None),
+                "variables": rows,
+            });
+            println!("{}", serde_json::to_string_pretty(&out)?);
+        }
+        return Ok(());
+    }
+
+    let variable = variable.ok_or_else(|| anyhow::anyhow!("give a variable name or --list"))?;
+    let (name, mut steps) = crate::storage_layout::split_path(variable)?;
+    steps.extend(keys.iter().cloned());
+    let loc = layout.locate(&name, &steps)?;
+    let reader = RpcSlotReader {
+        provider,
+        address: addr,
+        block: block_id,
+        cache: Default::default(),
+    };
+    let value = layout.decode(&reader, &loc).await?;
+    let type_label = layout.type_label(&loc.type_id);
+    let slot_hex = format!("{:#066x}", loc.slot);
+
+    if format.is_table() {
+        if !quiet {
+            eprintln!(
+                "{type_label} at slot {slot_hex} offset {}, block {block_number}",
+                loc.offset
+            );
+        }
+        match &value {
+            serde_json::Value::String(s) => println!("{s}"),
+            other => println!("{}", serde_json::to_string_pretty(other)?),
+        }
+    } else {
+        let mut path = name.clone();
+        for s in &steps {
+            path.push_str(&format!("[{s}]"));
+        }
+        let out = serde_json::json!({
+            "address": addr.to_checksum(None),
+            "layout_from": layout_addr.to_checksum(None),
+            "variable": path,
+            "type": type_label,
+            "slot": slot_hex,
+            "offset": loc.offset,
+            "block": block_number,
+            "value": value,
+        });
+        println!("{}", serde_json::to_string_pretty(&out)?);
+    }
     Ok(())
 }
 

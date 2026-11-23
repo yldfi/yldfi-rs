@@ -20,6 +20,7 @@ ethcli does not sign or send transactions.
 | What did this transaction do? | `ethcli tx <hash> --full --json` | `tx_analyze` with `full: true` |
 | Several contract reads | `ethcli rpc multicall "<addr> <sig>(<returns>) [args]" ... --json` | `rpc_multicall` |
 | One contract read | `ethcli contract call <addr> <function> [args] --json` | `contract_call` |
+| A storage variable with no getter | `ethcli contract storage <addr> <var> [keys...] -o json` (`--list` for the layout) | `contract_storage` |
 | State at a date | add `--block 2024-01-31` (or `@<unix time>`, or `7d`) | `block` input |
 | Block for a time | `ethcli rpc block-at <time> --json` | `rpc_block_at` |
 | Why did a call revert? | read the error, or `ethcli sig error <data>` | `sig_error` |

@@ -53,6 +53,8 @@ ethcli contract abi <addr>          # Download ABI (JSON)
 ethcli contract source <addr>       # Download source code (Etherscan, else Sourcify, else Blockscout)
 ethcli contract source <addr> --list | --function <name> | --grep <regex> | --file <name>   # Only the part needed
 ethcli contract inspect <addr>      # Everything in one call: kind, proxy, name, creator, token, Safe, functions
+ethcli contract storage <addr> <var> [keys...]   # Storage variable by name, decoded (Sourcify layout; proxies followed)
+ethcli contract storage <addr> --list            # Layout: name, slot, offset, type
 ethcli contract creation <addr>     # Creation tx & deployer
 ethcli contract verify-status <addr> # Verification status
 ```

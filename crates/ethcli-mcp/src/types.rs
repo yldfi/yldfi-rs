@@ -1199,6 +1199,28 @@ pub struct ContractCallInput {
     pub human: bool,
 }
 
+// --- Contract Storage ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractStorageInput {
+    /// Contract address. For a proxy, the implementation's layout is used and the proxy's storage is read
+    pub address: String,
+    /// Variable name, optionally with a path: "totalSupply", "slot0.tick", "allowed[0xOwner][0xSpender]", "poolInfo[3].gauge". Omit with list=true
+    pub variable: Option<String>,
+    /// Further mapping keys, array indexes and struct member names, in order (alternative to writing them in the path)
+    #[serde(default)]
+    pub keys: Vec<String>,
+    /// List the storage layout (name, slot, offset, type) instead of reading a variable
+    #[serde(default)]
+    pub list: bool,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block number, tag, date (2024-01-31), @timestamp or age (7d). Default: latest
+    pub block: Option<String>,
+    /// Custom RPC URL (overrides config)
+    pub rpc_url: Option<String>,
+}
+
 // --- Cast Extra ---
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CastComputeAddressInput {
