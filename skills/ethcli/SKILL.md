@@ -76,8 +76,8 @@ single facts.
   native-token transfer, ignoring token transfers.
 - **Fees on rollups:** `tx` `fee_wei` is the total fee, L1 data fee
   included; `fee_breakdown` splits it into `execution_fee_wei` and
-  `l1_fee_wei` (OP-stack `l1Fee`; Arbitrum `gasUsedForL1` × price, already
-  inside `gasUsed`). On L1 chains `l1_fee_wei` is `null`: not applicable,
+  `l1_fee_wei` (the receipt's `l1Fee` on any chain, plus `operator_fee_wei`
+  when charged; Arbitrum `gasUsedForL1` × price, already inside `gasUsed`). On L1 chains `l1_fee_wei` is `null`: not applicable,
   not zero. With `--full`, `fee_breakdown.usd` prices it at block time.
 - **`notes`:** many commands list what they could not fetch or what an
   answer leaves out. Pass these on to the user.

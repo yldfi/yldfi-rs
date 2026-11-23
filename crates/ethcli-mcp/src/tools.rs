@@ -872,6 +872,7 @@ pub async fn gas_cost(input: &crate::types::GasCostInput) -> Result<String, Tool
         .opt("--from", input.from.as_deref())
         .opt("--value", input.value.as_deref())
         .opt_flag("--no-usd", input.no_usd)
+        .opt("--rpc-url", input.rpc_url.as_deref())
         .chain(Some(&input.chain))
         .format_json()
         .end_of_options()

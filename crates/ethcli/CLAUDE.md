@@ -137,13 +137,16 @@ ethcli contract call <addr> totalSupply --block 7d
 `ethcli tx <hash>` returns the decoded call, events and token transfers, and also:
 
 - `transaction_index`, `effective_gas_price`, `fee_wei` and `fee`;
-- `fee_breakdown`: execution fee, L1 data fee and total. On OP-stack chains
-  the receipt's `l1Fee` is added, so `fee_wei` is the total paid; on Arbitrum
+- `fee_breakdown`: execution fee, L1 data fee and total. When the receipt has
+  an `l1Fee` field (OP-stack, Mantle, any chain) it is added, plus any
+  OP-stack operator fee, so `fee_wei` is the total paid; on Arbitrum
   the L1 part (`gasUsedForL1` × price) is already in `gasUsed` and is split
   out; on L1 chains `l1_fee_wei` is null (not applicable). `--full` adds
   `fee_breakdown.usd` at the block's time. `rpc receipt -o json` returns the
   raw receipt (all chain fields) plus `feeBreakdown`. For an estimate before
-  sending: `ethcli gas cost <to> [data|-s sig -a args] --from <addr>`;
+  sending: `ethcli gas cost <to> [data|-s sig -a args] --from <addr>`
+  (OP-stack detected by GasPriceOracle code at `0x4200…000F`, cached per
+  chain; Mantle not supported for estimates);
 - `balance_changes`: the net change per address and token over the whole
   transaction, signed, in raw units and scaled by decimals.
   - Token lines come from Transfer events, plus deposits into and withdrawals

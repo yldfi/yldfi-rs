@@ -69,6 +69,11 @@ pub enum GasCommands {
         #[arg(long)]
         no_usd: bool,
 
+        /// Use this RPC endpoint instead of the configured ones (e.g. for a
+        /// chain with no configured endpoint)
+        #[arg(long, visible_alias = "rpc", value_name = "URL")]
+        rpc_url: Option<String>,
+
         /// Output format (json, table/pretty)
         #[arg(
             long,
@@ -175,6 +180,7 @@ pub async fn handle(
             from,
             value,
             no_usd,
+            rpc_url,
             output,
         } => {
             let to = parse_address(to)?;
@@ -195,7 +201,8 @@ pub async fn handle(
             if !quiet {
                 eprintln!("Estimating transaction cost on {}...", chain.display_name());
             }
-            let mut cost = estimate_cost(chain, from, to, calldata, value).await?;
+            let mut cost =
+                estimate_cost(chain, from, to, calldata, value, rpc_url.as_deref()).await?;
             if !*no_usd {
                 match crate::tx::l2_fee::native_usd_price(chain, None).await {
                     Ok((price, source)) => cost.set_usd(price, source),
@@ -318,6 +325,7 @@ async fn estimate_cost(
     to: alloy::primitives::Address,
     data: Vec<u8>,
     value: U256,
+    rpc_url: Option<&str>,
 ) -> anyhow::Result<crate::tx::l2_fee::FeeBreakdown> {
     use crate::tx::l2_fee::{FeeBreakdown, FeeModel, ARB_NODE_INTERFACE, OP_GAS_PRICE_ORACLE};
     use alloy::consensus::{SignableTransaction, TxEip1559};
@@ -325,12 +333,25 @@ async fn estimate_cost(
     use alloy::rpc::types::TransactionRequest;
     use alloy::sol_types::SolCall;
 
-    let model = FeeModel::for_chain_id(chain.chain_id());
-    let candidates = crate::rpc::candidate_endpoints(
-        chain,
-        &crate::rpc::SelectionOptions::default(),
-        crate::rpc::MAX_FAILOVER_ATTEMPTS,
-    )?;
+    if FeeModel::known(chain.chain_id()) == Some(FeeModel::Unsupported) {
+        anyhow::bail!(
+            "L1 data fee estimate is not supported on chain {} (Mantle prices it in MNT \
+             through a token ratio); `tx` and `rpc receipt` still read it from receipts",
+            chain.chain_id()
+        );
+    }
+    let candidates = match rpc_url {
+        Some(url) => vec![crate::rpc::Endpoint::new(
+            crate::config::EndpointConfig::new(url.to_string()),
+            30,
+            None,
+        )?],
+        None => crate::rpc::candidate_endpoints(
+            chain,
+            &crate::rpc::SelectionOptions::default(),
+            crate::rpc::MAX_FAILOVER_ATTEMPTS,
+        )?,
+    };
     crate::rpc::with_failover(candidates, |endpoint| {
         let data = data.clone();
         async move {
@@ -353,7 +374,12 @@ async fn estimate_cost(
                     .map_err(|e| anyhow::anyhow!("eth_gasPrice failed: {e}"))?,
             );
             let exec = U256::from(gas) * price;
-            match model {
+            let model = crate::tx::l2_fee::detect_model(chain.chain_id(), provider).await;
+            let mut b = match model {
+                FeeModel::Unsupported => Err(anyhow::anyhow!(
+                    "L1 data fee estimate is not supported on chain {}",
+                    chain.chain_id()
+                )),
                 FeeModel::L1 => Ok(FeeBreakdown::new(model, gas, price, exec, None)),
                 FeeModel::OpStack => {
                     // getL1Fee takes the unsigned, RLP-encoded transaction;
@@ -420,7 +446,9 @@ async fn estimate_cost(
                     b.l1_gas_used = Some(l1_gas);
                     Ok(b)
                 }
-            }
+            }?;
+            b.native_symbol = chain.native_symbol().to_string();
+            Ok(b)
         }
     })
     .await

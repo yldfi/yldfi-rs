@@ -91,7 +91,7 @@ ethcli token supply <addr>          # Total supply
 ```bash
 ethcli gas oracle                   # Current gas prices
 ethcli gas estimate <gwei>          # Confirmation time for a gas price
-ethcli gas cost <to> [data] [-s sig -a "args"] [--from a] [--value wei] [--no-usd] --chain base
+ethcli gas cost <to> [data] [-s sig -a "args"] [--from a] [--value wei] [--no-usd] [--rpc-url u] --chain base
                                     # Execution + L1 data fee (OP-stack, Arbitrum), native and USD
 ethcli gas history                  # Historical gas
 ```

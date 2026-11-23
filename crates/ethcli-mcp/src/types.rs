@@ -415,6 +415,8 @@ pub struct GasCostInput {
     /// Skip the USD conversion
     #[serde(default)]
     pub no_usd: bool,
+    /// Custom RPC URL (overrides the configured endpoints)
+    pub rpc_url: Option<String>,
     /// Chain name
     #[serde(default = "default_chain")]
     pub chain: String,

@@ -999,7 +999,9 @@ impl TxAnalyzer {
     async fn apply_fee_breakdown(&self, analysis: &mut TransactionAnalysis, hash: B256) {
         use crate::tx::l2_fee::{FeeBreakdown, FeeModel};
         let chain_id = self.chain.chain_id();
-        if !FeeModel::for_chain_id(chain_id).is_l2() {
+        // Known L1 chains skip the raw receipt; anything else is read, since
+        // the receipt's own l1Fee / gasUsedForL1 fields decide the split
+        if FeeModel::known(chain_id) == Some(FeeModel::L1) {
             let (Some(price), Some(fee)) = (&analysis.effective_gas_price, &analysis.fee_wei)
             else {
                 return;
@@ -1283,8 +1285,7 @@ pub fn format_analysis(analysis: &TransactionAnalysis) -> String {
     match &analysis.fee_breakdown {
         Some(b) if b.l1_fee_wei.is_some() => {
             output.push_str(&format!("Fee: {} ({})\n", b.total_fee, b.model));
-            // Every rollup with an L1 data fee here pays gas in ETH
-            for line in b.lines("ETH") {
+            for line in b.lines(&b.native_symbol) {
                 output.push_str(&line);
                 output.push('\n');
             }

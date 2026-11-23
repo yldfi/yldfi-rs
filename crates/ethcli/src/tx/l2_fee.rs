@@ -30,18 +30,43 @@ pub enum FeeModel {
     OpStack,
     /// Arbitrum Nitro: L1 portion included in `gasUsed`
     Arbitrum,
+    /// A rollup whose L1 fee cannot be estimated here (Mantle)
+    Unsupported,
 }
 
+/// Mantle has the GasPriceOracle predeploy and OP-style receipts, but pays
+/// gas in MNT and scales the L1 fee by a `tokenRatio`, so `getL1Fee` cannot
+/// be used as-is for an estimate. Its receipts (`l1Fee` already in MNT, plus
+/// the operator fee) are still read for mined transactions.
+pub const MANTLE_CHAIN_ID: u64 = 5000;
+
 impl FeeModel {
-    pub fn for_chain_id(chain_id: u64) -> Self {
+    /// Fast path: chains whose model is known without asking the chain.
+    /// `None` means detect it (GasPriceOracle code check).
+    pub fn known(chain_id: u64) -> Option<Self> {
         match chain_id {
             // Optimism, Base, Zora, Mode, Fraxtal, Unichain, World Chain,
             // Ink, Soneium, BOB, Lisk, Blast
             10 | 8453 | 7777777 | 34443 | 252 | 130 | 480 | 57073 | 1868 | 60808 | 1135 | 81457 => {
-                FeeModel::OpStack
+                Some(FeeModel::OpStack)
             }
             // Arbitrum One, Arbitrum Nova
-            42161 | 42170 => FeeModel::Arbitrum,
+            42161 | 42170 => Some(FeeModel::Arbitrum),
+            MANTLE_CHAIN_ID => Some(FeeModel::Unsupported),
+            // Ethereum, Polygon, BNB Chain, Avalanche, Gnosis, Fantom
+            1 | 137 | 56 | 43114 | 100 | 250 => Some(FeeModel::L1),
+            _ => None,
+        }
+    }
+
+    /// The model from the fast path, else from whether the GasPriceOracle
+    /// predeploy has code (`None`: the check failed, assume no L1 fee)
+    pub fn decide(chain_id: u64, oracle_has_code: Option<bool>) -> Self {
+        if let Some(m) = Self::known(chain_id) {
+            return m;
+        }
+        match oracle_has_code {
+            Some(true) => FeeModel::OpStack,
             _ => FeeModel::L1,
         }
     }
@@ -51,12 +76,41 @@ impl FeeModel {
             FeeModel::L1 => "l1",
             FeeModel::OpStack => "op-stack",
             FeeModel::Arbitrum => "arbitrum",
+            FeeModel::Unsupported => "unsupported",
         }
     }
 
     pub fn is_l2(&self) -> bool {
         !matches!(self, FeeModel::L1)
     }
+}
+
+static DETECTED: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<u64, FeeModel>>> =
+    std::sync::OnceLock::new();
+
+/// The fee model of `chain`, checking for the GasPriceOracle predeploy when
+/// the chain is not in the known list. Cached per chain id for the process.
+pub async fn detect_model<P: alloy::providers::Provider>(chain_id: u64, provider: &P) -> FeeModel {
+    if let Some(m) = FeeModel::known(chain_id) {
+        return m;
+    }
+    let cache = DETECTED.get_or_init(Default::default);
+    if let Some(m) = cache.lock().ok().and_then(|c| c.get(&chain_id).copied()) {
+        return m;
+    }
+    let has_code = provider
+        .get_code_at(OP_GAS_PRICE_ORACLE)
+        .await
+        .ok()
+        .map(|code| !code.is_empty());
+    let model = FeeModel::decide(chain_id, has_code);
+    // A failed check is not cached, so the next call tries again
+    if has_code.is_some() {
+        if let Ok(mut c) = cache.lock() {
+            c.insert(chain_id, model);
+        }
+    }
+    model
 }
 
 /// A fee split into execution and L1 data parts
@@ -92,6 +146,13 @@ pub struct FeeBreakdown {
     pub l1_base_fee_scalar: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub l1_blob_base_fee_scalar: Option<u64>,
+    /// OP-stack operator fee (Isthmus and later), in wei; included in the
+    /// total. Absent when the chain charges none
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operator_fee_wei: Option<String>,
+    /// Symbol of the token the fees are paid in
+    #[serde(default)]
+    pub native_symbol: String,
     /// Fees in USD, when a native token price was available
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usd: Option<FeeUsd>,
@@ -164,60 +225,75 @@ impl FeeBreakdown {
             l1_blob_base_fee_wei: None,
             l1_base_fee_scalar: None,
             l1_blob_base_fee_scalar: None,
+            operator_fee_wei: None,
+            native_symbol: String::new(),
             usd: None,
         }
     }
 
     /// Split the fee of a mined transaction from its raw JSON receipt.
     ///
-    /// Returns `None` when `gasUsed` or `effectiveGasPrice` is missing.
+    /// The receipt's own fields decide the model, whatever the chain: an
+    /// `l1Fee` field means OP-stack style (also Mantle, Scroll, ...), a
+    /// `gasUsedForL1` field means Arbitrum. Without either, a known OP-stack
+    /// chain (a deposit transaction) has an L1 fee of zero, and anything
+    /// else has no L1 fee (`null`). Returns `None` when `gasUsed` or
+    /// `effectiveGasPrice` is missing.
     pub fn from_receipt_json(chain_id: u64, receipt: &Value) -> Option<Self> {
-        let model = FeeModel::for_chain_id(chain_id);
         let gas_used = quantity(receipt.get("gasUsed"))?;
         let price = quantity(receipt.get("effectiveGasPrice"))?;
         let gas_used_u64 = u64::try_from(gas_used).ok()?;
-        match model {
-            FeeModel::L1 => Some(Self::new(
-                model,
-                gas_used_u64,
+        let exec = gas_used.saturating_mul(price);
+        let l1_fee = quantity(receipt.get("l1Fee"));
+        let for_l1 = quantity(receipt.get("gasUsedForL1"));
+        let mut b = if let Some(l1_fee) = l1_fee {
+            let mut b = Self::new(FeeModel::OpStack, gas_used_u64, price, exec, Some(l1_fee));
+            b.l1_gas_used = to_u64(quantity(receipt.get("l1GasUsed")));
+            b.l1_gas_price_wei = quantity(receipt.get("l1GasPrice")).map(|v| v.to_string());
+            b.l1_blob_base_fee_wei = quantity(receipt.get("l1BlobBaseFee")).map(|v| v.to_string());
+            b.l1_base_fee_scalar = to_u64(quantity(receipt.get("l1BaseFeeScalar")));
+            b.l1_blob_base_fee_scalar = to_u64(quantity(receipt.get("l1BlobBaseFeeScalar")));
+            if let Some(op) = operator_fee(receipt, gas_used) {
+                b.add_operator_fee(op);
+            }
+            b
+        } else if let Some(for_l1) = for_l1 {
+            let for_l1 = for_l1.min(gas_used);
+            let exec_gas = gas_used - for_l1;
+            let mut b = Self::new(
+                FeeModel::Arbitrum,
+                u64::try_from(exec_gas).ok()?,
                 price,
-                gas_used.saturating_mul(price),
-                None,
-            )),
-            FeeModel::OpStack => {
+                exec_gas.saturating_mul(price),
+                Some(for_l1.saturating_mul(price)),
+            );
+            b.l1_gas_used = to_u64(Some(for_l1));
+            b
+        } else {
+            match FeeModel::known(chain_id) {
                 // Deposit transactions carry no l1Fee: they pay nothing on L2
-                let l1_fee = quantity(receipt.get("l1Fee")).unwrap_or(U256::ZERO);
-                let mut b = Self::new(
-                    model,
+                Some(FeeModel::OpStack) => Self::new(
+                    FeeModel::OpStack,
                     gas_used_u64,
                     price,
-                    gas_used.saturating_mul(price),
-                    Some(l1_fee),
-                );
-                b.l1_gas_used = to_u64(quantity(receipt.get("l1GasUsed")));
-                b.l1_gas_price_wei = quantity(receipt.get("l1GasPrice")).map(|v| v.to_string());
-                b.l1_blob_base_fee_wei =
-                    quantity(receipt.get("l1BlobBaseFee")).map(|v| v.to_string());
-                b.l1_base_fee_scalar = to_u64(quantity(receipt.get("l1BaseFeeScalar")));
-                b.l1_blob_base_fee_scalar = to_u64(quantity(receipt.get("l1BlobBaseFeeScalar")));
-                Some(b)
+                    exec,
+                    Some(U256::ZERO),
+                ),
+                _ => Self::new(FeeModel::L1, gas_used_u64, price, exec, None),
             }
-            FeeModel::Arbitrum => {
-                let for_l1 = quantity(receipt.get("gasUsedForL1"))
-                    .unwrap_or(U256::ZERO)
-                    .min(gas_used);
-                let exec_gas = gas_used - for_l1;
-                let mut b = Self::new(
-                    model,
-                    u64::try_from(exec_gas).ok()?,
-                    price,
-                    exec_gas.saturating_mul(price),
-                    Some(for_l1.saturating_mul(price)),
-                );
-                b.l1_gas_used = to_u64(Some(for_l1));
-                Some(b)
-            }
-        }
+        };
+        b.native_symbol = crate::config::Chain::from_chain_id(chain_id)
+            .native_symbol()
+            .to_string();
+        Some(b)
+    }
+
+    /// Add an operator fee to the total
+    fn add_operator_fee(&mut self, fee: U256) {
+        let total = Self::wei(&self.total_fee_wei).saturating_add(fee);
+        self.total_fee_wei = total.to_string();
+        self.total_fee = format_native(total);
+        self.operator_fee_wei = Some(fee.to_string());
     }
 
     pub fn total_wei(&self) -> U256 {
@@ -268,6 +344,12 @@ impl FeeBreakdown {
             }
             None => out.push("  L1 data:   n/a (not a rollup)".to_string()),
         }
+        if let Some(op) = self.operator_fee_wei.as_deref() {
+            out.push(format!(
+                "  Operator:  {} {symbol}",
+                format_native(Self::wei(op))
+            ));
+        }
         out.push(format!(
             "  Total:     {} {symbol}{}",
             self.total_fee,
@@ -282,6 +364,32 @@ impl FeeBreakdown {
         }
         out
     }
+}
+
+/// The OP-stack operator fee from a receipt's `operatorFeeScalar` and
+/// `operatorFeeConstant`, or `None` when absent or zero.
+///
+/// Isthmus: `gasUsed * scalar / 1e6 + constant`. Jovian changed it to
+/// `gasUsed * scalar * 100 + constant`; Jovian receipts are recognised by
+/// their `daFootprintGasScalar` field. Checked against a live Mantle receipt,
+/// where the balance change matched execution + l1Fee + this fee exactly.
+pub fn operator_fee(receipt: &Value, gas_used: U256) -> Option<U256> {
+    let scalar = quantity(receipt.get("operatorFeeScalar"));
+    let constant = quantity(receipt.get("operatorFeeConstant"));
+    if scalar.is_none() && constant.is_none() {
+        return None;
+    }
+    let scalar = scalar.unwrap_or(U256::ZERO);
+    let constant = constant.unwrap_or(U256::ZERO);
+    let variable = if receipt.get("daFootprintGasScalar").is_some() {
+        gas_used
+            .saturating_mul(scalar)
+            .saturating_mul(U256::from(100))
+    } else {
+        gas_used.saturating_mul(scalar) / U256::from(1_000_000)
+    };
+    let fee = variable.saturating_add(constant);
+    (!fee.is_zero()).then_some(fee)
 }
 
 /// USD with enough digits for sub-cent fees
@@ -357,11 +465,57 @@ mod tests {
 
     #[test]
     fn model_by_chain() {
-        assert_eq!(FeeModel::for_chain_id(1), FeeModel::L1);
-        assert_eq!(FeeModel::for_chain_id(10), FeeModel::OpStack);
-        assert_eq!(FeeModel::for_chain_id(8453), FeeModel::OpStack);
-        assert_eq!(FeeModel::for_chain_id(42161), FeeModel::Arbitrum);
-        assert!(!FeeModel::for_chain_id(137).is_l2());
+        // Fast path ignores the code check
+        assert_eq!(FeeModel::decide(1, Some(true)), FeeModel::L1);
+        assert_eq!(FeeModel::decide(10, None), FeeModel::OpStack);
+        assert_eq!(FeeModel::decide(8453, Some(false)), FeeModel::OpStack);
+        assert_eq!(FeeModel::decide(42161, Some(true)), FeeModel::Arbitrum);
+        assert_eq!(FeeModel::decide(5000, Some(true)), FeeModel::Unsupported);
+        assert!(!FeeModel::decide(137, None).is_l2());
+        // Unknown chains: GasPriceOracle code decides; a failed check is L1
+        assert_eq!(FeeModel::known(424242), None);
+        assert_eq!(FeeModel::decide(424242, Some(true)), FeeModel::OpStack);
+        assert_eq!(FeeModel::decide(424242, Some(false)), FeeModel::L1);
+        assert_eq!(FeeModel::decide(424242, None), FeeModel::L1);
+    }
+
+    #[test]
+    fn receipt_fields_win_over_chain() {
+        // An l1Fee on a chain outside the known list is still an L1 fee
+        let r = json!({"gasUsed": "0x10", "effectiveGasPrice": "0x2", "l1Fee": "0x5"});
+        let b = FeeBreakdown::from_receipt_json(424242, &r).unwrap();
+        assert_eq!(b.model, "op-stack");
+        assert_eq!(b.total_fee_wei, "37");
+        let r = json!({"gasUsed": "0x10", "effectiveGasPrice": "0x2", "gasUsedForL1": "0x4"});
+        let b = FeeBreakdown::from_receipt_json(424242, &r).unwrap();
+        assert_eq!(b.model, "arbitrum");
+        assert_eq!(b.l1_fee_wei.as_deref(), Some("8"));
+        assert_eq!(b.total_fee_wei, "32");
+    }
+
+    #[test]
+    fn mantle_receipt_with_operator_fee() {
+        // Live Mantle receipt; the sender's balance fell by 10362190230404321
+        let r = json!({
+            "gasUsed": "0x29223", "effectiveGasPrice": "0xba43cfaa0",
+            "l1Fee": "0xe6472d998d01", "l1GasUsed": "0xc72",
+            "operatorFeeConstant": "0x0", "operatorFeeScalar": "0x5f5e100",
+            "daFootprintGasScalar": "0x190", "tokenRatio": "0x1115"
+        });
+        let b = FeeBreakdown::from_receipt_json(5000, &r).unwrap();
+        assert_eq!(b.operator_fee_wei.as_deref(), Some("1684830000000000"));
+        assert_eq!(b.total_fee_wei, "10362190230404321");
+        assert_eq!(b.native_symbol, "MNT");
+    }
+
+    #[test]
+    fn isthmus_operator_fee() {
+        let r = json!({"operatorFeeScalar": "0xf4240", "operatorFeeConstant": "0x7"});
+        // 1e6 scalar / 1e6 = 1 per gas
+        assert_eq!(operator_fee(&r, U256::from(100)), Some(U256::from(107)));
+        assert_eq!(operator_fee(&json!({}), U256::from(100)), None);
+        let zero = json!({"operatorFeeScalar": "0x0", "operatorFeeConstant": "0x0"});
+        assert_eq!(operator_fee(&zero, U256::from(100)), None);
     }
 
     #[test]
