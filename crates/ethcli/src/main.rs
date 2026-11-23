@@ -123,28 +123,93 @@ impl<W: std::io::Write> std::io::Write for RedactingWriter<W> {
 
 #[tokio::main]
 async fn main() {
-    if let Err(e) = run().await {
+    let args: Vec<String> = std::env::args().collect();
+    let json_errors = ethcli::agent_output::json_output_requested(&args);
+
+    // `--fields`: run this binary again with JSON output, then project its stdout
+    if std::env::var_os(ethcli::agent_output::FIELDS_CHILD_ENV).is_none() {
+        let (rest, spec) = ethcli::agent_output::take_fields_arg(args.clone());
+        if let Some(spec) = spec {
+            let code = run_with_fields(rest, &spec).unwrap_or_else(|e| {
+                report_error(&e, true);
+                1
+            });
+            std::process::exit(code);
+        }
+    }
+
+    if let Err(e) = run(args).await {
+        report_error(&e, json_errors);
+        std::process::exit(1);
+    }
+}
+
+/// Print a failure: one JSON object when the output is JSON, text otherwise.
+fn report_error(e: &anyhow::Error, json: bool) {
+    if json {
+        eprintln!("{}", ethcli::agent_output::error_json(e));
+    } else {
         // Error chains (notably reqwest's) embed full request URLs, which may
         // carry API keys or basic-auth credentials. Redact before printing.
         eprintln!(
             "Error: {}",
             ethcli::utils::url::redact_urls_in_text(&format!("{e:?}"))
         );
-        std::process::exit(1);
     }
+}
+
+/// Run the command without `--fields` (and with `--json`) as a child process,
+/// keep only the listed fields of its JSON stdout, and return its exit code.
+/// Re-running the binary captures every `println!` without changing the
+/// commands, and works on every platform.
+fn run_with_fields(args: Vec<String>, spec: &str) -> anyhow::Result<i32> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let paths = ethcli::agent_output::parse_fields(spec)
+        .map_err(|e| anyhow::Error::new(ethcli::agent_output::UsageError(e.to_string())))?;
+    let args = ethcli::agent_output::with_json_flag(args);
+    let output = Command::new(std::env::current_exe()?)
+        .args(&args[1..])
+        .env(ethcli::agent_output::FIELDS_CHILD_ENV, "1")
+        .stdin(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .stdout(Stdio::piped())
+        .output()?;
+    let code = output.status.code().unwrap_or(1);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut out = std::io::stdout().lock();
+    if output.status.success() {
+        out.write_all(ethcli::agent_output::project_output(&stdout, &paths)?.as_bytes())?;
+    } else {
+        // The child has already reported its error; pass its output through
+        out.write_all(stdout.as_bytes())?;
+    }
+    out.flush()?;
+    Ok(code)
 }
 
 // The dispatch below uses early `return` for uniformity across arms.
 #[allow(clippy::needless_return)]
-async fn run() -> anyhow::Result<()> {
+async fn run(args: Vec<String>) -> anyhow::Result<()> {
     // Handle --help-json before clap parsing
     // This allows us to output JSON schema without normal argument validation
-    let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--help-json") {
         return handle_help_json(&args);
     }
 
-    let cli = Cli::parse_from(ethcli::cli::expand_json_flag(args));
+    let json_errors = ethcli::agent_output::json_output_requested(&args);
+    let cli = match Cli::try_parse_from(ethcli::cli::expand_json_flag(args)) {
+        Ok(cli) => cli,
+        // Usage errors as JSON; help and --version print as usual
+        Err(e) if json_errors && e.use_stderr() => {
+            let text = e.to_string();
+            let first = text.lines().next().unwrap_or_default();
+            let msg = first.trim_start_matches("error: ").to_string();
+            return Err(anyhow::Error::new(ethcli::agent_output::UsageError(msg)));
+        }
+        Err(e) => e.exit(),
+    };
 
     // Set up logging
     let filter = match cli.verbose {

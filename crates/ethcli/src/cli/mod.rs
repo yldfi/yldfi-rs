@@ -153,6 +153,12 @@ pub struct Cli {
     /// Suppress progress output
     #[arg(short, long, global = true)]
     pub quiet: bool,
+
+    /// Keep only these fields of the JSON output (comma-separated, dot paths
+    /// such as `balance.wei`; applied to each element of an array). Implies
+    /// --json; errors if the command has no JSON output
+    #[arg(long, global = true, value_name = "FIELDS")]
+    pub fields: Option<String>,
 }
 
 /// Resolve the chain ID for a command that has its own optional `--chain-id`

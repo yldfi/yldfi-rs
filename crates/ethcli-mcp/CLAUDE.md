@@ -99,6 +99,9 @@ When adding a tool, decide whether it is safe in default read-only mode:
 - Use `ExecutionError` for subprocess errors
 - Use `ValidationError` for input validation
 - Always sanitize error messages before returning
+- Tools that pass `-o json` get ethcli's JSON error line on stderr;
+  `sanitize_error` turns it into `Error [<code>]: <message> (hint: <hint>)`
+  so the stable code reaches the client
 
 ### Security Controls
 

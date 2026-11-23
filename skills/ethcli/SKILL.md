@@ -46,6 +46,14 @@ single facts.
   spreadsheets, but it cannot say whether an `--all` history is complete.) Integers are decimal strings,
   because a uint256 does not fit a JSON number. Do not pipe text output
   through `tail`, `sed`, `awk` or `grep`.
+- **Ask only for the fields you need.** `--fields hash,value` (dot paths
+  such as `balance.wei`; applied to each row of an array) trims JSON output
+  and implies `--json`: `ethcli account txs <addr> --fields hash,value`.
+- **Read JSON errors by code.** With JSON output a failure is one stderr line,
+  `{"error":{"code","message","hint"}}`, exit code non-zero. Codes:
+  `invalid_argument`, `not_verified` (try `contract source` / `contract inspect`),
+  `missing_api_key`, `unauthorized`, `rate_limited`, `unsupported_chain`,
+  `not_found`, `rpc_error`, `internal`. Follow `hint` when present.
 - **Give return types to `rpc multicall` and `rpc call`.** Write
   `balanceOf(address)(uint256)`, or pass `-d uint256`, and the result comes
   back decoded.

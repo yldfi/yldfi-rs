@@ -262,6 +262,21 @@ It replaces the usual chain of `rpc code`, `contract selectors`, `contract abi`,
   stderr.
 - Integers are decimal strings, since a uint256 does not fit a JSON number.
 - `account` subcommands accept `-o ndjson` for one object per line.
+- `--fields a,b.c` (global) keeps only those fields of JSON / NDJSON output:
+  dot paths into nested objects, applied to each element of an array, missing
+  fields left out. It implies `--json`; if the command still prints text
+  (no JSON output, or an explicit `-o table`) it fails with `invalid_argument`.
+  Mechanism (`src/agent_output.rs`, `main.rs`): `main` re-runs the binary
+  without `--fields` and with `--json` (env `ETHCLI_FIELDS_INNER=1`), captures
+  its stdout and projects it, so no command needs changes.
+- JSON errors: when the command line asks for JSON (`--json`, `-o json`,
+  `--format ndjson`, `--fields`), a failure prints one line on stderr,
+  `{"error":{"code":"...","message":"...","hint":"..."}}` (`hint` optional,
+  message redacted), exit code 1. Codes come from `agent_output::classify`:
+  `invalid_argument` (incl. clap usage errors), `not_verified`,
+  `missing_api_key`, `unauthorized`, `rate_limited`, `unsupported_chain`,
+  `not_found`, `rpc_error`, `internal`. Text-mode errors are unchanged. A
+  command that prints JSON by default without a flag still reports text errors.
 
 ### Times in place of blocks
 

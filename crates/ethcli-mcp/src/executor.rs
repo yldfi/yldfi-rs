@@ -537,8 +537,13 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
     // Extract useful error info without exposing sensitive details
     // The command's own error comes first, so warnings can't push it past the
     // length limit.
-    let (errors, others): (Vec<&str>, Vec<&str>) = stderr
-        .lines()
+    // ethcli prints a JSON error object (`{"error": {"code", ...}}`) when run
+    // with `-o json`; turn it into one readable line that keeps the stable
+    // code, so it can be filtered and cut like any other line.
+    let lines: Vec<String> = stderr.lines().map(json_error_line).collect();
+    let (errors, others): (Vec<&str>, Vec<&str>) = lines
+        .iter()
+        .map(String::as_str)
         .partition(|line| line.trim_start().starts_with("Error"));
     for line in errors.into_iter().chain(others).chain(stdout.lines()) {
         // Transport errors quote request URLs, which can carry API keys
@@ -604,6 +609,25 @@ fn sanitize_error(stderr: &str, stdout: &str) -> String {
         "Command failed".to_string()
     } else {
         message
+    }
+}
+
+/// `{"error":{"code":"not_verified","message":"m","hint":"h"}}` becomes
+/// `Error [not_verified]: m (hint: h)`; any other line is returned unchanged.
+fn json_error_line(line: &str) -> String {
+    let parsed = serde_json::from_str::<serde_json::Value>(line.trim()).ok();
+    let Some(error) = parsed.as_ref().and_then(|v| v.get("error")) else {
+        return line.to_string();
+    };
+    let (Some(code), Some(message)) = (
+        error.get("code").and_then(|c| c.as_str()),
+        error.get("message").and_then(|m| m.as_str()),
+    ) else {
+        return line.to_string();
+    };
+    match error.get("hint").and_then(|h| h.as_str()) {
+        Some(hint) => format!("Error [{code}]: {message} (hint: {hint})"),
+        None => format!("Error [{code}]: {message}"),
     }
 }
 
@@ -1992,6 +2016,21 @@ mod tests {
         ] {
             assert!(!only_names_api_key(text), "should be redacted: {text}");
         }
+    }
+
+    #[test]
+    fn test_sanitize_error_reads_json_errors() {
+        let stderr = "Fetching ABI...\n{\"error\":{\"code\":\"not_verified\",\"hint\":\"try contract source\",\"message\":\"Contract not verified on Etherscan: 0x01\"}}";
+        assert_eq!(
+            sanitize_error(stderr, ""),
+            "Error [not_verified]: Contract not verified on Etherscan: 0x01 (hint: try contract source); Fetching ABI..."
+        );
+        let no_hint = "{\"error\":{\"code\":\"not_found\",\"message\":\"Transaction not found\"}}";
+        assert_eq!(
+            sanitize_error(no_hint, ""),
+            "Error [not_found]: Transaction not found"
+        );
+        assert_eq!(json_error_line("{\"a\":1}"), "{\"a\":1}");
     }
 
     #[test]

@@ -28,6 +28,7 @@
 //! ```
 
 pub mod abi;
+pub mod agent_output;
 pub mod aggregator;
 pub mod bytecode;
 pub mod chainlink;

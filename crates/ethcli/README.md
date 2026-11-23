@@ -367,6 +367,15 @@ ethcli rpc multicall -f calls.txt --block-range 21000000:21070000:7200 -o json
 # JSON from any command: --json selects the command's JSON output
 ethcli rpc call 0x... -s "totalSupply()" -d uint256 --json
 
+# Only some fields (implies --json; dot paths; applied to each array element)
+ethcli account txs 0x... --fields hash,value
+ethcli contract inspect 0x... --fields address,proxy,balance.wei
+
+# With JSON output, errors are one JSON line on stderr (non-zero exit):
+# {"error":{"code":"not_verified","message":"...","hint":"..."}}
+# codes: invalid_argument, not_verified, missing_api_key, unauthorized,
+# rate_limited, unsupported_chain, not_found, rpc_error, internal
+
 # Chain info
 ethcli rpc chain-id
 ethcli rpc block-number

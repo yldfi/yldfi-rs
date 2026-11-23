@@ -150,7 +150,14 @@ ethcli rpc multicall "<addr> pricePerShare()(uint256)" --block-range 21000000:21
 
 `--json` works on every command: it selects JSON on commands that have an
 output option (`-o json`) and is ignored, with a note, on those that do not.
-No `--rpc-url` is needed for past blocks or traces: an archive or
+`--fields a,b.c` keeps only those fields of the JSON or NDJSON output (dot
+paths into nested objects, applied to each element of an array; missing fields
+are left out). It implies `--json` and fails with `invalid_argument` when the
+command prints no JSON. With JSON output a failure prints one line on stderr,
+`{"error":{"code":"...","message":"...","hint":"..."}}` (`hint` optional), and
+exits non-zero. Codes: `invalid_argument`, `not_verified`, `missing_api_key`,
+`unauthorized`, `rate_limited`, `unsupported_chain`, `not_found`, `rpc_error`,
+`internal`. No `--rpc-url` is needed for past blocks or traces: an archive or
 debug-capable endpoint is chosen automatically. The JSON-RPC method names
 (`eth_getTransactionReceipt`, `eth_getBalance`, ...) are accepted as aliases
 of the `rpc` subcommands.
