@@ -54,6 +54,7 @@ const CORE_TOOLS: &[&str] = &[
     "rpc_call",
     "rpc_balance",
     "rpc_block_at",
+    "rpc_find_change",
     "rpc_code_summary",
     "logs",
     "token_info",
@@ -887,6 +888,27 @@ impl EthcliMcpServer {
         tools::rpc_block_at(&input.time, Some(&input.chain))
             .await
             .to_response()
+    }
+
+    #[tool(
+        description = "Find the block where a value changed, by binary search over blocks (about log2(range) reads; needs an archive endpoint for old blocks). target: call (value = \"<address> <signature> [args...]\" with return types, e.g. balanceOf(address)(uint256)), balance, storage (with slot), code (deployment) or nonce. Returns the first block in (from, to] where the value differs from its value at `from`, with time, old and new values, top-level transactions to or from the address, and rpc_calls. Assumes one change: without all it finds a boundary, not necessarily the first change (single_change_assumed=true, note). When the first change matters set all=true and read changes[0]; a warning field means the value changed several times",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn rpc_find_change(
+        &self,
+        Parameters(input): Parameters<RpcFindChangeInput>,
+    ) -> CallToolResult {
+        tools::rpc_find_change(
+            &input.target,
+            &input.value,
+            input.slot.as_deref(),
+            &input.from,
+            input.to.as_deref(),
+            input.all,
+            Some(&input.chain),
+        )
+        .await
+        .to_response()
     }
 
     #[tool(
@@ -1855,6 +1877,27 @@ impl EthcliMcpServer {
             input.block.as_deref(),
             input.rpc_url.as_deref(),
             input.human,
+        )
+        .await
+        .to_response()
+    }
+
+    #[tool(
+        description = "Read a contract storage variable by name, decoded, from its verified storage layout (Sourcify), at an optional block or time. Handles packed values, mappings (nested; address, uint, int, bool, bytesN and string keys), fixed and dynamic arrays, structs (whole or one member) and strings/bytes. Proxies are followed: the implementation's layout, the proxy's storage. Use it for state no getter exposes; list=true shows the layout. Without a layout (older compilers, Vyper, unverified) it fails: use rpc_storage with a slot and cast_index for mapping slots",
+        annotations(read_only_hint = true, open_world_hint = true)
+    )]
+    async fn contract_storage(
+        &self,
+        Parameters(input): Parameters<ContractStorageInput>,
+    ) -> CallToolResult {
+        tools::contract_storage(
+            &input.address,
+            input.variable.as_deref(),
+            input.keys,
+            input.list,
+            Some(&input.chain),
+            input.block.as_deref(),
+            input.rpc_url.as_deref(),
         )
         .await
         .to_response()
@@ -5216,9 +5259,9 @@ impl EthcliMcpServer {
     )]
     async fn moralis_wallet_active_chains(
         &self,
-        Parameters(input): Parameters<MoralisAddressInput>,
+        Parameters(input): Parameters<MoralisWalletActiveChainsInput>,
     ) -> CallToolResult {
-        tools::moralis_wallet_active_chains(&input.address, Some(input.chain.as_str()))
+        tools::moralis_wallet_active_chains(&input.address, input.chains.as_deref())
             .await
             .to_response()
     }

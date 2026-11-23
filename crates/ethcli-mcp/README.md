@@ -113,7 +113,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `lifi_*` | 19 | Cross-chain quotes, bridges, chains, transfers |
 | `curve_*` | 10 | Pools, routing, lending |
 | `uniswap_*` | 9 | V2/V3/V4 pool queries |
-| `rpc_*` | 14 | Direct blockchain calls |
+| `rpc_*` | 15 | Direct blockchain calls |
 | `tenderly_*` | 34 | Simulation, VNets (CRUD + Admin RPC + RPC Simulation) |
 | `cowswap_*` | 16 | MEV-protected trading |
 | `account_*` | 10 | Balance, transactions |
@@ -183,6 +183,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 | `rpc_tx` | A transaction by hash |
 | `rpc_code_summary` | Whether an address has code, its size and code hash, and any EIP-7702 delegate, without the bytecode |
 | `rpc_block_at` | The block for a date, Unix timestamp (`@1706700000`) or age (`7d`) |
+| `rpc_find_change` | The block where a call result, balance, storage slot, code or nonce changed (binary search) |
 | `sig_lookup` | A signature from a 4-byte selector or 32-byte topic |
 | `sig_error` | Decoded revert data: `Error(string)`, `Panic(uint256)` or a custom error |
 | `safe_info` | Safe owners, threshold, nonce, version, modules, guard and fallback handler, read on chain |

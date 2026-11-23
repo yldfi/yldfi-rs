@@ -133,6 +133,34 @@ ethcli rpc balance <addr> --block 2024-01-31
 ethcli contract call <addr> totalSupply --block 7d
 ```
 
+### `rpc find-change`: when did a value change
+
+```bash
+ethcli rpc find-change --code <addr> --from 6000000                 # deployment block
+ethcli rpc find-change "<token> balanceOf(address)(uint256) <holder>" --from 2024-01-01 --json
+ethcli rpc find-change --nonce <addr> --from 30d --all
+ethcli rpc find-change --storage <addr> <slot> --from <block> --to <block>
+```
+
+- Exactly one target: a call (as in `rpc multicall`), `--balance`, `--storage
+  <addr> <slot>`, `--code` or `--nonce`. `--from` and `--to` take a block, a
+  time or (`--to` only, the default) `latest`.
+- Reads the value at `--from`, then binary-searches `(from, to]` for the first
+  block where it differs: about log2(to - from) reads (24 for a million
+  blocks). The output gives `rpc_calls`.
+- Assumes one change in the range. With several it finds one boundary, not
+  necessarily the first. `--all` searches again after each change (up to 100);
+  a change that is undone inside a segment is still missed.
+- The JSON always has `single_change_assumed` (`true` without `--all`). A plain
+  result carries a `note` saying it may not be the first change. When `--all`
+  finds more than one change it adds a `warning` (also on stderr): the plain
+  result for that range may not have been the first change. **If the first
+  change matters, use `--all` and take `changes[0]`.**
+- Needs historical state; an archive endpoint is chosen for old blocks. If no
+  endpoint can read state at `--from` the error says so.
+- `transactions` lists top-level transactions in that block sent from or to
+  the address. Internal calls and contract creations are not listed.
+
 ### `tx`: one call for a transaction
 
 `ethcli tx <hash>` returns the decoded call, events and token transfers, and also:
@@ -286,6 +314,42 @@ ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset t
   (`operation(1) to(20) value(32) length(32) data`) are unpacked and each
   inner call decoded in `safe tx`; lists show the inner call count only.
 
+### `contract storage`
+
+Reads a storage variable by name, decoded, using the compiler's storage layout
+from Sourcify. Useful for state that has no getter.
+
+```bash
+ethcli contract storage <addr> --list                       # name, slot, offset, type
+ethcli contract storage <addr> totalSupply_
+ethcli contract storage <addr> allowed <owner> <spender>    # nested mapping
+ethcli contract storage <addr> "poolInfo[3].gauge"          # array of structs, one member
+ethcli contract storage <addr> slot0 --block 7d -o json     # whole struct
+```
+
+- Steps after the name are taken by type: a mapping takes a key, an array an
+  index, a struct a member name. They can be extra arguments or written in the
+  path (`name[key].member`).
+- Keys: address, uint, int (negative allowed), bool, bytesN, string and bytes,
+  hashed per Solidity rules. Other key types need the 32-byte key as hex.
+  Keys are range-checked against the key type; a hex intN key is read as that
+  type's two's complement (`0xf2761a` is int24 -887270); bytesN keys must be
+  exactly N bytes.
+- Dynamic array indexes are checked against the stored length.
+- When several variables share a name (`__gap`, private variables of
+  different base contracts) the command lists them; pick one with
+  `name@slot` or `Contract.name`.
+- A whole struct prints all members; a dynamic array prints its length and
+  the first 32 elements; a mapping needs a key.
+- Proxies (EIP-1967, beacon, legacy OpenZeppelin, EIP-1167, Safe): the
+  implementation's layout is used and the proxy's storage is read. JSON
+  `layout_from` says which layout was used.
+- One block is pinned for every read; `--block` takes a time like the other
+  commands.
+- No layout (older compilers, Vyper, not on Sourcify): it fails and points to
+  `rpc storage` and `cast index`. Namespaced storage (ERC-7201), diamonds,
+  immutables and constants are not in the layout and cannot be read this way.
+
 ### `rpc multicall`
 
 - Each call is `<address> <signature> [args...]`. Return types in the signature
@@ -312,7 +376,7 @@ ethcli safe history <safe> --limit 20   # executed txs, newest first (--offset t
 ### Times in place of blocks
 
 `--block` on `rpc call`, `storage`, `code`, `nonce`, `balance`, `block`,
-`multicall` and on `contract call` accepts:
+`multicall` and on `contract call` and `contract storage` accepts:
 
 | Form | Example |
 |---|---|

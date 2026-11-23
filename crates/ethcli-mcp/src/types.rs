@@ -599,6 +599,30 @@ pub struct RpcBlockAtInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RpcFindChangeInput {
+    /// What to watch: "call", "balance", "storage", "code" or "nonce"
+    pub target: String,
+    /// For "call": "<address> <signature> [args...]", with return types to
+    /// decode, e.g. "0xToken balanceOf(address)(uint256) 0xHolder".
+    /// Otherwise the address
+    pub value: String,
+    /// Storage slot (hex or decimal), for target "storage"
+    #[serde(default)]
+    pub slot: Option<String>,
+    /// Start: block number or a time ("2024-01-31", "@1706700000", "30d")
+    pub from: String,
+    /// End: block number, a time or "latest" (default: latest)
+    #[serde(default)]
+    pub to: Option<String>,
+    /// Report every change (up to 100), not just one boundary
+    #[serde(default)]
+    pub all: bool,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RpcBalanceInput {
     /// Account address
     pub address: String,
@@ -1229,6 +1253,28 @@ pub struct ContractCallInput {
     /// Format output for human readability (commas in numbers, token decimals)
     #[serde(default)]
     pub human: bool,
+}
+
+// --- Contract Storage ---
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContractStorageInput {
+    /// Contract address. For a proxy, the implementation's layout is used and the proxy's storage is read
+    pub address: String,
+    /// Variable name, optionally with a path: "totalSupply", "slot0.tick", "allowed[0xOwner][0xSpender]", "poolInfo[3].gauge". Omit with list=true
+    pub variable: Option<String>,
+    /// Further mapping keys, array indexes and struct member names, in order (alternative to writing them in the path)
+    #[serde(default)]
+    pub keys: Vec<String>,
+    /// List the storage layout (name, slot, offset, type) instead of reading a variable
+    #[serde(default)]
+    pub list: bool,
+    /// Chain name
+    #[serde(default = "default_chain")]
+    pub chain: String,
+    /// Block number, tag, date (2024-01-31), @timestamp or age (7d). Default: latest
+    pub block: Option<String>,
+    /// Custom RPC URL (overrides config)
+    pub rpc_url: Option<String>,
 }
 
 // --- Cast Extra ---
@@ -2787,6 +2833,15 @@ pub struct MoralisAddressInput {
     /// Blockchain chain (e.g., eth, polygon, bsc, arbitrum, base, optimism, avalanche). Defaults to eth.
     #[serde(default = "default_moralis_chain")]
     pub chain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MoralisWalletActiveChainsInput {
+    /// Wallet address
+    pub address: String,
+    /// Only check these chains, comma-separated (e.g. "eth,base"; default: the Moralis default set)
+    #[serde(default)]
+    pub chains: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
