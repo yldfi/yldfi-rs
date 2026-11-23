@@ -35,6 +35,9 @@ single facts.
 
 ## Rules
 
+- **Don't read whole sources.** `contract source <addr> --list`, then
+  `--function <name>` or `--grep <regex>`, instead of piping the full source
+  through grep or head.
 - **Ask for JSON.** Add `--json` to any command. (`--csv` exists on
   `account txs`, `internal-txs`, `erc20` and `rpc multicall` for
   spreadsheets, but it cannot say whether an `--all` history is complete.) Integers are decimal strings,

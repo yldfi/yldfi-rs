@@ -40,6 +40,7 @@ pub mod schema;
 pub mod sig;
 pub mod simulate;
 pub mod solodit;
+pub mod source_view;
 pub mod tenderly;
 pub mod token;
 pub mod tx;

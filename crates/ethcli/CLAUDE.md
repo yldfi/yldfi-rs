@@ -1592,6 +1592,9 @@ ethcli contract abi 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 
 # Get verified source code
 ethcli contract source 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+# Only part of it (verified sources can be 100 KB+): --list, --function <name>,
+# --grep <regex>, --file <name>; --file narrows --function and --grep.
+# A shared absolute path prefix from the deployer's machine is stripped.
 
 # Lookup function selector
 ethcli sig fn 0xa9059cbb
